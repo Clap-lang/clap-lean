@@ -1,0 +1,17 @@
+name = "clap"
+version = "0.1.0"
+defaultTargets = ["Clap"]
+
+[[lean_lib]]
+name = "Clap"
+moreLeanArgs = [
+  "-Dlinter.unusedVariables=true",     # Warn on unused variables
+  # "-Dlinter.all=true",                 # Enable all linters
+  "-DautoImplicit=false",              # Disable auto implicit variables
+  "-Dpp.unicode.fun=true",             # Pretty print with unicode
+  "-Dpp.proofs=true",                  # Show proof terms
+]
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"

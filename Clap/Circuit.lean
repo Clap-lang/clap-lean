@@ -1,0 +1,269 @@
+import Mathlib.Data.ZMod.Basic
+-- import Mathlib.Data.ZMod.Defs
+-- import Mathlib.FieldTheory.Finite.Basic -- field operations
+-- import Mathlib.Algebra.Field.Defs
+-- import Mathlib.Algebra.Field.Basic  -- Field typeclass instances
+-- import Mathlib.Data.Set.Basic
+import Mathlib.Tactic.NormNum -- norm_num
+-- import Mathlib.Data.List.Basic
+
+set_option autoImplicit false
+set_option linter.unusedVariables true
+
+/-
+  This file introduces the main data structure of the project, the
+  Circuit. We follow the Phoas (Parametric higher-order abstract
+  syntax) approach developed by Chlipala in his book
+  [CPDT](http://adam.chlipala.net/cpdt/html/Cpdt.ProgLang.html)
+
+  An important distinction is that our language is first-order, our
+  continuations cannot take circuits as argument, they can only take
+  Field element or something equivalent, like an expression.
+  For this reason we have a distinction between Exp, which contains
+  the important constructor `var`, and Circuit, which has continuation
+  that receive `var` as argument.
+
+  We follow the Phoas approach of using type-theoretic semantics where
+  definitional compilers lower our syntax into Lean's objects.
+  See the `denotation` type for more details.
+
+  Importantly the language supports partial functions, as Circuits can
+  have assertions.
+
+  Equality (≈) between circuits is defined over their denotations and
+  it's shown to be a congruence with respect to the Circuit
+  constructors.
+-/
+
+def p : Nat := 7
+abbrev F := ZMod p
+instance : Fact (Nat.Prime p) := ⟨by decide⟩
+
+inductive Exp (var:Type _) where
+  | v : var -> Exp var
+  | c : F -> Exp var
+  | add : Exp var -> Exp var -> Exp var
+  | mul : Exp var -> Exp var -> Exp var
+  | sub : Exp var -> Exp var -> Exp var
+
+def Exp' : Type 1 := (var:Type 0) -> Exp var
+
+def Exp.reprString (e:Exp String) : Std.Format :=
+  match e with
+  | .v s => s!"v{s}"
+  | .c n => repr n
+  | .add e1 e2 => s!"({reprString e1} + {reprString e2})"
+  | .mul e1 e2 => s!"({reprString e1} * {reprString e2})"
+  | .sub e1 e2 => s!"({reprString e1} - {reprString e2})"
+
+instance : Repr (Exp String) where
+  reprPrec e _ := Exp.reprString e
+
+instance : Repr (Exp') where
+  reprPrec e _ := Exp.reprString (e String)
+
+instance (var:Type _) : Add (Exp var) where
+  add a b := .add a b
+
+instance (var:Type _) : Mul (Exp var) where
+  mul a b := .mul a b
+
+instance (var:Type _) : Sub (Exp var) where
+  sub a b := .sub a b
+
+-- we can only substitute F for variables so .v and .c are equivalent, which is ok for evaluation
+example : Exp F := (.c 1) + (.v 2)
+-- we can substitute expressions for variables, which is what we need for optimizations
+example : Exp (Exp F) := (.c 1) + (.v ((.c 2) + (.c 2)))
+
+def eval_e (e: Exp F) : F :=
+  match e with
+  | Exp.v v => v
+  | Exp.c i => i
+  | Exp.add l r => eval_e l + eval_e r
+  | Exp.mul l r => eval_e l * eval_e r
+  | Exp.sub l r => eval_e l - eval_e r
+
+def eval_e' (e:Exp') : F := eval_e (e F)
+
+instance : Coe (Exp F) F where
+  coe := eval_e
+
+instance : Coe F (Exp F) where
+  coe := .c
+
+instance (n:Nat) : OfNat (Exp F) n where
+  ofNat := (↑n:F)
+
+def equiv_e (e1 e2 : Exp F) : Prop := eval_e e1 = eval_e e2
+
+instance : Setoid (Exp F) where
+  r := equiv_e
+  iseqv := {
+    refl := fun _ => rfl
+    symm := fun h => h.symm
+    trans := fun h1 h2 => h1.trans h2
+  }
+
+example : 3 + 4 ≈ (7 : Exp F) := by
+  show eval_e _ = eval_e _
+  simp [eval_e]
+  norm_num
+
+-- @[congr] -- this requires to write the conclusion with = instead of ≈
+@[simp]
+theorem add_congr (e1 e2 e3 e4 : Exp F) (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) :
+  e1 + e3 ≈ e2 + e4 := by
+  show eval_e _ = eval_e _
+  simp [eval_e]
+  rw [h1, h2]
+
+example e1 e2 e3 e4 (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) : (Exp.add e1 e3 : Exp F) ≈ Exp.add e2 e4 := by
+  apply add_congr
+  repeat assumption
+
+theorem mul_congr (e1 e2 e3 e4 : Exp F) (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) :
+    e1 * e3 ≈ e2 * e4 := by
+  show eval_e _ = eval_e _
+  simp [eval_e]
+  rw [h1, h2]
+
+theorem sub_congr (e1 e2 e3 e4 : Exp F) (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) :
+    e1 - e3 ≈ e2 - e4 := by
+  show eval_e _ = eval_e _
+  simp [eval_e]
+  rw [h1, h2]
+
+inductive Circuit (var:Type 0) : Type where
+  | nil : Circuit var
+  | eq0 : Exp var -> Circuit var -> Circuit var
+  | lam : (var -> Circuit var) -> Circuit var
+  | share : Exp var -> (var -> Circuit var) -> Circuit var
+  | is_zero : Exp var -> (var -> Circuit var) -> Circuit var
+
+def Circuit' : Type 1 := (var:Type 0) -> Circuit var
+
+/-
+Warning: var must be kept abstract, if var is fixed we can write bogus examples
+-/
+
+-- E.g. here v 0 is not bound by any lam
+example : Circuit Nat := Circuit.eq0 (.v 0) Circuit.nil
+
+-- This is the right way, keeping var abstract, don't even need to name it
+example : Circuit' := fun _ => (.lam (fun x => .eq0 (.v x) .nil))
+-- TODO
+-- example : Circuit' := fun _ => Circuit.lam (fun x => Circuit.eq0 (Exp.v x) Circuit.nil)
+
+def Circuit.reprString (l:Nat) : Circuit String → Std.Format
+  | .nil => "nil"
+  | .lam k => s!"λ{(toString l)} {reprString (l+1) (k (toString l))}"
+  | .eq0 e c => s!"eq0 {repr e} {reprString l c}"
+  | .share e k => s!"share {repr e} {reprString (l+1) (k (toString l))}"
+  | .is_zero e k => s!"is_zero {repr e} {reprString (l+1) (k (toString l))}"
+
+-- Had to define a separate function. The recursion was preventing the class inference?
+instance : Repr (Circuit') where
+  reprPrec c _ := Circuit.reprString 0 (c String)
+
+instance : ToString (Circuit') where
+  toString c := toString (Circuit.reprString 0 (c String))
+
+def a : Circuit' := fun _ => Circuit.lam (fun x => Circuit.lam (fun y => Circuit.eq0 (.v x + .v y) Circuit.nil))
+
+#guard s!"{a}" = "λ0 λ1 eq0 (v0 + v1) nil"
+
+-- do we need to prove additional properties of this semantics?
+
+inductive denotation : Type where
+  | n : denotation
+  | u : denotation
+  | l : (F -> denotation) -> denotation
+
+def eval (c:Circuit F) : denotation :=
+  match c with
+  | .nil => .u
+  | .lam k => .l (fun x => eval (k x))
+  | .eq0 e c =>
+    if eval_e e = 0 then eval c else .n
+  | .share e k => eval (k (eval_e e))
+  | .is_zero e k =>
+    if eval_e e = 0 then eval (k 1) else eval (k 0)
+
+def eval' (c:Circuit') : denotation := eval (c F)
+
+def equiv (c1 c2 : Circuit F) : Prop := eval c1 = eval c2
+
+instance : Setoid (Circuit F) where
+  r := equiv
+  iseqv := {
+    refl := fun _ => rfl
+    symm := fun h => h.symm
+    trans := fun h1 h2 => h1.trans h2
+  }
+
+instance : IsRefl (Circuit F) (· ≈ ·) where
+  refl := Setoid.refl
+
+theorem nil_congr :
+  Circuit.nil ≈ (Circuit.nil : Circuit F) := by
+  show eval _ = eval _
+  simp [eval]
+
+theorem eq0_congr : ∀ (el er:Exp F) (cl cr:Circuit F),
+  el ≈ er -> cl ≈ cr ->
+  Circuit.eq0 el cl ≈ Circuit.eq0 er cr := by
+  intro el er kl kr he hk
+  show eval _ = eval _
+  simp [eval]
+  rw [he,hk]
+
+theorem lam_congr : ∀ (kl kr:F -> Circuit F),
+  (∀ x, kl x ≈ kr x) ->
+  Circuit.lam kl ≈ Circuit.lam kr := by
+  intro kl kr hk
+  show eval _ = eval _
+  simp [eval]
+  funext
+  apply hk
+
+theorem share_congr : ∀ (el er:Exp F) (kl kr:F -> Circuit F),
+  el ≈ er -> (∀ x, kl x ≈ kr x) ->
+  Circuit.share el kl ≈ Circuit.share er kr := by
+  intro el er kl kr he hk
+  show eval _ = eval _
+  simp [eval]
+  rw [he]
+  apply hk
+
+theorem is_zero_congr : ∀ (el er:Exp F) (kl kr:F -> Circuit F),
+  el ≈ er -> (∀ x, kl x ≈ kr x) ->
+  Circuit.is_zero el kl ≈ Circuit.is_zero er kr := by
+  intro el er kl kr he hk
+  show eval _ = eval _
+  simp [eval]
+  rw [he,hk 0,hk 1]
+
+def eval_cps (c:Circuit F) (k:denotation -> denotation) : denotation :=
+  match c with
+  | .nil => k .u
+  | .eq0 e c =>
+    eval_cps c (fun c => k (
+    if eval_e e = 0 then c else .n))
+  | .lam k' => .l (fun x => eval_cps (k' x) k)
+  | .share e k' => eval_cps (k' (eval_e e)) k
+  | .is_zero e k' =>
+    if eval_e e = 0 then eval_cps (k' 1) k else eval_cps (k' 0) k
+
+def equiv' (c1 c2 : Circuit') : Prop := eval' c1 = eval' c2
+
+instance : Setoid (Circuit') where
+  r := equiv'
+  iseqv := {
+    refl := fun _ => rfl
+    symm := fun h => h.symm
+    trans := fun h1 h2 => h1.trans h2
+  }
+
+instance : IsRefl (Circuit') (· ≈ ·) where
+  refl := Setoid.refl
