@@ -78,11 +78,11 @@ example : Exp (Exp F) := (.c 1) + (.v ((.c 2) + (.c 2)))
 
 def eval_e (e: Exp F) : F :=
   match e with
-  | Exp.v v => v
-  | Exp.c i => i
-  | Exp.add l r => eval_e l + eval_e r
-  | Exp.mul l r => eval_e l * eval_e r
-  | Exp.sub l r => eval_e l - eval_e r
+  | .v v => v
+  | .c i => i
+  | .add l r => eval_e l + eval_e r
+  | .mul l r => eval_e l * eval_e r
+  | .sub l r => eval_e l - eval_e r
 
 def eval_e' (e:Exp') : F := eval_e (e F)
 
@@ -267,3 +267,42 @@ instance : Setoid (Circuit') where
 
 instance : IsRefl (Circuit') (· ≈ ·) where
   refl := Setoid.refl
+
+def Exp.decEq {var} [DecidableEq var] : DecidableEq (Exp var) := by
+  intro e1 e2
+  match e1,e2 with
+  | .v n1, .v n2
+  | .c n1, .c n2 => if h : n1 = n2 then exact isTrue (by simp [h]) else exact isFalse (by simp [h])
+  | .add ll lr, .add rl rr
+  | .mul ll lr, .mul rl rr
+  | .sub ll lr, .sub rl rr =>
+     match Exp.decEq ll rl with
+     | isTrue pl =>
+       match Exp.decEq lr rr with
+       | isTrue pr => exact isTrue (by rw [pl,pr])
+       | isFalse pr => exact isFalse (fun h => Exp.noConfusion h (fun _ hr => absurd hr pr))
+     | isFalse pl => exact isFalse (fun h => Exp.noConfusion h (fun hl _ => absurd hl pl))
+  | .v _ , .c _
+  | .v _ , .add _ _
+  | .v _ , .mul _ _
+  | .v _ , .sub _ _
+  | .c _ , .v _
+  | .c _ , .add _ _
+  | .c _ , .mul _ _
+  | .c _ , .sub _ _
+  | .add _ _ , .v _
+  | .add _ _ , .c _
+  | .add _ _ , .mul _ _
+  | .add _ _ , .sub _ _
+  | .mul _ _ , .v _
+  | .mul _ _ , .c _
+  | .mul _ _ , .add _ _
+  | .mul _ _ , .sub _ _
+  | .sub _ _ , .v _
+  | .sub _ _ , .c _
+  | .sub _ _ , .add _ _
+  | .sub _ _ , .mul _ _
+  =>
+    exact isFalse nofun
+
+instance {var} [DecidableEq var] : DecidableEq (Exp var) := Exp.decEq

@@ -69,7 +69,7 @@ def to_cs {var:Type _} (c:Circuit var) : Cs var :=
      -- e=0          o=1
      -- e≠0 inv=e^-1 o=0
 
-def to_cs' (wg:Circuit') : Cs' := fun var => to_cs (wg var)
+def to_cs' (c:Circuit') : Cs' := fun var => to_cs (c var)
 
 -- a list with continuations
 inductive Wg : Type where
