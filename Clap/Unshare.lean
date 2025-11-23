@@ -32,7 +32,7 @@ def unshare_all_F (c:Circuit F) : Circuit F :=
   --
   | .share e k => k (eval_e e)
 
-theorem unshare_all_sem_pre : ∀ (c:Circuit F),
+theorem unshare_all_sem_pre_F : ∀ (c:Circuit F),
   c ≈ unshare_all_F c := by
   intros c
   induction c with
@@ -82,7 +82,7 @@ def expected_a : Circuit' := fun _ => Circuit.lam (fun x => Circuit.eq0 (.c 1 + 
 
 #guard s!"{unshare_all' a}" = s!"{expected_a}"
 
-theorem unshare_sem_pre : ∀ (cl: Circuit F) (cr:Circuit (Exp F)) G,
+theorem unshare_all_sem_pre : ∀ (cl: Circuit F) (cr:Circuit (Exp F)) G,
   wf G cl cr ->
    List.Forall (fun entry => entry.l = (eval_e entry.r)) G ->
    cl ≈ (unshare_all cr)
@@ -140,6 +140,14 @@ theorem unshare_sem_pre : ∀ (cl: Circuit F) (cr:Circuit (Exp F)) G,
       rw [List.forall_cons]
       simp [eval_e]
       assumption
+
+theorem unshare_sem_pre' : ∀ (cl: Circuit'),
+  wf' cl ->
+   cl ≈ (unshare_all' cl) := by
+  intro cl wf
+  apply unshare_all_sem_pre
+  apply wf
+  simp
 
 /-
   Unsharing/Inlining all expressions leads to constraints of arbitrary
