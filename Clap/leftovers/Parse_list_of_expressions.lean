@@ -1,9 +1,9 @@
 namespace Basic
 
--- set_option aesop.check.all true
--- declare_aesop_rule_sets [Basic.A]
-
--- set_option trace.aesop true
+/-
+  Simple example where we parse a List of (expressions of) integers
+  into our Exp and Cs types.
+-/
 
 inductive Exp where
   | c : Int -> Exp
@@ -18,7 +18,6 @@ def equiv_e (t:Exp) (s:Int) := eval_e t = s
 
 notation : 65 t:65 "≡" s:66 => equiv_e t s
 
--- @[aesop safe [(rule_sets := [Basic.A])]]
 def eval_c (n:Int) : Exp.c n ≡ n := by
   simp [equiv_e, eval_e]
 
@@ -39,9 +38,6 @@ def a : ∃ e:Exp, e ≡ (1+2) := by
   apply Exists.intro
   repeat (first | apply eval_op | apply eval_c )
 
--- #print a_aesop
--- Exists.intro (Exp.c (1 + 2)) (eval_c (1 + 2))
--- We should first apply op then c
 
 -- This is only partially true, because we can always reduce an expression into an Int, but we won't be producing the AST that we really want.
 def parse_e (s:Int) : ∃ e:Exp, e ≡ s := by
