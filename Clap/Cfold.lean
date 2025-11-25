@@ -1,8 +1,5 @@
 import Clap.Circuit
 
-set_option autoImplicit false
-set_option linter.unusedVariables true
-
 /-
   Constant folding.
 
