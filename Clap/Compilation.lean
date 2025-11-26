@@ -36,12 +36,12 @@ set_option linter.unusedVariables true
 -/
 
 -- we could remove this type and add an index to Circuit, which would save us from defining again the semantics of Cs
-inductive Cs (var:Type 0) : Type where
+inductive Cs (var:Type) : Type where
   | nil : Cs var
   | eq0 : Exp var -> Cs var -> Cs var
   | lam : (var -> Cs var) -> Cs var
 
-def Cs' : Type 1 := (var:Type 0) -> Cs var
+def Cs' : Type _ := (var:Type) -> Cs var
 
 def Cs.eval (c:Cs F) : denotation :=
   match c with
@@ -52,7 +52,7 @@ def Cs.eval (c:Cs F) : denotation :=
 
 def Cs.eval' (c:Cs') : denotation := eval (c F)
 
-def to_cs {var:Type _} (c:Circuit var) : Cs var :=
+def to_cs {var:Type} (c:Circuit var) : Cs var :=
   match c with
   | .nil => .nil
   | .eq0 e c => .eq0 e (to_cs c)

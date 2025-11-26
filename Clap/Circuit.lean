@@ -39,14 +39,14 @@ def p : Nat := 7
 abbrev F := ZMod p
 instance : Fact (Nat.Prime p) := ⟨by decide⟩
 
-inductive Exp (var:Type _) where
+inductive Exp (var:Type) where
   | v : var -> Exp var
   | c : F -> Exp var
   | add : Exp var -> Exp var -> Exp var
   | mul : Exp var -> Exp var -> Exp var
   | sub : Exp var -> Exp var -> Exp var
 
-def Exp' : Type 1 := (var:Type 0) -> Exp var
+def Exp' : Type _ := (var:Type) -> Exp var
 
 def Exp.reprString (e:Exp String) : Std.Format :=
   match e with
@@ -62,13 +62,13 @@ instance : Repr (Exp String) where
 instance : Repr (Exp') where
   reprPrec e _ := Exp.reprString (e String)
 
-instance (var:Type _) : Add (Exp var) where
+instance (var:Type) : Add (Exp var) where
   add a b := .add a b
 
-instance (var:Type _) : Mul (Exp var) where
+instance (var:Type) : Mul (Exp var) where
   mul a b := .mul a b
 
-instance (var:Type _) : Sub (Exp var) where
+instance (var:Type) : Sub (Exp var) where
   sub a b := .sub a b
 
 -- we can only substitute F for variables so .v and .c are equivalent, which is ok for evaluation
@@ -134,14 +134,14 @@ theorem sub_congr (e1 e2 e3 e4 : Exp F) (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) :
   simp [eval_e]
   rw [h1, h2]
 
-inductive Circuit (var:Type 0) : Type where
+inductive Circuit (var:Type) : Type where
   | nil : Circuit var
   | eq0 : Exp var -> Circuit var -> Circuit var
   | lam : (var -> Circuit var) -> Circuit var
   | share : Exp var -> (var -> Circuit var) -> Circuit var
   | is_zero : Exp var -> (var -> Circuit var) -> Circuit var
 
-def Circuit' : Type 1 := (var:Type 0) -> Circuit var
+def Circuit' : Type _ := (var:Type) -> Circuit var
 
 /-
 Warning: var must be kept abstract, if var is fixed we can write bogus examples
