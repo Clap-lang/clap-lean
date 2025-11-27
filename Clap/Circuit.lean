@@ -41,6 +41,7 @@ inductive Exp (F var : Type) where
   | add : Exp F var → Exp F var → Exp F var
   | mul : Exp F var → Exp F var → Exp F var
   | sub : Exp F var → Exp F var → Exp F var
+  deriving DecidableEq
 
 variable {F var : Type}
 
@@ -353,25 +354,31 @@ instance : Setoid (Circuitₑ F) where
 
 -- instance : IsRefl (Circuitₑ F) (· ≈ ·) := inferInstance -- Can be deleted no problem.
 
-def Exp.decideEq (e₁ e₂ : Expₑ F) : Bool :=
-  match e₁, e₂ with
-  | .v n₁, v n₂ | .c n₁, .c n₂ => n₁ == n₂
-  | .add ll lr, .add rl rr
-  | .mul ll lr, .mul rl rr
-  | .sub ll lr, .sub rl rr => ll.decideEq rl && lr.decideEq rr
-  | _, _ => false
+-- BEGIN Not needed because of deriving DecidableEq on Exp
+-- but one could do it this way easily.
 
-omit [Ring F] in
-lemma Exp.decideEq_eq_true_iff_eq {e₁ e₂ : Expₑ F} :
-  Exp.decideEq e₁ e₂ = true ↔ e₁ = e₂ := by
-  induction' e₁ generalizing e₂ <;> cases e₂ <;> try aesop (add simp Exp.decideEq)
+-- def Exp.decideEq (e₁ e₂ : Expₑ F) : Bool :=
+--   match e₁, e₂ with
+--   | .v n₁, v n₂ | .c n₁, .c n₂ => n₁ == n₂
+--   | .add ll lr, .add rl rr
+--   | .mul ll lr, .mul rl rr
+--   | .sub ll lr, .sub rl rr => ll.decideEq rl && lr.decideEq rr
+--   | _, _ => false
 
-def Exp.decEq : DecidableEq (Expₑ F) := fun e₁ e₂ ↦
-  if h : e₁.decideEq e₂
-  then isTrue (Exp.decideEq_eq_true_iff_eq.1 h)
-  else isFalse (by aesop (add simp decideEq_eq_true_iff_eq))
+-- omit [Ring F] in
+-- lemma Exp.decideEq_eq_true_iff_eq {e₁ e₂ : Expₑ F} :
+--   Exp.decideEq e₁ e₂ = true ↔ e₁ = e₂ := by
+--   induction' e₁ generalizing e₂ <;> cases e₂ <;> try aesop (add simp Exp.decideEq)
 
-instance [DecidableEq F] : DecidableEq (Expₑ F) := Exp.decEq
+-- def Exp.decEq : DecidableEq (Expₑ F) := fun e₁ e₂ ↦
+--   if h : e₁.decideEq e₂
+--   then isTrue (Exp.decideEq_eq_true_iff_eq.1 h)
+--   else isFalse (by aesop (add simp decideEq_eq_true_iff_eq))
+
+-- END Not needed because of deriving DecidableEq on Exp
+-- but one could do it this way easily.
+
+instance [DecidableEq F] : DecidableEq (Expₑ F) := inferInstance -- deriving DecidableEq on Exp
 
 end eval
 
