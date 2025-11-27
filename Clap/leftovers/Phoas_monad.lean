@@ -4,11 +4,26 @@ import Clap.Circuit
 set_option autoImplicit false
 set_option linter.unusedVariables true
 
-open Circuit
+namespace Deno
+
+def eq0 (e:F) : Option Unit :=
+  if e = 0 then some () else none
+
+def share (e:F) : F := e
+
+def is_zero (e:F) : F := if e = 0 then 1 else 0
+
+example (i:F) : Option Unit := do
+  let zero := share 0
+  eq0 (zero + i) ;
+  eq0 (zero + i)
+
+end Deno
 
 namespace Phoas_monad
 
-abbrev C var a := Cont (Circuit var) a
+-- C the var instance, argument of continuation
+abbrev C var a := Cont (Circuit var) a -- = (a -> Circuit var) -> Circuit var
 
 def lam {var} : C var var := fun k =>
   Circuit.lam k
@@ -24,42 +39,24 @@ def is_zero {var} (e:Exp var) : C var var := fun k =>
 
 example {var} : C var Unit := do
   let i <- lam
-  eq0 (.v i)
-
-def unshare_e {var} (e:Exp (Exp var)) : Exp var :=
-  match e with
-  | .v v => v
-  | .c f => .c f
-  | .add l r => .add (unshare_e l) (unshare_e r)
-  | .mul l r => .mul (unshare_e l) (unshare_e r)
-  | .sub l r => .sub (unshare_e l) (unshare_e r)
-
-def degree {var} (e:Exp var) : Nat :=
-  match e with
-  | .v _ => 1
-  | .c _ => 0
-  | .add l r
-  | .sub l r => max (degree l) (degree r)
-  | .mul l r => (degree l) + (degree r)
-
-def unshare_deg {var} (c:Circuit (Exp var)) : Cont (Circuit var) (Bool × Circuit var) :=
-  match c with
-  | .nil => pure (true,.nil)
-  | .eq0 e c => do
-     let be := degree e <= 2
-     let (b,c) <- unshare_deg c
-     pure (b && be, .eq0 (unshare_e e) c)
-  | .lam k' =>
-     .lam (fun x => unshare_deg (k' (.v x)))
-  | .is_zero e k' =>
-     let be := degree e <= 2
-    .is_zero (unshare_e e) (fun x => unshare_deg (k' (.v x)) (fun (b,c) => k (b && be, c)))
-  --
-  | .share e k' =>
-     let be := degree e <= 2
-     unshare_deg (k' (unshare_e e)) (fun (b,c) =>
-       if b && be
-       then k (true, c)
-       else .share (unshare_e e) (fun x => unshare_deg (k' (.v x)) k))
+  let zero <- share (.c 0)
+  eq0 (.v zero + .v i) ;
+  eq0 (.v zero + .v i)
 
 end Phoas_monad
+
+namespace Notation
+
+-- these are just sketched, probably wrong in many corner cases
+scoped notation "let" x ":=" "input" "()" "in" body => Circuit.lam (fun x => body)
+scoped notation "eq0" e => Circuit.eq0 e Circuit.nil
+scoped notation "eq0" e ";" rest => Circuit.eq0 e rest
+scoped notation "let" x ":=" "share" e "in" body => Circuit.share e (fun x => body)
+
+example : Circuit' := fun _ =>
+  let i := input () in
+  let zero := share (.c 0) in
+  eq0 (.v zero + .v i) ;
+  eq0 (.v zero + .v i)
+
+end Notation
