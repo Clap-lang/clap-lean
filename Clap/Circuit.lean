@@ -4,11 +4,9 @@ import Mathlib.Data.ZMod.Basic
 -- import Mathlib.Algebra.Field.Defs
 -- import Mathlib.Algebra.Field.Basic  -- Field typeclass instances
 -- import Mathlib.Data.Set.Basic
-import Mathlib.Tactic.NormNum -- norm_num
--- import Mathlib.Data.List.Basic
+import Mathlib.Tactic
 
-set_option autoImplicit false
-set_option linter.unusedVariables true
+-- import Mathlib.Data.List.Basic
 
 /-
   This file introduces the main data structure of the project, the
@@ -35,274 +33,352 @@ set_option linter.unusedVariables true
   constructors.
 -/
 
-def p : Nat := 7
-abbrev F := ZMod p
-instance : Fact (Nat.Prime p) := ⟨by decide⟩
+namespace Clap
 
-inductive Exp (var:Type _) where
-  | v : var -> Exp var
-  | c : F -> Exp var
-  | add : Exp var -> Exp var -> Exp var
-  | mul : Exp var -> Exp var -> Exp var
-  | sub : Exp var -> Exp var -> Exp var
+inductive Exp (F var : Type) where
+  | v : var → Exp F var
+  | c : F → Exp F var
+  | add : Exp F var → Exp F var → Exp F var
+  | mul : Exp F var → Exp F var → Exp F var
+  | sub : Exp F var → Exp F var → Exp F var
 
-def Exp' : Type 1 := (var:Type 0) -> Exp var
+variable {F var : Type}
 
-def Exp.reprString (e:Exp String) : Std.Format :=
-  match e with
-  | .v s => s!"v{s}"
-  | .c n => repr n
-  | .add e1 e2 => s!"({reprString e1} + {reprString e2})"
-  | .mul e1 e2 => s!"({reprString e1} * {reprString e2})"
-  | .sub e1 e2 => s!"({reprString e1} - {reprString e2})"
+variable {e : Exp F var}
 
-instance : Repr (Exp String) where
-  reprPrec e _ := Exp.reprString e
+instance instReprExp [Repr F] [Repr var] : Repr (Exp F var) where
+  reprPrec expr _ := go expr
+  where go (e : Exp F var) : Std.Format :=
+    match e with
+    | .v s => s!"v{repr s}"
+    | .c n => s!"{repr n}"
+    | .add e1 e2 => s!"({go e1} + {go e2})"
+    | .mul e1 e2 => s!"({go e1} * {go e2})"
+    | .sub e1 e2 => s!"({go e1} - {go e2})"
 
-instance : Repr (Exp') where
-  reprPrec e _ := Exp.reprString (e String)
-
-instance (var:Type _) : Add (Exp var) where
+instance : Add (Exp F var) where
   add a b := .add a b
 
-instance (var:Type _) : Mul (Exp var) where
+instance : Mul (Exp F var) where
   mul a b := .mul a b
 
-instance (var:Type _) : Sub (Exp var) where
+instance : Sub (Exp F var) where
   sub a b := .sub a b
 
+section
+
+variable {e₁ e₂ : Exp F var}
+
+namespace Exp
+
+lemma add_def : e₁ + e₂ = .add e₁ e₂ := rfl
+
+lemma mul_def : e₁ * e₂ = .mul e₁ e₂ := rfl
+
+lemma sub_def : e₁ - e₂ = .sub e₁ e₂ := rfl
+
+end Exp
+
+section
+
+variable [OfNat F 1] [OfNat F 2] [OfNat var 2]
+
 -- we can only substitute F for variables so .v and .c are equivalent, which is ok for evaluation
-example : Exp F := (.c 1) + (.v 2)
+private example : Exp F var := .c 1 + .v 2
 -- we can substitute expressions for variables, which is what we need for optimizations
-example : Exp (Exp F) := (.c 1) + (.v ((.c 2) + (.c 2)))
+private example : Exp F (Exp F var) := .c 1 + .v (.c 2 + .c 2)
 
-def eval_e (e: Exp F) : F :=
+end
+
+-- Separate note:
+-- I just assume `Ring F` to get `+`, `*` and `-`. There are more general interpretations.
+section
+
+variable [Ring F]
+
+/--
+`Expₑ` once we start `eval`uating.
+-/
+abbrev Expₑ (F : Type) := Exp F F
+
+def Exp.eval (e : Expₑ F) : F := 
   match e with
-  | .v v => v
+  | .v val => val
   | .c i => i
-  | .add l r => eval_e l + eval_e r
-  | .mul l r => eval_e l * eval_e r
-  | .sub l r => eval_e l - eval_e r
+  | .add l r => l.eval + r.eval
+  | .mul l r => l.eval * r.eval
+  | .sub l r => l.eval - r.eval
 
-def eval_e' (e:Exp') : F := eval_e (e F)
-
-instance : Coe (Exp F) F where
-  coe := eval_e
-
-instance : Coe F (Exp F) where
+instance : Coe F (Exp F var) where
   coe := .c
 
-instance (n:Nat) : OfNat (Exp F) n where
-  ofNat := (↑n:F)
+instance {n : ℕ} : OfNat (Exp F var) n where
+  ofNat := (n : F)
 
-def equiv_e (e1 e2 : Exp F) : Prop := eval_e e1 = eval_e e2
+namespace Exp
 
-instance : Setoid (Exp F) where
-  r := equiv_e
-  iseqv := {
-    refl := fun _ => rfl
-    symm := fun h => h.symm
-    trans := fun h1 h2 => h1.trans h2
-  }
+section
 
-example : 3 + 4 ≈ (7 : Exp F) := by
-  show eval_e _ = eval_e _
-  simp [eval_e]
-  norm_num
+variable {x₁ x₂ : F} {e e₁ e₂ e₃ e₄: Expₑ F} {k : ℕ}
 
--- @[congr] -- this requires to write the conclusion with = instead of ≈
+def equiv (e₁ e₂ : Expₑ F) : Prop := e₁.eval = e₂.eval
+
+instance : Setoid (Expₑ F) where
+  r := Exp.equiv
+  iseqv := Equivalence.comap eq_equivalence Exp.eval -- Just pullback the proof.
+
+private lemma equiv_iff_eval_eq_eval : e₁ ≈ e₂ ↔ e₁.eval = e₂.eval := by rfl
+
 @[simp]
-theorem add_congr (e1 e2 e3 e4 : Exp F) (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) :
-  e1 + e3 ≈ e2 + e4 := by
-  show eval_e _ = eval_e _
-  simp [eval_e]
-  rw [h1, h2]
+lemma eval_ofNat : (no_index(OfNat.ofNat k) : Expₑ F).eval = k := rfl
 
-example e1 e2 e3 e4 (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) : (Exp.add e1 e3 : Exp F) ≈ Exp.add e2 e4 := by
-  apply add_congr
-  repeat assumption
+@[simp]
+lemma eval_add : (e₁ + e₂).eval = e₁.eval + e₂.eval := rfl
 
-theorem mul_congr (e1 e2 e3 e4 : Exp F) (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) :
-    e1 * e3 ≈ e2 * e4 := by
-  show eval_e _ = eval_e _
-  simp [eval_e]
-  rw [h1, h2]
+@[simp]
+lemma eval_mul : (e₁ * e₂).eval = e₁.eval * e₂.eval := rfl
 
-theorem sub_congr (e1 e2 e3 e4 : Exp F) (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) :
-    e1 - e3 ≈ e2 - e4 := by
-  show eval_e _ = eval_e _
-  simp [eval_e]
-  rw [h1, h2]
+@[simp]
+lemma eval_sub : (e₁ - e₂).eval = e₁.eval - e₂.eval := rfl
 
-inductive Circuit (var:Type 0) : Type where
-  | nil : Circuit var
-  | eq0 : Exp var -> Circuit var -> Circuit var
-  | lam : (var -> Circuit var) -> Circuit var
-  | share : Exp var -> (var -> Circuit var) -> Circuit var
-  | is_zero : Exp var -> (var -> Circuit var) -> Circuit var
+@[simp]
+lemma c_add_c_equiv_c_add : Exp.c (var := F) (x₁ + x₂) ≈ Exp.c x₁ + Exp.c x₂ := rfl
 
-def Circuit' : Type 1 := (var:Type 0) -> Circuit var
+open Exp in
+example : 3 + 4 ≈ (7 : Expₑ F) := by
+  symm
+  convert c_add_c_equiv_c_add
+  norm_num
+  rfl
+
+-- Note, we can use generalised congruence tag if we so desire.
+-- I am not sure why you were going for congruence, but it is useful to tag for further use
+-- with `grw`.
+@[gcongr]
+theorem add_congr (h₁ : e₁ ≈ e₂) (h₂ : e₃ ≈ e₄) : e₁ + e₃ ≈ e₂ + e₄ := by
+  aesop (add simp [equiv_iff_eval_eq_eval])
+
+/--
+Note this proof is `aesop` but I wanted to have a proof with `grw` that works because of `gcongr`.
+(The one from `add_congr`.)
+-/
+example (h₁ : e₁ ≈ e₂) (h₂ : e₃ ≈ e₄) : (Exp.add e₁ e₃ : Expₑ F) ≈ Exp.add e₂ e₄ := by
+  change e₁ + e₃ ≈ e₂ + e₄
+  grw [h₁, h₂]
+
+@[gcongr]
+theorem mul_congr (h₁ : e₁ ≈ e₂) (h₂ : e₃ ≈ e₄) : e₁ * e₃ ≈ e₂ * e₄ := by
+  aesop (add simp [equiv_iff_eval_eq_eval])
+
+@[gcongr]
+theorem sub_congr (h₁ : e₁ ≈ e₂) (h₂ : e₃ ≈ e₄) : e₁ - e₃ ≈ e₂ - e₄ := by
+  aesop (add simp [equiv_iff_eval_eq_eval])
+
+end
+
+end Exp
+
+end
+
+inductive Circuit (F var : Type) : Type where
+  | nil : Circuit F var
+  | eq0 : Exp F var → Circuit F var → Circuit F var
+  | lam : (var → Circuit F var) → Circuit F var
+  | share : Exp F var → (var → Circuit F var) → Circuit F var
+  | is_zero : Exp F var → (var → Circuit F var) → Circuit F var
+
+section
+
+variable {F var : Type}
 
 /-
 Warning: var must be kept abstract, if var is fixed we can write bogus examples
 -/
 
 -- E.g. here v 0 is not bound by any lam
-example : Circuit Nat := Circuit.eq0 (.v 0) Circuit.nil
+example : Circuit F Nat := Circuit.eq0 (.v 0) Circuit.nil
 
 -- This is the right way, keeping var abstract, don't even need to name it
-example : Circuit' := fun _ => (.lam (fun x => .eq0 (.v x) .nil))
--- TODO
--- example : Circuit' := fun _ => Circuit.lam (fun x => Circuit.eq0 (Exp.v x) Circuit.nil)
+example : Π var, Circuit F var := fun _ ↦ .lam fun x ↦ .eq0 (.v x) .nil
 
-def Circuit.reprString (l:Nat) : Circuit String → Std.Format
+-- Surely we can keep it abstract this way, right? Reduces some amount of lambda yoga.
+example : Circuit F var := .lam fun x ↦ .eq0 (.v x) .nil
+
+abbrev Circuitₑ (F : Type) := Circuit F F
+
+/--
+We need a family of types that map from ℕ.
+
+One could argue that `OfNat` might do, but it's dependent on a value so there's more friction.
+-/
+class Index (var : outParam Type) where
+  index : ℕ → var
+
+instance [Index var] : Coe ℕ var := ⟨Index.index⟩
+
+/--
+This is 'the' `toString` from the old `Circuit.repr`.
+-/
+instance : Index String := ⟨ToString.toString⟩
+
+instance : Index ℕ := ⟨id⟩
+
+export Index (index)
+
+def Circuit.repr [Repr F] [Repr var] [Ring F] [Index var]
+  (l : ℕ) (c : Circuit F var) : Std.Format :=
+  letI go (l : ℕ) (k : var → Circuit F var) := repr (l+1) (k (index l)) -- `k ∘ index : ℕ (→ var) → Circuit ..`
+  match c with
   | .nil => "nil"
-  | .lam k => s!"λ{(toString l)} {reprString (l+1) (k (toString l))}"
-  | .eq0 e c => s!"eq0 {repr e} {reprString l c}"
-  | .share e k => s!"share {repr e} {reprString (l+1) (k (toString l))}"
-  | .is_zero e k => s!"is_zero {repr e} {reprString (l+1) (k (toString l))}"
+  | .lam k => s!"λ{l} {go l k}"
+  | .eq0 e c => s!"eq0 {_root_.repr e} {repr l c}"
+  | .share e k => s!"share {_root_.repr e} {go l k}"
+  | .is_zero e k => s!"is_zero {_root_.repr e} {go l k}"
 
 -- Had to define a separate function. The recursion was preventing the class inference?
-instance : Repr (Circuit') where
-  reprPrec c _ := Circuit.reprString 0 (c String)
+-- Note: See `instReprExp`.
+instance [Repr F] [Repr var] [Ring F] [Index var] : Repr (Circuit F var) where
+  reprPrec c _ := c.repr 0
 
-instance : ToString (Circuit') where
-  toString c := toString (Circuit.reprString 0 (c String))
+instance [Repr F] [Repr var] [Ring F] [Index var] : ToString (Circuit F var) :=
+  ⟨Std.Format.pretty ∘ repr⟩
 
-def a : Circuit' := fun _ => Circuit.lam (fun x => Circuit.lam (fun y => Circuit.eq0 (.v x + .v y) Circuit.nil))
+-- Can drop the leading lambda here.
+def a (F var : Type) : Circuit F var := .lam fun x ↦ .lam fun y ↦ .eq0 (.v x + .v y) .nil
 
-#guard s!"{a}" = "λ0 λ1 eq0 (v0 + v1) nil"
+section
+
+abbrev a' := a (ZMod 41) ℕ
+
+#guard s!"{a'}" = "λ0 λ1 eq0 (v0 + v1) nil"
+
+end
+
+section
 
 -- do we need to prove additional properties of this semantics?
+-- I'll need to drop further down the rabbit hole to form any coherent thought on this :).
+inductive denotation (var : Type) : Type where
+  | n : denotation var
+  | u : denotation var
+  | l : (var → denotation var) → denotation var
 
-inductive denotation : Type where
-  | n : denotation
-  | u : denotation
-  | l : (F -> denotation) -> denotation
+section eval
 
-def eval (c:Circuit F) : denotation :=
-  match c with
+/-
+`DecidableEq F` for `e.eval = 0`.
+-/
+
+variable [DecidableEq F] [Ring F]
+
+def Circuit.eval : Circuitₑ F → denotation F
   | .nil => .u
-  | .lam k => .l (fun x => eval (k x))
+  | .lam k => .l fun x ↦ (k x).eval
   | .eq0 e c =>
-    if eval_e e = 0 then eval c else .n
-  | .share e k => eval (k (eval_e e))
+    if e.eval = 0 then c.eval else .n
+  | .share e k => (k e.eval).eval
   | .is_zero e k =>
-    if eval_e e = 0 then eval (k 1) else eval (k 0)
+    if e.eval = 0 then (k 1).eval else (k 0).eval
 
-def eval' (c:Circuit') : denotation := eval (c F)
+/-
+Technically we want all of these dudes.
+-/
+@[simp]
+lemma Circuit.eval_eq0 {e : Expₑ F} {c : Circuitₑ F} :
+  (Circuit.eq0 e c).eval = if e.eval = 0 then c.eval else .n := by
+  simp [Circuit.eval]
 
-def equiv (c1 c2 : Circuit F) : Prop := eval c1 = eval c2
+@[simp]
+lemma Circuit.eval_lam {c : F → Circuitₑ F} :
+  (Circuit.lam c).eval = .l fun x ↦ (c x).eval := by
+  simp [Circuit.eval]
 
-instance : Setoid (Circuit F) where
-  r := equiv
-  iseqv := {
-    refl := fun _ => rfl
-    symm := fun h => h.symm
-    trans := fun h1 h2 => h1.trans h2
-  }
+@[simp]
+lemma Circuit.eval_share {e : Expₑ F} {k : F → Circuitₑ F} :
+  (Circuit.share e k).eval = (k e.eval).eval := by
+  simp [Circuit.eval]
 
-instance : IsRefl (Circuit F) (· ≈ ·) where
-  refl := Setoid.refl
+@[simp]
+lemma Circuit.eval_is_zero {e : Expₑ F} {k : F → Circuitₑ F} :
+  (Circuit.is_zero e k).eval =  if e.eval = 0 then (k 1).eval else (k 0).eval := by
+  simp [Circuit.eval]
 
-theorem nil_congr :
-  Circuit.nil ≈ (Circuit.nil : Circuit F) := by
-  show eval _ = eval _
-  simp [eval]
+def Circuit.equiv [DecidableEq F] [Ring F] (c₁ c₂ : Circuitₑ F) : Prop := c₁.eval = c₂.eval
 
-theorem eq0_congr : ∀ (el er:Exp F) (cl cr:Circuit F),
-  el ≈ er -> cl ≈ cr ->
-  Circuit.eq0 el cl ≈ Circuit.eq0 er cr := by
-  intro el er kl kr he hk
-  show eval _ = eval _
-  simp [eval]
-  rw [he,hk]
+instance [DecidableEq F] [Ring F] : Setoid (Circuitₑ F) where
+  r := Circuit.equiv
+  iseqv := Equivalence.comap eq_equivalence Circuit.eval -- Just pullback the proof.
 
-theorem lam_congr : ∀ (kl kr:F -> Circuit F),
-  (∀ x, kl x ≈ kr x) ->
-  Circuit.lam kl ≈ Circuit.lam kr := by
-  intro kl kr hk
-  show eval _ = eval _
-  simp [eval]
-  funext
-  apply hk
+private lemma Circuit.equiv_iff_eval_eq_eval {c₁ c₂ : Circuitₑ F} :
+  c₁ ≈ c₂ ↔ c₁.eval = c₂.eval := by rfl
 
-theorem share_congr : ∀ (el er:Exp F) (kl kr:F -> Circuit F),
-  el ≈ er -> (∀ x, kl x ≈ kr x) ->
+instance : IsRefl (Circuitₑ F) (· ≈ ·) := inferInstance -- This is by `inferInstance`, which means it need not exist altogether.
+                                                        -- i.e. it is safe to delete this instance completely
+
+section
+
+variable {el er : Expₑ F} {cl cr : Circuitₑ F} {kl kr : F → Circuitₑ F}
+
+@[gcongr]
+theorem eq0_congr (h₁ : el ≈ er) (h₂ : cl ≈ cr) : Circuit.eq0 el cl ≈ .eq0 er cr := by
+  aesop (add simp [Exp.equiv_iff_eval_eq_eval, Circuit.equiv_iff_eval_eq_eval])
+
+@[gcongr]
+theorem lam_congr (h : ∀ x, kl x ≈ kr x) : Circuit.lam kl ≈ Circuit.lam kr := by
+  aesop (add simp [Exp.equiv_iff_eval_eq_eval, Circuit.equiv_iff_eval_eq_eval]) 
+
+@[gcongr]
+theorem share_congr (h₁ : el ≈ er) (h₂ : ∀ x, kl x ≈ kr x) :
   Circuit.share el kl ≈ Circuit.share er kr := by
-  intro el er kl kr he hk
-  show eval _ = eval _
-  simp [eval]
-  rw [he]
-  apply hk
+  aesop (add simp [Exp.equiv_iff_eval_eq_eval, Circuit.equiv_iff_eval_eq_eval])
 
-theorem is_zero_congr : ∀ (el er:Exp F) (kl kr:F -> Circuit F),
-  el ≈ er -> (∀ x, kl x ≈ kr x) ->
+@[gcongr]
+theorem is_zero_congr (h₁ : el ≈ er) (h₂ : ∀ x, kl x ≈ kr x) :
   Circuit.is_zero el kl ≈ Circuit.is_zero er kr := by
-  intro el er kl kr he hk
-  show eval _ = eval _
-  simp [eval]
-  rw [he,hk 0,hk 1]
+  aesop (add simp [Exp.equiv_iff_eval_eq_eval, Circuit.equiv_iff_eval_eq_eval])
 
-def eval_cps (c:Circuit F) (k:denotation -> denotation) : denotation :=
+end
+
+def evalCps (c : Circuitₑ F) (k : denotation F → denotation F) : denotation F :=
   match c with
   | .nil => k .u
-  | .eq0 e c =>
-    eval_cps c (fun c => k (
-    if eval_e e = 0 then c else .n))
-  | .lam k' => .l (fun x => eval_cps (k' x) k)
-  | .share e k' => eval_cps (k' (eval_e e)) k
-  | .is_zero e k' =>
-    if eval_e e = 0 then eval_cps (k' 1) k else eval_cps (k' 0) k
+  | .eq0 e c => evalCps c fun c ↦ k (if e.eval = 0 then c else .n)
+  | .lam k' => .l fun x ↦ evalCps (k' x) k
+  | .share e k' => evalCps (k' e.eval) k
+  | .is_zero e k' => if e.eval = 0 then evalCps (k' 1) k else evalCps (k' 0) k
 
-def equiv' (c1 c2 : Circuit') : Prop := eval' c1 = eval' c2
+instance : Setoid (Circuitₑ F) where
+  r := Circuit.equiv
+  iseqv := Equivalence.comap eq_equivalence Circuit.eval -- Just pullback the proof.
 
-instance : Setoid (Circuit') where
-  r := equiv'
-  iseqv := {
-    refl := fun _ => rfl
-    symm := fun h => h.symm
-    trans := fun h1 h2 => h1.trans h2
-  }
+-- instance : IsRefl (Circuitₑ F) (· ≈ ·) := inferInstance -- Can be deleted no problem.
 
-instance : IsRefl (Circuit') (· ≈ ·) where
-  refl := Setoid.refl
-
-def Exp.decEq {var} [DecidableEq var] : DecidableEq (Exp var) := by
-  intro e1 e2
-  match e1,e2 with
-  | .v n1, .v n2
-  | .c n1, .c n2 => if h : n1 = n2 then exact isTrue (by simp [h]) else exact isFalse (by simp [h])
+def Exp.decideEq (e₁ e₂ : Expₑ F) : Bool :=
+  match e₁, e₂ with
+  | .v n₁, v n₂ | .c n₁, .c n₂ => n₁ == n₂
   | .add ll lr, .add rl rr
   | .mul ll lr, .mul rl rr
-  | .sub ll lr, .sub rl rr =>
-     match Exp.decEq ll rl with
-     | isTrue pl =>
-       match Exp.decEq lr rr with
-       | isTrue pr => exact isTrue (by rw [pl,pr])
-       | isFalse pr => exact isFalse (fun h => Exp.noConfusion h (fun _ hr => absurd hr pr))
-     | isFalse pl => exact isFalse (fun h => Exp.noConfusion h (fun hl _ => absurd hl pl))
-  | .v _ , .c _
-  | .v _ , .add _ _
-  | .v _ , .mul _ _
-  | .v _ , .sub _ _
-  | .c _ , .v _
-  | .c _ , .add _ _
-  | .c _ , .mul _ _
-  | .c _ , .sub _ _
-  | .add _ _ , .v _
-  | .add _ _ , .c _
-  | .add _ _ , .mul _ _
-  | .add _ _ , .sub _ _
-  | .mul _ _ , .v _
-  | .mul _ _ , .c _
-  | .mul _ _ , .add _ _
-  | .mul _ _ , .sub _ _
-  | .sub _ _ , .v _
-  | .sub _ _ , .c _
-  | .sub _ _ , .add _ _
-  | .sub _ _ , .mul _ _
-  =>
-    exact isFalse nofun
+  | .sub ll lr, .sub rl rr => ll.decideEq rl && lr.decideEq rr
+  | _, _ => false
 
-instance {var} [DecidableEq var] : DecidableEq (Exp var) := Exp.decEq
+omit [Ring F] in
+lemma Exp.decideEq_eq_true_iff_eq {e₁ e₂ : Expₑ F} :
+  Exp.decideEq e₁ e₂ = true ↔ e₁ = e₂ := by
+  induction' e₁ generalizing e₂ <;> cases e₂ <;> try aesop (add simp Exp.decideEq)
+
+def Exp.decEq : DecidableEq (Expₑ F) := fun e₁ e₂ ↦
+  if h : e₁.decideEq e₂
+  then isTrue (Exp.decideEq_eq_true_iff_eq.1 h)
+  else isFalse (by aesop (add simp decideEq_eq_true_iff_eq))
+
+instance [DecidableEq F] : DecidableEq (Expₑ F) := Exp.decEq
+
+end eval
+
+end
+
+end
+
+end
+
+end Clap
