@@ -1,10 +1,10 @@
 import Mathlib.Control.Monad.Cont
-import Clap.Phoas
+import Clap.Circuit
 
 set_option autoImplicit false
 set_option linter.unusedVariables true
 
-open Phoas
+open Circuit
 
 namespace Phoas_monad
 
