@@ -8,6 +8,8 @@ import Mathlib.Tactic
 
 -- import Mathlib.Data.List.Basic
 
+-- PRELIM PUSH
+
 /-
   This file introduces the main data structure of the project, the
   Circuit. We follow the Phoas (Parametric higher-order abstract
