@@ -42,24 +42,24 @@ def cfold {var} (c:Circuit var) : Circuit var :=
 
 def cfold' (c:Circuit') : Circuit' := fun var => cfold (c var)
 
-theorem cfold_e_sem_pre : ∀ (e:Exp F), (eval_e e) = (eval_e (cfold_e e)) := by
+theorem cfold_e_sem_pre : ∀ (e:Exp F), (Exp.eval e) = (Exp.eval (cfold_e e)) := by
   intros e
   induction e with
   | v f
   | c f =>
-    simp [cfold_e,eval_e]
+    simp [cfold_e,Exp.eval]
   | add l r hl hr =>
-    simp [cfold_e,eval_e]
+    simp [cfold_e,Exp.eval]
     split
-    repeat simp [*,eval_e]
+    repeat simp [*,Exp.eval]
   | mul l r hl hr =>
-    simp [cfold_e,eval_e]
+    simp [cfold_e,Exp.eval]
     split
-    repeat simp [*,eval_e]
+    repeat simp [*,Exp.eval]
   | sub l r hl hr =>
-    simp [cfold_e,eval_e]
+    simp [cfold_e,Exp.eval]
     split
-    repeat simp [*,eval_e]
+    repeat simp [*,Exp.eval]
 
 theorem cfold_sem_pre : ∀ (c:Circuit F), c ≈ (cfold c) := by
   intros c

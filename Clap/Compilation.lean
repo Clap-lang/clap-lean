@@ -45,7 +45,7 @@ def Cs.eval (c:Cs F) : denotation :=
   | .nil => .u
   | .lam k => .l (fun x => eval (k x))
   | .eq0 e c =>
-    if eval_e e = 0 then eval c else .n
+    if Exp.eval e = 0 then eval c else .n
 
 def Cs.eval' (c:Cs') : denotation := eval (c F)
 
@@ -80,10 +80,10 @@ def to_wg (c:Circuit F) : Wg :=
   | .eq0 _ c => to_wg c
   | .lam k => Wg.input (fun i => to_wg (k i))
   | .share e k =>
-    let e := eval_e e
+    let e := Exp.eval e
     .cons e (to_wg (k e))
   | .is_zero e k =>
-    let e := eval_e e
+    let e := Exp.eval e
     let inv : F := if e = 0 then 0 else e⁻¹ -- TODO need to check for 0?
     let o : F := if e = 0 then 1 else 0
     .cons inv (.cons o (to_wg (k o)))
@@ -120,9 +120,9 @@ theorem soundness : ∀ (c:Circuit F),
     simp [eval,Cs.eval,to_cs]
     apply rw_bisim.right
     intro x
-    simp [eval_e]
+    simp [Exp.eval]
     split
-    have hmy : x = eval_e e := by grind
+    have hmy : x = Exp.eval e := by grind
     rw [<-hmy]
     apply h
     constructor
@@ -131,7 +131,7 @@ theorem soundness : ∀ (c:Circuit F),
     intro inv
     apply rw_bisim.right
     intro o
-    simp [eval_e,eval,Cs.eval]
+    simp [Exp.eval,eval,Cs.eval]
     split
     case is_zero.h.h.isTrue he0 =>
       split
@@ -177,10 +177,10 @@ def completeness : ∀ (c:Circuit F),
     exact h
     constructor
   | share e c h =>
-    simp [eval_e,eval,Cs.eval,to_cs,to_wg,wrap]
+    simp [Exp.eval,eval,Cs.eval,to_cs,to_wg,wrap]
     apply h
   | is_zero e c h =>
-    simp [eval_e,eval,Cs.eval,to_cs,to_wg,wrap]
+    simp [Exp.eval,eval,Cs.eval,to_cs,to_wg,wrap]
     split
     case is_zero.isTrue he0 =>
       simp

@@ -27,7 +27,7 @@ def unshare_all_F (c:Circuit F) : Circuit F :=
   | .lam k => .lam (fun x => unshare_all_F (k x))
   | .is_zero e k => .is_zero e (fun x => unshare_all_F (k x))
   --
-  | .share e k => k (eval_e e)
+  | .share e k => k (Exp.eval e)
 
 theorem unshare_all_sem_pre_F : ∀ (c:Circuit F),
   c ≈ unshare_all_F c := by
@@ -81,7 +81,7 @@ def expected_a : Circuit' := fun _ => Circuit.lam (fun x => Circuit.eq0 (.c 1 + 
 
 theorem unshare_all_sem_pre : ∀ (cl: Circuit F) (cr:Circuit (Exp F)) G,
   wf G cl cr ->
-   List.Forall (fun entry => entry.l = (eval_e entry.r)) G ->
+   List.Forall (fun entry => entry.l = (Exp.eval entry.r)) G ->
    cl ≈ (unshare_all cr)
 := by
   intros cl
@@ -113,7 +113,7 @@ theorem unshare_all_sem_pre : ∀ (cl: Circuit F) (cr:Circuit (Exp F)) G,
     apply h
     apply wf
     rw [List.forall_cons]
-    simp [eval_e]
+    simp [Exp.eval]
     assumption
   | eq0 el cl h =>
     intros cr G wf FA
@@ -135,7 +135,7 @@ theorem unshare_all_sem_pre : ∀ (cl: Circuit F) (cr:Circuit (Exp F)) G,
       apply h
       apply wf
       rw [List.forall_cons]
-      simp [eval_e]
+      simp [Exp.eval]
       assumption
 
 theorem unshare_sem_pre' : ∀ (cl: Circuit'),

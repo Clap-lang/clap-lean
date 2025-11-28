@@ -45,7 +45,9 @@ inductive Exp (var:Type) where
 
 def Exp' : Type _ := (var:Type) -> Exp var
 
-def Exp.reprString (e:Exp String) : Std.Format :=
+namespace Exp
+
+def reprString (e:Exp String) : Std.Format :=
   match e with
   | .v s => s!"v{s}"
   | .c n => repr n
@@ -54,10 +56,10 @@ def Exp.reprString (e:Exp String) : Std.Format :=
   | .sub e1 e2 => s!"({reprString e1} - {reprString e2})"
 
 instance : Repr (Exp String) where
-  reprPrec e _ := Exp.reprString e
+  reprPrec e _ := reprString e
 
 instance : Repr (Exp') where
-  reprPrec e _ := Exp.reprString (e String)
+  reprPrec e _ := reprString (e String)
 
 instance (var:Type) : Add (Exp var) where
   add a b := .add a b
@@ -73,18 +75,18 @@ example : Exp F := (.c 1) + (.v 2)
 -- we can substitute expressions for variables, which is what we need for optimizations
 example : Exp (Exp F) := (.c 1) + (.v ((.c 2) + (.c 2)))
 
-def eval_e (e: Exp F) : F :=
+def eval (e: Exp F) : F :=
   match e with
-  | .v v => v
+  | .v f => f
   | .c i => i
-  | .add l r => eval_e l + eval_e r
-  | .mul l r => eval_e l * eval_e r
-  | .sub l r => eval_e l - eval_e r
+  | .add l r => eval l + eval r
+  | .mul l r => eval l * eval r
+  | .sub l r => eval l - eval r
 
-def eval_e' (e:Exp') : F := eval_e (e F)
+def eval' (e:Exp') : F := Exp.eval (e F)
 
 instance : Coe (Exp F) F where
-  coe := eval_e
+  coe := eval
 
 instance : Coe F (Exp F) where
   coe := .c
@@ -92,10 +94,10 @@ instance : Coe F (Exp F) where
 instance (n:Nat) : OfNat (Exp F) n where
   ofNat := (↑n:F)
 
-def equiv_e (e1 e2 : Exp F) : Prop := eval_e e1 = eval_e e2
+def equiv (e1 e2 : Exp F) : Prop := Exp.eval e1 = Exp.eval e2
 
 instance : Setoid (Exp F) where
-  r := equiv_e
+  r := Exp.equiv
   iseqv := {
     refl := fun _ => rfl
     symm := fun h => h.symm
@@ -103,33 +105,35 @@ instance : Setoid (Exp F) where
   }
 
 example : 3 + 4 ≈ (7 : Exp F) := by
-  show eval_e _ = eval_e _
-  simp [eval_e]
+  show eval _ = eval _
+  simp [eval]
   norm_num
 
 -- @[congr] -- this requires to write the conclusion with = instead of ≈
 @[simp]
 theorem add_congr (e1 e2 e3 e4 : Exp F) (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) :
   e1 + e3 ≈ e2 + e4 := by
-  show eval_e _ = eval_e _
-  simp [eval_e]
+  show eval _ = eval _
+  simp [eval]
   rw [h1, h2]
 
-example e1 e2 e3 e4 (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) : (Exp.add e1 e3 : Exp F) ≈ Exp.add e2 e4 := by
+example e1 e2 e3 e4 (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) : (add e1 e3 : Exp F) ≈ add e2 e4 := by
   apply add_congr
   repeat assumption
 
 theorem mul_congr (e1 e2 e3 e4 : Exp F) (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) :
     e1 * e3 ≈ e2 * e4 := by
-  show eval_e _ = eval_e _
-  simp [eval_e]
+  show eval _ = eval _
+  simp [eval]
   rw [h1, h2]
 
 theorem sub_congr (e1 e2 e3 e4 : Exp F) (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) :
     e1 - e3 ≈ e2 - e4 := by
-  show eval_e _ = eval_e _
-  simp [eval_e]
+  show eval _ = eval _
+  simp [eval]
   rw [h1, h2]
+
+end Exp
 
 inductive Circuit (var:Type) : Type where
   | nil : Circuit var
@@ -182,10 +186,10 @@ def eval (c:Circuit F) : denotation :=
   | .nil => .u
   | .lam k => .l (fun x => eval (k x))
   | .eq0 e c =>
-    if eval_e e = 0 then eval c else .n
-  | .share e k => eval (k (eval_e e))
+    if Exp.eval e = 0 then eval c else .n
+  | .share e k => eval (k (Exp.eval e))
   | .is_zero e k =>
-    if eval_e e = 0 then eval (k 1) else eval (k 0)
+    if Exp.eval e = 0 then eval (k 1) else eval (k 0)
 
 def eval' (c:Circuit') : denotation := eval (c F)
 
@@ -246,11 +250,11 @@ def eval_cps (c:Circuit F) (k:denotation -> denotation) : denotation :=
   | .nil => k .u
   | .eq0 e c =>
     eval_cps c (fun c => k (
-    if eval_e e = 0 then c else .n))
+    if Exp.eval e = 0 then c else .n))
   | .lam k' => .l (fun x => eval_cps (k' x) k)
-  | .share e k' => eval_cps (k' (eval_e e)) k
+  | .share e k' => eval_cps (k' (Exp.eval e)) k
   | .is_zero e k' =>
-    if eval_e e = 0 then eval_cps (k' 1) k else eval_cps (k' 0) k
+    if Exp.eval e = 0 then eval_cps (k' 1) k else eval_cps (k' 0) k
 
 def equiv' (c1 c2 : Circuit') : Prop := eval' c1 = eval' c2
 

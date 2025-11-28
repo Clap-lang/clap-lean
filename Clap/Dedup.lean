@@ -66,7 +66,7 @@ open Id
 
 theorem dedup_sem_pre : ∀ (cl: Circuit F) (cr:Circuit (Nat × F)) G,
   wf G cl cr ->
-    List.Forall (fun entry => entry.l = (eval_e entry.r.2)) G ->
+    List.Forall (fun entry => entry.l = (Exp.eval entry.r.2)) G ->
       cl ≈ (dedup cr) := sorry
 
 theorem dedup_sem_pre' : ∀ (cl: Circuit'),

@@ -86,7 +86,7 @@ def unwrap_e {var} (e:Exp (Exp var)) : Exp var :=
 
 lemma unwrap_e_sem_pre : ∀ (el: Exp F) (er: Exp (Exp F)) G,
   wf_e G el er ->
-   List.Forall (fun entry => entry.l = (eval_e entry.r)) G ->
+   List.Forall (fun entry => entry.l = (Exp.eval entry.r)) G ->
    el ≈ (unwrap_e er)
 := by
   intros el
@@ -108,7 +108,7 @@ lemma unwrap_e_sem_pre : ∀ (el: Exp F) (er: Exp (Exp F)) G,
   | sub ll lr hl hr =>
     intros er G wf FA
     cases wf
-    first | apply add_congr | apply mul_congr | apply sub_congr
+    first | apply Exp.add_congr | apply Exp.mul_congr | apply Exp.sub_congr
     . apply hl
       repeat assumption
     . apply hr
@@ -126,7 +126,7 @@ def id' (c:Circuit') : Circuit' := fun var => id (c (Exp var))
 
 theorem id_sem_pre : ∀ (cl: Circuit F) (cr:Circuit (Exp F)) G,
   wf G cl cr ->
-   List.Forall (fun entry => entry.l = (eval_e entry.r)) G ->
+   List.Forall (fun entry => entry.l = (Exp.eval entry.r)) G ->
    cl ≈ (id cr) := by
   intro cl
   induction cl with
@@ -143,7 +143,7 @@ theorem id_sem_pre : ∀ (cl: Circuit F) (cr:Circuit (Exp F)) G,
     apply h
     apply wf
     rw [List.forall_cons]
-    simp [eval_e]
+    simp [Exp.eval]
     assumption
   | eq0 el cl' h =>
     intro cr G wf FA
@@ -166,7 +166,7 @@ theorem id_sem_pre : ∀ (cl: Circuit F) (cr:Circuit (Exp F)) G,
       apply h
       apply wf
       rw [List.forall_cons]
-      simp [eval_e]
+      simp [Exp.eval]
       assumption
 
 end Id
