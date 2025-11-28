@@ -37,7 +37,8 @@ end Cont_monad
 /-
   We can achieve something similar using just notation.
   Again, under the notation we still need to reason about
-  continuations, but there is no bind at least.
+  continuations, but there is no bind at least as terms are
+  substituted syntactically.
 -/
 
 namespace Notation
