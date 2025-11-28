@@ -35,8 +35,20 @@ import Mathlib.Tactic
   constructors.
 -/
 
+/-
+0 - opinionated
+..
+3 - fundamental
+-/
+
 namespace Clap
 
+
+/--
+- (3) Parametric over F.
+- (0) '→' instead of ->
+- n 'deriving DecidableEq' later in the file
+-/
 inductive Exp (F var : Type) where
   | v : var → Exp F var
   | c : F → Exp F var
@@ -45,9 +57,8 @@ inductive Exp (F var : Type) where
   | sub : Exp F var → Exp F var → Exp F var
   deriving DecidableEq
 
-variable {F var : Type}
-
-variable {e : Exp F var}
+-- (2) repeating implicits are normally `variable`'d
+variable {F var : Type} {e : Exp F var}
 
 instance instReprExp [Repr F] [Repr var] : Repr (Exp F var) where
   reprPrec expr _ := go expr
@@ -74,10 +85,13 @@ variable {e₁ e₂ : Exp F var}
 
 namespace Exp
 
+-- (2.89) - mandatory to make implicit* (exceptions apply, for another day)
 lemma add_def : e₁ + e₂ = .add e₁ e₂ := rfl
 
+-- (2.89) - mandatory to make implicit* (exceptions apply, for another day)
 lemma mul_def : e₁ * e₂ = .mul e₁ e₂ := rfl
 
+-- (2.89) - mandatory to make implicit* (exceptions apply, for another day)
 lemma sub_def : e₁ - e₂ = .sub e₁ e₂ := rfl
 
 end Exp
@@ -144,6 +158,10 @@ lemma eval_mul : (e₁ * e₂).eval = e₁.eval * e₂.eval := rfl
 @[simp]
 lemma eval_sub : (e₁ - e₂).eval = e₁.eval - e₂.eval := rfl
 
+/--
+- (2) naming convention is:
+  read symbols left to right in the conclusion (do not mention variable names)
+-/
 @[simp]
 lemma c_add_c_equiv_c_add : Exp.c (var := F) (x₁ + x₂) ≈ Exp.c x₁ + Exp.c x₂ := rfl
 
@@ -154,9 +172,13 @@ example : 3 + 4 ≈ (7 : Expₑ F) := by
   norm_num
   rfl
 
--- Note, we can use generalised congruence tag if we so desire.
--- I am not sure why you were going for congruence, but it is useful to tag for further use
--- with `grw`.
+/--
+  - Note, we can use generalised congruence tag if we so desire.
+    I am not sure why you were going for congruence, but it is useful to tag for further use
+    with `grw`.
+  - (2) (h₁ : e₁ ≈ e₂) ... as opposed to e₁ ≈ e₂ → ... (by convention)
+  - (1.5) e₁ better than e1 (especially in mathlib)
+-/
 @[gcongr]
 theorem add_congr (h₁ : e₁ ≈ e₂) (h₂ : e₃ ≈ e₄) : e₁ + e₃ ≈ e₂ + e₄ := by
   aesop (add simp [equiv_iff_eval_eq_eval])
@@ -253,8 +275,11 @@ section
 
 abbrev a' := a (ZMod 41) ℕ
 
-#guard s!"{a'}" = "λ0 λ1 eq0 (v0 + v1) nil"
-
+/--
+- (2) Normally this is a better way to do this sort of thing. (ideally `by rfl`, doesn't work here)
+-/
+example : s!"{a'}" = "λ0 λ1 eq0 (v0 + v1) nil" := by native_decide
+  
 end
 
 section
@@ -274,6 +299,10 @@ section eval
 
 variable [DecidableEq F] [Ring F]
 
+/--
+- (0) x.f instead of f x
+- (0) .l fun .. instead of .l (fun ..)
+-/
 def Circuit.eval : Circuitₑ F → denotation F
   | .nil => .u
   | .lam k => .l fun x ↦ (k x).eval
@@ -283,26 +312,28 @@ def Circuit.eval : Circuitₑ F → denotation F
   | .is_zero e k =>
     if e.eval = 0 then (k 1).eval else (k 0).eval
 
+variable {e : Expₑ F} {c : Circuitₑ F} {k : F → Circuitₑ F}
+
 /-
 Technically we want all of these dudes.
 -/
 @[simp]
-lemma Circuit.eval_eq0 {e : Expₑ F} {c : Circuitₑ F} :
+lemma Circuit.eval_eq0 :
   (Circuit.eq0 e c).eval = if e.eval = 0 then c.eval else .n := by
   simp [Circuit.eval]
 
 @[simp]
-lemma Circuit.eval_lam {c : F → Circuitₑ F} :
-  (Circuit.lam c).eval = .l fun x ↦ (c x).eval := by
+lemma Circuit.eval_lam :
+  (Circuit.lam k).eval = .l fun x ↦ (k x).eval := by
   simp [Circuit.eval]
 
 @[simp]
-lemma Circuit.eval_share {e : Expₑ F} {k : F → Circuitₑ F} :
+lemma Circuit.eval_share :
   (Circuit.share e k).eval = (k e.eval).eval := by
   simp [Circuit.eval]
 
 @[simp]
-lemma Circuit.eval_is_zero {e : Expₑ F} {k : F → Circuitₑ F} :
+lemma Circuit.eval_is_zero :
   (Circuit.is_zero e k).eval =  if e.eval = 0 then (k 1).eval else (k 0).eval := by
   simp [Circuit.eval]
 
@@ -312,6 +343,7 @@ instance [DecidableEq F] [Ring F] : Setoid (Circuitₑ F) where
   r := Circuit.equiv
   iseqv := Equivalence.comap eq_equivalence Circuit.eval -- Just pullback the proof.
 
+-- Private because useless, I just abuse this for `aesop`.
 private lemma Circuit.equiv_iff_eval_eq_eval {c₁ c₂ : Circuitₑ F} :
   c₁ ≈ c₂ ↔ c₁.eval = c₂.eval := by rfl
 
@@ -380,7 +412,7 @@ instance : Setoid (Circuitₑ F) where
 -- END Not needed because of deriving DecidableEq on Exp
 -- but one could do it this way easily.
 
-instance [DecidableEq F] : DecidableEq (Expₑ F) := inferInstance -- deriving DecidableEq on Exp
+instance [DecidableEq F] : DecidableEq (Expₑ F) := inferInstance -- deriving DecidableEq on Exp (and not needed altogether)
 
 end eval
 
