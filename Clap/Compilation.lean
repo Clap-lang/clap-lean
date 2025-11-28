@@ -101,23 +101,23 @@ def wrap (wg:Wg) (cs:Cs F) : Cs F :=
 open Simulation
 
 theorem soundness : ∀ (c:Circuit F),
-  rw_bisim (eval c) (Cs.eval (to_cs c)) := by
+  rw_bisim (Circuit.eval c) (Cs.eval (to_cs c)) := by
   intro c
   induction c with
   | nil =>
-    simp [eval,to_cs]
+    simp [Circuit.eval,to_cs]
     constructor
   | lam k h =>
-    simp [eval,to_cs]
+    simp [Circuit.eval,to_cs]
     constructor
     exact h
   | eq0 e c h =>
-    simp [eval,Cs.eval,to_cs]
+    simp [Circuit.eval,Cs.eval,to_cs]
     split
     apply h
     constructor
   | share e c h =>
-    simp [eval,Cs.eval,to_cs]
+    simp [Circuit.eval,Cs.eval,to_cs]
     apply rw_bisim.right
     intro x
     simp [Exp.eval]
@@ -131,7 +131,7 @@ theorem soundness : ∀ (c:Circuit F),
     intro inv
     apply rw_bisim.right
     intro o
-    simp [Exp.eval,eval,Cs.eval]
+    simp [Exp.eval,Circuit.eval,Cs.eval]
     split
     case is_zero.h.h.isTrue he0 =>
       split
@@ -156,31 +156,31 @@ theorem soundness : ∀ (c:Circuit F),
       case isFalse hsub => constructor
 
 theorem soundness' : ∀ (c:Circuit'),
-  rw_bisim (eval' c) (Cs.eval' (to_cs' c)) := by
+  rw_bisim (Circuit.eval' c) (Cs.eval' (to_cs' c)) := by
   intro c
   apply soundness
 
 def completeness : ∀ (c:Circuit F),
-  eval c = Cs.eval (wrap (to_wg c) (to_cs c)) := by
+  Circuit.eval c = Cs.eval (wrap (to_wg c) (to_cs c)) := by
   intro c
   induction c with
   | nil =>
-    simp [eval,to_cs,to_wg,wrap]
+    simp [Circuit.eval,to_cs,to_wg,wrap]
     constructor
   | lam k h =>
-    simp [eval,Cs.eval,to_cs,to_wg,wrap]
+    simp [Circuit.eval,Cs.eval,to_cs,to_wg,wrap]
     funext
     apply h
   | eq0 e c h =>
-    simp [eval,Cs.eval,to_cs,to_wg,wrap]
+    simp [Circuit.eval,Cs.eval,to_cs,to_wg,wrap]
     split
     exact h
     constructor
   | share e c h =>
-    simp [Exp.eval,eval,Cs.eval,to_cs,to_wg,wrap]
+    simp [Exp.eval,Circuit.eval,Cs.eval,to_cs,to_wg,wrap]
     apply h
   | is_zero e c h =>
-    simp [Exp.eval,eval,Cs.eval,to_cs,to_wg,wrap]
+    simp [Exp.eval,Circuit.eval,Cs.eval,to_cs,to_wg,wrap]
     split
     case is_zero.isTrue he0 =>
       simp

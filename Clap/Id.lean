@@ -138,7 +138,7 @@ theorem id_sem_pre : ∀ (cl: Circuit F) (cr:Circuit (Exp F)) G,
     intro cr G wf FA
     cases wf
     case _ kr wf =>
-    apply lam_congr
+    apply Circuit.lam_congr
     intro x
     apply h
     apply wf
@@ -149,7 +149,7 @@ theorem id_sem_pre : ∀ (cl: Circuit F) (cr:Circuit (Exp F)) G,
     intro cr G wf FA
     cases wf
     case _ er cr' wf_e wf =>
-    apply eq0_congr
+    apply Circuit.eq0_congr
     . apply unwrap_e_sem_pre
       repeat assumption
     . apply h
@@ -159,7 +159,7 @@ theorem id_sem_pre : ∀ (cl: Circuit F) (cr:Circuit (Exp F)) G,
     intro cr G wf FA
     cases wf
     case _ er kr' wf_e wf =>
-    first | apply share_congr | apply is_zero_congr
+    first | apply Circuit.share_congr | apply Circuit.is_zero_congr
     . apply unwrap_e_sem_pre
       repeat assumption
     . intro x

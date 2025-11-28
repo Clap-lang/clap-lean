@@ -34,20 +34,20 @@ theorem unshare_all_sem_pre_F : ∀ (c:Circuit F),
   intros c
   induction c with
   | lam k h =>
-    apply lam_congr
+    apply Circuit.lam_congr
     exact h
   | nil =>
     simp [unshare_all_F]
   | eq0 e c h =>
-    apply eq0_congr
+    apply Circuit.eq0_congr
     simp
     assumption
   | share e c h =>
-    apply share_congr
+    apply Circuit.share_congr
     simp
     simp
   | is_zero e c h =>
-    apply is_zero_congr
+    apply Circuit.is_zero_congr
     simp
     assumption
 
@@ -108,7 +108,7 @@ theorem unshare_all_sem_pre : ∀ (cl: Circuit F) (cr:Circuit (Exp F)) G,
     intros cr G wf FA
     cases wf
     case _ kr wf =>
-    apply lam_congr
+    apply Circuit.lam_congr
     intro x
     apply h
     apply wf
@@ -119,7 +119,7 @@ theorem unshare_all_sem_pre : ∀ (cl: Circuit F) (cr:Circuit (Exp F)) G,
     intros cr G wf FA
     cases wf
     case _ er cr wf_e wf =>
-    apply eq0_congr
+    apply Circuit.eq0_congr
     . apply unwrap_e_sem_pre
       repeat assumption
     . apply h
@@ -128,7 +128,7 @@ theorem unshare_all_sem_pre : ∀ (cl: Circuit F) (cr:Circuit (Exp F)) G,
     intro cr G wf FA
     cases wf
     case _ er kr' wf_e wf =>
-    apply is_zero_congr
+    apply Circuit.is_zero_congr
     . apply unwrap_e_sem_pre
       repeat assumption
     . intro x
