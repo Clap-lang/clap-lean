@@ -134,12 +134,16 @@ theorem sub_congr (e1 e2 e3 e4 : Exp F) (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) :
   simp [eval_e]
   rw [h1, h2]
 
+
+-- take inputs first
 inductive Circuit (var:Type) : Type where
   | nil : Circuit var
   | eq0 : Exp var -> Circuit var -> Circuit var
   | lam : (var -> Circuit var) -> Circuit var
   | share : Exp var -> (var -> Circuit var) -> Circuit var
   | is_zero : Exp var -> (var -> Circuit var) -> Circuit var
+  | decompose : Exp var -> (Vector var 4 -> Circuit var) -> Circuit var
+  | assert_size : Exp var -> (() -> Circuit var) -> Circuit var
 
 def Circuit' : Type _ := (var:Type) -> Circuit var
 
