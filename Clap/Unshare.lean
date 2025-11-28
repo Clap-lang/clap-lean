@@ -2,9 +2,6 @@ import Clap.Circuit
 import Clap.Simulation
 import Clap.Id
 
-set_option autoImplicit false
-set_option linter.unusedVariables true
-
 namespace Unshare
 
 /-

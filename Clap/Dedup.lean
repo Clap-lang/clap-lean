@@ -2,9 +2,6 @@ import Clap.Circuit
 import Clap.Simulation
 import Clap.Id
 
-set_option autoImplicit false
-set_option linter.unusedVariables true
-
 /-
   This file introduces an optimization to remove duplicate checks.
   The current version eliminates any `eq0` with an expression that has

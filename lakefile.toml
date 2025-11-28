@@ -4,14 +4,12 @@ defaultTargets = ["Clap"]
 
 [[lean_lib]]
 name = "Clap"
-moreLeanArgs = [
-  "-Dlinter.unusedVariables=true",     # Warn on unused variables
-  # "-Dlinter.all=true",                 # Enable all linters
-  "-DautoImplicit=false",              # Disable auto implicit variables
-  "-Dpp.unicode.fun=true",             # Pretty print with unicode
-  "-Dpp.proofs=true",                  # Show proof terms
+leanOptions = [
+  { name = "linter.unusedVariables", value = true },
+  { name = "autoImplicit", value = false },
 ]
 
 [[require]]
 name = "mathlib"
-scope = "leanprover-community"
+git = "https://github.com/leanprover-community/mathlib4.git"
+rev = "v4.26.0-rc2"

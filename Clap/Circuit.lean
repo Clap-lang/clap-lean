@@ -7,9 +7,6 @@ import Mathlib.Data.ZMod.Basic
 import Mathlib.Tactic.NormNum -- norm_num
 -- import Mathlib.Data.List.Basic
 
-set_option autoImplicit false
-set_option linter.unusedVariables true
-
 /-
   This file introduces the main data structure of the project, the
   Circuit. We follow the Phoas (Parametric higher-order abstract
