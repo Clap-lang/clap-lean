@@ -66,17 +66,13 @@ theorem cfold_sem_pre : ∀ (c:Circuit F), c ≈ (cfold c) := by
   induction c with
   | nil =>
     constructor
-  | lam k h =>
-    simp [cfold]
-    apply Circuit.lam_congr
-    exact h
+  | lam k h
   | eq0 e c h
   | share e c h
   | is_zero e c h =>
     simp [cfold]
-    first | apply Circuit.eq0_congr | apply Circuit.share_congr | apply Circuit.is_zero_congr
-    apply cfold_e_sem_pre
-    exact h
+    gcongr
+    repeat (first | apply cfold_e_sem_pre | apply h)
 
 theorem cfold'_sem_pre : ∀ (c:Circuit'), Circuit.eval' c = Circuit.eval' (cfold' c) := by
   intros

@@ -110,8 +110,7 @@ example : 3 + 4 ≈ (7 : Exp F) := by
   simp [eval]
   norm_num
 
--- @[congr] -- this requires to write the conclusion with = instead of ≈
-@[simp]
+@[gcongr]
 theorem add_congr (e1 e2 e3 e4 : Exp F) (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) :
   e1 + e3 ≈ e2 + e4 := by
   show eval _ = eval _
@@ -122,12 +121,14 @@ example e1 e2 e3 e4 (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) : (add e1 e3 : Exp F) ≈ 
   apply add_congr
   repeat assumption
 
+@[gcongr]
 theorem mul_congr (e1 e2 e3 e4 : Exp F) (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) :
     e1 * e3 ≈ e2 * e4 := by
   show eval _ = eval _
   simp [eval]
   rw [h1, h2]
 
+@[gcongr]
 theorem sub_congr (e1 e2 e3 e4 : Exp F) (h1 : e1 ≈ e2) (h2 : e3 ≈ e4) :
     e1 - e3 ≈ e2 - e4 := by
   show eval _ = eval _
@@ -214,6 +215,7 @@ theorem nil_congr :
   show eval _ = eval _
   simp [eval]
 
+@[gcongr]
 theorem eq0_congr : ∀ (el er:Exp F) (cl cr:Circuit F),
   el ≈ er -> cl ≈ cr ->
   eq0 el cl ≈ eq0 er cr := by
@@ -222,6 +224,7 @@ theorem eq0_congr : ∀ (el er:Exp F) (cl cr:Circuit F),
   simp [eval]
   rw [he,hk]
 
+@[gcongr]
 theorem lam_congr : ∀ (kl kr:F -> Circuit F),
   (∀ x, kl x ≈ kr x) ->
   lam kl ≈ lam kr := by
@@ -231,6 +234,7 @@ theorem lam_congr : ∀ (kl kr:F -> Circuit F),
   funext
   apply hk
 
+@[gcongr]
 theorem share_congr : ∀ (el er:Exp F) (kl kr:F -> Circuit F),
   el ≈ er -> (∀ x, kl x ≈ kr x) ->
   share el kl ≈ share er kr := by
@@ -240,6 +244,7 @@ theorem share_congr : ∀ (el er:Exp F) (kl kr:F -> Circuit F),
   rw [he]
   apply hk
 
+@[gcongr]
 theorem is_zero_congr : ∀ (el er:Exp F) (kl kr:F -> Circuit F),
   el ≈ er -> (∀ x, kl x ≈ kr x) ->
   is_zero el kl ≈ is_zero er kr := by
