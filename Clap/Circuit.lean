@@ -247,17 +247,6 @@ theorem is_zero_congr : ∀ (el er:Exp F) (kl kr:F -> Circuit F),
   simp [eval]
   rw [he,hk 0,hk 1]
 
-def eval_cps (c:Circuit F) (k:denotation -> denotation) : denotation :=
-  match c with
-  | .nil => k .u
-  | .eq0 e c =>
-    eval_cps c (fun c => k (
-    if Exp.eval e = 0 then c else .n))
-  | .lam k' => .l (fun x => eval_cps (k' x) k)
-  | .share e k' => eval_cps (k' (Exp.eval e)) k
-  | .is_zero e k' =>
-    if Exp.eval e = 0 then eval_cps (k' 1) k else eval_cps (k' 0) k
-
 def equiv' (c1 c2 : Circuit') : Prop := eval' c1 = eval' c2
 
 instance : Setoid (Circuit') where
