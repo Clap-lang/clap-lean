@@ -130,15 +130,16 @@ def id {var} (c:Circuit F (Exp F var)) : Circuit F var :=
   | .lam k => .lam (fun x => id (k (.v x)))
   | .is_zero e k => .is_zero (unwrap_e e) (fun x => id (k (.v x)))
   | .share e k => .share (unwrap_e e) (fun x => id (k (.v x)))
+  | .assert_range w e c => .assert_range w (unwrap_e e) (id c)
 
 -- def id' (c:Circuit' F) : Circuit' F := fun var => id (c (Exp F var))
 
-variable [DecidableEq F]
+variable [DecidableEq F] [Coe F Nat]
 
 theorem id_sem_pre : ∀ (cl: Circuit F F) (cr:Circuit F (Exp F F)) G,
   wf G cl cr ->
    List.Forall (fun entry => entry.l = (Exp.eval entry.r)) G ->
-   cl ≈ (id cr) := by
+   cl ≈ id cr := by
   intro cl
   induction cl with
   | nil =>
@@ -179,5 +180,8 @@ theorem id_sem_pre : ∀ (cl: Circuit F F) (cr:Circuit F (Exp F F)) G,
       rw [List.forall_cons]
       simp [Exp.eval]
       assumption
+  | assert_range w e c h =>
+    intro cr G wf FA
+    cases wf
 
 end Id

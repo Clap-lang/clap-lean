@@ -45,6 +45,7 @@ def beq : (e1 e2 : Exp F Nat) -> Bool
   | .sub ll lr, .sub rl rr => beq ll rl && beq lr rr
   | _,_ => false
 
+-- TODO we are mixing expressions from eq0 and assert_range, they should be in different sets
 def dedup_ {var} (c:Circuit F (Nat × var)) (n:Nat) (set: List (Exp F Nat)) : Circuit F var :=
   match c with
   | .nil => .nil
@@ -55,6 +56,7 @@ def dedup_ {var} (c:Circuit F (Nat × var)) (n:Nat) (set: List (Exp F Nat)) : Ci
   | .lam k => .lam (fun x => dedup_ (k (n,x)) (n+1) set)
   | .share e k => .share (to_var e) (fun x => dedup_ (k (n,x)) (n+1) set)
   | .is_zero e k => .is_zero (to_var e) (fun x => dedup_ (k (n,x)) (n+1) set)
+  | .assert_range w e c => .assert_range w (to_var e) (dedup_ c n ((to_nat e)::set))
 
 def dedup {var} (c:Circuit F (Nat × var)) : Circuit F var := dedup_ c 0 []
 
@@ -72,6 +74,8 @@ def expected : Circuit' F7 := fun _ => .lam (fun x => .eq0 (.v x + .c 1) (.eq0 (
 end Test
 
 open Id
+
+variable [Coe F Nat]
 
 theorem dedup_sem_pre : ∀ (cl: Circuit F F) (cr:Circuit F (Nat × F)) G,
   wf G cl cr ->

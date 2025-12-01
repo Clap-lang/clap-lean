@@ -31,9 +31,13 @@ def unshare_all_F (c:Circuit F F) : Circuit F F :=
   | .eq0 e c => .eq0 e (unshare_all_F c)
   | .lam k => .lam (fun x => unshare_all_F (k x))
   | .is_zero e k => .is_zero e (fun x => unshare_all_F (k x))
+  | .assert_range w e c => .assert_range w e (unshare_all_F c)
   --
   | .share e k => k (Exp.eval e)
 
+variable [Coe F Nat]
+
+-- TODO use congr squash proof
 theorem unshare_all_sem_pre_F : ∀ (c:Circuit F F),
   c ≈ unshare_all_F c := by
   intros c
@@ -45,8 +49,13 @@ theorem unshare_all_sem_pre_F : ∀ (c:Circuit F F),
     simp [unshare_all_F]
   | eq0 e c h
   | is_zero e c h
-  | share e c h =>
-    (first | apply Circuit.eq0_congr | apply Circuit.is_zero_congr | apply Circuit.share_congr) <;> repeat (first | simp | assumption)
+  | share e c h
+  | assert_range w e c =>
+    (first | apply Circuit.eq0_congr
+           | apply Circuit.is_zero_congr
+           | apply Circuit.share_congr
+           | apply Circuit.assert_range_congr)
+    <;> repeat (first | simp | assumption)
 
 /-
   Id presents a simple example of optimization pass that does not use
@@ -66,6 +75,7 @@ def unshare_all {var} (c:Circuit F (Exp F var)) : Circuit F var :=
   | .eq0 e c => .eq0 (unwrap_e e) (unshare_all c)
   | .lam k => .lam (fun x => unshare_all (k (.v x)))
   | .is_zero e k => .is_zero (unwrap_e e) (fun x => unshare_all (k (.v x)))
+  | .assert_range w e c => .assert_range w (unwrap_e e) (unshare_all c)
   --
   | .share e k => unshare_all (k (unwrap_e e))
 
@@ -140,6 +150,9 @@ theorem unshare_all_sem_pre : ∀ (cl: Circuit F F) (cr:Circuit F (Exp F F)) G,
       rw [List.forall_cons]
       simp [Exp.eval]
       assumption
+  | assert_range w e c h =>
+    intro cr G wf FA
+    cases wf
 
 theorem unshare_sem_pre' : ∀ (cl: Circuit' F),
   wf' cl ->
@@ -228,6 +241,9 @@ def unshare_deg_cps {var} (c:Circuit F (Exp F var)) (k : Bool × Circuit F var -
   | .is_zero e k' =>
      let be := degree e <= 2
     .is_zero (unwrap_e e) (fun x => unshare_deg_cps (k' (.v x)) (fun (b,c) => k (b && be, c)))
+  | .assert_range w e c =>
+     let be := degree e <= 2
+     unshare_deg_cps c (fun (b,c) => k (b && be, .assert_range w (unwrap_e e) c))
   --
   | .share e k' =>
     let be := degree e <= 2
