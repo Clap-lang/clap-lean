@@ -53,6 +53,7 @@ def cfold {var} (c:Circuit F var) : Circuit F var :=
   | .lam k => .lam (fun x => cfold (k x))
   | .share e k => .share (cfold_e e) (fun x => cfold (k x))
   | .is_zero e k => .is_zero (cfold_e e) (fun x => cfold (k x))
+  | .assert_range w e c => .assert_range w (cfold_e e) (cfold c)
 
 def cfold' (c:Circuit' F) : Circuit' F := fun var => cfold (c var)
 
@@ -69,7 +70,10 @@ theorem cfold_e_sem_pre : ∀ (e:Exp F F), Exp.eval e = Exp.eval (cfold_e e) := 
     simp [cfold_e,Exp.eval]
     repeat (split <;> repeat simp [*,Exp.eval])
 
-theorem cfold_sem_pre : ∀ (c:Circuit F F), c ≈ (cfold c) := by
+variable [Coe F Nat]
+
+theorem cfold_sem_pre : ∀ (c:Circuit F F),
+  c ≈ cfold c := by
   intros c
   induction c with
   | nil =>
@@ -77,7 +81,8 @@ theorem cfold_sem_pre : ∀ (c:Circuit F F), c ≈ (cfold c) := by
   | lam k h
   | eq0 e c h
   | share e c h
-  | is_zero e c h =>
+  | is_zero e c h
+  | assert_range w e c =>
     simp [cfold]
     gcongr
     repeat (first | apply cfold_e_sem_pre | apply h)
