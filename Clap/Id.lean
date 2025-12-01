@@ -26,11 +26,14 @@ namespace Id
 
 open Simulation
 
+variable {F : Type}
+variable [Field F]
+
 structure Entry (var1 var2:Type) where
   l : var1
   r : var2
 
-inductive wf_e {var1 var2}: List (Entry var1 var2) -> Exp var1 -> Exp var2 -> Prop where
+inductive wf_e {var1 var2}: List (Entry var1 var2) -> Exp F var1 -> Exp F var2 -> Prop where
   | v : ∀ G x x', { l := x, r := x' } ∈ G   -- looks up in G
     -> wf_e G (.v x) (.v x')
   | c : ∀ G n, wf_e G (.c n) (.c n)
@@ -47,7 +50,7 @@ inductive wf_e {var1 var2}: List (Entry var1 var2) -> Exp var1 -> Exp var2 -> Pr
     wf_e G e2 e2' ->
     wf_e G (.sub e1 e2) (.sub e1' e2')
 
-inductive wf {var1 var2} : List (Entry var1 var2) -> Circuit var1 -> Circuit var2 -> Prop where
+inductive wf {var1 var2} : List (Entry var1 var2) -> Circuit F var1 -> Circuit F var2 -> Prop where
   | nil : ∀ G, wf G .nil .nil
   | eq0 : ∀ G el er cl cr,
       wf_e G el er ->
@@ -66,9 +69,11 @@ inductive wf {var1 var2} : List (Entry var1 var2) -> Circuit var1 -> Circuit var
       wf G (.is_zero el kl) (.is_zero er kr)
 
 -- TODO do we need to expose G ?
-def wf' (c:Circuit') : Prop := ∀ var1 var2, wf [] (c var1) (c var2)
+def wf' (c:Circuit' F) : Prop := ∀ var1 var2, wf [] (c var1) (c var2)
 
-def add : Circuit' := fun _ =>
+namespace Example
+
+def add : Circuit' Clap.F7.F := fun _ =>
   .share (.c 1) (fun x =>
     .share (.c 2) (fun y =>
       .eq0 (.v x + .v y) .nil))
@@ -78,7 +83,9 @@ example : wf' add := by
   intros
   repeat (first | intros ; constructor | constructor | simp)
 
-def unwrap_e {var} (e:Exp (Exp var)) : Exp var :=
+end Example
+
+def unwrap_e {var} (e:Exp F (Exp F var)) : Exp F var :=
   match e with
   | .v v => v
   | .c f => .c f
@@ -86,7 +93,7 @@ def unwrap_e {var} (e:Exp (Exp var)) : Exp var :=
   | .mul l r => .mul (unwrap_e l) (unwrap_e r)
   | .sub l r => .sub (unwrap_e l) (unwrap_e r)
 
-lemma unwrap_e_sem_pre : ∀ (el: Exp F) (er: Exp (Exp F)) G,
+lemma unwrap_e_sem_pre : ∀ (el: Exp F F) (er: Exp F (Exp F F)) G,
   wf_e G el er ->
    List.Forall (fun entry => entry.l = (Exp.eval entry.r)) G ->
    el ≈ (unwrap_e er)
@@ -116,7 +123,7 @@ lemma unwrap_e_sem_pre : ∀ (el: Exp F) (er: Exp (Exp F)) G,
     . apply hr
       repeat assumption
 
-def id {var} (c:Circuit (Exp var)) : Circuit var :=
+def id {var} (c:Circuit F (Exp F var)) : Circuit F var :=
   match c with
   | .nil => .nil
   | .eq0 e c => .eq0 (unwrap_e e) (id c)
@@ -124,9 +131,11 @@ def id {var} (c:Circuit (Exp var)) : Circuit var :=
   | .is_zero e k => .is_zero (unwrap_e e) (fun x => id (k (.v x)))
   | .share e k => .share (unwrap_e e) (fun x => id (k (.v x)))
 
-def id' (c:Circuit') : Circuit' := fun var => id (c (Exp var))
+-- def id' (c:Circuit' F) : Circuit' F := fun var => id (c (Exp F var))
 
-theorem id_sem_pre : ∀ (cl: Circuit F) (cr:Circuit (Exp F)) G,
+variable [DecidableEq F]
+
+theorem id_sem_pre : ∀ (cl: Circuit F F) (cr:Circuit F (Exp F F)) G,
   wf G cl cr ->
    List.Forall (fun entry => entry.l = (Exp.eval entry.r)) G ->
    cl ≈ (id cr) := by

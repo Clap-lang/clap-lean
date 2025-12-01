@@ -34,24 +34,27 @@ namespace Clap
   that, once wrapped, they are equivalent to the original Circuit.
 -/
 
--- we could remove this type and add an index to Circuit, which would save us from defining again the semantics of Cs
-inductive Cs (var:Type) : Type where
-  | nil : Cs var
-  | eq0 : Exp var -> Cs var -> Cs var
-  | lam : (var -> Cs var) -> Cs var
+-- TODO we could remove this type and add an index to Circuit, which would save us from defining again the semantics of Cs
+inductive Cs (F var:Type) : Type where
+  | nil : Cs F var
+  | eq0 : Exp F var -> Cs F var -> Cs F var
+  | lam : (var -> Cs F var) -> Cs F var
 
-def Cs' : Type _ := (var:Type) -> Cs var
+def Cs' (F:Type) : Type _ := (var:Type) -> Cs F var
 
-def Cs.eval (c:Cs F) : denotation :=
+variable {F : Type}
+variable [Field F] [DecidableEq F]
+
+def Cs.eval [DecidableEq F] (c:Cs F F) : denotation F :=
   match c with
   | .nil => .u
   | .lam k => .l (fun x => eval (k x))
   | .eq0 e c =>
     if Exp.eval e = 0 then eval c else .n
 
-def Cs.eval' (c:Cs') : denotation := eval (c F)
+def Cs.eval' (c:Cs' F) : denotation F := eval (c F)
 
-def to_cs {var:Type} (c:Circuit var) : Cs var :=
+def to_cs {var:Type} (c:Circuit F var) : Cs F var :=
   match c with
   | .nil => .nil
   | .eq0 e c => .eq0 e (to_cs c)
@@ -68,15 +71,14 @@ def to_cs {var:Type} (c:Circuit var) : Cs var :=
      -- e=0          o=1
      -- e≠0 inv=e^-1 o=0
 
-def to_cs' (c:Circuit') : Cs' := fun var => to_cs (c var)
+def to_cs' (c:Circuit' F) : Cs' F := fun var => to_cs (c var)
 
--- a list with continuations
-inductive Wg : Type where
-  | nil : Wg
-  | cons : F -> Wg -> Wg
-  | input : (F -> Wg) -> Wg
+inductive Wg (F:Type) : Type where
+  | nil : Wg F
+  | cons : F -> Wg F -> Wg F
+  | input : (F -> Wg F) -> Wg F
 
-def to_wg (c:Circuit F) : Wg :=
+def to_wg (c:Circuit F F) : Wg F :=
   match c with
   | .nil => Wg.nil
   | .eq0 _ c => to_wg c
@@ -90,19 +92,19 @@ def to_wg (c:Circuit F) : Wg :=
     let o : F := if e = 0 then 1 else 0
     .cons inv (.cons o (to_wg (k o)))
 
-def to_wg' (c:Circuit') : Wg := to_wg (c F)
+-- def to_wg' (c:Circuit' F) : Wg F := to_wg (c F)
 
-def wrap (wg:Wg) (cs:Cs F) : Cs F :=
+def wrap (wg:Wg F) (cs:Cs F F) : Cs F F :=
   match wg,cs with
-  | .nil,.nil => .nil
-  | wg,.eq0 e cs => .eq0 e (wrap wg cs)
-  | Wg.input kwg,.lam k => .lam (fun x => wrap (kwg x) (k x))
-  | .cons x wg,.lam k => wrap (wg:Wg) (k x)
-  | _,_ => .eq0 (.c 1) .nil -- needed because we don't have typed wg and cs
+  |         .nil , .nil      => .nil
+  |           wg , .eq0 e cs => .eq0 e (wrap wg cs)
+  | Wg.input kwg , .lam k    => .lam (fun x => wrap (kwg x) (k x))
+  |   .cons x wg , .lam k    => wrap (wg:Wg F) (k x)
+  |            _ , _         => .eq0 (.c 1) .nil -- needed because we don't have typed wg and cs
 
 open Simulation
 
-theorem soundness : ∀ (c:Circuit F),
+theorem soundness : ∀ (c:Circuit F F),
   rw_bisim (Circuit.eval c) (Cs.eval (to_cs c)) := by
   intro c
   induction c with
@@ -157,12 +159,12 @@ theorem soundness : ∀ (c:Circuit F),
         case isFalse hmul => constructor
       case isFalse hsub => constructor
 
-theorem soundness' : ∀ (c:Circuit'),
+theorem soundness' : ∀ (c:Circuit' F),
   rw_bisim (Circuit.eval' c) (Cs.eval' (to_cs' c)) := by
   intro c
   apply soundness
 
-def completeness : ∀ (c:Circuit F),
+def completeness : ∀ (c:Circuit F F),
   Circuit.eval c = Cs.eval (wrap (to_wg c) (to_cs c)) := by
   intro c
   induction c with

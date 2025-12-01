@@ -18,7 +18,10 @@ namespace Clap
 
 namespace Dedup
 
-def to_nat {var} (e:Exp (Nat × var)) : Exp Nat :=
+variable {F : Type}
+variable [Field F] [DecidableEq F]
+
+def to_nat {var} (e:Exp F (Nat × var)) : Exp F Nat :=
   match e with
   | .v (v,_) => .v v
   | .c f => .c f
@@ -26,7 +29,7 @@ def to_nat {var} (e:Exp (Nat × var)) : Exp Nat :=
   | .mul l r => to_nat l * to_nat r
   | .sub l r => to_nat l - to_nat r
 
-def to_var {var} (e:Exp (Nat × var)) : Exp var :=
+def to_var {var} (e:Exp F (Nat × var)) : Exp F var :=
   match e with
   | .v (_,v) => .v v
   | .c f => .c f
@@ -34,7 +37,7 @@ def to_var {var} (e:Exp (Nat × var)) : Exp var :=
   | .mul l r => to_var l * to_var r
   | .sub l r => to_var l - to_var r
 
-def beq : (e1 e2 : Exp Nat) -> Bool
+def beq : (e1 e2 : Exp F Nat) -> Bool
   | .v n1, .v n2
   | .c n1, .c n2 => n1 = n2
   | .add ll lr, .add rl rr => beq ll rl && beq lr rr
@@ -42,9 +45,7 @@ def beq : (e1 e2 : Exp Nat) -> Bool
   | .sub ll lr, .sub rl rr => beq ll rl && beq lr rr
   | _,_ => false
 
--- #check (inferInstance : DecidableEq (Exp Nat))
-
-def dedup_ {var} (c:Circuit (Nat × var)) (n:Nat) (set: List (Exp Nat)) : Circuit var :=
+def dedup_ {var} (c:Circuit F (Nat × var)) (n:Nat) (set: List (Exp F Nat)) : Circuit F var :=
   match c with
   | .nil => .nil
   | .eq0 e c =>
@@ -55,28 +56,33 @@ def dedup_ {var} (c:Circuit (Nat × var)) (n:Nat) (set: List (Exp Nat)) : Circui
   | .share e k => .share (to_var e) (fun x => dedup_ (k (n,x)) (n+1) set)
   | .is_zero e k => .is_zero (to_var e) (fun x => dedup_ (k (n,x)) (n+1) set)
 
-def dedup {var} (c:Circuit (Nat × var)) : Circuit var := dedup_ c 0 []
+def dedup {var} (c:Circuit F (Nat × var)) : Circuit F var := dedup_ c 0 []
 
-def dedup' (c:Circuit') : Circuit' := fun var => dedup (c (Nat × var))
+def dedup' (c:Circuit' F) : Circuit' F := fun var => dedup (c (Nat × var))
 
-def a        : Circuit' := fun _ => .lam (fun x => .eq0 (.v x + .c 1) (.eq0 (.v x + .c 2) (.eq0 (.v x + .c 1) .nil )))
-def expected : Circuit' := fun _ => .lam (fun x => .eq0 (.v x + .c 1) (.eq0 (.v x + .c 2) .nil ))
+namespace Test
 
-#guard s!"{dedup' a}" = s!"{expected}"
+def a        : Circuit' F := fun _ => .lam (fun x => .eq0 (.v x + .c 1) (.eq0 (.v x + .c 2) (.eq0 (.v x + .c 1) .nil )))
+def expected : Circuit' F := fun _ => .lam (fun x => .eq0 (.v x + .c 1) (.eq0 (.v x + .c 2) .nil ))
+
+abbrev F7 := Clap.F7.F
+#guard s!"{dedup' (a (F:=F7))}" = s!"{expected (F:=F7)}"
+
+end Test
 
 open Id
 
-theorem dedup_sem_pre : ∀ (cl: Circuit F) (cr:Circuit (Nat × F)) G,
+theorem dedup_sem_pre : ∀ (cl: Circuit F F) (cr:Circuit F (Nat × F)) G,
   wf G cl cr ->
     List.Forall (fun entry => entry.l = (Exp.eval entry.r.2)) G ->
       cl ≈ (dedup cr) := sorry
 
-theorem dedup_sem_pre' : ∀ (cl: Circuit'),
-  wf' cl ->
-   cl ≈ (dedup' cl) := by
-  intro cl wf
-  apply dedup_sem_pre
-  apply wf
-  simp
+-- theorem dedup_sem_pre' : ∀ (cl: Circuit' F),
+--   wf' cl ->
+--    cl ≈ (dedup' cl) := by
+--   intro cl wf
+--   apply dedup_sem_pre
+--   apply wf
+--   simp
 
 end Dedup
