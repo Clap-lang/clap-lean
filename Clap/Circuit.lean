@@ -34,6 +34,8 @@ namespace Clap
 namespace F7
 abbrev F := ZMod 7
 instance : Fact (Nat.Prime 7) := ⟨by decide⟩
+instance : Coe F Nat where
+  coe f := f.val
 end F7
 
 variable {F var : Type}
@@ -181,6 +183,7 @@ inductive Circuit (F var:Type) : Type where
   | lam : (var -> Circuit F var) -> Circuit F var
   | share : Exp F var -> (var -> Circuit F var) -> Circuit F var
   | is_zero : Exp F var -> (var -> Circuit F var) -> Circuit F var
+  | assert_range : (w:ℕ) -> Exp F var -> Circuit F var -> Circuit F var
 
 abbrev Circuitₑ (F : Type) := Circuit F F
 -- TODO remove all ' definitions
@@ -231,6 +234,7 @@ def repr [Repr F] [Repr var] [Ring F] [Index var]
   | .eq0 e c => s!"eq0 {_root_.repr e} {repr l c}"
   | .share e k => s!"share {_root_.repr e} {go l k}"
   | .is_zero e k => s!"is_zero {_root_.repr e} {go l k}"
+  | .assert_range w e c => s!"assert_range {w} {_root_.repr e} {repr l c}"
 
 instance [Repr F] [Repr var] [Ring F] [Index var] : Repr (Circuit F var) where
   reprPrec c _ := c.repr 0
@@ -248,6 +252,7 @@ end Test
 
 variable [Field F]
 variable [DecidableEq F]
+variable [Coe F Nat]
 
 def eval (c:Circuitₑ F ) : denotation F :=
   match c with
@@ -258,6 +263,9 @@ def eval (c:Circuitₑ F ) : denotation F :=
   | .share e k => eval (k (Exp.eval e))
   | .is_zero e k =>
     if Exp.eval e = 0 then eval (k 1) else eval (k 0)
+  | .assert_range w e c =>
+    let e := Exp.eval e
+    if (e:Nat) < 2^w then eval c else .n
 
 def eval' (c:Circuit' F) : denotation F := eval (c F)
 
@@ -278,7 +286,14 @@ lemma eval_share {e : Expₑ F} {k : F → Circuitₑ F} :
 
 @[simp]
 lemma eval_is_zero {e : Expₑ F} {k : F → Circuitₑ F} :
-  (is_zero e k).eval =  if e.eval = 0 then (k 1).eval else (k 0).eval := by
+  (is_zero e k).eval = if e.eval = 0 then (k 1).eval else (k 0).eval := by
+  simp [Circuit.eval]
+
+@[simp]
+lemma eval_assert_range {w:ℕ} {e : Expₑ F} {c : Circuitₑ F} :
+  (assert_range w e c).eval =
+    let e := Exp.eval e
+    if (e:Nat) < 2^w then eval c else .n := by
   simp [Circuit.eval]
 
 def equiv (c₁ c₂ : Circuitₑ F) : Prop := eval c₁ = eval c₂
@@ -314,6 +329,11 @@ theorem share_congr (he: el ≈ er) (h : ∀ x, kl x ≈ kr x) :
 @[gcongr]
 theorem is_zero_congr (he: el ≈ er) (h: ∀ x, kl x ≈ kr x) :
   is_zero el kl ≈ is_zero er kr := by
+  aesop (add simp [Exp.equiv_iff_eval_eq_eval, Circuit.equiv_iff_eval_eq_eval])
+
+@[gcongr]
+theorem assert_range_congr w (he: el ≈ er) (hc: cl ≈ cr) :
+  assert_range w el cl ≈ assert_range w er cr := by
   aesop (add simp [Exp.equiv_iff_eval_eq_eval, Circuit.equiv_iff_eval_eq_eval])
 
 end
