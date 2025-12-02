@@ -1,11 +1,5 @@
 import Mathlib.Data.ZMod.Basic
--- import Mathlib.Data.ZMod.Defs
--- import Mathlib.FieldTheory.Finite.Basic -- field operations
--- import Mathlib.Algebra.Field.Defs
--- import Mathlib.Algebra.Field.Basic  -- Field typeclass instances
--- import Mathlib.Data.Set.Basic
 import Mathlib.Tactic.NormNum -- norm_num
--- import Mathlib.Data.List.Basic
 
 /-
   This file introduces the main data structure of the project, the
