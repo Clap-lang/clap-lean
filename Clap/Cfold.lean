@@ -10,32 +10,40 @@ namespace Clap
 
 namespace Cfold
 
-variable {F : Type}
-variable [Field F]
+variable {var F : Type}
+variable [Field F] [DecidableEq F]
 
-def cfold_e {var} (e: Exp F var) : Exp F var :=
+/-
+  Note: this function contains some pattern matchings that don't look ideal
+  because of https://github.com/leanprover/lean4/issues/9803
+  Typically "| l,.c 0 => " is replaced by "| l,r => if r=0 then"
+-/
+def cfold_e (e: Exp F var) : Exp F var :=
   match e with
   | .v v => .v v
   | .c i => .c i
   | .add l r =>
     match cfold_e l, cfold_e r with
     | .c l , .c r => .c (l+r)
--- TODO
---    |    l , .c 0 => l
---    | .c 0 , r    => r
+    |    l , .c r => if r=0 then l else .add l r
+    | .c l , r    => if l=0 then r else .add l r
     |    _ , _    => .add l r
   | .mul l r =>
     match cfold_e l, cfold_e r with
     | .c l , .c r => .c (l * r)
---    |    _ , .c 0
---    | .c 0 , _    => .c 0
---    |    l , .c 1 => l
---    | .c 1 , r    => r
+    | .c l , r    =>
+      if l=0 then .c 0 else
+      if l=1 then r
+      else .mul l r
+    |    l , .c r =>
+      if r=0 then .c 0 else
+      if r=1 then l
+      else .mul l r
     |    _ , _    => .mul l r
   | .sub l r =>
     match cfold_e l, cfold_e r with
     | .c l , .c r => .c (l-r)
---    |    l , .c 0 => l
+    |    l , .c r => if r=0 then l else .sub l r
     |    _ , _    => .sub l r
 
 def cfold {var} (c:Circuit F var) : Circuit F var :=
@@ -55,20 +63,13 @@ theorem cfold_e_sem_pre : ∀ (e:Exp F F), Exp.eval e = Exp.eval (cfold_e e) := 
   | v f
   | c f =>
     simp [cfold_e,Exp.eval]
-  | add l r hl hr =>
-    simp [cfold_e,Exp.eval]
-    split
-    repeat simp [*,Exp.eval]
-  | mul l r hl hr =>
-    simp [cfold_e,Exp.eval]
-    split
-    repeat simp [*,Exp.eval]
+  | add l r hl hr
+  | mul l r hl hr
   | sub l r hl hr =>
     simp [cfold_e,Exp.eval]
-    split
-    repeat simp [*,Exp.eval]
+    repeat (split <;> repeat simp [*,Exp.eval])
 
-theorem cfold_sem_pre [DecidableEq F] : ∀ (c:Circuit F F), c ≈ (cfold c) := by
+theorem cfold_sem_pre : ∀ (c:Circuit F F), c ≈ (cfold c) := by
   intros c
   induction c with
   | nil =>
@@ -80,8 +81,6 @@ theorem cfold_sem_pre [DecidableEq F] : ∀ (c:Circuit F F), c ≈ (cfold c) := 
     simp [cfold]
     gcongr
     repeat (first | apply cfold_e_sem_pre | apply h)
-
-variable [DecidableEq F]
 
 theorem cfold'_sem_pre : ∀ (c:Circuit' F),
   Circuit.eval' c = Circuit.eval' (cfold' c) := by
