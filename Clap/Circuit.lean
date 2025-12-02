@@ -199,26 +199,43 @@ example : Circuit F var := .lam (fun x => .eq0 (.v x) .nil)
 
 namespace Circuit
 
--- TODO didn't understand the generalization
-def repr (l:Nat) [Repr F] : Circuit F String → Std.Format
+/--
+In order to print a Circuit we need to turn variables into Debrujin levels. We need a family of types that map from ℕ.
+
+One could argue that `OfNat` might do, but it's dependent on a value so there's more friction.
+-/
+class Index (var : outParam Type) where
+  index : ℕ → var
+
+instance [Index var] : Coe ℕ var := ⟨Index.index⟩
+
+instance : Index String := ⟨ToString.toString⟩
+
+instance : Index ℕ := ⟨id⟩
+
+export Index (index)
+
+def repr [Repr F] [Repr var] [Ring F] [Index var]
+  (l : ℕ) (c : Circuit F var) : Std.Format :=
+  letI go (l : ℕ) (k : var → Circuit F var) := repr (l+1) (k (index l)) -- `k ∘ index : ℕ (→ var) → Circuit ..`
+  match c with
   | .nil => "nil"
-  | .lam k => s!"λ{l} {repr (l+1) (k (toString l))}"
+  | .lam k => s!"λ{l} {go l k}"
   | .eq0 e c => s!"eq0 {_root_.repr e} {repr l c}"
-  | .share e k => s!"share {_root_.repr e} {repr (l+1) (k (toString l))}"
-  | .is_zero e k => s!"is_zero {_root_.repr e} {repr (l+1) (k (toString l))}"
+  | .share e k => s!"share {_root_.repr e} {go l k}"
+  | .is_zero e k => s!"is_zero {_root_.repr e} {go l k}"
 
-instance [Repr F] : Repr (Circuit' F) where
-  reprPrec c _ := repr 0 (c String)
+instance [Repr F] [Repr var] [Ring F] [Index var] : Repr (Circuit F var) where
+  reprPrec c _ := c.repr 0
 
-instance [Repr F] : ToString (Circuit' F) where
-  toString c := Std.Format.pretty (repr 0 (c String))
+instance [Repr F] [Repr var] [Ring F] [Index var] : ToString (Circuit F var) :=
+  ⟨Std.Format.pretty ∘ repr 0⟩
 
 namespace Test
 
 def a : Circuit' F7.F := fun _ => .lam (fun x => .lam (fun y => .eq0 (.v x + .v y) .nil))
 
--- TODO fix these "
-#guard s!"{a}" = "λ0 λ1 eq0 (v\"0\" + v\"1\") nil"
+#guard s!"{a Nat}" = "λ0 λ1 eq0 (v0 + v1) nil"
 
 end Test
 

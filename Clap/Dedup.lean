@@ -62,11 +62,12 @@ def dedup' (c:Circuit' F) : Circuit' F := fun var => dedup (c (Nat × var))
 
 namespace Test
 
-def a        : Circuit' F := fun _ => .lam (fun x => .eq0 (.v x + .c 1) (.eq0 (.v x + .c 2) (.eq0 (.v x + .c 1) .nil )))
-def expected : Circuit' F := fun _ => .lam (fun x => .eq0 (.v x + .c 1) (.eq0 (.v x + .c 2) .nil ))
-
 abbrev F7 := Clap.F7.F
-#guard s!"{dedup' (a (F:=F7))}" = s!"{expected (F:=F7)}"
+
+def a        : Circuit' F7 := fun _ => .lam (fun x => .eq0 (.v x + .c 1) (.eq0 (.v x + .c 2) (.eq0 (.v x + .c 1) .nil )))
+def expected : Circuit' F7 := fun _ => .lam (fun x => .eq0 (.v x + .c 1) (.eq0 (.v x + .c 2) .nil ))
+
+#guard s!"{dedup' a Nat}" = s!"{expected Nat}"
 
 end Test
 

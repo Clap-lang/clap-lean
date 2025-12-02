@@ -86,7 +86,7 @@ abbrev F7 := Clap.F7.F
 def a : Circuit' F7 := fun _ => Circuit.lam (fun x => Circuit.share (.c 1 + .v x) (fun x => Circuit.eq0 (.v x) Circuit.nil))
 def expected_a : Circuit' F7 := fun _ => Circuit.lam (fun x => Circuit.eq0 (.c 1 + .v x) Circuit.nil)
 
-#guard s!"{unshare_all' a}" = s!"{expected_a}"
+#guard s!"{unshare_all' a Nat}" = s!"{expected_a Nat}"
 
 end Test
 
@@ -256,8 +256,8 @@ def expected_optimized : Circuit' F7 := fun _ => Circuit.lam (fun x => Circuit.e
 
 def do_not_optimize : Circuit' F7 := fun _ => Circuit.lam (fun x => Circuit.share (.v x * .v x * .v x) (fun x => Circuit.eq0 (.v x) Circuit.nil))
 
-#guard s!"{unshare_deg' do_optimize}" = s!"{expected_optimized}"
-#guard s!"{unshare_deg' do_not_optimize}" = s!"{do_not_optimize}"
+#guard s!"{unshare_deg' do_optimize Nat}" = s!"{expected_optimized Nat}"
+#guard s!"{unshare_deg' do_not_optimize Nat}" = s!"{do_not_optimize Nat}"
 
 end Test
 
