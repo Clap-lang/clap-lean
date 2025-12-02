@@ -84,7 +84,7 @@ def to_wg (c:Circuit F) : Wg :=
     .cons e (to_wg (k e))
   | .is_zero e k =>
     let e := Exp.eval e
-    let inv : F := if e = 0 then 0 else e⁻¹ -- TODO need to check for 0?
+    let inv : F := e⁻¹
     let o : F := if e = 0 then 1 else 0
     .cons inv (.cons o (to_wg (k o)))
 
@@ -184,7 +184,7 @@ def completeness : ∀ (c:Circuit F),
     split
     case is_zero.isTrue he0 =>
       simp
-      apply h
+      split <;> apply h
     case is_zero.isFalse he0 =>
       split
       case isTrue he0' =>
