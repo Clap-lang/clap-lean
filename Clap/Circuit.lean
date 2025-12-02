@@ -26,6 +26,8 @@ import Mathlib.Tactic.NormNum -- norm_num
   constructors.
 -/
 
+namespace Clap
+
 def p : Nat := 7
 abbrev F := ZMod p
 instance : Fact (Nat.Prime p) := ⟨by decide⟩
@@ -261,3 +263,5 @@ instance : IsRefl (Circuit') (· ≈ ·) where
   refl := Setoid.refl
 
 end Circuit
+
+end Clap

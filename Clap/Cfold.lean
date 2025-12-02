@@ -1,5 +1,7 @@
 import Clap.Circuit
 
+namespace Clap
+
 /-
   Constant folding.
 

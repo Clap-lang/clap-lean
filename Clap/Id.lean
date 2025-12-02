@@ -1,6 +1,8 @@
 import Clap.Circuit
 import Clap.Simulation
 
+namespace Clap
+
 /-
   This file introduces a trivial "optimization", the identity
   function, as an example of function that takes a circuit with an

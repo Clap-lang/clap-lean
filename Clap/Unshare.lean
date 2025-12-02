@@ -2,6 +2,8 @@ import Clap.Circuit
 import Clap.Simulation
 import Clap.Id
 
+namespace Clap
+
 namespace Unshare
 
 /-

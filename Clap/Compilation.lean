@@ -3,6 +3,8 @@ import Mathlib.FieldTheory.Finite.Basic -- field operations
 import Clap.Circuit
 import Clap.Simulation
 
+namespace Clap
+
 /-
   This file introduces our "target language" `Cs` for Constraint System.
   Cs is a strict subset of Circuit and so is its evaluation function.

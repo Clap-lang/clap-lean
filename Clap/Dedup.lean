@@ -2,6 +2,8 @@ import Clap.Circuit
 import Clap.Simulation
 import Clap.Id
 
+namespace Clap
+
 /-
   This file introduces an optimization to remove duplicate checks.
   The current version eliminates any `eq0` with an expression that has
