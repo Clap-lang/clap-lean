@@ -45,7 +45,7 @@ inductive Cs (F var:Type) : Type where
 
 def Cs' (F:Type) : Type _ := (var:Type) -> Cs F var
 
-variable {F : Type}
+variable {F var: Type}
 variable [Field F] [DecidableEq F]
 
 def Cs.eval [DecidableEq F] (c:Cs F F) : denotation F :=
@@ -57,16 +57,8 @@ def Cs.eval [DecidableEq F] (c:Cs F F) : denotation F :=
 
 def Cs.eval' (c:Cs' F) : denotation F := eval (c F)
 
-def lamn {var} (n:Nat) (l:List var) (body:List var -> Cs F var) : Cs F var :=
-  if h:n = 0 then body l
-  else
-    .lam (fun x:var => lamn (n-1) (x::l) body)
-
-def enforce_bit {var} (b:var) (rest: Cs F var) : Cs F var :=
-  .eq0 (.v b * (.c 1 - .v b)) rest
-
-def combine {var} (bits:List var) : Exp F var :=
-  List.foldl (fun acc b => .v b + .c 2 * acc) (.c 0) bits
+def bits2num (bits:List F) : F :=
+  List.foldl (fun acc b => b + 2 * acc) 0 bits
 
 def num2bits (n:ℕ) (f:F) : List F :=
   if n = 0
@@ -75,6 +67,27 @@ def num2bits (n:ℕ) (f:F) : List F :=
     let bit := f % 2
     let rem := f / 2
     bit::num2bits (n-1) rem
+
+-- TODO need n < F.card
+theorem num2bits2num : ∀ (n:ℕ) (f:F), bits2num (num2bits n f) = f := sorry
+
+def lamn (n:Nat) (l:List var) (body:List var -> Cs F var) : Cs F var :=
+  if h:n = 0 then body l
+  else
+    .lam (fun x:var => lamn (n-1) (x::l) body)
+
+def enforce_bit (b:var) (rest: Cs F var) : Cs F var :=
+  .eq0 (.v b * (.c 1 - .v b)) rest
+
+def bits2num_e (bits:List var) : Exp F var :=
+  List.foldl (fun acc b => .v b + .c 2 * acc) (.c 0) bits
+
+variable [Coe F Nat]
+
+-- theorem bits2num_spec : ∀ (bits:List var),
+--   List.Forall (fun b:var => (Exp.eval ((Exp.v b) F) = (0:F)) ∨ (Exp.eval (Exp.v b) = (1:F))) bits ->
+--     Exp.eval (bits2num_e bits) = bits2num (List.map (fun x:var => Exp.eval (.v x)) bits)
+
 
 def to_cs {var:Type} (c:Circuit F var) : Cs F var :=
   match c with
@@ -96,7 +109,7 @@ def to_cs {var:Type} (c:Circuit F var) : Cs F var :=
     lamn w [] (fun bits =>
       let c := to_cs c
       let rest : Cs F var := List.foldl (fun rest bit => enforce_bit bit rest) c bits
-      Cs.eq0 (combine bits - e) rest)
+      Cs.eq0 (bits2num_e bits - e) rest)
 
 def to_cs' (c:Circuit' F) : Cs' F := fun var => to_cs (c var)
 
@@ -104,8 +117,6 @@ inductive Wg (F:Type) : Type where
   | nil : Wg F
   | cons : F -> Wg F -> Wg F
   | input : (F -> Wg F) -> Wg F
-
-variable [Coe F Nat]
 
 def to_wg (c:Circuit F F) : Wg F :=
   match c with
@@ -192,33 +203,26 @@ theorem soundness : ∀ (c:Circuit F F),
         case isFalse hmul => constructor
       case isFalse hsub => constructor
   | assert_range w e c h =>
+    simp [Circuit.eval,to_cs]
+    split
+    . unfold lamn
+      split
+      case _ lt w =>
+        simp [Cs.eval,bits2num_e]
+        split
+        . assumption
+        . constructor
+      case _ lt w =>
+        simp [Cs.eval,bits2num_e,enforce_bit]
+        sorry
     sorry
-    -- simp [Circuit.eval,to_cs,lamn,enforce_bit]
-    -- split
+
     -- apply rw_bisim.right
     -- intro e0
     -- apply rw_bisim.right
     -- intro e1
     -- apply rw_bisim.right
     -- intro e2
-    -- apply rw_bisim.right
-    -- intro e3
-    -- apply rw_bisim.right
-    -- intro e4
-    -- apply rw_bisim.right
-    -- intro e5
-    -- apply rw_bisim.right
-    -- intro e6
-    -- apply rw_bisim.right
-    -- intro e7
-    -- simp [Exp.eval,Circuit.eval,Cs.eval]
-    -- split
-    -- case _ elt4 =>
-
-      -- repeat split
-      -- rotate_left
-      -- repeat apply rw_bisim.none
-      -- -- real case, all bits are ok, their sum cannot be >= 4
       -- rename_i h7 h6 h5 h4 h3 h2 h1 h0 hsum
       -- rcases h0 with h0|h0
       -- rcases h1 with h1|h1
@@ -248,7 +252,6 @@ theorem soundness : ∀ (c:Circuit F F),
       -- sorry
     --   repeat sorry
     -- repeat sorry
-
 
 /-
 
