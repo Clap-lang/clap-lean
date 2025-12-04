@@ -43,18 +43,10 @@ theorem unshare_all_sem_pre_F : ∀ (c:Circuit F F),
     exact h
   | nil =>
     simp [unshare_all_F]
-  | eq0 e c h =>
-    apply Circuit.eq0_congr
-    simp
-    assumption
+  | eq0 e c h
+  | is_zero e c h
   | share e c h =>
-    apply Circuit.share_congr
-    simp
-    simp
-  | is_zero e c h =>
-    apply Circuit.is_zero_congr
-    simp
-    assumption
+    (first | apply Circuit.eq0_congr | apply Circuit.is_zero_congr | apply Circuit.share_congr) <;> repeat (first | simp | assumption)
 
 /-
   Id presents a simple example of optimization pass that does not use
