@@ -17,15 +17,27 @@ variable {F : Type}
   Strong bisimulation. This is just for illustrative purposes as it
   (should) be equivalent to equality with functional extensionality.
 -/
-inductive s_bisim : (l r: denotation F) -> Prop where
+inductive s_bisim : {t:Type} -> (l:t) -> (r: denotation F) -> Prop where
   | none
-      : s_bisim .n .n
+      : s_bisim none .n
   | unit
-      : s_bisim .u .u
+      : s_bisim (some ()) .u
   | lam
-      (kl kr:F -> denotation F)
+      {t':Type}
+      (kl:F -> t')
+      (kr:F -> denotation F)
       (h: ∀ x, s_bisim (kl x) (kr x))
-      : s_bisim (.l kl) (.l kr)
+      : s_bisim kl (.l kr)
+
+-- inductive s_bisim : (l r: denotation F) -> Prop where
+--   | none
+--       : s_bisim .n .n
+--   | unit
+--       : s_bisim .u .u
+--   | lam
+--       (kl kr:F -> denotation F)
+--       (h: ∀ x, s_bisim (kl x) (kr x))
+--       : s_bisim (.l kl) (.l kr)
 
 /-
   Right-weak bisimulation.
