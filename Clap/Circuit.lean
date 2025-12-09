@@ -199,6 +199,13 @@ example : Circuit F var := .lam (fun x => .eq0 (.v x) .nil)
 
 namespace Circuit
 
+@[reducible]
+def curry (n:ℕ) (body:Vector var n -> Circuit F var) : Circuit F var :=
+  match n with
+  | 0 => body ⟨#[], by rfl⟩
+  | n+1 => .lam (fun x:var => curry n (fun l => body (l.append ⟨#[x],by rfl⟩) ))
+
+
 /--
 In order to print a Circuit we need to turn variables into Debrujin levels. We need a family of types that map from ℕ.
 
