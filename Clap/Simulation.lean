@@ -17,15 +17,32 @@ variable {F : Type}
   Strong bisimulation. This is just for illustrative purposes as it
   (should) be equivalent to equality with functional extensionality.
 -/
-inductive s_bisim : (l r: denotation F) -> Prop where
+inductive strong_bisim : (l r: denotation F) -> Prop where
   | none
-      : s_bisim .n .n
+      : strong_bisim .n .n
   | unit
-      : s_bisim .u .u
+      : strong_bisim .u .u
   | lam
       (kl kr:F -> denotation F)
+      (h: ∀ x, strong_bisim (kl x) (kr x))
+      : strong_bisim (.l kl) (.l kr)
+
+/--
+  Spec bisimulation between a Lean term of type `(F -> ... -> Option
+  Unit` and a denotation, typically produced by the evaluation of a
+  Circuit.
+-/
+inductive s_bisim : {t:Type} -> (l:t) -> (r: denotation F) -> Prop where
+  | none
+      : s_bisim none .n
+  | unit
+      : s_bisim (some ()) .u
+  | lam
+      {t':Type}
+      (kl:F -> t')
+      (kr:F -> denotation F)
       (h: ∀ x, s_bisim (kl x) (kr x))
-      : s_bisim (.l kl) (.l kr)
+      : s_bisim kl (.l kr)
 
 /-
   Right-weak bisimulation.
