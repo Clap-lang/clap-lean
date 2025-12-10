@@ -6,17 +6,17 @@ namespace Clap
 namespace Spec
 
 --variable (F var:Type) [Field F] [DecidableEq F]
-variable (p:ℕ) [Fact (Nat.Prime p)]
-abbrev F : Type := ZMod p
+variable {p:ℕ} [Fact (Nat.Prime p)]
+abbrev F (p:ℕ) : Type := ZMod p
 
-def eq0 {p} (e:F p) : Option Unit :=
+def eq0 (e:F p) : Option Unit :=
   if e = 0 then some () else none
 
-def share {p} (e:F p) : F p := e
+def share (e:F p) : F p := e
 
-def is_zero {p} (e:F p) : F p := if e = 0 then 1 else 0
+def is_zero (e:F p) : F p := if e = 0 then 1 else 0
 
-def assert_range {p} (w:ℕ) (e:F p) : Option Unit := if e.val < 2^w then some () else none
+def assert_range (w:ℕ) (e:F p) : Option Unit := if e.val < 2^w then some () else none
 
 def accept : Unit -> Unit := fun () => ()
 
