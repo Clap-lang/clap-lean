@@ -70,6 +70,30 @@ lemma equiv_share : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat] (el:F p) (er:Exp 
   rw [he]
   apply hk
 
+lemma equiv_assert_range : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat] (el:F p) (er:Exp (F p) (F p)) (cl:Option Unit) (cr:Circuit (F p) (F p)) (w:ℕ),
+  el = Exp.eval er ->
+  Simulation.s_bisim cl (Circuit.eval cr) ->
+  Simulation.s_bisim (Option.bind (assert_range w el) (fun () => cl)) (Circuit.eval (.assert_range w er cr)) := by
+  intro p _ _ el er cl cr w he hc
+  simp only [Circuit.eval,Option.bind,assert_range]
+  split
+  split
+  case _ _ heq her =>
+    simp at heq
+    rw [he] at heq
+--    contradiction
+    sorry
+  case _ _ hel her =>
+    constructor
+  case _ _ _ hel =>
+    simp at hel
+    rw [he] at hel
+    simp
+    split
+    . apply hc
+    . -- contradiction
+      sorry
+
 end Spec
 
 namespace Example_base
@@ -84,6 +108,7 @@ def ex p (i: F p) : Option Unit := do
   eq0 i
   let vi <- share i
   eq0 (vi + i)
+  assert_range 2 vi
   accept ()
 
 -- def ex_unfolded : F -> Option Unit :=
@@ -98,7 +123,8 @@ def ex_circuit_fun p : Circuit' (F p) := fun _ =>
   .eq0 (.v i) (
   .share (.v i) (fun vi =>
   .eq0 (.v vi + .v i) (
-  .nil))))
+  .assert_range 2 (.v vi) (
+  .nil)))))
 
 theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
   Simulation.s_bisim (ex p) (Circuit.eval' (ex_circuit_fun p)) := by
@@ -116,6 +142,8 @@ theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
   . intro
     apply equiv_eq0
     simp [Exp.eval]
+    apply equiv_assert_range
+    constructor
     constructor
 
 theorem extract : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
