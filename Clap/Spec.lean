@@ -68,6 +68,10 @@ lemma equiv_share : ∀ (el:F) (er:Exp F F) (kl:F -> Option Unit) (kr:F -> Circu
   rw [he]
   apply hk
 
+lemma extract_lam : ∀ t (s:F -> t) (k:F -> Circuit F F),
+  (∀ x, Simulation.s_bisim (s x) (k x).eval) ->
+  Simulation.s_bisim s (Circuit.eval (.lam k)) := sorry
+
 end Spec
 
 namespace Example_base
@@ -119,8 +123,10 @@ theorem extract :
   ∃ c:Circuit F F, Simulation.s_bisim (ex (F:=F)) (Circuit.eval c) := by
   unfold ex
   simp only [bind]
+  repeat (rw [Option.bind_assoc])
   refine ⟨?c,?p⟩
   case p =>
+    apply extract_lam (s:=(fun i => (eq0 i).bind fun a => (share (some i)).bind fun a => (eq0 (a + i)).bind fun x => some (accept ()))) (k:=(fun x => ?b))
 --  apply Simulation.s_bisim.lam (F:=F) (fun x => ?kl) (fun x => (Circuit.eval ?kr))
     sorry
   sorry
@@ -217,5 +223,28 @@ theorem equiv :
     constructor
 
 end Example_fold
+
+namespace Example_extraction
+
+open Spec
+
+def ex p (i: F p) : Option Unit := do
+  eq0 i
+  let vi <- share i
+  eq0 (vi + i)
+  accept ()
+
+theorem extract : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
+  ∃ c:Circuit (F p) (F p), Simulation.s_bisim (ex p) (Circuit.eval c) := by
+  intro p _ _
+  unfold ex
+  simp only [bind]
+  refine ⟨?c,?p⟩
+  case p =>
+--  apply Simulation.s_bisim.lam (F:=(F p)) (fun x => ?kl) (fun x => (Circuit.eval ?kr))
+    sorry
+  sorry
+
+end Example_extraction
 
 end Clap
