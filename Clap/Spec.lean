@@ -3,20 +3,18 @@ import Clap.Simulation
 
 namespace Clap
 
+variable {F:Type} [Field F] [DecidableEq F]
+
 namespace Spec
 
---variable (F var:Type) [Field F] [DecidableEq F]
-variable {p:ℕ} [Fact (Nat.Prime p)]
-abbrev F (p:ℕ) : Type := ZMod p
-
-def eq0 (e:F p) : Option Unit :=
+def eq0 (e:F) : Option Unit :=
   if e = 0 then some () else none
 
-def share (e:F p) : F p := e
+def share (e:F) : F := e
 
-def is_zero (e:F p) : F p := if e = 0 then 1 else 0
+def is_zero (e:F) : F := if e = 0 then 1 else 0
 
-def assert_range (w:ℕ) (e:F p) : Option Unit := if e.val < 2^w then some () else none
+-- def assert_range (w:ℕ) (e:F) : Option Unit := if e.val < 2^w then some () else none
 
 def accept : Unit -> Unit := fun () => ()
 
@@ -39,11 +37,11 @@ def curry {a r:Type} (n:ℕ) (k:Vector a n -> r) : typ a r n :=
 
 #guard curry 2 (fun x => x[0]==0 && x[1]==1) 1 0 = True
 
-lemma equiv_eq0 : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat] (el:F p) (er:Exp (F p) (F p)) (cl:Option Unit) (cr:Circuit (F p) (F p)),
+lemma equiv_eq0 : ∀ (el:F) (er:Exp F F) (cl:Option Unit) (cr:Circuit F F),
   el = Exp.eval er ->
   Simulation.s_bisim cl (Circuit.eval cr) ->
   Simulation.s_bisim (Option.bind (eq0 el) (fun () => cl)) (Circuit.eval (.eq0 er cr)) := by
-  intro p _ _ el er cl cr he hc
+  intro el er cl cr he hc
   simp only [Circuit.eval,Option.bind,eq0]
   split
   split
@@ -61,11 +59,11 @@ lemma equiv_eq0 : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat] (el:F p) (er:Exp (F
     . apply hc
     . contradiction
 
-lemma equiv_share : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat] (el:F p) (er:Exp (F p) (F p)) (kl:F p -> Option Unit) (kr:F p -> Circuit (F p) (F p)),
+lemma equiv_share : ∀ (el:F) (er:Exp F F) (kl:F -> Option Unit) (kr:F -> Circuit F F),
   el = Exp.eval er ->
   (∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) ->
   Simulation.s_bisim (bind (share el) kl) (Circuit.eval (.share er kr)) := by
-  intro p _ _ el er kl kr he hk
+  intro el er kl kr he hk
   simp only [Circuit.eval,bind,share]
   rw [he]
   apply hk
@@ -80,7 +78,7 @@ open Spec
   A circuit is a function from any number of arguments of type F or Vector F to Option Unit.
 -/
 
-def ex p (i: F p) : Option Unit := do
+def ex (i:F) : Option Unit := do
   eq0 i
   let vi <- share i
   eq0 (vi + i)
@@ -93,20 +91,19 @@ def ex p (i: F p) : Option Unit := do
 --   bind (eq0 F (vi + i)) (fun () =>
 --   some ())))
 
-def ex_circuit_fun p : Circuit' (F p) := fun _ =>
+def ex_circuit_fun : Circuit' F := fun _ =>
   .lam (fun i =>
   .eq0 (.v i) (
   .share (.v i) (fun vi =>
   .eq0 (.v vi + .v i) (
   .nil))))
 
-theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
-  Simulation.s_bisim (ex p) (Circuit.eval' (ex_circuit_fun p)) := by
+theorem equiv :
+  Simulation.s_bisim (ex (F:=F)) (Circuit.eval' (ex_circuit_fun (F:=F))) := by
   unfold ex_circuit_fun
   unfold ex
   simp only [bind]
   simp only [Circuit.eval']
-  intro p _ _
   constructor
   intro
   apply equiv_eq0
@@ -118,14 +115,13 @@ theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
     simp [Exp.eval]
     constructor
 
-theorem extract : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
-  ∃ c:Circuit (F p) (F p), Simulation.s_bisim (ex p) (Circuit.eval c) := by
-  intro p _ _
+theorem extract :
+  ∃ c:Circuit F F, Simulation.s_bisim (ex (F:=F)) (Circuit.eval c) := by
   unfold ex
   simp only [bind]
   refine ⟨?c,?p⟩
   case p =>
---  apply Simulation.s_bisim.lam (F:=(F p)) (fun x => ?kl) (fun x => (Circuit.eval ?kr))
+--  apply Simulation.s_bisim.lam (F:=F) (fun x => ?kl) (fun x => (Circuit.eval ?kr))
     sorry
   sorry
 
@@ -135,26 +131,25 @@ namespace Example_vec
 
 open Spec
 
-def ex p (is: Vector (F p) 2) : Option Unit := do
+def ex (is: Vector F 2) : Option Unit := do
   eq0 is[0]
   let vi <- share is[0]
   eq0 (vi + is[1])
   accept ()
 
-def ex_circuit_fun p : Circuit' (F p) := fun _ =>
+def ex_circuit_fun : Circuit' F := fun _ =>
   Circuit.curry 2 (fun is =>
   .eq0 (.v is[0]) (
   .share (.v is[0]) (fun vi =>
   .eq0 (.v vi + .v is[1]) (
   .nil))))
 
-theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
-  Simulation.s_bisim (curry 2 (ex p)) (Circuit.eval' (ex_circuit_fun p)) := by
+theorem equiv :
+  Simulation.s_bisim (curry 2 (ex (F:=F))) (Circuit.eval' (ex_circuit_fun (F:=F))) := by
   unfold ex_circuit_fun
   unfold ex
   simp only [bind]
   simp only [Circuit.eval']
-  intro p _ _
   simp only [curry]
   simp only [Circuit.curry]
   repeat (constructor ; intro)
@@ -174,19 +169,19 @@ namespace Example_fold
 open Spec
 
 /- TODO these curry should disappear, the signature should be:
-def ex p (xs ys zs: Vector (F p) 2) : Option Unit :=
+def ex p (xs ys zs: Vector F 2) : Option Unit :=
 -/
-def ex p :=
-  curry 2 (fun (xs: Vector (F p) 2) =>
-  curry 2 (fun (ys: Vector (F p) 2) =>
-  curry 2 (fun (zs: Vector (F p) 2) => do
-  let xys := Vector.map (fun ((x,y): F p × F p) => x+y) (Vector.zip xs ys)
+def ex :=
+  curry 2 (fun (xs: Vector F 2) =>
+  curry 2 (fun (ys: Vector F 2) =>
+  curry 2 (fun (zs: Vector F 2) => do
+  let xys := Vector.map (fun ((x,y): F × F) => x+y) (Vector.zip xs ys)
   for (xy,z) in Vector.zip xys zs do
     eq0 (xy-z)
   return accept ()
   )))
 
-def ex_circuit_fun p : Circuit' (F p) := fun _ =>
+def ex_circuit_fun : Circuit' F := fun _ =>
   Circuit.curry 2 (fun xs =>
   Circuit.curry 2 (fun ys =>
   Circuit.curry 2 (fun zs =>
@@ -196,11 +191,10 @@ def ex_circuit_fun p : Circuit' (F p) := fun _ =>
 
 set_option pp.parens true
 
-theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
-  Simulation.s_bisim (ex p) (Circuit.eval' (ex_circuit_fun p)) := by
+theorem equiv :
+  Simulation.s_bisim (ex (F:=F)) (Circuit.eval' (ex_circuit_fun (F:=F))) := by
   unfold ex_circuit_fun
   unfold ex
-  intro p _ _
   simp only [curry]
   simp only [Circuit.curry]
   repeat (constructor ; intro)
