@@ -222,21 +222,31 @@ def ex (i: F) : Option Unit := do
 --  eq0 i
   accept ()
 
-lemma circuit_ext {α : Type _} {f : F → α} {g : F → Circuit F F} {g' : Circuit F F}
+lemma circuit_ext {α : Type} {f : F → α} {g : F → Circuit F F} {g' : Circuit F F}
   (hint : g' = Circuit.lam g)
   (h: Simulation.s_bisim f (Circuit.eval (Circuit.lam g))) :
   Simulation.s_bisim f (Circuit.eval g') := by grind
 
-theorem extract :
-  ∃ c:Circuit F F, Simulation.s_bisim (ex (F:=F)) c.eval := by
+lemma abc :
+  Simulation.s_bisim (some (accept ())) (Circuit.eval (F := F) .nil) := by
+  constructor
+
+def extract' :
+  { c:Circuit F F // Simulation.s_bisim (ex (F := F)) c.eval } := by
   unfold ex
   refine ⟨?c,?p⟩
   -- iterate 2
   -- first
   case' p => -- case' does not enforce to close the goal
---      generalize eq: ((fun i => ?p' ):F -> _ ) = s
-   apply circuit_ext
-   refine circuit_ext (g:=?g) (h:=@Simulation.s_bisim.lam _ _ (fun i => ?rest) (fun x => ?kr _) ?x
+    apply circuit_ext (h := ?rest)
+  case' c =>
+    refine Circuit.lam fun _ ↦ ?y
+  case' rest =>
+    constructor
+    intros x
+    apply abc
+  swap
+  rfl
 
 end Example_extraction
 
