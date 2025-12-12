@@ -1,6 +1,8 @@
 import Clap.Circuit
 import Clap.Simulation
 
+set_option pp.parens true
+
 namespace Clap
 
 variable {F:Type} [Field F] [DecidableEq F]
@@ -68,9 +70,11 @@ lemma equiv_share : ∀ (el:F) (er:Exp F F) (kl:F -> Option Unit) (kr:F -> Circu
   rw [he]
   apply hk
 
-lemma extract_lam : ∀ t (s:F -> t) (k:F -> Circuit F F),
-  (∀ x, Simulation.s_bisim (s x) (k x).eval) ->
-  Simulation.s_bisim s (Circuit.eval (.lam k)) := sorry
+lemma extract_lam {t} {s:F -> t} {k:F -> Circuit F F}
+  (h:∀ x, Simulation.s_bisim (s x) (k x).eval) :
+  Simulation.s_bisim s (Circuit.eval (.lam k)) := by
+  constructor
+  assumption
 
 end Spec
 
@@ -118,18 +122,6 @@ theorem equiv :
     apply equiv_eq0
     simp [Exp.eval]
     constructor
-
-theorem extract :
-  ∃ c:Circuit F F, Simulation.s_bisim (ex (F:=F)) (Circuit.eval c) := by
-  unfold ex
-  simp only [bind]
-  repeat (rw [Option.bind_assoc])
-  refine ⟨?c,?p⟩
-  case p =>
-    apply extract_lam (s:=(fun i => (eq0 i).bind fun a => (share (some i)).bind fun a => (eq0 (a + i)).bind fun x => some (accept ()))) (k:=(fun x => ?b))
---  apply Simulation.s_bisim.lam (F:=F) (fun x => ?kl) (fun x => (Circuit.eval ?kr))
-    sorry
-  sorry
 
 end Example_base
 
@@ -195,8 +187,6 @@ def ex_circuit_fun : Circuit' F := fun _ =>
   .eq0 ((.v xs[1]) + (.v ys[1]) - (.v zs[1])) (
   .nil)))))
 
-set_option pp.parens true
-
 theorem equiv :
   Simulation.s_bisim (ex (F:=F)) (Circuit.eval' (ex_circuit_fun (F:=F))) := by
   unfold ex_circuit_fun
@@ -228,22 +218,25 @@ namespace Example_extraction
 
 open Spec
 
-def ex p (i: F p) : Option Unit := do
-  eq0 i
-  let vi <- share i
-  eq0 (vi + i)
+def ex (i: F) : Option Unit := do
+--  eq0 i
   accept ()
 
-theorem extract : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
-  ∃ c:Circuit (F p) (F p), Simulation.s_bisim (ex p) (Circuit.eval c) := by
-  intro p _ _
+lemma circuit_ext {α : Type _} {f : F → α} {g : F → Circuit F F} {g' : Circuit F F}
+  (hint : g' = Circuit.lam g)
+  (h: Simulation.s_bisim f (Circuit.eval (Circuit.lam g))) :
+  Simulation.s_bisim f (Circuit.eval g') := by grind
+
+theorem extract :
+  ∃ c:Circuit F F, Simulation.s_bisim (ex (F:=F)) c.eval := by
   unfold ex
-  simp only [bind]
   refine ⟨?c,?p⟩
-  case p =>
---  apply Simulation.s_bisim.lam (F:=(F p)) (fun x => ?kl) (fun x => (Circuit.eval ?kr))
-    sorry
-  sorry
+  -- iterate 2
+  -- first
+  case' p => -- case' does not enforce to close the goal
+--      generalize eq: ((fun i => ?p' ):F -> _ ) = s
+   apply circuit_ext
+   refine circuit_ext (g:=?g) (h:=@Simulation.s_bisim.lam _ _ (fun i => ?rest) (fun x => ?kr _) ?x
 
 end Example_extraction
 
