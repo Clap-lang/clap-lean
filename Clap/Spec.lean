@@ -43,13 +43,8 @@ def to_u4 (e:F p) : Option (F p) := do
   assert_range 2 e
   some e
 
-lemma to_u4_ok : ∀ e, to_u4 e < some (4:F p) := by
-  intro
-  unfold to_u4
-  simp [assert_range,bind]
-
-  sorry
-
+lemma to_u4_ok (h : 4 < p) : ∀ e, to_u4 e < some (4:F p) := by
+  aesop (add simp [to_u4, assert_range, Fin.lt_def, Nat.mod_eq_of_lt]) (add safe cases F)
 
 /-
   Expand a function that takes a vector of n Felts, into a series of n
