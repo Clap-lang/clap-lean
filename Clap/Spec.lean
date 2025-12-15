@@ -7,7 +7,7 @@ namespace Spec
 
 --variable (F var:Type) [Field F] [DecidableEq F]
 variable {p:ℕ} [Fact (Nat.Prime p)]
-abbrev F (p:ℕ) : Type := ZMod p
+abbrev F (p:ℕ) : Type := Fin p
 
 def eq0 (e:F p) : Option Unit :=
   if e = 0 then some () else none
@@ -18,7 +18,37 @@ def is_zero (e:F p) : F p := if e = 0 then 1 else 0
 
 def assert_range (w:ℕ) (e:F p) : Option Unit := if e.val < 2^w then some () else none
 
+--def assert_range (w:ℕ) (e:F p) : Option { x:F p // (x.val < 2^w) } := if h:e.val < 2^w then some ⟨e, h⟩ else none
+
+-- def assert_range (w:ℕ) (e:F p) : Option (F p') := if e.val < 2^w then some e else none
+
 def accept : Unit -> Unit := fun () => ()
+
+--lemma lemma_range : ∀ w (e:F p), assert_range w e = some () -> e.val < 2^w
+
+------------------
+
+-- def to_u4 (e:F p) : Option (Fin 4) :=
+--   let := assert_range 2 e -- outside the do we keep the assert_range
+--   do
+--   let x <- assert_range 2 e
+--   let res : Fin 4 := ⟨e.val, b
+
+-- def to_u4 (e:F p) : Option (Fin 4) := do
+--   let x <- assert_range 2 e
+--   let res : Fin 4 := ⟨x.1, by  sorry ⟩
+--   some res
+
+def to_u4 (e:F p) : Option (F p) := do
+  assert_range 2 e
+  some e
+
+lemma to_u4_ok : ∀ e, to_u4 e < some (4:F p) := by
+  intro
+  unfold to_u4
+  simp [assert_range,bind]
+
+  sorry
 
 
 /-
