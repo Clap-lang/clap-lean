@@ -158,9 +158,9 @@ example : ∃ wg':Wg', some () ≡ wg' := by
 
 theorem simple : ∃ wg':Wg', nil_s ≡ wg' := by
   unfold Wg'
+  unfold nil_s
   refine ⟨?wg', ?heq⟩
   case' heq =>
-    unfold nil_s
     refine Equiv.ext (g := ?g) (h := Equiv.k _ ?a _ (fun _ _ ↦ ?rest)) ?x
   case' wg' =>
     intros h; refine Wg.lam (fun _ ↦ ?_)
@@ -199,9 +199,9 @@ elab "unify" : tactic => liftMetaTactic1 unify
 
 def lessSimple : { wg':Wg' // nil_s ≡ wg' } := by
   unfold Wg'
+  unfold nil_s
   refine ⟨?wg', ?heq⟩
   case' heq =>
-    unfold nil_s
     refine Equiv.ext (g := ?g) (h := Equiv.k _ ?a _ (fun _ _ ↦ ?rest)) ?x
   case' rest =>
     apply Equiv.unit
@@ -209,13 +209,4 @@ def lessSimple : { wg':Wg' // nil_s ≡ wg' } := by
     exact eval_wg_rel.nil
   unify
   rfl
-  constructor -- Mmmmm ::thinking::. This is the lhs of the `eval_wg_rel (?g x✝️) Wg.nil`.
-
-/--
-info: theorem lessSimple._proof_1 : Equiv nil_s (Wg.lam fun x ↦ Wg.nil) :=
-id
-  (Equiv.ext (Eq.refl (Wg.lam fun x ↦ Wg.nil))
-    (Equiv.k (fun x ↦ some ()) Wg.nil (fun x ↦ Wg.nil) fun x x ↦ Equiv.unit Wg.nil eval_wg_rel.nil))
--/
-#guard_msgs(info) in
-#print lessSimple._proof_1
+  constructor

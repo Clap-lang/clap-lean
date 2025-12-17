@@ -6,3 +6,5 @@ import Clap.Cfold
 import Clap.Unshare
 import Clap.Dedup
 import Clap.Spec
+import Clap.Extraction.Extract
+import Clap.Extraction.Tactic
