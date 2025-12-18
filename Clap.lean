@@ -6,3 +6,4 @@ import Clap.Cfold
 import Clap.Unshare
 import Clap.Dedup
 import Clap.Spec
+import Clap.Compiler.Tactic
