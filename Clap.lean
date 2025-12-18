@@ -7,3 +7,4 @@ import Clap.Unshare
 import Clap.Dedup
 import Clap.Spec
 import Clap.Spec_bignum
+import Clap.Compiler.Tactic
