@@ -39,8 +39,8 @@ inductive s_bisim : {t:Type} -> (l:t) -> (r: denotation F) -> Prop where
       : s_bisim (some ()) .u
   | lam
       {t':Type}
-      (kl:F -> t')
-      (kr:F -> denotation F)
+      {kl:F -> t'}
+      {kr:F -> denotation F}
       (h: ∀ x, s_bisim (kl x) (kr x))
       : s_bisim kl (.l kr)
 
