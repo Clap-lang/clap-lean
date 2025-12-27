@@ -59,7 +59,7 @@ def apply (lem : Lemma) (goals : Goals) : MetaM Goals := do
   let .some inferenceGoal := goals.inference | return goals
   let (inferenceGoals, _) ← inferenceGoal.withContext do
     Elab.runTactic inferenceGoal (←`(tactic|apply $(⟨lem.inference⟩)))
-  
+
   match inferenceGoals with
   | [] => return {goals with inference := .none}
   | inferenceGoals =>
@@ -79,9 +79,9 @@ def processLambda : Lemma :=
   .ofUnhygienic
     `($(mkIdent `circuit_ext) ($(mkIdent `Simulation.s_bisim.lam) fun _ ↦ ?_))
     (.some (`($(mkIdent `Circuit.lam)), 0))
-      
-def processFinish : Lemma :=
-  .ofInference `($(mkIdent `abc))
+
+def processFinish (id_lemma:Name) : Lemma :=
+  .ofInference `($(mkIdent id_lemma))
 
 end Interface
 
@@ -95,7 +95,7 @@ def step (goals : Goals) (lhs : Expr) : MetaM Goals := do
     let name := fn.getAppFn.constName
     let (arg₁, args) := arg.getAppFnArgs
     if name == `Option.some && arg₁ == `Clap.accept && args == #[q(())]
-    then processFinish.apply goals
+    then (processFinish `abc).apply goals
     else return {goals with inference := .none}
   | _ => logInfo m!"{lhs} is not recognised"; return goals
 
