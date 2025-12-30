@@ -7,6 +7,11 @@ open Lean Qq
 
 namespace Clap
 
+variable {F:Type} [Field F] [DecidableEq F]
+
+def eq0 (e:F) : Option Unit :=
+  if e = 0 then some () else none
+
 def accept : Unit -> Unit := fun () => ()
 
 def lhsOfBisim (conclusion : Expr) : MetaM Expr := do
@@ -118,16 +123,36 @@ elab "extract" "using" name:ident : tactic => do
 
 section EXAMPLES
 
-variable {F:Type} [Field F] [DecidableEq F]
-
 lemma circuit_ext {α : Type} {f : F → α} {g : F → Circuit F F} {g' : Circuit F F}
   (h : Simulation.s_bisim f (Circuit.eval (Circuit.lam g)))
   (hint : g' = Circuit.lam g) :
   Simulation.s_bisim f (Circuit.eval g') := by grind
 
 def ex (i: F) : Option Unit := do
---  eq0 i
+  eq0 i
   accept ()
+
+lemma equiv_eq0 : ∀ (el:F) (er:Exp F F) (cl:Option Unit) (cr:Circuit F F),
+  el = Exp.eval er ->
+  Simulation.s_bisim cl (Circuit.eval cr) ->
+  Simulation.s_bisim (Option.bind (eq0 el) (fun () => cl)) (Circuit.eval (.eq0 er cr)) := by
+  intro el er cl cr he hc
+  simp only [Circuit.eval,Option.bind,eq0]
+  split
+  split
+  case _ _ heq her =>
+    rw [her] at he
+    rw [he] at heq
+    simp at heq
+  case _ _ hel her =>
+    constructor
+  case _ _ _ hel =>
+    simp at hel
+    rw [he] at hel
+    simp
+    split
+    . apply hc
+    . contradiction
 
 lemma abc :
   Simulation.s_bisim (some (accept ())) (Circuit.eval (F := F) .nil) := by
