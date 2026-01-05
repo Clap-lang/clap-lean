@@ -14,10 +14,18 @@ def eq0 (e:F) : Option Unit :=
 
 def accept : Unit -> Unit := fun () => ()
 
-def lhsOfBisim (conclusion : Expr) : MetaM Expr := do
+partial def lhsOfBisim (conclusion : Expr) : MetaM Expr := do
   let e ← instantiateMVarsQ (α := q(Prop)) conclusion
+--  logInfo m!"===={repr e}"
   match e with
-  | ~q(Simulation.s_bisim $lhsQ _) => pure lhsQ
+  | ~q(Simulation.s_bisim $lhsQ _) => logInfo "done"; pure lhsQ
+  | .app a b =>
+      logInfo m!"app |{repr a}| |{b}|"
+      if a.isAppOf `Clap.Simulation.s_bisim then
+        logInfo m!"app matched!!!!!!!!!!!!"
+        pure a
+      else
+      lhsOfBisim a
   | _ => throwError "{e} is not `Simulation.s_bisim."
 
 def putOnTopIdx (n : ℕ) (goals : List MVarId) : List MVarId :=
@@ -32,8 +40,8 @@ def putOnTop (what : Expr → Bool) (goals : List MVarId) : MetaM (List MVarId) 
 namespace Interface
 
 structure Goals where
-  inference : Option MVarId
-  witness : MVarId
+  inference : Option MVarId -- lhs of bisim, none for the base case
+  witness : MVarId -- rhs of bisim
   rest : List MVarId
   deriving Repr
 
@@ -80,13 +88,20 @@ def apply (lem : Lemma) (goals : Goals) : MetaM Goals := do
 
 end Lemma
 
+-- the 0 here is the index of the newWitness to use in apply
 def processLambda : Lemma :=
   .ofUnhygienic
     `($(mkIdent `circuit_ext) ($(mkIdent `Simulation.s_bisim.lam) fun _ ↦ ?_))
     (.some (`($(mkIdent `Circuit.lam)), 0))
 
-def processFinish (id_lemma:Name) : Lemma :=
-  .ofInference `($(mkIdent id_lemma))
+def processFinish : Lemma :=
+  .ofInference `($(mkIdent `abc))
+
+def processEq0 : Lemma :=
+  .ofUnhygienic `($(mkIdent `equiv_eq0) (er := $(mkIdent `Exp.c) h) ($(mkIdent `Simulation.s_bisim.lam) fun _ ↦ ?_))
+    _
+   -- apply equiv_eq0 (er:=Exp.c h) (he:=rfl) (hc:=?rest1)
+
 
 end Interface
 
@@ -94,20 +109,25 @@ open Interface
 
 open Elab Tactic in
 def step (goals : Goals) (lhs : Expr) : MetaM Goals := do
+  logInfo m!"step {lhs}"
   match lhs with
-  | .lam .. => processLambda.apply goals
+  | .lam .. => logInfo m!"step.lam" ; processLambda.apply goals
   | .app fn arg =>
     let name := fn.getAppFn.constName
     let (arg₁, args) := arg.getAppFnArgs
     if name == `Option.some && arg₁ == `Clap.accept && args == #[q(())]
-    then (processFinish `abc).apply goals
-    else return {goals with inference := .none}
+    then processFinish.apply goals
+    else
+    /-if name == `Option.bind && arg₁ == `Clap.accept && args == #[q(())]
+    then (processFinish `equiv_eq0).apply goals
+    else-/ return {goals with inference := .none}
   | _ => logInfo m!"{lhs} is not recognised"; return goals
 
 open Expr in
 def extractTac (inferenceGoal witnessGoal : MVarId) : MetaM Goals := do
   let mut goals : Goals := ⟨inferenceGoal, witnessGoal, []⟩
   while true do
+    logInfo m!"new goal {goals.inference}"
     match goals.inference with
     | .none => break
     | .some inference => goals ← step goals (←lhsOfBisim (←inference.getType))
@@ -132,11 +152,10 @@ def ex (i: F) : Option Unit := do
   eq0 i
   accept ()
 
-lemma equiv_eq0 : ∀ (el:F) (er:Exp F F) (cl:Option Unit) (cr:Circuit F F),
-  el = Exp.eval er ->
-  Simulation.s_bisim cl (Circuit.eval cr) ->
+lemma equiv_eq0 {el:F} {er:Exp F F} {cl:Option Unit} (cr:Circuit F F)
+  (he: el = Exp.eval er)
+  (hc: Simulation.s_bisim cl (Circuit.eval cr)) :
   Simulation.s_bisim (Option.bind (eq0 el) (fun () => cl)) (Circuit.eval (.eq0 er cr)) := by
-  intro el er cl cr he hc
   simp only [Circuit.eval,Option.bind,eq0]
   split
   split
@@ -169,11 +188,13 @@ def extract_manual :
   unfold ex
   refine ⟨?c,?p⟩
   case' p =>
-    apply circuit_ext (h := Simulation.s_bisim.lam (fun h ↦ ?rest))
+    apply circuit_ext (h := Simulation.s_bisim.lam (fun X ↦ ?rest))
   case' c =>
     apply Circuit.lam
   case' rest =>
-    apply abc
+    apply equiv_eq0 (er:=Exp.c X) (he:=rfl) (hc:=?rest1)
+  swap
+  apply abc
   swap
   rfl
 
