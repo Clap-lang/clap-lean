@@ -15,21 +15,15 @@ def eq0 (e:F) : Option Unit :=
 def accept : Unit -> Unit := fun () => ()
 
 partial def lhsOfBisim (conclusion : Expr) : MetaM Expr := do
-  let e ← instantiateMVarsQ (α := q(Prop)) conclusion
-  match e with
-  | ~q(Simulation.s_bisim $lhsQ _) => -- logInfo "done"
-                                      pure lhsQ
-  | .app a b =>
-      if a.isAppOf `Clap.Simulation.s_bisim then
-        pure a
-      else
-      lhsOfBisim a
-  | _ => throwError "{e} is not `Simulation.s_bisim."
+  let (``Clap.Simulation.s_bisim, ⟨_ :: _ :: lhs :: _⟩) := Expr.getAppFnArgs conclusion
+    | throwError m!"{conclusion} is not `Simulation.s_bisim.\nRaw expr: {repr conclusion}."
+  return lhs
 
 def putOnTopIdx (n : ℕ) (goals : List MVarId) : List MVarId :=
   goals[n]! :: goals.eraseIdx n
 
-def unassignedGoals (goals : List MVarId) : MetaM (List MVarId) := goals.filterM (not <$> ·.isAssigned)
+def unassignedGoals (goals : List MVarId) : MetaM (List MVarId) :=
+  goals.filterM (not <$> ·.isAssigned)
 
 def putOnTop (what : Expr → Bool) (goals : List MVarId) : MetaM (List MVarId) := do
   if goals.isEmpty then return []
@@ -37,24 +31,20 @@ def putOnTop (what : Expr → Bool) (goals : List MVarId) : MetaM (List MVarId) 
   if n == goals.length then throwError m!"No bisimulation goal in:\n{goals}"
   return putOnTopIdx n goals
 
-namespace Interface
-
 structure Goals where
   inference : Option MVarId
   rest : List MVarId
   deriving Repr
 
-def Goals.unassignedGoals (goals : Goals) : MetaM Goals :=
-  Clap.unassignedGoals goals.rest <&> ({goals with rest := ·})
-
-def Goals.toLeanGoals (goals : Goals) : List MVarId :=
-  goals.inference.toList ++ goals.rest
-
 namespace Goals
 
-end Goals
+def unassignedGoals (goals : Goals) : MetaM Goals :=
+  Clap.unassignedGoals goals.rest <&> ({goals with rest := ·})
 
-def goalsOfTac (lem : Syntax) (goals : Goals) : MetaM Goals := do
+def toLeanGoals (goals : Goals) : List MVarId :=
+  goals.inference.toList ++ goals.rest
+
+def runTactic (goals : Goals) (lem : Syntax) : MetaM Goals := do
   let .some inferenceGoal := goals.inference | return goals
   let (inferenceGoals, _) ← inferenceGoal.withContext do
     Elab.runTactic inferenceGoal (←`(tactic|$(⟨lem⟩)))
@@ -65,27 +55,36 @@ def goalsOfTac (lem : Syntax) (goals : Goals) : MetaM Goals := do
       | throwError m!"Logic error: `putOnTop should have thrown a 'no bisimulation error'"
     return {goals with inference := newInference, rest := goals.rest ++ restInference}
 
-end Interface
+def seqTacs (goals : Goals) : List Syntax → MetaM Goals
+  | [] => pure goals
+  | tac₁ :: rest => goals.runTactic tac₁ <|> seqTacs goals rest
 
-open Interface
-set_option hygiene false in
+end Goals
+
 open Elab Tactic in
-def step (goals : Goals) (lhs : Expr) : MetaM Goals := do
-  match lhs with
-  | .lam .. =>
-    goalsOfTac
+/--
+Use `lhs` for granular control over matching if needed.
+-/
+def step (goals : Goals) (lhs : Option Expr := .none) : MetaM Goals := do
+  goals.seqTacs
+    [
       (←`(tactic|apply $(mkIdent `circuit_ext)
-                         (h := $(mkIdent `Simulation.s_bisim.lam) fun _ ↦ ?rest)))
-      goals
-  | .app fn arg =>
-    let name := fn.getAppFn.constName
-    let (arg₁, args) := arg.getAppFnArgs
-    if name == `Option.some && arg₁ == `Clap.accept && args == #[q(())]
-    then goalsOfTac (←`(tactic|apply $(mkIdent `abc))) goals
-    else goalsOfTac (←`(tactic|apply $(mkIdent `equiv_eq0)
-                                       (er := $(mkIdent `Exp.c) _)
-                                       (he := rfl))) goals
-  | _ => logInfo m!"{lhs} is not recognised"; return goals
+                        (h := $(mkIdent `Simulation.s_bisim.lam) fun _ ↦ ?rest))),
+      (←`(tactic|apply $(mkIdent `abc))),
+      (←`(tactic|apply $(mkIdent `equiv_eq0)
+                         (er := $(mkIdent `Exp.c) _)
+                         (he := rfl)))
+    ]
+  -- goalsOfTac
+  --   (←`(tactic|apply $(mkIdent `circuit_ext)
+  --                       (h := $(mkIdent `Simulation.s_bisim.lam) fun _ ↦ ?rest)))
+  --   goals
+  -- <|>
+  -- goalsOfTac (←`(tactic|apply $(mkIdent `abc))) goals
+  -- <|>
+  -- goalsOfTac (←`(tactic|apply $(mkIdent `equiv_eq0)
+  --                               (er := $(mkIdent `Exp.c) _)
+  --                               (he := rfl))) goals
 
 open Expr in
 def extractTac (inferenceGoal : MVarId) : MetaM Goals := do
@@ -95,7 +94,7 @@ def extractTac (inferenceGoal : MVarId) : MetaM Goals := do
     match goals.inference with
     | .none => break
     | .some inference => goals ← Goals.unassignedGoals =<<
-                                   step goals (←lhsOfBisim (←inference.getType))
+                                   step goals (←lhsOfBisim (←inference.getType'))
                         --  i := i + 1
     -- if i == 2 then break
   return goals
@@ -124,6 +123,8 @@ def ex₁ (i: F) : Option Unit := do
   accept ()
 
 def ex₂ (i: F) : Option Unit := do
+  eq0 i
+  eq0 i
   eq0 i
   eq0 i
   eq0 i
@@ -193,6 +194,14 @@ def extract_manual :
   skip
   rotate_right 2
   -- case' rest =>
+  apply equiv_eq0 (er:=Exp.c _) (he:=rfl)
+  apply equiv_eq0 (er:=Exp.c _) (he:=rfl)
+  apply equiv_eq0 (er:=Exp.c _) (he:=rfl)
+  apply equiv_eq0 (er:=Exp.c _) (he:=rfl)
+  apply equiv_eq0 (er:=Exp.c _) (he:=rfl)
+  apply equiv_eq0 (er:=Exp.c _) (he:=rfl)
+  apply equiv_eq0 (er:=Exp.c _) (he:=rfl)
+  apply equiv_eq0 (er:=Exp.c _) (he:=rfl)
   apply equiv_eq0 (er:=Exp.c _) (he:=rfl)
   apply abc
   swap
