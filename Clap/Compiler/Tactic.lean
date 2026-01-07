@@ -9,13 +9,24 @@ namespace Clap
 
 variable {F:Type} [Field F] [DecidableEq F]
 
+@[irreducible]
 def eq0 (e:F) : Option Unit :=
   if e = 0 then some () else none
 
+@[irreducible]
 def accept : Unit -> Unit := fun () => ()
 
+@[irreducible]
+def share (e : F) : Option F := e
+
+@[irreducible]
+def is_zero (e:F) : Option F := if e = 0 then .some 1 else .some 0
+
+/--
+Assumes `conclusion` has had its mvars instantiated.
+-/
 partial def lhsOfBisim (conclusion : Expr) : MetaM Expr := do
-  let (``Clap.Simulation.s_bisim, ⟨_ :: _ :: lhs :: _⟩) := Expr.getAppFnArgs conclusion
+  let (``Clap.Simulation.s_bisim, ⟨_ :: _ :: lhs :: _⟩) := conclusion.getAppFnArgs
     | throwError m!"{conclusion} is not `Simulation.s_bisim.\nRaw expr: {repr conclusion}."
   return lhs
 
@@ -48,12 +59,13 @@ def runTactic (goals : Goals) (lem : Syntax) : MetaM Goals := do
   let .some inferenceGoal := goals.inference | return goals
   let (inferenceGoals, _) ← inferenceGoal.withContext do
     Elab.runTactic inferenceGoal (←`(tactic|$(⟨lem⟩)))
+  logInfo m!"applied {lem}"
   match inferenceGoals with
   | [] => return {goals with inference := .none}
   | inferenceGoals =>
     let newInference :: restInference ← putOnTop (·.isAppOf ``Clap.Simulation.s_bisim) inferenceGoals
       | throwError m!"Logic error: `putOnTop should have thrown a 'no bisimulation error'"
-    return {goals with inference := newInference, rest := goals.rest ++ restInference}
+    return ⟨newInference, goals.rest ++ restInference⟩
 
 def seqTacs (goals : Goals) : List Syntax → MetaM Goals
   | [] => pure goals
@@ -61,7 +73,7 @@ def seqTacs (goals : Goals) : List Syntax → MetaM Goals
 
 end Goals
 
-open Elab Tactic in
+set_option hygiene false in -- We'll see about this one, tired of `mkIdent` :).
 /--
 Use `lhs` for granular control over matching if needed.
 -/
@@ -69,22 +81,20 @@ def step (goals : Goals) (lhs : Option Expr := .none) : MetaM Goals := do
   goals.seqTacs
     [
       (←`(tactic|apply $(mkIdent `circuit_ext)
-                        (h := $(mkIdent `Simulation.s_bisim.lam) fun _ ↦ ?rest))),
-      (←`(tactic|apply $(mkIdent `abc))),
+                         (h := $(mkIdent `Simulation.s_bisim.lam) fun _ ↦ ?_))),
+      (←`(tactic|apply $(mkIdent `equiv_accept))),
       (←`(tactic|apply $(mkIdent `equiv_eq0)
                          (er := $(mkIdent `Exp.c) _)
-                         (he := rfl)))
+                         (he := rfl))),
+      (←`(tactic|apply $(mkIdent `equiv_share)
+                         (er := $(mkIdent `Exp.v) _)
+                         (h := rfl)
+                         (h₁ := fun _ ↦ ?_))),
+      (←`(tactic|apply $(mkIdent `equiv_is_zero)
+                         (er := $(mkIdent `Exp.v) _)
+                         (he := rfl)
+                         (hk := fun _ ↦ ?_)))
     ]
-  -- goalsOfTac
-  --   (←`(tactic|apply $(mkIdent `circuit_ext)
-  --                       (h := $(mkIdent `Simulation.s_bisim.lam) fun _ ↦ ?rest)))
-  --   goals
-  -- <|>
-  -- goalsOfTac (←`(tactic|apply $(mkIdent `abc))) goals
-  -- <|>
-  -- goalsOfTac (←`(tactic|apply $(mkIdent `equiv_eq0)
-  --                               (er := $(mkIdent `Exp.c) _)
-  --                               (he := rfl))) goals
 
 open Expr in
 def extractTac (inferenceGoal : MVarId) : MetaM Goals := do
@@ -96,7 +106,7 @@ def extractTac (inferenceGoal : MVarId) : MetaM Goals := do
     | .some inference => goals ← Goals.unassignedGoals =<<
                                    step goals (←lhsOfBisim (←inference.getType'))
                         --  i := i + 1
-    -- if i == 2 then break
+    -- if i == 5 then break
   return goals
 
 open Elab Tactic in
@@ -118,6 +128,13 @@ lemma circuit_ext {α : Type} {f : F → α} {g : F → Circuit F F} {g' : Circu
   (hint : g' = Circuit.lam g) :
   Simulation.s_bisim f (Circuit.eval g') := by grind
 
+lemma equiv_share {el : F} {er : Exp F F} {kl : F → Option Unit} {kr : F -> Circuit F F}
+  (h : el = Exp.eval er)
+  (h₁ : ∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) :
+  Simulation.s_bisim (bind (share el) kl) (Circuit.eval (.share er kr)) := by
+  unfold share
+  aesop
+
 def ex₁ (i: F) : Option Unit := do
   -- eq0 i
   accept ()
@@ -133,6 +150,25 @@ def ex₂ (i: F) : Option Unit := do
   eq0 i
   eq0 i
   accept ()
+
+def ex₃ (i : F) : Option Unit := do
+  eq0 i
+  let vi ← share i
+  eq0 (vi + i)
+  accept ()
+
+-- This is (eq0 i), but baby steps.
+def ex₄ (i : F) : Option Unit := do
+  let x ← is_zero i
+  eq0 (1 - x)
+  accept ()
+
+-- def ex_circuit : Circuit' (F p) := fun _ =>
+--   .lam (fun i =>
+--   .is_zero (.v i) (fun x ↦
+--   .eq0 (1 - .v x)
+--   .nil))
+
 
 lemma equiv_eq0 {el:F} {er:Exp F F} {cl:Option Unit} (cr:Circuit F F)
   (he: el = Exp.eval er)
@@ -155,11 +191,19 @@ lemma equiv_eq0 {el:F} {er:Exp F F} {cl:Option Unit} (cr:Circuit F F)
     . apply hc
     . contradiction
 
-lemma equiv_eq0_cheat {el:F} {er:Exp F F} {cl:Option Unit} (cr:Circuit F F)
-   (hc: Simulation.s_bisim (some (accept ())) (Circuit.eval (F := F) .nil)) :
-  Simulation.s_bisim (Option.bind (eq0 el) (fun () => cl)) (Circuit.eval (.eq0 er cr)) := sorry
+lemma equiv_is_zero {el:F} {kl : F → Option Unit} (er:Exp F F) (kr:F -> Circuit F F)
+  (he : el = Exp.eval er)
+  (hk : ∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) :
+  Simulation.s_bisim (bind ((is_zero el)) kl) (Circuit.eval (.is_zero er kr)) := by
+  aesop (add simp [Circuit.eval, bind, share, is_zero])
 
-lemma abc :
+-- lemma equiv_is_zero {el:F} {kl : F → Option Unit} (er:Exp F F) (kr:F -> Circuit F F)
+--   (he : el = Exp.eval er)
+--   (hk : ∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) :
+--   Simulation.s_bisim (bind (.some (is_zero el)) kl) (Circuit.eval (.is_zero er kr)) := by
+--   aesop (add simp [Circuit.eval, bind, share, is_zero])
+
+lemma equiv_accept :
   Simulation.s_bisim (some (accept ())) (Circuit.eval (F := F) .nil) := by
   constructor
 
@@ -168,11 +212,40 @@ def extract_manual₁ :
   unfold ex₁
   refine ⟨?c,?p⟩
   case' p =>
-    apply circuit_ext (h := Simulation.s_bisim.lam (fun X ↦ ?rest))
+    apply circuit_ext (h := Simulation.s_bisim.lam (fun _ ↦ ?rest))
   case rest =>
-    apply abc
+    apply equiv_accept
   rfl
 
+def extract_manual₃ :
+  { c:Circuit F F // Simulation.s_bisim (ex₃ (F := F)) c.eval } := by
+  unfold ex₃
+  refine ⟨?c,?p⟩
+  swap
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_right 2
+  apply equiv_eq0 (er := Exp.c _) (he := rfl)
+  apply equiv_share (er := Exp.v _) (h := rfl) (h₁ := fun _ ↦ ?_)
+  swap
+  apply equiv_eq0 (er:=Exp.c _) (he:=rfl)
+  apply equiv_accept
+  swap
+  rfl
+
+def extract_manual₄ :
+  { c:Circuit F F // Simulation.s_bisim (ex₄ (F := F)) c.eval } := by
+  unfold ex₄
+  refine ⟨?c,?p⟩
+  swap
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?rest)
+  rotate_right 2
+  apply equiv_is_zero (er := Exp.v _) (he := rfl)
+  intros x
+  apply equiv_eq0 (er := Exp.c _) (he := rfl)
+  apply equiv_accept
+  swap
+  rfl
+  
 def extract_automatic₁ :
   { c:Circuit F F // Simulation.s_bisim (ex₁ (F := F)) c.eval } := by
   extract using ex₁
@@ -181,8 +254,18 @@ def extract_automatic₂ :
   { c:Circuit F F // Simulation.s_bisim (ex₂ (F := F)) c.eval } := by
   extract using ex₂
 
+def extract_automatic₃ :
+  { c:Circuit F F // Simulation.s_bisim (ex₃ (F := F)) c.eval } := by
+  extract using ex₃
+
+def extract_automatic₄ :
+  { c:Circuit F F // Simulation.s_bisim (ex₄ (F := F)) c.eval } := by
+  extract using ex₄
+
 #print extract_automatic₁
 #print extract_automatic₂
+#print extract_automatic₃
+#print extract_automatic₄
 
 def extract_manual :
   { c:Circuit F F // Simulation.s_bisim (ex₂ (F := F)) c.eval } := by
@@ -203,7 +286,7 @@ def extract_manual :
   apply equiv_eq0 (er:=Exp.c _) (he:=rfl)
   apply equiv_eq0 (er:=Exp.c _) (he:=rfl)
   apply equiv_eq0 (er:=Exp.c _) (he:=rfl)
-  apply abc
+  apply equiv_accept
   swap
   rfl
 

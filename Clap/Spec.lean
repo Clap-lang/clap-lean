@@ -33,6 +33,7 @@ def div_rem (e:ZMod p) : ZMod p × ZMod p :=
 #guard Spec.div_rem (p:=prime_babybear) 256 = (1,0)
 #guard Spec.div_rem (p:=prime_babybear) 257 = (1,1)
 
+@[irreducible]
 def accept : Unit -> Unit := fun () => ()
 
 /- ----------------------/
