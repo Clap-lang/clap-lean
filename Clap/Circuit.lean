@@ -1,7 +1,4 @@
-import Mathlib.Data.ZMod.Defs
-import Mathlib.Algebra.Field.Defs
-import Mathlib.Algebra.Field.ZMod
-import Mathlib.Tactic.NormNum
+import Mathlib.FieldTheory.Finite.Basic -- field operations
 
 /-
   This file introduces the main data structure of the project, the
