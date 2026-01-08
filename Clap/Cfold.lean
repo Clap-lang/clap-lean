@@ -10,15 +10,16 @@ namespace Clap
 
 namespace Cfold
 
-variable {var F : Type}
-variable [Field F] [DecidableEq F]
+variable {var : Type}
+variable {p : ℕ} [Fact (Nat.Prime p)]
+-- variable {F : Type} [Field F] [DecidableEq F]
 
 /-
   Note: this function contains some pattern matchings that don't look ideal
   because of https://github.com/leanprover/lean4/issues/9803
   Typically "| l,.c 0 => " is replaced by "| l,r => if r=0 then"
 -/
-def cfold_e (e: Exp F var) : Exp F var :=
+def cfold_e (e : Exp (ZMod p) var) : Exp (ZMod p) var :=
   match e with
   | .v v => .v v
   | .c i => .c i
@@ -46,7 +47,7 @@ def cfold_e (e: Exp F var) : Exp F var :=
     |    l , .c r => if r=0 then l else .sub l r
     |    _ , _    => .sub l r
 
-def cfold {var} (c:Circuit F var) : Circuit F var :=
+def cfold {var : Type} (c : Circuit p var) : Circuit p var :=
   match c with
   | .nil => .nil
   | .eq0 e c => .eq0 (cfold_e e) (cfold c)
@@ -55,10 +56,10 @@ def cfold {var} (c:Circuit F var) : Circuit F var :=
   | .is_zero e k => .is_zero (cfold_e e) (fun x => cfold (k x))
   | .assert_range w e c => .assert_range w (cfold_e e) (cfold c)
 
-def cfold' (c:Circuit' F) : Circuit' F := fun var => cfold (c var)
+def cfold' (c : Circuit' p) : Circuit' p := fun var => cfold (c var)
 
 -- TODO change to ≈
-theorem cfold_e_sem_pre : ∀ (e:Exp F F), Exp.eval e = Exp.eval (cfold_e e) := by
+theorem cfold_e_sem_pre : ∀ (e : Exp (ZMod p) (ZMod p)), Exp.eval e = Exp.eval (cfold_e e) := by
   intros e
   induction e with
   | v f
@@ -70,9 +71,7 @@ theorem cfold_e_sem_pre : ∀ (e:Exp F F), Exp.eval e = Exp.eval (cfold_e e) := 
     simp [cfold_e,Exp.eval]
     repeat (split <;> repeat simp [*,Exp.eval])
 
-variable [Coe F Nat]
-
-theorem cfold_sem_pre : ∀ (c:Circuit F F),
+theorem cfold_sem_pre : ∀ (c : Circuit p (ZMod p)),
   c ≈ cfold c := by
   intros c
   induction c with
@@ -87,7 +86,7 @@ theorem cfold_sem_pre : ∀ (c:Circuit F F),
     gcongr
     repeat (first | apply cfold_e_sem_pre | apply h)
 
-theorem cfold'_sem_pre : ∀ (c:Circuit' F),
+theorem cfold'_sem_pre : ∀ (c : Circuit' p),
   Circuit.eval' c = Circuit.eval' (cfold' c) := by
   intros
   apply cfold_sem_pre

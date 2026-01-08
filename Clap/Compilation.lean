@@ -34,45 +34,45 @@ namespace Clap
   that, once wrapped, they are equivalent to the original Circuit.
 -/
 
+
 -- TODO we could remove this type and add an index to Circuit, which would save us from defining again the semantics of Cs
-inductive Cs (F var:Type) : Type where
-  | nil : Cs F var
-  | eq0 : Exp F var -> Cs F var -> Cs F var
-  | lam : (var -> Cs F var) -> Cs F var
+inductive Cs (p : ℕ) (var : Type) : Type where
+  | nil : Cs p var
+  | eq0 : Exp (ZMod p) var -> Cs p var -> Cs p var
+  | lam : (var -> Cs p var) -> Cs p var
 
-def Cs' (F:Type) : Type _ := (var:Type) -> Cs F var
+def Cs' (p : ℕ) : Type _ := (var:Type) -> Cs p var
 
-variable {F var: Type}
-variable [Field F] [DecidableEq F]
+variable {p : ℕ} [Fact (Nat.Prime p)]
+variable {var: Type}
+-- variable [Field F] [DecidableEq F]
 
-def Cs.eval [DecidableEq F] (c:Cs F F) : denotation F :=
+def Cs.eval (c : Cs p (ZMod p)) : denotation (ZMod p) :=
   match c with
   | .nil => .u
   | .lam k => .l (fun x => eval (k x))
   | .eq0 e c =>
     if Exp.eval e = 0 then eval c else .n
 
-def Cs.eval' (c:Cs' F) : denotation F := eval (c F)
+def Cs.eval' (c : Cs' p) : denotation (ZMod p) := eval (c (ZMod p))
 
 @[reducible]
-def Cs.curry (n:ℕ) (k:Vector var n -> Cs F var) : Cs F var :=
+def Cs.curry {n : ℕ} (k : Vector var n -> Cs p var) : Cs p var :=
   match n with
   | 0 => k ⟨#[], by rfl⟩
-  | n+1 => .lam (fun x:var => Cs.curry n (fun l => k (l.push x) ))
+  | n+1 => .lam (fun x:var => Cs.curry (fun l => k (l.push x)))
 
 
-def assert_bit_e (rest: Cs F var) (b:var) : Cs F var :=
+def assert_bit_e (rest : Cs p var) (b : var) : Cs p var :=
   .eq0 (.v b * (.c 1 - .v b)) rest
 
-def assert_bits_e {w:ℕ} (bs:Vector var w) (rest: Cs F var) : Cs F var :=
+def assert_bits_e {w : ℕ} (bs : Vector var w) (rest : Cs p var) : Cs p var :=
   Vector.foldl assert_bit_e rest bs
 
-def bits2num_e {w} (bits:Vector var w) : Exp F var :=
+def bits2num_e {w : ℕ} (bits : Vector var w) : Exp (ZMod p) var :=
   Vector.foldl (fun acc b => .v b + .c 2 * acc) (.c 0) bits
 
-variable [Coe F Nat]
-
-def to_cs {var:Type} (c:Circuit F var) : Cs F var :=
+def to_cs (c : Circuit p var) : Cs p var :=
   match c with
   | .nil => .nil
   | .eq0 e c => .eq0 e (to_cs c)
@@ -89,27 +89,27 @@ def to_cs {var:Type} (c:Circuit F var) : Cs F var :=
      -- e=0          o=1
      -- e≠0 inv=e^-1 o=0
   | .assert_range w e c =>
-    Cs.curry w (fun bits =>
+    Cs.curry (fun (bits : Vector _ w) =>
       letI rest := to_cs c
       letI rest := Cs.eq0 (bits2num_e bits - e) rest
       assert_bits_e bits rest)
 
-def to_cs' (c:Circuit' F) : Cs' F := fun var => to_cs (c var)
+def to_cs' (c : Circuit' p) : Cs' p := fun var => to_cs (c var)
 
 inductive Wg (F:Type) : Type where
   | nil : Wg F
   | cons : F -> Wg F -> Wg F
   | input : (F -> Wg F) -> Wg F
 
-def num2bits (n:ℕ) (f:F) : List F :=
+def num2bits (n:ℕ) (f : ZMod p) : List (ZMod p) :=
   if n = 0
   then []
   else
-    let bit := f % 2
-    let rem := f / 2
+    let bit := f.val % 2
+    let rem := f.val / 2
     bit::num2bits (n-1) rem
 
-def to_wg (c:Circuit F F) : Wg F :=
+def to_wg (c : Circuit p (ZMod p)) : Wg (ZMod p) :=
   match c with
   | .nil => Wg.nil
   | .eq0 _ c => to_wg c
@@ -119,52 +119,186 @@ def to_wg (c:Circuit F F) : Wg F :=
     .cons e (to_wg (k e))
   | .is_zero e k =>
     let e := Exp.eval e
-    let inv : F := e⁻¹
-    let o : F := if e = 0 then 1 else 0
+    let inv : (ZMod p) := e⁻¹
+    let o : (ZMod p) := if e = 0 then 1 else 0
     .cons inv (.cons o (to_wg (k o)))
   | .assert_range w e c =>
-    let bits : List F := num2bits w (Exp.eval e)
+    let bits : List (ZMod p) := num2bits w (Exp.eval e)
     List.foldl (fun acc b => .cons b acc) (to_wg c) bits
 
 -- def to_wg' (c:Circuit' F) : Wg F := to_wg (c F)
 
-def wrap (wg:Wg F) (cs:Cs F F) : Cs F F :=
+def wrap (wg : Wg (ZMod p)) (cs : Cs p (ZMod p)) : Cs p (ZMod p) :=
   match wg,cs with
   |         .nil , .nil      => .nil
   |           wg , .eq0 e cs => .eq0 e (wrap wg cs)
   | Wg.input kwg , .lam k    => .lam (fun x => wrap (kwg x) (k x))
-  |   .cons x wg , .lam k    => wrap (wg:Wg F) (k x)
+  |   .cons x wg , .lam k    => wrap (wg : Wg (ZMod p)) (k x)
   |            _ , _         => .eq0 (.c 1) .nil -- needed because we don't have typed wg and cs
 
 open Simulation
 
-def bits2num {w:ℕ} (bits:Vector F w) : F :=
+def bits2num {w:ℕ} (bits : Vector (ZMod p) w) : (ZMod p) :=
   Vector.foldl (fun acc b => b + 2 * acc) 0 bits
 
 -- TODO one of these sorry definitions is causing the soundness kernel metavariable problem
 
-lemma rw_bisim_uncurry : ∀ (w:ℕ) (d:denotation F) (k:Vector F w -> Cs F F) (args:Vector F w),
- rw_bisim d (k args).eval ->
- rw_bisim d (Cs.curry w k).eval := sorry
+lemma rw_bisim_uncurry : ∀ (w : ℕ) (d : denotation (ZMod p)) (k : Vector (ZMod p) w -> Cs p (ZMod p)),
+ (∀ args : Vector (ZMod p) w, rw_bisim d (k args).eval) ->
+ rw_bisim d (Cs.curry k).eval := by
+  intro w
+  induction w
+  case _ =>
+    intros d k h
+    simp [Cs.curry]
+    apply h
+  case _ ih =>
+    intros d k h
+    simp [Cs.curry]
+    constructor
+    intro x
+    apply ih
+    intro args
+    apply h
 
-def assert_bits {w:ℕ} (args:Vector F w) :=
-  Vector.all args (fun x:F => x == 0 ∨ x == 1)
+def assert_bits {w : ℕ} (args : Vector (ZMod p) w) : Bool :=
+  Vector.all args (fun (x : ZMod p) => x == 0 ∨ x == 1)
 
-lemma reduce : ∀ (w:ℕ) (args:Vector F w) (e:Exp F F) (cs:Cs F F),
- assert_bits args /\ e = bits2num args ->
- (assert_bits_e args (.eq0 (bits2num_e args - e) cs)).eval = cs.eval := sorry
+lemma reduce₁ :
+  ∀ {w : ℕ} {args : Vector (ZMod p) w} {cs : Cs p (ZMod p)},
+    assert_bits args -> (assert_bits_e args cs).eval = cs.eval := by
+intros w
+induction w with
+| zero =>
+  intros args
+  have : args = #v[] := by simp
+  simp [this, assert_bits_e]
+| succ w ih =>
+  intros args cs h
+  have : args = Vector.insertIdx args.tail 0 args.head := by
+    simp only [Vector.insertIdx_zero]
+    ext i h
+    match i with
+    | .zero =>
+      simp
+      rfl
+    | .succ i =>
+      simp [add_comm]
+  simp only [Nat.add_one_sub_one, Vector.tail_eq_cast_extract, Vector.insertIdx_zero] at this
+  rw [this] at h ⊢
+  unfold assert_bits_e Vector.foldl at ih ⊢
+  unfold assert_bits at h
+  simp only [Vector.toArray_cast, Vector.toArray_append, Vector.toArray_extract, Array.size_append,
+    List.size_toArray, List.length_cons, List.length_nil, zero_add, Array.size_extract,
+    Vector.size_toArray, min_self, add_tsub_cancel_right,
+    Array.foldl_append', List.foldl_toArray', List.foldl_cons, List.foldl_nil]
+  simp only [beq_iff_eq, Bool.decide_or, Vector.all_cast, Vector.all_append, Vector.all_mk,
+    List.size_toArray, List.length_cons, List.length_nil, zero_add, List.all_toArray',
+    List.all_cons, List.all_nil, Bool.and_true, Bool.and_eq_true, Bool.or_eq_true,
+    decide_eq_true_eq, Vector.all_eq_true, min_self, add_tsub_cancel_right,
+    Vector.getElem_extract] at h
+  have : args.toArray.extract 1 (w + 1) = (args.extract 1 (w + 1)).toArray := by rfl
+  rw [assert_bit_e, this]
+  have : min (w + 1) (w + 1) - 1 = w := by simp
+  rw [←this] at ih
+  have : assert_bits (args.extract 1) = true := by
+    unfold assert_bits
+    simp only [beq_iff_eq, Bool.decide_or, Vector.all_eq_true, min_self, add_tsub_cancel_right,
+      Vector.getElem_extract, Bool.or_eq_true, decide_eq_true_eq]
+    exact h.2
+  specialize @ih (args.extract 1) (Cs.eq0 (Exp.v args.head * (Exp.c 1 - Exp.v args.head)) cs) this
+  have :
+    (Array.foldl assert_bit_e (Cs.eq0 (Exp.v args.head * (Exp.c 1 - Exp.v args.head)) cs) (args.extract 1).toArray) =
+       (Array.foldl assert_bit_e (Cs.eq0 (Exp.v args.head * (Exp.c 1 - Exp.v args.head)) cs) (args.extract 1).toArray 0 w) := by
+    simp
+  rw [this] at ih
+  rw [ih, Cs.eval]
+  have : args.head * (1 - args.head) = 0 := by
+    simp [sub_eq_zero]
+    rcases h.1 with h' | h'
+    · left; exact h'
+    · right; exact h'.symm
+  unfold Exp.eval Exp.eval Exp.eval
+  simp [this]
 
-lemma fail : ∀ (w:ℕ) (args:Vector F w) (e:Exp F F) (cs:Cs F F),
- (¬ (assert_bits args /\ e = bits2num args)) ->
- (assert_bits_e args (.eq0 (bits2num_e args - e) cs)).eval = denotation.n := sorry
+lemma reduce₂ :
+  ∀ {w : ℕ} {args : Vector (ZMod p) w} {e : Exp (ZMod p) (ZMod p)} {cs : Cs p (ZMod p)},
+    e.eval = bits2num args -> (Cs.eq0 (bits2num_e args - e) cs).eval = cs.eval := by
+  intros w args e cs h
+  have : (bits2num_e args).eval - (bits2num args) = 0 := by
+    simp [sub_eq_zero]
+    -- rw [Exp.eval]
+    unfold bits2num_e bits2num Vector.foldl
+    generalize h_eq : Exp.c (0 : ZMod p) = v
+    have : 0 = v.eval := by
+      rw [←h_eq, Exp.eval]
+    rw [this]
+    clear h_eq this
+    revert v e
+    induction w with
+    | zero =>
+      have : args = #v[] := by simp
+      simp [this]
+    | succ w ih =>
+      intros e _ v
+      have : args = Vector.insertIdx args.tail 0 args.head := by
+        simp only [Vector.insertIdx_zero]
+        ext i h
+        match i with
+        | .zero =>
+          simp
+          rfl
+        | .succ i =>
+          simp [add_comm]
+      simp only [Nat.add_one_sub_one, Vector.tail_eq_cast_extract, Vector.insertIdx_zero] at this
+      rw [this]
+      have : min (w + 1) (w + 1) - 1 = w := by simp
+      rw [←this] at ih
+      specialize @ih (args.extract 1) (Exp.c (bits2num (args.extract 1))) rfl
+      simp only [Vector.toArray_extract, Array.size_extract, Vector.size_toArray, min_self,
+        add_tsub_cancel_right] at ih
+      simp [ih, Exp.eval]
+  simp [Cs.eval, h, this]
 
-lemma bits_good : ∀ (w:ℕ) (args:Vector F w) (e:Exp F F),
-  Coe.coe e.eval < 2 ^ w -> assert_bits args /\ e = bits2num args := sorry
+lemma reduce {w : ℕ} {args : Vector (ZMod p) w} {e : Exp (ZMod p) (ZMod p)} {cs : Cs p (ZMod p)} :
+  assert_bits args /\ e.eval = bits2num args ->
+    (assert_bits_e args (.eq0 (bits2num_e args - e) cs)).eval = cs.eval := by
+  rintro ⟨h₁, h₂⟩
+  rw [reduce₁ h₁, reduce₂ h₂]
 
-lemma bits_bad : ∀ (w:ℕ) (args:Vector F w) (e:Exp F F),
-  (¬ Coe.coe e.eval < 2 ^ w) -> ¬ (assert_bits args /\ e = bits2num args) := sorry
+lemma fail₁ :
+  ∀ {w : ℕ} {args : Vector (ZMod p) w} {cs : Cs p (ZMod p)},
+    ¬ assert_bits args -> (assert_bits_e args cs).eval = .n := by
+  intros w args cs h
+  unfold assert_bits at h
+  simp only [beq_iff_eq, Bool.decide_or, Vector.all_eq_true, Bool.or_eq_true, decide_eq_true_eq,
+    not_forall, not_or] at h
+  rcases h with ⟨i, h, h', h''⟩
 
-theorem soundness : ∀ (c:Circuit F F),
+  sorry
+
+lemma fail₂ :
+  ∀ {w : ℕ} {args : Vector (ZMod p) w} {e : Exp (ZMod p) (ZMod p)} {cs : Cs p (ZMod p)},
+    e.eval ≠ (bits2num args) -> (Cs.eq0 (bits2num_e args - e) cs).eval = .n := by
+  intros w args e cs h
+  unfold Cs.eval Exp.eval
+  sorry
+
+lemma fail : ∀ {w : ℕ} {args : Vector (ZMod p) w} {e : Exp (ZMod p) (ZMod p)} {cs : Cs p (ZMod p)},
+ (¬ (assert_bits args /\ e.eval = bits2num args)) ->
+ (assert_bits_e args (.eq0 (bits2num_e args - e) cs)).eval = denotation.n := by
+  intros w args e cs h
+  by_cases h' : assert_bits args
+  · rw [reduce₁ h', fail₂ (by tauto)]
+  · rw [fail₁ h']
+
+lemma bits_good : ∀ (w : ℕ) (args : Vector (ZMod p) w) (e : Exp (ZMod p) (ZMod p)),
+  e.eval.val < 2 ^ w -> assert_bits args /\ e = bits2num args := sorry
+
+lemma bits_bad : ∀ (w : ℕ) (args : Vector (ZMod p) w) (e : Exp (ZMod p) (ZMod p)),
+  (¬ e.eval.val < 2 ^ w) -> ¬ (assert_bits args /\ e = bits2num args) := sorry
+
+theorem soundness : ∀ (c : Circuit p (ZMod p)),
   rw_bisim (Circuit.eval c) (Cs.eval (to_cs c)) := by
   intro c
   induction c with
@@ -221,24 +355,27 @@ theorem soundness : ∀ (c:Circuit F F),
   | assert_range w e c h =>
     simp [Circuit.eval,to_cs]
     apply rw_bisim_uncurry
+    intros args
     split
     case _ ew =>
       rw [reduce]
       apply h
-      apply bits_good
-      assumption
+      sorry
+      -- apply bits_good
+      -- assumption
     case _ lt w =>
       rw [fail]
       constructor
-      apply bits_bad
-      assumption
+      sorry
+      -- apply bits_bad
+      -- assumption
 
-theorem soundness' : ∀ (c:Circuit' F),
+theorem soundness' : ∀ (c:Circuit' p),
   rw_bisim (Circuit.eval' c) (Cs.eval' (to_cs' c)) := by
   intro c
   apply soundness
 
-def completeness : ∀ (c:Circuit F F),
+def completeness : ∀ (c:Circuit p (ZMod p)),
   Circuit.eval c = Cs.eval (wrap (to_wg c) (to_cs c)) := by
   intro c
   induction c with

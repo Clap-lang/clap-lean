@@ -38,9 +38,10 @@ instance : Coe F Nat where
   coe f := f.val
 end F7
 
-variable {F var : Type}
+variable {p : ℕ} [Fact (Nat.Prime p)]
+variable {var : Type}
 
-inductive Exp (F var:Type) where
+inductive Exp (F var : Type) where
   | v : var -> Exp F var
   | c : F -> Exp F var
   | add : Exp F var -> Exp F var -> Exp F var
@@ -52,6 +53,8 @@ inductive Exp (F var:Type) where
 abbrev Expₑ (F : Type) := Exp F F
 
 namespace Exp
+
+variable {F : Type}
 
 instance [Repr F] [Repr var] : Repr (Exp F var) where
   reprPrec expr _ := go expr
@@ -86,15 +89,12 @@ lemma sub_def : e₁ - e₂ = .sub e₁ e₂ := rfl
 
 end
 
-variable [Field F]
-
--- instance : Coe (Exp F) F where
---   coe := eval
-
 instance : Coe F (Exp F var) where
   coe := .c
 
-instance {n:Nat} : OfNat (Exp F var) n where
+variable [Field F]
+
+instance {n : ℕ} : OfNat (Exp F var) n where
   ofNat := (n : F)
 
 /- In this example, variables can only be substitued by Field elements,
@@ -105,7 +105,7 @@ example : Exp F F := (.c 1) + (.v 2)
    which is what we need for some optimizations. -/
 example : Exp F (Exp F var) := (.c 1) + (.v ((.c 2) + (.c 2)))
 
-def eval (e: Expₑ F) : F :=
+def eval (e : Expₑ F) : F :=
   match e with
   | .v f => f
   | .c i => i
@@ -172,38 +172,40 @@ end
 
 end Exp
 
-inductive denotation (F:Type) : Type where
+inductive denotation (F : Type) : Type where
   | n : denotation F
   | u : denotation F
   | l : (F -> denotation F) -> denotation F
 
-inductive Circuit (F var:Type) : Type where
-  | nil : Circuit F var
-  | eq0 : Exp F var -> Circuit F var -> Circuit F var
-  | lam : (var -> Circuit F var) -> Circuit F var
-  | share : Exp F var -> (var -> Circuit F var) -> Circuit F var
-  | is_zero : Exp F var -> (var -> Circuit F var) -> Circuit F var
-  | assert_range : (w:ℕ) -> Exp F var -> Circuit F var -> Circuit F var
+inductive Circuit (p : ℕ) [Fact (Nat.Prime p)] (var : Type) : Type where
+  | nil : Circuit p var
+  | eq0 : Exp (ZMod p) var -> Circuit p var -> Circuit p var
+  | lam : (var -> Circuit p var) -> Circuit p var
+  | share : Exp (ZMod p) var -> (var -> Circuit p var) -> Circuit p var
+  | is_zero : Exp (ZMod p) var -> (var -> Circuit p var) -> Circuit p var
+  | assert_range : (w : ℕ) -> Exp (ZMod p) var -> Circuit p var -> Circuit p var
 
-abbrev Circuitₑ (F : Type) := Circuit F F
+abbrev Circuitₑ (p : ℕ) [Fact (Nat.Prime p)] := Circuit p (ZMod p)
 -- TODO remove all ' definitions
-abbrev Circuit' (F : Type) : Type _ := (var:Type) -> Circuit F var
+abbrev Circuit' (p : ℕ) [Fact (Nat.Prime p)] : Type _ := (var:Type) -> Circuit p var
 
 /-
   Warning: var must be kept abstract, if var is fixed we can write bogus examples
 -/
 
+variable {p : ℕ} [Fact (Nat.Prime p)]
+
 -- E.g. here v 0 is not bound by any lam
-example : Circuit F Nat := Circuit.eq0 (.v 0) Circuit.nil
+example : Circuit p Nat := Circuit.eq0 (.v 0) Circuit.nil
 
 -- This is the right way, keeping var abstract
-example : Circuit F var := .lam (fun x => .eq0 (.v x) .nil)
+example : Circuit p var := .lam (fun x => .eq0 (.v x) .nil)
 
 
 namespace Circuit
 
 @[reducible]
-def curry (n:ℕ) (body:Vector var n -> Circuit F var) : Circuit F var :=
+def curry (n : ℕ) (body : Vector var n -> Circuit p var) : Circuit p var :=
   match n with
   | 0 => body ⟨#[], by rfl⟩
   | n+1 => .lam (fun x:var => curry n (fun l => body (l.append ⟨#[x],by rfl⟩) ))
@@ -225,9 +227,9 @@ instance : Index ℕ := ⟨id⟩
 
 export Index (index)
 
-def repr [Repr F] [Repr var] [Ring F] [Index var]
-  (l : ℕ) (c : Circuit F var) : Std.Format :=
-  letI go (l : ℕ) (k : var → Circuit F var) := repr (l+1) (k (index l)) -- `k ∘ index : ℕ (→ var) → Circuit ..`
+def repr [Repr var] [Index var]
+  (l : ℕ) (c : Circuit p var) : Std.Format :=
+  letI go (l : ℕ) (k : var → Circuit p var) := repr (l+1) (k (index l)) -- `k ∘ index : ℕ (→ var) → Circuit ..`
   match c with
   | .nil => "nil"
   | .lam k => s!"λ{l} {go l k}"
@@ -236,25 +238,25 @@ def repr [Repr F] [Repr var] [Ring F] [Index var]
   | .is_zero e k => s!"is_zero {_root_.repr e} {go l k}"
   | .assert_range w e c => s!"assert_range {w} {_root_.repr e} {repr l c}"
 
-instance [Repr F] [Repr var] [Ring F] [Index var] : Repr (Circuit F var) where
+instance [Repr var] [Index var] : Repr (Circuit p var) where
   reprPrec c _ := c.repr 0
 
-instance [Repr F] [Repr var] [Ring F] [Index var] : ToString (Circuit F var) :=
+instance [Repr var] [Index var] : ToString (Circuit p var) :=
   ⟨Std.Format.pretty ∘ repr 0⟩
 
 namespace Test
 
-def a : Circuit' F7.F := fun _ => .lam (fun x => .lam (fun y => .eq0 (.v x + .v y) .nil))
+instance : Fact (Prime 7) := by
+  refine { out := ?_ }
+  decide
+
+def a : Circuit' 7 := fun _ => .lam (fun x => .lam (fun y => .eq0 (.v x + .v y) .nil))
 
 #guard s!"{a Nat}" = "λ0 λ1 eq0 (v0 + v1) nil"
 
 end Test
 
-variable [Field F]
-variable [DecidableEq F]
-variable [Coe F Nat]
-
-def eval (c:Circuitₑ F ) : denotation F :=
+def eval (c : Circuitₑ p ) : denotation (ZMod p) :=
   match c with
   | .nil => .u
   | .lam k => .l (fun x => eval (k x))
@@ -265,51 +267,51 @@ def eval (c:Circuitₑ F ) : denotation F :=
     if Exp.eval e = 0 then eval (k 1) else eval (k 0)
   | .assert_range w e c =>
     let e := Exp.eval e
-    if (e:Nat) < 2^w then eval c else .n
+    if e.val < 2^w then eval c else .n
 
-def eval' (c:Circuit' F) : denotation F := eval (c F)
+def eval' (c : Circuit' p) : denotation (ZMod p) := eval (c (ZMod p))
 
 @[simp]
-lemma eval_eq0 {e : Expₑ F} {c : Circuitₑ F} :
+lemma eval_eq0 {e : Expₑ (ZMod p)} {c : Circuitₑ p} :
   (eq0 e c).eval = if e.eval = 0 then c.eval else .n := by
   simp [Circuit.eval]
 
 @[simp]
-lemma eval_lam {c : F → Circuitₑ F} :
+lemma eval_lam {c : ZMod p → Circuitₑ p} :
   (lam c).eval = .l fun x ↦ (c x).eval := by
   simp [Circuit.eval]
 
 @[simp]
-lemma eval_share {e : Expₑ F} {k : F → Circuitₑ F} :
+lemma eval_share {e : Expₑ (ZMod p)} {k : ZMod p → Circuitₑ p} :
   (share e k).eval = (k e.eval).eval := by
   simp [Circuit.eval]
 
 @[simp]
-lemma eval_is_zero {e : Expₑ F} {k : F → Circuitₑ F} :
+lemma eval_is_zero {e : Expₑ (ZMod p)} {k : ZMod p → Circuitₑ p} :
   (is_zero e k).eval = if e.eval = 0 then (k 1).eval else (k 0).eval := by
   simp [Circuit.eval]
 
 @[simp]
-lemma eval_assert_range {w:ℕ} {e : Expₑ F} {c : Circuitₑ F} :
+lemma eval_assert_range {w:ℕ} {e : Expₑ (ZMod p)} {c : Circuitₑ p} :
   (assert_range w e c).eval =
     let e := Exp.eval e
-    if (e:Nat) < 2^w then eval c else .n := by
+    if e.val < 2^w then eval c else .n := by
   simp [Circuit.eval]
 
-def equiv (c₁ c₂ : Circuitₑ F) : Prop := eval c₁ = eval c₂
+def equiv (c₁ c₂ : Circuitₑ p) : Prop := eval c₁ = eval c₂
 
-instance : Setoid (Circuitₑ F) where
+instance : Setoid (Circuitₑ p) where
   r := equiv
   iseqv := Equivalence.comap eq_equivalence eval -- Just pullback the proof.
 
-private lemma Circuit.equiv_iff_eval_eq_eval {c₁ c₂ : Circuitₑ F} :
+private lemma Circuit.equiv_iff_eval_eq_eval {c₁ c₂ : Circuitₑ p} :
   c₁ ≈ c₂ ↔ c₁.eval = c₂.eval := by rfl
 
-instance : IsRefl (Circuitₑ F) (· ≈ ·) := inferInstance -- This is by `inferInstance`, which means it need not exist altogether.
+instance : IsRefl (Circuitₑ p) (· ≈ ·) := inferInstance -- This is by `inferInstance`, which means it need not exist altogether.
 
 section
 
-variable {el er : Expₑ F} {cl cr : Circuitₑ F} {kl kr : F → Circuitₑ F}
+variable {el er : Expₑ (ZMod p)} {cl cr : Circuitₑ p} {kl kr : ZMod p → Circuitₑ p}
 
 @[gcongr]
 theorem eq0_congr (he : el ≈ er) (hc: cl ≈ cr) :
@@ -338,9 +340,9 @@ theorem assert_range_congr w (he: el ≈ er) (hc: cl ≈ cr) :
 
 end
 
-def equiv' (c1 c2 : Circuit' F) : Prop := eval' c1 = eval' c2
+def equiv' (c1 c2 : Circuit' p) : Prop := eval' c1 = eval' c2
 
-instance : Setoid (Circuit' F) where
+instance : Setoid (Circuit' p) where
   r := equiv'
   iseqv := {
     refl := fun _ => rfl
@@ -348,7 +350,7 @@ instance : Setoid (Circuit' F) where
     trans := fun h1 h2 => h1.trans h2
   }
 
-instance : IsRefl (Circuit' F) (· ≈ ·) where
+instance : IsRefl (Circuit' p) (· ≈ ·) where
   refl := Setoid.refl
 
 end Circuit
