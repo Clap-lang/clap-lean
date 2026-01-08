@@ -23,6 +23,11 @@ def assert_range (w : ℕ) (e : ZMod p) : Option Unit := if e.val < 2^w then som
 
 -- def assert_range (w:ℕ) (e:ZMod p) : Option (ZMod p') := if e.val < 2^w then some e else none
 
+def div_rem (e:ZMod p) : Option (ZMod p × ZMod p) :=
+  let d := e / (2^8)
+  let r := e % (2^8)
+  (d,r)
+
 def accept : Unit -> Unit := fun () => ()
 
 --lemma lemma_range : ∀ w (e:ZMod p), assert_range w e = some () -> e.val < 2^w
