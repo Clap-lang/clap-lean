@@ -30,7 +30,7 @@ partial def lhsOfBisim (conclusion : Expr) : MetaM Expr := do
     | throwError m!"{conclusion} is not `Simulation.s_bisim.\nRaw expr: {repr conclusion}."
   return lhs
 
-def putOnTopIdx (n : ℕ) (goals : List MVarId) : List MVarId :=
+def putOnTopIdx (n : Nat) (goals : List MVarId) : List MVarId :=
   goals[n]! :: goals.eraseIdx n
 
 def unassignedGoals (goals : List MVarId) : MetaM (List MVarId) :=
@@ -87,16 +87,15 @@ def step (goals : Goals) (lhs : Option Expr := .none) : MetaM Goals := do
                          (er := $(mkIdent `Exp.c) _)
                          (he := rfl))),
       (←`(tactic|apply $(mkIdent `equiv_share)
-                         (er := $(mkIdent `Exp.v) _)
+                         (er := $(mkIdent `Exp.c) _)
                          (h := rfl)
                          (h₁ := fun _ ↦ ?_))),
       (←`(tactic|apply $(mkIdent `equiv_is_zero)
-                         (er := $(mkIdent `Exp.v) _)
+                         (er := $(mkIdent `Exp.c) _)
                          (he := rfl)
                          (hk := fun _ ↦ ?_)))
     ]
 
-open Expr in
 def extractTac (inferenceGoal : MVarId) : MetaM Goals := do
   let mut goals : Goals := ⟨inferenceGoal, []⟩
   -- let mut i := 0
@@ -119,10 +118,6 @@ elab "extract" "using" name:ident : tactic => do
 
 section EXAMPLES
 
-lemma equiv_lam {α : Type} {f : F → α} {g : F → Circuit F F} {x : F}
-  (h : Simulation.s_bisim (f x) (Circuit.eval (g x))) :
-  Simulation.s_bisim f (Circuit.eval (Circuit.lam g)) := by sorry
-
 lemma circuit_ext {α : Type} {f : F → α} {g : F → Circuit F F} {g' : Circuit F F}
   (h : Simulation.s_bisim f (Circuit.eval (Circuit.lam g)))
   (hint : g' = Circuit.lam g) :
@@ -135,8 +130,18 @@ lemma equiv_share {el : F} {er : Exp F F} {kl : F → Option Unit} {kr : F -> Ci
   unfold share
   aesop
 
+@[reducible]
+def typ (a r:Type) : ℕ -> Type
+  | 0   => r
+  | n+1 => a -> typ a r n
+
+@[reducible]
+def curry {a r:Type} (n:ℕ) (k:Vector a n -> r) : typ a r n :=
+  match n with
+  | 0 => k ⟨#[], by rfl⟩
+  | n+1 => fun x:a => curry n (fun l => k (Vector.push l x) )
+
 def ex₁ (i: F) : Option Unit := do
-  -- eq0 i
   accept ()
 
 def ex₂ (i: F) : Option Unit := do
@@ -162,6 +167,24 @@ def ex₄ (i : F) : Option Unit := do
   let x ← is_zero i
   eq0 (1 - x)
   accept ()
+
+def ex₅ (is₁ : F) (is₂ : F) : Option Unit := do
+  eq0 is₁
+  let vi <- share is₁
+  eq0 (vi + is₂)
+  accept ()
+
+def ex₆ (is : Vector F 2) : Option Unit := do
+  eq0 is[0]
+  let vi <- share is[0]
+  eq0 (vi + is[1])
+  accept ()
+
+example {is : Vector F 2} : ex₆ is = ex₅ is[0] is[1] := rfl
+
+-- match first_line
+--   | let _ ← isZero => ...
+--   |
 
 -- def ex_circuit : Circuit' (F p) := fun _ =>
 --   .lam (fun i =>
@@ -237,15 +260,37 @@ def extract_manual₄ :
   unfold ex₄
   refine ⟨?c,?p⟩
   swap
-  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?rest)
+  apply circuit_ext (h := Simulation.s_bisim.lam fun X ↦ ?rest)
   rotate_right 2
-  apply equiv_is_zero (er := Exp.v _) (he := rfl)
+  apply equiv_is_zero (er := Exp.c _) (he := rfl)
   intros x
   apply equiv_eq0 (er := Exp.c _) (he := rfl)
   apply equiv_accept
   swap
   rfl
-  
+
+def extract_manual₆ :
+  { c:Circuit F F // Simulation.s_bisim (curry 2 (ex₆ (F := F))) c.eval } := by
+  unfold ex₆
+  refine ⟨?c,?p⟩
+  swap
+  dsimp -zeta only [curry]
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_right 2
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_right 5
+  apply equiv_eq0 (er := Exp.c _) (he := rfl)
+  apply equiv_share (er := Exp.v _) (h := rfl) (h₁ := fun _ ↦ ?_)
+  swap
+  apply equiv_eq0 (er := Exp.c _) (he := rfl)
+  apply equiv_accept
+  swap
+  rfl
+  swap
+  rfl
+
+#print extract_manual₆
+
 def extract_automatic₁ :
   { c:Circuit F F // Simulation.s_bisim (ex₁ (F := F)) c.eval } := by
   extract using ex₁
@@ -262,10 +307,23 @@ def extract_automatic₄ :
   { c:Circuit F F // Simulation.s_bisim (ex₄ (F := F)) c.eval } := by
   extract using ex₄
 
+def extract_automatic₅ :
+  { c:Circuit F F // Simulation.s_bisim (ex₅ (F := F)) c.eval } := by
+  extract using ex₅
+
+def WW {a : ℕ} (b : Fin a) {c : ℕ} (d : Fin c) : Option Unit := sorry
+
+
+-- def extract_automatic₆ :
+--   { c:Circuit F F // Simulation.s_bisim (ex₆ (F := F)) c.eval } := by
+--   extract using ex₆
+
+
 #print extract_automatic₁
 #print extract_automatic₂
 #print extract_automatic₃
 #print extract_automatic₄
+#print extract_automatic₅
 
 def extract_manual :
   { c:Circuit F F // Simulation.s_bisim (ex₂ (F := F)) c.eval } := by
