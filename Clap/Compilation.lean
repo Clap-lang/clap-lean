@@ -38,7 +38,7 @@ namespace Clap
 -- TODO we could remove this type and add an index to Circuit, which would save us from defining again the semantics of Cs
 inductive Cs (p : ℕ) (var : Type) : Type where
   | nil : Cs p var
-  | eq0 : Exp (ZMod p) var -> Cs p var -> Cs p var
+  | eq0 : Exp p var -> Cs p var -> Cs p var
   | lam : (var -> Cs p var) -> Cs p var
 
 def Cs' (p : ℕ) : Type _ := (var:Type) -> Cs p var
@@ -68,7 +68,7 @@ def assert_bit_e (rest : Cs p var) (b : var) : Cs p var :=
 def assert_bits_e {w : ℕ} (bs : Vector var w) (rest : Cs p var) : Cs p var :=
   Vector.foldl assert_bit_e rest bs
 
-def bits2num_e {w : ℕ} (bits : Vector var w) : Exp (ZMod p) var :=
+def bits2num_e {w : ℕ} (bits : Vector var w) : Exp p var :=
   Vector.foldl (fun acc b => .v b + .c 2 * acc) (.c 0) bits
 
 def to_cs (c : Circuit p var) : Cs p var :=
@@ -230,7 +230,7 @@ induction w with
   simp [this]
 
 lemma reduce₂ :
-  ∀ {w : ℕ} {args : Vector (ZMod p) w} {e : Exp (ZMod p) (ZMod p)} {cs : Cs p (ZMod p)},
+  ∀ {w : ℕ} {args : Vector (ZMod p) w} {e : Expₑ p} {cs : Cs p (ZMod p)},
     e.eval = bits2num args -> (Cs.eq0 (bits2num_e args - e) cs).eval = cs.eval := by
   intros w args e cs h
   have : (bits2num_e args).eval - (bits2num args) = 0 := by
@@ -268,7 +268,7 @@ lemma reduce₂ :
       simp [ih, Exp.eval]
   simp [Cs.eval, h, this]
 
-lemma reduce {w : ℕ} {args : Vector (ZMod p) w} {e : Exp (ZMod p) (ZMod p)} {cs : Cs p (ZMod p)} :
+lemma reduce {w : ℕ} {args : Vector (ZMod p) w} {e : Expₑ p} {cs : Cs p (ZMod p)} :
   assert_bits args /\ e.eval = bits2num args ->
     (assert_bits_e args (.eq0 (bits2num_e args - e) cs)).eval = cs.eval := by
   rintro ⟨h₁, h₂⟩
@@ -286,13 +286,13 @@ lemma fail₁ :
   sorry
 
 lemma fail₂ :
-  ∀ {w : ℕ} {args : Vector (ZMod p) w} {e : Exp (ZMod p) (ZMod p)} {cs : Cs p (ZMod p)},
+  ∀ {w : ℕ} {args : Vector (ZMod p) w} {e : Expₑ p} {cs : Cs p (ZMod p)},
     e.eval ≠ (bits2num args) -> (Cs.eq0 (bits2num_e args - e) cs).eval = .n := by
   intros w args e cs h
   unfold Cs.eval Exp.eval
   sorry
 
-lemma fail : ∀ {w : ℕ} {args : Vector (ZMod p) w} {e : Exp (ZMod p) (ZMod p)} {cs : Cs p (ZMod p)},
+lemma fail : ∀ {w : ℕ} {args : Vector (ZMod p) w} {e : Expₑ p} {cs : Cs p (ZMod p)},
  (¬ (assert_bits args /\ e.eval = bits2num args)) ->
  (assert_bits_e args (.eq0 (bits2num_e args - e) cs)).eval = denotation.n := by
   intros w args e cs h
@@ -300,13 +300,13 @@ lemma fail : ∀ {w : ℕ} {args : Vector (ZMod p) w} {e : Exp (ZMod p) (ZMod p)
   · rw [reduce₁ h', fail₂ (by tauto)]
   · rw [fail₁ h']
 
-lemma bits_good : ∀ (w : ℕ) (args : Vector (ZMod p) w) (e : Exp (ZMod p) (ZMod p)),
+lemma bits_good : ∀ (w : ℕ) (args : Vector (ZMod p) w) (e : Expₑ p),
   e.eval.val < 2 ^ w -> assert_bits args /\ e = bits2num args := sorry
 
-lemma bits_bad : ∀ (w : ℕ) (args : Vector (ZMod p) w) (e : Exp (ZMod p) (ZMod p)),
+lemma bits_bad : ∀ (w : ℕ) (args : Vector (ZMod p) w) (e : Expₑ p),
   (¬ e.eval.val < 2 ^ w) -> ¬ (assert_bits args /\ e = bits2num args) := sorry
 
-theorem soundness : ∀ (c : Circuit p (ZMod p)),
+theorem soundness : ∀ (c : Circuitₑ p),
   rw_bisim (Circuit.eval c) (Cs.eval (to_cs c)) := by
   intro c
   induction c with

@@ -18,7 +18,7 @@ variable {p : ℕ} [Fact (Nat.Prime p)]
   because of https://github.com/leanprover/lean4/issues/9803
   Typically "| l,.c 0 => " is replaced by "| l,r => if r=0 then"
 -/
-def cfold_e (e : Exp (ZMod p) var) : Exp (ZMod p) var :=
+def cfold_e (e : Exp p var) : Exp p var :=
   match e with
   | .v v => .v v
   | .c i => .c i
@@ -59,7 +59,7 @@ def cfold {var : Type} (c : Circuit p var) : Circuit p var :=
 def cfold' (c : Circuit' p) : Circuit' p := fun var => cfold (c var)
 
 -- TODO change to ≈
-theorem cfold_e_sem_pre : ∀ (e : Exp (ZMod p) (ZMod p)), Exp.eval e = Exp.eval (cfold_e e) := by
+theorem cfold_e_sem_pre : ∀ (e : Expₑ p), Exp.eval e = Exp.eval (cfold_e e) := by
   intros e
   induction e with
   | v f

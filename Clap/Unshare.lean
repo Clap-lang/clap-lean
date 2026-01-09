@@ -24,7 +24,7 @@ variable {p : ℕ} [Fact (Nat.Prime p)]
   I's basically like in the Hoas case.
 -/
 
-def unshare_all_F (c : Circuit p (ZMod p)) : Circuit p (ZMod p) :=
+def unshare_all_F (c : Circuitₑ p) : Circuitₑ p :=
   match c with
   | .nil => .nil
   | .eq0 e c => .eq0 e (unshare_all_F c)
@@ -36,7 +36,7 @@ def unshare_all_F (c : Circuit p (ZMod p)) : Circuit p (ZMod p) :=
   | .share e k => k (Exp.eval e)
 
 -- TODO use congr squash proof
-theorem unshare_all_sem_pre_F : ∀ (c : Circuit p (ZMod p)),
+theorem unshare_all_sem_pre_F : ∀ (c : Circuitₑ p),
   c ≈ unshare_all_F c := by
   intros c
   induction c with
@@ -68,7 +68,7 @@ theorem unshare_all_sem_pre_F : ∀ (c : Circuit p (ZMod p)),
 -/
 open Id
 
-def unshare_all {var} (c : Circuit p (Exp (ZMod p) var)) : Circuit p var :=
+def unshare_all {var} (c : Circuit p (Exp p var)) : Circuit p var :=
   match c with
   | .nil => .nil
   | .eq0 e c => .eq0 (unwrap_e e) (unshare_all c)
@@ -79,7 +79,7 @@ def unshare_all {var} (c : Circuit p (Exp (ZMod p) var)) : Circuit p var :=
   --
   | .share e k => unshare_all (k (unwrap_e e))
 
-def unshare_all' (c:Circuit' p) : Circuit' p := fun var => unshare_all (c (Exp (ZMod p) var))
+def unshare_all' (c:Circuit' p) : Circuit' p := fun var => unshare_all (c (Exp p var))
 
 namespace Test
 
@@ -92,7 +92,7 @@ def expected_a : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.eq0 (.c 1 
 
 end Test
 
-theorem unshare_all_sem_pre : ∀ (cl : Circuit p (ZMod p)) (cr : Circuit p (Exp (ZMod p) (ZMod p))) G,
+theorem unshare_all_sem_pre : ∀ (cl : Circuit p (ZMod p)) (cr : Circuit p (Exp p (ZMod p))) G,
   wf G cl cr ->
    List.Forall (fun entry => entry.l = (Exp.eval entry.r)) G ->
    cl ≈ (unshare_all cr)
@@ -225,7 +225,7 @@ e = x^2 * a
 ```
 -/
 
-def degree {var} (e : Exp (ZMod p) var) : Nat :=
+def degree {var} (e : Exp p var) : Nat :=
   match e with
   | .v _ => 1
   | .c _ => 0
@@ -233,7 +233,7 @@ def degree {var} (e : Exp (ZMod p) var) : Nat :=
   | .sub l r => max (degree l) (degree r)
   | .mul l r => (degree l) + (degree r)
 
-def unshare_deg_cps {var} (c : Circuit p (Exp (ZMod p) var)) (k : Bool × Circuit p var -> Circuit p var) : Circuit p var :=
+def unshare_deg_cps {var} (c : Circuit p (Exp p var)) (k : Bool × Circuit p var -> Circuit p var) : Circuit p var :=
   match c with
   | .nil => k (true,.nil)
   | .eq0 e c =>
@@ -257,9 +257,9 @@ def unshare_deg_cps {var} (c : Circuit p (Exp (ZMod p) var)) (k : Bool × Circui
       then k (true, c)
       else .share (unwrap_e e) (fun x => unshare_deg_cps (k' (.v x)) k))
 
-def unshare_deg {var} (c : Circuit p (Exp (ZMod p) var)) : Circuit p var := unshare_deg_cps c (fun (b,x) => if b then x else id c)
+def unshare_deg {var} (c : Circuit p (Exp p var)) : Circuit p var := unshare_deg_cps c (fun (b,x) => if b then x else id c)
 
-def unshare_deg' (c : Circuit' p) : Circuit' p := fun var => unshare_deg (c (Exp (ZMod p) var))
+def unshare_deg' (c : Circuit' p) : Circuit' p := fun var => unshare_deg (c (Exp p var))
 
 namespace Test
 

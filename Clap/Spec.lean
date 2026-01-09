@@ -43,7 +43,7 @@ def curry {a r : Type} (n : ℕ) (k : Vector a n -> r) : typ a r n :=
 
 #guard curry 2 (fun x => x[0] == 0 && x[1] == 1) 1 0 = True
 
-lemma equiv_eq0 (el : ZMod p) (er : Exp (ZMod p) (ZMod p)) (cl : Option Unit) (cr : Circuit p (ZMod p)) :
+lemma equiv_eq0 (el : ZMod p) (er : Expₑ p) (cl : Option Unit) (cr : Circuitₑ p) :
     el = Exp.eval er ->
     Simulation.s_bisim cl (Circuit.eval cr) ->
     Simulation.s_bisim (Option.bind (eq0 el) (fun () => cl)) (Circuit.eval (.eq0 er cr)) := by
@@ -65,7 +65,7 @@ lemma equiv_eq0 (el : ZMod p) (er : Exp (ZMod p) (ZMod p)) (cl : Option Unit) (c
     . apply hc
     . contradiction
 
-lemma equiv_share (el : ZMod p) (er : Exp (ZMod p) (ZMod p)) (kl : ZMod p -> Option Unit) (kr : ZMod p -> Circuit p (ZMod p)) :
+lemma equiv_share (el : ZMod p) (er : Expₑ p) (kl : ZMod p -> Option Unit) (kr : ZMod p -> Circuitₑ p) :
   el = Exp.eval er ->
   (∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) ->
   Simulation.s_bisim (bind (share el) kl) (Circuit.eval (.share er kr)) := by
@@ -74,7 +74,7 @@ lemma equiv_share (el : ZMod p) (er : Exp (ZMod p) (ZMod p)) (kl : ZMod p -> Opt
   rw [he]
   apply hk
 
-lemma equiv_assert_range (el : ZMod p) (er : Exp (ZMod p) (ZMod p)) (cl : Option Unit) (cr : Circuit p (ZMod p)) (w : ℕ)
+lemma equiv_assert_range (el : ZMod p) (er : Expₑ p) (cl : Option Unit) (cr : Circuitₑ p) (w : ℕ)
   (he : el = Exp.eval er)
   (hc : Simulation.s_bisim cl (Circuit.eval cr)) :
   Simulation.s_bisim (Option.bind (assert_range w el) (fun () => cl)) (Circuit.eval (.assert_range w er cr)) := by
@@ -95,7 +95,7 @@ lemma equiv_assert_range (el : ZMod p) (er : Exp (ZMod p) (ZMod p)) (cl : Option
     . apply hc
     . contradiction
 
-lemma equiv_div_rem (el : ZMod p) (er : Exp (ZMod p) (ZMod p)) (kl : ZMod p × ZMod p -> Option Unit) (kr : ZMod p × ZMod p -> Circuit p (ZMod p))
+lemma equiv_div_rem (el : ZMod p) (er : Expₑ p) (kl : ZMod p × ZMod p -> Option Unit) (kr : ZMod p × ZMod p -> Circuitₑ p)
   (he : el = Exp.eval er)
   (hc : ∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) :
   Simulation.s_bisim (Option.bind (div_rem el) kl) (Circuit.eval (.div_rem er kr)) := by
