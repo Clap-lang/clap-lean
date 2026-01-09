@@ -74,19 +74,17 @@ lemma equiv_share (el : ZMod p) (er : Exp (ZMod p) (ZMod p)) (kl : ZMod p -> Opt
   rw [he]
   apply hk
 
-lemma equiv_assert_range (el : ZMod p) (er : Exp (ZMod p) (ZMod p)) (cl : Option Unit) (cr : Circuit p (ZMod p)) (w : ℕ) :
-  el = Exp.eval er ->
-  Simulation.s_bisim cl (Circuit.eval cr) ->
+lemma equiv_assert_range (el : ZMod p) (er : Exp (ZMod p) (ZMod p)) (cl : Option Unit) (cr : Circuit p (ZMod p)) (w : ℕ)
+  (he : el = Exp.eval er)
+  (hc : Simulation.s_bisim cl (Circuit.eval cr)) :
   Simulation.s_bisim (Option.bind (assert_range w el) (fun () => cl)) (Circuit.eval (.assert_range w er cr)) := by
-  intro he hc
   simp only [Circuit.eval,Option.bind,assert_range]
   split
   split
   case _ _ heq her =>
     simp at heq
     rw [he] at heq
---    contradiction
-    sorry
+    grind
   case _ _ hel her =>
     constructor
   case _ _ _ hel =>
@@ -95,8 +93,7 @@ lemma equiv_assert_range (el : ZMod p) (er : Exp (ZMod p) (ZMod p)) (cl : Option
     simp
     split
     . apply hc
-    . -- contradiction
-      sorry
+    . contradiction
 
 end Spec
 
