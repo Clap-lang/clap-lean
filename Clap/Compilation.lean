@@ -129,9 +129,9 @@ def to_wg (c : Circuit p (ZMod p)) : Wg (ZMod p) :=
     let bits : List (ZMod p) := num2bits w (Exp.eval e)
     List.foldl (fun acc b => .cons b acc) (to_wg c) bits
   | .div_rem e k =>
-    let e : F := Exp.eval e
-    let d : F := e / 256
-    let r : F := e % 256
+    let e := Exp.eval e
+    let d := e / 256
+    let r := e % 256
     .cons d (.cons r (to_wg (k (d,r))))
 
 -- def to_wg' (c:Circuit' F) : Wg F := to_wg (c F)
@@ -438,5 +438,4 @@ def completeness : ∀ (c:Circuit p (ZMod p)),
     sorry
   | div_rem e c h =>
     simp [Exp.eval,Circuit.eval,Cs.eval,to_cs,to_wg,wrap]
-    split
     sorry

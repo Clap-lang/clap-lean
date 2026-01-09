@@ -54,6 +54,7 @@ def cfold {var : Type} (c : Circuit p var) : Circuit p var :=
   | .share e k => .share (cfold_e e) (fun x => cfold (k x))
   | .is_zero e k => .is_zero (cfold_e e) (fun x => cfold (k x))
   | .assert_range w e c => .assert_range w (cfold_e e) (cfold c)
+  | .div_rem e k => .div_rem (cfold_e e) (fun x => cfold (k x))
 
 def cfold' (c : Circuit' p) : Circuit' p := fun var => cfold (c var)
 
@@ -84,6 +85,8 @@ theorem cfold_sem_pre : ∀ (c : Circuit p (ZMod p)),
     simp [cfold]
     gcongr
     repeat (first | apply cfold_e_sem_pre | apply h)
+  | div_rem e k h =>
+    sorry
 
 theorem cfold'_sem_pre : ∀ (c : Circuit' p),
   Circuit.eval' c = Circuit.eval' (cfold' c) := by

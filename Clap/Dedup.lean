@@ -56,6 +56,7 @@ def dedup_ {var} (c : Circuit p (ℕ × var)) (n : ℕ) (set : List (Exp (ZMod p
   | .share e k => .share (to_var e) (fun x => dedup_ (k (n,x)) (n+1) set)
   | .is_zero e k => .is_zero (to_var e) (fun x => dedup_ (k (n,x)) (n+1) set)
   | .assert_range w e c => .assert_range w (to_var e) (dedup_ c n ((to_nat e)::set))
+  | .div_rem e k => .div_rem (to_var e) (fun (d,r) => dedup_ (k ((n,d),(n+1,r))) (n+2) set)
 
 def dedup {var} (c : Circuit p (Nat × var)) : Circuit p var := dedup_ c 0 []
 

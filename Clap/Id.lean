@@ -130,6 +130,7 @@ def id {var} (c : Circuit p (Exp (ZMod p) var)) : Circuit p var :=
   | .is_zero e k => .is_zero (unwrap_e e) (fun x => id (k (.v x)))
   | .share e k => .share (unwrap_e e) (fun x => id (k (.v x)))
   | .assert_range w e c => .assert_range w (unwrap_e e) (id c)
+  | .div_rem e k => .div_rem (unwrap_e e) (fun (d,r) => id (k (.v d, .v r)))
 
 -- def id' (c:Circuit' F) : Circuit' F := fun var => id (c (Exp F var))
 
@@ -180,5 +181,7 @@ theorem id_sem_pre : ∀ (cl : Circuit p (ZMod p)) (cr : Circuit p (Exp (ZMod p)
   | assert_range w e c h =>
     intro cr G wf FA
     cases wf
+  | div_rem e k h =>
+    sorry
 
 end Id

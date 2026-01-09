@@ -31,6 +31,7 @@ def unshare_all_F (c : Circuit p (ZMod p)) : Circuit p (ZMod p) :=
   | .lam k => .lam (fun x => unshare_all_F (k x))
   | .is_zero e k => .is_zero e (fun x => unshare_all_F (k x))
   | .assert_range w e c => .assert_range w e (unshare_all_F c)
+  | .div_rem e k => .div_rem e (fun x => unshare_all_F (k x))
   --
   | .share e k => k (Exp.eval e)
 
@@ -53,7 +54,8 @@ theorem unshare_all_sem_pre_F : ∀ (c : Circuit p (ZMod p)),
            | apply Circuit.share_congr
            | apply Circuit.assert_range_congr)
     <;> repeat (first | simp | assumption)
-
+  | div_rem e k h =>
+    sorry
 /-
   Id presents a simple example of optimization pass that does not use
   the function argument `var` in any interesting way, like Cfold, but
@@ -73,6 +75,7 @@ def unshare_all {var} (c : Circuit p (Exp (ZMod p) var)) : Circuit p var :=
   | .lam k => .lam (fun x => unshare_all (k (.v x)))
   | .is_zero e k => .is_zero (unwrap_e e) (fun x => unshare_all (k (.v x)))
   | .assert_range w e c => .assert_range w (unwrap_e e) (unshare_all c)
+  | .div_rem e k => .div_rem (unwrap_e e) (fun (d,r) => unshare_all (k ((.v d),(.v r))))
   --
   | .share e k => unshare_all (k (unwrap_e e))
 
@@ -150,6 +153,8 @@ theorem unshare_all_sem_pre : ∀ (cl : Circuit p (ZMod p)) (cr : Circuit p (Exp
   | assert_range w e c h =>
     intro cr G wf FA
     cases wf
+  | div_rem e k h =>
+    sorry
 
 theorem unshare_sem_pre' : ∀ (cl: Circuit' p),
   wf' cl ->
@@ -241,6 +246,9 @@ def unshare_deg_cps {var} (c : Circuit p (Exp (ZMod p) var)) (k : Bool × Circui
   | .assert_range w e c =>
      let be := degree e <= 2
      unshare_deg_cps c (fun (b,c) => k (b && be, .assert_range w (unwrap_e e) c))
+  | .div_rem e k' =>
+     let be := degree e <= 2
+    .div_rem (unwrap_e e) (fun (d,r) => unshare_deg_cps (k' ((.v d),(.v r))) (fun (b,c) => k (b && be, c)))
   --
   | .share e k' =>
     let be := degree e <= 2
