@@ -83,8 +83,6 @@ def unshare_all' (c:Circuit' p) : Circuit' p := fun var => unshare_all (c (Exp p
 
 namespace Test
 
-abbrev F7 := Clap.F7.F
-
 def a : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.share (.c 1 + .v x) (fun x => Circuit.eq0 (.v x) Circuit.nil))
 def expected_a : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.eq0 (.c 1 + .v x) Circuit.nil)
 
