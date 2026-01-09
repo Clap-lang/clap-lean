@@ -121,6 +121,9 @@ def ex p (i: ZMod p) : Option Unit := do
   assert_range 2 vi
   accept ()
 
+#guard ex 7 0 = some ()
+#guard ex 7 1 = none
+
 -- def ex_unfolded : F -> Option Unit :=
 --   fun i =>
 --   bind (eq0 F i) (fun () =>
@@ -220,6 +223,9 @@ def ex p :=
     eq0 (xy-z)
   return accept ()
   )))
+
+#guard ex 7 2 4 1 1 3 5 = some 90 -- [2,4] + [1,1] = [3,5]
+#guard ex 7 2 4 1 1 3 6 = none
 
 def ex_circuit_fun (p : ℕ) : Circuit' p := fun _ =>
   Circuit.curry 2 (fun xs =>
