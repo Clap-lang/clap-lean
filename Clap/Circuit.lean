@@ -30,6 +30,14 @@ namespace Clap
 -- This Field instance is used for examples and tests
 instance : Fact (Prime 7) := by decide
 
+-- example : Nat.Prime 257 := by native_decide
+
+def prime_fermat_f4 := 65537 -- one more than max u16
+instance : Fact (Nat.Prime prime_fermat_f4) := by native_decide
+
+def prime_babybear := 15 * 2^27 + 1
+instance : Fact (Nat.Prime prime_babybear) := by native_decide
+
 variable {p : ℕ}
 variable {var : Type}
 
