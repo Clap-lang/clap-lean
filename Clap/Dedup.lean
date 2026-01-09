@@ -61,8 +61,6 @@ def dedup' (c : Circuit' p) : Circuit' p := fun var => dedup (c (Nat × var))
 
 namespace Test
 
-abbrev F7 := Clap.F7.F
-
 def a        : Circuit' 7 := fun _ => .lam (fun x => .eq0 (.v x + .c 1) (.eq0 (.v x + .c 2) (.eq0 (.v x + .c 1) .nil )))
 def expected : Circuit' 7 := fun _ => .lam (fun x => .eq0 (.v x + .c 1) (.eq0 (.v x + .c 2) .nil ))
 

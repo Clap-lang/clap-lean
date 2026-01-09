@@ -28,10 +28,7 @@ import Mathlib.FieldTheory.Finite.Basic -- field operations
 namespace Clap
 
 -- This Field instance is used for examples and tests
-namespace F7
-abbrev F := ZMod 7
-instance : Fact (Nat.Prime 7) := ⟨by decide⟩
-end F7
+instance : Fact (Prime 7) := by decide
 
 variable {p : ℕ}
 variable {var : Type}
@@ -233,10 +230,6 @@ instance [Repr var] [Index var] : ToString (Circuit p var) :=
   ⟨Std.Format.pretty ∘ repr 0⟩
 
 namespace Test
-
-instance : Fact (Prime 7) := by
-  refine { out := ?_ }
-  decide
 
 def a : Circuit' 7 := fun _ => .lam (fun x => .lam (fun y => .eq0 (.v x + .v y) .nil))
 
