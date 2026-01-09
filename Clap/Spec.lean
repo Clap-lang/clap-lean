@@ -95,6 +95,15 @@ lemma equiv_assert_range (el : ZMod p) (er : Exp (ZMod p) (ZMod p)) (cl : Option
     . apply hc
     . contradiction
 
+lemma equiv_div_rem (el : ZMod p) (er : Exp (ZMod p) (ZMod p)) (kl : ZMod p × ZMod p -> Option Unit) (kr : ZMod p × ZMod p -> Circuit p (ZMod p))
+  (he : el = Exp.eval er)
+  (hc : ∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) :
+  Simulation.s_bisim (Option.bind (div_rem el) kl) (Circuit.eval (.div_rem er kr)) := by
+  simp only [Circuit.eval,Option.bind,div_rem]
+  simp [he]
+  norm_num
+  apply hc
+
 end Spec
 
 namespace Example_base
