@@ -74,8 +74,6 @@ end Test
 
 open Id
 
--- variable [Coe F Nat]
-
 theorem dedup_sem_pre : ∀ (cl : Circuit p (ZMod p)) (cr : Circuit p (ℕ × ZMod p)) G,
   wf G cl cr ->
     List.Forall (fun entry => entry.l = (Exp.eval entry.r.2)) G ->

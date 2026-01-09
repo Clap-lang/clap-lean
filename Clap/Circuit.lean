@@ -177,7 +177,7 @@ inductive denotation (F : Type) : Type where
   | u : denotation F
   | l : (F -> denotation F) -> denotation F
 
-inductive Circuit (p : ℕ) [Fact (Nat.Prime p)] (var : Type) : Type where
+inductive Circuit (p : ℕ) (var : Type) : Type where
   | nil : Circuit p var
   | eq0 : Exp (ZMod p) var -> Circuit p var -> Circuit p var
   | lam : (var -> Circuit p var) -> Circuit p var
@@ -185,15 +185,13 @@ inductive Circuit (p : ℕ) [Fact (Nat.Prime p)] (var : Type) : Type where
   | is_zero : Exp (ZMod p) var -> (var -> Circuit p var) -> Circuit p var
   | assert_range : (w : ℕ) -> Exp (ZMod p) var -> Circuit p var -> Circuit p var
 
-abbrev Circuitₑ (p : ℕ) [Fact (Nat.Prime p)] := Circuit p (ZMod p)
+abbrev Circuitₑ (p : ℕ) := Circuit p (ZMod p)
 -- TODO remove all ' definitions
-abbrev Circuit' (p : ℕ) [Fact (Nat.Prime p)] : Type _ := (var:Type) -> Circuit p var
+abbrev Circuit' (p : ℕ) : Type _ := (var:Type) -> Circuit p var
 
 /-
   Warning: var must be kept abstract, if var is fixed we can write bogus examples
 -/
-
-variable {p : ℕ} [Fact (Nat.Prime p)]
 
 -- E.g. here v 0 is not bound by any lam
 example : Circuit p Nat := Circuit.eq0 (.v 0) Circuit.nil

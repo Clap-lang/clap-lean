@@ -133,8 +133,6 @@ def id {var} (c : Circuit p (Exp (ZMod p) var)) : Circuit p var :=
 
 -- def id' (c:Circuit' F) : Circuit' F := fun var => id (c (Exp F var))
 
--- variable [DecidableEq F] [Coe F Nat]
-
 theorem id_sem_pre : ∀ (cl : Circuit p (ZMod p)) (cr : Circuit p (Exp (ZMod p) (ZMod p))) G,
   wf G cl cr ->
    List.Forall (fun entry => entry.l = (Exp.eval entry.r)) G ->

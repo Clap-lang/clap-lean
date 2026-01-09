@@ -45,7 +45,6 @@ def Cs' (p : ℕ) : Type _ := (var:Type) -> Cs p var
 
 variable {p : ℕ} [Fact (Nat.Prime p)]
 variable {var: Type}
--- variable [Field F] [DecidableEq F]
 
 def Cs.eval (c : Cs p (ZMod p)) : denotation (ZMod p) :=
   match c with

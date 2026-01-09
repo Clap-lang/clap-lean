@@ -12,7 +12,6 @@ namespace Cfold
 
 variable {var : Type}
 variable {p : ℕ} [Fact (Nat.Prime p)]
--- variable {F : Type} [Field F] [DecidableEq F]
 
 /-
   Note: this function contains some pattern matchings that don't look ideal

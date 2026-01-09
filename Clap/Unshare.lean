@@ -8,9 +8,6 @@ namespace Unshare
 
 variable {p : ℕ} [Fact (Nat.Prime p)]
 
--- variable {F : Type}
--- variable [Field F] [DecidableEq F]
-
 /-
   Unshare optimization - inlines an expression previously shared.
 
