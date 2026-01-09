@@ -97,7 +97,7 @@ def step (goals : Goals) (lhs : Option Expr := .none) : MetaM Goals := do
     ]
 
 def extractTac (inferenceGoal : MVarId) : MetaM Goals := do
-  let mut goals : Goals := ⟨inferenceGoal, []⟩
+  let mut goals ← curry inferenceGoal
   -- let mut i := 0
   while true do
     match goals.inference with
@@ -107,6 +107,12 @@ def extractTac (inferenceGoal : MVarId) : MetaM Goals := do
                         --  i := i + 1
     -- if i == 5 then break
   return goals
+  -- TODO(workaround) Currently a stopgap measure before we incorporate currying in a better way
+  where curry (inferenceGoal : MVarId) : MetaM Goals := do
+    let ([inferenceGoal], _) ←
+      Elab.runTactic inferenceGoal (←`(tactic|try dsimp -zeta only [$(mkIdent `curry):ident]))
+      | throwError m!"Failed to curry {inferenceGoal}"
+    return ⟨inferenceGoal, []⟩
 
 open Elab Tactic in
 elab "extract" "using" name:ident : tactic => do
@@ -192,7 +198,6 @@ example {is : Vector F 2} : ex₆ is = ex₅ is[0] is[1] := rfl
 --   .eq0 (1 - .v x)
 --   .nil))
 
-
 lemma equiv_eq0 {el:F} {er:Exp F F} {cl:Option Unit} (cr:Circuit F F)
   (he: el = Exp.eval er)
   (hc: Simulation.s_bisim cl (Circuit.eval cr)) :
@@ -219,12 +224,6 @@ lemma equiv_is_zero {el:F} {kl : F → Option Unit} (er:Exp F F) (kr:F -> Circui
   (hk : ∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) :
   Simulation.s_bisim (bind ((is_zero el)) kl) (Circuit.eval (.is_zero er kr)) := by
   aesop (add simp [Circuit.eval, bind, share, is_zero])
-
--- lemma equiv_is_zero {el:F} {kl : F → Option Unit} (er:Exp F F) (kr:F -> Circuit F F)
---   (he : el = Exp.eval er)
---   (hk : ∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) :
---   Simulation.s_bisim (bind (.some (is_zero el)) kl) (Circuit.eval (.is_zero er kr)) := by
---   aesop (add simp [Circuit.eval, bind, share, is_zero])
 
 lemma equiv_accept :
   Simulation.s_bisim (some (accept ())) (Circuit.eval (F := F) .nil) := by
@@ -311,19 +310,18 @@ def extract_automatic₅ :
   { c:Circuit F F // Simulation.s_bisim (ex₅ (F := F)) c.eval } := by
   extract using ex₅
 
+def extract_automatic₆ :
+  { c:Circuit F F // Simulation.s_bisim (curry 2 (ex₆ (F := F))) c.eval } := by
+  extract using ex₆
+
 def WW {a : ℕ} (b : Fin a) {c : ℕ} (d : Fin c) : Option Unit := sorry
-
-
--- def extract_automatic₆ :
---   { c:Circuit F F // Simulation.s_bisim (ex₆ (F := F)) c.eval } := by
---   extract using ex₆
-
 
 #print extract_automatic₁
 #print extract_automatic₂
 #print extract_automatic₃
 #print extract_automatic₄
 #print extract_automatic₅
+#print extract_automatic₆
 
 def extract_manual :
   { c:Circuit F F // Simulation.s_bisim (ex₂ (F := F)) c.eval } := by
