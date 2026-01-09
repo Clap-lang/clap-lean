@@ -86,6 +86,9 @@ def ex p (i: F p) : Option Unit := do
   eq0 (vi + i)
   accept ()
 
+#guard ex 7 0 = some ()
+#guard ex 7 1 = none
+
 -- def ex_unfolded : F -> Option Unit :=
 --   fun i =>
 --   bind (eq0 F i) (fun () =>
@@ -186,7 +189,10 @@ def ex p :=
   return accept ()
   )))
 
-def ex_circuit_fun p : Circuit' p := fun _ =>
+#guard ex 7 2 4 1 1 3 5 = some 90 -- [2,4] + [1,1] = [3,5]
+#guard ex 7 2 4 1 1 3 6 = none
+
+def ex_circuit_fun (p : ℕ) : Circuit' p := fun _ =>
   Circuit.curry 2 (fun xs =>
   Circuit.curry 2 (fun ys =>
   Circuit.curry 2 (fun zs =>
