@@ -180,11 +180,22 @@ def ex₅ (is₁ : F) (is₂ : F) : Option Unit := do
   eq0 (vi + is₂)
   accept ()
 
-def ex₆ (is : Vector F 2) : Option Unit := do
+def ex₆ :=
+  curry 2 (fun (is : Vector F 2) ↦ do
   eq0 is[0]
   let vi <- share is[0]
   eq0 (vi + is[1])
-  accept ()
+  return accept ())
+
+def ex₇ :=
+  curry 2 (fun (xs: Vector F 2) =>
+  curry 2 (fun (ys: Vector F 2) =>
+  curry 2 (fun (zs: Vector F 2) => do
+  eq0 (zs[0]-xs[1])
+  return accept ()
+  )))
+
+-- def ex₇' (xs: Vector F 2) (ys: Vector F 2) (zs: Vector F 2) : typ F (typ F (typ F (Option Unit) 2) 2) 2 := _
 
 example {is : Vector F 2} : ex₆ is = ex₅ is[0] is[1] := rfl
 
@@ -269,7 +280,9 @@ def extract_manual₄ :
   rfl
 
 def extract_manual₆ :
-  { c:Circuit F F // Simulation.s_bisim (curry 2 (ex₆ (F := F))) c.eval } := by
+  { c:Circuit F F // Simulation.s_bisim (
+    (ex₆ (F := F))
+  ) c.eval } := by
   unfold ex₆
   refine ⟨?c,?p⟩
   swap
@@ -288,7 +301,31 @@ def extract_manual₆ :
   swap
   rfl
 
-#print extract_manual₆
+def extract_manual₇ :
+  { c:Circuit F F // Simulation.s_bisim (ex₇ (F := F)) c.eval } := by
+  unfold ex₇
+  refine ⟨?c,?p⟩
+  swap
+  dsimp -zeta only [curry]
+  
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_right 2
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_right 5
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_right 8
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_left 3
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_left 3
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_left 3
+  dsimp
+  apply equiv_eq0 (er := Exp.c _) (he := rfl)
+  apply equiv_accept
+  any_goals rfl
+
+#print extract_manual₇
 
 def extract_automatic₁ :
   { c:Circuit F F // Simulation.s_bisim (ex₁ (F := F)) c.eval } := by
@@ -311,8 +348,12 @@ def extract_automatic₅ :
   extract using ex₅
 
 def extract_automatic₆ :
-  { c:Circuit F F // Simulation.s_bisim (curry 2 (ex₆ (F := F))) c.eval } := by
+  { c:Circuit F F // Simulation.s_bisim (ex₆ (F := F)) c.eval } := by
   extract using ex₆
+
+def extract_automatic₇ :
+  { c:Circuit F F // Simulation.s_bisim (ex₇ (F := F)) c.eval } := by
+  extract using ex₇
 
 def WW {a : ℕ} (b : Fin a) {c : ℕ} (d : Fin c) : Option Unit := sorry
 
