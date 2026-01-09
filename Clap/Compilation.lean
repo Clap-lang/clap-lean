@@ -1,4 +1,4 @@
-import Mathlib.FieldTheory.Finite.Basic -- field operations
+import Mathlib.FieldTheory.Finite.Basic -- field operations, including / %
 
 import Clap.Circuit
 import Clap.Simulation
@@ -92,6 +92,10 @@ def to_cs (c : Circuit p var) : Cs p var :=
       letI rest := to_cs c
       letI rest := Cs.eq0 (bits2num_e bits - e) rest
       assert_bits_e bits rest)
+  | .div_rem e k =>
+      .lam (fun d =>
+        .lam (fun r =>
+           .eq0 (e - (256 * .v d + .v r)) (to_cs (k (d,r)))))
 
 def to_cs' (c : Circuit' p) : Cs' p := fun var => to_cs (c var)
 
@@ -124,6 +128,11 @@ def to_wg (c : Circuit p (ZMod p)) : Wg (ZMod p) :=
   | .assert_range w e c =>
     let bits : List (ZMod p) := num2bits w (Exp.eval e)
     List.foldl (fun acc b => .cons b acc) (to_wg c) bits
+  | .div_rem e k =>
+    let e : F := Exp.eval e
+    let d : F := e / 256
+    let r : F := e % 256
+    .cons d (.cons r (to_wg (k (d,r))))
 
 -- def to_wg' (c:Circuit' F) : Wg F := to_wg (c F)
 
@@ -368,6 +377,26 @@ theorem soundness : ∀ (c : Circuit p (ZMod p)),
       sorry
       -- apply bits_bad
       -- assumption
+  | div_rem e c h =>
+    apply rw_bisim.right
+    intro d
+    apply rw_bisim.right
+    intro r
+    simp [Exp.eval,Circuit.eval,Cs.eval]
+    split
+    case _ he0 =>
+      convert h _
+      rw [sub_eq_zero] at he0
+      have hr: r=0 := sorry
+      simp [hr] at he0
+      rw [he0]
+      rw [mul_div_cancel_left₀]
+      sorry
+      sorry
+      -- TODO where is this Coe coming from?
+--      have hr : (r:F) = ↑(Coe.coe e.eval % 256) := sorry
+--      rw [<-hr]
+    sorry
 
 theorem soundness' : ∀ (c:Circuit' p),
   rw_bisim (Circuit.eval' c) (Cs.eval' (to_cs' c)) := by
@@ -406,4 +435,8 @@ def completeness : ∀ (c:Circuit p (ZMod p)),
       case isFalse he0' =>
         simp [*] at *
   | assert_range e c h =>
+    sorry
+  | div_rem e c h =>
+    simp [Exp.eval,Circuit.eval,Cs.eval,to_cs,to_wg,wrap]
+    split
     sorry

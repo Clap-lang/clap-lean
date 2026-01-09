@@ -181,6 +181,7 @@ inductive Circuit (p : ℕ) (var : Type) : Type where
   | share : Exp (ZMod p) var -> (var -> Circuit p var) -> Circuit p var
   | is_zero : Exp (ZMod p) var -> (var -> Circuit p var) -> Circuit p var
   | assert_range : (w : ℕ) -> Exp (ZMod p) var -> Circuit p var -> Circuit p var
+  | div_rem : Exp (ZMod p) var -> (var × var -> Circuit p var) -> Circuit p var
 
 abbrev Circuitₑ (p : ℕ) := Circuit p (ZMod p)
 -- TODO remove all ' definitions
@@ -225,6 +226,7 @@ export Index (index)
 def repr [Repr var] [Index var]
   (l : ℕ) (c : Circuit p var) : Std.Format :=
   letI go (l : ℕ) (k : var → Circuit p var) := repr (l+1) (k (index l)) -- `k ∘ index : ℕ (→ var) → Circuit ..`
+  letI go2 (l : ℕ) (k : var × var → Circuit p var) := repr (l+2) (k (index l, index (l+1))) -- `k ∘ index : ℕ (→ var) → Circuit ..`
   match c with
   | .nil => "nil"
   | .lam k => s!"λ{l} {go l k}"
@@ -232,6 +234,7 @@ def repr [Repr var] [Index var]
   | .share e k => s!"share {_root_.repr e} {go l k}"
   | .is_zero e k => s!"is_zero {_root_.repr e} {go l k}"
   | .assert_range w e c => s!"assert_range {w} {_root_.repr e} {repr l c}"
+  | .div_rem e k => s!"div_rem {_root_.repr e} {go2 l k}"
 
 instance [Repr var] [Index var] : Repr (Circuit p var) where
   reprPrec c _ := c.repr 0
@@ -263,6 +266,11 @@ def eval (c : Circuitₑ p ) : denotation (ZMod p) :=
   | .assert_range w e c =>
     let e := Exp.eval e
     if e.val < 2^w then eval c else .n
+  | .div_rem e k =>
+    let e := Exp.eval e
+    let d := e / 256
+    let r := e % 256
+    eval (k (d,r))
 
 def eval' (c : Circuit' p) : denotation (ZMod p) := eval (c (ZMod p))
 
