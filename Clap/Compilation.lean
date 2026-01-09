@@ -172,6 +172,16 @@ lemma rw_bisim_uncurry : ∀ (w : ℕ) (d : denotation (ZMod p)) (k : Vector (ZM
 def assert_bits {w : ℕ} (args : Vector (ZMod p) w) : Bool :=
   Vector.all args (fun (x : ZMod p) => x == 0 ∨ x == 1)
 
+lemma Vector_succ_eq_head_cons_tail {α : Type} {n : ℕ} {args : Vector α n.succ} : args = Vector.insertIdx args.tail 0 args.head := by
+    simp only [Vector.insertIdx_zero]
+    ext i h
+    match i with
+    | .zero =>
+      simp
+      rfl
+    | .succ i =>
+      simp [add_comm]
+
 lemma reduce₁ :
   ∀ {w : ℕ} {args : Vector (ZMod p) w} {cs : Cs p (ZMod p)},
     assert_bits args -> (assert_bits_e args cs).eval = cs.eval := by
@@ -183,27 +193,19 @@ induction w with
   simp [this, assert_bits_e]
 | succ w ih =>
   intros args cs h
-  have : args = Vector.insertIdx args.tail 0 args.head := by
-    simp only [Vector.insertIdx_zero]
-    ext i h
-    match i with
-    | .zero =>
-      simp
-      rfl
-    | .succ i =>
-      simp [add_comm]
+  have := Vector_succ_eq_head_cons_tail (n := w) (args := args)
   simp only [Nat.add_one_sub_one, Vector.tail_eq_cast_extract, Vector.insertIdx_zero] at this
   rw [this] at h ⊢
   unfold assert_bits_e Vector.foldl at ih ⊢
   unfold assert_bits at h
   simp only [Vector.toArray_cast, Vector.toArray_append, Vector.toArray_extract, Array.size_append,
     List.size_toArray, List.length_cons, List.length_nil, zero_add, Array.size_extract,
-    Vector.size_toArray, min_self, add_tsub_cancel_right,
+    Vector.size_toArray, min_self,
     Array.foldl_append', List.foldl_toArray', List.foldl_cons, List.foldl_nil]
   simp only [beq_iff_eq, Bool.decide_or, Vector.all_cast, Vector.all_append, Vector.all_mk,
     List.size_toArray, List.length_cons, List.length_nil, zero_add, List.all_toArray',
     List.all_cons, List.all_nil, Bool.and_true, Bool.and_eq_true, Bool.or_eq_true,
-    decide_eq_true_eq, Vector.all_eq_true, min_self, add_tsub_cancel_right,
+    decide_eq_true_eq, Vector.all_eq_true, min_self,
     Vector.getElem_extract] at h
   have : args.toArray.extract 1 (w + 1) = (args.extract 1 (w + 1)).toArray := by rfl
   rw [assert_bit_e, this]
@@ -220,6 +222,7 @@ induction w with
        (Array.foldl assert_bit_e (Cs.eq0 (Exp.v args.head * (Exp.c 1 - Exp.v args.head)) cs) (args.extract 1).toArray 0 w) := by
     simp
   rw [this] at ih
+  simp only [Nat.succ_eq_add_one, add_tsub_cancel_right]
   rw [ih, Cs.eval]
   have : args.head * (1 - args.head) = 0 := by
     simp [sub_eq_zero]
@@ -235,7 +238,6 @@ lemma reduce₂ :
   intros w args e cs h
   have : (bits2num_e args).eval - (bits2num args) = 0 := by
     simp [sub_eq_zero]
-    -- rw [Exp.eval]
     unfold bits2num_e bits2num Vector.foldl
     generalize h_eq : Exp.c (0 : ZMod p) = v
     have : 0 = v.eval := by
@@ -249,15 +251,7 @@ lemma reduce₂ :
       simp [this]
     | succ w ih =>
       intros e _ v
-      have : args = Vector.insertIdx args.tail 0 args.head := by
-        simp only [Vector.insertIdx_zero]
-        ext i h
-        match i with
-        | .zero =>
-          simp
-          rfl
-        | .succ i =>
-          simp [add_comm]
+      have := Vector_succ_eq_head_cons_tail (n := w) (args := args)
       simp only [Nat.add_one_sub_one, Vector.tail_eq_cast_extract, Vector.insertIdx_zero] at this
       rw [this]
       have : min (w + 1) (w + 1) - 1 = w := by simp
@@ -282,8 +276,33 @@ lemma fail₁ :
   simp only [beq_iff_eq, Bool.decide_or, Vector.all_eq_true, Bool.or_eq_true, decide_eq_true_eq,
     not_forall, not_or] at h
   rcases h with ⟨i, h, h', h''⟩
+  match w with
+  | .zero =>
+    simp at h
+  | .succ w =>
+    have : ∀ j : ℕ, (assert_bits_e (args.extract (i - j)) cs).eval = denotation.n := by
+      intros j
+      induction j with
+      | zero =>
+        unfold assert_bits_e Vector.foldl -- assert_bit_e Cs.eval
+        rw [Nat.sub_zero]
+        have := Vector_succ_eq_head_cons_tail (n := w) (args := args)
+        simp only [Nat.succ_eq_add_one, Nat.add_one_sub_one, Vector.tail_eq_cast_extract,
+          Vector.insertIdx_zero] at this
+        rw [this] at h' h'' ⊢
+        simp
+        -- have := @List.Vector
 
-  sorry
+        -- have {α : Type} {n m : ℕ} {v : Vector α n} {h : n = m} : (Vector.cast )
+
+        sorry
+      | succ i ih =>
+
+        sorry
+    specialize this i
+    rw [Nat.sub_self] at this
+    simp only [Nat.succ_eq_add_one, Nat.sub_zero, Vector.extract_size] at this
+    convert this using 1
 
 lemma fail₂ :
   ∀ {w : ℕ} {args : Vector (ZMod p) w} {e : Expₑ p} {cs : Cs p (ZMod p)},
