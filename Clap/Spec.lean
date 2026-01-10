@@ -18,10 +18,18 @@ def is_zero (e : ZMod p) : ZMod p := if e = 0 then 1 else 0
 
 def assert_range (w : ℕ) (e : ZMod p) : Option Unit := if e.val < 2^w then some () else none
 
-def div_rem (e:ZMod p) : Option (ZMod p × ZMod p) :=
-  let d := e / (2^8)
-  let r := e % (2^8)
+def div_rem (e:ZMod p) : ZMod p × ZMod p :=
+  let d : ℕ := e.val / (2^8)
+  let r : ℕ := e.val % (2^8)
   (d,r)
+
+#guard (2:ℕ) / 256 = 0
+#guard (2:ZMod prime_babybear) / 256 ≠ 0
+#guard (2:ZMod prime_babybear).val / 256 = 0
+#guard Spec.div_rem (p:=prime_babybear) 2 = (0,2)
+#guard Spec.div_rem (p:=prime_babybear) 255 = (0,255)
+#guard Spec.div_rem (p:=prime_babybear) 256 = (1,0)
+#guard Spec.div_rem (p:=prime_babybear) 257 = (1,1)
 
 def accept : Unit -> Unit := fun () => ()
 
@@ -101,7 +109,6 @@ lemma equiv_div_rem (el : ZMod p) (er : Expₑ p) (kl : ZMod p × ZMod p -> Opti
   Simulation.s_bisim (Option.bind (div_rem el) kl) (Circuit.eval (.div_rem er kr)) := by
   simp only [Circuit.eval,Option.bind,div_rem]
   simp [he]
-  norm_num
   apply hc
 
 end Spec

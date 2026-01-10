@@ -130,8 +130,8 @@ def to_wg (c : Circuit p (ZMod p)) : Wg (ZMod p) :=
     List.foldl (fun acc b => .cons b acc) (to_wg c) bits
   | .div_rem e k =>
     let e := Exp.eval e
-    let d := e / 256
-    let r := e % 256
+    let d := e.val / 256
+    let r := e.val % 256
     .cons d (.cons r (to_wg (k (d,r))))
 
 -- def to_wg' (c:Circuit' F) : Wg F := to_wg (c F)
@@ -390,7 +390,7 @@ theorem soundness : ∀ (c : Circuitₑ p),
       have hr: r=0 := sorry
       simp [hr] at he0
       rw [he0]
-      rw [mul_div_cancel_left₀]
+--      rw [mul_div_cancel_left₀]
       sorry
       sorry
       -- TODO where is this Coe coming from?
