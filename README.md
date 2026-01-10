@@ -9,3 +9,17 @@ Future work aims to prove functional correctness of the source circuits.
 The [paper](https://arxiv.org/abs/2405.12115) describes the approach and its experimental validation in a Rust implementation.
 
 This repository is a complete re-design of Clap to take advantage of features of Lean.
+
+## Setup
+
+[Install Elan](https://github.com/leanprover/elan?tab=readme-ov-file#installation):
+```
+curl https://elan.lean-lang.org/elan-init.sh -sSf | sh
+source $HOME/.elan/env
+```
+
+Get dependencies from cache and compile:
+```
+lake exe cache get
+lake build
+```
