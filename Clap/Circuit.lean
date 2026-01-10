@@ -38,6 +38,9 @@ instance : Fact (Nat.Prime prime_fermat_f4) := by native_decide
 def prime_babybear := 15 * 2^27 + 1
 instance : Fact (Nat.Prime prime_babybear) := by native_decide
 
+def prime_bn254 := (fun x ↦ 36 * x^4 + 36 * x^3 + 24 * x^2 + 6 * x + 1) 4965661367192848881
+--instance : Fact (Nat.Prime prime_bn254) := by native_decide
+
 variable {p : ℕ}
 variable {var : Type}
 
