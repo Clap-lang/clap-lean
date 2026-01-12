@@ -195,9 +195,14 @@ def ex₇ :=
   return accept ()
   )))
 
+def ex₇' (xs ys zs : Vector F 2) := do
+  eq0 (zs[0]-xs[1])
+  return accept ()
+  
+
 -- def ex₇' (xs: Vector F 2) (ys: Vector F 2) (zs: Vector F 2) : typ F (typ F (typ F (Option Unit) 2) 2) 2 := _
 
-example {is : Vector F 2} : ex₆ is = ex₅ is[0] is[1] := rfl
+-- example {is : Vector F 2} : ex₆ is = ex₅ is[0] is[1] := rfl
 
 -- match first_line
 --   | let _ ← isZero => ...
@@ -363,6 +368,7 @@ def WW {a : ℕ} (b : Fin a) {c : ℕ} (d : Fin c) : Option Unit := sorry
 #print extract_automatic₄
 #print extract_automatic₅
 #print extract_automatic₆
+#print extract_automatic₇
 
 def extract_manual :
   { c:Circuit F F // Simulation.s_bisim (ex₂ (F := F)) c.eval } := by
