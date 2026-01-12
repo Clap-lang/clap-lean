@@ -2,25 +2,13 @@ import Lean
 import Qq
 
 import Clap.Simulation
+import Clap.Spec
 
 open Lean Qq
 
 namespace Clap
 
-variable {F:Type} [Field F] [DecidableEq F]
-
-@[irreducible]
-def eq0 (e:F) : Option Unit :=
-  if e = 0 then some () else none
-
-@[irreducible]
-def accept : Unit -> Unit := fun () => ()
-
-@[irreducible]
-def share (e : F) : Option F := e
-
-@[irreducible]
-def is_zero (e:F) : Option F := if e = 0 then .some 1 else .some 0
+variable {p : ℕ} [Fact (Nat.Prime p)]
 
 /--
 Assumes `conclusion` has had its mvars instantiated.
@@ -124,16 +112,16 @@ elab "extract" "using" name:ident : tactic => do
 
 section EXAMPLES
 
-lemma circuit_ext {α : Type} {f : F → α} {g : F → Circuit F F} {g' : Circuit F F}
+lemma circuit_ext {α : Type} {f : ZMod p → α} {g : ZMod p → Circuitₑ p} {g' : Circuitₑ p}
   (h : Simulation.s_bisim f (Circuit.eval (Circuit.lam g)))
   (hint : g' = Circuit.lam g) :
   Simulation.s_bisim f (Circuit.eval g') := by grind
 
-lemma equiv_share {el : F} {er : Exp F F} {kl : F → Option Unit} {kr : F -> Circuit F F}
+lemma equiv_share {el : ZMod p} {er : Expₑ p} {kl : ZMod p → Option Unit} {kr : ZMod p -> Circuitₑ p}
   (h : el = Exp.eval er)
   (h₁ : ∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) :
-  Simulation.s_bisim (bind (share el) kl) (Circuit.eval (.share er kr)) := by
-  unfold share
+  Simulation.s_bisim (bind (Spec.share el) kl) (Circuit.eval (.share er kr)) := by
+  unfold Spec.share
   aesop
 
 @[reducible]
@@ -147,10 +135,12 @@ def curry {a r:Type} (n:ℕ) (k:Vector a n -> r) : typ a r n :=
   | 0 => k ⟨#[], by rfl⟩
   | n+1 => fun x:a => curry n (fun l => k (Vector.push l x) )
 
-def ex₁ (i: F) : Option Unit := do
+open Spec
+
+def ex₁ (i : ZMod p) : Option Unit := do
   accept ()
 
-def ex₂ (i: F) : Option Unit := do
+def ex₂ (i: ZMod p) : Option Unit := do
   eq0 i
   eq0 i
   eq0 i
@@ -162,40 +152,40 @@ def ex₂ (i: F) : Option Unit := do
   eq0 i
   accept ()
 
-def ex₃ (i : F) : Option Unit := do
+def ex₃ (i : ZMod p) : Option Unit := do
   eq0 i
   let vi ← share i
   eq0 (vi + i)
   accept ()
 
--- This is (eq0 i), but baby steps.
-def ex₄ (i : F) : Option Unit := do
+-- This is (eq0 i); baby steps.
+def ex₄ (i : ZMod p) : Option Unit := do
   let x ← is_zero i
   eq0 (1 - x)
   accept ()
 
-def ex₅ (is₁ : F) (is₂ : F) : Option Unit := do
+def ex₅ (is₁ : ZMod p) (is₂ : ZMod p) : Option Unit := do
   eq0 is₁
   let vi <- share is₁
   eq0 (vi + is₂)
   accept ()
 
 def ex₆ :=
-  curry 2 (fun (is : Vector F 2) ↦ do
+  curry 2 (fun (is : Vector (ZMod p) 2) ↦ do
   eq0 is[0]
   let vi <- share is[0]
   eq0 (vi + is[1])
   return accept ())
 
 def ex₇ :=
-  curry 2 (fun (xs: Vector F 2) =>
-  curry 2 (fun (ys: Vector F 2) =>
-  curry 2 (fun (zs: Vector F 2) => do
+  curry 2 (fun (xs: Vector (ZMod p) 2) =>
+  curry 2 (fun (ys: Vector (ZMod p) 2) =>
+  curry 2 (fun (zs: Vector (ZMod p) 2) => do
   eq0 (zs[0]-xs[1])
   return accept ()
   )))
 
-def ex₇' (xs ys zs : Vector F 2) := do
+def ex₇' (xs ys zs : Vector (ZMod p) 2) := do
   eq0 (zs[0]-xs[1])
   return accept ()
   
@@ -214,39 +204,24 @@ def ex₇' (xs ys zs : Vector F 2) := do
 --   .eq0 (1 - .v x)
 --   .nil))
 
-lemma equiv_eq0 {el:F} {er:Exp F F} {cl:Option Unit} (cr:Circuit F F)
+lemma equiv_eq0 {el : ZMod p} {er : Expₑ p} {cl : Option Unit} {cr : Circuitₑ p}
   (he: el = Exp.eval er)
   (hc: Simulation.s_bisim cl (Circuit.eval cr)) :
   Simulation.s_bisim (Option.bind (eq0 el) (fun () => cl)) (Circuit.eval (.eq0 er cr)) := by
-  simp only [Circuit.eval,Option.bind,eq0]
-  split
-  split
-  case _ _ heq her =>
-    rw [her] at he
-    rw [he] at heq
-    simp at heq
-  case _ _ hel her =>
-    constructor
-  case _ _ _ hel =>
-    simp at hel
-    rw [he] at hel
-    simp
-    split
-    . apply hc
-    . contradiction
+  aesop (add unsafe 10% (by constructor)) (add simp eq0)
 
-lemma equiv_is_zero {el:F} {kl : F → Option Unit} (er:Exp F F) (kr:F -> Circuit F F)
+lemma equiv_is_zero {el : ZMod p} {kl : ZMod p → Option Unit} (er:Expₑ p) (kr:ZMod p -> Circuitₑ p)
   (he : el = Exp.eval er)
   (hk : ∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) :
   Simulation.s_bisim (bind ((is_zero el)) kl) (Circuit.eval (.is_zero er kr)) := by
   aesop (add simp [Circuit.eval, bind, share, is_zero])
 
 lemma equiv_accept :
-  Simulation.s_bisim (some (accept ())) (Circuit.eval (F := F) .nil) := by
+  Simulation.s_bisim (some (accept ())) (Circuit.eval (p := p) .nil) := by
   constructor
 
 def extract_manual₁ :
-  { c:Circuit F F // Simulation.s_bisim (ex₁ (F := F)) c.eval } := by
+  { c:Circuitₑ p // Simulation.s_bisim (ex₁ (p := p)) c.eval } := by
   unfold ex₁
   refine ⟨?c,?p⟩
   case' p =>
@@ -256,7 +231,7 @@ def extract_manual₁ :
   rfl
 
 def extract_manual₃ :
-  { c:Circuit F F // Simulation.s_bisim (ex₃ (F := F)) c.eval } := by
+  { c : Circuitₑ p // Simulation.s_bisim (ex₃ (p := p)) c.eval } := by
   unfold ex₃
   refine ⟨?c,?p⟩
   swap
@@ -271,7 +246,7 @@ def extract_manual₃ :
   rfl
 
 def extract_manual₄ :
-  { c:Circuit F F // Simulation.s_bisim (ex₄ (F := F)) c.eval } := by
+  { c : Circuitₑ p // Simulation.s_bisim (ex₄ (p := p)) c.eval } := by
   unfold ex₄
   refine ⟨?c,?p⟩
   swap
@@ -284,83 +259,83 @@ def extract_manual₄ :
   swap
   rfl
 
-def extract_manual₆ :
-  { c:Circuit F F // Simulation.s_bisim (
-    (ex₆ (F := F))
-  ) c.eval } := by
-  unfold ex₆
-  refine ⟨?c,?p⟩
-  swap
-  dsimp -zeta only [curry]
-  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
-  rotate_right 2
-  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
-  rotate_right 5
-  apply equiv_eq0 (er := Exp.c _) (he := rfl)
-  apply equiv_share (er := Exp.v _) (h := rfl) (h₁ := fun _ ↦ ?_)
-  swap
-  apply equiv_eq0 (er := Exp.c _) (he := rfl)
-  apply equiv_accept
-  swap
-  rfl
-  swap
-  rfl
+-- def extract_manual₆ :
+--   { c:Circuit F F // Simulation.s_bisim (
+--     (ex₆ (F := F))
+--   ) c.eval } := by
+--   unfold ex₆
+--   refine ⟨?c,?p⟩
+--   swap
+--   dsimp -zeta only [curry]
+--   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+--   rotate_right 2
+--   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+--   rotate_right 5
+--   apply equiv_eq0 (er := Exp.c _) (he := rfl)
+--   apply equiv_share (er := Exp.v _) (h := rfl) (h₁ := fun _ ↦ ?_)
+--   swap
+--   apply equiv_eq0 (er := Exp.c _) (he := rfl)
+--   apply equiv_accept
+--   swap
+--   rfl
+--   swap
+--   rfl
 
-def extract_manual₇ :
-  { c:Circuit F F // Simulation.s_bisim (ex₇ (F := F)) c.eval } := by
-  unfold ex₇
-  refine ⟨?c,?p⟩
-  swap
-  dsimp -zeta only [curry]
+-- def extract_manual₇ :
+--   { c:Circuit F F // Simulation.s_bisim (ex₇ (F := F)) c.eval } := by
+--   unfold ex₇
+--   refine ⟨?c,?p⟩
+--   swap
+--   dsimp -zeta only [curry]
   
-  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
-  rotate_right 2
-  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
-  rotate_right 5
-  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
-  rotate_right 8
-  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
-  rotate_left 3
-  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
-  rotate_left 3
-  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
-  rotate_left 3
-  dsimp
-  apply equiv_eq0 (er := Exp.c _) (he := rfl)
-  apply equiv_accept
-  any_goals rfl
+--   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+--   rotate_right 2
+--   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+--   rotate_right 5
+--   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+--   rotate_right 8
+--   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+--   rotate_left 3
+--   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+--   rotate_left 3
+--   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+--   rotate_left 3
+--   dsimp
+--   apply equiv_eq0 (er := Exp.c _) (he := rfl)
+--   apply equiv_accept
+--   any_goals rfl
 
-#print extract_manual₇
+-- #print extract_manual₇
 
 def extract_automatic₁ :
-  { c:Circuit F F // Simulation.s_bisim (ex₁ (F := F)) c.eval } := by
+  { c : Circuitₑ p // Simulation.s_bisim (ex₁ (p := p)) c.eval } := by
   extract using ex₁
 
 def extract_automatic₂ :
-  { c:Circuit F F // Simulation.s_bisim (ex₂ (F := F)) c.eval } := by
+  { c : Circuitₑ p // Simulation.s_bisim (ex₂ (p := p)) c.eval } := by
   extract using ex₂
 
 def extract_automatic₃ :
-  { c:Circuit F F // Simulation.s_bisim (ex₃ (F := F)) c.eval } := by
+  { c : Circuitₑ p // Simulation.s_bisim (ex₃ (p := p)) c.eval } := by
   extract using ex₃
 
 def extract_automatic₄ :
-  { c:Circuit F F // Simulation.s_bisim (ex₄ (F := F)) c.eval } := by
+  { c : Circuitₑ p // Simulation.s_bisim (ex₄ (p := p)) c.eval } := by
   extract using ex₄
 
 def extract_automatic₅ :
-  { c:Circuit F F // Simulation.s_bisim (ex₅ (F := F)) c.eval } := by
+  { c : Circuitₑ p // Simulation.s_bisim (ex₅ (p := p)) c.eval } := by
   extract using ex₅
 
 def extract_automatic₆ :
-  { c:Circuit F F // Simulation.s_bisim (ex₆ (F := F)) c.eval } := by
+  { c : Circuitₑ p // Simulation.s_bisim (ex₆ (p := p)) c.eval } := by
   extract using ex₆
 
 def extract_automatic₇ :
-  { c:Circuit F F // Simulation.s_bisim (ex₇ (F := F)) c.eval } := by
+  { c : Circuitₑ p // Simulation.s_bisim (ex₇ (p := p)) c.eval } := by
   extract using ex₇
 
-def WW {a : ℕ} (b : Fin a) {c : ℕ} (d : Fin c) : Option Unit := sorry
+-- def WW {a : ℕ} (b : Fin a) {c : ℕ} (d : Fin c) : Option Unit := sorry
 
 #print extract_automatic₁
 #print extract_automatic₂
@@ -371,7 +346,7 @@ def WW {a : ℕ} (b : Fin a) {c : ℕ} (d : Fin c) : Option Unit := sorry
 #print extract_automatic₇
 
 def extract_manual :
-  { c:Circuit F F // Simulation.s_bisim (ex₂ (F := F)) c.eval } := by
+  { c : Circuitₑ p // Simulation.s_bisim (ex₂ (p := p)) c.eval } := by
   unfold ex₂
   refine ⟨?c,?p⟩
   -- case' p =>

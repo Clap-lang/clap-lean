@@ -9,12 +9,15 @@ variable {p : ℕ} [Fact (Nat.Prime p)] [NeZero p]
 
 namespace Spec
 
+@[irreducible]
 def eq0 (e : ZMod p) : Option Unit :=
   if e = 0 then some () else none
 
-def share (e : ZMod p) : ZMod p := e
+@[irreducible]
+def share (e : ZMod p) : Option (ZMod p) := e
 
-def is_zero (e : ZMod p) : ZMod p := if e = 0 then 1 else 0
+@[irreducible]
+def is_zero (e : ZMod p) : Option (ZMod p) := if e = 0 then .some 1 else .some 0
 
 def assert_range (w : ℕ) (e : ZMod p) : Option Unit := if e.val < 2^w then some () else none
 
@@ -191,88 +194,88 @@ theorem refine [Fact (256 < p)] : ∀ (i_c o_c : ZMod p) (i o : UInt8),
   -- -- rw [<-h]
   -- sorry
 
-theorem refine' [Fact (256<p)] : ∀ (i_c o_c:FU8 p) (i o:UInt8),
-  succ_c' i = some o -> succ i_c = o_c := by
-  intros i_c o_c i o
-  simp [succ_c',succ]
-  simp [assert_range']
-  intro h bla
-  rw [<-bla]
-  simp
-  have h256 : 256<p := sorry
-  apply lt_trans (c:=p) at h
-  apply h at h256
+-- theorem refine' [Fact (256<p)] : ∀ (i_c o_c:FU8 p) (i o:UInt8),
+--   succ_c' i = some o -> succ i_c = o_c := by
+--   intros i_c o_c i o
+--   simp [succ_c',succ]
+--   simp [assert_range']
+--   intro h bla
+--   rw [<-bla]
+--   simp
+--   have h256 : 256<p := sorry
+--   apply lt_trans (c:=p) at h
+--   apply h at h256
 
 
-  rw [ZMod.val_add_of_lt]
-  rw [ZMod.val_one]
-  simp
-  rw [ZMod.val_one]
+--   rw [ZMod.val_add_of_lt]
+--   rw [ZMod.val_one]
+--   simp
+--   rw [ZMod.val_one]
 
-  rw [ZMod.val_add_of_lt] at h
-  rw [ZMod.val_one] at h
-  sorry -- assumption
-  assumption
-  simp
-  let hi_c := i_c.prop
-  rw [<-ZMod.val_add_of_lt]
-  apply lt_trans
-  apply h
-  rw [<-ZMod.val_add_of_lt]
-  apply lt_trans
-  apply h
+--   rw [ZMod.val_add_of_lt] at h
+--   rw [ZMod.val_one] at h
+--   sorry -- assumption
+--   assumption
+--   simp
+--   let hi_c := i_c.prop
+--   rw [<-ZMod.val_add_of_lt]
+--   apply lt_trans
+--   apply h
+--   rw [<-ZMod.val_add_of_lt]
+--   apply lt_trans
+--   apply h
 
-  apply ZMod.val_natCast_of_lt (n:=p) at h
-  sorry
+--   apply ZMod.val_natCast_of_lt (n:=p) at h
+--   sorry
 
 lemma bla [Fact (256<p)] : ∀ (a:FU8 p), (a:UInt8).toNat = a.val := sorry
 
 set_option pp.parens true
 
-theorem refine_add [Fact (256<p)] : ∀ (a b o:ZMod p),-- (i:UInt8),
-  assert_range 8 (a+b) = some () -> UInt8.add a b = o := by
-  intros a b o
-  simp [assert_range']
-  intro hadd ho
-  rw [<-ho]
-  rw [ZMod.val_add_of_lt]
-  simp
-  rfl
+-- theorem refine_add [Fact (256<p)] : ∀ (a b o:ZMod p),-- (i:UInt8),
+--   assert_range 8 (a+b) = some () -> UInt8.add a b = o := by
+--   intros a b o
+--   simp [assert_range']
+--   intro hadd ho
+--   rw [<-ho]
+--   rw [ZMod.val_add_of_lt]
+--   simp
+--   rfl
 
-theorem refine_add'' [Fact (2*256<p)] [Fact (256<p)] : ∀ (a b o:FU8 p),
-  assert_range' 8 (a.val+b.val) = some o -> UInt8.add a b = o := by
-  intros a b o
-  simp [assert_range']
-  intro hadd ho
-  rw [<-ho]
-  rw [ZMod.val_add_of_lt]
-  simp
-  rfl
+-- theorem refine_add'' [Fact (2*256<p)] [Fact (256<p)] : ∀ (a b o:FU8 p),
+--   assert_range' 8 (a.val+b.val) = some o -> UInt8.add a b = o := by
+--   intros a b o
+--   simp [assert_range']
+--   intro hadd ho
+--   rw [<-ho]
+--   rw [ZMod.val_add_of_lt]
+--   simp
+--   rfl
 
-  let ho' := o.prop
-  rw [<-ho] at ho'
-  simp at ho' -- same Hadd
+--   let ho' := o.prop
+--   rw [<-ho] at ho'
+--   simp at ho' -- same Hadd
 
-  have ha : _ := bla a
-  have hb : _ := bla b
-  simp at ha hb
-  rw [<-ha]
-  rw [<-hb]
-  simp
-  rfl
+--   have ha : _ := bla a
+--   have hb : _ := bla b
+--   simp at ha hb
+--   rw [<-ha]
+--   rw [<-hb]
+--   simp
+--   rfl
 
-  simp
-  have h: 256<p := sorry
+--   simp
+--   have h: 256<p := sorry
 
-  simp [Function.InjeAlso, any thoughts on yoctive] at ha
-  injection ha
-  rw [<-ha]
-  rw [<-hb]
---  rw [ZMod.val_intCast]
-  aesop
- have h256 : 256<p := sorry
-  apply lt_trans (c:=p) at h
-  apply h at h256
+--   simp [Function.InjeAlso, any thoughts on yoctive] at ha
+--   injection ha
+--   rw [<-ha]
+--   rw [<-hb]
+-- --  rw [ZMod.val_intCast]
+--   aesop
+--  have h256 : 256<p := sorry
+--   apply lt_trans (c:=p) at h
+--   apply h at h256
 
 
 /- -----------/
@@ -354,6 +357,14 @@ lemma equiv_div_rem (el : ZMod p) (er : Expₑ p) (kl : ZMod p × ZMod p -> Opti
   simp only [Circuit.eval,Option.bind,div_rem]
   simp [he]
   apply hc
+-- lemma equiv_div_rem (el : ZMod p) (er : Expₑ p) (kl : ZMod p × ZMod p -> Option Unit) (kr : ZMod p × ZMod p -> Circuitₑ p)
+--   (he : el = Exp.eval er)
+--   (hc : ∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) :
+--   Simulation.s_bisim (Option.bind (div_rem el) kl) (Circuit.eval (.div_rem er kr)) := by
+--   simp only [Circuit.eval,Option.bind,div_rem]
+--   simp [he]
+--   norm_num
+--   apply hc
 
 end Spec
 
