@@ -80,21 +80,136 @@ lemma roundrip2 (bs:Array UInt8) :
 
 end ByteArray
 
-namespace Bignum
+
+abbrev FB p := ZMod p
+
+namespace FB
 
 variable {p : ℕ}
 variable [Fact (Nat.Prime p)]
 
-def UInt8.add_carry (a b : UInt8) (c : ZMod p :=0) : UInt8 × (ZMod p) :=
-  let a : ZMod p := a.toNat
-  let b : ZMod p := b.toNat
-  let o : ZMod p := a+b+c -- 8+1 bit
-  let (d,r) := Spec.div_rem o
-  (UInt8.ofNat r.val,d)
+def isValid (x:FB p) : Prop := x.val < 2
 
-#guard UInt8.add_carry (p:=prime_babybear) 1 1 = (2,0)
-#guard UInt8.add_carry (p:=prime_babybear) 255 2 = (1,1)
-#guard UInt8.add_carry (p:=prime_babybear) 255 3 = (2,1)
+def Valid : Type := {x:FB p // x.isValid } -- TODO only for specs
+
+instance : CoeOut (FB p) ℕ where
+  coe x := x.val
+
+instance : CoeOut (@Valid p) ℕ where
+  coe x := x.val
+
+end FB
+
+abbrev FU8 p := ZMod p
+
+namespace FU8
+
+variable {p : ℕ}
+variable [Fact (Nat.Prime p)]
+
+def isValid (x:FU8 p) : Prop := x.val < 256
+
+def Valid : Type := {x:FU8 p // x.isValid } -- TODO only for specs
+
+instance : CoeOut (FU8 p) ℕ where
+  coe x := x.val
+
+instance : CoeOut (@Valid p) ℕ where
+  coe x := x.val
+
+def add_carry (a b : FU8 p) (c : FB p :=0) : FU8 p × FB p :=
+  -- behaves well only of p>2^(8+1+1)
+  let o : FU8 p := a + b + c
+  let (d,r) := Spec.div_rem o
+  (r, d)
+
+lemma div_rem_spec (a:ZMod p) :
+  let (d,r) := Spec.div_rem a
+  a.val = d.val * 256 + r.val ∧ FU8.isValid r := by
+  simp [Spec.div_rem]
+  rw [Nat.mod_mod_eq_mod_of_lt_right]
+  rw [Nat.div_mod_eq_div]
+  constructor
+  omega
+  apply ZMod.val_lt at a
+  simp [FU8.isValid]
+  rw [Nat.mod_mod_eq_mod_of_lt_right]
+  omega
+  repeat apply ZMod.val_lt
+
+lemma ZMod_add_no_overflow (a b : ZMod p) (h : a.val + b.val < p) :
+  (a + b).val = a.val + b.val := by
+  rcases p with _|p
+  grind
+  simp [ZMod] at *
+  simp [ZMod] at a b
+  unfold ZMod.val
+  dsimp
+  unfold ZMod.val at h
+  dsimp at h
+  rcases a
+  rcases b
+  simp at *
+  rw [Fin.add_def]
+  simp
+  assumption
+
+lemma add_carry_spec (a b :@Valid p) (c:@FB.Valid p)
+  (hp: 256+256+2<p) :
+  let (o,c') : FU8 p × FB p := add_carry (a:FU8 p) (b:FU8 p) (c:FB p)
+  (a:ℕ)+(b:ℕ)+(c:ℕ) = (c':ℕ) * 256 + (o:ℕ)
+  ∧ FU8.isValid o ∧ FB.isValid c'
+  := by
+  have hab: ZMod.val a.val + ZMod.val b.val < 256+256 := by
+    apply Nat.add_lt_add
+    apply a.prop
+    apply b.prop
+  let drs := div_rem_spec ((a:FU8 p)+(b:FU8 p)+(c:FU8 p))
+  simp at drs
+  rcases drs with ⟨hl, hr⟩
+  simp [add_carry]
+  constructor
+  rw [<-hl]
+  rw [ZMod_add_no_overflow]
+  rw [ZMod_add_no_overflow]
+  apply lt_trans
+  apply hab
+  apply lt_trans (b:=256+256+2)
+  omega
+  apply hp
+  have hc: ZMod.val (a.val+b.val) + ZMod.val c.val < (256+256+2) := by
+    apply Nat.add_lt_add
+    rw [ZMod_add_no_overflow]
+    apply Nat.add_lt_add
+    apply a.prop
+    apply b.prop
+    apply lt_trans
+    apply hab
+    apply lt_trans (b:=256+256+2)
+    omega
+    apply hp
+    apply c.prop
+  apply lt_trans
+  apply hc
+  apply hp
+  constructor
+  apply hr
+  simp [FB.isValid, Spec.div_rem]
+  sorry
+--  rw [Nat.div_mod_eq_div]
+
+
+#guard add_carry (p:=prime_babybear) 1 1 = (2,0)
+#guard add_carry (p:=prime_babybear) 255 2 = (1,1)
+#guard add_carry (p:=prime_babybear) 255 3 = (2,1)
+#guard add_carry (p:=prime_babybear) 255 255 1 = (255,1)
+#guard add_carry (p:=prime_babybear) 300 300 5 = (93,2) -- nonsense
+
+end FU8
+
+namespace Bignum
+
+variable {p : ℕ}
 
 def add (a b:Array UInt8) : Array UInt8 :=
   let abs : Array (UInt8 × UInt8) := Array.zip a b

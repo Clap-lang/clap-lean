@@ -19,8 +19,8 @@ def is_zero (e : ZMod p) : ZMod p := if e = 0 then 1 else 0
 def assert_range (w : ℕ) (e : ZMod p) : Option Unit := if e.val < 2^w then some () else none
 
 def div_rem (e:ZMod p) : ZMod p × ZMod p :=
-  let d : ℕ := e.val / (2^8)
-  let r : ℕ := e.val % (2^8)
+  let d : ℕ := e.val / 256
+  let r : ℕ := e.val % 256
   (d,r)
 
 #guard (2:ℕ) / 256 = 0
