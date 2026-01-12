@@ -2,43 +2,43 @@ import Clap.Spec
 
 namespace Clap
 
-namespace Bignum
+-- Auxiliary functions to go from/to ByteArrays to/from ℕ
+namespace ByteArray
 
-variable {p : ℕ} [Fact (Nat.Prime p)]
+-- TODO actually convert to/from ByteArray instead of Array UInt8
 
--- TODO any nat should be forbidden or translated to ZMod p ?
-
-def to_byte_seq_be_array (x:ZMod p) (len:Nat) : Array UInt8 :=
+-- hacspec: to_byte_seq_be_array
+def of_nat_be (x:ℕ) (len:Nat) : Array UInt8 :=
     (List.reverse (aux x len)).toArray
   where
-    aux (x:ZMod p) (len:Nat) : List UInt8 :=
-      let d : Nat := x.val / (2^8)
-      let r : Nat := x.val % (2^8)
+    aux (x:ℕ) (len:Nat) : List UInt8 :=
+      let d : Nat := x / (2^8)
+      let r : Nat := x % (2^8)
       -- let r : UInt8 := UInt8.ofNatLT r.val (by sorry)
       let r : UInt8 := UInt8.ofNat r -- does not wrap as r < 256
       if len=0 then [] else
       r::(aux d (len-1))
 
-lemma h (x:ZMod p) (len:Nat) :
-  Array.size (to_byte_seq_be_array x len) = len := sorry
+-- lemma h (x:ℕ) (len:Nat) :
+--   Array.size (of_nat_be x len) = len := sorry
 
-def to_byte_seq_be_vector (x:ZMod p) (len:Nat) : Vector UInt8 len :=
-  ⟨to_byte_seq_be_array x len, h x len⟩
+-- def of_nat_be_vector (x:ℕ) (len:Nat) : Vector UInt8 len :=
+--   ⟨of_nat_be x len, h x len⟩
 
-def to_byte_seq_be_bytearray (x:ZMod p) (len:Nat) : ByteArray :=
-  ByteArray.mk (to_byte_seq_be_array x len)
-
-#guard
-  let n : ZMod prime_babybear := 255 + 1
-  to_byte_seq_be_array n 2 = #[1,0]
+-- def of_nat_be_bytearray (x:ℕ) (len:Nat) : ByteArray :=
+--   ByteArray.mk (of_nat_be x len)
 
 #guard
-  let n : ZMod prime_babybear := 2^16 + 2
-  to_byte_seq_be_array n 3 = #[1,0,2]
+  let n : ℕ := 255 + 1
+  of_nat_be n 2 = #[1,0]
 
 #guard
-  let n : ZMod prime_babybear := 2^16 + 2
-  to_byte_seq_be_array n 4 = #[0,1,0,2]
+  let n : ℕ := 2^16 + 2
+  of_nat_be n 3 = #[1,0,2]
+
+#guard
+  let n : ℕ := 2^16 + 2
+  of_nat_be n 4 = #[0,1,0,2]
 
 /-
 Rust playground
@@ -46,19 +46,44 @@ let z : u32 = 65536 + 2;
 dbg!(z.to_be_bytes());  # [0,1,0,2]
 -/
 
+def to_nat_be (bs:Array UInt8) : ℕ :=
+  Array.foldl (fun acc b => acc * 256 + b.toNat) 0 bs
 
-def from_byte_seq_be (bs:Array UInt8) : ZMod p :=
-  Array.foldl (fun acc b => acc * 256 + (b.toNat : ZMod p)) (0:ZMod p) bs
+#guard to_nat_be #[1] = 1
+#guard to_nat_be #[255,1] = 255*256+1
 
-#guard from_byte_seq_be (p:=prime_babybear) #[1] = 1
-#guard from_byte_seq_be (p:=prime_babybear) #[255,1] = 255*256+1
+def min_bytes (x:ℕ) : ℕ :=
+  let n_bits := Nat.log2 x
+  let n_bits := if 2^n_bits < x then n_bits+1 else n_bits
+  if n_bits % 8 = 0 then n_bits / 8 else (n_bits / 8) + 1
 
-lemma roundrip1 (x:ZMod p) (len:ℕ) (h: len <= (Nat.log2 p) / 8):
-  from_byte_seq_be (to_byte_seq_be_array x len) = x := sorry
+lemma roundrip1 (x:ℕ) (len:ℕ) (h: len <= min_bytes x) :
+  to_nat_be (of_nat_be x len) = x := sorry
 
-lemma roundrip2 (bs:Array UInt8) (h: p > 256 ^ bs.size) :
-  to_byte_seq_be_array (from_byte_seq_be (p:=p) bs) bs.size = bs := sorry
+#guard
+  let n : ℕ := 255 + 1
+  to_nat_be (of_nat_be n 2) = n
 
+#guard
+  let n : ℕ := 2^16 + 2
+  to_nat_be (of_nat_be n 3) = n
+
+#guard
+  let n : ℕ := 2^16 + 2
+  to_nat_be (of_nat_be n 4) = n
+
+lemma roundrip2 (bs:Array UInt8) :
+  of_nat_be (to_nat_be bs) bs.size = bs := sorry
+
+#guard of_nat_be (to_nat_be #[1]) 1 = #[1]
+#guard of_nat_be (to_nat_be #[255,1]) 2 = #[255,1]
+
+end ByteArray
+
+namespace Bignum
+
+variable {p : ℕ}
+variable [Fact (Nat.Prime p)]
 
 def UInt8.add_carry (a b : UInt8) (c : ZMod p :=0) : UInt8 × (ZMod p) :=
   let a : ZMod p := a.toNat
@@ -119,6 +144,6 @@ def mul (a b:Array UInt8) : Array UInt8 :=
 
 -- #guard mul (p:=prime_babybear) #[1] #[1] = #[1]
 -- #guard mul (p:=prime_babybear) #[0,1] #[0,1] = #[0,1]
--- #guard mul (p:=prime_babybear) #[1,1] #[1,1] = to_byte_seq_be_array (p:=prime_babybear) ((256+1) * (256+1)) 2
+-- #guard mul (p:=prime_babybear) #[1,1] #[1,1] = ByteArray.of_nat_be ((256+1) * (256+1)) 2
 
 end Bignum
