@@ -23,6 +23,7 @@ def assert_range (w : ℕ) (e : ZMod p) : Option Unit := if e.val < 2^w then som
 
 -- def assert_range' (w:ℕ) (e:ZMod p) : Option ({f:ZMod p | f.val < 2^w}) := if h:e.val < 2^w then some ⟨e,h⟩ else none
 
+@[irreducible]
 def div_rem (e:ZMod p) : ZMod p × ZMod p :=
   let d : ℕ := e.val / 256
   let r : ℕ := e.val % 256

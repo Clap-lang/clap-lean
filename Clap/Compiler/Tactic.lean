@@ -61,28 +61,53 @@ def seqTacs (goals : Goals) : List Syntax → MetaM Goals
 
 end Goals
 
+def isBindBind (lhs : Expr) : MetaM Bool := do
+  let (`Bind.bind, ⟨_ :: _ :: _ :: _ :: f :: _⟩) := lhs.getAppFnArgs
+    | return false
+  return f.isAppOf `Bind.bind
+
+-- elab "isBindBind" : tactic => do
+--   let goal ← Elab.Tactic.getMainGoal
+--   -- logInfo m!"type: {←goal.getType'}"
+--   logInfo m!"isBindBind: {←isBindBind (←lhsOfBisim (←goal.getType'))}"
+
 set_option hygiene false in -- We'll see about this one, tired of `mkIdent` :).
 /--
 Use `lhs` for granular control over matching if needed.
 -/
-def step (goals : Goals) (lhs : Option Expr := .none) : MetaM Goals := do
-  goals.seqTacs
-    [
-      (←`(tactic|apply $(mkIdent `circuit_ext)
-                         (h := $(mkIdent `Simulation.s_bisim.lam) fun _ ↦ ?_))),
-      (←`(tactic|apply $(mkIdent `equiv_accept))),
-      (←`(tactic|apply $(mkIdent `equiv_eq0)
-                         (er := $(mkIdent `Exp.c) _)
-                         (he := rfl))),
-      (←`(tactic|apply $(mkIdent `equiv_share)
-                         (er := $(mkIdent `Exp.c) _)
-                         (h := rfl)
-                         (h₁ := fun _ ↦ ?_))),
-      (←`(tactic|apply $(mkIdent `equiv_is_zero)
-                         (er := $(mkIdent `Exp.c) _)
-                         (he := rfl)
-                         (hk := fun _ ↦ ?_)))
-    ]
+def step (goals : Goals) : MetaM Goals := do
+  let lhs ← lhsOfBisim (←goals.inference.get!.getType')
+  if ←isBindBind lhs
+  then goals.runTactic (←`(tacticSeq|rw [bind_assoc]
+                                     try (rw [Option.bind_eq_bind, Option.bind_some])))
+  else goals.seqTacs <|
+         -- TODO(workaround) We want to synthesise this list automatically.
+         [
+           (←`(tactic|unfold add_carry))
+         ] ++
+         [
+           (←`(tactic|apply $(mkIdent `circuit_ext)
+                               (h := $(mkIdent `Simulation.s_bisim.lam) fun _ ↦ ?_))),
+           (←`(tactic|apply $(mkIdent `equiv_accept))),
+           (←`(tactic|apply $(mkIdent `equiv_eq0)
+                               (er := $(mkIdent `Exp.c) _)
+                               (he := rfl))),
+           (←`(tactic|apply $(mkIdent `equiv_share)
+                               (er := $(mkIdent `Exp.c) _)
+                               (h := rfl)
+                               (h₁ := fun _ ↦ ?_))),
+           (←`(tactic|apply $(mkIdent `equiv_is_zero)
+                               (er := $(mkIdent `Exp.c) _)
+                               (he := rfl)
+                               (hk := fun _ ↦ ?_))),
+           (←`(tactic|apply $(mkIdent `Spec.equiv_assert_range)
+                               (er := Exp.c _)
+                               (he := rfl))),
+           (←`(tactic|apply $(mkIdent `equiv_div_rem)
+                               (er := Exp.c _)
+                               (he := rfl)
+                               (hc := fun _ ↦ ?_)))
+         ]
 
 def extractTac (inferenceGoal : MVarId) : MetaM Goals := do
   let mut goals ← curry inferenceGoal
@@ -91,7 +116,7 @@ def extractTac (inferenceGoal : MVarId) : MetaM Goals := do
     match goals.inference with
     | .none => break
     | .some inference => goals ← Goals.unassignedGoals =<<
-                                   step goals (←lhsOfBisim (←inference.getType'))
+                                   step goals 
                         --  i := i + 1
     -- if i == 5 then break
   return goals
@@ -159,26 +184,28 @@ def FU8.mk (x : FU8 p) : Option Unit := Spec.assert_range 8 x
 
 abbrev FB p := ZMod p
 
+@[irreducible]
 def div_rem (e : ZMod p) : Option (ZMod p × ZMod p) :=
   let d : Nat := e.val / 256
   let r : Nat := e.val % 256
   pure (d, r)
 
+@[irreducible]
 def add_carry (a b : FU8 p) (c : FB p := 0) : Option (FU8 p × FB p) := do
   -- behaves well only of p>2^(8+1+1)
   let o : FU8 p ← a + b + c
   let (d, r) ← div_rem o
   (r, d)
 
-open Spec in
+open Spec
+
+-- TODO - Change the example :).
 def ex (a b : FU8 p) : Option Unit := do
   FU8.mk a
   FU8.mk b
-  let oXc' ← add_carry a b
+  let oXc' ← add_carry a b -- do {...}
   eq0 (a + b - oXc'.2 * 256 + oXc'.1)
   accept ()
-
-open Spec
 
 def ex₁ (i : ZMod p) : Option Unit := do
   accept ()
@@ -265,14 +292,20 @@ lemma equiv_eq0 {el : ZMod p} {er : Expₑ p} {cl : Option Unit} {cr : Circuit�
 lemma equiv_is_zero {el : ZMod p} {kl : ZMod p → Option Unit} (er:Expₑ p) (kr:ZMod p -> Circuitₑ p)
   (he : el = Exp.eval er)
   (hk : ∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) :
-  Simulation.s_bisim (bind ((is_zero el)) kl) (Circuit.eval (.is_zero er kr)) := by
+  Simulation.s_bisim (bind (is_zero el) kl) (Circuit.eval (.is_zero er kr)) := by
   aesop (add simp [Circuit.eval, bind, share, is_zero])
+
+lemma equiv_div_rem (el : ZMod p) (er : Expₑ p) (kl : ZMod p × ZMod p -> Option Unit) (kr : ZMod p × ZMod p -> Circuitₑ p)
+  (he : el = Exp.eval er)
+  (hc : ∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) :
+  Simulation.s_bisim (bind (div_rem el) kl) (Circuit.eval (.div_rem er kr)) := by
+  sorry
 
 lemma equiv_accept :
   Simulation.s_bisim (some (accept ())) (Circuit.eval (p := p) .nil) := by
   constructor
 
-
+-- set_option pp.notation false in
 def extract_manual :
   { c : Circuitₑ p // Simulation.s_bisim (ex (p := p)) c.eval } := by
   unfold ex  
@@ -284,7 +317,44 @@ def extract_manual :
   rotate_left 3
   apply Spec.equiv_assert_range (er := Exp.c _) (he := rfl)
   apply Spec.equiv_assert_range (er := Exp.c _) (he := rfl)
+  dsimp -zeta only
   unfold add_carry
+  rw [bind_assoc]
+  rw [Option.bind_eq_bind]
+  rw [Option.bind_some]
+  rw [bind_assoc]
+  apply equiv_div_rem (er := Exp.c _) (he := rfl) (hc := fun _ ↦ ?_)
+  rotate_left 1
+  rw [Option.bind_eq_bind]
+  rw [Option.bind_some]
+  apply equiv_eq0 (er:=Exp.c _) (he:=rfl)
+  apply equiv_accept
+  rotate_right 2
+  rfl
+  rotate_right 2
+  rfl
+
+def extract_automatic :
+  { c : Circuitₑ p // Simulation.s_bisim (ex (p := p)) c.eval } := by
+  extract using ex
+
+#print extract_automatic
+
+-- first | repeat high_prio | repeat low_prio | apply lem₁ | apply lem₂
+
+set_option pp.notation false in
+def extract_manual' :
+  { c : Circuitₑ p // Simulation.s_bisim (ex (p := p)) c.eval } := by
+  unfold ex  
+  constructor
+  unfold add_carry
+  unfold FU8.mk
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_left 3
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_left 3
+  apply Spec.equiv_assert_range (er := Exp.c _) (he := rfl)
+  apply Spec.equiv_assert_range (er := Exp.c _) (he := rfl)
   dsimp -zeta only
   rw [bind_assoc]
   rw [Option.bind_eq_bind]
@@ -300,6 +370,7 @@ def extract_manual :
   rfl
   rotate_right 2
   rfl
+
 
 
   -- rw [Option.bind_eq_bind]
@@ -466,7 +537,7 @@ def extract_automatic₇ :
 #print extract_automatic₆
 #print extract_automatic₇
 
-def extract_manual' :
+def extract_manual'' :
   { c : Circuitₑ p // Simulation.s_bisim (ex₂ (p := p)) c.eval } := by
   unfold ex₂
   refine ⟨?c,?p⟩
