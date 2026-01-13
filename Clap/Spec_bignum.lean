@@ -139,6 +139,21 @@ instance : CoeOut (FU8 p) ℕ where
 instance : CoeOut (@Valid p) ℕ where
   coe x := x.val
 
+-- def mk (x:FU8 p) : Option (@Valid p) := Spec.assert_range' 8 x
+
+-- def mk_some (x:FU8 p) (h:x.val<256) : x.mk = some ⟨x,h⟩ := by simp [mk,Spec.assert_range']; assumption
+
+def mk (x:FU8 p) : Option Unit := Spec.assert_range 8 x
+
+def mk_some (x:FU8 p) (h:x.val<256) : x.mk = some () := by simp [mk,Spec.assert_range]; assumption
+
+end FU8
+
+namespace Bignum
+
+variable {p : ℕ}
+variable [Fact (Nat.Prime p)]
+
 def add_carry (a b : FU8 p) (c : FB p :=0) : FU8 p × FB p :=
   -- behaves well only of p>2^(8+1+1)
   let o : FU8 p := a + b + c
@@ -159,7 +174,7 @@ lemma div_rem_spec (a:ZMod p) :
   omega
   repeat apply ZMod.val_lt
 
-lemma add_carry_spec (a b :@Valid p) (c:@FB.Valid p)
+lemma add_carry_spec (a b :@FU8.Valid p) (c:@FB.Valid p := FB.false)
   (hp: 256+256+2<p) :
   let (o,c') : FU8 p × FB p := add_carry (a:FU8 p) (b:FU8 p) (c:FB p)
   (a:ℕ)+(b:ℕ)+(c:ℕ) = (c':ℕ) * 256 + (o:ℕ)
@@ -210,20 +225,41 @@ lemma add_carry_spec (a b :@Valid p) (c:@FB.Valid p)
 #guard add_carry (p:=prime_babybear) 255 255 1 = (255,1)
 #guard add_carry (p:=prime_babybear) 300 300 5 = (93,2) -- nonsense
 
-end FU8
+open Spec in
+def ex (a b : FU8 p) : Option Unit := do
+  FU8.mk a
+  FU8.mk b
+  let (o,c') := add_carry a b
+  eq0 (a + b - c' * 256 + o)
 
-namespace Bignum
+set_option pp.parens true in
+lemma ex_spec (hp:514<p) (a b : FU8 p)
+  (hex: ex a b = some ()) : FU8.isValid a := by
+  simp [ex,Option.bind,Spec.eq0] at hex
+  have h: _ := add_carry_spec (p:=p) ⟨a,?av⟩ ⟨b,?bv⟩ --⟨0,?cv⟩
+  simp at h
+  apply h at hp
+  rcases hp with ⟨h1,h2,h3⟩
+  repeat (rw [FU8.mk_some] at * ; simp at *)
+  have hfalse: (FB.false : @FB.Valid p).val = 0 := sorry
+  rw [hfalse] at h1
+  repeat sorry
+  -- rw [<-ZMod_add_no_overflow (a:=(add_carry a b).2 * 256) (b:=(add_carry a b).1)] at h1
+  -- rw [<-h1] at hex
+  -- -- rcases h with gh
+  -- -- split
+  -- -- apply ZMod.val_lt
 
-variable {p : ℕ}
 
-def add (a b:Array UInt8) : Array UInt8 :=
-  let abs : Array (UInt8 × UInt8) := Array.zip a b
-  let (c,res) : ZMod p × Array UInt8 :=
+
+def add (a b:Array (FU8 p)) : Array (FU8 p) :=
+  let abs : Array ((FU8 p) × (FU8 p)) := Array.zip a b
+  let (c,res) : ZMod p × Array (FU8 p) :=
     Array.foldl (fun (c,res) (a,b) ↦
-      let (ab,c) := UInt8.add_carry a b c
+      let (ab,c) := add_carry a b c
       (c,Array.push res ab))
-    ((0,#[]) : ZMod p × Array UInt8) abs.reverse
-  let res := if c ≠ 0 then Array.push res (UInt8.ofNat c.val) else res
+    ((0,#[]) : ZMod p × Array (FU8 p)) abs.reverse
+  let res := if c ≠ 0 then Array.push res c.val else res
   Array.reverse res
 
 #guard add (p:=prime_babybear) #[1] #[1] = #[2]
