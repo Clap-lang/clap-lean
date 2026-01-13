@@ -125,15 +125,93 @@ lemma equiv_share {el : ZMod p} {er : Expₑ p} {kl : ZMod p → Option Unit} {k
   aesop
 
 @[reducible]
-def typ (a r:Type) : ℕ -> Type
+def typ (a r:Type) : Nat -> Type
   | 0   => r
   | n+1 => a -> typ a r n
 
 @[reducible]
-def curry {a r:Type} (n:ℕ) (k:Vector a n -> r) : typ a r n :=
+def curry {α β : Type} (n : Nat) (k : Vector α n → β) : typ α β n :=
   match n with
-  | 0 => k ⟨#[], by rfl⟩
-  | n+1 => fun x:a => curry n (fun l => k (Vector.push l x) )
+  | 0 => k #v[]
+  | n + 1 => fun x => curry n fun l => k ⟨⟨x :: l.toList⟩, by simp⟩
+
+/--
+TODO(unused)
+-/
+private def _explode (name : Name) (len : Nat) : String :=
+  String.intercalate " " <| List.range len |>.map fun i ↦ s!"{name}[{i}]"
+
+def curry! (circuit : Name) : MetaM Unit := do
+  let .some decl := (← getEnv).find? circuit | throwError m!"Undeclared constant: {circuit}"
+  let t := decl.type
+  logInfo m!"t: {t} val: {decl.value!}"
+  let stuff : MetaM _ := Meta.lambdaTelescope decl.value! fun args ret ↦ do
+    logInfo m!"args: {args}"
+    logInfo m!"ret: {ret}"
+    for arg in args do
+      logInfo m!"{arg} is {if (←arg.fvarId!.getDecl).binderInfo == .default then "explicit" else "implicit"}"
+    return args
+  where 
+
+abbrev FU8 p := ZMod p
+
+def FU8.mk (x : FU8 p) : Option Unit := Spec.assert_range 8 x
+
+abbrev FB p := ZMod p
+
+def div_rem (e : ZMod p) : Option (ZMod p × ZMod p) :=
+  let d : Nat := e.val / 256
+  let r : Nat := e.val % 256
+  pure (d, r)
+
+def add_carry (a b : FU8 p) (c : FB p := 0) : Option (FU8 p × FB p) := do
+  -- behaves well only of p>2^(8+1+1)
+  let o : FU8 p ← a + b + c
+  let (d, r) ← div_rem o
+  (r, d)
+
+open Spec in
+def ex (a b : FU8 p) : Option Unit := do
+  FU8.mk a
+  FU8.mk b
+  let oXc' ← add_carry a b
+  eq0 (a + b - oXc'.2 * 256 + oXc'.1)
+
+def extract_automatic :
+  { c : Circuitₑ p // Simulation.s_bisim (ex (p := p)) c.eval } := by
+  unfold ex  
+  constructor
+  unfold FU8.mk
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_left 3
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_left 3
+  apply Spec.equiv_assert_range (er := Exp.c _) (he := rfl)
+  apply Spec.equiv_assert_range (er := Exp.c _) (he := rfl)
+  unfold add_carry
+  dsimp -zeta only
+  rw [bind_assoc]
+  rw [Option.bind_eq_bind]
+  rw [Option.bind_some]
+  rw [bind_assoc]
+  
+  -- rw [Option.bind_eq_bind]
+  -- rw [Option.bind_eq_bind]
+  -- rw [Option.bind_eq_bind]
+  -- rw [Option.bind_assoc]
+  
+  
+  
+  dsimp only
+
+-- lemma circuit_ext_vec {α : Type} {k} {f : Vector (ZMod p) k → α} {g : ZMod p → Circuitₑ p} {g' : Circuitₑ p}
+--   (h : Simulation.s_bisim (curry k f) (Circuit.eval (Circuit.lam g)))
+--   (hint : g' = Circuit.lam g) :
+--   Simulation.s_bisim f (Circuit.eval g') := by
+--   subst hint
+  
+      
+
 
 open Spec
 
@@ -181,13 +259,22 @@ def ex₇ :=
   curry 2 (fun (xs: Vector (ZMod p) 2) =>
   curry 2 (fun (ys: Vector (ZMod p) 2) =>
   curry 2 (fun (zs: Vector (ZMod p) 2) => do
-  eq0 (zs[0]-xs[1])
+  eq0 (xs[0]-zs[1])
+  eq0 (xs[1]-zs[0])
+  eq0 (ys[0]-zs[0])
+  eq0 (ys[1]-xs[1])
   return accept ()
   )))
 
 def ex₇' (xs ys zs : Vector (ZMod p) 2) := do
-  eq0 (zs[0]-xs[1])
+  eq0 (xs[0]-zs[1])
+  eq0 (xs[1]-zs[0])
+  eq0 (ys[0]-zs[0])
+  eq0 (ys[1]-xs[1])
   return accept ()
+  
+example {xs ys zs : Vector (ZMod p) 2} : ex₇ xs[0] xs[1] ys[0] ys[1] zs[0] zs[1] = ex₇' xs ys zs := by rfl
+  
   
 
 -- def ex₇' (xs: Vector F 2) (ys: Vector F 2) (zs: Vector F 2) : typ F (typ F (typ F (Option Unit) 2) 2) 2 := _
@@ -292,6 +379,31 @@ def extract_manual₄ :
 --   rotate_right 2
 --   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
 --   rotate_right 5
+--   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+--   rotate_right 8
+--   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+--   rotate_left 3
+--   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+--   rotate_left 3
+--   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+--   rotate_left 3
+--   dsimp
+--   apply equiv_eq0 (er := Exp.c _) (he := rfl)
+--   apply equiv_accept
+--   any_goals rfl
+
+-- def extract_manual₇ :
+--   { c : Circuitₑ p // Simulation.s_bisim (ex₇' (p := p)) c.eval } := by
+--   unfold ex₇'
+--   refine ⟨?c,?p⟩
+--   swap
+--   apply circuit_ext_vec
+--   dsimp -zeta only [curry]
+--   dsimp
+--   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+--   rotate_left 3
+--   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+--   rotate_left 3
 --   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
 --   rotate_right 8
 --   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)

@@ -356,15 +356,8 @@ lemma equiv_div_rem (el : ZMod p) (er : Expₑ p) (kl : ZMod p × ZMod p -> Opti
   Simulation.s_bisim (Option.bind (div_rem el) kl) (Circuit.eval (.div_rem er kr)) := by
   simp only [Circuit.eval,Option.bind,div_rem]
   simp [he]
+  norm_num
   apply hc
--- lemma equiv_div_rem (el : ZMod p) (er : Expₑ p) (kl : ZMod p × ZMod p -> Option Unit) (kr : ZMod p × ZMod p -> Circuitₑ p)
---   (he : el = Exp.eval er)
---   (hc : ∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) :
---   Simulation.s_bisim (Option.bind (div_rem el) kl) (Circuit.eval (.div_rem er kr)) := by
---   simp only [Circuit.eval,Option.bind,div_rem]
---   simp [he]
---   norm_num
---   apply hc
 
 end Spec
 
