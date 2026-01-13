@@ -2,6 +2,23 @@ import Clap.Spec
 
 namespace Clap
 
+lemma ZMod_add_no_overflow {p:ℕ} (a b : ZMod p) (h : a.val + b.val < p) :
+  (a + b).val = a.val + b.val := by
+  rcases p with _|p
+  grind
+  simp [ZMod] at *
+  simp [ZMod] at a b
+  unfold ZMod.val
+  dsimp
+  unfold ZMod.val at h
+  dsimp at h
+  rcases a
+  rcases b
+  simp at *
+  rw [Fin.add_def]
+  simp
+  assumption
+
 -- Auxiliary functions to go from/to ByteArrays to/from ℕ
 namespace ByteArray
 
@@ -52,9 +69,12 @@ def to_nat_be (bs:Array UInt8) : ℕ :=
 #guard to_nat_be #[1] = 1
 #guard to_nat_be #[255,1] = 255*256+1
 
-def min_bytes (x:ℕ) : ℕ :=
+def min_bits (x:ℕ) : ℕ :=
   let n_bits := Nat.log2 x
-  let n_bits := if 2^n_bits < x then n_bits+1 else n_bits
+  if 2^n_bits < x then n_bits+1 else n_bits
+
+def min_bytes (x:ℕ) : ℕ :=
+  let n_bits := min_bits x
   if n_bits % 8 = 0 then n_bits / 8 else (n_bits / 8) + 1
 
 lemma roundrip1 (x:ℕ) (len:ℕ) (h: len <= min_bytes x) :
@@ -86,7 +106,6 @@ abbrev FB p := ZMod p
 namespace FB
 
 variable {p : ℕ}
-variable [Fact (Nat.Prime p)]
 
 def isValid (x:FB p) : Prop := x.val < 2
 
@@ -97,6 +116,9 @@ instance : CoeOut (FB p) ℕ where
 
 instance : CoeOut (@Valid p) ℕ where
   coe x := x.val
+
+def true (h:p≠1): @Valid p := ⟨1, by simp [isValid]; rw [ZMod.val_one''] ; simp ; assumption⟩
+def false : @Valid p := ⟨0, by simp [isValid]⟩
 
 end FB
 
@@ -121,7 +143,7 @@ def add_carry (a b : FU8 p) (c : FB p :=0) : FU8 p × FB p :=
   -- behaves well only of p>2^(8+1+1)
   let o : FU8 p := a + b + c
   let (d,r) := Spec.div_rem o
-  (r, d)
+  (r,d)
 
 lemma div_rem_spec (a:ZMod p) :
   let (d,r) := Spec.div_rem a
@@ -136,23 +158,6 @@ lemma div_rem_spec (a:ZMod p) :
   rw [Nat.mod_mod_eq_mod_of_lt_right]
   omega
   repeat apply ZMod.val_lt
-
-lemma ZMod_add_no_overflow (a b : ZMod p) (h : a.val + b.val < p) :
-  (a + b).val = a.val + b.val := by
-  rcases p with _|p
-  grind
-  simp [ZMod] at *
-  simp [ZMod] at a b
-  unfold ZMod.val
-  dsimp
-  unfold ZMod.val at h
-  dsimp at h
-  rcases a
-  rcases b
-  simp at *
-  rw [Fin.add_def]
-  simp
-  assumption
 
 lemma add_carry_spec (a b :@Valid p) (c:@FB.Valid p)
   (hp: 256+256+2<p) :
