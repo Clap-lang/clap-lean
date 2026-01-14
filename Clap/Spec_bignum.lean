@@ -19,6 +19,9 @@ lemma ZMod_add_no_overflow {p:ℕ} (a b : ZMod p) (h : a.val + b.val < p) :
   simp
   assumption
 
+lemma ZMod_add_no_overflow3 {p:ℕ} (a b c : ZMod p) (h : a.val + b.val + c.val < p) :
+  (a + b + c).val = a.val + b.val + c.val := by sorry
+
 variable {p : ℕ}
 variable [Fact (Nat.Prime p)]
 
@@ -28,9 +31,12 @@ namespace FB
 
 def isValid (x:FB p) : Prop := x.val < 2
 
-def Valid : Type := {x:FB p // x.isValid } -- TODO only for specs
+def Valid : Type := {x:FB p // x.isValid }
 
 instance : CoeOut (FB p) ℕ where
+  coe x := x.val
+
+instance : CoeOut (@Valid p) (FB p) where
   coe x := x.val
 
 instance : CoeOut (@Valid p) ℕ where
@@ -47,9 +53,12 @@ namespace FU8
 
 def isValid (x:FU8 p) : Prop := x.val < 256
 
-def Valid : Type := {x:FU8 p // x.isValid } -- TODO only for specs
+def Valid : Type := {x:FU8 p // x.isValid }
 
 instance : CoeOut (FU8 p) ℕ where
+  coe x := x.val
+
+instance : CoeOut (@Valid p) (FU8 p) where
   coe x := x.val
 
 instance : CoeOut (@Valid p) ℕ where
@@ -205,48 +214,23 @@ lemma Nat.add_lt_add3 (a b c ta tb tc : ℕ) (ha: a<ta) (hb:b<tb) (hc:c<tc) : a 
 
 lemma add_carry_spec_valid (a b :@FU8.Valid p) (c:@FB.Valid p := FB.false)
   (hp: 256+256+2<p) :
-  letI o : FU8 p × FB p := add_carry (a:FU8 p) (b:FU8 p) (c:FB p)
+  letI o := add_carry a (b) (c:FB p)
   FU8.isValid o.1 ∧ FB.isValid o.2
   := by
-  simp [add_carry]
-  let drv := div_rem_spec_valid ((a:FU8 p)+(b:FU8 p)+(c:FU8 p))
-  simp at drv
   constructor
-  apply drv
-  simp [FB.isValid, Spec.div_rem]
-  rw [Nat.div_mod_eq_div]
-  apply Nat.div_lt_of_lt_mul
-  -- apply Nat.add_lt_add (b:=256)
-  -- let drs := div_rem_spec ((a:FU8 p)+(b:FU8 p)+(c:FU8 p))
-  -- simp at drs
-  -- simp [drs]
-  -- simp
+  apply div_rem_spec_valid
+
+  simp [add_carry,FB.isValid,Spec.div_rem]
+  --  rw [Nat.div_mod_eq_div]
+  --  rw [ZMod_add_no_overflow3]
+  --  apply Nat.div_lt_of_lt_mul
+  --  rw [Nat.add_div_eq_of_add_mod_lt
+  --  apply Nat.add_lt_add3 (b:=256)
+  -- apply lt_trans (b:=256+256+2)
+  -- apply a.prop
+  -- omega
   sorry
-  apply lt_trans (b:=256+256+2)
-  rw [ZMod_add_no_overflow]
-  rw [ZMod_add_no_overflow]
-  apply Nat.add_lt_add3
-  apply a.prop
-  apply b.prop
-  apply c.prop
-  apply lt_trans (b:=256+256)
-  apply Nat.add_lt_add
-  apply a.prop
-  apply b.prop
-  omega
-  rw [ZMod_add_no_overflow]
-  apply lt_trans (b:=(256+256)+2)
-  apply Nat.add_lt_add3
-  apply a.prop
-  apply b.prop
-  apply c.prop
-  omega
-  apply lt_trans (b:=256+256)
-  apply Nat.add_lt_add
-  apply a.prop
-  apply b.prop
-  omega
-  assumption
+
 
 #guard add_carry (p:=prime_babybear) 1 1 = (2,0)
 #guard add_carry (p:=prime_babybear) 255 2 = (1,1)
