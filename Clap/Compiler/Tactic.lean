@@ -66,11 +66,6 @@ def isBindBind (lhs : Expr) : MetaM Bool := do
     | return false
   return f.isAppOf `Bind.bind
 
--- elab "isBindBind" : tactic => do
---   let goal ← Elab.Tactic.getMainGoal
---   -- logInfo m!"type: {←goal.getType'}"
---   logInfo m!"isBindBind: {←isBindBind (←lhsOfBisim (←goal.getType'))}"
-
 set_option hygiene false in -- We'll see about this one, tired of `mkIdent` :).
 /--
 Use `lhs` for granular control over matching if needed.
@@ -85,6 +80,7 @@ def step (goals : Goals) : MetaM Goals := do
          [
            (←`(tactic|unfold add_carry))
          ] ++
+         -- TODO(simplicity) We want an attribute that attaches the lemmas.
          [
            (←`(tactic|apply $(mkIdent `circuit_ext)
                                (h := $(mkIdent `Simulation.s_bisim.lam) fun _ ↦ ?_))),
@@ -115,8 +111,7 @@ def extractTac (inferenceGoal : MVarId) : MetaM Goals := do
   while true do
     match goals.inference with
     | .none => break
-    | .some inference => goals ← Goals.unassignedGoals =<<
-                                   step goals 
+    | .some _ => goals ← Goals.unassignedGoals =<< step goals
                         --  i := i + 1
     -- if i == 5 then break
   return goals
@@ -203,8 +198,15 @@ open Spec
 def ex (a b : FU8 p) : Option Unit := do
   FU8.mk a
   FU8.mk b
-  let oXc' ← add_carry a b -- do {...}
+  let oXc' ← add_carry a b
   eq0 (a + b - oXc'.2 * 256 + oXc'.1)
+  accept ()
+
+def ex₀ (a b : FU8 p) : Option Unit := do
+  FU8.mk a
+  FU8.mk b
+  let oXc' ← add_carry a b
+  eq0 (oXc'.2)
   accept ()
 
 def ex₁ (i : ZMod p) : Option Unit := do
@@ -267,7 +269,7 @@ def ex₇' (xs ys zs : Vector (ZMod p) 2) := do
   
 example {xs ys zs : Vector (ZMod p) 2} : ex₇ xs[0] xs[1] ys[0] ys[1] zs[0] zs[1] = ex₇' xs ys zs := by rfl
   
-  
+
 
 -- def ex₇' (xs: Vector F 2) (ys: Vector F 2) (zs: Vector F 2) : typ F (typ F (typ F (Option Unit) 2) 2) 2 := _
 
@@ -295,11 +297,16 @@ lemma equiv_is_zero {el : ZMod p} {kl : ZMod p → Option Unit} (er:Expₑ p) (k
   Simulation.s_bisim (bind (is_zero el) kl) (Circuit.eval (.is_zero er kr)) := by
   aesop (add simp [Circuit.eval, bind, share, is_zero])
 
-lemma equiv_div_rem (el : ZMod p) (er : Expₑ p) (kl : ZMod p × ZMod p -> Option Unit) (kr : ZMod p × ZMod p -> Circuitₑ p)
+lemma equiv_div_rem {el : ZMod p} {er : Expₑ p}
+  {kl : ZMod p × ZMod p → Option Unit} {kr : ZMod p × ZMod p → Circuitₑ p}
   (he : el = Exp.eval er)
   (hc : ∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) :
   Simulation.s_bisim (bind (div_rem el) kl) (Circuit.eval (.div_rem er kr)) := by
-  sorry
+  simp only [Circuit.eval, div_rem, he, pure, Option.bind_eq_bind, Option.bind_some]
+  convert hc _
+  
+  
+  done
 
 lemma equiv_accept :
   Simulation.s_bisim (some (accept ())) (Circuit.eval (p := p) .nil) := by
@@ -338,48 +345,12 @@ def extract_automatic :
   { c : Circuitₑ p // Simulation.s_bisim (ex (p := p)) c.eval } := by
   extract using ex
 
+def extract_automatic₀ :
+  { c : Circuitₑ p // Simulation.s_bisim (ex₀ (p := p)) c.eval } := by
+  extract using ex₀
+
 #print extract_automatic
-
--- first | repeat high_prio | repeat low_prio | apply lem₁ | apply lem₂
-
-set_option pp.notation false in
-def extract_manual' :
-  { c : Circuitₑ p // Simulation.s_bisim (ex (p := p)) c.eval } := by
-  unfold ex  
-  constructor
-  unfold add_carry
-  unfold FU8.mk
-  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
-  rotate_left 3
-  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
-  rotate_left 3
-  apply Spec.equiv_assert_range (er := Exp.c _) (he := rfl)
-  apply Spec.equiv_assert_range (er := Exp.c _) (he := rfl)
-  dsimp -zeta only
-  rw [bind_assoc]
-  rw [Option.bind_eq_bind]
-  rw [Option.bind_some]
-  rw [bind_assoc]
-  apply Spec.equiv_div_rem (er := Exp.c _) (he := rfl) (hc := fun _ ↦ ?_)
-  rotate_left 1
-  rw [Option.bind_eq_bind]
-  rw [Option.bind_some]
-  apply equiv_eq0 (er:=Exp.c _) (he:=rfl)
-  apply equiv_accept
-  rotate_right 2
-  rfl
-  rotate_right 2
-  rfl
-
-
-
-  -- rw [Option.bind_eq_bind]
-  -- rw [Option.bind_eq_bind]
-  -- rw [Option.bind_eq_bind]
-  -- rw [Option.bind_assoc]
-  
-  
-  
+#print extract_automatic₀
 
 -- lemma circuit_ext_vec {α : Type} {k} {f : Vector (ZMod p) k → α} {g : ZMod p → Circuitₑ p} {g' : Circuitₑ p}
 --   (h : Simulation.s_bisim (curry k f) (Circuit.eval (Circuit.lam g)))
