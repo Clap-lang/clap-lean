@@ -271,7 +271,7 @@ def eval (c : Circuitₑ p) : denotation (ZMod p) :=
     let e := Exp.eval e
     let d := e.val / 256
     let r := e.val % 256
-    eval (k (d,r))
+    eval (k (d, r))
 
 def eval' (c : Circuit' p) : denotation (ZMod p) := eval (c (ZMod p))
 

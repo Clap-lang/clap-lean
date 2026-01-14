@@ -150,10 +150,10 @@ def typ (a r:Type) : Nat -> Type
   | n+1 => a -> typ a r n
 
 @[reducible]
-def curry {α β : Type} (n : Nat) (k : Vector α n → β) : typ α β n :=
+def curry {α β : Type} {n : Nat} (k : Vector α n → β) : typ α β n :=
   match n with
   | 0 => k #v[]
-  | n + 1 => fun x => curry n fun l => k ⟨⟨x :: l.toList⟩, by simp⟩
+  | n + 1 => fun x => curry fun l => k ⟨⟨x :: l.toList⟩, by simp⟩
 
 /--
 TODO(unused)
@@ -163,15 +163,31 @@ private def _explode (name : Name) (len : Nat) : String :=
 
 def curry! (circuit : Name) : MetaM Unit := do
   let .some decl := (← getEnv).find? circuit | throwError m!"Undeclared constant: {circuit}"
-  let t := decl.type
-  logInfo m!"t: {t} val: {decl.value!}"
-  let stuff : MetaM _ := Meta.lambdaTelescope decl.value! fun args ret ↦ do
-    logInfo m!"args: {args}"
-    logInfo m!"ret: {ret}"
+  
+  let stuff : MetaM _ := Meta.forallTelescopeReducing decl.type fun args _ ↦ do
+    let mut res := ""
+    let mut depth := 1
     for arg in args do
-      logInfo m!"{arg} is {if (←arg.fvarId!.getDecl).binderInfo == .default then "explicit" else "implicit"}"
-    return args
-  where 
+      let t ← Meta.inferType arg
+      if !t.isAppOf `Vector then continue
+      let arg := arg.getAppFn
+      res := res ++ s!"curry fun ({←arg.fvarId!.getUserName} : {←PrettyPrinter.ppExpr t}) ↦\n{String.replicate (depth * 2) ' '}"
+      depth := depth + 1
+    return res
+
+  logInfo m!"{←stuff}"
+  
+  logInfo m!"decl: {decl.value!}\n t: {decl.type}"
+
+  -- let t := decl.type
+  -- logInfo m!"t: {t} val: {decl.value!}"
+  -- let stuff : MetaM _ := Meta.lambdaTelescope decl.value! fun args ret ↦ do
+  --   logInfo m!"args: {args}"
+  --   logInfo m!"ret: {ret}"
+  --   for arg in args do
+  --     logInfo m!"{arg} is {if (←arg.fvarId!.getDecl).binderInfo == .default then "explicit" else "implicit"}"
+  --   return args
+  -- where 
 
 abbrev FU8 p := ZMod p
 
@@ -194,12 +210,11 @@ def add_carry (a b : FU8 p) (c : FB p := 0) : Option (FU8 p × FB p) := do
 
 open Spec
 
--- TODO - Change the example :).
 def ex (a b : FU8 p) : Option Unit := do
   FU8.mk a
   FU8.mk b
   let oXc' ← add_carry a b
-  eq0 (a + b - oXc'.2 * 256 + oXc'.1)
+  eq0 (a + b - oXc'.2 * 256 + oXc'.1) -- Of course silly.
   accept ()
 
 def ex₀ (a b : FU8 p) : Option Unit := do
@@ -243,22 +258,21 @@ def ex₅ (is₁ : ZMod p) (is₂ : ZMod p) : Option Unit := do
   accept ()
 
 def ex₆ :=
-  curry 2 (fun (is : Vector (ZMod p) 2) ↦ do
+  curry fun (is : Vector (ZMod p) 2) ↦ do
   eq0 is[0]
   let vi <- share is[0]
   eq0 (vi + is[1])
-  return accept ())
+  return accept ()
 
 def ex₇ :=
-  curry 2 (fun (xs: Vector (ZMod p) 2) =>
-  curry 2 (fun (ys: Vector (ZMod p) 2) =>
-  curry 2 (fun (zs: Vector (ZMod p) 2) => do
+  curry fun (xs: Vector (ZMod p) 2) =>
+  curry fun (ys: Vector (ZMod p) 2) =>
+  curry fun (zs: Vector (ZMod p) 2) => do
   eq0 (xs[0]-zs[1])
   eq0 (xs[1]-zs[0])
   eq0 (ys[0]-zs[0])
   eq0 (ys[1]-xs[1])
   return accept ()
-  )))
 
 def ex₇' (xs ys zs : Vector (ZMod p) 2) := do
   eq0 (xs[0]-zs[1])
@@ -269,7 +283,7 @@ def ex₇' (xs ys zs : Vector (ZMod p) 2) := do
   
 example {xs ys zs : Vector (ZMod p) 2} : ex₇ xs[0] xs[1] ys[0] ys[1] zs[0] zs[1] = ex₇' xs ys zs := by rfl
   
-
+#eval curry! `Clap.ex₇'
 
 -- def ex₇' (xs: Vector F 2) (ys: Vector F 2) (zs: Vector F 2) : typ F (typ F (typ F (Option Unit) 2) 2) 2 := _
 
@@ -302,11 +316,7 @@ lemma equiv_div_rem {el : ZMod p} {er : Expₑ p}
   (he : el = Exp.eval er)
   (hc : ∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) :
   Simulation.s_bisim (bind (div_rem el) kl) (Circuit.eval (.div_rem er kr)) := by
-  simp only [Circuit.eval, div_rem, he, pure, Option.bind_eq_bind, Option.bind_some]
-  convert hc _
-  
-  
-  done
+  aesop (add simp div_rem)
 
 lemma equiv_accept :
   Simulation.s_bisim (some (accept ())) (Circuit.eval (p := p) .nil) := by
