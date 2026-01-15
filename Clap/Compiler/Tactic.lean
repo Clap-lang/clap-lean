@@ -155,39 +155,49 @@ def curry {α β : Type} {n : Nat} (k : Vector α n → β) : typ α β n :=
   | 0 => k #v[]
   | n + 1 => fun x => curry fun l => k ⟨⟨x :: l.toList⟩, by simp⟩
 
-/--
-TODO(unused)
--/
-private def _explode (name : Name) (len : Nat) : String :=
+private def explode (name : Name) (len : Nat) : String :=
   String.intercalate " " <| List.range len |>.map fun i ↦ s!"{name}[{i}]"
 
-def curry! (circuit : Name) : MetaM Unit := do
-  let .some decl := (← getEnv).find? circuit | throwError m!"Undeclared constant: {circuit}"
-  
-  let stuff : MetaM _ := Meta.forallTelescopeReducing decl.type fun args _ ↦ do
-    let mut res := ""
+open Meta Elab Command in
+elab "#curry!" circuit:ident : command => do
+  let .some decl := (←getEnv).find? circuit.getId | throwError m!"Undeclared constant: {circuit}"
+  let (preamble, implicits, vecs) ← liftTermElabM <| forallTelescopeReducing decl.type fun args _ ↦ do
+    let mut preamble := ""
+    let mut implicits := ""
+    let mut vecs := #[]
     let mut depth := 1
     for arg in args do
+      if (←arg.fvarId!.getDecl).binderInfo == .implicit
+      then implicits := implicits ++ s!"\{{←PrettyPrinter.ppExpr arg}} "
+           continue
       let t ← Meta.inferType arg
-      if !t.isAppOf `Vector then continue
-      let arg := arg.getAppFn
-      res := res ++ s!"curry fun ({←arg.fvarId!.getUserName} : {←PrettyPrinter.ppExpr t}) ↦\n{String.replicate (depth * 2) ' '}"
+      let (`Vector, #[_, len]) := t.getAppFnArgs | continue
+      let userName ← arg.getAppFn.fvarId!.getUserName
+      logInfo m!"len: {len.nat?}"
+      vecs := vecs.push (userName, len.nat?.get!, (←PrettyPrinter.ppExpr t).pretty)
+      preamble := preamble ++ s!"Clap.curry fun ({userName} : {←PrettyPrinter.ppExpr t}) ↦ "
       depth := depth + 1
-    return res
-
-  logInfo m!"{←stuff}"
-  
-  logInfo m!"decl: {decl.value!}\n t: {decl.type}"
-
-  -- let t := decl.type
-  -- logInfo m!"t: {t} val: {decl.value!}"
-  -- let stuff : MetaM _ := Meta.lambdaTelescope decl.value! fun args ret ↦ do
-  --   logInfo m!"args: {args}"
-  --   logInfo m!"ret: {ret}"
-  --   for arg in args do
-  --     logInfo m!"{arg} is {if (←arg.fvarId!.getDecl).binderInfo == .default then "explicit" else "implicit"}"
-  --   return args
-  -- where 
+    return (preamble, implicits, vecs)
+  let body ← liftTermElabM <| lambdaTelescope decl.value! fun _ body ↦
+    Format.pretty <$> PrettyPrinter.ppExpr body
+  let circuitName := circuit.getId.components.getLast!
+  let curriedCircuitName := s!"{circuitName}_curried"
+  let declaration := s!"open Clap.Spec in def {curriedCircuitName} {implicits}:= {preamble}{body}"
+  let .ok stx := Parser.runParserCategory (←getEnv) `command declaration
+    | throwError s!"Failed to compile: {preamble}{body}"
+  elabCommand stx
+  logInfo m!"Circuit: {curriedCircuitName}"
+  let explodedVecs := vecs.foldl (init := "") fun acc (name, len, _) ↦ s!"{acc} {explode name len}"
+  let args := vecs.foldl (init := "") fun acc (name, _, type) ↦ acc ++ s!" \{{name} : {type}}"
+  let equiv_proof :=
+    s!"theorem {curriedCircuitName}_equiv{args} : {circuitName} " ++
+    s!"{" ".intercalate (vecs.map (toString ∘ Prod.fst)).toList}" ++
+    s!" = {curriedCircuitName}{explodedVecs} := rfl"
+  logInfo m!"EQV: {equiv_proof}"
+  let .ok stx := Parser.runParserCategory (←getEnv) `command equiv_proof
+    | throwError s!"Failed to compile: {equiv_proof}"
+  elabCommand stx
+  logInfo m!"Proof: {curriedCircuitName}_equiv"
 
 abbrev FU8 p := ZMod p
 
@@ -265,9 +275,9 @@ def ex₆ :=
   return accept ()
 
 def ex₇ :=
-  curry fun (xs: Vector (ZMod p) 2) =>
-  curry fun (ys: Vector (ZMod p) 2) =>
-  curry fun (zs: Vector (ZMod p) 2) => do
+  curry fun (xs: Vector (ZMod p) 2) ↦
+  curry fun (ys: Vector (ZMod p) 2) ↦
+  curry fun (zs: Vector (ZMod p) 2) ↦ do
   eq0 (xs[0]-zs[1])
   eq0 (xs[1]-zs[0])
   eq0 (ys[0]-zs[0])
@@ -280,10 +290,14 @@ def ex₇' (xs ys zs : Vector (ZMod p) 2) := do
   eq0 (ys[0]-zs[0])
   eq0 (ys[1]-xs[1])
   return accept ()
-  
-example {xs ys zs : Vector (ZMod p) 2} : ex₇ xs[0] xs[1] ys[0] ys[1] zs[0] zs[1] = ex₇' xs ys zs := by rfl
-  
-#eval curry! `Clap.ex₇'
+    
+lemma lem {xs ys zs} : ex₇ xs[0] xs[1] ys[0] ys[1] zs[0] zs[1] = ex₇' (p := p) xs ys zs := by rfl
+
+#curry! Clap.ex₇'
+
+#check ex₇'_curried
+#check ex₇'_curried_equiv
+
 
 -- def ex₇' (xs: Vector F 2) (ys: Vector F 2) (zs: Vector F 2) : typ F (typ F (typ F (Option Unit) 2) 2) 2 := _
 
@@ -429,29 +443,33 @@ def extract_manual₄ :
 --   swap
 --   rfl
 
--- def extract_manual₇ :
---   { c:Circuit F F // Simulation.s_bisim (ex₇ (F := F)) c.eval } := by
---   unfold ex₇
---   refine ⟨?c,?p⟩
---   swap
---   dsimp -zeta only [curry]
+def extract_manual₇ :
+  { c:Circuitₑ p // Simulation.s_bisim (ex₇ (p := p)) c.eval } := by
   
---   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
---   rotate_right 2
---   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
---   rotate_right 5
---   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
---   rotate_right 8
---   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
---   rotate_left 3
---   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
---   rotate_left 3
---   apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
---   rotate_left 3
---   dsimp
---   apply equiv_eq0 (er := Exp.c _) (he := rfl)
---   apply equiv_accept
---   any_goals rfl
+  unfold ex₇
+  refine ⟨?c,?p⟩
+  swap
+  dsimp -zeta only [curry]
+  
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_right 2
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_right 5
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_right 8
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_left 3
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_left 3
+  apply circuit_ext (h := Simulation.s_bisim.lam fun _ ↦ ?_)
+  rotate_left 3
+  dsimp
+  apply equiv_eq0 (er := Exp.c _) (he := rfl)
+  apply equiv_eq0 (er := Exp.c _) (he := rfl)
+  apply equiv_eq0 (er := Exp.c _) (he := rfl)
+  apply equiv_eq0 (er := Exp.c _) (he := rfl)
+  apply equiv_accept
+  any_goals rfl
 
 -- def extract_manual₇ :
 --   { c : Circuitₑ p // Simulation.s_bisim (ex₇' (p := p)) c.eval } := by
@@ -508,6 +526,10 @@ def extract_automatic₇ :
   { c : Circuitₑ p // Simulation.s_bisim (ex₇ (p := p)) c.eval } := by
   extract using ex₇
 
+def extract_automatic₇' :
+  { c : Circuitₑ p // Simulation.s_bisim (ex₇'_curried (p := p)) c.eval } := by
+  extract using ex₇'_curried
+
 -- def WW {a : ℕ} (b : Fin a) {c : ℕ} (d : Fin c) : Option Unit := sorry
 
 #print extract_automatic₁
@@ -517,6 +539,7 @@ def extract_automatic₇ :
 #print extract_automatic₅
 #print extract_automatic₆
 #print extract_automatic₇
+#print extract_automatic₇'
 
 def extract_manual'' :
   { c : Circuitₑ p // Simulation.s_bisim (ex₂ (p := p)) c.eval } := by
