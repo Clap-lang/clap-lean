@@ -77,9 +77,9 @@ def add (a b : ZMod p) : Option (ZMod p) := do
   assert_range 8 o
   o
 
-def add' (a b :FU8 p) : Option (FU8 p) :=
-  let o := a.val + b.val
-  assert_range' 8 o
+-- def add' (a b :FU8 p) : Option (FU8 p) :=
+  -- let o := a.val + b.val
+  -- assert_range' 8 o
 
 end FU8
 
@@ -127,30 +127,30 @@ lemma fu8_add_no_overflow (a b : FU8 p):
 
 -- rw! from Mathlib, adds the right coertion
 
-theorem refine_add' (hp : 256 * 2 < p) (a b o : FU8 p) :
-  FU8.add' a b = some o -> UInt8.add a b = o := by
-  unfold FU8.add' coe_fu8_uint8
-  split_ifs with cond
-  · intros h
-    have ha := a.2
-    have hb := b.2
-    rw [Set.mem_setOf_eq] at ha hb
-    simp only [Set.coe_setOf, Nat.reducePow, assert_range', Set.mem_setOf_eq,
-      Option.dite_none_right_eq_some, Option.some.injEq] at h
-    rcases h with ⟨h', h⟩
-    rw [←h]
-    have : a.val.val + b.val.val < p := by
-      refine lt_trans ?_ hp
-      rw [Nat.mul_two]
-      exact Nat.add_lt_add ha hb
-    rw [@ZMod.val_add, Nat.mod_eq_of_lt this]
-    aesop
-  · intros h; rfl
+-- theorem refine_add' (hp : 256 * 2 < p) (a b o : FU8 p) :
+--   FU8.add' a b = some o -> UInt8.add a b = o := by
+--   unfold FU8.add' coe_fu8_uint8
+--   split_ifs with cond
+--   · intros h
+--     have ha := a.2
+--     have hb := b.2
+--     rw [Set.mem_setOf_eq] at ha hb
+--     simp only [Set.coe_setOf, Nat.reducePow, assert_range', Set.mem_setOf_eq,
+--       Option.dite_none_right_eq_some, Option.some.injEq] at h
+--     rcases h with ⟨h', h⟩
+--     rw [←h]
+--     have : a.val.val + b.val.val < p := by
+--       refine lt_trans ?_ hp
+--       rw [Nat.mul_two]
+--       exact Nat.add_lt_add ha hb
+--     rw [@ZMod.val_add, Nat.mod_eq_of_lt this]
+--     aesop
+--   · intros h; rfl
 
 
-def succ_c' (i:FU8 p) : Option (FU8 p) := do
-  let o : ZMod p := i.val + 1
-  assert_range' 8 o
+-- def succ_c' (i:FU8 p) : Option (FU8 p) := do
+--   let o : ZMod p := i.val + 1
+--   assert_range' 8 o
 
 def succ_c (i:ZMod p) : Option (ZMod p) := do
   let o : ZMod p := i.val + 1
