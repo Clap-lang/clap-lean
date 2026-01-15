@@ -266,8 +266,8 @@ def eval (c : Circuitₑ p) : denotation (ZMod p) :=
     if e.val < 2^w then eval c else .n
   | .div_rem e k =>
     let e := Exp.eval e
-    let d := e / 256
-    let r := e % 256
+    let d := e.val / 256
+    let r := e.val % 256
     eval (k (d,r))
 
 def eval' (c : Circuit' p) : denotation (ZMod p) := eval (c (ZMod p))

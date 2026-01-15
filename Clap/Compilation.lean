@@ -12,7 +12,7 @@ namespace Clap
   extra inputs (`lam`) to receive all the values that could be
   computed by the Circuit but can only be checked by a Cs.
 
-  Soundness.
+  Soundness.F
   In order to show that a Cs is not more accepting that its original
   Circuit, i.e. that it won't accept more inputs, we show that there
   is a right-weak bisimulation `rw_bisim` between them.
@@ -43,7 +43,7 @@ inductive Cs (p : ℕ) (var : Type) : Type where
 
 def Cs' (p : ℕ) : Type _ := (var:Type) -> Cs p var
 
-variable {p : ℕ} [Fact (Nat.Prime p)]
+variable {p : ℕ} [inst : Fact (Nat.Prime p)] [inst' : Fact (p ≠ 2)]
 variable {var: Type}
 
 def Cs.eval (c : Cs p (ZMod p)) : denotation (ZMod p) :=
@@ -95,7 +95,14 @@ def to_cs (c : Circuit p var) : Cs p var :=
   | .div_rem e k =>
       .lam (fun d =>
         .lam (fun r =>
-           .eq0 (e - (256 * .v d + .v r)) (to_cs (k (d,r)))))
+          Cs.curry
+            (fun (bits : Vector _ 8) =>
+              letI rest := .eq0 (e - (256 * .v d + .v r)) (to_cs (k (d,r)))
+              letI rest := Cs.eq0 (bits2num_e bits - Exp.v r) rest
+              assert_bits_e bits rest
+            )
+        )
+      )
 
 def to_cs' (c : Circuit' p) : Cs' p := fun var => to_cs (c var)
 
@@ -130,8 +137,8 @@ def to_wg (c : Circuit p (ZMod p)) : Wg (ZMod p) :=
     List.foldl (fun acc b => .cons b acc) (to_wg c) bits
   | .div_rem e k =>
     let e := Exp.eval e
-    let d := e / 256
-    let r := e % 256
+    let d := e.val / 256
+    let r := e.val % 256
     .cons d (.cons r (to_wg (k (d,r))))
 
 -- def to_wg' (c:Circuit' F) : Wg F := to_wg (c F)
@@ -291,6 +298,7 @@ lemma fail₁ :
           Vector.insertIdx_zero] at this
         rw [this] at h' h'' ⊢
         simp
+
         -- have := @List.Vector
 
         -- have {α : Type} {n m : ℕ} {v : Vector α n} {h : n = m} : (Vector.cast )
@@ -319,14 +327,9 @@ lemma fail : ∀ {w : ℕ} {args : Vector (ZMod p) w} {e : Expₑ p} {cs : Cs p 
   · rw [reduce₁ h', fail₂ (by tauto)]
   · rw [fail₁ h']
 
-lemma bits_good : ∀ (w : ℕ) (args : Vector (ZMod p) w) (e : Expₑ p),
-  e.eval.val < 2 ^ w -> assert_bits args /\ e = bits2num args := sorry
-
-lemma bits_bad : ∀ (w : ℕ) (args : Vector (ZMod p) w) (e : Expₑ p),
-  (¬ e.eval.val < 2 ^ w) -> ¬ (assert_bits args /\ e = bits2num args) := sorry
-
-theorem soundness : ∀ (c : Circuitₑ p),
-  rw_bisim (Circuit.eval c) (Cs.eval (to_cs c)) := by
+theorem soundness :
+  ∀ (c : Circuitₑ p),
+    rw_bisim (Circuit.eval c) (Cs.eval (to_cs c)) := by
   intro c
   induction c with
   | nil =>
@@ -383,39 +386,162 @@ theorem soundness : ∀ (c : Circuitₑ p),
     simp [Circuit.eval,to_cs]
     apply rw_bisim_uncurry
     intros args
-    split
-    case _ ew =>
-      rw [reduce]
-      apply h
-      sorry
-      -- apply bits_good
-      -- assumption
-    case _ lt w =>
-      rw [fail]
-      constructor
-      sorry
-      -- apply bits_bad
-      -- assumption
-  | div_rem e c h =>
+    by_cases cond₁ : assert_bits args <;> by_cases cond₂ : Exp.eval e = bits2num args
+    · rw [reduce ⟨cond₁, cond₂⟩]
+      have : e.eval.val < 2 ^ w := by
+        unfold assert_bits Vector.all at cond₁
+        rw [cond₂]
+        unfold bits2num Vector.foldl
+        have h' := args.2
+        revert h'
+        rw [←Array.all_toList] at cond₁
+        rw [←Array.foldl_toList, Array.size]
+        have : 2 ^ w = 2 ^ w + 2 ^ w * 0 := by ring
+        rw [this]
+        generalize arr_def : args.toArray.toList = ls
+        rw [arr_def] at cond₁
+        generalize tmp : (0 : ZMod p) = acc'
+        have equiv : 0 = acc'.val := by
+          rw [←tmp]
+          simp
+        rw [equiv]
+        revert cond₁
+        simp only [beq_iff_eq, Bool.decide_or, List.all_eq_true, Bool.or_eq_true, decide_eq_true_eq,
+          gt_iff_lt]
+        clear arr_def cond₂ args tmp this equiv
+        revert w acc'
+        induction ls with
+        | nil =>
+          intros w acc'
+          simp
+          intros h
+          rw [←h]
+          simp
+        | cons l ls ih =>
+          intros w acc h' h''
+          simp only [List.mem_cons, forall_eq_or_imp] at h'
+          match w with
+          | .zero => simp at h''
+          | .succ w =>
+            simp only [List.length_cons, Nat.succ_eq_add_one, Nat.add_right_cancel_iff] at h''
+            specialize ih w  (l + 2 * acc) h'.2 h''
+            simp only [List.foldl_cons, Nat.succ_eq_add_one, gt_iff_lt]
+            apply lt_of_lt_of_le
+            exact ih
+            have eq2 : ZMod.val (2 : ZMod p) = 2 := by
+              rw [ZMod.val_two_eq_two_mod]
+              match heq : p with
+              | 0 => rfl
+              | 1 =>
+                rw [heq] at inst
+                exfalso
+                exact Nat.not_prime_one inst.out
+              | 2 =>
+                exfalso
+                apply inst'.out
+                exact heq
+              | .succ (.succ (.succ _)) => rfl
+            have p_eq : (p - 1) + 1 = p := by
+                    apply Nat.sub_add_cancel
+                    by_contra h'
+                    simp only [not_le, Nat.lt_one_iff] at h'
+                    apply Nat.not_prime_zero (h' ▸ inst.out)
+            rcases h'.1 with h' | h'
+            · rw [h', zero_add]
+              apply Nat.add_le_add
+              · exact
+                  Nat.pow_le_pow_right (by decide)
+                    (Nat.le_add_right _ _)
+              · have : 2 ^ (w + 1) = 2 ^ w * 2 := by ring
+                rw [this, mul_assoc]
+                apply Nat.mul_le_mul_left
+                rw [@ZMod.val_mul]
+                rw [eq2]
+                exact Nat.mod_le _ _
+            · rw [h']
+              have : (1 + 2 * acc).val = (2 * acc).val + 1 ∨ (1 + 2 * acc).val = 0 := by
+                rw [ZMod.val_add]
+                by_cases h : (2 * acc).val = p - 1
+                · rw [h]
+                  right
+                  rw [ZMod.val_one]
+                  rw [Nat.add_comm]
+                  rw [p_eq]
+                  exact Nat.mod_self _
+                · have : (2 * acc).val < p - 1 := by
+                    have : (2 * acc).val < p := by
+                      exact ZMod.val_lt (2 * acc)
+                    rw [←Nat.add_one_le_iff, le_iff_eq_or_lt] at this
+                    rcases this with this | this
+                    · simp [←this] at h
+                    · linarith
+                  left
+                  rw [ZMod.val_one, add_comm]
+                  apply Nat.mod_eq_of_lt
+                  linarith
+              rcases this with this | this <;> rw [this]
+              · rw [Nat.mul_add, mul_one, add_comm _ (2 ^ w), ←add_assoc, ←Nat.two_pow_succ, add_le_add_iff_left]
+                have : 2 ^ (w + 1) = 2 ^ w * 2 := by ring
+                rw [this, mul_assoc]
+                apply Nat.mul_le_mul_left
+                rw [@ZMod.val_mul, eq2]
+                exact Nat.mod_le _ _
+              · rw [mul_zero, add_zero]
+                exact
+                  Nat.le_add_right_of_le
+                    (Nat.pow_le_pow_right (by decide) (Nat.le_add_right _ _))
+      simp [this]
+      exact h
+    · rw [reduce₁ cond₁, fail₂ cond₂]
+      exact rw_bisim.none _
+    · rw [fail₁ cond₁]
+      exact rw_bisim.none _
+    · rw [fail₁ cond₁]
+      exact rw_bisim.none _
+  | div_rem e c ih =>
     apply rw_bisim.right
     intro d
     apply rw_bisim.right
     intro r
-    simp [Exp.eval,Circuit.eval,Cs.eval]
-    split
-    case _ he0 =>
-      convert h _
-      rw [sub_eq_zero] at he0
-      have hr: r=0 := sorry
-      simp [hr] at he0
-      rw [he0]
-      rw [mul_div_cancel_left₀]
-      sorry
-      sorry
-      -- TODO where is this Coe coming from?
---      have hr : (r:F) = ↑(Coe.coe e.eval % 256) := sorry
---      rw [<-hr]
-    sorry
+    apply rw_bisim_uncurry
+    intros bits
+    simp [Circuit.eval]
+    by_cases h : assert_bits bits = true
+    · rw [reduce₁ h]
+      by_cases h' : Exp.eval (Exp.v r) = bits2num bits
+      · rw [reduce₂ h']
+        unfold Cs.eval
+        split_ifs with h'
+        ·
+          have h₁ : d = ((e.eval.val / 256) : ℕ) := by sorry
+          have h₂ : r = ((e.eval.val % 256) : ℕ) := by sorry
+          rw [h₁, h₂]
+          exact ih _
+        · exact rw_bisim.none _
+      · rw [@fail₂ p _ _ 8 bits (Exp.v r) _ h']
+        exact rw_bisim.none _
+    · rw [fail₁ h]
+      exact rw_bisim.none _
+--       have := @fail₁
+
+--     split
+--     case _ he0 =>
+--       convert h _
+--       rw [sub_eq_zero] at he0
+--       have hr: r=0 := sorry
+--       simp [hr] at he0
+--       rw [he0]
+
+--       rw [mul_div_cancel_left₀]
+--       sorry
+--       sorry
+--       -- TODO where is this Coe coming from?
+-- --      have hr : (r:F) = ↑(Coe.coe e.eval % 256) := sorry
+-- --      rw [<-hr]
+--     sorry
+
+#check Cs.eval ∘ to_cs
+#check Circuit.eval
 
 theorem soundness' : ∀ (c:Circuit' p),
   rw_bisim (Circuit.eval' c) (Cs.eval' (to_cs' c)) := by

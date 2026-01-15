@@ -29,13 +29,7 @@ def natToZMod {a : ℕ} (h : a < p) : ZMod p := by
 def div_rem (e : ZMod p) : Option (ZMod p × ZMod p) :=
   let d : ℕ := e.val / (2^8)
   let r : ℕ := e.val % (2^8)
-  have : e.val < p :=
-    ZMod.val_lt e
-  have hd : d < p :=
-    Nat.div_lt_of_lt this
-  have hr : r < p :=
-    Nat.mod_lt_of_lt this
-  .some (natToZMod hd, natToZMod hr)
+  .some (d, r)
 
 def accept : Unit -> Unit := fun () => ()
 
@@ -156,126 +150,128 @@ def succ_c (i:ZMod p) : Option (ZMod p) := do
   assert_range 8 o
   o
 
-theorem refine [Fact (256 < p)] : ∀ (i_c o_c : ZMod p) (i o : UInt8),
-    UInt8.ofNat i_c.val = i →
-    UInt8.ofNat o_c.val = o →
-    succ_c i_c = some o_c →
-    succ (UInt8.ofNat i_c.val) = o := by
-  intros i_c o_c i o hi ho
-  simp only [succ_c, assert_range, ZMod.natCast_val, ZMod.cast_id', id_eq, Nat.reducePow,
-    Option.bind_eq_bind, succ]
+-- theorem refine [Fact (256 < p)] : ∀ (i_c o_c : ZMod p) (i o : UInt8),
+--     UInt8.ofNat i_c.val = i →
+--     UInt8.ofNat o_c.val = o →
+--     succ_c i_c = some o_c →
+--     succ (UInt8.ofNat i_c.val) = o := by
+--   intros i_c o_c i o hi ho
+--   simp only [succ_c, assert_range, ZMod.natCast_val, ZMod.cast_id', id_eq, Nat.reducePow,
+--     Option.bind_eq_bind, succ]
+--   split_ifs with h
+--   · intros h'
+--     simp only [Option.bind_some, Option.some.injEq] at h'
+--     have : i_c.val < 256 := by
+--       rw [ZMod.val_add, ZMod.val_one] at h
+--       rcases Nat.eq_or_lt_of_le (ZMod.val_lt i_c) with h'' | h''
+--       ·
+
+--         sorry
+--       · rw [Nat.mod_eq_of_lt h''] at h
+--         linarith
+--     rw [h'] at h
+--     rw [hi]
+
+
+
+--     sorry
+--   · intros h
+--     simp at h
+
+-- theorem refine' [Fact (256<p)] : ∀ (i_c o_c : FU8 p) (i o : UInt8),
+--   succ_c' i = some o -> succ i_c = o_c := by
+--   intros i_c o_c i o
+--   simp [succ_c',succ]
+--   simp [assert_range']
+--   intro h bla
+--   rw [<-bla]
+--   simp
+--   have h256 : 256 < p := sorry
+--   apply lt_trans (c:=p) at h
+--   apply h at h256
+
+
+--   rw [ZMod.val_add_of_lt]
+--   rw [ZMod.val_one]
+--   simp
+--   rw [ZMod.val_one]
+
+--   rw [ZMod.val_add_of_lt] at h
+--   rw [ZMod.val_one] at h
+--   sorry -- assumption
+--   assumption
+--   simp
+--   let hi_c := i_c.prop
+--   rw [<-ZMod.val_add_of_lt]
+--   apply lt_trans
+--   apply h
+--   rw [<-ZMod.val_add_of_lt]
+--   apply lt_trans
+--   apply h
+
+--   apply ZMod.val_natCast_of_lt (n:=p) at h
+--   sorry
+
+lemma bla [inst : Fact (256 < p)] : ∀ (a : FU8 p), (a : UInt8).toNat = a.val := by
+  intros a
+  unfold coe_fu8_uint8
   split_ifs with h
-  · intros h'
-    simp only [Option.bind_some, Option.some.injEq] at h'
-    have : i_c.val < 256 := by
-      rw [ZMod.val_add, ZMod.val_one] at h
-      rcases Nat.eq_or_lt_of_le (ZMod.val_lt i_c) with h'' | h''
-      ·
-
-        sorry
-      · rw [Nat.mod_eq_of_lt h''] at h
-        linarith
-    rw [h'] at h
-    rw [hi]
-
-
-
-    sorry
-  · intros h
-    simp at h
-  -- -- case _ h =>
-  -- -- have hu8: i_c.val < 256 := sorry
-  -- -- simp
-  -- -- intro ho_c
-  -- -- rw [ZMod.val_add_of_lt] at h
-  -- -- rw [←hi,←ho,←ho_c]
-  -- -- simp [UInt8.ofNat]
-  -- -- apply ZMod.val_natCast_of_lt (n:=p) at h
-  -- -- rw [<-h]
-  -- sorry
-
-theorem refine' [Fact (256<p)] : ∀ (i_c o_c:FU8 p) (i o:UInt8),
-  succ_c' i = some o -> succ i_c = o_c := by
-  intros i_c o_c i o
-  simp [succ_c',succ]
-  simp [assert_range']
-  intro h bla
-  rw [<-bla]
-  simp
-  have h256 : 256<p := sorry
-  apply lt_trans (c:=p) at h
-  apply h at h256
-
-
-  rw [ZMod.val_add_of_lt]
-  rw [ZMod.val_one]
-  simp
-  rw [ZMod.val_one]
-
-  rw [ZMod.val_add_of_lt] at h
-  rw [ZMod.val_one] at h
-  sorry -- assumption
-  assumption
-  simp
-  let hi_c := i_c.prop
-  rw [<-ZMod.val_add_of_lt]
-  apply lt_trans
-  apply h
-  rw [<-ZMod.val_add_of_lt]
-  apply lt_trans
-  apply h
-
-  apply ZMod.val_natCast_of_lt (n:=p) at h
-  sorry
-
-lemma bla [Fact (256<p)] : ∀ (a:FU8 p), (a:UInt8).toNat = a.val := sorry
+  · simp only [Nat.reducePow, Set.mem_setOf_eq, UInt8.toNat_ofNat']
+    have h' := a.2
+    have : 2 ^ 8 = 256 := by rfl
+    simp only [Set.mem_setOf_eq, this] at h'
+    rw [Nat.mod_eq_of_lt h']
+    simp
+  · have h' := inst.out
+    exfalso
+    linarith
 
 set_option pp.parens true
 
-theorem refine_add [Fact (256<p)] : ∀ (a b o:ZMod p),-- (i:UInt8),
-  assert_range 8 (a+b) = some () -> UInt8.add a b = o := by
-  intros a b o
-  simp [assert_range']
-  intro hadd ho
-  rw [<-ho]
-  rw [ZMod.val_add_of_lt]
-  simp
-  rfl
+-- theorem refine_add [Fact (256<p)] : ∀ (a b o : ZMod p),-- (i:UInt8),
+--   assert_range 8 (a + b) = some () -> UInt8.add a b = o := by
+--   intros a b o
+--   simp [assert_range']
+--   intro hadd ho
+--   rw [<-ho]
+--   rw [ZMod.val_add_of_lt]
+--   simp
+--   rfl
 
-theorem refine_add'' [Fact (2*256<p)] [Fact (256<p)] : ∀ (a b o:FU8 p),
-  assert_range' 8 (a.val+b.val) = some o -> UInt8.add a b = o := by
-  intros a b o
-  simp [assert_range']
-  intro hadd ho
-  rw [<-ho]
-  rw [ZMod.val_add_of_lt]
-  simp
-  rfl
+-- theorem refine_add'' [Fact (2*256 < p)] [Fact (256 < p)] : ∀ (a b o : FU8 p),
+--   assert_range' 8 (a.val + b.val) = some o -> UInt8.add a b = o := by
+--   intros a b o
+--   simp [assert_range']
+--   intro hadd ho
+--   rw [<-ho]
+--   rw [ZMod.val_add_of_lt]
+--   simp
+--   rfl
 
-  let ho' := o.prop
-  rw [<-ho] at ho'
-  simp at ho' -- same Hadd
+--   let ho' := o.prop
+--   rw [<-ho] at ho'
+--   simp at ho' -- same Hadd
 
-  have ha : _ := bla a
-  have hb : _ := bla b
-  simp at ha hb
-  rw [<-ha]
-  rw [<-hb]
-  simp
-  rfl
+--   have ha : _ := bla a
+--   have hb : _ := bla b
+--   simp at ha hb
+--   rw [<-ha]
+--   rw [<-hb]
+--   simp
+--   rfl
 
-  simp
-  have h: 256<p := sorry
+--   simp
+--   have h: 256 < p := sorry
 
-  simp [Function.InjeAlso, any thoughts on yoctive] at ha
-  injection ha
-  rw [<-ha]
-  rw [<-hb]
---  rw [ZMod.val_intCast]
-  aesop
- have h256 : 256<p := sorry
-  apply lt_trans (c:=p) at h
-  apply h at h256
+--   simp [Function.InjeAlso, any thoughts on yoctive] at ha
+--   injection ha
+--   rw [<-ha]
+--   rw [<-hb]
+-- --  rw [ZMod.val_intCast]
+--   aesop
+--  have h256 : 256 < p := sorry
+--   apply lt_trans (c:=p) at h
+--   apply h at h256
 
 
 /- -----------/
@@ -298,6 +294,7 @@ def curry {a r : Type} (n : ℕ) (k : Vector a n -> r) : typ a r n :=
 
 #guard curry 2 (fun x => x[0] == 0 && x[1] == 1) 1 0 = True
 
+omit [NeZero p] in
 lemma equiv_eq0 (el : ZMod p) (er : Expₑ p) (cl : Option Unit) (cr : Circuitₑ p) :
     el = Exp.eval er ->
     Simulation.s_bisim cl (Circuit.eval cr) ->
@@ -320,6 +317,7 @@ lemma equiv_eq0 (el : ZMod p) (er : Expₑ p) (cl : Option Unit) (cr : Circuit�
     . apply hc
     . contradiction
 
+omit [NeZero p] in
 lemma equiv_share (el : ZMod p) (er : Expₑ p) (kl : ZMod p -> Option Unit) (kr : ZMod p -> Circuitₑ p) :
   el = Exp.eval er ->
   (∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) ->
@@ -329,6 +327,7 @@ lemma equiv_share (el : ZMod p) (er : Expₑ p) (kl : ZMod p -> Option Unit) (kr
   rw [he]
   apply hk
 
+omit [NeZero p] in
 lemma equiv_assert_range (el : ZMod p) (er : Expₑ p) (cl : Option Unit) (cr : Circuitₑ p) (w : ℕ)
   (he : el = Exp.eval er)
   (hc : Simulation.s_bisim cl (Circuit.eval cr)) :
@@ -350,13 +349,13 @@ lemma equiv_assert_range (el : ZMod p) (er : Expₑ p) (cl : Option Unit) (cr : 
     . apply hc
     . contradiction
 
+omit [NeZero p] in
 lemma equiv_div_rem (el : ZMod p) (er : Expₑ p) (kl : ZMod p × ZMod p -> Option Unit) (kr : ZMod p × ZMod p -> Circuitₑ p)
   (he : el = Exp.eval er)
   (hc : ∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) :
   Simulation.s_bisim (Option.bind (div_rem el) kl) (Circuit.eval (.div_rem er kr)) := by
-  simp only [Circuit.eval,Option.bind,div_rem]
+  simp only [Circuit.eval, Option.bind, div_rem]
   simp [he]
-  norm_num
   apply hc
 
 end Spec
@@ -369,9 +368,9 @@ open Spec
   A circuit is a function from any number of arguments of type F or Vector F to Option Unit.
 -/
 
-def ex p (i: ZMod p) : Option Unit := do
+def ex p (i : ZMod p) : Option Unit := do
   eq0 i
-  let vi <- share i
+  let vi ← share i
   eq0 (vi + i)
   assert_range 2 vi
   accept ()
@@ -394,6 +393,7 @@ def ex_circuit_fun (p : ℕ) : Circuit' p := fun _ =>
   .assert_range 2 (.v vi) (
   .nil)))))
 
+omit [NeZero p] in
 theorem equiv :
   Simulation.s_bisim (ex p) (Circuit.eval' (ex_circuit_fun p)) := by
   unfold ex_circuit_fun
@@ -413,15 +413,35 @@ theorem equiv :
     constructor
     constructor
 
+omit [NeZero p] in
 theorem extract :
   ∃ c : Circuit p (ZMod p), Simulation.s_bisim (ex p) (Circuit.eval c) := by
   unfold ex
-  simp only [bind]
-  refine ⟨?c,?p⟩
-  case p =>
---  apply Simulation.s_bisim.lam (F:=(ZMod p)) (fun x => ?kl) (fun x => (Circuit.eval ?kr))
-    sorry
-  sorry
+  simp only [bind, Option.bind_some, eq0, assert_range, accept]
+  use (.lam (fun x ↦ if x = 0 then Circuit.nil else Circuit.eq0 1 (Circuit.nil)))
+  simp [Circuit.eval]
+  apply Simulation.s_bisim.lam
+  intros x
+  split_ifs with h h' h'' h'' h' h'' h''
+  · simp only [Option.bind_some]
+    exact Simulation.s_bisim.unit
+  · have : (@share p 0).val = 0 := by
+      simp [share]
+    simp [h, this] at h''
+  · simp [h, share] at h'
+  · simp [h, share] at h'
+  · simp only [Option.bind_some, Option.bind_none, Circuit.eval_eq0, Exp.eval_ofNat, Nat.cast_one,
+      one_ne_zero, ↓reduceIte]
+    exact Simulation.s_bisim.none
+  · simp only [Option.bind_none, Option.bind_fun_none, Circuit.eval_eq0, Exp.eval_ofNat,
+      Nat.cast_one, one_ne_zero, ↓reduceIte]
+    exact Simulation.s_bisim.none
+  · simp only [Option.bind_some, Option.bind_none, Option.bind_fun_none, Circuit.eval_eq0,
+    Exp.eval_ofNat, Nat.cast_one, one_ne_zero, ↓reduceIte]
+    exact Simulation.s_bisim.none
+  · simp only [Option.bind_none, Option.bind_fun_none, Circuit.eval_eq0, Exp.eval_ofNat,
+    Nat.cast_one, one_ne_zero, ↓reduceIte]
+    exact Simulation.s_bisim.none
 
 end Example_base
 
@@ -478,8 +498,6 @@ def ex p :=
     eq0 (xy-z)
   return accept ()
   )))
-
-#print axioms ex
 
 #guard ex 7 2 4 1 1 3 5 = some 90 -- [2,4] + [1,1] = [3,5]
 #guard ex 7 2 4 1 1 3 6 = none
