@@ -227,6 +227,15 @@ def ex (a b : FU8 p) : Option Unit := do
   eq0 (a + b - oXc'.2 * 256 + oXc'.1) -- Of course silly.
   accept ()
 
+def exnew (a b : FU8 p) : Option Unit := do
+  FU8.mk a
+  FU8.mk b
+  let x ← is_zero a
+  eq0 x
+  let oXc' ← add_carry a b
+  eq0 (a + b - oXc'.2 * 256 + oXc'.1) -- Of course silly.
+  accept ()
+
 def ex₀ (a b : FU8 p) : Option Unit := do
   FU8.mk a
   FU8.mk b
@@ -380,7 +389,14 @@ def extract_automatic₀ :
   extract using ex₀
 
 #print extract_automatic
+#check extract_automatic
 #print extract_automatic₀
+
+def extract_automatic'' :
+  { c : Circuitₑ p // Simulation.s_bisim (exnew (p := p)) c.eval } := by
+  extract using exnew
+
+#print extract_automatic''
 
 -- lemma circuit_ext_vec {α : Type} {k} {f : Vector (ZMod p) k → α} {g : ZMod p → Circuitₑ p} {g' : Circuitₑ p}
 --   (h : Simulation.s_bisim (curry k f) (Circuit.eval (Circuit.lam g)))
