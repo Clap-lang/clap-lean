@@ -43,6 +43,9 @@ end FB
 
 abbrev FU8 p := ZMod p
 
+instance : ToString (FU8 p) where
+  toString a := a.val
+
 namespace FU8
 
 def isValid (x:FU8 p) : Prop := x.val < 256
@@ -124,6 +127,7 @@ def to_nat_be (bs:Array (FU8 p)) : ℕ :=
 
 #guard to_nat_be (p:=prime_babybear) #[1] = 1
 #guard to_nat_be (p:=prime_babybear) #[255,1] = 255*256+1
+#guard to_nat_be (p:=prime_babybear) #[3,2,1] = 3*256*256 + 2*256 + 1
 
 def min_bits (x:ℕ) : ℕ :=
   let n_bits := Nat.log2 x
@@ -290,6 +294,23 @@ def add (a b:Array (FU8 p)) : Array (FU8 p) :=
   let res := if c ≠ 0 then Array.push res c.val else res
   Array.reverse res
 
+-- def addBignum (a b : Array (FU8 p)) : Array (FU8 p) :=
+--   addWithCarry a.toList b.toList 0 |>.toArray
+-- where
+--   addWithCarry (a b : List (FU8 p)) (c : ℕ) : List (FU8 p) :=
+--     match a,b,c with
+--     | [], [], 0 => []
+--     | [], [], c => [c]
+--     | (x :: xs), [], c =>
+--       let (x,c) := add_carry x 0 c
+--       x :: addWithCarry xs [] c
+--     | [], (y :: ys), c =>
+--       let (y,c) := add_carry 0 y c
+--       y :: addWithCarry [] ys c
+--     | (x :: xs), (y :: ys), c =>
+--       let (t,c) := add_carry x y c
+--       t :: addWithCarry xs ys c
+
 #guard add (p:=prime_babybear) #[1] #[1] = #[2]
 #guard add (p:=prime_babybear) #[0,1] #[0,1] = #[0,2]
 #guard add (p:=prime_babybear) #[0,255] #[0,1] = #[1,0]
@@ -310,39 +331,148 @@ def add_spec (a b len: ℕ)
 def add_spec_valid (a b : Array (FU8 p)) :
   Array.all (add a b) (fun x ↦ x.val < 256) := sorry
 
-def UInt8.mul_carry (a b : UInt8) (c : ZMod p :=0) : UInt8 × (ZMod p) :=
-  let a : ZMod p := a.toNat
-  let b : ZMod p := b.toNat
-  let o : ZMod p := a * b + c -- 2*8+1 bits
+def UInt8.mul_carry (a b : FU8 p) (c : ZMod p := 0) : FU8 p × (ZMod p) :=
+  -- let a : ZMod p := a.toNat
+  -- let b : ZMod p := b.toNat
+  let o : ZMod p := a.val * b.val + c.val -- 2*8+1 bits
   let (d,r) := Spec.div_rem o
-  (UInt8.ofNat r.val,d)
+  (r.val,d)
 
 #guard UInt8.mul_carry (p:=prime_babybear) 2 2 = (4,0)
 #guard UInt8.mul_carry (p:=prime_babybear) 128 2 = (0,1)
 #guard UInt8.mul_carry (p:=prime_babybear) 128 2 = (0,1)
 
-def mul_one_line (a:Array UInt8) (b : UInt8) (c : ZMod p :=0) : Array UInt8 × ZMod p :=
-    let (res,c) := aux a.reverse.toList c []
-    (res.toArray,c)
+def mul_one_line (a : Array (FU8 p)) (b : FU8 p) (c : ZMod p := 0) : Array (FU8 p) × ZMod p :=
+    let (res,c) := aux a.toList c []
+    (res.reverse.toArray, c)
   where
-  aux (as:List UInt8) (c:ZMod p) (res:List UInt8) : List UInt8 × ZMod p :=
+  aux (as : List (FU8 p)) (c : ZMod p) (res : List (FU8 p)) : List (FU8 p) × ZMod p :=
     match as with
     | [] => (res,c)
     | a::as =>
       let (ab,c) := UInt8.mul_carry a b c
-      aux as c (ab::res)
+      aux as c (ab :: res)
 
-#guard mul_one_line (p:=prime_babybear) #[1] 1 = (#[1],0)
-#guard mul_one_line (p:=prime_babybear) #[0,1] 1 = (#[0,1],0)
-#guard mul_one_line (p:=prime_babybear) #[0,2] 255 = (#[1,254],0)
-#guard mul_one_line (p:=prime_babybear) #[1,2] 255 = (#[0,254],1)
+-- #guard mul_one_line (p:=prime_babybear) #[1] 1 = (#[1],0)
+-- #guard mul_one_line (p:=prime_babybear) #[0,1] 1 = (#[0,1],0)
+-- #guard mul_one_line (p:=prime_babybear) #[0,2] 255 = (#[1,254],0)
+-- #guard mul_one_line (p:=prime_babybear) #[1,2] 255 = (#[0,254],1)
+-- #eval mul_one_line (p:=prime_babybear) #[10,50] 255
+
+-- A = [  200,  150,  2 ]  represents 200·256^2 + 150·256 + 2
+-- B = [  180,   30,  3 ]  represents 180·256^2 +  30·256 + 3
+-- #guard mul_one_line (p:=prime_babybear) #[200,150,2] 180 = (#[9, 121, 104], 141)
+-- #guard mul_one_line (p:=prime_babybear) #[200,150,2]  30 = (#[129, 148, 60], 23)
+-- #guard mul_one_line (p:=prime_babybear) #[200,150,2]   3 = (#[89, 194, 6], 2)
+
+#eval ByteArray.to_nat_be (p:=prime_babybear) #[9, 121, 104]
+#eval ByteArray.to_nat_be (p:=prime_babybear) #[129, 148, 60]
+#eval ByteArray.to_nat_be (p:=prime_babybear) #[89, 194, 6]
+#eval add (p:=prime_babybear) #[9, 121, 104] #[129, 148, 60]
+
+-- Zip two lists with a combining function and default fillers
+-- def zipWithDefault {α : Type} (f : α → α → α) (dx dy : α) (xs ys : List α) : List α :=
+--   aux xs ys
+-- where
+--   aux (xs ys : List α) : List α :=
+--   match xs, ys with
+--   | [], [] => []
+--   | (x :: xs), [] => f x dy :: aux xs []
+--   | [], (y :: ys) => f dx y :: aux [] ys
+--   | (x :: xs), (y :: ys) => f x y :: aux xs ys
+
+-- -- Add two bignums aligned least-significant first
+-- -- This simply interleaves without final normalization
+-- def addAligned : List (FU8 p) → List (FU8 p) → List (FU8 p) :=
+--   zipWithDefault (· + ·) 0 0
+
+-- -- Normalize limbs with full carry propagation
+-- def normalize (l : Array (FU8 p)) : Array (FU8 p) :=
+--   normalizeWithCarry 0 l.toList |>.toArray
+-- where
+--   normalizeWithCarry (carry : FU8 p) (l : List (FU8 p)) : List (FU8 p) :=
+--   match l with
+--   | [] => if carry = 0 then [] else [carry % 256, carry / 256]
+--   | (x :: xs) =>
+--     let (xc, c) := add_carry x carry
+--     xc :: normalizeWithCarry c xs
+
+-- -- Shift a partial line by j limbs and append carry at the end
+-- def shiftAndCarry (j : ℕ) (part : Array (FU8 p)) (carry : FU8 p) : Array (FU8 p) :=
+--     Array.replicate j 0 ++ part ++ [carry]
+
+-- def addShifted (a : Array (FU8 p)) (acc : Array (FU8 p)) (jbj : (FU8 p × ℕ)) : Array (FU8 p) :=
+--     let (part, carry) := mul_one_line a jbj.1
+--     dbg_trace s!"mul_one_line: ({part}, {carry})"
+--     let shifted := shiftAndCarry jbj.2 part carry
+--     dbg_trace s!"shifted: {shifted}"
+--     dbg_trace s!"addBignum: {addBignum acc shifted}"
+--     addAligned acc.toList shifted.toList |>.toArray
+
+-- Assume little-endian
+def shiftLeft (n : ℕ) (num : Array (FU8 p)) : Array (FU8 p) :=
+  Array.replicate n 0 ++ num
+
+def addBignum (a b : Array (FU8 p)) : Array (FU8 p) :=
+  addWithCarry 0 a.toList b.toList |>.toArray
+where
+  addWithCarry (c : FU8 p) (as bs : List (FU8 p)) :=
+    match as,bs with
+    | [], [] => if c.val > 0 then [c] else []
+    | (a :: as), [] => let (c, l) := Spec.div_rem (a + c); l :: addWithCarry c as []
+    | [], (b :: bs) => let (c, l) := Spec.div_rem (b + c); l :: addWithCarry c [] bs
+    | (a :: as), (b :: bs) => let (c, l) := Spec.div_rem (a + b + c); l :: addWithCarry c as bs
+
+def mulOneLine (a : Array (FU8 p)) (b : FU8 p) : Array (FU8 p) :=
+  go 0 a.toList |>.toArray
+where
+  go (c : FU8 p) (l : List (FU8 p)) : List (FU8 p) :=
+    match l with
+    | [] => if c.val > 0 then [c] else []
+    | (d :: ds) =>
+      let total := d * b + c
+      let (newCarry,newLimb) := Spec.div_rem total
+      newLimb :: go newCarry ds
+
+-- #eval mulOneLine (p:=prime_babybear) 256 #[10, 20, 1] 3
+
+def mul (a b : Array (FU8 p)) : Array (FU8 p) :=
+  sumPartialProducts 0 b.toList |>.toArray
+where
+  sumPartialProducts shift (l : List (FU8 p)) :=
+    match l with
+    | [] => []
+    | (limb :: rest) =>
+      let partialProduct := mulOneLine a limb
+      let shiftedProduct := shiftLeft shift partialProduct
+      let remainingSum   := sumPartialProducts (shift + 1) rest
+      addBignum shiftedProduct remainingSum.toArray |>.toList
 
 -- TODO need to implement schoolbook multiplication
-def mul (a b:Array UInt8) : Array UInt8 :=
-  sorry
+-- def mul (a b : Array (FU8 p)) : Array (FU8 p) :=
+--   let a := b.zipIdx.foldl (addShifted a) (Array.replicate (a.size) 0)
+--   dbg_trace s!"before norm: {a}"
+--   normalize a
+
+-- #eval mul (p:=prime_babybear) #[0,1] #[0,1]
 
 -- #guard mul (p:=prime_babybear) #[1] #[1] = #[1]
 -- #guard mul (p:=prime_babybear) #[0,1] #[0,1] = #[0,1]
 -- #guard mul (p:=prime_babybear) #[1,1] #[1,1] = ByteArray.of_nat_be ((256+1) * (256+1)) 2
+
+#eval UInt8.mul_carry (p:=prime_babybear) 200 20  0 -- 160, 15
+#eval UInt8.mul_carry (p:=prime_babybear) 150 20 15 -- 199, 11
+#eval UInt8.mul_carry (p:=prime_babybear)  10 20 11 -- 211, 0
+
+-- little endian
+#guard ByteArray.to_nat_be (p:=prime_babybear) #[10, 20, 1].reverse = 70666
+#guard ByteArray.to_nat_be (p:=prime_babybear) #[3, 2, 1].reverse = 66051
+#guard 70666 * 66051 = 4667559966
+#guard (ByteArray.to_nat_be (p:=prime_babybear) $ mul #[10, 20, 1] #[3, 2, 1] |>.reverse) = 4667559966
+
+#guard ByteArray.to_nat_be (p:=prime_babybear) #[10, 150, 200].reverse = 13145610
+#guard ByteArray.to_nat_be (p:=prime_babybear) #[5, 30, 20].reverse = 1318405
+#guard 13145610 * 1318405 = 17331237952050
+#guard (ByteArray.to_nat_be (p:=prime_babybear) $ mul #[10, 150, 200] #[5, 30, 20] |>.reverse) = 17331237952050
 
 end Bignum
