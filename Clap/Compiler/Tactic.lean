@@ -291,14 +291,20 @@ def ex₇' (xs ys zs : Vector (ZMod p) 2) := do
   eq0 (ys[1]-xs[1])
   return accept ()
     
+def ex₈ (xs : Vector (ZMod p) 2) := do
+  eq0 (xs[0]!)
+  return accept ()
+
 lemma lem {xs ys zs} : ex₇ xs[0] xs[1] ys[0] ys[1] zs[0] zs[1] = ex₇' (p := p) xs ys zs := by rfl
 
 #curry! Clap.ex₇'
+#curry! Clap.ex₈
 
-#check ex₇'_curried
+#print ex₇'_curried
 #check ex₇'_curried_equiv
 
-
+#print ex₈_curried
+#check ex₈_curried_equiv
 -- def ex₇' (xs: Vector F 2) (ys: Vector F 2) (zs: Vector F 2) : typ F (typ F (typ F (Option Unit) 2) 2) 2 := _
 
 -- example {is : Vector F 2} : ex₆ is = ex₅ is[0] is[1] := rfl
