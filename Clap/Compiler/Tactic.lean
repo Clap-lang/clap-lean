@@ -1,6 +1,7 @@
 import Lean
 import Qq
 
+import Clap.Spec_bignum
 import Clap.Simulation
 import Clap.Spec
 
@@ -199,11 +200,11 @@ elab "#curry!" circuit:ident : command => do
   elabCommand stx
   logInfo m!"Proof: {curriedCircuitName}_equiv"
 
-abbrev FU8 p := ZMod p
+-- abbrev FU8 p := ZMod p
 
-def FU8.mk (x : FU8 p) : Option Unit := Spec.assert_range 8 x
+-- def FU8.mk (x : FU8 p) : Option Unit := Spec.assert_range 8 x
 
-abbrev FB p := ZMod p
+-- abbrev FB p := ZMod p
 
 @[irreducible]
 def div_rem (e : ZMod p) : Option (ZMod p × ZMod p) :=
@@ -299,7 +300,7 @@ def ex₇' (xs ys zs : Vector (ZMod p) 2) := do
   eq0 (ys[0]-zs[0])
   eq0 (ys[1]-xs[1])
   return accept ()
-    
+
 def ex₈ (xs : Vector (ZMod p) 2) := do
   eq0 (xs[0]!)
   return accept ()
@@ -354,6 +355,7 @@ lemma equiv_accept :
 -- set_option pp.notation false in
 def extract_manual :
   { c : Circuitₑ p // Simulation.s_bisim (ex (p := p)) c.eval } := by
+  
   unfold ex  
   constructor
   unfold FU8.mk
@@ -492,6 +494,21 @@ def extract_manual₇ :
   apply equiv_eq0 (er := Exp.c _) (he := rfl)
   apply equiv_accept
   any_goals rfl
+
+def extract_automaticabc :
+  { c : Circuitₑ p // Simulation.s_bisim (ex₇'_curried (p := p)) c.eval } := by
+  extract using ex₇'_curried
+
+#print extract_automaticabc
+
+def ex₉ (xs : Vector (ZMod p) 2) := do
+  for x in xs do
+    eq0 x
+  return accept ()
+
+def extract_automaticabca :
+  { c : Circuitₑ p // Simulation.s_bisim (ex₇'_curried (p := p)) c.eval } := by
+  extract using ex₇'_curried
 
 -- def extract_manual₇ :
 --   { c : Circuitₑ p // Simulation.s_bisim (ex₇' (p := p)) c.eval } := by
