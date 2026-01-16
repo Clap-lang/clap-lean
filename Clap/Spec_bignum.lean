@@ -2,22 +2,20 @@ import Clap.Spec
 
 namespace Clap
 
-lemma ZMod_add_no_overflow {p:ℕ} (a b : ZMod p) (h : a.val + b.val < p) :
-  (a + b).val = a.val + b.val := by
-  rcases p with _|p
-  grind
-  simp [ZMod] at *
-  simp [ZMod] at a b
-  unfold ZMod.val
-  dsimp
-  unfold ZMod.val at h
-  dsimp at h
-  rcases a
-  rcases b
-  simp at *
-  rw [Fin.add_def]
-  simp
-  assumption
+section Wheels
+
+lemma ZMod_add_no_overflow {p : ℕ} (a b : ZMod p) (h : a.val + b.val < p) :
+  (a + b).val = a.val + b.val :=
+by
+  rcases p with _ | p
+  · grind
+  · simp [ZMod] at *; simp [ZMod] at a b
+    unfold ZMod.val at *; dsimp at *
+    rcases a; rcases b; simp at *
+    rw [Fin.add_def]; simp
+    assumption
+
+end Wheels
 
 variable {p : ℕ}
 variable [Fact (Nat.Prime p)]
@@ -26,9 +24,9 @@ abbrev FB p := ZMod p
 
 namespace FB
 
-def isValid (x:FB p) : Prop := x.val < 2
+def isValid (x : FB p) : Prop := x.val < 2
 
-def Valid : Type := {x:FB p // x.isValid } -- TODO only for specs
+def Valid : Type := {x : FB p // x.isValid } -- TODO only for specs
 
 instance : CoeOut (FB p) ℕ where
   coe x := x.val
@@ -36,8 +34,14 @@ instance : CoeOut (FB p) ℕ where
 instance : CoeOut (@Valid p) ℕ where
   coe x := x.val
 
-def true (h:p≠1): @Valid p := ⟨1, by simp [isValid]; rw [ZMod.val_one''] ; simp ; assumption⟩
-def false : @Valid p := ⟨0, by simp [isValid]⟩
+instance : CoeOut (@Valid p) (FB p) where
+  coe x := x.val
+
+def true (h : p ≠ 1): @Valid p :=
+  ⟨1, by simp [isValid]; rw [ZMod.val_one'']; simp; assumption⟩
+
+def false : @Valid p :=
+  ⟨0, by simp [isValid]⟩
 
 end FB
 
@@ -48,9 +52,9 @@ instance : ToString (FU8 p) where
 
 namespace FU8
 
-def isValid (x:FU8 p) : Prop := x.val < 256
+def isValid (x : FU8 p) : Prop := x.val < 2^8
 
-def Valid : Type := {x:FU8 p // x.isValid } -- TODO only for specs
+def Valid : Type := {x : FU8 p // x.isValid } -- TODO only for specs
 
 instance : CoeOut (FU8 p) ℕ where
   coe x := x.val
@@ -58,69 +62,121 @@ instance : CoeOut (FU8 p) ℕ where
 instance : CoeOut (@Valid p) ℕ where
   coe x := x.val
 
-def mk (x:FU8 p) : Option Unit := Spec.assert_range 8 x
+instance : CoeOut (@Valid p) (FU8 p) where
+  coe x := x.val
 
-def mk_some (x:FU8 p) (h:x.val<256) : x.mk = some () := by simp [mk,Spec.assert_range]; assumption
+-- def addCarry (a b : FU8 p) (c : FB p := 0) : FU8 p × FB p :=
+--   -- behaves well only if p>2^(8+1+1)
+--   Spec.div_rem (a + b + c) |>.swap
+
+-- --attribute [instance high] instCoeOutValid
+-- example (a b : @FU8.Valid p) (c : @FB.Valid p) :
+--   addCarry a b c.val = (1,1) := sorry
+
+def mk (x : FU8 p) : Option Unit := Spec.assert_range 8 x
+
+omit [Fact (Nat.Prime p)] in
+lemma mk_some (x : FU8 p) (h : x.val < 2^8) : x.mk = some () := by
+  simp [mk, Spec.assert_range]; assumption
 
 end FU8
 
-lemma div_rem_spec (a:ZMod p) :
+lemma div_rem_spec (a : ZMod p) :
   letI o := Spec.div_rem a
-  a.val = o.1 * 256 + o.2 := by
+  a.val = o.1 * 2^8 + o.2 :=
+by
   simp [Spec.div_rem]
-  rw [Nat.mod_mod_eq_mod_of_lt_right]
-  rw [Nat.div_mod_eq_div]
-  omega
-  repeat apply ZMod.val_lt
+  rw [Nat.mod_mod_eq_mod_of_lt_right, Nat.div_mod_eq_div]
+  · omega
+  · apply ZMod.val_lt
+  · apply ZMod.val_lt
 
-lemma div_rem_spec_valid (a:ZMod p) :
-  letI o := Spec.div_rem a
-  FU8.isValid o.2 := by
-  simp [Spec.div_rem]
-  simp [FU8.isValid]
+lemma div_rem_spec_valid (a : ZMod p) :
+  FU8.isValid (Spec.div_rem a).2 :=
+by
+  simp [Spec.div_rem, FU8.isValid]
   rw [Nat.mod_mod_eq_mod_of_lt_right]
-  omega
-  apply ZMod.val_lt
+  · omega
+  · apply ZMod.val_lt
 
 namespace ByteArray
 
+lemma uint8_valid (a : UInt8) (h : 2^8 ≤ p) : @FU8.isValid p a.toNat := by
+  simp [FU8.isValid]
+  have : a.toNat < 2^8 := by apply UInt8.toNat_lt
+  rw [Nat.mod_eq_of_lt]
+  · assumption
+  · omega
+
+instance : CoeOut (@FU8.Valid p) UInt8 where
+  coe x := UInt8.ofNatLT x.val (by exact x.property)
+
+instance : CoeOut (FU8 p) UInt8 where
+  coe x := UInt8.ofNat x.val
+
+instance : Coe UInt8 (FU8 p) where
+  coe x := x.toNat
+
+instance {h : 2^8 ≤ p} : Coe UInt8 (@FU8.Valid p) where
+  coe x := ⟨x.toNat, by apply uint8_valid; assumption⟩
+
 -- TODO actually convert to/from ByteArray instead of Array UInt8
+/- Little endian -/
+def ofNat (x len : ℕ) : ByteArray := ⟨aux x len⟩
+where
+  aux (x len : ℕ) : Array UInt8 :=
+    let d : ℕ := x / 2^8
+    let r : ℕ := x % 2^8
+    if len = 0 then #[] else ⟨(UInt8.ofNatLT r (by grind)) :: (aux d (len - 1)).toList⟩
 
-def of_nat_be (x:ℕ) (len:Nat) : Array (FU8 p) :=
-    (List.reverse (aux x len)).toArray
-  where
-    aux (x:ℕ) (len:Nat) : List (FU8 p) :=
-      let d : ℕ := x / (2^8)
-      let r : ℕ := x % (2^8)
-      -- let r : UInt8 := UInt8.ofNatLT r.val (by sorry)
-      let r : FU8 p := r -- does not wrap as r < 256
-      if len=0 then [] else
-      r::(aux d (len-1))
+@[reducible]
+def ofFU8 (x : FU8 p) (len : ℕ) : ByteArray :=
+  ofNat x len
 
--- lemma h (x:ℕ) (len:Nat) :
---   Array.size (of_nat_be x len) = len := sorry
+-- def of_nat_be (x:ℕ) (len:Nat) : Array (FU8 p) :=
+--     (List.reverse (aux x len)).toArray
+--   where
+--     aux (x:ℕ) (len:Nat) : List (FU8 p) :=
+--       let d : ℕ := x / (2^8)
+--       let r : ℕ := x % (2^8)
+--       -- let r : UInt8 := UInt8.ofNatLT r.val (by sorry)
+--       let r : FU8 p := r -- does not wrap as r < 256
+--       if len=0 then [] else
+--       r::(aux d (len-1))
 
--- def of_nat_be_vector (x:ℕ) (len:Nat) : Vector UInt8 len :=
---   ⟨of_nat_be x len, h x len⟩
+-- #guard
+--   let n : ℕ := 255 + 1
+--   of_nat_be (p:=prime_babybear) n 2 = #[1,0]
+-- #guard
+--   let n : ℕ := 2^16 + 2
+--   of_nat_be (p:=prime_babybear) n 3 = #[1,0,2]
+-- #guard
+--   let n : ℕ := 2^16 + 2
+--   of_nat_be (p:=prime_babybear) n 4 = #[0,1,0,2]
 
--- def of_nat_be_bytearray (x:ℕ) (len:Nat) : ByteArray :=
---   ByteArray.mk (of_nat_be x len)
-
-#guard
-  let n : ℕ := 255 + 1
-  of_nat_be (p:=prime_babybear) n 2 = #[1,0]
-#guard
-  let n : ℕ := 2^16 + 2
-  of_nat_be (p:=prime_babybear) n 3 = #[1,0,2]
-#guard
-  let n : ℕ := 2^16 + 2
-  of_nat_be (p:=prime_babybear) n 4 = #[0,1,0,2]
+#guard (ofNat (255 + 1)  2 |>.data) = #[0,1]
+#guard (ofNat (2^16 + 2) 3 |>.data) = #[2,0,1]
+#guard (ofNat (2^16 + 2) 4 |>.data) = #[2,0,1,0]
+#guard (ofFU8 (255 + 1  : FU8 prime_babybear) 2 |>.data) = #[0,1]
+#guard (ofFU8 (2^16 + 2 : FU8 prime_babybear) 3 |>.data) = #[2,0,1]
+#guard (ofFU8 (2^16 + 2 : FU8 prime_babybear) 4 |>.data) = #[2,0,1,0]
 
 /-
 Rust playground
 let z : u32 = 65536 + 2;
 dbg!(z.to_be_bytes());  # [0,1,0,2]
 -/
+
+def toNat (bs : ByteArray) : ℕ :=
+  bs.data.foldr (fun (b : UInt8) acc => acc * 2^8 + b.toNat) 0
+
+@[reducible]
+def toFU8 (bs : ByteArray) : FU8 p := toNat bs
+
+#guard toNat ⟨#[1]⟩ = 1
+#guard toNat ⟨#[1,255]⟩ = 255*256+1
+#guard toNat ⟨#[1,2,3]⟩ = 3*256*256 + 2*256 + 1
+#guard toNat ⟨#[2,0,1,0]⟩ = 65536 + 2
 
 def to_nat_be (bs:Array (FU8 p)) : ℕ :=
   Array.foldl (fun acc (b:ZMod p) => acc * 256 + (b:ℕ)) (0:ℕ) bs
@@ -129,78 +185,73 @@ def to_nat_be (bs:Array (FU8 p)) : ℕ :=
 #guard to_nat_be (p:=prime_babybear) #[255,1] = 255*256+1
 #guard to_nat_be (p:=prime_babybear) #[3,2,1] = 3*256*256 + 2*256 + 1
 
-def min_bits (x:ℕ) : ℕ :=
-  let n_bits := Nat.log2 x
-  if 2^n_bits < x then n_bits+1 else n_bits
+def minBits (x : ℕ) : ℕ :=
+  let nb := Nat.log2 x
+  if 2^nb < x then nb + 1 else nb
 
-def min_bytes (x:ℕ) : ℕ :=
-  let n_bits := min_bits x
-  if n_bits % 8 = 0 then n_bits / 8 else (n_bits / 8) + 1
+def minBytes (x : ℕ) : ℕ :=
+  let nb := minBits x
+  let nb8 := nb / 8
+  if nb % 8 = 0 then nb8 else nb8 + 1
 
-lemma roundrip1 (x:ℕ) (len:ℕ) (h: len <= min_bytes x) :
-  to_nat_be (of_nat_be (p:=p) x len) = x := sorry
+-- lemma roundrip1 (x:ℕ) (len:ℕ) (h: len <= min_bytes x) :
+--   to_nat_be (of_nat_be (p:=p) x len) = x := sorry
 
-#guard
-  let n : ℕ := 255 + 1
-  to_nat_be (of_nat_be (p:=prime_babybear) n 2) = n
-#guard
-  let n : ℕ := 2^16 + 2
-  to_nat_be (of_nat_be (p:=prime_babybear) n 3) = n
-#guard
-  let n : ℕ := 2^16 + 2
-  to_nat_be (of_nat_be (p:=prime_babybear) n 4) = n
+#guard let n : ℕ := 255  + 1; toNat (ofNat n 2) = n
+#guard let n : ℕ := 2^16 + 2; toNat (ofNat n 3) = n
+#guard let n : ℕ := 2^16 + 2; toNat (ofNat n 4) = n
 
-lemma roundrip2 (bs:Array (FU8 p)) :
-  of_nat_be (to_nat_be bs) bs.size = bs := sorry
+-- #guard
+--   let n : ℕ := 255 + 1
+--   to_nat_be (of_nat_be (p:=prime_babybear) n 2) = n
+-- #guard
+--   let n : ℕ := 2^16 + 2
+--   to_nat_be (of_nat_be (p:=prime_babybear) n 3) = n
+-- #guard
+--   let n : ℕ := 2^16 + 2
+--   to_nat_be (of_nat_be (p:=prime_babybear) n 4) = n
 
-#guard of_nat_be (p:=prime_babybear) (to_nat_be (p:=prime_babybear) #[1]) 1 = #[1]
-#guard of_nat_be (p:=prime_babybear) (to_nat_be  (p:=prime_babybear) #[255,1]) 2 = #[255,1]
+-- lemma roundrip2 (bs:Array (FU8 p)) :
+--   of_nat_be (to_nat_be bs) bs.size = bs := sorry
+
+#guard ofNat (toNat ⟨#[1]⟩) 1 = ⟨#[1]⟩
+#guard ofNat (toNat ⟨#[1,255]⟩) 2 = ⟨#[1,255]⟩
+
+-- #guard of_nat_be (p:=prime_babybear) (to_nat_be (p:=prime_babybear) #[1]) 1 = #[1]
+-- #guard of_nat_be (p:=prime_babybear) (to_nat_be  (p:=prime_babybear) #[255,1]) 2 = #[255,1]
 
 end ByteArray
 
 namespace Bignum
 
-def add_carry (a b : FU8 p) (c : FB p :=0) : FU8 p × FB p :=
+def addCarry (a b : FU8 p) (c : FB p := 0) : FU8 p × FB p :=
   -- behaves well only if p>2^(8+1+1)
-  let o : FU8 p := a + b + c
-  let (d,r) := Spec.div_rem o
-  (r,d)
+  Spec.div_rem (a + b + c) |>.swap
 
-lemma add_carry_spec (a b :@FU8.Valid p) (c:@FB.Valid p := FB.false)
-  (hp: 256+256+2<p) :
-  letI o : FU8 p × FB p := add_carry (a:FU8 p) (b:FU8 p) (c:FB p)
-  (a:ℕ)+(b:ℕ)+(c:ℕ) = (o.2:ℕ) * 256 + (o.1:ℕ)
-  := by
-  have hab: ZMod.val a.val + ZMod.val b.val < 256+256 := by
+section
+attribute [instance high] FU8.instCoeOutValid
+lemma addCarry_spec (h : 256 + 256 + 2 < p) (a b : @FU8.Valid p) (c : @FB.Valid p := FB.false) :
+  letI o : FU8 p × FB p := addCarry a b c
+  (a : ℕ) + (b : ℕ) + (c : ℕ) = (o.2 : ℕ) * 2^8 + (o.1 : ℕ) :=
+by
+  have hab: ZMod.val a.val + ZMod.val b.val < 256 + 256 := by
     apply Nat.add_lt_add
-    apply a.prop
-    apply b.prop
-  let drs := div_rem_spec ((a:FU8 p)+(b:FU8 p)+(c:FU8 p))
-  simp at drs
-  simp [add_carry]
-  rw [<-drs]
-  rw [ZMod_add_no_overflow]
-  rw [ZMod_add_no_overflow]
-  apply lt_trans
-  apply hab
-  apply lt_trans (b:=256+256+2)
-  omega
-  apply hp
-  have hc: ZMod.val (a.val+b.val) + ZMod.val c.val < (256+256+2) := by
-    apply Nat.add_lt_add
-    rw [ZMod_add_no_overflow]
-    apply Nat.add_lt_add
-    apply a.prop
-    apply b.prop
-    apply lt_trans
+    · apply a.prop
+    · apply b.prop
+  let drs := div_rem_spec ((a : FU8 p) + (b : FU8 p) + (c : FU8 p))
+  simp at *; simp at drs; simp [addCarry]
+  rw [<-drs, ZMod_add_no_overflow, ZMod_add_no_overflow]
+  · apply lt_trans
     apply hab
-    apply lt_trans (b:=256+256+2)
     omega
-    apply hp
-    apply c.prop
-  apply lt_trans
-  apply hc
-  apply hp
+  · have hc: ZMod.val (a.val + b.val) + ZMod.val c.val < (256 + 256 + 2) := by
+      apply Nat.add_lt_add
+      · rw [ZMod_add_no_overflow]; try assumption
+        apply lt_trans hab; omega
+      · exact c.prop
+    apply lt_trans hc
+    assumption
+end
 
 lemma Nat.add_lt_add3 (a b c ta tb tc : ℕ) (ha: a<ta) (hb:b<tb) (hc:c<tc) : a + b + c < ta + tb + tc := by
   apply Nat.add_lt_add
@@ -430,7 +481,7 @@ where
     match l with
     | [] => if c.val > 0 then [c] else []
     | (d :: ds) =>
-      let total := d * b + c
+      letI total := d * b + c
       let (newCarry,newLimb) := Spec.div_rem total
       newLimb :: go newCarry ds
 
@@ -473,6 +524,6 @@ where
 #guard ByteArray.to_nat_be (p:=prime_babybear) #[10, 150, 200].reverse = 13145610
 #guard ByteArray.to_nat_be (p:=prime_babybear) #[5, 30, 20].reverse = 1318405
 #guard 13145610 * 1318405 = 17331237952050
-#guard (ByteArray.to_nat_be (p:=prime_babybear) $ mul #[10, 150, 200] #[5, 30, 20] |>.reverse) = 17331237952050
+#guard (ByteArray.to_nat_be (p:=prime_babybear) $ mul #[10, 150, 200] #[5, 30, 20] |>.reverse) = 13145610 * 1318405
 
 end Bignum
