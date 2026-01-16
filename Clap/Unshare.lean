@@ -6,8 +6,7 @@ namespace Clap
 
 namespace Unshare
 
-variable {F : Type}
-variable [Field F] [DecidableEq F]
+variable {p : ℕ} [Fact (Nat.Prime p)]
 
 /-
   Unshare optimization - inlines an expression previously shared.
@@ -25,7 +24,7 @@ variable [Field F] [DecidableEq F]
   I's basically like in the Hoas case.
 -/
 
-def unshare_all_F (c:Circuit F F) : Circuit F F :=
+def unshare_all_F (c : Circuit p (ZMod p)) : Circuit p (ZMod p) :=
   match c with
   | .nil => .nil
   | .eq0 e c => .eq0 e (unshare_all_F c)
@@ -34,7 +33,7 @@ def unshare_all_F (c:Circuit F F) : Circuit F F :=
   --
   | .share e k => k (Exp.eval e)
 
-theorem unshare_all_sem_pre_F : ∀ (c:Circuit F F),
+theorem unshare_all_sem_pre_F : ∀ (c : Circuitₑ p),
   c ≈ unshare_all_F c := by
   intros c
   induction c with
@@ -60,7 +59,7 @@ theorem unshare_all_sem_pre_F : ∀ (c:Circuit F F),
 -/
 open Id
 
-def unshare_all {var} (c:Circuit F (Exp F var)) : Circuit F var :=
+def unshare_all {var} (c : Circuit p (Exp (ZMod p) var)) : Circuit p var :=
   match c with
   | .nil => .nil
   | .eq0 e c => .eq0 (unwrap_e e) (unshare_all c)
@@ -69,20 +68,20 @@ def unshare_all {var} (c:Circuit F (Exp F var)) : Circuit F var :=
   --
   | .share e k => unshare_all (k (unwrap_e e))
 
-def unshare_all' (c:Circuit' F) : Circuit' F := fun var => unshare_all (c (Exp F var))
+def unshare_all' (c:Circuit' p) : Circuit' p := fun var => unshare_all (c (Exp (ZMod p) var))
 
 namespace Test
 
 abbrev F7 := Clap.F7.F
 
-def a : Circuit' F7 := fun _ => Circuit.lam (fun x => Circuit.share (.c 1 + .v x) (fun x => Circuit.eq0 (.v x) Circuit.nil))
-def expected_a : Circuit' F7 := fun _ => Circuit.lam (fun x => Circuit.eq0 (.c 1 + .v x) Circuit.nil)
+def a : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.share (.c 1 + .v x) (fun x => Circuit.eq0 (.v x) Circuit.nil))
+def expected_a : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.eq0 (.c 1 + .v x) Circuit.nil)
 
 #guard s!"{unshare_all' a Nat}" = s!"{expected_a Nat}"
 
 end Test
 
-theorem unshare_all_sem_pre : ∀ (cl: Circuit F F) (cr:Circuit F (Exp F F)) G,
+theorem unshare_all_sem_pre : ∀ (cl : Circuit p (ZMod p)) (cr : Circuit p (Exp (ZMod p) (ZMod p))) G,
   wf G cl cr ->
    List.Forall (fun entry => entry.l = (Exp.eval entry.r)) G ->
    cl ≈ (unshare_all cr)
@@ -141,7 +140,7 @@ theorem unshare_all_sem_pre : ∀ (cl: Circuit F F) (cr:Circuit F (Exp F F)) G,
       simp [Exp.eval]
       assumption
 
-theorem unshare_sem_pre' : ∀ (cl: Circuit' F),
+theorem unshare_sem_pre' : ∀ (cl: Circuit' p),
   wf' cl ->
    cl ≈ (unshare_all' cl) := by
   intro cl wf
@@ -210,7 +209,7 @@ e = x^2 * a
 ```
 -/
 
-def degree {var} (e:Exp F var) : Nat :=
+def degree {var} (e : Exp (ZMod p) var) : Nat :=
   match e with
   | .v _ => 1
   | .c _ => 0
@@ -218,7 +217,7 @@ def degree {var} (e:Exp F var) : Nat :=
   | .sub l r => max (degree l) (degree r)
   | .mul l r => (degree l) + (degree r)
 
-def unshare_deg_cps {var} (c:Circuit F (Exp F var)) (k : Bool × Circuit F var -> Circuit F var) : Circuit F var :=
+def unshare_deg_cps {var} (c : Circuit p (Exp (ZMod p) var)) (k : Bool × Circuit p var -> Circuit p var) : Circuit p var :=
   match c with
   | .nil => k (true,.nil)
   | .eq0 e c =>
@@ -236,17 +235,17 @@ def unshare_deg_cps {var} (c:Circuit F (Exp F var)) (k : Bool × Circuit F var -
       then k (true, c)
       else .share (unwrap_e e) (fun x => unshare_deg_cps (k' (.v x)) k))
 
-def unshare_deg {var} (c:Circuit F (Exp F var)) : Circuit F var := unshare_deg_cps c (fun (b,x) => if b then x else id c)
+def unshare_deg {var} (c : Circuit p (Exp (ZMod p) var)) : Circuit p var := unshare_deg_cps c (fun (b,x) => if b then x else id c)
 
-def unshare_deg' (c:Circuit' F) : Circuit' F := fun var => unshare_deg (c (Exp F var))
+def unshare_deg' (c : Circuit' p) : Circuit' p := fun var => unshare_deg (c (Exp (ZMod p) var))
 
 namespace Test
 
-def do_optimize : Circuit' F7 := fun _ => Circuit.lam (fun x => Circuit.share (.v x * .v x) (fun x => Circuit.eq0 (.v x) Circuit.nil))
+def do_optimize : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.share (.v x * .v x) (fun x => Circuit.eq0 (.v x) Circuit.nil))
 
-def expected_optimized : Circuit' F7 := fun _ => Circuit.lam (fun x => Circuit.eq0 (.v x * .v x) Circuit.nil)
+def expected_optimized : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.eq0 (.v x * .v x) Circuit.nil)
 
-def do_not_optimize : Circuit' F7 := fun _ => Circuit.lam (fun x => Circuit.share (.v x * .v x * .v x) (fun x => Circuit.eq0 (.v x) Circuit.nil))
+def do_not_optimize : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.share (.v x * .v x * .v x) (fun x => Circuit.eq0 (.v x) Circuit.nil))
 
 #guard s!"{unshare_deg' do_optimize Nat}" = s!"{expected_optimized Nat}"
 #guard s!"{unshare_deg' do_not_optimize Nat}" = s!"{do_not_optimize Nat}"

@@ -34,27 +34,29 @@ namespace Clap
   that, once wrapped, they are equivalent to the original Circuit.
 -/
 
+
 -- TODO we could remove this type and add an index to Circuit, which would save us from defining again the semantics of Cs
-inductive Cs (F var:Type) : Type where
-  | nil : Cs F var
-  | eq0 : Exp F var -> Cs F var -> Cs F var
-  | lam : (var -> Cs F var) -> Cs F var
+inductive Cs (p : ℕ) (var : Type) : Type where
+  | nil : Cs p var
+  | eq0 : Exp (ZMod p) var -> Cs p var -> Cs p var
+  | lam : (var -> Cs p var) -> Cs p var
 
-def Cs' (F:Type) : Type _ := (var:Type) -> Cs F var
+def Cs' (p : ℕ) : Type _ := (var:Type) -> Cs p var
 
-variable {F : Type}
-variable [Field F] [DecidableEq F]
+variable {p : ℕ} [Fact (Nat.Prime p)]
+variable {var: Type}
 
-def Cs.eval [DecidableEq F] (c:Cs F F) : denotation F :=
+def Cs.eval (c : Cs p (ZMod p)) : denotation (ZMod p) :=
   match c with
   | .nil => .u
   | .lam k => .l (fun x => eval (k x))
   | .eq0 e c =>
     if Exp.eval e = 0 then eval c else .n
 
-def Cs.eval' (c:Cs' F) : denotation F := eval (c F)
+def Cs.eval' (c : Cs' p) : denotation (ZMod p) := eval (c (ZMod p))
 
-def to_cs {var:Type} (c:Circuit F var) : Cs F var :=
+
+def to_cs (c : Circuit p var) : Cs p var :=
   match c with
   | .nil => .nil
   | .eq0 e c => .eq0 e (to_cs c)
@@ -71,14 +73,14 @@ def to_cs {var:Type} (c:Circuit F var) : Cs F var :=
      -- e=0          o=1
      -- e≠0 inv=e^-1 o=0
 
-def to_cs' (c:Circuit' F) : Cs' F := fun var => to_cs (c var)
+def to_cs' (c : Circuit' p) : Cs' p := fun var => to_cs (c var)
 
 inductive Wg (F:Type) : Type where
   | nil : Wg F
   | cons : F -> Wg F -> Wg F
   | input : (F -> Wg F) -> Wg F
 
-def to_wg (c:Circuit F F) : Wg F :=
+def to_wg (c : Circuit p (ZMod p)) : Wg (ZMod p) :=
   match c with
   | .nil => Wg.nil
   | .eq0 _ c => to_wg c
@@ -88,23 +90,23 @@ def to_wg (c:Circuit F F) : Wg F :=
     .cons e (to_wg (k e))
   | .is_zero e k =>
     let e := Exp.eval e
-    let inv : F := e⁻¹
-    let o : F := if e = 0 then 1 else 0
+    let inv : (ZMod p) := e⁻¹
+    let o : (ZMod p) := if e = 0 then 1 else 0
     .cons inv (.cons o (to_wg (k o)))
 
 -- def to_wg' (c:Circuit' F) : Wg F := to_wg (c F)
 
-def wrap (wg:Wg F) (cs:Cs F F) : Cs F F :=
+def wrap (wg : Wg (ZMod p)) (cs : Cs p (ZMod p)) : Cs p (ZMod p) :=
   match wg,cs with
   |         .nil , .nil      => .nil
   |           wg , .eq0 e cs => .eq0 e (wrap wg cs)
   | Wg.input kwg , .lam k    => .lam (fun x => wrap (kwg x) (k x))
-  |   .cons x wg , .lam k    => wrap (wg:Wg F) (k x)
+  |   .cons x wg , .lam k    => wrap (wg : Wg (ZMod p)) (k x)
   |            _ , _         => .eq0 (.c 1) .nil -- needed because we don't have typed wg and cs
 
 open Simulation
 
-theorem soundness : ∀ (c:Circuit F F),
+theorem soundness : ∀ (c : Circuit p (ZMod p)),
   rw_bisim (Circuit.eval c) (Cs.eval (to_cs c)) := by
   intro c
   induction c with
@@ -159,12 +161,12 @@ theorem soundness : ∀ (c:Circuit F F),
         case isFalse hmul => constructor
       case isFalse hsub => constructor
 
-theorem soundness' : ∀ (c:Circuit' F),
+theorem soundness' : ∀ (c:Circuit' p),
   rw_bisim (Circuit.eval' c) (Cs.eval' (to_cs' c)) := by
   intro c
   apply soundness
 
-def completeness : ∀ (c:Circuit F F),
+def completeness : ∀ (c:Circuit p (ZMod p)),
   Circuit.eval c = Cs.eval (wrap (to_wg c) (to_cs c)) := by
   intro c
   induction c with
