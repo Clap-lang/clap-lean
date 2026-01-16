@@ -20,7 +20,7 @@ namespace Dedup
 
 variable {p : ℕ} [Fact (Nat.Prime p)]
 
-def to_nat {F var : Type} (e : Exp F (ℕ × var)) : Exp F ℕ :=
+def to_nat {var : Type} (e : Exp p (ℕ × var)) : Exp p ℕ :=
   match e with
   | .v (v, _) => .v v
   | .c f => .c f
@@ -28,7 +28,7 @@ def to_nat {F var : Type} (e : Exp F (ℕ × var)) : Exp F ℕ :=
   | .mul l r => to_nat l * to_nat r
   | .sub l r => to_nat l - to_nat r
 
-def to_var {F var : Type} (e : Exp F (ℕ × var)) : Exp F var :=
+def to_var {var : Type} (e : Exp p (ℕ × var)) : Exp p var :=
   match e with
   | .v (_, v) => .v v
   | .c f => .c f
@@ -36,7 +36,7 @@ def to_var {F var : Type} (e : Exp F (ℕ × var)) : Exp F var :=
   | .mul l r => to_var l * to_var r
   | .sub l r => to_var l - to_var r
 
-def beq : (e1 e2 : Exp (ZMod p) Nat) -> Bool
+def beq : (e1 e2 : Exp p Nat) -> Bool
   | .v n1, .v n2
   | .c n1, .c n2 => n1 = n2
   | .add ll lr, .add rl rr => beq ll rl && beq lr rr
@@ -44,7 +44,7 @@ def beq : (e1 e2 : Exp (ZMod p) Nat) -> Bool
   | .sub ll lr, .sub rl rr => beq ll rl && beq lr rr
   | _,_ => false
 
-def dedup_ {var} (c : Circuit p (ℕ × var)) (n : ℕ) (set : List (Exp (ZMod p) ℕ)) : Circuit p var :=
+def dedup_ {var} (c : Circuit p (ℕ × var)) (n : ℕ) (set : List (Exp p ℕ)) : Circuit p var :=
   match c with
   | .nil => .nil
   | .eq0 e c =>

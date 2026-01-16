@@ -38,7 +38,7 @@ namespace Clap
 -- TODO we could remove this type and add an index to Circuit, which would save us from defining again the semantics of Cs
 inductive Cs (p : ℕ) (var : Type) : Type where
   | nil : Cs p var
-  | eq0 : Exp (ZMod p) var -> Cs p var -> Cs p var
+  | eq0 : Exp p var -> Cs p var -> Cs p var
   | lam : (var -> Cs p var) -> Cs p var
 
 def Cs' (p : ℕ) : Type _ := (var:Type) -> Cs p var
@@ -54,7 +54,6 @@ def Cs.eval (c : Cs p (ZMod p)) : denotation (ZMod p) :=
     if Exp.eval e = 0 then eval c else .n
 
 def Cs.eval' (c : Cs' p) : denotation (ZMod p) := eval (c (ZMod p))
-
 
 def to_cs (c : Circuit p var) : Cs p var :=
   match c with
@@ -106,7 +105,7 @@ def wrap (wg : Wg (ZMod p)) (cs : Cs p (ZMod p)) : Cs p (ZMod p) :=
 
 open Simulation
 
-theorem soundness : ∀ (c : Circuit p (ZMod p)),
+theorem soundness : ∀ (c : Circuitₑ p),
   rw_bisim (Circuit.eval c) (Cs.eval (to_cs c)) := by
   intro c
   induction c with

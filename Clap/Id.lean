@@ -32,7 +32,7 @@ structure Entry (var1 var2:Type) where
   l : var1
   r : var2
 
-inductive wf_e {F var1 var2 : Type} : List (Entry var1 var2) -> Exp F var1 -> Exp F var2 -> Prop where
+inductive wf_e {var1 var2 : Type} : List (Entry var1 var2) -> Exp p var1 -> Exp p var2 -> Prop where
   | v : ∀ G x x', { l := x, r := x' } ∈ G   -- looks up in G
     -> wf_e G (.v x) (.v x')
   | c : ∀ G n, wf_e G (.c n) (.c n)
@@ -84,7 +84,7 @@ example : wf' add := by
 
 end Example
 
-def unwrap_e {var} (e : Exp (ZMod p) (Exp (ZMod p) var)) : Exp (ZMod p) var :=
+def unwrap_e {var} (e : Exp p (Exp p var)) : Exp p var :=
   match e with
   | .v v => v
   | .c f => .c f
@@ -92,7 +92,7 @@ def unwrap_e {var} (e : Exp (ZMod p) (Exp (ZMod p) var)) : Exp (ZMod p) var :=
   | .mul l r => .mul (unwrap_e l) (unwrap_e r)
   | .sub l r => .sub (unwrap_e l) (unwrap_e r)
 
-lemma unwrap_e_sem_pre : ∀ (el: Exp (ZMod p) (ZMod p)) (er: Exp (ZMod p) (Exp (ZMod p) (ZMod p))) G,
+lemma unwrap_e_sem_pre : ∀ (el: Expₑ p) (er: Exp p (Expₑ p)) G,
   wf_e G el er ->
    List.Forall (fun entry => entry.l = (Exp.eval entry.r)) G ->
    el ≈ (unwrap_e er)
@@ -122,7 +122,7 @@ lemma unwrap_e_sem_pre : ∀ (el: Exp (ZMod p) (ZMod p)) (er: Exp (ZMod p) (Exp 
     . apply hr
       repeat assumption
 
-def id {var} (c : Circuit p (Exp (ZMod p) var)) : Circuit p var :=
+def id {var} (c : Circuit p (Exp p var)) : Circuit p var :=
   match c with
   | .nil => .nil
   | .eq0 e c => .eq0 (unwrap_e e) (id c)
@@ -132,7 +132,7 @@ def id {var} (c : Circuit p (Exp (ZMod p) var)) : Circuit p var :=
 
 -- def id' (c:Circuit' F) : Circuit' F := fun var => id (c (Exp F var))
 
-theorem id_sem_pre : ∀ (cl : Circuitₑ p) (cr : Circuit p (Exp (ZMod p) (ZMod p))) G,
+theorem id_sem_pre : ∀ (cl : Circuitₑ p) (cr : Circuit p (Expₑ p)) G,
   wf G cl cr ->
    List.Forall (fun entry => entry.l = (Exp.eval entry.r)) G ->
    cl ≈ (id cr) := by

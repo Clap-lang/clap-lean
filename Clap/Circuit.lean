@@ -33,27 +33,24 @@ abbrev F := ZMod 7
 instance : Fact (Nat.Prime 7) := ⟨by decide⟩
 end F7
 
-variable {p : ℕ} [Fact (Nat.Prime p)]
+variable {p : ℕ}
 variable {var : Type}
 
-inductive Exp (F var : Type) where
-  | v : var -> Exp F var
-  | c : F -> Exp F var
-  | add : Exp F var -> Exp F var -> Exp F var
-  | mul : Exp F var -> Exp F var -> Exp F var
-  | sub : Exp F var -> Exp F var -> Exp F var
+inductive Exp (p:ℕ) (var : Type) where
+  | v : var -> Exp p var
+  | c : ZMod p -> Exp p var
+  | add : Exp p var -> Exp p var -> Exp p var
+  | mul : Exp p var -> Exp p var -> Exp p var
+  | sub : Exp p var -> Exp p var -> Exp p var
   deriving DecidableEq
 
--- specifically for evaluation
-abbrev Expₑ (F : Type) := Exp F F
+abbrev Expₑ (p : Nat) := Exp p (ZMod p)
 
 namespace Exp
 
-variable {F : Type}
-
-instance [Repr F] [Repr var] : Repr (Exp F var) where
+instance [Repr var] : Repr (Exp p var) where
   reprPrec expr _ := go expr
-  where go (e : Exp F var) : Std.Format :=
+  where go (e : Exp p var) : Std.Format :=
     match e with
     | .v s => s!"v{repr s}"
     | .c n => s!"{repr n}"
@@ -61,20 +58,20 @@ instance [Repr F] [Repr var] : Repr (Exp F var) where
     | .mul e1 e2 => s!"({go e1} * {go e2})"
     | .sub e1 e2 => s!"({go e1} - {go e2})"
 
-instance : Add (Exp F var) where
+instance : Add (Exp p var) where
   add a b := .add a b
 
-instance : Mul (Exp F var) where
+instance : Mul (Exp p var) where
   mul a b := .mul a b
 
-instance : Sub (Exp F var) where
+instance : Sub (Exp p var) where
   sub a b := .sub a b
 
 -- The typeclasses above add an abstraction layer,
 -- these lemmas show how to go through it
 section
 
-variable {e₁ e₂ : Exp F var}
+variable {e₁ e₂ : Exp p var}
 
 lemma add_def : e₁ + e₂ = .add e₁ e₂ := rfl
 
@@ -84,23 +81,23 @@ lemma sub_def : e₁ - e₂ = .sub e₁ e₂ := rfl
 
 end
 
-instance : Coe F (Exp F var) where
+instance : Coe (ZMod p) (Exp p var) where
   coe := .c
 
-variable [Field F]
-
-instance {n : ℕ} : OfNat (Exp F var) n where
-  ofNat := (n : F)
+instance {n : ℕ} : OfNat (Exp p var) n where
+  ofNat := (n : ZMod p)
 
 /- In this example, variables can only be substitued by Field elements,
    so .v and .c are equivalent, which is ok for evaluation -/
-example : Exp F F := (.c 1) + (.v 2)
+example : Expₑ p := (.c 1) + (.v 2)
 
 /- In this example, variables can be substitued by expressions,
    which is what we need for some optimizations. -/
-example : Exp F (Exp F var) := (.c 1) + (.v ((.c 2) + (.c 2)))
+example : Exp p (Exp p var) := (.c 1) + (.v ((.c 2) + (.c 2)))
 
-def eval (e : Expₑ F) : F :=
+variable [Fact (Nat.Prime p)]
+
+def eval (e : Expₑ p) : ZMod p :=
   match e with
   | .v f => f
   | .c i => i
@@ -110,18 +107,18 @@ def eval (e : Expₑ F) : F :=
 
 section
 
-variable {x₁ x₂ : F} {e e₁ e₂ e₃ e₄: Expₑ F} {k : ℕ}
+variable {x₁ x₂ : ZMod p} {e e₁ e₂ e₃ e₄: Expₑ p} {k : ℕ}
 
-def equiv (e₁ e₂ : Expₑ F) : Prop := e₁.eval = e₂.eval
+def equiv (e₁ e₂ : Expₑ p) : Prop := e₁.eval = e₂.eval
 
-instance : Setoid (Expₑ F) where
+instance : Setoid (Expₑ p) where
   r := Exp.equiv
   iseqv := Equivalence.comap eq_equivalence Exp.eval -- Just pullback the proof.
 
 private lemma equiv_iff_eval_eq_eval : e₁ ≈ e₂ ↔ e₁.eval = e₂.eval := by rfl
 
 @[simp]
-lemma eval_ofNat : (no_index(OfNat.ofNat k) : Expₑ F).eval = k := rfl
+lemma eval_ofNat : (no_index(OfNat.ofNat k) : Expₑ p).eval = k := rfl
 
 @[simp]
 lemma eval_add : (e₁ + e₂).eval = e₁.eval + e₂.eval := rfl
@@ -133,9 +130,9 @@ lemma eval_mul : (e₁ * e₂).eval = e₁.eval * e₂.eval := rfl
 lemma eval_sub : (e₁ - e₂).eval = e₁.eval - e₂.eval := rfl
 
 @[simp]
-lemma c_add_c_equiv_c_add : Exp.c (var := F) (x₁ + x₂) ≈ Exp.c x₁ + Exp.c x₂ := rfl
+lemma c_add_c_equiv_c_add : Exp.c (var := ZMod p) (x₁ + x₂) ≈ Exp.c x₁ + Exp.c x₂ := rfl
 
-example : 3 + 4 ≈ (7 : Expₑ F) := by
+example : 3 + 4 ≈ (7 : Expₑ p) := by
   -- show eval _ = eval _
   -- simp [eval]
   -- norm_num
@@ -174,10 +171,10 @@ inductive denotation (F : Type) : Type where
 
 inductive Circuit (p : ℕ) (var : Type) : Type where
   | nil : Circuit p var
-  | eq0 : Exp (ZMod p) var -> Circuit p var -> Circuit p var
+  | eq0 : Exp p var -> Circuit p var -> Circuit p var
   | lam : (var -> Circuit p var) -> Circuit p var
-  | share : Exp (ZMod p) var -> (var -> Circuit p var) -> Circuit p var
-  | is_zero : Exp (ZMod p) var -> (var -> Circuit p var) -> Circuit p var
+  | share : Exp p var -> (var -> Circuit p var) -> Circuit p var
+  | is_zero : Exp p var -> (var -> Circuit p var) -> Circuit p var
 
 abbrev Circuitₑ (p : ℕ) := Circuit p (ZMod p)
 -- TODO remove all ' definitions
@@ -247,7 +244,9 @@ def a : Circuit' 7 := fun _ => .lam (fun x => .lam (fun y => .eq0 (.v x + .v y) 
 
 end Test
 
-def eval (c : Circuitₑ p ) : denotation (ZMod p) :=
+variable [Fact (Nat.Prime p)]
+
+def eval (c : Circuitₑ p) : denotation (ZMod p) :=
   match c with
   | .nil => .u
   | .lam k => .l (fun x => eval (k x))
@@ -260,7 +259,7 @@ def eval (c : Circuitₑ p ) : denotation (ZMod p) :=
 def eval' (c : Circuit' p) : denotation (ZMod p) := eval (c (ZMod p))
 
 @[simp]
-lemma eval_eq0 {e : Expₑ (ZMod p)} {c : Circuitₑ p} :
+lemma eval_eq0 {e : Expₑ p} {c : Circuitₑ p} :
   (eq0 e c).eval = if e.eval = 0 then c.eval else .n := by
   simp [Circuit.eval]
 
@@ -270,12 +269,12 @@ lemma eval_lam {c : ZMod p → Circuitₑ p} :
   simp [Circuit.eval]
 
 @[simp]
-lemma eval_share {e : Expₑ (ZMod p)} {k : ZMod p → Circuitₑ p} :
+lemma eval_share {e : Expₑ p} {k : ZMod p → Circuitₑ p} :
   (share e k).eval = (k e.eval).eval := by
   simp [Circuit.eval]
 
 @[simp]
-lemma eval_is_zero {e : Expₑ (ZMod p)} {k : ZMod p → Circuitₑ p} :
+lemma eval_is_zero {e : Expₑ p} {k : ZMod p → Circuitₑ p} :
   (is_zero e k).eval = if e.eval = 0 then (k 1).eval else (k 0).eval := by
   simp [Circuit.eval]
 
@@ -292,7 +291,7 @@ instance : IsRefl (Circuitₑ p) (· ≈ ·) := inferInstance -- This is by `inf
 
 section
 
-variable {el er : Expₑ (ZMod p)} {cl cr : Circuitₑ p} {kl kr : ZMod p → Circuitₑ p}
+variable {el er : Expₑ p} {cl cr : Circuitₑ p} {kl kr : ZMod p → Circuitₑ p}
 
 @[gcongr]
 theorem eq0_congr (he : el ≈ er) (hc: cl ≈ cr) :

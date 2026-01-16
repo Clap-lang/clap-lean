@@ -39,7 +39,7 @@ def curry {a r:Type} (n:ℕ) (k:Vector a n -> r) : typ a r n :=
 
 #guard curry 2 (fun x => x[0]==0 && x[1]==1) 1 0 = True
 
-lemma equiv_eq0 : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat] (el:F p) (er:Exp (F p) (F p)) (cl:Option Unit) (cr:Circuit (F p) (F p)),
+lemma equiv_eq0 : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat] (el:F p) (er:Expₑ p) (cl:Option Unit) (cr:Circuitₑ p),
   el = Exp.eval er ->
   Simulation.s_bisim cl (Circuit.eval cr) ->
   Simulation.s_bisim (Option.bind (eq0 el) (fun () => cl)) (Circuit.eval (.eq0 er cr)) := by
@@ -61,7 +61,7 @@ lemma equiv_eq0 : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat] (el:F p) (er:Exp (F
     . apply hc
     . contradiction
 
-lemma equiv_share : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat] (el:F p) (er:Exp (F p) (F p)) (kl:F p -> Option Unit) (kr:F p -> Circuit (F p) (F p)),
+lemma equiv_share : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat] (el:F p) (er:Expₑ p) (kl:F p -> Option Unit) (kr:F p -> Circuitₑ p),
   el = Exp.eval er ->
   (∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) ->
   Simulation.s_bisim (bind (share el) kl) (Circuit.eval (.share er kr)) := by
@@ -93,7 +93,7 @@ def ex p (i: F p) : Option Unit := do
 --   bind (eq0 F (vi + i)) (fun () =>
 --   some ())))
 
-def ex_circuit_fun p : Circuit' (F p) := fun _ =>
+def ex_circuit_fun p : Circuit' p := fun _ =>
   .lam (fun i =>
   .eq0 (.v i) (
   .share (.v i) (fun vi =>
@@ -119,7 +119,7 @@ theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
     constructor
 
 theorem extract : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
-  ∃ c:Circuit (F p) (F p), Simulation.s_bisim (ex p) (Circuit.eval c) := by
+  ∃ c:Circuitₑ p, Simulation.s_bisim (ex p) (Circuit.eval c) := by
   intro p _ _
   unfold ex
   simp only [bind]
@@ -141,7 +141,7 @@ def ex p (is: Vector (F p) 2) : Option Unit := do
   eq0 (vi + is[1])
   accept ()
 
-def ex_circuit_fun p : Circuit' (F p) := fun _ =>
+def ex_circuit_fun p : Circuit' p := fun _ =>
   Circuit.curry 2 (fun is =>
   .eq0 (.v is[0]) (
   .share (.v is[0]) (fun vi =>
@@ -186,7 +186,7 @@ def ex p :=
   return accept ()
   )))
 
-def ex_circuit_fun p : Circuit' (F p) := fun _ =>
+def ex_circuit_fun p : Circuit' p := fun _ =>
   Circuit.curry 2 (fun xs =>
   Circuit.curry 2 (fun ys =>
   Circuit.curry 2 (fun zs =>
