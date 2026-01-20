@@ -158,6 +158,7 @@ def bits2num {w:ℕ} (bits : Vector (ZMod p) w) : (ZMod p) :=
 
 -- TODO one of these sorry definitions is causing the soundness kernel metavariable problem
 
+omit inst' in
 lemma rw_bisim_uncurry : ∀ (w : ℕ) (d : denotation (ZMod p)) (k : Vector (ZMod p) w -> Cs p (ZMod p)),
  (∀ args : Vector (ZMod p) w, rw_bisim d (k args).eval) ->
  rw_bisim d (Cs.curry k).eval := by
@@ -189,6 +190,7 @@ lemma Vector_succ_eq_head_cons_tail {α : Type} {n : ℕ} {args : Vector α n.su
     | .succ i =>
       simp [add_comm]
 
+omit inst' in
 lemma reduce₁ :
   ∀ {w : ℕ} {args : Vector (ZMod p) w} {cs : Cs p (ZMod p)},
     assert_bits args -> (assert_bits_e args cs).eval = cs.eval := by
@@ -239,6 +241,7 @@ induction w with
   unfold Exp.eval Exp.eval Exp.eval
   simp [this]
 
+omit inst' in
 lemma reduce₂ :
   ∀ {w : ℕ} {args : Vector (ZMod p) w} {e : Expₑ p} {cs : Cs p (ZMod p)},
     e.eval = bits2num args -> (Cs.eq0 (bits2num_e args - e) cs).eval = cs.eval := by
@@ -269,12 +272,14 @@ lemma reduce₂ :
       simp [ih, Exp.eval]
   simp [Cs.eval, h, this]
 
+omit inst' in
 lemma reduce {w : ℕ} {args : Vector (ZMod p) w} {e : Expₑ p} {cs : Cs p (ZMod p)} :
   assert_bits args /\ e.eval = bits2num args ->
     (assert_bits_e args (.eq0 (bits2num_e args - e) cs)).eval = cs.eval := by
   rintro ⟨h₁, h₂⟩
   rw [reduce₁ h₁, reduce₂ h₂]
 
+omit inst' in
 lemma fail₁ :
   ∀ {w : ℕ} {args : Vector (ZMod p) w} {cs : Cs p (ZMod p)},
     ¬ assert_bits args -> (assert_bits_e args cs).eval = .n := by
@@ -287,38 +292,108 @@ lemma fail₁ :
   | .zero =>
     simp at h
   | .succ w =>
-    have : ∀ j : ℕ, (assert_bits_e (args.extract (i - j)) cs).eval = denotation.n := by
-      intros j
+    have : ∀ j : ℕ, j > i → (assert_bits_e (args.extract 0 j) cs).eval = denotation.n := by
+      intros j j_ge_i
+      unfold assert_bits_e Vector.foldl
+      rw [
+        ←Array.foldl_toList, Vector.toArray_extract,
+        Array.toList_extract, List.extract_eq_drop_take,
+        Nat.sub_zero, List.drop_zero
+      ]
+
+      have h₀ : args.toArray.toList.get ⟨i, by convert h; simp⟩ ≠ 0 := by
+        simp only [Nat.succ_eq_add_one, Array.length_toList, List.get_eq_getElem,
+          Array.getElem_toList, Vector.getElem_toArray, ne_eq]
+        exact h'
+      have h₁ : args.toArray.toList.get ⟨i, by convert h; simp⟩ ≠ 1 := by
+        simp only [Nat.succ_eq_add_one, Array.length_toList, List.get_eq_getElem,
+          Array.getElem_toList, Vector.getElem_toArray, ne_eq]
+        exact h''
+
+      generalize h_eq : args.toArray.toList = ls
+      simp only [Nat.succ_eq_add_one, Array.length_toList, List.get_eq_getElem, h_eq,
+        ne_eq] at h₀ h₁
+
+      have h_len : ls.length = w.succ := by
+        simp [←h_eq]
+
+
+      rw [←h_len] at h
+      revert cs
       induction j with
       | zero =>
-        unfold assert_bits_e Vector.foldl -- assert_bit_e Cs.eval
-        rw [Nat.sub_zero]
-        have := Vector_succ_eq_head_cons_tail (n := w) (args := args)
-        simp only [Nat.succ_eq_add_one, Nat.add_one_sub_one, Vector.tail_eq_cast_extract,
-          Vector.insertIdx_zero] at this
-        rw [this] at h' h'' ⊢
-        simp
+        simp at j_ge_i
+      | succ j ih =>
+        intro cs
+        rcases Order.lt_succ_iff_eq_or_gt.mp j_ge_i with h' | h'
+        · simp only [Nat.add_eq, add_zero] at h'
+          rw [h']
+          rw [List.take_succ_eq_append_getElem h, List.foldl_append, List.foldl_cons, List.foldl_nil]
+          unfold assert_bit_e Cs.eval
+          split_ifs with h''
+          · exfalso
+            simp only [Exp.eval] at h''
+            rw [mul_eq_zero] at h''
+            rcases h'' with h'' | h''
+            · exact h₀ h''
+            · apply h₁
+              have h'' := add_eq_of_eq_sub h''.symm
+              rw [zero_add] at h''
+              exact h''
+          · rfl
+        · simp only [Nat.add_eq, add_zero] at h'
+          specialize @ih h'
+          by_cases h' :  j < ls.length
+          · rw [List.take_succ_eq_append_getElem h', List.foldl_append, List.foldl_cons, List.foldl_nil]
+            unfold assert_bit_e Cs.eval
+            split_ifs with h''
+            · exact ih
+            · rfl
+          · rw [not_lt] at h'
+            have : List.take (j + 1) ls = List.take j ls := by
+              rw [List.take_eq_take_iff]
+              simp only [h', inf_of_le_right, inf_eq_right]
+              exact Nat.le_add_right_of_le h'
+            rw [this]
+            exact ih
 
-        -- have := @List.Vector
-
-        -- have {α : Type} {n m : ℕ} {v : Vector α n} {h : n = m} : (Vector.cast )
-
-        sorry
-      | succ i ih =>
-
-        sorry
-    specialize this i
-    rw [Nat.sub_self] at this
+    specialize this w.succ h
     simp only [Nat.succ_eq_add_one, Nat.sub_zero, Vector.extract_size] at this
     convert this using 1
 
+omit inst' in
 lemma fail₂ :
   ∀ {w : ℕ} {args : Vector (ZMod p) w} {e : Expₑ p} {cs : Cs p (ZMod p)},
     e.eval ≠ (bits2num args) -> (Cs.eq0 (bits2num_e args - e) cs).eval = .n := by
   intros w args e cs h
   unfold Cs.eval Exp.eval
-  sorry
+  split_ifs with h'
+  · exfalso
+    apply h
+    rw [sub_eq_zero, eq_comm] at h'
+    rw [h']
+    unfold bits2num bits2num_e Vector.foldl
+    rw [
+        ←Array.foldl_toList, ←Array.foldl_toList
+      ]
+    generalize z_eq : (0 : ZMod p) = x
+    generalize h_exp : (Exp.c x) = x_exp
+    generalize arr_exp : args.toArray.toList = ls
+    have h'' : x_exp.eval = x := by
+      rw [←h_exp, Exp.eval]
+    clear z_eq arr_exp h_exp
+    revert x x_exp
+    induction ls with
+    | nil =>
+      simp
+    | cons l ls ih =>
+      intros x x_exp h
+      simp only [List.foldl_cons]
+      apply ih
+      simp only [Exp.eval, h]
+  · rfl
 
+omit inst' in
 lemma fail : ∀ {w : ℕ} {args : Vector (ZMod p) w} {e : Expₑ p} {cs : Cs p (ZMod p)},
  (¬ (assert_bits args /\ e.eval = bits2num args)) ->
  (assert_bits_e args (.eq0 (bits2num_e args - e) cs)).eval = denotation.n := by
@@ -499,29 +574,37 @@ theorem soundness :
     · rw [fail₁ cond₁]
       exact rw_bisim.none _
   | div_rem e c ih =>
-    apply rw_bisim.right
-    intro d
-    apply rw_bisim.right
-    intro r
-    apply rw_bisim_uncurry
-    intros bits
-    simp [Circuit.eval]
-    by_cases h : assert_bits bits = true
-    · rw [reduce₁ h]
-      by_cases h' : Exp.eval (Exp.v r) = bits2num bits
-      · rw [reduce₂ h']
-        unfold Cs.eval
-        split_ifs with h'
-        ·
-          have h₁ : d = ((e.eval.val / 256) : ℕ) := by sorry
-          have h₂ : r = ((e.eval.val % 256) : ℕ) := by sorry
-          rw [h₁, h₂]
-          exact ih _
-        · exact rw_bisim.none _
-      · rw [@fail₂ p _ _ 8 bits (Exp.v r) _ h']
-        exact rw_bisim.none _
-    · rw [fail₁ h]
-      exact rw_bisim.none _
+    sorry
+    -- apply rw_bisim.right
+    -- intro d
+    -- apply rw_bisim.right
+    -- intro r
+    -- apply rw_bisim_uncurry
+    -- intros bits
+    -- simp [Circuit.eval]
+    -- by_cases h : assert_bits bits = true
+    -- · rw [reduce₁ h]
+    --   by_cases h' : Exp.eval (Exp.v r) = bits2num bits
+    --   · rw [reduce₂ h']
+    --     unfold Cs.eval
+    --     split_ifs with h'
+    --     ·
+    --       have h₁ : d = ((e.eval.val / 256) : ℕ) := by
+    --         simp only [Exp.eval] at h'
+
+
+    --         sorry
+    --       have h₂ : r = ((e.eval.val % 256) : ℕ) := by sorry
+    --       rw [h₁, h₂]
+    --       exact ih _
+    --     · exact rw_bisim.none _
+    --   · rw [@fail₂ p _ _ 8 bits (Exp.v r) _ h']
+    --     exact rw_bisim.none _
+    -- · rw [fail₁ h]
+    --   exact rw_bisim.none _
+
+-------------------------------------------------------------------
+
 --       have := @fail₁
 
 --     split
@@ -539,9 +622,6 @@ theorem soundness :
 -- --      have hr : (r:F) = ↑(Coe.coe e.eval % 256) := sorry
 -- --      rw [<-hr]
 --     sorry
-
-#check Cs.eval ∘ to_cs
-#check Circuit.eval
 
 theorem soundness' : ∀ (c:Circuit' p),
   rw_bisim (Circuit.eval' c) (Cs.eval' (to_cs' c)) := by
@@ -580,7 +660,10 @@ def completeness : ∀ (c:Circuit p (ZMod p)),
       case isFalse he0' =>
         simp [*] at *
   | assert_range e c h =>
+    unfold to_wg to_cs wrap
+    simp only [Circuit.eval_assert_range]
+
     sorry
   | div_rem e c h =>
-    simp [Exp.eval,Circuit.eval,Cs.eval,to_cs,to_wg,wrap]
+    -- simp [Exp.eval,Circuit.eval,Cs.eval,to_cs,to_wg,wrap]
     sorry
