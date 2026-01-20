@@ -11,3 +11,6 @@ import Clap.Dedup
 import Clap.Spec
 import Clap.SpecUint
 import Clap.Wheels
+import Clap.Sha2Ops
+import Clap.Sha2
+import Clap.Sha2Test

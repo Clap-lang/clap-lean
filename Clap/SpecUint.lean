@@ -19,8 +19,8 @@ instance : CoeOut (FB p) ℕ where
 instance : CoeOut (@Valid p) (FB p) where
   coe x := x.val
 
-instance : CoeOut (@Valid p) ℕ where
-  coe x := x.val
+-- instance : CoeOut (@Valid p) ℕ where
+--   coe x := x.val
 
 def true (h:p≠1): @Valid p := ⟨1, by simp [isValid]; rw [ZMod.val_one''] ; simp ; assumption⟩
 def false : @Valid p := ⟨0, by simp [isValid]⟩
@@ -42,8 +42,8 @@ instance : CoeOut (FU8 p) ℕ where
 instance : CoeOut (@Valid p) (FU8 p) where
   coe x := x.val
 
-instance : CoeOut (@Valid p) ℕ where
-  coe x := x.val
+-- instance : CoeOut (@Valid p) ℕ where
+--   coe x := x.val
 
 def mk (x:FU8 p) : Option Unit := Spec.assert_range 8 x
 
@@ -55,14 +55,17 @@ def add (a b : FU8 p) : Option (FU8 p) := do
   Spec.assert_range 8 o
   o
 
-instance : Coe Nat (FU8 p) where
-  coe n := n
+-- instance : Coe Nat (FU8 p) where
+--   coe n := n
 
 instance : Coe UInt8 (FU8 p) where
   coe n := n.toNat
 
-instance {n:Nat} : OfNat (FU8 p) n where
-  ofNat := n
+-- instance {n:Nat} : OfNat (FU8 p) n where
+--   ofNat := n
+
+-- instance : Coe Nat (FU8 p) where
+--   coe n := n
 
 end FU8
 
@@ -81,16 +84,16 @@ instance : CoeOut (FU32 p) ℕ where
 instance : CoeOut (@Valid p) (FU32 p) where
   coe x := x.val
 
-instance : CoeOut (@Valid p) ℕ where
-  coe x := x.val
+-- instance : CoeOut (@Valid p) ℕ where
+--   coe x := x.val
 
 def mk (x:FU32 p) : Option Unit := Spec.assert_range 32 x
 
 def mk_some (x:FU32 p) (h:x.val<2^32) : x.mk = some () := by
   aesop (add simp [mk,Spec.assert_range,Spec.num2bits])
 
-instance : Coe (FU8 p) (FU32 p) where
-  coe u8 := u8
+-- instance : Coe (FU8 p) (FU32 p) where
+--   coe u8 := u8
 
 def addOption (a b : FU32 p) : Option (FU32 p) := do
   let o := a + b
@@ -166,5 +169,16 @@ lemma roundrip2 (bs:Array (FU8 p)) :
 #guard of_nat_be (p:=Primes.babybear) (to_nat_be  (p:=Primes.babybear) #[255,1]) 2 = #[255,1]
 
 end ByteArray
+
+#check BitVec
+
+abbrev FBitVec p := List (ZMod p)
+
+namespace BitVec
+
+-- def decompose {h:2^32<p} (e:FU32 p) : FBitVec 32 p :=
+--   Spec.assert_range e 32
+
+end BitVec
 
 end Clap.Spec
