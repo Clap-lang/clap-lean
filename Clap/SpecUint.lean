@@ -110,7 +110,6 @@ def F.lessThanEq (w : ℕ) (a b : F p) : Option (FB p) := do
 /-- LSB first, like the output of num2bits -/
 abbrev FBitVec := List (FB p)
 
-
 def FBitVec.toF (v : FBitVec (p:=p)) : F p :=
   aux (1:ZMod p) (const 0) v
 where
