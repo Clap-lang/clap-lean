@@ -16,3 +16,6 @@ import Clap.Sha2
 import Clap.Sha2Test
 import Clap.Milestone
 import Clap.R1CS
+import Clap.Sha2Ops
+import Clap.Sha2
+import Clap.Sha2Test
