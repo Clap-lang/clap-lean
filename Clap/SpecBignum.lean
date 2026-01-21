@@ -5,46 +5,58 @@ namespace Clap
 section Wheels
 
 def minBits (x : ℕ) : ℕ :=
+  if x = 0 then 1 else
   let nb := Nat.log2 x
-  if 2^nb < x then nb + 1 else nb
+  if 2^nb ≤ x then nb + 1 else nb
 
-#eval minBits 0
-#eval minBits 1
-#eval minBits 2
+-- theorem Nat.log2_one : Nat.log2 1 = 0 := by
+--   simp [Nat.log2_def]
 
-theorem Nat.log2_one : Nat.log2 1 = 0 := by
-  simp [Nat.log2_def]
-
-lemma minBits_eq_zero x : minBits x = 0 ↔ x = 0 ∨ x = 1 := by
-  apply Iff.intro <;> intro h
-  · rcases x with _ | x; simp
-    dsimp [minBits] at h; split_ifs at h
-    rcases x with _ | x
-    · simp
-    · grind
-  · rcases h with h' | h' <;>
-      rw [h']; simp [minBits]; try apply Nat.log2_one
+-- lemma minBits_eq_zero x : minBits x = 0 ↔ x = 0 ∨ x = 1 := by
+--   apply Iff.intro <;> intro h
+--   · rcases x with _ | x; simp
+--     dsimp [minBits] at h; split_ifs at h
+--     rcases x with _ | x
+--     · simp
+--     · grind
+--   · rcases h with h' | h' <;>
+--       rw [h']; simp [minBits]; try apply Nat.log2_one
 
 def minBytes (x : ℕ) : ℕ :=
   let nb := minBits x
   let nb8 := nb / 8
   if nb % 8 = 0 then nb8 else nb8 + 1
 
-lemma minBytes_eq_zero x : minBytes x = 0 ↔ x = 0 ∨ x = 1 := by
-  apply Iff.intro <;> intro h
-  · rcases x with _ | x; simp
-    dsimp [minBytes] at h
-    by_cases h' : minBits (x + 1) % 8 = 0
-    · rw [if_pos h'] at h
-      rcases (Nat.dvd_of_mod_eq_zero h') with w
-      have : minBits (x + 1) = 0 := by apply Nat.eq_zero_of_dvd_of_div_eq_zero <;> assumption
-      apply minBits_eq_zero (x + 1) |>.mp at this
-      assumption
-    · rw [if_neg h'] at h
-      have := (@Nat.div_eq_zero_iff_lt 8 (minBits (x + 1)) (by simp))
-      sorry
-  · rcases h with h' | h' <;> rw [h'] <;> simp [minBytes, minBits]
-    split_ifs <;> rw [Nat.log2_one] at *; grind
+#eval minBytes 0           -- 1
+#eval minBytes (256^1 - 1) -- 1
+
+#eval minBytes (256^1)     -- 2
+#eval minBytes (256^2 - 1) -- 2
+
+#eval minBytes (256^2)     -- 3
+#eval minBytes (256^3 - 1) -- 3
+
+#eval minBytes (256^3)     -- 4
+#eval minBytes (256^4 - 1) -- 4
+
+#eval minBytes (256^4)     -- 5
+#eval minBytes (256^5 - 1) -- 5
+
+-- lemma minBytes_eq_zero x : minBytes x = 0 ↔ x = 0 ∨ x = 1 := by
+--   apply Iff.intro <;> intro h
+--   · rcases x with _ | x; simp
+--     dsimp [minBytes] at h
+--     by_cases h' : minBits (x + 1) % 8 = 0
+--     · rw [if_pos h'] at h
+--       rcases (Nat.dvd_of_mod_eq_zero h') with w
+--       have : minBits (x + 1) = 0 := by apply Nat.eq_zero_of_dvd_of_div_eq_zero <;> assumption
+--       apply minBits_eq_zero (x + 1) |>.mp at this
+--       assumption
+--     · rw [if_neg h'] at h
+--       have := (@Nat.div_eq_zero_iff_lt 8 (minBits (x + 1)) (by simp))
+--       sorry
+--   · rcases h with h' | h' <;> rw [h'] <;> simp [minBytes, minBits]
+--     split_ifs <;> rw [Nat.log2_one] at *; grind
 
 lemma ZMod_add_no_overflow {p : ℕ} (a b : ZMod p) (h : a.val + b.val < p) :
   (a + b).val = a.val + b.val :=
