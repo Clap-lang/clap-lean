@@ -1,4 +1,5 @@
 import Clap.Spec
+import Mathlib.Data.List.DropRight
 
 namespace Clap
 
@@ -202,13 +203,13 @@ def toNat (bs : Array (FU8 p)) : ℕ :=
 #guard toNat (p := prime_babybear) #[1,2,3] = 3*256*256 + 2*256 + 1
 #guard toNat (p := prime_babybear) #[2,0,1,0] = 65536 + 2
 
-lemma eq_ofNat_toNat (x len : ℕ) (h : minBytes x ≤ len) :
-  toNat (ofNat (p := p) x len) = x :=
-by
-  induction len
-  · simp [toNat, ofNat, ofNat.aux]; simp at h; rw [minBytes_eq_zero] at h
-    sorry
-  · sorry
+-- lemma eq_ofNat_toNat (x len : ℕ) (h : minBytes x ≤ len) :
+--   toNat (ofNat (p := p) x len) = x :=
+-- by
+--   induction len
+--   · simp [toNat, ofNat, ofNat.aux]; simp at h; rw [minBytes_eq_zero] at h
+--     sorry
+--   · sorry
 
 #guard let n : ℕ := 255  + 1; toNat (ofNat (p := prime_babybear) n 2) = n
 #guard let n : ℕ := 2^16 + 2; toNat (ofNat (p := prime_babybear) n 3) = n
@@ -397,6 +398,84 @@ open ByteArray
 #guard mulBignum (ofNat' 70666) (ofNat' 66051) = ofNat' (70666 * 66051)
 #guard mulBignum (ofNat' 13145610) (ofNat' 1318405) = ofNat' (13145610 * 1318405)
 end ex
+
+-- ugly. If we try to remove trailling zeros from this zero number [0,0,0] it returns []
+-- which is wrong.
+def removeTraillingZeros (a : List (FU8 p)) : List (FU8 p) :=
+  let l := List.rdropWhile (· = 0) a
+  if l = [] then [0] else l
+
+-- Correct way?
+instance : Ord (ZMod p) where
+  compare x y := compare x.val y.val
+
+-- Compare two BigNums (Little-Endian). We reverse them to compare MSB first.
+def compareBignum (a b : Array (FU8 p)) : Ordering :=
+  let a' := removeZeros a.reverse
+  let b' := removeZeros b.reverse
+  List.compareLex compare a' b'
+where
+  removeZeros := List.dropWhile (· = 0) ∘ Array.toList
+
+section ex
+open ByteArray Ordering
+
+#guard compareBignum (ofNat' 70666) (ofNat' 66051) = gt
+#guard compareBignum (ofNat' 1318405) (ofNat' 13145610) = lt
+#guard compareBignum (p := prime_babybear) #[0] #[0] = eq
+#guard compareBignum (p := prime_babybear) #[1, 0, 0] #[1, 0, 0] = eq
+end ex
+
+-- Subtracts ys from xs (xs - ys). Assumes xs >= ys. TODO: how to handle ys < xs cases
+-- Precondition: xs >= ys (Value of xs must be >= Value of ys)
+def subBignum (xs ys : Array (FU8 p)) : Option (Array (FU8 p)) :=
+  (List.toArray <$> removeTraillingZeros <$> subWithBorrow 0 xs.toList ys.toList)
+where
+  subWithBorrow b xs ys := do
+    match b, xs, ys with
+    -- Case 1: Both lists empty. If borrow > 0, we had an underflow (Precondition violated).
+    | 0, [], [] => .some []
+    | _, [], [] => .none
+
+    -- Case 2: ys runs out. We still might have a borrow to subtract from xs.
+    | b, (x :: xs), [] =>
+      if x.val ≥ b then .some ((x - b) :: xs) -- No new borrow needed, rest of xs remains as is.
+      else (x + 2^8 - b) :: (← subWithBorrow 1 xs [])
+
+    -- Case 3: xs runs out but ys remains. Impossible if xs >= ys.
+    | _, [], (_ :: _) => .none
+
+    -- Case 4: Both lists have limbs.
+    | b, (x :: xs), (y :: ys) =>
+      let s := y + b
+      -- No borrow needed for next step
+      if x.val ≥ s then (x - s) :: (← subWithBorrow 0 xs ys)
+      -- Borrow needed: "Add" base to current digit, "borrow" 1 from next
+      else ((x + 2^8) - s) :: (← subWithBorrow 1 xs ys)
+
+
+section ex
+open ByteArray Ordering
+
+#guard subBignum (ofNat' 4321) (ofNat' 1234) = .some (ofNat' (4321 - 1234))
+#guard subBignum (ofNat' 4321) (ofNat' 1234) = ofNat' (4321 - 1234)
+#guard subBignum (ofNat' 1234) (ofNat' 4321) = .none
+#guard subBignum (ofNat' 1234) (ofNat' 1234) = ofNat' 0
+end ex
+
+-- def subBignum (xs ys : Array (FU8 p)) : Option (List (FU8 p)) :=
+--   subWithBorrow 0 xs.toList ys.toList
+-- where
+--   subWithBorrow (b : ℕ) xs ys := do
+--     match xs,ys with
+--     | [], [] => .some []
+--     | l@(_ :: _), [] => subWithBorrow b l [0] -- pad b with 0
+--     | [], l@(_ :: _) => .none -- error negative result
+--     | (x :: xs), (y :: ys) =>
+--       let diff : Int := x - y - b -- How to deal with this using nats?
+--       if diff < 0
+--         then .some ((diff + 2^8) :: (←subWithBorrow 1 xs ys))
+--         else .some (diff :: (←subWithBorrow 0 xs ys))
 
 end Bignum
 
