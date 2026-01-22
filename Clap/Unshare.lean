@@ -4,9 +4,7 @@ import Clap.Id
 
 namespace Clap
 
-namespace Unshare
-
-variable {p : ℕ} [Fact (Nat.Prime p)]
+variable {p : ℕ}
 
 /-
   Unshare optimization - inlines an expression previously shared.
@@ -24,29 +22,20 @@ variable {p : ℕ} [Fact (Nat.Prime p)]
   I's basically like in the Hoas case.
 -/
 
-def unshare_all_F (c : Circuitₑ p) : Circuitₑ p :=
+def Circuit.unshareAllF (c : Circuitₑ p) : Circuitₑ p :=
   match c with
   | .nil => .nil
-  | .eq0 e c => .eq0 e (unshare_all_F c)
-  | .lam k => .lam (fun x => unshare_all_F (k x))
-  | .is_zero e k => .is_zero e (fun x => unshare_all_F (k x))
-  --
-  | .share e k => k (Exp.eval e)
+  | .eq0 e c => .eq0 e c.unshareAllF
+  | .lam k => .lam fun x => (k x).unshareAllF
+  | .is_zero e k => .is_zero e fun x => (k x).unshareAllF
+  | .share e k => k e.eval
 
--- TODO use congr squash proof
-theorem unshare_all_sem_pre_F : ∀ (c : Circuitₑ p),
-  c ≈ unshare_all_F c := by
-  intros c
-  induction c with
-  | lam k h =>
-    apply Circuit.lam_congr
-    exact h
-  | nil =>
-    simp [unshare_all_F]
-  | eq0 e c h
-  | is_zero e c h
-  | share e c h =>
-    (first | apply Circuit.eq0_congr | apply Circuit.is_zero_congr | apply Circuit.share_congr) <;> repeat (first | simp | assumption)
+theorem unshare_all_sem_pre_F {c : Circuitₑ p} : c ≈ c.unshareAllF := by
+  induction c <;> unfold Circuit.unshareAllF
+  any_goals gcongr
+  grind
+  constructor
+  grind
 
 /-
   Id presents a simple example of optimization pass that does not use
@@ -60,92 +49,38 @@ theorem unshare_all_sem_pre_F : ∀ (c : Circuitₑ p),
 -/
 open Id
 
-def unshare_all {var} (c : Circuit p (Exp p var)) : Circuit p var :=
+def Circuit.unshareAll {var} (c : Circuit p (Exp p var)) : Circuit p var :=
   match c with
   | .nil => .nil
-  | .eq0 e c => .eq0 (unwrap_e e) (unshare_all c)
-  | .lam k => .lam (fun x => unshare_all (k (.v x)))
-  | .is_zero e k => .is_zero (unwrap_e e) (fun x => unshare_all (k (.v x)))
-  --
-  | .share e k => unshare_all (k (unwrap_e e))
+  | .eq0 e c => .eq0 e.unwrap c.unshareAll
+  | .lam k => .lam fun x ↦ (k (.v x)).unshareAll
+  | .is_zero e k => .is_zero e.unwrap fun x ↦ unshareAll (k (.v x))
+  | .share e k => (k e.unwrap).unshareAll
 
-def unshare_all' (c:Circuit' p) : Circuit' p := fun var => unshare_all (c (Exp p var))
+namespace TestS
 
-namespace Test
+def a {var} : Circuit 7 var := Circuit.lam (fun x => Circuit.share (.c 1 + .v x) (fun x => Circuit.eq0 (.v x) Circuit.nil))
+def expected_a {var} : Circuit 7 var := Circuit.lam (fun x => Circuit.eq0 (.c 1 + .v x) Circuit.nil)
 
-def a : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.share (.c 1 + .v x) (fun x => Circuit.eq0 (.v x) Circuit.nil))
-def expected_a : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.eq0 (.c 1 + .v x) Circuit.nil)
+#guard s!"{a.unshareAll (var := Nat)}" = s!"{expected_a (var := Nat)}"
 
-#guard s!"{unshare_all' a Nat}" = s!"{expected_a Nat}"
+end TestS
 
-end Test
-
-theorem unshare_all_sem_pre : ∀ (cl : Circuit p (ZMod p)) (cr : Circuit p (Exp p (ZMod p))) G,
-  wf G cl cr ->
-   List.Forall (fun entry => entry.l = (Exp.eval entry.r)) G ->
-   cl ≈ (unshare_all cr)
-:= by
-  intros cl
-  induction cl with
-  -- only interesting case
-  | share el kl h =>
-    intros cr G wf FA
-    cases wf
-    case _ kr wf_e wf =>
-    simp [unshare_all]
-    apply h
-    . apply wf
-    . rw [List.forall_cons]
-      constructor
-      simp
-      apply unwrap_e_sem_pre
-      repeat assumption
-  -- all other cases are like Id
-  | nil =>
-    intros cr G wf FA
-    cases wf
-    simp [unshare_all]
-  | lam kl h =>
-    intros cr G wf FA
-    cases wf
-    case _ kr wf =>
-    apply Circuit.lam_congr
-    intro x
-    apply h
-    apply wf
-    rw [List.forall_cons]
-    simp [Exp.eval]
-    assumption
-  | eq0 el cl h =>
-    intros cr G wf FA
-    cases wf
-    case _ er cr wf_e wf =>
-    apply Circuit.eq0_congr
-    . apply unwrap_e_sem_pre
-      repeat assumption
-    . apply h
-      repeat assumption
-  | is_zero el kl h =>
-    intro cr G wf FA
-    cases wf
-    case _ er kr' wf_e wf =>
-    apply Circuit.is_zero_congr
-    . apply unwrap_e_sem_pre
-      repeat assumption
-    . intro x
-      apply h
-      apply wf
-      rw [List.forall_cons]
-      simp [Exp.eval]
-      assumption
-
-theorem unshare_sem_pre' : ∀ (cl: Circuit' p),
-  wf' cl ->
-   cl ≈ (unshare_all' cl) := by
-  intro cl wf
-  apply unshare_all_sem_pre
-  apply wf
-  simp
+theorem unshare_all_sem_pre {cl : Circuitₑ p} {cr : Circuit p (Expₑ p)} {G}
+  (h₁ : Circuit.wf G cl cr)
+  (h₂ : ∀ entry ∈ G, entry.1 = entry.2.eval) : cl ≈ cr.unshareAll := by
+  induction cl generalizing cr G <;> cases h₁ <;> unfold Circuit.unshareAll
+  · rfl
+  · gcongr <;> grind [<= unwrap_e_sem_pre]
+  next ih _ h => gcongr; apply ih; apply h; grind [= Exp.eval]
+  next ih _ _ wf h =>
+    simp [Circuit.equiv_iff_eval_eq_eval]
+    apply ih _ (h _ _) _; simp
+    exact ⟨unwrap_e_sem_pre wf h₂, by grind⟩
+  next ih _ _ wf h =>
+    gcongr <;> [grind [<= unwrap_e_sem_pre]; skip]
+    apply ih _ (h _ _) _; simp
+    exact ⟨by simp [Exp.eval], by grind⟩
 
 /-
   Unsharing/Inlining all expressions leads to constraints of arbitrary
@@ -208,47 +143,41 @@ e = x^2 * a
 ```
 -/
 
-def degree {var} (e : Exp p var) : Nat :=
-  match e with
+def Exp.degree {var} : Exp p var → Nat
   | .v _ => 1
   | .c _ => 0
-  | .add l r
-  | .sub l r => max (degree l) (degree r)
-  | .mul l r => (degree l) + (degree r)
+  | .add l r | .sub l r => max l.degree r.degree
+  | .mul l r => l.degree + r.degree
 
-def unshare_deg_cps {var} (c : Circuit p (Exp p var)) (k : Bool × Circuit p var -> Circuit p var) : Circuit p var :=
+def Circuit.unshareDegCps {var} (c : Circuit p (Exp p var))
+                                (k : Bool × Circuit p var → Circuit p var) : Circuit p var :=
   match c with
-  | .nil => k (true,.nil)
+  | .nil => k (true, .nil)
   | .eq0 e c =>
-     let be := degree e <= 2
-     unshare_deg_cps c (fun (b,c) => k (b && be, .eq0 (unwrap_e e) c))
-  | .lam k' => .lam (fun x => unshare_deg_cps (k' (.v x)) k)
+     c.unshareDegCps fun (b, c) => k (b && e.degree <= 2, .eq0 e.unwrap c)
+  | .lam k' => .lam fun x => (k' (.v x)).unshareDegCps k
   | .is_zero e k' =>
-     let be := degree e <= 2
-    .is_zero (unwrap_e e) (fun x => unshare_deg_cps (k' (.v x)) (fun (b,c) => k (b && be, c)))
-  --
+    .is_zero e.unwrap fun x => unshareDegCps (k' (.v x)) (fun (b, c) => k (b && e.degree <= 2, c))
   | .share e k' =>
-    let be := degree e <= 2
-    unshare_deg_cps (k' (unwrap_e e)) (fun (b,c) =>
-      if b && be
+    unshareDegCps (k' e.unwrap) fun (b,c) =>
+      if b && e.degree <= 2
       then k (true, c)
-      else .share (unwrap_e e) (fun x => unshare_deg_cps (k' (.v x)) k))
+      else .share e.unwrap fun x => unshareDegCps (k' (.v x)) k
 
-def unshare_deg {var} (c : Circuit p (Exp p var)) : Circuit p var := unshare_deg_cps c (fun (b,x) => if b then x else id c)
+def Circuit.unshareDeg {var} (c : Circuit p (Exp p var)) : Circuit p var :=
+  unshareDegCps c fun (b, x) ↦ if b then x else id c
 
-def unshare_deg' (c : Circuit' p) : Circuit' p := fun var => unshare_deg (c (Exp p var))
+namespace TestStuff
 
-namespace Test
+def do_optimize {var} : Circuit 7 var := Circuit.lam (fun x => Circuit.share (.v x * .v x) (fun x => Circuit.eq0 (.v x) Circuit.nil))
 
-def do_optimize : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.share (.v x * .v x) (fun x => Circuit.eq0 (.v x) Circuit.nil))
+def expected_optimized {var} : Circuit 7 var := Circuit.lam (fun x => Circuit.eq0 (.v x * .v x) Circuit.nil)
 
-def expected_optimized : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.eq0 (.v x * .v x) Circuit.nil)
+def do_not_optimize {var} : Circuit 7 var := Circuit.lam (fun x => Circuit.share (.v x * .v x * .v x) (fun x => Circuit.eq0 (.v x) Circuit.nil))
 
-def do_not_optimize : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.share (.v x * .v x * .v x) (fun x => Circuit.eq0 (.v x) Circuit.nil))
+#guard s!"{do_optimize.unshareDeg (var := Nat)}" = s!"{expected_optimized (var := Nat)}"
+#guard s!"{do_not_optimize.unshareDeg (var := Nat)}" = s!"{do_not_optimize (var := Nat)}"
 
-#guard s!"{unshare_deg' do_optimize Nat}" = s!"{expected_optimized Nat}"
-#guard s!"{unshare_deg' do_not_optimize Nat}" = s!"{do_not_optimize Nat}"
+end TestStuff
 
-end Test
-
-end Unshare
+end Clap
