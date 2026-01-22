@@ -199,12 +199,6 @@ namespace Circuit
 
 variable {p : ℕ} {var : Type}
 
-@[reducible]
-def curry (n : ℕ) (body : Vector var n -> Circuit p var) : Circuit p var :=
-  match n with
-  | 0 => body ⟨#[], by rfl⟩
-  | n+1 => .lam (fun x:var => curry n (fun l => body (l.append ⟨#[x],by rfl⟩) ))
-
 /--
 In order to print a Circuit we need to turn variables into Debrujin levels. We need a family of types that map from ℕ.
 
@@ -259,25 +253,21 @@ def eval : Circuitₑ p → denotation (ZMod p)
 
 def eval' (c : Circuit' p) : denotation (ZMod p) := eval (c (ZMod p))
 
-@[simp]
-lemma eval_eq0 {e : Expₑ p} {c : Circuitₑ p} :
-  (eq0 e c).eval = if e.eval = 0 then c.eval else .n := by
-  simp [Circuit.eval]
+variable {e : Expₑ p} {c : Circuitₑ p} {cont : ZMod p → Circuitₑ p}
 
 @[simp]
-lemma eval_lam {c : ZMod p → Circuitₑ p} :
-  (lam c).eval = .l fun x ↦ (c x).eval := by
-  simp [Circuit.eval]
+lemma eval_eq0 :
+  (eq0 e c).eval = if e.eval = 0 then c.eval else .n := rfl
 
 @[simp]
-lemma eval_share {e : Expₑ p} {k : ZMod p → Circuitₑ p} :
-  (share e k).eval = (k e.eval).eval := by
-  simp [Circuit.eval]
+lemma eval_lam : (lam cont).eval = .l fun x ↦ (cont x).eval := rfl
 
 @[simp]
-lemma eval_is_zero {e : Expₑ p} {k : ZMod p → Circuitₑ p} :
-  (is_zero e k).eval = if e.eval = 0 then (k 1).eval else (k 0).eval := by
-  simp [Circuit.eval]
+lemma eval_share : (share e cont).eval = (cont e.eval).eval := rfl
+
+@[simp]
+lemma eval_is_zero :
+  (is_zero e cont).eval = if e.eval = 0 then (cont 1).eval else (cont 0).eval := rfl
 
 def equiv (c₁ c₂ : Circuitₑ p) : Prop := c₁.eval = c₂.eval
 
