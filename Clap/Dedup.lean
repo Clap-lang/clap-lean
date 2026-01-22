@@ -16,46 +16,42 @@ namespace Clap
   in term of constraints.
 -/
 
-namespace Dedup
+variable {p : ℕ} {var : Type}
 
-variable {p : ℕ} [Fact (Nat.Prime p)]
-
-def to_nat {var : Type} (e : Exp p (ℕ × var)) : Exp p ℕ :=
-  match e with
-  | .v (v, _) => .v v
+def Exp.toNat : Exp p (ℕ × var) → Exp p ℕ
+  | .v (var, _) => .v var
   | .c f => .c f
-  | .add l r => to_nat l + to_nat r
-  | .mul l r => to_nat l * to_nat r
-  | .sub l r => to_nat l - to_nat r
+  | .add l r => l.toNat + r.toNat
+  | .mul l r => l.toNat * r.toNat
+  | .sub l r => l.toNat - r.toNat
 
-def to_var {var : Type} (e : Exp p (ℕ × var)) : Exp p var :=
-  match e with
-  | .v (_, v) => .v v
+def Exp.toVar : Exp p (ℕ × var) → Exp p var
+  | .v (_, var) => .v var
   | .c f => .c f
-  | .add l r => to_var l + to_var r
-  | .mul l r => to_var l * to_var r
-  | .sub l r => to_var l - to_var r
+  | .add l r => l.toVar + r.toVar
+  | .mul l r => l.toVar * r.toVar
+  | .sub l r => l.toVar - r.toVar
 
-def beq : (e1 e2 : Exp p Nat) -> Bool
+def Exp.beq : Exp p Nat → Exp p Nat → Bool
   | .v n1, .v n2
   | .c n1, .c n2 => n1 = n2
   | .add ll lr, .add rl rr => beq ll rl && beq lr rr
   | .mul ll lr, .mul rl rr => beq ll rl && beq lr rr
   | .sub ll lr, .sub rl rr => beq ll rl && beq lr rr
-  | _,_ => false
+  | _, _ => false
 
-def dedup_ {var} (c : Circuit p (ℕ × var)) (n : ℕ) (set : List (Exp p ℕ)) : Circuit p var :=
+def dedupAux (c : Circuit p (ℕ × var)) (n : ℕ) (set : Finset (Exp p ℕ)) : Circuit p var :=
   match c with
   | .nil => .nil
   | .eq0 e c =>
-    if (to_nat e) ∈ set
-    then dedup_ c n set
-    else .eq0 (to_var e) (dedup_ c n ((to_nat e)::set))
-  | .lam k => .lam (fun x => dedup_ (k (n,x)) (n+1) set)
-  | .share e k => .share (to_var e) (fun x => dedup_ (k (n,x)) (n+1) set)
-  | .is_zero e k => .is_zero (to_var e) (fun x => dedup_ (k (n,x)) (n+1) set)
+    if e.toNat ∈ set
+    then dedupAux c n set
+    else .eq0 e.toVar (dedupAux c n ({e.toNat} ∪ set))
+  | .lam k => .lam fun x => dedupAux (k (n, x)) (n + 1) set
+  | .share e k => .share e.toVar fun x => dedupAux (k (n, x)) (n + 1) set
+  | .is_zero e k => .is_zero e.toVar fun x => dedupAux (k (n, x)) (n + 1) set
 
-def dedup {var} (c : Circuit p (Nat × var)) : Circuit p var := dedup_ c 0 []
+def dedup (c : Circuit p (Nat × var)) : Circuit p var := dedupAux c 0 ∅
 
 def dedup' (c : Circuit' p) : Circuit' p := fun var => dedup (c (Nat × var))
 
@@ -70,10 +66,10 @@ end Test
 
 open Id
 
-theorem dedup_sem_pre : ∀ (cl : Circuitₑ p) (cr : Circuit p (ℕ × ZMod p)) G,
-  wf G cl cr ->
-    List.Forall (fun entry => entry.l = (Exp.eval entry.r.2)) G ->
-      cl ≈ (dedup cr) := sorry
+theorem dedup_sem_pre {cl : Circuitₑ p} {cr : Circuit p (ℕ × ZMod p)} {G}
+  (h₁ : Circuit.wf G cl cr)
+  (h₂ : ∀ entry ∈ G, entry.1 = Exp.eval entry.2.2) : -- TODO(Marco): Do we really want eval here on the const?
+  cl ≈ (dedup cr) := sorry
 
 -- theorem dedup_sem_pre' : ∀ (cl: Circuit' F),
 --   wf' cl ->
@@ -83,4 +79,4 @@ theorem dedup_sem_pre : ∀ (cl : Circuitₑ p) (cr : Circuit p (ℕ × ZMod p))
 --   apply wf
 --   simp
 
-end Dedup
+end Clap
