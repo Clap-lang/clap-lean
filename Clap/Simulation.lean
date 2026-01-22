@@ -34,8 +34,7 @@ inductive sBisim : Π {t : Type}, t → denotation F → Prop where
   | lam {t' : Type} {kl : F → t'} {kr : F → denotation F}
         (h : ∀ (x), sBisim (kl x) (kr x)) : sBisim kl (.l kr)
 
-attribute [simp] sBisim.none
-attribute [simp] sBisim.unit
+attribute [simp] sBisim.none sBisim.unit
 
 scoped infix:51 " ~ₛ " => sBisim
 
@@ -45,12 +44,14 @@ scoped infix:51 " ~ₛ " => sBisim
   than the left one.
 -/
 inductive wrBisim : denotation F → denotation F → Prop where
-  | none (c : denotation F) : wrBisim c .n
-  | same (c : denotation F) : wrBisim c c -- not sure we need the generalization, maybe .u .u is enough
+  | none {c : denotation F} : wrBisim c .n
+  | same {c : denotation F} : wrBisim c c -- not sure we need the generalization, maybe .u .u is enough
   | lam {kl kr : F → denotation F}
         (h : ∀ (x), wrBisim (kl x) (kr x)) : wrBisim (.l kl) (.l kr)
   | right {l : denotation F} {kr : F → denotation F}
           (h : ∀ (x), wrBisim l (kr x)) : wrBisim l (.l kr)
+
+attribute [simp] wrBisim.none wrBisim.same
 
 end Simulation
 
