@@ -17,53 +17,42 @@ variable {F : Type}
   Strong bisimulation. This is just for illustrative purposes as it
   (should) be equivalent to equality with functional extensionality.
 -/
-inductive strong_bisim : (l r: denotation F) -> Prop where
-  | none
-      : strong_bisim .n .n
-  | unit
-      : strong_bisim .u .u
-  | lam
-      (kl kr:F -> denotation F)
-      (h: ∀ x, strong_bisim (kl x) (kr x))
-      : strong_bisim (.l kl) (.l kr)
+inductive strongBisim : denotation F → denotation F → Prop where
+  | none : strongBisim .n .n
+  | unit : strongBisim .u .u
+  | lam {kl kr : F → denotation F}
+        (h : ∀ x, strongBisim (kl x) (kr x)) : strongBisim (.l kl) (.l kr)
 
 /--
   Spec bisimulation between a Lean term of type `(F -> ... -> Option
   Unit` and a denotation, typically produced by the evaluation of a
   Circuit.
 -/
-inductive s_bisim : {t:Type} -> (l:t) -> (r: denotation F) -> Prop where
-  | none
-      : s_bisim none .n
-  | unit
-      : s_bisim (some ()) .u
-  | lam
-      {t':Type}
-      (kl:F -> t')
-      (kr:F -> denotation F)
-      (h: ∀ x, s_bisim (kl x) (kr x))
-      : s_bisim kl (.l kr)
+inductive sBisim : Π {t : Type}, t → denotation F → Prop where
+  | none : sBisim none .n
+  | unit : sBisim (some ()) .u
+  | lam {t' : Type} {kl : F → t'} {kr : F → denotation F}
+        (h : ∀ x, sBisim (kl x) (kr x)) : sBisim kl (.l kr)
+
+attribute [simp] sBisim.none sBisim.unit
+
+scoped infix:51 " ~ₛ " => sBisim
 
 /-
-  Right-weak bisimulation.
+  Weak-right bisimulation.
   Allows the right player, typically the Cs, to receive more inputs
   than the left one.
 -/
-inductive rw_bisim : (c cs: denotation F) -> Prop where
-  | none
-      (c:denotation F)
-      : rw_bisim c .n
-  | same
-      (c:denotation F)
-      : rw_bisim c c -- not sure we need the generalization, maybe .u .u is enough
-  | lam
-      (kl kr:F -> denotation F)
-      (h: ∀ x, rw_bisim (kl x) (kr x))
-      : rw_bisim (.l kl) (.l kr)
-  | right
-      (l:denotation F)
-      (kr:F -> denotation F)
-      (h: ∀ x, rw_bisim l (kr x))
-      : rw_bisim l (.l kr)
+inductive wrBisim : denotation F → denotation F → Prop where
+  | none {c : denotation F} : wrBisim c .n
+  | same {c : denotation F} : wrBisim c c -- not sure we need the generalization, maybe .u .u is enough
+  | lam {kl kr : F → denotation F}
+        (h : ∀ x, wrBisim (kl x) (kr x)) : wrBisim (.l kl) (.l kr)
+  | right {l : denotation F} {kr : F → denotation F}
+          (h : ∀ x, wrBisim l (kr x)) : wrBisim l (.l kr)
+
+attribute [simp] wrBisim.none wrBisim.same
 
 end Simulation
+
+end Clap

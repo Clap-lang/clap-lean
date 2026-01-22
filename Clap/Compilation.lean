@@ -106,7 +106,7 @@ def wrap (wg : Wg (ZMod p)) (cs : Cs p (ZMod p)) : Cs p (ZMod p) :=
 open Simulation
 
 theorem soundness : ∀ (c : Circuitₑ p),
-  rw_bisim (Circuit.eval c) (Cs.eval (to_cs c)) := by
+  wrBisim (Circuit.eval c) (Cs.eval (to_cs c)) := by
   intro c
   induction c with
   | nil =>
@@ -123,7 +123,7 @@ theorem soundness : ∀ (c : Circuitₑ p),
     constructor
   | share e c h =>
     simp [Circuit.eval,Cs.eval,to_cs]
-    apply rw_bisim.right
+    apply wrBisim.right
     intro x
     simp [Exp.eval]
     split
@@ -132,9 +132,9 @@ theorem soundness : ∀ (c : Circuitₑ p),
     apply h
     constructor
   | is_zero e c h =>
-    apply rw_bisim.right
+    apply wrBisim.right
     intro inv
-    apply rw_bisim.right
+    apply wrBisim.right
     intro o
     simp [Exp.eval,Circuit.eval,Cs.eval]
     split
@@ -161,7 +161,7 @@ theorem soundness : ∀ (c : Circuitₑ p),
       case isFalse hsub => constructor
 
 theorem soundness' : ∀ (c:Circuit' p),
-  rw_bisim (Circuit.eval' c) (Cs.eval' (to_cs' c)) := by
+  wrBisim (Circuit.eval' c) (Cs.eval' (to_cs' c)) := by
   intro c
   apply soundness
 

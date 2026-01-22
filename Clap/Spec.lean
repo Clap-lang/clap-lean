@@ -41,8 +41,8 @@ def curry {a r:Type} (n:ℕ) (k:Vector a n -> r) : typ a r n :=
 
 lemma equiv_eq0 : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat] (el:F p) (er:Expₑ p) (cl:Option Unit) (cr:Circuitₑ p),
   el = Exp.eval er ->
-  Simulation.s_bisim cl (Circuit.eval cr) ->
-  Simulation.s_bisim (Option.bind (eq0 el) (fun () => cl)) (Circuit.eval (.eq0 er cr)) := by
+  Simulation.sBisim cl (Circuit.eval cr) ->
+  Simulation.sBisim (Option.bind (eq0 el) (fun () => cl)) (Circuit.eval (.eq0 er cr)) := by
   intro p _ _ el er cl cr he hc
   simp only [Circuit.eval,Option.bind,eq0]
   split
@@ -63,8 +63,8 @@ lemma equiv_eq0 : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat] (el:F p) (er:Expₑ
 
 lemma equiv_share : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat] (el:F p) (er:Expₑ p) (kl:F p -> Option Unit) (kr:F p -> Circuitₑ p),
   el = Exp.eval er ->
-  (∀ x, Simulation.s_bisim (kl x) (Circuit.eval (kr x))) ->
-  Simulation.s_bisim (bind (share el) kl) (Circuit.eval (.share er kr)) := by
+  (∀ x, Simulation.sBisim (kl x) (Circuit.eval (kr x))) ->
+  Simulation.sBisim (bind (share el) kl) (Circuit.eval (.share er kr)) := by
   intro p _ _ el er kl kr he hk
   simp only [Circuit.eval,bind,share]
   rw [he]
@@ -104,7 +104,7 @@ def ex_circuit_fun p : Circuit' p := fun _ =>
   .nil))))
 
 theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
-  Simulation.s_bisim (ex p) (Circuit.eval' (ex_circuit_fun p)) := by
+  Simulation.sBisim (ex p) (Circuit.eval' (ex_circuit_fun p)) := by
   unfold ex_circuit_fun
   unfold ex
   simp only [bind]
@@ -122,13 +122,13 @@ theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
     constructor
 
 theorem extract : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
-  ∃ c:Circuitₑ p, Simulation.s_bisim (ex p) (Circuit.eval c) := by
+  ∃ c:Circuitₑ p, Simulation.sBisim (ex p) (Circuit.eval c) := by
   intro p _ _
   unfold ex
   simp only [bind]
   refine ⟨?c,?p⟩
   case p =>
---  apply Simulation.s_bisim.lam (F:=(F p)) (fun x => ?kl) (fun x => (Circuit.eval ?kr))
+--  apply Simulation.sBisim.lam (F:=(F p)) (fun x => ?kl) (fun x => (Circuit.eval ?kr))
     sorry
   sorry
 
@@ -152,7 +152,7 @@ def ex_circuit_fun p : Circuit' p := fun _ =>
   .nil))))
 
 theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
-  Simulation.s_bisim (curry 2 (ex p)) (Circuit.eval' (ex_circuit_fun p)) := by
+  Simulation.sBisim (curry 2 (ex p)) (Circuit.eval' (ex_circuit_fun p)) := by
   unfold ex_circuit_fun
   unfold ex
   simp only [bind]
@@ -203,7 +203,7 @@ def ex_circuit_fun (p : ℕ) : Circuit' p := fun _ =>
 set_option pp.parens true
 
 theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
-  Simulation.s_bisim (ex p) (Circuit.eval' (ex_circuit_fun p)) := by
+  Simulation.sBisim (ex p) (Circuit.eval' (ex_circuit_fun p)) := by
   unfold ex_circuit_fun
   unfold ex
   intro p _ _
