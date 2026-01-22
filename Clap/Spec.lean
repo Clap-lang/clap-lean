@@ -107,13 +107,6 @@ lemma equiv_share {kl : ZMod p → Option Unit} {kr : ZMod p → Circuitₑ p}
   aesop (add simp share)
 
 @[aesop safe apply]
-lemma equiv_assert_range {cl : Option Unit} {cr : Circuitₑ p} {w : ℕ}
-  (cont : cl ~ₛ cr.eval)
-  (h₁ : el = Exp.eval er) :
-  (do assert_range w el; cl) ~ₛ (Circuit.assert_range w er cr).eval := by
-  aesop (add simp assert_range)
-
-@[aesop safe apply]
 lemma equiv_accept : some accept ~ₛ (Circuit.nil (p := p)).eval := by
   constructor
 
@@ -148,26 +141,6 @@ def ex p (i: ZMod p) : Option Unit := do
 --   bind (eq0 F (vi + i)) (fun () =>
 --   some ())))
 
-def ex_circuit_fun (p : ℕ) (var : Type) : Circuit p var :=
-  .lam (fun i =>
-  .eq0 (.v i) (
-  .share (.v i) (fun vi =>
-  .eq0 (.v vi + .v i) (
-  .assert_range 2 (.v vi) (
-  .nil)))))
-
-theorem equiv :
-  Simulation.sBisim (ex p) ((ex_circuit_fun p (ZMod p)).eval) := by
-  unfold ex_circuit_fun
-  unfold ex
-  apply Compiler.equiv_lam fun _ ↦ ?_
-  apply Compiler.equiv_eq0
-  apply Compiler.equiv_share
-  intros
-  apply Compiler.equiv_eq0
-  apply Compiler.equiv_assert_range
-  apply Compiler.equiv_accept
-  all_goals try rfl
 
 end Example_base
 

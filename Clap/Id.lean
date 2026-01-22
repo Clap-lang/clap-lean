@@ -108,17 +108,6 @@ def id {var} : Circuit p (Exp p var) → Circuit p var
   | .lam k => .lam fun x ↦ id (k (.v x))
   | .is_zero e k => .is_zero e.unwrap fun x ↦ id (k (.v x))
   | .share e k => .share e.unwrap fun x ↦ id (k (.v x))
-  | .assert_range w e c => .assert_range w e.unwrap (id c)
-
--- def id' (c:Circuit' F) : Circuit' F := fun var => id (c (Exp F var))
-
-  -- | nil
-  -- | eq0 (e : Exp p var) (c : Circuit p var)
-  -- | lam (cont : var → Circuit p var)
-  -- | share (e : Exp p var) (cont : var → Circuit p var)
-  -- | is_zero (e : Exp p var) (cont : var → Circuit p var)
-  -- | assert_range (w : ℕ) (e : Exp p var) (c : Circuit p var)
-  -- | div_rem (e : Exp p var) (cont : var × var → Circuit p var)
 
 section
 
