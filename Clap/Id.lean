@@ -1,5 +1,6 @@
 import Clap.Circuit
 import Clap.Simulation
+import Mathlib.Tactic
 
 namespace Clap
 
@@ -19,56 +20,62 @@ namespace Clap
   For this class of optimizations, we define semantic preservation as
   an equality between two distinct circuits, that are connected by a
   well-formed relation. Something along the lines of:
-  `wf cl cr -> cl ≈ (unwrap_e cr)`
+  `wf cl cr -> cl ≈ Exp.unwrap cr`
 -/
 
-namespace Id
+def Exp.unwrap {p : ℕ} {var : Type} : Exp p (Exp p var) → Exp p var
+  | .v val => val
+  | .c f => .c f
+  | .add l r => .add (unwrap l) (unwrap r)
+  | .mul l r => .mul (unwrap l) (unwrap r)
+  | .sub l r => .sub (unwrap l) (unwrap r)
 
 open Simulation
 
-variable {p : ℕ}
+variable {p : ℕ} {var : Type}
 
-structure Entry (var1 var2:Type) where
-  l : var1
-  r : var2
+abbrev Entry := Prod
 
-inductive wf_e {var1 var2 : Type} : List (Entry var1 var2) -> Exp p var1 -> Exp p var2 -> Prop where
-  | v : ∀ G x x', { l := x, r := x' } ∈ G   -- looks up in G
-    -> wf_e G (.v x) (.v x')
-  | c : ∀ G n, wf_e G (.c n) (.c n)
-  | add : ∀ G e1 e2 e1' e2',
-    wf_e G e1 e1' ->
-    wf_e G e2 e2' ->
-    wf_e G (.add e1 e2) (.add e1' e2')
-  | mul : ∀ G e1 e2 e1' e2',
-    wf_e G e1 e1' ->
-    wf_e G e2 e2' ->
-    wf_e G (.mul e1 e2) (.mul e1' e2')
-  | sub : ∀ G e1 e2 e1' e2',
-    wf_e G e1 e1' ->
-    wf_e G e2 e2' ->
-    wf_e G (.sub e1 e2) (.sub e1' e2')
+inductive Exp.wf {var₁ var₂ : Type} (G : Set (Entry var₁ var₂)) : Exp p var₁ → Exp p var₂ → Prop where
+  | v {x x'} :
+    (x, x') ∈ G → -- looks up in G
+    wf G (.v x) (.v x')
+  | c {x} :
+    wf G (.c x) (.c x)
+  | add {e₁ e₂ e₁' e₂'} :
+    wf G e₁ e₁' →
+    wf G e₂ e₂' →
+    wf G (.add e₁ e₂) (.add e₁' e₂')
+  | mul {e₁ e₂ e₁' e₂'} :
+    wf G e₁ e₁' →
+    wf G e₂ e₂' →
+    wf G (.mul e₁ e₂) (.mul e₁' e₂')
+  | sub {e1 e2 e1' e2'} :
+    wf G e1 e1' →
+    wf G e2 e2' →
+    wf G (.sub e1 e2) (.sub e1' e2')
 
-inductive wf {var1 var2} : List (Entry var1 var2) -> Circuit p var1 -> Circuit p var2 -> Prop where
-  | nil : ∀ G, wf G .nil .nil
-  | eq0 : ∀ G el er cl cr,
-      wf_e G el er ->
-      wf G cl cr ->
-      wf G (.eq0 el cl) (.eq0 er cr)
-  | lam : ∀ G kl kr,
-      (∀ el er, wf ({l := el, r := er}::G) (kl el) (kr er)) ->
-      wf G (.lam kl) (.lam kr)
-  | share : ∀ G el er kl kr,
-      wf_e G el er ->
-      (∀ xl xr, wf ({l := xl, r := xr}::G) (kl xl) (kr xr)) ->
-      wf G (.share el kl) (.share er kr)
-  | is_zero : ∀ G el er kl kr,
-      wf_e G el er ->
-      (∀ xl xr, wf ({l := xl, r := xr}::G) (kl xl) (kr xr)) ->
-      wf G (.is_zero el kl) (.is_zero er kr)
+inductive Circuit.wf {var₁ var₂ : Type} : Set (Entry var₁ var₂) → Circuit p var₁ → Circuit p var₂ → Prop where
+  | nil {G} :
+    wf G .nil .nil
+  | eq0 {G el er cl cr} :
+    Exp.wf G el er →
+    wf G cl cr →
+    wf G (.eq0 el cl) (.eq0 er cr)
+  | lam {G kl kr} :
+    (∀ el er, wf ({(el, er)} ∪ G) (kl el) (kr er)) →
+    wf G (.lam kl) (.lam kr)
+  | share {G el er kl kr} :
+    Exp.wf G el er →
+    (∀ xl xr, wf ({(xl, xr)} ∪ G) (kl xl) (kr xr)) →
+    wf G (.share el kl) (.share er kr)
+  | is_zero {G el er kl kr} :
+    Exp.wf G el er →
+    (∀ xl xr, wf ({(xl, xr)} ∪ G) (kl xl) (kr xr)) →
+    wf G (.is_zero el kl) (.is_zero er kr)
 
 -- TODO do we need to expose G ?
-def wf' (c : Circuit' p) : Prop := ∀ var1 var2, wf [] (c var1) (c var2)
+def wf' (c : Circuit' p) : Prop := ∀ var1 var2, Circuit.wf {} (c var1) (c var2)
 
 namespace Example
 
@@ -78,103 +85,46 @@ def add : Circuit' 7 := fun _ =>
       .eq0 (.v x + .v y) .nil))
 
 example : wf' add := by
-  simp [wf',add]
-  intros
-  repeat (first | intros ; constructor | constructor | simp)
+  aesop (add simp [wf', add]) (add safe (by constructor))
 
 end Example
 
-def unwrap_e {var} (e : Exp p (Exp p var)) : Exp p var :=
-  match e with
-  | .v v => v
-  | .c f => .c f
-  | .add l r => .add (unwrap_e l) (unwrap_e r)
-  | .mul l r => .mul (unwrap_e l) (unwrap_e r)
-  | .sub l r => .sub (unwrap_e l) (unwrap_e r)
-
-lemma unwrap_e_sem_pre : ∀ (el: Expₑ p) (er: Exp p (Expₑ p)) G,
-  wf_e G el er ->
-   List.Forall (fun entry => entry.l = (Exp.eval entry.r)) G ->
-   el ≈ (unwrap_e er)
+lemma Exp.unwrap_sem_pre {el : Expₑ p} {er: Exp p (Expₑ p)} {G}
+  (h₁ : Exp.wf G el er)
+  (h₂ : ∀ entry ∈ G, entry.1 = entry.2.eval) :
+  el ≈ er.unwrap
 := by
-  intros el
-  induction el with
-  | v =>
-    intros er G wf FA
-    cases wf
-    case _ el er entry =>
-    simp [unwrap_e]
-    rw [List.forall_iff_forall_mem] at FA
-    apply FA { l := el, r := er }
-    assumption
-  | c =>
-    intros er G wf FA
-    cases wf
-    simp [unwrap_e]
-  | add ll lr hl hr
-  | mul ll lr hl hr
-  | sub ll lr hl hr =>
-    intros er G wf FA
-    cases wf
-    first | apply Exp.add_congr | apply Exp.mul_congr | apply Exp.sub_congr
-    . apply hl
-      repeat assumption
-    . apply hr
-      repeat assumption
+  induction' el with var X l r l r l e generalizing er <;> cases h₁ <;>
+  aesop (add safe (by
+    first
+    | apply Exp.add_congr
+    | apply Exp.mul_congr
+    | apply Exp.sub_congr)
+  )
 
-def id {var} (c : Circuit p (Exp p var)) : Circuit p var :=
-  match c with
+def id {var} : Circuit p (Exp p var) → Circuit p var
   | .nil => .nil
-  | .eq0 e c => .eq0 (unwrap_e e) (id c)
-  | .lam k => .lam (fun x => id (k (.v x)))
-  | .is_zero e k => .is_zero (unwrap_e e) (fun x => id (k (.v x)))
-  | .share e k => .share (unwrap_e e) (fun x => id (k (.v x)))
+  | .eq0 e c => .eq0 e.unwrap (id c)
+  | .lam k => .lam fun x ↦ id (k (.v x))
+  | .is_zero e k => .is_zero e.unwrap fun x ↦ id (k (.v x))
+  | .share e k => .share e.unwrap fun x ↦ id (k (.v x))
 
--- def id' (c:Circuit' F) : Circuit' F := fun var => id (c (Exp F var))
+section
 
-theorem id_sem_pre : ∀ (cl : Circuitₑ p) (cr : Circuit p (Expₑ p)) G,
-  wf G cl cr ->
-   List.Forall (fun entry => entry.l = (Exp.eval entry.r)) G ->
-   cl ≈ (id cr) := by
-  intro cl
-  induction cl with
-  | nil =>
-    intro cr G wf FA
-    cases wf
-    simp [id]
-  | lam kl h =>
-    intro cr G wf FA
-    cases wf
-    case _ kr wf =>
-    apply Circuit.lam_congr
-    intro x
-    apply h
-    apply wf
-    rw [List.forall_cons]
-    simp [Exp.eval]
-    assumption
-  | eq0 el cl' h =>
-    intro cr G wf FA
-    cases wf
-    case _ er cr' wf_e wf =>
-    apply Circuit.eq0_congr
-    . apply unwrap_e_sem_pre
-      repeat assumption
-    . apply h
-      repeat assumption
-  | share el kl' h
-  | is_zero el kl' h =>
-    intro cr G wf FA
-    cases wf
-    case _ er kr' wf_e wf =>
-    first | apply Circuit.share_congr | apply Circuit.is_zero_congr
-    . apply unwrap_e_sem_pre
-      repeat assumption
-    . intro x
-      apply h
-      apply wf
-      rw [List.forall_cons]
-      simp [Exp.eval]
-      assumption
+attribute [local grind =] Exp.eval
 
-end Id
+open Circuit in
+theorem id_sem_pre {cl : Circuitₑ p} {cr : Circuit p (Expₑ p)} {G}
+  (h₁ : Circuit.wf G cl cr)
+  (h₂ : ∀ entry ∈ G, entry.1 = entry.2.eval) :
+  cl ≈ id cr := by
+  induction' cl with e c cont e cont e cont w e c e cont generalizing G cr <;> rcases h₁
+  · rfl
+  · exact eq0_congr (Exp.unwrap_sem_pre ‹_› ‹_›) (cont ‹_› ‹_›)
+  next _ wf => exact lam_congr fun _ ↦ cont _ (wf _ _) (by grind)
+  next _ wf => exact share_congr (Exp.unwrap_sem_pre ‹_› ‹_›) (fun _ ↦ w _ (wf _ _) (by grind))
+  next _ wf => exact is_zero_congr (Exp.unwrap_sem_pre ‹_› ‹_›) (fun _ ↦ e _ (wf _ _) (by grind))
+
+end
+
+end Clap
