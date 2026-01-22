@@ -15,7 +15,7 @@ namespace Clap
   Soundness.
   In order to show that a Cs is not more accepting that its original
   Circuit, i.e. that it won't accept more inputs, we show that there
-  is a right-weak bisimulation `rw_bisim` between them.
+  is a right-weak bisimulation `wrBisim` between them.
   In particular, while a Circuit evaluates to any of the `denotation`
   values, a Cs might be stuck waiting for an extra input. Therefore
   the Cs is allowed to receive any value as extra input while the
@@ -37,92 +37,80 @@ namespace Clap
 
 -- TODO we could remove this type and add an index to Circuit, which would save us from defining again the semantics of Cs
 inductive Cs (p : ℕ) (var : Type) : Type where
-  | nil : Cs p var
-  | eq0 : Exp p var -> Cs p var -> Cs p var
-  | lam : (var -> Cs p var) -> Cs p var
+  | nil
+  | eq0 (_ : Exp p var) (_ : Cs p var)
+  | lam (_ : var -> Cs p var)
 
-def Cs' (p : ℕ) : Type _ := (var:Type) -> Cs p var
-
-variable {p : ℕ} [Fact (Nat.Prime p)]
-variable {var: Type}
+variable {p : ℕ} {var : Type}
 
 def Cs.eval (c : Cs p (ZMod p)) : denotation (ZMod p) :=
   match c with
   | .nil => .u
-  | .lam k => .l (fun x => eval (k x))
-  | .eq0 e c =>
-    if Exp.eval e = 0 then eval c else .n
+  | .lam k => .l fun x => (k x).eval
+  | .eq0 e c => if e.eval = 0 then c.eval else .n
 
-def Cs.eval' (c : Cs' p) : denotation (ZMod p) := eval (c (ZMod p))
-
-def to_cs (c : Circuit p var) : Cs p var :=
+def Circuit.toCs (c : Circuit p var) : Cs p var :=
   match c with
-  | .nil => .nil
-  | .eq0 e c => .eq0 e (to_cs c)
-  | .lam k => .lam (fun x => to_cs (k x))
-  --
+  | .nil =>
+      .nil
+  | .eq0 e c =>
+      .eq0 e c.toCs
+  | .lam k =>
+      .lam fun x => (k x).toCs
   | .share e k =>
-      .lam (fun o =>
-        .eq0 (e - .v o) (to_cs (k o)))
+      .lam fun o => .eq0 (e - .v o) (k o).toCs
   | .is_zero e k =>
-    .lam (fun inv =>
-      .lam (fun o =>
+    .lam fun inv =>
+      .lam fun o =>
         .eq0 (.c 1 - .v inv * e - .v o)
-          (.eq0 (.v o * e) (to_cs (k o)))))
+          (.eq0 (.v o * e) (k o).toCs)
      -- e=0          o=1
      -- e≠0 inv=e^-1 o=0
 
-def to_cs' (c : Circuit' p) : Cs' p := fun var => to_cs (c var)
+inductive Wg (F : Type) : Type where
+  | nil
+  | cons (_ : F) (_ : Wg F)
+  | input (_ : F → Wg F)
 
-inductive Wg (F:Type) : Type where
-  | nil : Wg F
-  | cons : F -> Wg F -> Wg F
-  | input : (F -> Wg F) -> Wg F
-
-def to_wg (c : Circuit p (ZMod p)) : Wg (ZMod p) :=
+def Circuit.toWg (c : Circuitₑ p) : Wg (ZMod p) :=
   match c with
   | .nil => Wg.nil
-  | .eq0 _ c => to_wg c
-  | .lam k => Wg.input (fun i => to_wg (k i))
+  | .eq0 _ c => c.toWg
+  | .lam k => Wg.input fun i => (k i).toWg
   | .share e k =>
-    let e := Exp.eval e
-    .cons e (to_wg (k e))
+    letI e := e.eval
+    .cons e (k e).toWg
   | .is_zero e k =>
-    let e := Exp.eval e
-    let inv : (ZMod p) := e⁻¹
-    let o : (ZMod p) := if e = 0 then 1 else 0
-    .cons inv (.cons o (to_wg (k o)))
-
--- def to_wg' (c:Circuit' F) : Wg F := to_wg (c F)
+    letI e := e.eval
+    let o : ZMod p := if e = 0 then 1 else 0
+    .cons e⁻¹ (.cons o (k o).toWg)
 
 def wrap (wg : Wg (ZMod p)) (cs : Cs p (ZMod p)) : Cs p (ZMod p) :=
   match wg,cs with
   |         .nil , .nil      => .nil
   |           wg , .eq0 e cs => .eq0 e (wrap wg cs)
-  | Wg.input kwg , .lam k    => .lam (fun x => wrap (kwg x) (k x))
+  | Wg.input kwg , .lam k    => .lam fun x => wrap (kwg x) (k x)
   |   .cons x wg , .lam k    => wrap (wg : Wg (ZMod p)) (k x)
   |            _ , _         => .eq0 (.c 1) .nil -- needed because we don't have typed wg and cs
 
 open Simulation
 
-theorem soundness : ∀ (c : Circuitₑ p),
-  wrBisim (Circuit.eval c) (Cs.eval (to_cs c)) := by
-  intro c
+theorem soundness [Fact (Nat.Prime p)] {c : Circuitₑ p} : wrBisim c.eval c.toCs.eval := by
   induction c with
   | nil =>
-    simp [Circuit.eval,to_cs]
+    simp [Circuit.eval,Circuit.toCs]
     constructor
   | lam k h =>
-    simp [Circuit.eval,to_cs]
+    simp [Circuit.eval,Circuit.toCs]
     constructor
     exact h
   | eq0 e c h =>
-    simp [Circuit.eval,Cs.eval,to_cs]
+    simp [Circuit.eval,Cs.eval,Circuit.toCs]
     split
     apply h
     constructor
   | share e c h =>
-    simp [Circuit.eval,Cs.eval,to_cs]
+    simp [Circuit.eval,Cs.eval,Circuit.toCs]
     apply wrBisim.right
     intro x
     simp [Exp.eval]
@@ -150,42 +138,35 @@ theorem soundness : ∀ (c : Circuitₑ p),
         case isFalse hmul => constructor
       case isFalse hsub => constructor
     case is_zero.h.h.isFalse he0 =>
+      -- aesop
       split
       case isTrue hsub =>
         split
         case isTrue hmul =>
-          simp [*] at *
-          rw [hmul]
-          apply h
+          aesop
         case isFalse hmul => constructor
       case isFalse hsub => constructor
 
-theorem soundness' : ∀ (c:Circuit' p),
-  wrBisim (Circuit.eval' c) (Cs.eval' (to_cs' c)) := by
-  intro c
-  apply soundness
-
-def completeness : ∀ (c:Circuit p (ZMod p)),
-  Circuit.eval c = Cs.eval (wrap (to_wg c) (to_cs c)) := by
-  intro c
+def completeness [Fact (Nat.Prime p)] {c : Circuitₑ p} :
+  c.eval = (wrap c.toWg c.toCs).eval := by
   induction c with
   | nil =>
-    simp [Circuit.eval,to_cs,to_wg,wrap]
+    simp [Circuit.eval,Circuit.toCs,Circuit.toWg,wrap]
     constructor
   | lam k h =>
-    simp [Circuit.eval,Cs.eval,to_cs,to_wg,wrap]
+    simp [Circuit.eval,Cs.eval,Circuit.toCs,Circuit.toWg,wrap]
     funext
     apply h
   | eq0 e c h =>
-    simp [Circuit.eval,Cs.eval,to_cs,to_wg,wrap]
+    simp [Circuit.eval,Cs.eval,Circuit.toCs,Circuit.toWg,wrap]
     split
     exact h
     constructor
   | share e c h =>
-    simp [Exp.eval,Circuit.eval,Cs.eval,to_cs,to_wg,wrap]
+    simp [Exp.eval,Circuit.eval,Cs.eval,Circuit.toCs,Circuit.toWg,wrap]
     apply h
   | is_zero e c h =>
-    simp [Exp.eval,Circuit.eval,Cs.eval,to_cs,to_wg,wrap]
+    simp [Exp.eval,Circuit.eval,Cs.eval,Circuit.toCs,Circuit.toWg,wrap]
     split
     case is_zero.isTrue he0 =>
       simp
