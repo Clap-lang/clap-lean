@@ -21,7 +21,7 @@ inductive strongBisim : denotation F → denotation F → Prop where
   | none : strongBisim .n .n
   | unit : strongBisim .u .u
   | lam {kl kr : F → denotation F}
-        (h : ∀ {x}, strongBisim (kl x) (kr x)) : strongBisim (.l kl) (.l kr)
+        (h : ∀ (x), strongBisim (kl x) (kr x)) : strongBisim (.l kl) (.l kr)
 
 /--
   Spec bisimulation between a Lean term of type `(F -> ... -> Option
@@ -32,7 +32,7 @@ inductive sBisim : Π {t : Type}, t → denotation F → Prop where
   | none : sBisim none .n
   | unit : sBisim (some ()) .u
   | lam {t' : Type} {kl : F → t'} {kr : F → denotation F}
-        (h : ∀ {x}, sBisim (kl x) (kr x)) : sBisim kl (.l kr)
+        (h : ∀ (x), sBisim (kl x) (kr x)) : sBisim kl (.l kr)
 
 attribute [simp] sBisim.none
 attribute [simp] sBisim.unit
@@ -48,9 +48,9 @@ inductive wrBisim : denotation F → denotation F → Prop where
   | none (c : denotation F) : wrBisim c .n
   | same (c : denotation F) : wrBisim c c -- not sure we need the generalization, maybe .u .u is enough
   | lam {kl kr : F → denotation F}
-        (h : ∀ {x}, wrBisim (kl x) (kr x)) : wrBisim (.l kl) (.l kr)
+        (h : ∀ (x), wrBisim (kl x) (kr x)) : wrBisim (.l kl) (.l kr)
   | right {l : denotation F} {kr : F → denotation F}
-          (h : ∀ {x}, wrBisim l (kr x)) : wrBisim l (.l kr)
+          (h : ∀ (x), wrBisim l (kr x)) : wrBisim l (.l kr)
 
 end Simulation
 
