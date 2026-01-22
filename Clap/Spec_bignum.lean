@@ -68,7 +68,50 @@ def mk (x:FU8 p) : Option Unit := Spec.assert_range 8 x
 
 def mk_some (x:FU8 p) (h:x.val<256) : x.mk = some () := by simp [mk,Spec.assert_range]; assumption
 
+def add (a b : FU8 p) : Option (FU8 p) := do
+  let o := a + b
+  Spec.assert_range 8 o
+  o
+
+def add_spec (a b : FU8 p) :
+  (a.val + b.val < 256) ->
+  (add a b = some (a.val + b.val)) := sorry
+
+def add_sound (a b o : FU8 p) :
+  (add a b = some o) ->
+  (o = a.val + b.val) ∧ isValid o ∧ isValid a ∧ isValid b := sorry
+
 end FU8
+
+/-
+  FU8.add is annoying to work with because it return Option
+  We want to replace it with ZMod.add which is always defined and easier to work with.
+  We show a refinement between the two.
+-/
+
+def ex_low (a b o : ZMod p) : Option Unit := do
+  let o' <- FU8.add a b
+  Spec.eq0 (o - o')
+  Spec.accept ()
+
+def ex_high (a b o : FU8 p) : Option Unit := do
+  let o' := a + b
+  Spec.eq0 (o - o')
+  Spec.accept ()
+
+def ex_high_refines_low : Simulation.r_sim (F:=(ZMod p)) ex_high (ex_low (p:=p)) := by
+  unfold ex_high ex_low FU8.add Spec.assert_range
+  repeat (
+    apply Simulation.r_sim.lam
+    intro)
+  simp
+  split
+  . constructor
+  . apply Simulation.r_sim.right_none
+
+/-
+  we could also have a completeness theorem that states that if the inputs to high respect some bounds then low will always return some
+-/
 
 lemma div_rem_spec (a:ZMod p) :
   letI o := Spec.div_rem a

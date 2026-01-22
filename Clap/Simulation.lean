@@ -44,6 +44,19 @@ inductive s_bisim : {t:Type} -> (l:t) -> (r: denotation F) -> Prop where
       (h: ∀ x, s_bisim (kl x) (kr x))
       : s_bisim kl (.l kr)
 
+inductive r_sim : {t:Type} -> (l:t) -> (r:t) -> Prop where
+  | right_none
+      {l:Option Unit}
+      : r_sim l none
+  | same
+      (c:Option Unit)
+      : r_sim c c -- not sure we need the generalization, maybe .u .u is enough
+  | lam
+      {t:Type}
+      (kl kr : F -> t)
+      (h: ∀ x, r_sim (kl x) (kr x))
+      : r_sim kl kr
+
 /-
   Right-weak bisimulation.
   Allows the right player, typically the Cs, to receive more inputs
