@@ -2,6 +2,7 @@ import Mathlib.Data.ZMod.Basic
 
 import Clap.Circuit
 import Clap.Simulation
+import Clap.Wheels
 
 namespace Clap
 
@@ -24,24 +25,6 @@ def is_zero (e : ZMod p) : Option (ZMod p) := if e = 0 then .some 1 else .some 0
 @[irreducible]
 def assert_range (w : ℕ) (e : ZMod p) : Option Unit := if e.val < 2^w then .some () else .none
 
-/-
-  Expand a function that takes a vector of n Felts, into a series of n
-  functions taking a single Felt.
-  e.g. Vector F 2 -> Option Unit  ~>  F -> F -> Option Unit
--/
-@[reducible]
-def typ (a r : Type) : Nat → Type
-  | 0     => r
-  | n + 1 => a → typ a r n
-
-@[reducible]
-def curry {α β : Type} {n : Nat} (k : Vector α n → β) : typ α β n :=
-  match n with
-  | 0     => k #v[]
-  | n + 1 => fun x => curry fun l => k ⟨⟨x :: l.toList⟩, by simp⟩
-
-#guard curry (fun (x:Vector _ 2) => x[0]==0 && x[1]==1) 0 1 = True
-
 namespace Compiler
 
 section
@@ -50,28 +33,30 @@ open scoped Simulation
 
 variable {el : ZMod p} {er : Expₑ p}
 
-@[aesop safe apply]
 lemma equiv_lam {α : Type} {f : ZMod p → α} {g : ZMod p → Circuitₑ p}
   (cont : ∀ (x), f x ~ₛ ((g x)).eval) :
   f ~ₛ (Circuit.lam g).eval := Simulation.sBisim.lam cont
 
-@[aesop safe apply]
 lemma equiv_eq0 {cl : Option Unit} {cr : Circuitₑ p}
   (cont : cl ~ₛ cr.eval)
-  (h : el = Exp.eval er) :
+  (h : el = er.eval) :
   (do eq0 el; cl) ~ₛ (Circuit.eq0 er cr).eval := by
   aesop (add simp eq0)
 
-@[aesop safe apply]
 lemma equiv_share {kl : ZMod p → Option Unit} {kr : ZMod p → Circuitₑ p}
-  (cont : ∀ {x}, kl x ~ₛ (kr x).eval)
-  (h : el = Exp.eval er) :
+  (cont : ∀ (x), kl x ~ₛ (kr x).eval)
+  (h : el = er.eval) :
   (share el >>= kl) ~ₛ (Circuit.share er kr).eval := by
   aesop (add simp share)
 
-@[aesop safe apply]
 lemma equiv_accept : some accept ~ₛ (Circuit.nil (p := p)).eval := by
   constructor
+
+lemma equiv_is_zero {el : ZMod p} {kl : ZMod p → Option Unit} {er : Expₑ p} {kr : ZMod p → Circuitₑ p}
+  (cont : ∀ (x), kl x ~ₛ (kr x).eval)
+  (h : el = er.eval) :
+  Simulation.sBisim (bind (is_zero el) kl) (Circuit.eval (.is_zero er kr)) := by
+  aesop (add simp [Circuit.eval, bind, share, is_zero])
 
 end
 
