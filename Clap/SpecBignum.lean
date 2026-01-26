@@ -305,7 +305,6 @@ def ex (a b : FU8 p) : Option Unit := do
   eq0 c'
   accept ()
 
--- Assume little-endian
 def shiftLeft (n : ℕ) (num : Array (FU8 p)) : Array (FU8 p) :=
   Array.replicate n 0 ++ num
 
@@ -403,7 +402,7 @@ end ex
 -- which is wrong.
 def removeTraillingZeros (a : List (FU8 p)) : List (FU8 p) :=
   let l := List.rdropWhile (· = 0) a
-  if l = [] then [0] else l
+  if l.isEmpty then [0] else l
 
 -- Correct way?
 instance : Ord (ZMod p) where
@@ -411,11 +410,9 @@ instance : Ord (ZMod p) where
 
 -- Compare two BigNums (Little-Endian). We reverse them to compare MSB first.
 def compareBignum (a b : Array (FU8 p)) : Ordering :=
-  let a' := removeZeros a.reverse
-  let b' := removeZeros b.reverse
+  let a' := removeTraillingZeros a.toList
+  let b' := removeTraillingZeros b.toList
   List.compareLex compare a' b'
-where
-  removeZeros := List.dropWhile (· = 0) ∘ Array.toList
 
 section ex
 open ByteArray Ordering
@@ -426,14 +423,30 @@ open ByteArray Ordering
 #guard compareBignum (p := prime_babybear) #[1, 0, 0] #[1, 0, 0] = eq
 end ex
 
--- Subtracts ys from xs (xs - ys). Assumes xs >= ys. TODO: how to handle ys < xs cases
--- Precondition: xs >= ys (Value of xs must be >= Value of ys)
+-- Subtracts ys from xs (xs - ys). Assumes xs >= ys
+def sub' (a b : Array (FU8 p)) : Array (FU8 p) :=
+  let rec loop (xs ys : List (FU8 p)) (borrow : FU8 p) : List (FU8 p) :=
+    match xs, ys with
+    | [], [] => []
+    | x :: xt, [] =>
+      if borrow == 0 then x :: xt
+      else if x.val >= borrow then (x - borrow) :: xt
+      else (2^8 - borrow + x) :: loop xt [] 1
+    | x :: xt, y :: yt =>
+      let y_adj := y + borrow
+      if x.val >= y_adj then
+        (x - y_adj) :: loop xt yt 0
+      else
+        (2^8 + x - y_adj) :: loop xt yt 1
+    | [], _ => []
+  ⟨removeTraillingZeros (loop a.toList b.toList 0)⟩
+
 def subBignum (xs ys : Array (FU8 p)) : Option (Array (FU8 p)) :=
   (List.toArray <$> removeTraillingZeros <$> subWithBorrow 0 xs.toList ys.toList)
 where
   subWithBorrow b xs ys := do
     match b, xs, ys with
-    -- Case 1: Both lists empty. If borrow > 0, we had an underflow (Precondition violated).
+    -- Case 1: Both lists empty. If borrow > 0, we had an underflow, precondition violated
     | 0, [], [] => .some []
     | _, [], [] => .none
 
@@ -460,23 +473,304 @@ open ByteArray Ordering
 #guard subBignum (ofNat' 4321) (ofNat' 1234) = .some (ofNat' (4321 - 1234))
 #guard subBignum (ofNat' 4321) (ofNat' 1234) = ofNat' (4321 - 1234)
 #guard subBignum (ofNat' 1234) (ofNat' 4321) = .none
+#guard subBignum (ofNat' 1) (ofNat' 2) = .none
 #guard subBignum (ofNat' 1234) (ofNat' 1234) = ofNat' 0
+
+#guard sub' (ofNat' 4321) (ofNat' 1234) = (ofNat' (4321 - 1234))
+#guard sub' (ofNat' 4321) (ofNat' 1234) = ofNat' (4321 - 1234)
+#eval sub' (ofNat' 1234) (ofNat' 4321) -- nonsense
+#eval sub' (ofNat' 1) (ofNat' 2) -- nonsense
+#guard subBignum (ofNat' 1234) (ofNat' 1234) = ofNat' 0
+
+-- identity (subtracting zero)
+-- how to correctly deal with #[] and #[0] being equal
+#guard subBignum (p := prime_babybear) #[5, 4, 3] #[] = .some #[5, 4, 3]
+#guard subBignum (p := prime_babybear) #[5, 4, 3] #[0] = .some #[5, 4, 3]
+-- substract self
+#guard subBignum (p := prime_babybear) #[2, 1] #[2, 1] = .some #[0]
+#guard subBignum (p := prime_babybear) #[2, 1] #[2, 1] ≠ .some #[]
+-- "ripple" borrow
+#guard subBignum (p := prime_babybear) #[0, 0, 1] #[1] = .some #[255,255]
+#guard subBignum (ofNat' (256^2)) (ofNat' 1) = .some (ofNat' (256^2 - 1))
+-- Simple No-Borrow
+#guard subBignum (p := prime_babybear) #[9, 9, 9] #[1, 2, 3] = .some #[8, 7, 6]
+#guard subBignum (ofNat' 592137) (ofNat' 197121) = .some (ofNat' (592137 - 197121))
+-- length mismatch (small y)
+#guard subBignum (p := prime_babybear) #[57, 48] #[5] = .some #[(57 - 5), 48]
+-- length mismatch with borrow
+#guard subBignum (p := prime_babybear) #[0, 1] #[1] = .some #[255]
+-- alternating borrows
+#guard subBignum (ofNat' 84018434) (ofNat' 196611) = .some (ofNat' (84018434 - 196611))
+#guard subBignum (p := prime_babybear) #[2, 5, 2, 5] #[3, 0, 3, 0] = .some #[255, 4, 255, 4]
+-- multi-limb borrow (recursive)
+#guard subBignum (ofNat' 196613) (ofNat' 6) = .some (ofNat' (196613 - 6))
+#guard subBignum (p := prime_babybear) #[5, 0, 3] #[6] = .some #[255, 255, 2]
 end ex
 
--- def subBignum (xs ys : Array (FU8 p)) : Option (List (FU8 p)) :=
---   subWithBorrow 0 xs.toList ys.toList
+def doubleAndAdd (n : Array (FU8 p)) (bit : FU8 p) : Array (FU8 p) :=
+  let rec loop (xs : List (FU8 p)) (carry : FU8 p) : List (FU8 p) :=
+    match xs with
+    | [] => if carry.val > 0 then [carry] else []
+    | x :: xt =>
+      let val := (x * 2) + carry
+      let (newCarry, newLimb) := Spec.div_rem val
+      newLimb :: loop xt newCarry
+  ⟨loop n.toList bit⟩
+
+-- /--
+--   Computes (x % m) using Schoolbook Long Division.
+--   Structure:
+--   1. Process `x` limb-by-limb from MSB (Head of reversed list) to LSB.
+--   2. Inside each limb, process bits from 7 down to 0.
+--   3. Perform "Shift, Add, Check-Subtract" at every bit.
+-- -/
+-- def modBignum (x m : Array (FU8 p)) : Array (FU8 p) :=
+--   if removeTraillingZeros m.toList = [0] then #[0] else
+--   let lala := Array.foldl (fun rem limb ↦ processLimb rem limb 7) (#[0] : Array (FU8 p))
+--   lala
 -- where
---   subWithBorrow (b : ℕ) xs ys := do
---     match xs,ys with
---     | [], [] => .some []
---     | l@(_ :: _), [] => subWithBorrow b l [0] -- pad b with 0
---     | [], l@(_ :: _) => .none -- error negative result
---     | (x :: xs), (y :: ys) =>
---       let diff : Int := x - y - b -- How to deal with this using nats?
---       if diff < 0
---         then .some ((diff + 2^8) :: (←subWithBorrow 1 xs ys))
---         else .some (diff :: (←subWithBorrow 0 xs ys))
+--   step (rem : Array (FU8 p)) (bit : FU8 p) : Array (FU8 p) :=
+--     let remShifted := doubleAndAdd rem bit
+--     if compareBignum remShifted m = Ordering.gt then sub' remShifted m else remShifted
+--   processLimb (rem : Array (FU8 p)) (limb bitIdx : ℕ) : Array (FU8 p) :=
+--     let bit := (limb / (2 ^ bitIdx)) % 2
+--     let rem' := step rem bit
+--     match bitIdx with
+--     | 0 => rem'
+--     | k + 1 => processLimb rem' limb k
+
+
+
+-- section ex
+-- open ByteArray
+
+-- #eval 266 % 5
+-- #eval modBignum (p := prime_babybear) #[10, 1] #[5]
+
+-- #eval toNat' #[10, 1]
+-- #eval toNat' #[0, 5, 1]
+
+-- end ex
 
 end Bignum
+
+-- ==========================================
+-- Byte alternative example
+-- ==========================================
+
+namespace ByteBit
+
+abbrev Bit := Fin 2
+abbrev Byte := Fin 256
+
+-- As long as p > 65536 (256*256) > 65537
+-- we have enought space to do every operation we want
+#guard minBytes (255 + 255 + 255) ≤ 2 -- add carry
+#guard minBytes (255*2 + 255)     ≤ 2 -- double and add
+#guard minBytes (255*255 + 255)   ≤ 2 -- mul carry
+
+section exampleField
+abbrev Fp := ZMod 65537
+
+-- We can embed Byte and Bit into the field
+instance : Coe Byte Fp where
+  coe b := b.val
+
+instance : Coe Bit Fp where
+  coe b := b.val
+
+theorem byte_embeds_field (b : Byte) : (b : Fp).val = b.val := by
+  apply Nat.mod_eq_of_lt (Nat.lt_trans b.isLt (by simp))
+
+theorem bit_embeds_field (b : Bit) : (b : Fp).val = b.val := by
+  apply Nat.mod_eq_of_lt (Nat.lt_trans b.isLt (by simp))
+
+end exampleField
+
+abbrev Bignum := List Byte
+
+-- lemma carryOut_bit {a b c} (ha : a ≤ 255) (hb : b ≤ 255) (hc : c ≤ 1) :
+--   (a + b + c) / 256 < 2 :=
+-- by
+--   have : a + b + c ≤ 511 := by
+--     apply Nat.le_trans (Nat.add_le_add (Nat.add_le_add ha hb) hc)
+--     decide
+--   apply Nat.div_lt_of_lt_mul
+--   omega
+
+def fullAdd (a b : Byte) (carryIn : Bit := 0) : Byte × Bit :=
+  let rawSum := a.val + b.val + carryIn.val
+  let sumVal := rawSum % 256 -- We can use Spec.div_rem here
+  let carryOut := rawSum / 256
+  have h_carry : carryOut < 2 := by
+    have ha : a.val ≤ 255     := Nat.le_of_lt_succ a.isLt
+    have hb : b.val ≤ 255     := Nat.le_of_lt_succ b.isLt
+    have hc : carryIn.val ≤ 1 := Nat.le_of_lt_succ carryIn.isLt
+    have h_sum : rawSum ≤ 511 := by
+      apply Nat.le_trans (Nat.add_le_add (Nat.add_le_add ha hb) hc); decide
+    simp [carryOut]; apply Nat.div_lt_of_lt_mul; omega
+  (⟨sumVal, Nat.mod_lt _ (by decide)⟩, ⟨carryOut, h_carry⟩)
+
+#guard fullAdd 1 1 = (2,0)
+#guard fullAdd 255 2 = (1,1)
+#guard fullAdd 255 3 = (2,1)
+#guard fullAdd 255 255 1 = (255,1)
+-- #guard fullAdd 0 0 1 = fullAdd 256 256 5
+
+def ofNat' (x len : ℕ) : Bignum :=
+  let d := x / 256
+  let r := x % 256
+  if len = 0 then [] else ⟨r, Nat.mod_lt _ (by decide)⟩ :: (ofNat' d (len - 1))
+
+def ofNat (n : ℕ) : Bignum :=
+  if n == 0 then []
+  else
+    let digit := n % 256
+    let rest := n / 256
+    ⟨digit, Nat.mod_lt _ (by decide)⟩ :: ofNat rest
+decreasing_by
+  apply Nat.div_lt_self <;> grind
+
+#guard ofNat (255 + 1)  = [0,1]
+#guard ofNat (2^16 + 2) = [2,0,1]
+
+def toNat : Bignum → ℕ :=
+  List.foldr (fun b acc => acc * 256 + b) 0
+
+#guard toNat [0,1]     = (255 + 1)
+#guard toNat [2,0,1]   = (2^16 + 2)
+#guard toNat [2,0,1,0] = (2^16 + 2)
+
+instance (n : ℕ) : OfNat Bignum n where
+  ofNat := ofNat n
+
+def Bignum.add (a b : Bignum) : Bignum :=
+  loop a b 0
+where
+  loop (xs ys : List Byte) (c : Bit) : Bignum :=
+    match xs, ys with
+    -- Case 1: Both lists finished.
+    -- If there is a remaining carry, append a new limb [1].
+    | [], [] => if c.val == 1 then [⟨1, by decide⟩] else []
+
+    -- Case 2: 'a' is longer than 'b'.
+    -- Continue adding carry to 'a' (effectively adding 0 from b).
+    -- | x :: xs, [] => let (sum, newC) := fullAdd x 0 c; sum :: loop xs [] newC
+    | x :: xs, [] =>
+      if c.val == 0 then x :: xs -- stop recursion if no carry
+      else let (sum, newC) := fullAdd x 0 c; sum :: loop xs [] newC
+
+    -- Case 3: 'b' is longer than 'a'.
+    | [], y :: ys => let (sum, newC) := fullAdd 0 y c; sum :: loop [] ys newC
+
+    -- Case 4: Standard addition of two limbs.
+    | x :: xs, y :: ys => let (sum, newC) := fullAdd x y c; sum :: loop xs ys newC
+
+#guard (40 : Bignum).add 2 = 42
+
+-- identity
+#guard Bignum.add 0 0 = 0
+#guard Bignum.add 12345 0 = 12345
+#guard Bignum.add 0 67890 = 67890
+-- single limb no carry
+#guard Bignum.add 10 20 = 30
+-- single limb overflow
+#guard Bignum.add  250   10  =  260
+#guard Bignum.add [250] [10] = [4,1]
+-- multi-limb propagation
+#guard Bignum.add  255   1  =  256
+#guard Bignum.add [255] [1] = [0,1]
+-- long ripple
+#guard Bignum.add   65535     1  =   65536
+#guard Bignum.add [255, 255] [1] = [0, 0, 1]
+-- left larger
+-- #eval ofNat 100000 -- [160, 134, 1]
+-- #eval ofNat 5 -- [5]
+#guard Bignum.add 100000 5 = 100005 -- [165, 134, 1]
+-- right larger
+-- #eval ofNat 200000 -- [64, 13, 3]
+-- #eval ofNat 10 -- [10]
+#guard Bignum.add 200000 10 = 200010 -- [74, 13, 3]
+-- boundary carry at the end
+#guard Bignum.add  255   255  =    510
+#guard Bignum.add [255] [255] = [254, 1]
+-- alternating bit
+#guard Bignum.add 43690 21845 = 65535
+
+-- def mulCarry (a b : FU8 p) (c : ZMod p := 0) : FU8 p × (ZMod p) :=
+--   --let o : ZMod p :=  -- 2*8+1 bits
+--   Spec.div_rem (a * b + c) --|>.swap
+
+/--
+  Multiply (a * b + (carry = 0)).
+  Returns (low (res), high (carry)) such that val = low + high * 256.
+-/
+def mulCarry (a b : Byte) (c : Byte := 0) : Byte × Byte :=
+  let rawMul := a.val * b.val + c.val
+  let loVal := rawMul % 256
+  let hiVal := rawMul / 256
+  have h_hi : hiVal < 256 := by
+    have ha : a.val ≤ 255 := Nat.le_of_lt_succ a.isLt
+    have hb : b.val ≤ 255 := Nat.le_of_lt_succ b.isLt
+    have hc : c.val ≤ 255 := Nat.le_of_lt_succ c.isLt
+    have h_mul : a.val * b.val ≤ 65025 := Nat.mul_le_mul ha hb
+    have h_total : rawMul ≤ 65280 := by
+      apply Nat.le_trans (Nat.add_le_add h_mul hc)
+      decide
+    simp [hiVal]; apply Nat.div_lt_of_lt_mul; omega
+  (⟨loVal, Nat.mod_lt _ (by decide)⟩, ⟨hiVal, h_hi⟩)
+
+def mulOneLine (xs : Bignum) (s : Byte) : Bignum :=
+  loop xs 0
+where
+  loop i carry :=
+    match i with
+    | [] => if carry > 0 then [carry] else []
+    | x :: xs =>
+      let (newLimb, newCarry) := mulCarry x s carry
+      newLimb :: loop xs newCarry
+
+-- TODO: how to deal with multiple zero representation
+#guard mulOneLine 0 0 = 0
+#guard mulOneLine 65535 0 = [0, 0]
+#guard mulOneLine 0 255 = []
+#guard mulOneLine 65535 1 = 65535
+#guard mulOneLine 1 253 = 253
+#guard mulOneLine 65535 2 = ofNat (65535 * 2)
+#guard mulOneLine 1000 250 = ofNat (1000 * 250)
+#guard mulOneLine 65535 255 = ofNat (65535 * 255)
+#guard mulOneLine 10 10 = 100
+#guard mulOneLine 222 2 = 444
+#guard mulOneLine 255 255 = 65025
+#guard mulOneLine 65537 3 = 196611
+
+def Bignum.mul (xs ys : Bignum) : Bignum :=
+  match ys with
+  | [] => [] -- x * 0
+  | y :: ys =>
+    let term := mulOneLine xs y
+    let rest := mul xs ys
+    let shifted := if rest.isEmpty then [] else zeroByte :: rest
+    term.add shifted
+where
+  zeroByte : Byte := ⟨0, by decide⟩
+
+#guard Bignum.mul 0 65535 = []
+#guard Bignum.mul 65535 0 = []
+#guard Bignum.mul 1 123456789 = 123456789
+#guard Bignum.mul 123456789 1 = 123456789
+#guard Bignum.mul 10 10 = 100
+#guard Bignum.mul 255 255 = 65025
+#guard Bignum.mul 256 256 = 65536
+#guard Bignum.mul 2 100000 = 200000
+#guard Bignum.mul 100000 2 = 200000
+#guard Bignum.mul 65535 65535 = 4294836225
+#guard Bignum.mul 12345 67890 = 838102050
+
+end ByteBit
+
+-- exponentiation by 65537 = 2^16 - 1, which means: square the base 16 times plus
+-- a final multiplication
+-- def fpPow65537Mod
 
 end Clap
