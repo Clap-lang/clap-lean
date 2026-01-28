@@ -41,12 +41,12 @@ instance : Fact (Nat.Prime prime_babybear) := by native_decide
 variable {p : ℕ}
 variable {var : Type}
 
-inductive Exp (p:ℕ) (var : Type) where
-  | v : var -> Exp p var
-  | c : ZMod p -> Exp p var
-  | add : Exp p var -> Exp p var -> Exp p var
-  | mul : Exp p var -> Exp p var -> Exp p var
-  | sub : Exp p var -> Exp p var -> Exp p var
+inductive Exp (p : ℕ) (var : Type) where
+  | v   (_ : var)
+  | c   (_ : ZMod p)
+  | add (_ _ : Exp p var)
+  | mul (_ _ : Exp p var)
+  | sub (_ _ : Exp p var)
   deriving DecidableEq
 
 abbrev Expₑ (p : Nat) := Exp p (ZMod p)
@@ -146,7 +146,6 @@ example : 3 + 4 ≈ (7 : Expₑ p) := by
   norm_num
   rfl
 
--- for grw and gcongr
 @[gcongr]
 theorem add_congr (h1 : e₁ ≈ e₂) (h2 : e₃ ≈ e₄) :
   e₁ + e₃ ≈ e₂ + e₄ := by
@@ -157,8 +156,8 @@ example (h₁ : e₁ ≈ e₂) (h₂ : e₃ ≈ e₄) : e₁ + e₃ ≈ e₂ + e
 
 @[gcongr]
 theorem mul_congr (h1 : e₁ ≈ e₂) (h2 : e₃ ≈ e₄) :
-    e₁ * e₃ ≈ e₂ * e₄ := by
-  aesop (add simp [equiv_iff_eval_eq_eval])
+  e₁ * e₃ ≈ e₂ * e₄ := by
+    aesop (add simp [equiv_iff_eval_eq_eval])
 
 @[gcongr]
 theorem sub_congr (h1 : e₁ ≈ e₂) (h2 : e₃ ≈ e₄) :
@@ -170,16 +169,16 @@ end
 end Exp
 
 inductive denotation (F : Type) : Type where
-  | n : denotation F
-  | u : denotation F
-  | l : (F -> denotation F) -> denotation F
+  | n
+  | u
+  | l (_ : F → denotation F)
 
 inductive Circuit (p : ℕ) (var : Type) : Type where
-  | nil : Circuit p var
-  | eq0 : Exp p var -> Circuit p var -> Circuit p var
-  | lam : (var -> Circuit p var) -> Circuit p var
-  | share : Exp p var -> (var -> Circuit p var) -> Circuit p var
-  | is_zero : Exp p var -> (var -> Circuit p var) -> Circuit p var
+  | nil
+  | eq0 (e : Exp p var) (c : Circuit p var)
+  | lam (cont : var → Circuit p var)
+  | share (e : Exp p var) (cont : var → Circuit p var)
+  | is_zero (e : Exp p var) (cont : var → Circuit p var)
 
 abbrev Circuitₑ (p : ℕ) := Circuit p (ZMod p)
 -- TODO remove all ' definitions
@@ -247,15 +246,17 @@ end Test
 
 variable [Fact (Nat.Prime p)]
 
-def eval (c : Circuitₑ p) : denotation (ZMod p) :=
-  match c with
-  | .nil => .u
-  | .lam k => .l (fun x => eval (k x))
+def eval : Circuitₑ p → denotation (ZMod p)
+  | .nil =>
+      .u
+  | .lam k =>
+      .l fun x => eval (k x)
   | .eq0 e c =>
-    if Exp.eval e = 0 then eval c else .n
-  | .share e k => eval (k (Exp.eval e))
+      if e.eval = 0 then eval c else .n
+  | .share e k =>
+      (k e.eval).eval
   | .is_zero e k =>
-    if Exp.eval e = 0 then eval (k 1) else eval (k 0)
+      if e.eval = 0 then (k 1).eval else (k 0).eval
 
 def eval' (c : Circuit' p) : denotation (ZMod p) := eval (c (ZMod p))
 
