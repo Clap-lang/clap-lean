@@ -100,6 +100,9 @@ def step (goals : Goals) : MetaM Goals := do
                                (er := $(mkIdent `Exp.c) _)
                                (h := rfl)
                                (cont := fun _ ↦ ?_))),
+           (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_assert_range)
+                               (er := $(mkIdent `Exp.c) _)
+                               (h := rfl)))
          ]
 
 def extractTac (inferenceGoal : MVarId) : MetaM Goals := do
@@ -236,6 +239,11 @@ def ex₈ (xs : Vector (ZMod p) 2) := do
   eq0 (xs[0]!)
   return accept
 
+def ex₉ (x : ZMod p) := do
+  eq0 (1 - x)
+  assert_range 8 x
+  return accept
+
 lemma lem {xs ys zs} : ex₇ xs[0] xs[1] ys[0] ys[1] zs[0] zs[1] = ex₇' (p := p) xs ys zs := by rfl
 
 def extract_manual₁ :
@@ -338,6 +346,10 @@ def extract_automatic₇' :
   { c : Circuitₑ p // Simulation.sBisim (ex₇'_curried (p := p)) c.eval } := by
   extract using ex₇'_curried
 
+def extract_automatic₉ :
+  { c : Circuitₑ p // Simulation.sBisim (ex₉ (p := p)) c.eval } := by
+  extract using ex₉
+
 example : (extract_automatic₁ (p := p)).1 = Circuit.lam fun _ => Circuit.nil := rfl
 
 example : (extract_automatic₂ (p := p)).1 =
@@ -391,6 +403,11 @@ example : (extract_automatic₇ (p := p)).1 =
                                   (Circuit.eq0 (Exp.c (x_3 - x_1)) Circuit.nil))) := rfl
 
 #print extract_automatic₇'
+
+example : (extract_automatic₉ (p := p)).1 =
+  Circuit.lam fun x =>
+    Circuit.eq0 (Exp.c (1 - x))
+      (Circuit.assert_range 8 (Exp.c x) Circuit.nil) := rfl
 
 end EXAMPLES
 
