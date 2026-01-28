@@ -5,21 +5,21 @@ namespace Clap
 
 namespace Spec
 
---variable (F var:Type) [Field F] [DecidableEq F]
 variable {p:ℕ} [Fact (Nat.Prime p)]
-abbrev F (p:ℕ) : Type := ZMod p
 
-def eq0 (e:F p) : Option Unit :=
-  if e = 0 then some () else none
 
-def share (e:F p) : F p := e
+def share (e:ZMod p) : ZMod p := e
+@[irreducible]
+def accept : Unit := ()
 
-def is_zero (e:F p) : F p := if e = 0 then 1 else 0
+def is_zero (e:ZMod p) : ZMod p := if e = 0 then 1 else 0
+@[irreducible]
+def eq0 (e : ZMod p) : Option Unit := if e = 0 then .some () else .none
 
-def assert_range (w:ℕ) (e:F p) : Option Unit := if e.val < 2^w then some () else none
 
-def accept : Unit -> Unit := fun () => ()
 
+@[irreducible]
+def assert_range (w : ℕ) (e : ZMod p) : Option Unit := if e.val < 2^w then .some () else .none
 
 /-
   Expand a function that takes a vector of n Felts, into a series of n
@@ -27,9 +27,9 @@ def accept : Unit -> Unit := fun () => ()
   e.g. Vector F 2 -> Option Unit  ~>  F -> F -> Option Unit
 -/
 @[reducible]
-def typ (a r:Type) : ℕ -> Type
-  | 0   => r
-  | n+1 => a -> typ a r n
+def typ (a r : Type) : Nat → Type
+  | 0     => r
+  | n + 1 => a → typ a r n
 
 @[reducible]
 def curry {a r:Type} (n:ℕ) (k:Vector a n -> r) : typ a r n :=
@@ -39,7 +39,7 @@ def curry {a r:Type} (n:ℕ) (k:Vector a n -> r) : typ a r n :=
 
 #guard curry 2 (fun x => x[0]==0 && x[1]==1) 1 0 = True
 
-lemma equiv_eq0 : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat] (el:F p) (er:Expₑ p) (cl:Option Unit) (cr:Circuitₑ p),
+lemma equiv_eq0 : ∀ p [Fact (Nat.Prime p)] [Coe (ZMod p) Nat] (el:ZMod p) (er:Expₑ p) (cl:Option Unit) (cr:Circuitₑ p),
   el = Exp.eval er ->
   Simulation.sBisim cl (Circuit.eval cr) ->
   Simulation.sBisim (Option.bind (eq0 el) (fun () => cl)) (Circuit.eval (.eq0 er cr)) := by
@@ -61,7 +61,7 @@ lemma equiv_eq0 : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat] (el:F p) (er:Expₑ
     . apply hc
     . contradiction
 
-lemma equiv_share : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat] (el:F p) (er:Expₑ p) (kl:F p -> Option Unit) (kr:F p -> Circuitₑ p),
+lemma equiv_share : ∀ p [Fact (Nat.Prime p)] [Coe (ZMod p) Nat] (el:ZMod p) (er:Expₑ p) (kl:ZMod p -> Option Unit) (kr:ZMod p -> Circuitₑ p),
   el = Exp.eval er ->
   (∀ x, Simulation.sBisim (kl x) (Circuit.eval (kr x))) ->
   Simulation.sBisim (bind (share el) kl) (Circuit.eval (.share er kr)) := by
@@ -80,11 +80,11 @@ open Spec
   A circuit is a function from any number of arguments of type F or Vector F to Option Unit.
 -/
 
-def ex p (i: F p) : Option Unit := do
+def ex p (i: ZMod p) : Option Unit := do
   eq0 i
   let vi <- share i
   eq0 (vi + i)
-  accept ()
+  accept
 
 #guard ex 7 0 = some ()
 #guard ex 7 1 = none
@@ -103,7 +103,7 @@ def ex_circuit_fun p : Circuit' p := fun _ =>
   .eq0 (.v vi + .v i) (
   .nil))))
 
-theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
+theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (ZMod p) Nat],
   Simulation.sBisim (ex p) (Circuit.eval' (ex_circuit_fun p)) := by
   unfold ex_circuit_fun
   unfold ex
@@ -121,14 +121,14 @@ theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
     simp [Exp.eval]
     constructor
 
-theorem extract : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
+theorem extract : ∀ p [Fact (Nat.Prime p)] [Coe (ZMod p) Nat],
   ∃ c:Circuitₑ p, Simulation.sBisim (ex p) (Circuit.eval c) := by
   intro p _ _
   unfold ex
   simp only [bind]
   refine ⟨?c,?p⟩
   case p =>
---  apply Simulation.sBisim.lam (F:=(F p)) (fun x => ?kl) (fun x => (Circuit.eval ?kr))
+--  apply Simulation.sBisim.lam (F:=(ZMod p)) (fun x => ?kl) (fun x => (Circuit.eval ?kr))
     sorry
   sorry
 
@@ -138,11 +138,11 @@ namespace Example_vec
 
 open Spec
 
-def ex p (is: Vector (F p) 2) : Option Unit := do
+def ex p (is: Vector (ZMod p) 2) : Option Unit := do
   eq0 is[0]
   let vi <- share is[0]
   eq0 (vi + is[1])
-  accept ()
+  accept
 
 def ex_circuit_fun p : Circuit' p := fun _ =>
   Circuit.curry 2 (fun is =>
@@ -151,7 +151,7 @@ def ex_circuit_fun p : Circuit' p := fun _ =>
   .eq0 (.v vi + .v is[1]) (
   .nil))))
 
-theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
+theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (ZMod p) Nat],
   Simulation.sBisim (curry 2 (ex p)) (Circuit.eval' (ex_circuit_fun p)) := by
   unfold ex_circuit_fun
   unfold ex
@@ -177,16 +177,16 @@ namespace Example_fold
 open Spec
 
 /- TODO these curry should disappear, the signature should be:
-def ex p (xs ys zs: Vector (F p) 2) : Option Unit :=
+def ex p (xs ys zs: Vector (ZMod p) 2) : Option Unit :=
 -/
 def ex p :=
-  curry 2 (fun (xs: Vector (F p) 2) =>
-  curry 2 (fun (ys: Vector (F p) 2) =>
-  curry 2 (fun (zs: Vector (F p) 2) => do
-  let xys := Vector.map (fun ((x,y): F p × F p) => x+y) (Vector.zip xs ys)
+  curry 2 (fun (xs: Vector (ZMod p) 2) =>
+  curry 2 (fun (ys: Vector (ZMod p) 2) =>
+  curry 2 (fun (zs: Vector (ZMod p) 2) => do
+  let xys := Vector.map (fun ((x,y): ZMod p × ZMod p) => x+y) (Vector.zip xs ys)
   for (xy,z) in Vector.zip xys zs do
     eq0 (xy-z)
-  return accept ()
+  return accept
   )))
 
 #guard ex 7 2 4 1 1 3 5 = some 90 -- [2,4] + [1,1] = [3,5]
@@ -202,7 +202,7 @@ def ex_circuit_fun (p : ℕ) : Circuit' p := fun _ =>
 
 set_option pp.parens true
 
-theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (F p) Nat],
+theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (ZMod p) Nat],
   Simulation.sBisim (ex p) (Circuit.eval' (ex_circuit_fun p)) := by
   unfold ex_circuit_fun
   unfold ex
