@@ -50,6 +50,7 @@ def Circuit.cfold {var : Type} (c : Circuit p var) : Circuit p var :=
   | .lam k => .lam fun x => (k x).cfold
   | .share e k => .share e.cfold fun x => (k x).cfold
   | .is_zero e k => .is_zero e.cfold fun x => (k x).cfold
+  | .assert_range w e c => .assert_range w e.cfold c.cfold
 
 def cfold' (c : Circuit' p) : Circuit' p := fun var => Circuit.cfold (c var)
 

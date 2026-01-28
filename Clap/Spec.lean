@@ -63,6 +63,13 @@ lemma equiv_is_zero {el : ZMod p} {kl : ZMod p → Option Unit} {er : Expₑ p} 
   Simulation.sBisim (bind (is_zero el) kl) (Circuit.eval (.is_zero er kr)) := by
   aesop (add simp [Circuit.eval, bind, share, is_zero])
 
+@[aesop safe apply]
+lemma equiv_assert_range {cl : Option Unit} {cr : Circuitₑ p} {w : ℕ}
+  (cont : cl ~ₛ cr.eval)
+  (h₁ : el = Exp.eval er) :
+  (do assert_range w el; cl) ~ₛ (Circuit.assert_range w er cr).eval := by
+  aesop (add simp assert_range)
+
 end
 
 end Compiler

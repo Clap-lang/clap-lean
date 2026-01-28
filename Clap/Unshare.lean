@@ -28,6 +28,7 @@ def Circuit.unshareAllF (c : Circuitₑ p) : Circuitₑ p :=
   | .eq0 e c => .eq0 e c.unshareAllF
   | .lam k => .lam fun x => (k x).unshareAllF
   | .is_zero e k => .is_zero e fun x => (k x).unshareAllF
+  | .assert_range w e c => .assert_range w e c.unshareAllF
   | .share e k => k e.eval
 
 theorem unshare_all_sem_pre_F {c : Circuitₑ p} : c ≈ c.unshareAllF := by
@@ -55,6 +56,7 @@ def Circuit.unshareAll {var} (c : Circuit p (Exp p var)) : Circuit p var :=
   | .eq0 e c => .eq0 e.unwrap c.unshareAll
   | .lam k => .lam fun x ↦ (k (.v x)).unshareAll
   | .is_zero e k => .is_zero e.unwrap fun x ↦ unshareAll (k (.v x))
+  | .assert_range w e c => .assert_range w e.unwrap c.unshareAll
   | .share e k => (k e.unwrap).unshareAll
 
 def unshareAll' (c:Circuit' p) : Circuit' p := fun var => Circuit.unshareAll (c (Exp p var))
@@ -168,6 +170,8 @@ def Circuit.unshareDegCps {var} (c : Circuit p (Exp p var))
   | .lam k' => .lam fun x => (k' (.v x)).unshareDegCps k
   | .is_zero e k' =>
     .is_zero e.unwrap fun x => unshareDegCps (k' (.v x)) (fun (b, c) => k (b && e.degree <= 2, c))
+  | .assert_range w e c =>
+     unshareDegCps c (fun (b,c) => k (b && e.degree <= 2, .assert_range w e.unwrap c))
   | .share e k' =>
     unshareDegCps (k' e.unwrap) fun (b,c) =>
       if b && e.degree <= 2

@@ -41,7 +41,7 @@ inductive Cs (p : ℕ) (var : Type) : Type where
   | eq0 (_ : Exp p var) (_ : Cs p var)
   | lam (_ : var -> Cs p var)
 
-variable {p : ℕ} {var : Type}
+variable {p : ℕ} {var : Type} [Fact (Nat.Prime p)]
 
 def Cs.eval (c : Cs p (ZMod p)) : denotation (ZMod p) :=
   match c with
@@ -52,6 +52,22 @@ def Cs.eval (c : Cs p (ZMod p)) : denotation (ZMod p) :=
 def Cs' (p:Nat) : Type _ := (var:Type) -> Cs p var
 
 def eval' (cs:Cs' p) : denotation (ZMod p) := (cs (ZMod p)).eval
+
+@[reducible]
+def Cs.curry (n:ℕ) (k:Vector var n -> Cs p var) : Cs p var :=
+  match n with
+  | 0 => k ⟨#[], by rfl⟩
+  | n+1 => .lam (fun x:var => Cs.curry n (fun l => k (l.push x) ))
+
+
+def assert_bit_e (rest: Cs p var) (b:var) : Cs p var :=
+  .eq0 (.v b * (.c 1 - .v b)) rest
+
+def assert_bits_e {w:ℕ} (bs:Vector var w) (rest: Cs p var) : Cs p var :=
+  Vector.foldl assert_bit_e rest bs
+
+def bits2num_e {w} (bits:Vector var w) : Exp p var :=
+  Vector.foldl (fun acc b => .v b + .c 2 * acc) (.c 0) bits
 
 def Circuit.toCs (c : Circuit p var) : Cs p var :=
   match c with
@@ -70,6 +86,11 @@ def Circuit.toCs (c : Circuit p var) : Cs p var :=
           (.eq0 (.v o * e) (k o).toCs)
      -- e=0          o=1
      -- e≠0 inv=e^-1 o=0
+  | .assert_range w e c =>
+    Cs.curry w (fun bits =>
+      letI rest := c.toCs
+      letI rest := Cs.eq0 (bits2num_e bits - e) rest
+      assert_bits_e bits rest)
 
 def toCs' (c : Circuit' p) : Cs' p := fun var => (c var).toCs
 
@@ -77,6 +98,14 @@ inductive Wg (p : ℕ) : Type where
   | nil
   | cons (_ : ZMod p) (_ : Wg p)
   | input (_ : ZMod p → Wg p)
+
+def num2bits (n:ℕ) (f:ZMod p) : List (ZMod p) :=
+  if n = 0
+  then []
+  else
+    let bit := f % 2
+    let rem := f / 2
+    bit::num2bits (n-1) rem
 
 def Circuit.toWg (c : Circuitₑ p) : Wg p :=
   match c with
@@ -90,6 +119,9 @@ def Circuit.toWg (c : Circuitₑ p) : Wg p :=
     letI e := e.eval
     let o : ZMod p := if e = 0 then 1 else 0
     .cons e⁻¹ (.cons o (k o).toWg)
+  | .assert_range w e c =>
+    let bits : List (ZMod p) := num2bits w (Exp.eval e)
+    List.foldl (fun acc b => .cons b acc) c.toWg bits
 
 def wrap (wg : Wg p) (cs : Cs p (ZMod p)) : Cs p (ZMod p) :=
   match wg,cs with
@@ -100,8 +132,6 @@ def wrap (wg : Wg p) (cs : Cs p (ZMod p)) : Cs p (ZMod p) :=
   |            _ , _         => .eq0 (.c 1) .nil -- needed because we don't have typed wg and cs
 
 open Simulation
-
-variable [Fact (Nat.Prime p)]
 
 theorem soundness {c : Circuitₑ p} : wrBisim c.eval c.toCs.eval := by
   induction c with
@@ -154,6 +184,8 @@ theorem soundness {c : Circuitₑ p} : wrBisim c.eval c.toCs.eval := by
           aesop
         case isFalse hmul => constructor
       case isFalse hsub => constructor
+  | assert_range w e c h =>
+      sorry
 
 theorem soundness' {c:Circuit' p} :
   wrBisim (Circuit.eval' c) (eval' (toCs' c)) := by
@@ -190,3 +222,5 @@ def completeness [Fact (Nat.Prime p)] {c : Circuitₑ p} :
         apply h
       case isFalse he0' =>
         simp [*] at *
+  | assert_range e c h =>
+    sorry

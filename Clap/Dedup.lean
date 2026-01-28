@@ -40,6 +40,7 @@ def Exp.beq : Exp p Nat → Exp p Nat → Bool
   | .sub ll lr, .sub rl rr => beq ll rl && beq lr rr
   | _, _ => false
 
+-- TODO we are mixing expressions from eq0 and assert_range, they should be in different sets
 def dedupAux (c : Circuit p (ℕ × var)) (n : ℕ) (set : Finset (Exp p ℕ)) : Circuit p var :=
   match c with
   | .nil => .nil
@@ -50,6 +51,7 @@ def dedupAux (c : Circuit p (ℕ × var)) (n : ℕ) (set : Finset (Exp p ℕ)) :
   | .lam k => .lam fun x => dedupAux (k (n, x)) (n + 1) set
   | .share e k => .share e.toVar fun x => dedupAux (k (n, x)) (n + 1) set
   | .is_zero e k => .is_zero e.toVar fun x => dedupAux (k (n, x)) (n + 1) set
+  | .assert_range w e c => .assert_range w e.toVar (dedupAux c n ({e.toNat} ∪ set))
 
 def dedup (c : Circuit p (Nat × var)) : Circuit p var := dedupAux c 0 ∅
 
