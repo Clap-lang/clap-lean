@@ -279,40 +279,40 @@ lemma eval_is_zero {e : Expₑ p} {k : ZMod p → Circuitₑ p} :
   (is_zero e k).eval = if e.eval = 0 then (k 1).eval else (k 0).eval := by
   simp [Circuit.eval]
 
-def equiv (c₁ c₂ : Circuitₑ p) : Prop := eval c₁ = eval c₂
+def equiv (c₁ c₂ : Circuitₑ p) : Prop := c₁.eval = c₂.eval
 
 instance : Setoid (Circuitₑ p) where
   r := equiv
   iseqv := Equivalence.comap eq_equivalence eval -- Just pullback the proof.
 
-private lemma Circuit.equiv_iff_eval_eq_eval {c₁ c₂ : Circuitₑ p} :
+lemma equiv_iff_eval_eq_eval {c₁ c₂ : Circuitₑ p} :
   c₁ ≈ c₂ ↔ c₁.eval = c₂.eval := by rfl
-
-instance : IsRefl (Circuitₑ p) (· ≈ ·) := inferInstance -- This is by `inferInstance`, which means it need not exist altogether.
 
 section
 
 variable {el er : Expₑ p} {cl cr : Circuitₑ p} {kl kr : ZMod p → Circuitₑ p}
 
+attribute [local simp] Exp.equiv_iff_eval_eq_eval Circuit.equiv_iff_eval_eq_eval
+
 @[gcongr]
 theorem eq0_congr (he : el ≈ er) (hc: cl ≈ cr) :
   eq0 el cl ≈ eq0 er cr := by
-   aesop (add simp [Exp.equiv_iff_eval_eq_eval, Circuit.equiv_iff_eval_eq_eval])
+   aesop
 
 @[gcongr]
 theorem lam_congr : (∀ x, kl x ≈ kr x) ->
   lam kl ≈ lam kr := by
-  aesop (add simp [Exp.equiv_iff_eval_eq_eval, Circuit.equiv_iff_eval_eq_eval])
+  aesop
 
 @[gcongr]
-theorem share_congr (he: el ≈ er) (h : ∀ x, kl x ≈ kr x) :
+theorem share_congr (he : el ≈ er) (h : ∀ x, kl x ≈ kr x) :
   share el kl ≈ share er kr := by
-  aesop (add simp [Exp.equiv_iff_eval_eq_eval, Circuit.equiv_iff_eval_eq_eval])
+  aesop
 
 @[gcongr]
-theorem is_zero_congr (he: el ≈ er) (h: ∀ x, kl x ≈ kr x) :
+theorem is_zero_congr (he : el ≈ er) (h: ∀ x, kl x ≈ kr x) :
   is_zero el kl ≈ is_zero er kr := by
-  aesop (add simp [Exp.equiv_iff_eval_eq_eval, Circuit.equiv_iff_eval_eq_eval])
+  aesop
 
 end
 
