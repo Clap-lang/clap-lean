@@ -6,7 +6,7 @@ namespace Clap
 
 namespace Unshare
 
-variable {p : ℕ} [Fact (Nat.Prime p)]
+variable {p : ℕ}
 
 /-
   Unshare optimization - inlines an expression previously shared.

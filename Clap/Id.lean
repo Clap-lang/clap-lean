@@ -26,7 +26,7 @@ namespace Id
 
 open Simulation
 
-variable {p : ℕ} [Fact (Nat.Prime p)]
+variable {p : ℕ}
 
 structure Entry (var1 var2:Type) where
   l : var1

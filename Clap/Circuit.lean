@@ -38,9 +38,6 @@ instance : Fact (Nat.Prime prime_fermat_f4) := by native_decide
 def prime_babybear := 15 * 2^27 + 1
 instance : Fact (Nat.Prime prime_babybear) := by native_decide
 
-variable {p : ℕ}
-variable {var : Type}
-
 inductive Exp (p : ℕ) (var : Type) where
   | v   (_ : var)
   | c   (_ : ZMod p)
@@ -52,6 +49,8 @@ inductive Exp (p : ℕ) (var : Type) where
 abbrev Expₑ (p : Nat) := Exp p (ZMod p)
 
 namespace Exp
+
+variable {p : ℕ} {var : Type} {n : ℕ}
 
 instance [Repr var] : Repr (Exp p var) where
   reprPrec expr _ := go expr
@@ -89,7 +88,7 @@ end
 instance : Coe (ZMod p) (Exp p var) where
   coe := .c
 
-instance {n : ℕ} : OfNat (Exp p var) n where
+instance : OfNat (Exp p var) n where
   ofNat := (n : ZMod p)
 
 /- In this example, variables can only be substitued by Field elements,
@@ -99,8 +98,6 @@ example : Expₑ p := (.c 1) + (.v 2)
 /- In this example, variables can be substitued by expressions,
    which is what we need for some optimizations. -/
 example : Exp p (Exp p var) := (.c 1) + (.v ((.c 2) + (.c 2)))
-
-variable [Fact (Nat.Prime p)]
 
 def eval (e : Expₑ p) : ZMod p :=
   match e with
@@ -193,20 +190,20 @@ abbrev Circuit' (p : ℕ) : Type _ := (var:Type) -> Circuit p var
 -/
 
 -- E.g. here v 0 is not bound by any lam
-example : Circuit p Nat := Circuit.eq0 (.v 0) Circuit.nil
+example {p} : Circuit p Nat := Circuit.eq0 (.v 0) Circuit.nil
 
 -- This is the right way, keeping var abstract
-example : Circuit p var := .lam (fun x => .eq0 (.v x) .nil)
-
+example {p} {var} : Circuit p var := .lam fun x => .eq0 (.v x) .nil
 
 namespace Circuit
+
+variable {p : ℕ} {var : Type}
 
 @[reducible]
 def curry (n : ℕ) (body : Vector var n -> Circuit p var) : Circuit p var :=
   match n with
   | 0 => body ⟨#[], by rfl⟩
   | n+1 => .lam (fun x:var => curry n (fun l => body (l.append ⟨#[x],by rfl⟩) ))
-
 
 /--
 In order to print a Circuit we need to turn variables into Debrujin levels. We need a family of types that map from ℕ.
@@ -247,8 +244,6 @@ def a : Circuit' 7 := fun _ => .lam (fun x => .lam (fun y => .eq0 (.v x + .v y) 
 #guard s!"{a Nat}" = "λ0 λ1 eq0 (v0 + v1) nil"
 
 end Test
-
-variable [Fact (Nat.Prime p)]
 
 def eval : Circuitₑ p → denotation (ZMod p)
   | .nil =>
