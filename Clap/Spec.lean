@@ -8,15 +8,17 @@ namespace Spec
 variable {p:ℕ} [Fact (Nat.Prime p)]
 
 
-def share (e:ZMod p) : ZMod p := e
+@[irreducible]
+def share (e:ZMod p) : Option (ZMod p) := some e
+
 @[irreducible]
 def accept : Unit := ()
 
-def is_zero (e:ZMod p) : ZMod p := if e = 0 then 1 else 0
+@[irreducible]
+def is_zero (e:ZMod p) : Option (ZMod p) := if e = 0 then some 1 else some 0
+
 @[irreducible]
 def eq0 (e : ZMod p) : Option Unit := if e = 0 then .some () else .none
-
-
 
 @[irreducible]
 def assert_range (w : ℕ) (e : ZMod p) : Option Unit := if e.val < 2^w then .some () else .none
