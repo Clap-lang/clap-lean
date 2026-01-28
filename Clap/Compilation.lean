@@ -49,6 +49,10 @@ def Cs.eval (c : Cs p (ZMod p)) : denotation (ZMod p) :=
   | .lam k => .l fun x => (k x).eval
   | .eq0 e c => if e.eval = 0 then c.eval else .n
 
+def Cs' (p:Nat) : Type _ := (var:Type) -> Cs p var
+
+def eval' (cs:Cs' p) : denotation (ZMod p) := (cs (ZMod p)).eval
+
 def Circuit.toCs (c : Circuit p var) : Cs p var :=
   match c with
   | .nil =>
@@ -67,12 +71,14 @@ def Circuit.toCs (c : Circuit p var) : Cs p var :=
      -- e=0          o=1
      -- e≠0 inv=e^-1 o=0
 
-inductive Wg (F : Type) : Type where
-  | nil
-  | cons (_ : F) (_ : Wg F)
-  | input (_ : F → Wg F)
+def toCs' (c : Circuit' p) : Cs' p := fun var => (c var).toCs
 
-def Circuit.toWg (c : Circuitₑ p) : Wg (ZMod p) :=
+inductive Wg (p : ℕ) : Type where
+  | nil
+  | cons (_ : ZMod p) (_ : Wg p)
+  | input (_ : ZMod p → Wg p)
+
+def Circuit.toWg (c : Circuitₑ p) : Wg p :=
   match c with
   | .nil => Wg.nil
   | .eq0 _ c => c.toWg
@@ -85,17 +91,19 @@ def Circuit.toWg (c : Circuitₑ p) : Wg (ZMod p) :=
     let o : ZMod p := if e = 0 then 1 else 0
     .cons e⁻¹ (.cons o (k o).toWg)
 
-def wrap (wg : Wg (ZMod p)) (cs : Cs p (ZMod p)) : Cs p (ZMod p) :=
+def wrap (wg : Wg p) (cs : Cs p (ZMod p)) : Cs p (ZMod p) :=
   match wg,cs with
   |         .nil , .nil      => .nil
   |           wg , .eq0 e cs => .eq0 e (wrap wg cs)
   | Wg.input kwg , .lam k    => .lam fun x => wrap (kwg x) (k x)
-  |   .cons x wg , .lam k    => wrap (wg : Wg (ZMod p)) (k x)
+  |   .cons x wg , .lam k    => wrap (wg : Wg p) (k x)
   |            _ , _         => .eq0 (.c 1) .nil -- needed because we don't have typed wg and cs
 
 open Simulation
 
-theorem soundness [Fact (Nat.Prime p)] {c : Circuitₑ p} : wrBisim c.eval c.toCs.eval := by
+variable [Fact (Nat.Prime p)]
+
+theorem soundness {c : Circuitₑ p} : wrBisim c.eval c.toCs.eval := by
   induction c with
   | nil =>
     simp [Circuit.eval,Circuit.toCs]
@@ -146,6 +154,11 @@ theorem soundness [Fact (Nat.Prime p)] {c : Circuitₑ p} : wrBisim c.eval c.toC
           aesop
         case isFalse hmul => constructor
       case isFalse hsub => constructor
+
+theorem soundness' {c:Circuit' p} :
+  wrBisim (Circuit.eval' c) (eval' (toCs' c)) := by
+  apply soundness
+
 
 def completeness [Fact (Nat.Prime p)] {c : Circuitₑ p} :
   c.eval = (wrap c.toWg c.toCs).eval := by
