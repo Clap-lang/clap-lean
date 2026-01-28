@@ -112,7 +112,7 @@ def eval (e : Expₑ p) : ZMod p :=
 
 section
 
-variable {x₁ x₂ : ZMod p} {e e₁ e₂ e₃ e₄: Expₑ p} {k : ℕ}
+variable {x x₁ x₂ : ZMod p} {e e₁ e₂ e₃ e₄: Expₑ p} {k : ℕ}
 
 def equiv (e₁ e₂ : Expₑ p) : Prop := e₁.eval = e₂.eval
 
@@ -120,7 +120,7 @@ instance : Setoid (Expₑ p) where
   r := Exp.equiv
   iseqv := Equivalence.comap eq_equivalence Exp.eval -- Just pullback the proof.
 
-private lemma equiv_iff_eval_eq_eval : e₁ ≈ e₂ ↔ e₁.eval = e₂.eval := by rfl
+lemma equiv_iff_eval_eq_eval : e₁ ≈ e₂ ↔ e₁.eval = e₂.eval := by rfl
 
 @[simp]
 lemma eval_ofNat : (no_index(OfNat.ofNat k) : Expₑ p).eval = k := rfl
@@ -134,17 +134,15 @@ lemma eval_mul : (e₁ * e₂).eval = e₁.eval * e₂.eval := rfl
 @[simp]
 lemma eval_sub : (e₁ - e₂).eval = e₁.eval - e₂.eval := rfl
 
-@[simp]
+@[simp, grind .]
 lemma c_add_c_equiv_c_add : Exp.c (var := ZMod p) (x₁ + x₂) ≈ Exp.c x₁ + Exp.c x₂ := rfl
 
-example : 3 + 4 ≈ (7 : Expₑ p) := by
-  -- show eval _ = eval _
-  -- simp [eval]
-  -- norm_num
-  symm
-  convert c_add_c_equiv_c_add
-  norm_num
-  rfl
+@[grind =]
+lemma coe_eq_c : (x : Expₑ p) = .c x := rfl
+
+
+@[simp, grind =]
+lemma ofNat_eq_coe_coe : OfNat.ofNat (α := Expₑ p) n = ((n : ZMod p) : Expₑ p) := rfl
 
 @[gcongr]
 theorem add_congr (h1 : e₁ ≈ e₂) (h2 : e₃ ≈ e₄) :
@@ -163,6 +161,12 @@ theorem mul_congr (h1 : e₁ ≈ e₂) (h2 : e₃ ≈ e₄) :
 theorem sub_congr (h1 : e₁ ≈ e₂) (h2 : e₃ ≈ e₄) :
     e₁ - e₃ ≈ e₂ - e₄ := by
   aesop (add simp [equiv_iff_eval_eq_eval])
+
+example : 3 + 4 ≈ (7 : Expₑ p) := by
+  simp
+  symm
+  convert c_add_c_equiv_c_add
+  grind
 
 end
 
