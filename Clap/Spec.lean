@@ -1,24 +1,25 @@
+import Mathlib.Data.ZMod.Basic
+
 import Clap.Circuit
 import Clap.Simulation
 
 namespace Clap
 
+variable {p : ℕ}
+
 namespace Spec
-
-variable {p:ℕ} [Fact (Nat.Prime p)]
-
-
-@[irreducible]
-def share (e:ZMod p) : Option (ZMod p) := some e
 
 @[irreducible]
 def accept : Unit := ()
 
 @[irreducible]
-def is_zero (e:ZMod p) : Option (ZMod p) := if e = 0 then some 1 else some 0
+def eq0 (e : ZMod p) : Option Unit := if e = 0 then .some () else .none
 
 @[irreducible]
-def eq0 (e : ZMod p) : Option Unit := if e = 0 then .some () else .none
+def share (e : ZMod p) : Option (ZMod p) := e
+
+@[irreducible]
+def is_zero (e : ZMod p) : Option (ZMod p) := if e = 0 then .some 1 else .some 0
 
 @[irreducible]
 def assert_range (w : ℕ) (e : ZMod p) : Option Unit := if e.val < 2^w then .some () else .none
@@ -34,43 +35,47 @@ def typ (a r : Type) : Nat → Type
   | n + 1 => a → typ a r n
 
 @[reducible]
-def curry {a r:Type} (n:ℕ) (k:Vector a n -> r) : typ a r n :=
+def curry {α β : Type} {n : Nat} (k : Vector α n → β) : typ α β n :=
   match n with
-  | 0 => k ⟨#[], by rfl⟩
-  | n+1 => fun x:a => curry n (fun l => k (Vector.push l x) )
+  | 0     => k #v[]
+  | n + 1 => fun x => curry fun l => k ⟨⟨x :: l.toList⟩, by simp⟩
 
-#guard curry 2 (fun x => x[0]==0 && x[1]==1) 1 0 = True
+#guard curry (fun (x:Vector _ 2) => x[0]==0 && x[1]==1) 0 1 = True
 
-lemma equiv_eq0 : ∀ p [Fact (Nat.Prime p)] [Coe (ZMod p) Nat] (el:ZMod p) (er:Expₑ p) (cl:Option Unit) (cr:Circuitₑ p),
-  el = Exp.eval er ->
-  Simulation.sBisim cl (Circuit.eval cr) ->
-  Simulation.sBisim (Option.bind (eq0 el) (fun () => cl)) (Circuit.eval (.eq0 er cr)) := by
-  intro p _ _ el er cl cr he hc
-  simp only [Circuit.eval,Option.bind,eq0]
-  split
-  split
-  case _ _ heq her =>
-    rw [her] at he
-    rw [he] at heq
-    simp at heq
-  case _ _ hel her =>
-    constructor
-  case _ _ _ hel =>
-    simp at hel
-    rw [he] at hel
-    simp
-    split
-    . apply hc
-    . contradiction
+namespace Compiler
 
-lemma equiv_share : ∀ p [Fact (Nat.Prime p)] [Coe (ZMod p) Nat] (el:ZMod p) (er:Expₑ p) (kl:ZMod p -> Option Unit) (kr:ZMod p -> Circuitₑ p),
-  el = Exp.eval er ->
-  (∀ x, Simulation.sBisim (kl x) (Circuit.eval (kr x))) ->
-  Simulation.sBisim (bind (share el) kl) (Circuit.eval (.share er kr)) := by
-  intro p _ _ el er kl kr he hk
-  simp only [Circuit.eval,bind,share]
-  rw [he]
-  apply hk
+section
+
+open scoped Simulation
+
+variable {el : ZMod p} {er : Expₑ p}
+
+@[aesop safe apply]
+lemma equiv_lam {α : Type} {f : ZMod p → α} {g : ZMod p → Circuitₑ p}
+  (cont : ∀ (x), f x ~ₛ ((g x)).eval) :
+  f ~ₛ (Circuit.lam g).eval := Simulation.sBisim.lam cont
+
+@[aesop safe apply]
+lemma equiv_eq0 {cl : Option Unit} {cr : Circuitₑ p}
+  (cont : cl ~ₛ cr.eval)
+  (h : el = Exp.eval er) :
+  (do eq0 el; cl) ~ₛ (Circuit.eq0 er cr).eval := by
+  aesop (add simp eq0)
+
+@[aesop safe apply]
+lemma equiv_share {kl : ZMod p → Option Unit} {kr : ZMod p → Circuitₑ p}
+  (cont : ∀ {x}, kl x ~ₛ (kr x).eval)
+  (h : el = Exp.eval er) :
+  (share el >>= kl) ~ₛ (Circuit.share er kr).eval := by
+  aesop (add simp share)
+
+@[aesop safe apply]
+lemma equiv_accept : some accept ~ₛ (Circuit.nil (p := p)).eval := by
+  constructor
+
+end
+
+end Compiler
 
 end Spec
 
@@ -86,6 +91,7 @@ def ex p (i: ZMod p) : Option Unit := do
   eq0 i
   let vi <- share i
   eq0 (vi + i)
+  assert_range 2 vi
   accept
 
 #guard ex 7 0 = some ()
@@ -98,79 +104,40 @@ def ex p (i: ZMod p) : Option Unit := do
 --   bind (eq0 F (vi + i)) (fun () =>
 --   some ())))
 
-def ex_circuit_fun p : Circuit' p := fun _ =>
-  .lam (fun i =>
-  .eq0 (.v i) (
-  .share (.v i) (fun vi =>
-  .eq0 (.v vi + .v i) (
-  .nil))))
-
-theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (ZMod p) Nat],
-  Simulation.sBisim (ex p) (Circuit.eval' (ex_circuit_fun p)) := by
-  unfold ex_circuit_fun
-  unfold ex
-  simp only [bind]
-  simp only [Circuit.eval']
-  intro p _ _
-  constructor
-  intro
-  apply equiv_eq0
-  simp [Exp.eval]
-  apply equiv_share
-  . simp [Exp.eval]
-  . intro
-    apply equiv_eq0
-    simp [Exp.eval]
-    constructor
-
-theorem extract : ∀ p [Fact (Nat.Prime p)] [Coe (ZMod p) Nat],
-  ∃ c:Circuitₑ p, Simulation.sBisim (ex p) (Circuit.eval c) := by
-  intro p _ _
-  unfold ex
-  simp only [bind]
-  refine ⟨?c,?p⟩
-  case p =>
---  apply Simulation.sBisim.lam (F:=(ZMod p)) (fun x => ?kl) (fun x => (Circuit.eval ?kr))
-    sorry
-  sorry
-
 end Example_base
 
 namespace Example_vec
 
 open Spec
 
-def ex p (is: Vector (ZMod p) 2) : Option Unit := do
+def ex p (is : Vector (ZMod p) 2) : Option Unit := do
   eq0 is[0]
-  let vi <- share is[0]
+  let vi ← share is[0]
   eq0 (vi + is[1])
   accept
 
-def ex_circuit_fun p : Circuit' p := fun _ =>
-  Circuit.curry 2 (fun is =>
-  .eq0 (.v is[0]) (
-  .share (.v is[0]) (fun vi =>
-  .eq0 (.v vi + .v is[1]) (
-  .nil))))
+def ex_circuit_fun {var} (p : ℕ) : Circuit p var :=
+  .lam fun x ↦ .lam fun y ↦
+  .eq0 (.v x) (
+  .share (.v x) fun vi =>
+  .eq0 (.v vi + .v y) (
+  .nil))
 
-theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (ZMod p) Nat],
-  Simulation.sBisim (curry 2 (ex p)) (Circuit.eval' (ex_circuit_fun p)) := by
+theorem equiv :
+  Simulation.sBisim (curry (n := 2) (ex p)) ((ex_circuit_fun p).eval) := by
   unfold ex_circuit_fun
   unfold ex
-  simp only [bind]
-  simp only [Circuit.eval']
-  intro p _ _
-  simp only [curry]
-  simp only [Circuit.curry]
-  repeat (constructor ; intro)
-  apply equiv_eq0
-  simp [Vector.append, Exp.eval]
-  apply equiv_share
-  . simp [Vector.append, Exp.eval]
-  . intro
-    apply equiv_eq0
-    simp [Vector.append, Exp.eval]
-    constructor
+  dsimp only [curry]
+  apply Compiler.equiv_lam fun _ ↦ ?_
+  apply Compiler.equiv_lam fun _ ↦ ?_
+  apply Compiler.equiv_eq0
+  apply Compiler.equiv_share
+  intros
+  apply Compiler.equiv_eq0
+  apply Compiler.equiv_accept
+  rfl
+  rfl
+  rfl
 
 end Example_vec
 
@@ -182,9 +149,9 @@ open Spec
 def ex p (xs ys zs: Vector (ZMod p) 2) : Option Unit :=
 -/
 def ex p :=
-  curry 2 (fun (xs: Vector (ZMod p) 2) =>
-  curry 2 (fun (ys: Vector (ZMod p) 2) =>
-  curry 2 (fun (zs: Vector (ZMod p) 2) => do
+  curry (fun (xs: Vector (ZMod p) 2) =>
+  curry (fun (ys: Vector (ZMod p) 2) =>
+  curry (fun (zs: Vector (ZMod p) 2) => do
   let xys := Vector.map (fun ((x,y): ZMod p × ZMod p) => x+y) (Vector.zip xs ys)
   for (xy,z) in Vector.zip xys zs do
     eq0 (xy-z)
@@ -194,41 +161,33 @@ def ex p :=
 #guard ex 7 2 4 1 1 3 5 = some 90 -- [2,4] + [1,1] = [3,5]
 #guard ex 7 2 4 1 1 3 6 = none
 
-def ex_circuit_fun (p : ℕ) : Circuit' p := fun _ =>
-  Circuit.curry 2 (fun xs =>
-  Circuit.curry 2 (fun ys =>
-  Circuit.curry 2 (fun zs =>
-  .eq0 ((.v xs[0]) + (.v ys[0]) - (.v zs[0])) (
-  .eq0 ((.v xs[1]) + (.v ys[1]) - (.v zs[1])) (
-  .nil)))))
+def ex_circuit_fun {var} (p : ℕ) : Circuit p var :=
+  .lam fun x1 ↦ .lam fun x2 ↦ .lam fun x3 ↦ .lam fun x4 ↦ .lam fun x5 ↦ .lam fun x6 ↦
+  .eq0 ((.v x1) + (.v x3) - (.v x5)) (
+  .eq0 ((.v x2) + (.v x4) - (.v x6)) (
+  .nil))
 
-set_option pp.parens true
-
-theorem equiv : ∀ p [Fact (Nat.Prime p)] [Coe (ZMod p) Nat],
-  Simulation.sBisim (ex p) (Circuit.eval' (ex_circuit_fun p)) := by
+theorem equiv :
+    Simulation.sBisim (ex p) (Circuit.eval (ex_circuit_fun p)) := by
   unfold ex_circuit_fun
   unfold ex
-  intro p _ _
   simp only [curry]
-  simp only [Circuit.curry]
-  repeat (constructor ; intro)
-  dsimp
-  -- protect rhs, reduce lhs and but the binds in the right shape
-  generalize h:Circuit.eq0 _ _ = rhs
-  simp!
-  rw [<-h]
-  repeat (rw [Option.bind_assoc])
-  apply equiv_eq0
-  simp [Vector.append, Exp.eval]
-  -- protect rhs, reduce lhs and but the binds in the right shape
-  generalize h:Circuit.eq0 _ _ = rhs
-  simp!
-  rw [<-h]
-  repeat (rw [Option.bind_assoc])
-  apply equiv_eq0
-  . simp [Vector.append, Exp.eval]
-  . simp!
-    constructor
+  apply Compiler.equiv_lam fun _ ↦ ?_
+  apply Compiler.equiv_lam fun _ ↦ ?_
+  apply Compiler.equiv_lam fun _ ↦ ?_
+  apply Compiler.equiv_lam fun _ ↦ ?_
+  apply Compiler.equiv_lam fun _ ↦ ?_
+  apply Compiler.equiv_lam fun _ ↦ ?_
+  generalize h : @Circuit.eq0 p _ _ _ = rhs
+  simp! [-Option.bind_eq_bind]; rw [←h]
+  apply Compiler.equiv_eq0
+  rw [Option.bind_eq_bind, Option.bind_some]; dsimp only
+  rw [bind_assoc]
+  apply Compiler.equiv_eq0
+  simp
+  apply Compiler.equiv_accept
+  rfl
+  rfl
 
 end Example_fold
 
