@@ -33,25 +33,30 @@ open scoped Simulation
 
 variable {el : ZMod p} {er : Expₑ p}
 
+@[aesop safe apply]
 lemma equiv_lam {α : Type} {f : ZMod p → α} {g : ZMod p → Circuitₑ p}
   (cont : ∀ (x), f x ~ₛ ((g x)).eval) :
   f ~ₛ (Circuit.lam g).eval := Simulation.sBisim.lam cont
 
+@[aesop safe apply]
 lemma equiv_eq0 {cl : Option Unit} {cr : Circuitₑ p}
   (cont : cl ~ₛ cr.eval)
   (h : el = er.eval) :
   (do eq0 el; cl) ~ₛ (Circuit.eq0 er cr).eval := by
   aesop (add simp eq0)
 
+@[aesop safe apply]
 lemma equiv_share {kl : ZMod p → Option Unit} {kr : ZMod p → Circuitₑ p}
   (cont : ∀ (x), kl x ~ₛ (kr x).eval)
   (h : el = er.eval) :
   (share el >>= kl) ~ₛ (Circuit.share er kr).eval := by
   aesop (add simp share)
 
+@[aesop safe apply]
 lemma equiv_accept : some accept ~ₛ (Circuit.nil (p := p)).eval := by
   constructor
 
+@[aesop safe apply]
 lemma equiv_is_zero {el : ZMod p} {kl : ZMod p → Option Unit} {er : Expₑ p} {kr : ZMod p → Circuitₑ p}
   (cont : ∀ (x), kl x ~ₛ (kr x).eval)
   (h : el = er.eval) :
