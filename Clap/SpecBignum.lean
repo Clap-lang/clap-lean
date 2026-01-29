@@ -531,4 +531,41 @@ abbrev mulMod' := @mulMod prime_babybear
 #guard toNat' (mulMod' 1971210 729399 123456) = (1971210 * 729399) % 123456
 #guard toNat' (mulMod' 123456 1971210 729399) = (123456 * 1971210) % 729399
 
+def pow65537Mod (b m : Bignum p) : Bignum p :=
+  let d01 := mulMod b b m
+  let d02 := mulMod d01 d01 m
+  let d03 := mulMod d02 d02 m
+  let d04 := mulMod d03 d03 m
+  let d05 := mulMod d04 d04 m
+  let d06 := mulMod d05 d05 m
+  let d07 := mulMod d06 d06 m
+  let d08 := mulMod d07 d07 m
+  let d09 := mulMod d08 d08 m
+  let d10 := mulMod d09 d09 m
+  let d11 := mulMod d10 d10 m
+  let d12 := mulMod d11 d11 m
+  let d13 := mulMod d12 d12 m
+  let d14 := mulMod d13 d13 m
+  let d15 := mulMod d14 d14 m
+  let d16 := mulMod d15 d15 m
+  d16.mulMod b m
+
+abbrev pow65537Mod' := @pow65537Mod prime_babybear
+
+#guard pow65537Mod' 0 17 = [0]
+#guard pow65537Mod' 1 19 = 1
+#guard pow65537Mod' 12345 1 = [0]
+#guard (16^65537) % 17 = 16
+#guard pow65537Mod' 16 17 = 16
+#guard (5 ^ 65537) % 23 = 14
+#guard pow65537Mod' 5 23 = 14
+#guard (12 ^ 65537) % 15 = 12
+#guard pow65537Mod' 12 15 = 12
+#guard (987654321 ^ 65537) % 1000000007 = 352162098
+#guard pow65537Mod' 987654321 1000000007 = 352162098
+#guard (1000000007 ^ 65537) % 1000000007 = 0
+#guard pow65537Mod' 1000000007 1000000007 = [0]
+#guard (987654321 ^ 65537) % 2 = 987654321 % 2
+#guard pow65537Mod' 987654321 2 = ofNat (987654321 % 2)
+
 end Bignum
