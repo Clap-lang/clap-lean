@@ -139,32 +139,6 @@ lemma div_rem_spec (a : ZMod p) :
   omega
   repeat apply ZMod.val_lt
 
-lemma stupid (hh : 256 < p) : (256 : ZMod p) ≠ (0 : ZMod p) := by
-  rw [ne_eq, ←ZMod.val_eq_zero]
-  change ¬ ((Nat.cast 256 : ZMod _)).val = 0
-  rw [ZMod.val_cast_of_lt hh]
-  omega
-
-lemma lol (hh : 256 < p) (a : ZMod p) : a * (2^8 : ZMod p) / (2^8 : ZMod p) = a := by
-  ring_nf
-  have : a * 256⁻¹ * 256 = a * (256 * 256⁻¹) := by grind
-  rw [this, Field.mul_inv_cancel] <;> simp
-  rw [←ZMod.val_eq_zero]
-  change ¬ ((Nat.cast 256 : ZMod _)).val = 0
-  rw [ZMod.val_cast_of_lt hh]
-  omega
-
--- lemma div_rem_spec_valid (a d r : ZMod p)
---   (hp : 256 < p)
---   (ha : FU8.isValid a)
---   (hs : Spec.div_rem a = some (d, r)):
---   FU8.isValid r ∧ FB.isValid d :=
--- by
---   split_ands <;> simp [Spec.div_rem, FU8.isValid, FB.isValid] at * <;> rcases hs with ⟨hl, hr⟩
---   · rw [lol hp] at hr; simp at *; rw [←hr]
---     rw [ZMod.val_zero]; omega
---   · have hh : a * (2^8 : ZMod p)⁻¹ = 1 ∨ a * (2^8 : ZMod p)⁻¹ = 0 := by
-
 lemma div_rem_spec_valid (a : ZMod p) :
   letI o := Spec.div_rem a; FU8.isValid o.2 := by
   simp [Spec.div_rem, FU8.isValid]
@@ -181,596 +155,340 @@ by
     · apply Nat.div_lt_of_lt_mul; omega
     · omega
 
-namespace ByteArray
+def addCarry (a b : FU8 p) (carryIn : FB p := 0) : (FU8 p) × (FB p) :=
+  Spec.div_rem (a + b + carryIn) |>.swap
 
--- This works if 2^8 < p ?
-def ofNat (x len : ℕ) : Array (FU8 p) := aux x len
-where
-  aux (x len : ℕ) : Array (FU8 p) :=
-    let d : ℕ := x / 2^8
-    let r : ℕ := x % 2^8
-    if len = 0 then #[] else ⟨r :: (aux d (len - 1)).toList⟩
+abbrev addCarry' := @addCarry prime_babybear
 
-#guard (ofNat (p := prime_babybear) (255 + 1)  2) = #[0,1]
-#guard (ofNat (p := prime_babybear) (2^16 + 2) 3) = #[2,0,1]
-#guard (ofNat (p := prime_babybear) (2^16 + 2) 4) = #[2,0,1,0]
+#guard addCarry' 1 1 = (2,0)
+#guard addCarry' 255 2 = (1,1)
+#guard addCarry' 255 3 = (2,1)
+#guard addCarry' 255 255 1 = (255,1)
 
-def toNat (bs : Array (FU8 p)) : ℕ :=
-  bs.foldr (fun (b : FU8 p) acc => acc * 2^8 + b) 0
+def mulCarry (a b : FU8 p) (c : ZMod p := 0) : FU8 p × (ZMod p) :=
+  Spec.div_rem (a * b + c) |>.swap
 
-#guard toNat (p := prime_babybear) #[1] = 1
-#guard toNat (p := prime_babybear) #[1,255] = 255*256+1
-#guard toNat (p := prime_babybear) #[1,2,3] = 3*256*256 + 2*256 + 1
-#guard toNat (p := prime_babybear) #[2,0,1,0] = 65536 + 2
+abbrev mulCarry' := @mulCarry prime_babybear
 
--- lemma eq_ofNat_toNat (x len : ℕ) (h : minBytes x ≤ len) :
---   toNat (ofNat (p := p) x len) = x :=
--- by
---   induction len
---   · simp [toNat, ofNat, ofNat.aux]; simp at h; rw [minBytes_eq_zero] at h
---     sorry
---   · sorry
+#guard mulCarry' 0 0 = (0, 0)
+#guard mulCarry' 10 1 = (10, 0)
+#guard mulCarry' 1 10 = (10, 0)
+#guard mulCarry' 10 0 5 = (5, 0)
+#guard mulCarry' 128 2 = (0, 1)
+#guard mulCarry' 128 2 1 = (1, 1)
+#guard mulCarry' 255 255 = (1, 254)
+#guard mulCarry' 255 255 255 = (0, 255)
+#guard mulCarry' 16 16 = (0, 1)
+#guard mulCarry' 2 100 200 = (144, 1)
+#guard mulCarry' 17 17 = (33, 1)
 
-#guard let n : ℕ := 255  + 1; toNat (ofNat (p := prime_babybear) n 2) = n
-#guard let n : ℕ := 2^16 + 2; toNat (ofNat (p := prime_babybear) n 3) = n
-#guard let n : ℕ := 2^16 + 2; toNat (ofNat (p := prime_babybear) n 4) = n
+/-- calculates: a - b - borrowIn.
+Logic:
+  1. calculate the total subtrahend (b + borrowIn).
+  2. ff a >= subtrahend, result is simple subtraction.
+  3. if a < subtrahend, we borrow 256 from the next position.
+     result becomes (256 + a) - subtrahend.
+-/
+def subBorrow (a b : FU8 p) (borrow : FB p := 0) : (FU8 p) × (FB p) :=
+  -- amount to be subtract
+  let subtrahend : ZMod p := b + borrow
+  -- check if we need to borrow
+  if a.val ≥ subtrahend then (a - subtrahend, 0) -- no borrow
+  else ((a + 256) - subtrahend, 1)
+  -- borrow (a < b + c), since a < subtrahend, 256 + a - subtrahend < 256
 
-#guard ofNat (p := prime_babybear) (toNat (p := prime_babybear) #[1]) 1 = #[1]
-#guard ofNat (p := prime_babybear) (toNat (p := prime_babybear) #[1,255]) 2 = #[1,255]
+abbrev subBorrow' := @subBorrow prime_babybear
 
-end ByteArray
+#guard subBorrow' 10 2      = (8, 0)
+#guard subBorrow' 10 10     = (0, 0)
+#guard subBorrow' 50 0      = (50, 0)
+#guard subBorrow' 50 0 1    = (49, 0)
+#guard subBorrow' 10 20     = (246, 1)
+#guard subBorrow' 10 10 1   = (255, 1)
+#guard subBorrow' 255 255   = (0, 0)
+#guard subBorrow' 255 255 1 = (255, 1)
+#guard subBorrow' 0 255     = (1, 1)
+#guard subBorrow' 0 255 1   = (0, 1)
+#guard subBorrow' 0 1       = (255, 1)
+
+abbrev Bignum p := List (FU8 p)
 
 namespace Bignum
 
-def addCarry (a b : FU8 p) (c : FB p := 0) : FU8 p × FB p :=
-  -- behaves well only if p>2^(8+1+1)
-  Spec.div_rem (a + b + c) |>.swap
+def normalize (n : Bignum p) : Bignum p :=
+  let trimmed := n.rdropWhile (·.val = 0)
+  if trimmed.isEmpty then [0] else trimmed
 
-lemma addCarry_spec (h : 256 + 256 + 2 < p) (a b : @FU8.Valid p) (c : @FB.Valid p := FB.false) :
-  letI o : FU8 p × FB p := addCarry a b c
-  (a : ℕ) + (b : ℕ) + (c : ℕ) = (o.2 : ℕ) * 2^8 + (o.1 : ℕ) :=
-by
-  have hab: ZMod.val a.val + ZMod.val b.val < 256 + 256 := by
-    apply Nat.add_lt_add
-    · apply a.prop
-    · apply b.prop
-  let drs := div_rem_spec ((a : FU8 p) + (b : FU8 p) + (c : FU8 p))
-  simp at *; simp at drs; simp [addCarry]
-  rw [<-drs, ZMod_add_no_overflow, ZMod_add_no_overflow]
-  · apply lt_trans
-    apply hab
-    omega
-  · have hc: ZMod.val (a.val + b.val) + ZMod.val c.val < (256 + 256 + 2) := by
-      apply Nat.add_lt_add
-      · rw [ZMod_add_no_overflow]; try assumption
-        apply lt_trans hab; omega
-      · exact c.prop
-    apply lt_trans hc
-    assumption
+abbrev normalize' := @normalize prime_babybear
 
-private
-lemma Nat.add_lt_add3 (a b c ta tb tc : ℕ) (ha: a < ta) (hb : b < tb) (hc : c < tc) :
-  a + b + c < ta + tb + tc := by
-  apply Nat.add_lt_add
-  apply Nat.add_lt_add
-  repeat assumption
+#guard normalize' [0] = [0]
+#guard normalize' [] = [0]
+#guard normalize' [1,0,1,0] = [1,0,1]
+#guard normalize' [0,0,0] = [0]
+#guard normalize' [0,0,1] = [0, 0, 1]
 
-lemma addCarry_spec_valid (a b : @FU8.Valid p) (c : @FB.Valid p := FB.false) (h : 256 + 256 + 2 < p) :
-  letI o : FU8 p × FB p := addCarry a b c; FU8.isValid o.1 ∧ FB.isValid o.2 :=
-by
-  simp [addCarry]
-  let drv := div_rem_spec_valid ((a : FU8 p) + (b : FU8 p) + (c : FB p))
-  simp at drv; split_ands; apply drv
-  sorry
-  -- simp [FB.isValid, Spec.div_rem]
-  -- rw [Nat.div_mod_eq_div]
-  -- · simp [FU8.isValid, Spec.div_rem] at drv
-  --   rw [Nat.mod_mod_eq_mod_of_lt_right] at drv
-  --   rw [Nat.div_lt_iff_lt_mul]
-
-    --sorry
-    -- rw [Nat.mod_mod_eq_mod_of_lt_right] at drv
-  -- . apply Nat.div_lt_of_lt_mul
-  --   rw [ZMod_add_no_overflow, ZMod_add_no_overflow]
-  --   · apply lt_trans (b := 256 + 256 + 2)
-  --   · apply Nat.add_lt_add
-  -- apply Nat.add_lt_add (b:=256)
-  -- let drs := div_rem_spec ((a:FU8 p)+(b:FU8 p)+(c:FU8 p))
-  -- simp at drs
-  -- simp [drs]
-  -- simp
-  -- · apply lt_trans (b := 256 + 256 + 2)
-  --   · rw [ZMod_add_no_overflow, ZMod_add_no_overflow]
-  --     · apply Nat.add_lt_add3; apply a.prop; apply b.prop; apply c.prop
-  --     · apply (lt_trans (b := 256 + 256))
-  --       apply Nat.add_lt_add; apply a.prop; apply b.prop; omega
-  --     · rw [ZMod_add_no_overflow]
-  --       · apply lt_trans (b := (256 + 256) + 2); apply Nat.add_lt_add3
-  --         apply a.prop; apply b.prop; apply c.prop; omega
-  --       · apply lt_trans (b := 256 + 256); apply Nat.add_lt_add
-  --         apply a.prop; apply b.prop; omega
-  --   · assumption
-
-#guard addCarry (p := prime_babybear) 1 1 = (2,0)
-#guard addCarry (p := prime_babybear) 255 2 = (1,1)
-#guard addCarry (p := prime_babybear) 255 3 = (2,1)
-#guard addCarry (p := prime_babybear) 255 255 1 = (255,1)
-#guard addCarry (p := prime_babybear) 300 300 5 = (93,2) -- nonsense
-
-open Spec in
-def ex (a b : FU8 p) : Option Unit := do
-  FU8.mk a
-  FU8.mk b
-  let (_o,c') := addCarry a b
-  eq0 c'
-  accept ()
-
-def shiftLeft (n : ℕ) (num : Array (FU8 p)) : Array (FU8 p) :=
-  Array.replicate n 0 ++ num
-
-def addBignum (a b : Array (FU8 p)) : Array (FU8 p) :=
-  addWithCarry 0 a.toList b.toList |>.toArray
-where
-  addWithCarry (c : FU8 p) (as bs : List (FU8 p)) : List (FU8 p) :=
-    match as,bs with
-    | [], [] => if c.val > 0 then [c] else []
-    | (a :: as), [] => let (c, l) := Spec.div_rem (a + c); l :: addWithCarry c as []
-    | [], (b :: bs) => let (c, l) := Spec.div_rem (b + c); l :: addWithCarry c [] bs
-    | (a :: as), (b :: bs) => let (c, l) := Spec.div_rem (a + b + c); l :: addWithCarry c as bs
-
-section ex
-open ByteArray
-
-def ofNat' x := ofNat (p:=prime_babybear) x (minBytes x)
-def toNat' x := toNat (p:=prime_babybear) x
-
-#guard ofNat' 1234 = #[210, 4]
-#guard ofNat' 4321 = #[225, 16]
-#guard 1234 + 4321 = 5555
-#guard ofNat' 5555 = #[179, 21]
-
-#eval addBignum (ofNat' 45536) (ofNat' 19999)
-
-#guard addBignum (ofNat' 1234) (ofNat' 4321) = ofNat' 5555
-#guard toNat' (addBignum (ofNat' 1234) (ofNat' 4321)) = 5555
-
-#guard addBignum (ofNat' 0) (ofNat' 0) = ofNat' 0
-#guard addBignum (ofNat' 189274) (ofNat' 893475) = ofNat' (189274 + 893475)
-#guard addBignum (ofNat' 987654321) (ofNat' 123456789) = ofNat' (987654321 + 123456789)
-end ex
-
-def mulCarry (a b : FU8 p) (c : ZMod p := 0) : FU8 p × (ZMod p) :=
-  --let o : ZMod p :=  -- 2*8+1 bits
-  Spec.div_rem (a * b + c) --|>.swap
-
-def mulOneLine (a : Array (FU8 p)) (b : FU8 p) : Array (FU8 p) :=
-  aux 0 a.toList |>.toArray
-where
-  aux (c : FU8 p) (l : List (FU8 p)) : List (FU8 p) :=
-    match l with
-    | [] =>
-      if c.val > 0 then
-        -- We need better way to model FU8, here c.val can be 256. Check why addBignum deals
-        -- correctly with this
-        if c.val > 2^8 - 1 then
-          let (cr, lm) := Spec.div_rem c; [lm, cr]
-        else [c]
-      else []
-    | (d :: ds) =>
-      let (cr, lm) := mulCarry d b c
-      lm :: aux cr ds
-
-section ex
-open ByteArray
-
-#guard 15 * 2^27 + 1 = 2013265921
-#guard 12345 * 54321 =  670592745
-#guard 12345*1359 = 16776855
-#guard (ofNat' $ 12345*1359) = #[151, 254, 255]
-#guard 12345*1360 = 16789200
-#guard (ofNat' $ 12345*1360) = #[208, 46, 0, 1]
-#guard (ofNat' 12345) = #[57, 48]
-#guard mulOneLine (ofNat' 12345) 1359 = #[151, 254, 255]
-#guard mulOneLine (ofNat' 12345) 1360 = (ofNat' $ 12345*1360)
---#guard mulOneLine (ofNat' 12345) 1360 = #[208, 46, 256] -- wrong
-#guard mulOneLine (p := prime_babybear) #[10, 20, 1] 3 = #[30, 60, 3]
-#guard mulOneLine (ofNat' 12345) 5 = (ofNat' $ 12345*5)
-#guard mulOneLine (ofNat' 12345) 1359 = (ofNat' $ 12345*1359)
-#guard mulOneLine (ofNat' $ 2^16 + 1) 128 = (ofNat' $ (2^16 + 1) * 128)
-end ex
-
-def mulBignum (a b : Array (FU8 p)) : Array (FU8 p) :=
-  sumPartialProducts 0 b.toList |>.toArray
-where
-  sumPartialProducts shift (l : List (FU8 p)) :=
-    match l with
-    | [] => []
-    | (limb :: rest) =>
-      let partialProduct := mulOneLine a limb
-      let shiftedProduct := shiftLeft shift partialProduct
-      let remainingSum   := sumPartialProducts (shift + 1) rest
-      addBignum shiftedProduct remainingSum.toArray |>.toList
-
-section ex
-open ByteArray
-
-#guard mulBignum (ofNat' 70666) (ofNat' 66051) = ofNat' (70666 * 66051)
-#guard mulBignum (ofNat' 13145610) (ofNat' 1318405) = ofNat' (13145610 * 1318405)
-end ex
-
--- ugly. If we try to remove trailling zeros from this zero number [0,0,0] it returns []
--- which is wrong.
-def removeTraillingZeros (a : List (FU8 p)) : List (FU8 p) :=
-  let l := List.rdropWhile (· = 0) a
-  if l.isEmpty then [0] else l
-
--- Correct way?
-instance : Ord (ZMod p) where
-  compare x y := compare x.val y.val
-
--- Compare two BigNums (Little-Endian). We reverse them to compare MSB first.
-def compareBignum (a b : Array (FU8 p)) : Ordering :=
-  let a' := removeTraillingZeros a.toList
-  let b' := removeTraillingZeros b.toList
-  List.compareLex compare a' b'
-
-section ex
-open ByteArray Ordering
-
-#guard compareBignum (ofNat' 70666) (ofNat' 66051) = gt
-#guard compareBignum (ofNat' 1318405) (ofNat' 13145610) = lt
-#guard compareBignum (p := prime_babybear) #[0] #[0] = eq
-#guard compareBignum (p := prime_babybear) #[1, 0, 0] #[1, 0, 0] = eq
-end ex
-
--- Subtracts ys from xs (xs - ys). Assumes xs >= ys
-def sub' (a b : Array (FU8 p)) : Array (FU8 p) :=
-  let rec loop (xs ys : List (FU8 p)) (borrow : FU8 p) : List (FU8 p) :=
-    match xs, ys with
-    | [], [] => []
-    | x :: xt, [] =>
-      if borrow == 0 then x :: xt
-      else if x.val >= borrow then (x - borrow) :: xt
-      else (2^8 - borrow + x) :: loop xt [] 1
-    | x :: xt, y :: yt =>
-      let y_adj := y + borrow
-      if x.val >= y_adj then
-        (x - y_adj) :: loop xt yt 0
-      else
-        (2^8 + x - y_adj) :: loop xt yt 1
-    | [], _ => []
-  ⟨removeTraillingZeros (loop a.toList b.toList 0)⟩
-
-def subBignum (xs ys : Array (FU8 p)) : Option (Array (FU8 p)) :=
-  (List.toArray <$> removeTraillingZeros <$> subWithBorrow 0 xs.toList ys.toList)
-where
-  subWithBorrow b xs ys := do
-    match b, xs, ys with
-    -- Case 1: Both lists empty. If borrow > 0, we had an underflow, precondition violated
-    | 0, [], [] => .some []
-    | _, [], [] => .none
-
-    -- Case 2: ys runs out. We still might have a borrow to subtract from xs.
-    | b, (x :: xs), [] =>
-      if x.val ≥ b then .some ((x - b) :: xs) -- No new borrow needed, rest of xs remains as is.
-      else (x + 2^8 - b) :: (← subWithBorrow 1 xs [])
-
-    -- Case 3: xs runs out but ys remains. Impossible if xs >= ys.
-    | _, [], (_ :: _) => .none
-
-    -- Case 4: Both lists have limbs.
-    | b, (x :: xs), (y :: ys) =>
-      let s := y + b
-      -- No borrow needed for next step
-      if x.val ≥ s then (x - s) :: (← subWithBorrow 0 xs ys)
-      -- Borrow needed: "Add" base to current digit, "borrow" 1 from next
-      else ((x + 2^8) - s) :: (← subWithBorrow 1 xs ys)
-
-
-section ex
-open ByteArray Ordering
-
-#guard subBignum (ofNat' 4321) (ofNat' 1234) = .some (ofNat' (4321 - 1234))
-#guard subBignum (ofNat' 4321) (ofNat' 1234) = ofNat' (4321 - 1234)
-#guard subBignum (ofNat' 1234) (ofNat' 4321) = .none
-#guard subBignum (ofNat' 1) (ofNat' 2) = .none
-#guard subBignum (ofNat' 1234) (ofNat' 1234) = ofNat' 0
-
-#guard sub' (ofNat' 4321) (ofNat' 1234) = (ofNat' (4321 - 1234))
-#guard sub' (ofNat' 4321) (ofNat' 1234) = ofNat' (4321 - 1234)
-#eval sub' (ofNat' 1234) (ofNat' 4321) -- nonsense
-#eval sub' (ofNat' 1) (ofNat' 2) -- nonsense
-#guard subBignum (ofNat' 1234) (ofNat' 1234) = ofNat' 0
-
--- identity (subtracting zero)
--- how to correctly deal with #[] and #[0] being equal
-#guard subBignum (p := prime_babybear) #[5, 4, 3] #[] = .some #[5, 4, 3]
-#guard subBignum (p := prime_babybear) #[5, 4, 3] #[0] = .some #[5, 4, 3]
--- substract self
-#guard subBignum (p := prime_babybear) #[2, 1] #[2, 1] = .some #[0]
-#guard subBignum (p := prime_babybear) #[2, 1] #[2, 1] ≠ .some #[]
--- "ripple" borrow
-#guard subBignum (p := prime_babybear) #[0, 0, 1] #[1] = .some #[255,255]
-#guard subBignum (ofNat' (256^2)) (ofNat' 1) = .some (ofNat' (256^2 - 1))
--- Simple No-Borrow
-#guard subBignum (p := prime_babybear) #[9, 9, 9] #[1, 2, 3] = .some #[8, 7, 6]
-#guard subBignum (ofNat' 592137) (ofNat' 197121) = .some (ofNat' (592137 - 197121))
--- length mismatch (small y)
-#guard subBignum (p := prime_babybear) #[57, 48] #[5] = .some #[(57 - 5), 48]
--- length mismatch with borrow
-#guard subBignum (p := prime_babybear) #[0, 1] #[1] = .some #[255]
--- alternating borrows
-#guard subBignum (ofNat' 84018434) (ofNat' 196611) = .some (ofNat' (84018434 - 196611))
-#guard subBignum (p := prime_babybear) #[2, 5, 2, 5] #[3, 0, 3, 0] = .some #[255, 4, 255, 4]
--- multi-limb borrow (recursive)
-#guard subBignum (ofNat' 196613) (ofNat' 6) = .some (ofNat' (196613 - 6))
-#guard subBignum (p := prime_babybear) #[5, 0, 3] #[6] = .some #[255, 255, 2]
-end ex
-
-def doubleAndAdd (n : Array (FU8 p)) (bit : FU8 p) : Array (FU8 p) :=
-  let rec loop (xs : List (FU8 p)) (carry : FU8 p) : List (FU8 p) :=
-    match xs with
-    | [] => if carry.val > 0 then [carry] else []
-    | x :: xt =>
-      let val := (x * 2) + carry
-      let (newCarry, newLimb) := Spec.div_rem val
-      newLimb :: loop xt newCarry
-  ⟨loop n.toList bit⟩
-
--- /--
---   Computes (x % m) using Schoolbook Long Division.
---   Structure:
---   1. Process `x` limb-by-limb from MSB (Head of reversed list) to LSB.
---   2. Inside each limb, process bits from 7 down to 0.
---   3. Perform "Shift, Add, Check-Subtract" at every bit.
--- -/
--- def modBignum (x m : Array (FU8 p)) : Array (FU8 p) :=
---   if removeTraillingZeros m.toList = [0] then #[0] else
---   let lala := Array.foldl (fun rem limb ↦ processLimb rem limb 7) (#[0] : Array (FU8 p))
---   lala
--- where
---   step (rem : Array (FU8 p)) (bit : FU8 p) : Array (FU8 p) :=
---     let remShifted := doubleAndAdd rem bit
---     if compareBignum remShifted m = Ordering.gt then sub' remShifted m else remShifted
---   processLimb (rem : Array (FU8 p)) (limb bitIdx : ℕ) : Array (FU8 p) :=
---     let bit := (limb / (2 ^ bitIdx)) % 2
---     let rem' := step rem bit
---     match bitIdx with
---     | 0 => rem'
---     | k + 1 => processLimb rem' limb k
-
-
-
--- section ex
--- open ByteArray
-
--- #eval 266 % 5
--- #eval modBignum (p := prime_babybear) #[10, 1] #[5]
-
--- #eval toNat' #[10, 1]
--- #eval toNat' #[0, 5, 1]
-
--- end ex
-
-end Bignum
-
--- ==========================================
--- Byte alternative example
--- ==========================================
-
-namespace ByteBit
-
-abbrev Bit := Fin 2
-abbrev Byte := Fin 256
-
--- As long as p > 65536 (256*256) > 65537
--- we have enought space to do every operation we want
-#guard minBytes (255 + 255 + 255) ≤ 2 -- add carry
-#guard minBytes (255*2 + 255)     ≤ 2 -- double and add
-#guard minBytes (255*255 + 255)   ≤ 2 -- mul carry
-
-section exampleField
-abbrev Fp := ZMod 65537
-
--- We can embed Byte and Bit into the field
-instance : Coe Byte Fp where
-  coe b := b.val
-
-instance : Coe Bit Fp where
-  coe b := b.val
-
-theorem byte_embeds_field (b : Byte) : (b : Fp).val = b.val := by
-  apply Nat.mod_eq_of_lt (Nat.lt_trans b.isLt (by simp))
-
-theorem bit_embeds_field (b : Bit) : (b : Fp).val = b.val := by
-  apply Nat.mod_eq_of_lt (Nat.lt_trans b.isLt (by simp))
-
-end exampleField
-
-abbrev Bignum := List Byte
-
--- lemma carryOut_bit {a b c} (ha : a ≤ 255) (hb : b ≤ 255) (hc : c ≤ 1) :
---   (a + b + c) / 256 < 2 :=
--- by
---   have : a + b + c ≤ 511 := by
---     apply Nat.le_trans (Nat.add_le_add (Nat.add_le_add ha hb) hc)
---     decide
---   apply Nat.div_lt_of_lt_mul
---   omega
-
-def fullAdd (a b : Byte) (carryIn : Bit := 0) : Byte × Bit :=
-  let rawSum := a.val + b.val + carryIn.val
-  let sumVal := rawSum % 256 -- We can use Spec.div_rem here
-  let carryOut := rawSum / 256
-  have h_carry : carryOut < 2 := by
-    have ha : a.val ≤ 255     := Nat.le_of_lt_succ a.isLt
-    have hb : b.val ≤ 255     := Nat.le_of_lt_succ b.isLt
-    have hc : carryIn.val ≤ 1 := Nat.le_of_lt_succ carryIn.isLt
-    have h_sum : rawSum ≤ 511 := by
-      apply Nat.le_trans (Nat.add_le_add (Nat.add_le_add ha hb) hc); decide
-    simp [carryOut]; apply Nat.div_lt_of_lt_mul; omega
-  (⟨sumVal, Nat.mod_lt _ (by decide)⟩, ⟨carryOut, h_carry⟩)
-
-#guard fullAdd 1 1 = (2,0)
-#guard fullAdd 255 2 = (1,1)
-#guard fullAdd 255 3 = (2,1)
-#guard fullAdd 255 255 1 = (255,1)
--- #guard fullAdd 0 0 1 = fullAdd 256 256 5
-
-def ofNat' (x len : ℕ) : Bignum :=
+def ofNatLen (x len : ℕ) : Bignum p :=
   let d := x / 256
   let r := x % 256
-  if len = 0 then [] else ⟨r, Nat.mod_lt _ (by decide)⟩ :: (ofNat' d (len - 1))
+  if len = 0 then [] else r :: (ofNatLen d (len - 1))
 
-def ofNat (n : ℕ) : Bignum :=
+def ofNat (n : ℕ) : Bignum p :=
   if n == 0 then []
   else
     let digit := n % 256
     let rest := n / 256
-    ⟨digit, Nat.mod_lt _ (by decide)⟩ :: ofNat rest
+    digit :: ofNat rest
 decreasing_by
   apply Nat.div_lt_self <;> grind
 
-#guard ofNat (255 + 1)  = [0,1]
-#guard ofNat (2^16 + 2) = [2,0,1]
+abbrev ofNat' := @ofNat prime_babybear
 
-def toNat : Bignum → ℕ :=
-  List.foldr (fun b acc => acc * 256 + b) 0
+#guard ofNat' (255 + 1)  = [0,1]
+#guard ofNat' (2^16 + 2) = [2,0,1]
 
-#guard toNat [0,1]     = (255 + 1)
-#guard toNat [2,0,1]   = (2^16 + 2)
-#guard toNat [2,0,1,0] = (2^16 + 2)
-
-instance (n : ℕ) : OfNat Bignum n where
+instance (n : ℕ) : OfNat (Bignum p) n where
   ofNat := ofNat n
 
-def Bignum.add (a b : Bignum) : Bignum :=
+def toNat : Bignum p → ℕ :=
+  List.foldr (fun b acc => acc * 256 + b) 0
+
+abbrev toNat' := @toNat prime_babybear
+
+#guard toNat' [0,1]     = (255 + 1)
+#guard toNat' [2,0,1]   = (2^16 + 2)
+#guard toNat' [2,0,1,0] = (2^16 + 2)
+
+def add (a b : Bignum p) : Bignum p :=
   loop a b 0
 where
-  loop (xs ys : List Byte) (c : Bit) : Bignum :=
+  loop (xs ys : Bignum p) (c : FB p) : Bignum p :=
     match xs, ys with
-    -- Case 1: Both lists finished.
-    -- If there is a remaining carry, append a new limb [1].
-    | [], [] => if c.val == 1 then [⟨1, by decide⟩] else []
+    -- case 1: both lists finished.
+    -- if there is a remaining carry, append a new limb [1].
+    | [], [] => if c.val == 1 then [1] else []
 
-    -- Case 2: 'a' is longer than 'b'.
-    -- Continue adding carry to 'a' (effectively adding 0 from b).
+    -- case 2: 'a' is longer than 'b'.
+    -- continue adding carry to 'a' (effectively adding 0 from b).
     -- | x :: xs, [] => let (sum, newC) := fullAdd x 0 c; sum :: loop xs [] newC
     | x :: xs, [] =>
-      if c.val == 0 then x :: xs -- stop recursion if no carry
-      else let (sum, newC) := fullAdd x 0 c; sum :: loop xs [] newC
+      if c = 0 then x :: xs -- stop recursion if no carry
+      else let (sum, newC) := addCarry x 0 c; sum :: loop xs [] newC
 
     -- Case 3: 'b' is longer than 'a'.
-    | [], y :: ys => let (sum, newC) := fullAdd 0 y c; sum :: loop [] ys newC
+    | [], y :: ys => let (sum, newC) := addCarry 0 y c; sum :: loop [] ys newC
 
     -- Case 4: Standard addition of two limbs.
-    | x :: xs, y :: ys => let (sum, newC) := fullAdd x y c; sum :: loop xs ys newC
+    | x :: xs, y :: ys => let (sum, newC) := addCarry x y c; sum :: loop xs ys newC
 
-#guard (40 : Bignum).add 2 = 42
+abbrev add' := @add prime_babybear
 
--- identity
-#guard Bignum.add 0 0 = 0
-#guard Bignum.add 12345 0 = 12345
-#guard Bignum.add 0 67890 = 67890
--- single limb no carry
-#guard Bignum.add 10 20 = 30
--- single limb overflow
-#guard Bignum.add  250   10  =  260
-#guard Bignum.add [250] [10] = [4,1]
--- multi-limb propagation
-#guard Bignum.add  255   1  =  256
-#guard Bignum.add [255] [1] = [0,1]
--- long ripple
-#guard Bignum.add   65535     1  =   65536
-#guard Bignum.add [255, 255] [1] = [0, 0, 1]
--- left larger
--- #eval ofNat 100000 -- [160, 134, 1]
--- #eval ofNat 5 -- [5]
-#guard Bignum.add 100000 5 = 100005 -- [165, 134, 1]
--- right larger
--- #eval ofNat 200000 -- [64, 13, 3]
--- #eval ofNat 10 -- [10]
-#guard Bignum.add 200000 10 = 200010 -- [74, 13, 3]
--- boundary carry at the end
-#guard Bignum.add  255   255  =    510
-#guard Bignum.add [255] [255] = [254, 1]
--- alternating bit
-#guard Bignum.add 43690 21845 = 65535
+#guard (40 : Bignum prime_babybear).add 2 = 42
+#guard add' 0 0 = 0
+#guard add' 12345 0 = 12345
+#guard add' 0 67890 = 67890
+#guard add' 10 20 = 30
+#guard add'  250   10  =  260
+#guard add' [250] [10] = [4,1]
+#guard add'  255   1  =  256
+#guard add' [255] [1] = [0,1]
+#guard add'   65535     1  =   65536
+#guard add' [255, 255] [1] = [0, 0, 1]
+#guard add' 100000 5 = 100005
+#guard add' 200000 10 = 200010
+#guard add'  255   255  =    510
+#guard add' [255] [255] = [254, 1]
+#guard add' 43690 21845 = 65535
 
--- def mulCarry (a b : FU8 p) (c : ZMod p := 0) : FU8 p × (ZMod p) :=
---   --let o : ZMod p :=  -- 2*8+1 bits
---   Spec.div_rem (a * b + c) --|>.swap
-
-/--
-  Multiply (a * b + (carry = 0)).
-  Returns (low (res), high (carry)) such that val = low + high * 256.
--/
-def mulCarry (a b : Byte) (c : Byte := 0) : Byte × Byte :=
-  let rawMul := a.val * b.val + c.val
-  let loVal := rawMul % 256
-  let hiVal := rawMul / 256
-  have h_hi : hiVal < 256 := by
-    have ha : a.val ≤ 255 := Nat.le_of_lt_succ a.isLt
-    have hb : b.val ≤ 255 := Nat.le_of_lt_succ b.isLt
-    have hc : c.val ≤ 255 := Nat.le_of_lt_succ c.isLt
-    have h_mul : a.val * b.val ≤ 65025 := Nat.mul_le_mul ha hb
-    have h_total : rawMul ≤ 65280 := by
-      apply Nat.le_trans (Nat.add_le_add h_mul hc)
-      decide
-    simp [hiVal]; apply Nat.div_lt_of_lt_mul; omega
-  (⟨loVal, Nat.mod_lt _ (by decide)⟩, ⟨hiVal, h_hi⟩)
-
-def mulOneLine (xs : Bignum) (s : Byte) : Bignum :=
+def mulOneLine (xs : Bignum p) (s : FU8 p) : Bignum p :=
   loop xs 0
 where
   loop i carry :=
     match i with
-    | [] => if carry > 0 then [carry] else []
-    | x :: xs =>
-      let (newLimb, newCarry) := mulCarry x s carry
-      newLimb :: loop xs newCarry
+    | [] => if carry.val > 0 then [carry] else []
+    | x :: xs => let (nl, nc) := mulCarry x s carry; nl :: loop xs nc
+
+abbrev mulOneLine' := @mulOneLine prime_babybear
 
 -- TODO: how to deal with multiple zero representation
-#guard mulOneLine 0 0 = 0
-#guard mulOneLine 65535 0 = [0, 0]
-#guard mulOneLine 0 255 = []
-#guard mulOneLine 65535 1 = 65535
-#guard mulOneLine 1 253 = 253
-#guard mulOneLine 65535 2 = ofNat (65535 * 2)
-#guard mulOneLine 1000 250 = ofNat (1000 * 250)
-#guard mulOneLine 65535 255 = ofNat (65535 * 255)
-#guard mulOneLine 10 10 = 100
-#guard mulOneLine 222 2 = 444
-#guard mulOneLine 255 255 = 65025
-#guard mulOneLine 65537 3 = 196611
+#guard mulOneLine' 0 0 = 0
+#guard mulOneLine' 65535 0 = [0, 0]
+#guard mulOneLine' 0 255 = []
+#guard mulOneLine' 65535 1 = 65535
+#guard mulOneLine' 1 253 = 253
+#guard mulOneLine' 65535 2 = ofNat' (65535 * 2)
+#guard mulOneLine' 1000 250 = ofNat' (1000 * 250)
+#guard mulOneLine' 65535 255 = ofNat' (65535 * 255)
+#guard mulOneLine' 10 10 = 100
+#guard mulOneLine' 222 2 = 444
+#guard mulOneLine' 255 255 = 65025
+#guard mulOneLine' 65537 3 = 196611
 
-def Bignum.mul (xs ys : Bignum) : Bignum :=
-  match ys with
-  | [] => [] -- x * 0
-  | y :: ys =>
-    let term := mulOneLine xs y
-    let rest := mul xs ys
-    let shifted := if rest.isEmpty then [] else zeroByte :: rest
-    term.add shifted
+def mul (a b : Bignum p) : Bignum p :=
+  match b with
+  | [] => []
+  | b :: bs =>
+    let rest := mul a bs
+    (mulOneLine a b).add (if rest.isEmpty then [] else 0 :: rest)
+
+abbrev mul' := @mul prime_babybear
+
+#guard mul' 0 65535 = []
+#guard mul' 65535 0 = []
+#guard mul' 1 123456789 = 123456789
+#guard mul' 123456789 1 = 123456789
+#guard mul' 10 10 = 100
+#guard mul' 255 255 = 65025
+#guard mul' 256 256 = 65536
+#guard mul' 2 100000 = 200000
+#guard mul' 100000 2 = 200000
+#guard mul' 65535 65535 = 4294836225
+#guard mul' 12345 67890 = 838102050
+
+/--
+  subtracts two bignums (a - b).
+  assumes a >= b
+  If a < b, this performs modular subtraction (wrapping around) supposedly XD.
+-/
+def sub (a b : Bignum p) : Bignum p :=
+  normalize (loop a b 0)
 where
-  zeroByte : Byte := ⟨0, by decide⟩
+  loop xs ys (borrow : FB p) :=
+    match xs, ys with
+    -- If borrow is 1 here, it means a < b (underflow). We ignore it for Nat subtraction.
+    | [], [] => []
+    -- We subtract 0 (and the borrow) from 'a'.
+    | x :: xs, [] =>
+      let (diff, newBorrow) := subBorrow x 0 borrow
+      diff :: loop xs [] newBorrow
+    -- subtract 0 (and the borrow) from 'b'.
+    | [], y :: ys =>
+      let (diff, newBorrow) := subBorrow y 0 borrow
+      diff :: loop [] ys newBorrow
+    -- standard subtraction
+    | x :: xs, y :: ys =>
+      let (diff, newBorrow) := subBorrow x y borrow
+      diff :: loop xs ys newBorrow
 
-#guard Bignum.mul 0 65535 = []
-#guard Bignum.mul 65535 0 = []
-#guard Bignum.mul 1 123456789 = 123456789
-#guard Bignum.mul 123456789 1 = 123456789
-#guard Bignum.mul 10 10 = 100
-#guard Bignum.mul 255 255 = 65025
-#guard Bignum.mul 256 256 = 65536
-#guard Bignum.mul 2 100000 = 200000
-#guard Bignum.mul 100000 2 = 200000
-#guard Bignum.mul 65535 65535 = 4294836225
-#guard Bignum.mul 12345 67890 = 838102050
+abbrev sub' := @sub prime_babybear
 
-end ByteBit
+#guard sub' 123456 0 = 123456
+#guard sub' 987654 987654 = [0]
+#guard sub' 20 10 = 10
+#guard sub' 256 1 = 255
+#guard sub' 65536 1 = 65535
+#guard sub' 1000 10 = 990
+#guard sub' 65535 255 = 65280
+#guard sub' 100000 99999 = 1
+#guard sub' 256 255 = 1
+#guard sub' 12345678  8765432 = 3580246
 
--- exponentiation by 65537 = 2^16 - 1, which means: square the base 16 times plus
--- a final multiplication
--- def fpPow65537Mod
+-- returns a <= b (assuming LSB)
+def le (a b : Bignum p) : Bool :=
+  let an := a.normalize
+  let bn := b.normalize
+  if an.length < bn.length then true
+  else if an.length > bn.length then false
+  else -- equal lengths, compare msb to lsb
+    compareLists an.reverse bn.reverse
+where
+  compareLists : Bignum p → Bignum p → Bool
+    | [], [] => true
+    | [], _ => true
+    | _, [] => false
+    | x :: xs, y :: ys =>
+      if x.val < y.val then true
+      else if x.val > y.val then false
+      else compareLists xs ys
 
-end Clap
+abbrev le' := @le prime_babybear
+
+#guard (toNat' [0, 0, 1] ≤ toNat' [0, 10, 0]) = le' [0, 0, 1] [0, 10, 0]
+
+-- Long Division algorithm
+-- we cannot easily estimate the quotient digit without some sort of division, but we can "brute force" it.
+-- "digit" range is small (0 ... 255), we can find the correct quotient byte by guessing:
+-- we try values and multiply to see if it fits
+
+-- TODO: binary search
+-- find the largest q ∈ (0..255) such that (divisor * q) <= current_rem using linear search
+-- Returns (q, current_rem - divisor * q)
+def findQuotientByte (current_rem divisor : Bignum p) : FU8 p × Bignum p :=
+  -- tries q from 255 down to 0
+  go 255
+where
+  go : ℕ → FU8 p × Bignum p
+    | 0 => (0, current_rem) -- If we reached 0, the quotient is 0
+    | q_nat@(n + 1) =>
+      let q : FU8 p := q_nat
+      let product := mulOneLine divisor q
+      if le product current_rem then (q, sub current_rem product)
+      else go n
+
+abbrev findQuotientByte' := @findQuotientByte prime_babybear
+
+#guard findQuotientByte' [50] [5] = (10, [0])
+#guard findQuotientByte' [52] [5] = (10, [2])
+#guard findQuotientByte' [5] [10] = (0, [5])
+#guard findQuotientByte' [100] [100] = (1, [0])
+#guard findQuotientByte' [255] [1] = (255, [0])
+#guard findQuotientByte' [10,1] [1,1] = (1, [9]) -- 266 / 257
+#guard findQuotientByte'  266    257  = (1, 9)
+#guard findQuotientByte' [246, 9] [10] = (255, [0]) -- 2550 / 10 = 255
+#guard findQuotientByte' [29] [10] = (2, [9])
+#guard findQuotientByte' [0] [50] = (0, [0]) -- 0 / 50 = 0
+#guard findQuotientByte' [88, 2] [44, 1] = (2, [0]) -- 600 / 300
+#guard findQuotientByte' [100, 0, 255] [0, 0, 1] = (255, [100]) -- 16711780 / 65536
+#guard 16711780 / 65536 = 255
+#guard 16711780 % 65536 = 100
+#guard findQuotientByte' [0, 0, 64, 192] [0, 0, 0, 128] = (1, 1077936128) -- 3225419776 / 2147483648
+#guard 3225419776 / 2147483648 = 1
+#guard 3225419776 % 2147483648 = 1077936128
+#guard findQuotientByte' [8, 0, 0, 4] [255, 255, 255, 1] = (2, [10]) -- 67108872 / 33554431
+#guard 67108872 / 33554431 = 2
+#guard 67108872 % 33554431 = 10
+#guard findQuotientByte' [139, 140, 25, 6] [98, 26, 197, 3] = (1, [41, 114, 84, 2]) -- 63245986 / 102334155
+
+def div (dividend divisor : Bignum p) : Bignum p × Bignum p :=
+  let divisor := divisor.normalize -- safe guard
+  let dividend := dividend.normalize -- safe guard
+  if divisor = [0] then ([0], dividend) -- division by zero, match lean behaviour
+  else
+    -- process from MSB first
+    let (quot_rev, final_rem) : (Bignum p × Bignum p) :=
+      (dividend.reverse).foldl (fun (q_acc, rem) limb =>
+      -- shift remainder left by 8 bits (multiply by 256) and add new limb
+      -- in LSB rem * 256 = 0 :: rem
+      let rem_new := add (0 :: rem) [limb]
+      -- find how many times 'divisor' fits into 'rem_new'
+      let (q_byte, rem_next) := findQuotientByte rem_new divisor
+      (q_byte :: q_acc, rem_next)
+    ) ([], [])
+    (quot_rev.normalize, final_rem.normalize)
+
+abbrev div' := @div prime_babybear
+
+abbrev ofNat'' a := let a' := ofNat' a; if a'.isEmpty then [0] else a'
+abbrev res a b := (ofNat'' a, ofNat'' b)
+
+#guard let a := 72;      let b := 8;      div' (ofNat a) (ofNat b) = res (a / b) (a % b)
+#guard let a := 300;     let b := 5;      div' (ofNat a) (ofNat b) = res (a / b) (a % b)
+#guard let a := 50;      let b := 100;    div' (ofNat a) (ofNat b) = res (a / b) (a % b)
+#guard let a := 1971210; let b := 1;      div' (ofNat a) (ofNat b) = res (a / b) (a % b)
+#guard let a := 512;     let b := 2;      div' (ofNat a) (ofNat b) = res (a / b) (a % b)
+#guard let a := 123456;  let b := 0;      div' (ofNat a) (ofNat b) = res (a / b) (a % b)
+#guard let a := 1000;    let b := 300;    div' (ofNat a) (ofNat b) = res (a / b) (a % b)
+#guard let a := 65535;   let b := 32767;  div' (ofNat a) (ofNat b) = res (a / b) (a % b)
+#guard let a := 256;     let b := 10;     div' (ofNat a) (ofNat b) = res (a / b) (a % b)
+#guard let a := 729399;  let b := 729399; div' (ofNat a) (ofNat b) = res (a / b) (a % b)
+#guard let a := 43690;   let b := 85;     div' (ofNat a) (ofNat b) = res (a / b) (a % b)
+#guard let a := 18446744073709551615
+       let b := 255
+       div' (ofNat a) (ofNat b) = res (a / b) (a % b)
+#guard let a := 3901248046479193657
+       let b := 123456789
+       div' (ofNat a) (ofNat b) = res (a / b) (a % b)
+#guard let a := 102337675
+       let b := 63248994
+       div' (ofNat a) (ofNat b) = res (a / b) (a % b)
+
+end Bignum
