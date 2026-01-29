@@ -1,5 +1,6 @@
 import Lean
 import Qq
+import Mathlib.Tactic
 
 import Clap.Simulation
 import Clap.Spec
@@ -55,72 +56,134 @@ def runTactic (goals : Goals) (lem : Syntax) : MetaM Goals := do
       | throwError m!"Logic error: `putOnTop should have thrown a 'no bisimulation error'"
     return ⟨newInference, goals.rest ++ restInference⟩
 
-def seqTacs (goals : Goals) : List Syntax → MetaM Goals
-  | [] => pure goals
-  | tac₁ :: rest => goals.runTactic tac₁ <|> seqTacs goals rest
+def seqTacs (goals : Goals) : List Syntax → MetaM (Option Goals)
+  | [] => return .none
+  | tac₁ :: rest => (.some <$> goals.runTactic tac₁) <|> seqTacs goals rest
+
+def lineariseHeadBinds (goals : Goals) : MetaM Goals := do
+  goals.runTactic (←`(tacticSeq| rw [bind_assoc]
+                                 try (rw [Option.bind_eq_bind, Option.bind_some])))
+
+def reduceMatch (goals : Goals) : MetaM Goals := do
+  goals.runTactic (←`(tactic|dsimp -zeta +beta only))
+
+partial def unfoldAny (goals : Goals) (e : Expr) : MetaM Goals := do
+  let .some _ := goals.inference | logInfo m!"OBLA"; return goals
+  if let .const name _ := e.getAppFn then
+    if ← Meta.isMatcher name
+    then try let x ← goals.reduceMatch; return x catch _ =>
+         let .some m ← Meta.getMatcherInfo? name | return goals
+         let args := e.getAppArgs
+         let mut goals := goals
+         for discr in m.getDiscrRange.toArray do
+           let t ← Meta.inferType args[discr]!
+           if (←Meta.inferType t).isProp then continue
+           goals ← unfoldAny goals args[discr]!
+         return goals
+    else if (←isIrreducible name) || (←Meta.isConstructorApp e)
+         then return goals
+         else let nameStx := mkIdent name
+              goals.runTactic (←`(tactic|first | dsimp -zeta +beta only [$nameStx:ident] | unfold $nameStx))
+              -- goals.runTactic (←`(tactic|first | dsimp -zeta +beta only [$nameStx:ident] | unfold $nameStx))
+        /-
+          Why not just unfold:
+            `return {goals with inference := ←Meta.unfoldTarget inferenceGoal name}`
+
+          The trick is to use `dsimp`'s smart unfolding and override some of the smartness
+          with manually handling some cases, such as the matcher logic.
+        -/
+  else
+    let .proj (struct := struct) .. := e.getAppFn | return goals
+    let .const name _ := struct.getAppFn | return goals
+    goals.runTactic (←`(tactic|dsimp -zeta +beta only [$(mkIdent name):ident]))
+
+def bindPure (goals : Goals) : MetaM Goals := do
+  -- goals.unfoldAny 
+  goals.runTactic (←`(tacticSeq| try rw [Option.pure_def]
+                                 try rw [Option.bind_eq_bind]
+                                 rw [Option.bind_some]))
 
 end Goals
 
 private lemma Spec.Compiler.ext_lam {α : Type}
   {f : ZMod p → α} {g : ZMod p → Circuitₑ p} {g' : Circuitₑ p}
-  (h : Simulation.sBisim f (Circuit.eval (Circuit.lam g)))
+  (h : Simulation.sBisim f (Circuit.lam g).eval)
   (hint : g' = Circuit.lam g) :
   Simulation.sBisim f g'.eval := by grind
 
+/--
+TODO(cleanup) - We should not always be checking for the outermost bind. Pass in the 'next' thing.
+-/
 def isBindBind (lhs : Expr) : MetaM Bool := do
-  let (`Bind.bind, ⟨_ :: _ :: _ :: _ :: f :: _⟩) := lhs.getAppFnArgs
-    | return false
-  return f.isAppOf `Bind.bind
+  let (`Bind.bind, ⟨_ :: _ :: _ :: _ :: f :: _⟩) := lhs.getAppFnArgs | return false
+  return f.isAppOf ``Bind.bind || f.isAppOf ``Option.bind
+
+/--
+TODO(cleanup) - We should not always be checking for the outermost bind. Pass in the 'next' thing.
+-/
+def isBindPure (lhs : Expr) : MetaM Bool := do
+  let (`Bind.bind, ⟨_ :: _ :: _ :: _ :: f :: _⟩) := lhs.getAppFnArgs | return false
+  return f.isAppOf ``Pure.pure || f.isAppOf ``Option.some
+
+/--
+TODO(cleanup) - We should not always be checking for the outermost bind. Pass in the 'next' thing.
+-/
+def isForInVector (lhs : Expr) : MetaM Bool := do
+  logInfo m!"LHS: {lhs}"
+  let (``Bind.bind, ⟨_ :: _ :: _ :: _ :: f :: _⟩) := lhs.getAppFnArgs | return false
+  let (``ForIn.forIn, ⟨_ :: t :: _⟩) := f.getAppFnArgs | return false
+  return t.isAppOf `Vector
 
 set_option hygiene false in -- We'll see about this one, tired of `mkIdent` :).
 /--
 Use `lhs` for granular control over matching if needed.
 -/
 def step (goals : Goals) : MetaM Goals := do
+  -- TODO(workaround) I am not sure how safe this is.
+  let goals ← goals.runTactic (←`(tactic|try extract_lets))
+  let goals ← goals.runTactic (←`(tactic|repeat rw [←Option.bind_eq_bind]))
+
   let lhs ← lhsOfBisim (←goals.inference.get!.getType')
+  
+  -- TODO(cleanup) LineariseBinds overlaps bindPure
   if ←isBindBind lhs
-  then goals.runTactic (←`(tacticSeq|rw [bind_assoc]
-                                     try (rw [Option.bind_eq_bind, Option.bind_some])))
-  else goals.seqTacs <|
-         -- TODO(workaround) We want to synthesise this list automatically.
-         ([] : List (TSyntax `tactic)) ++
-         -- TODO(simplicity) We want an attribute that attaches the lemmas.
-         [
-           (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.ext_lam)
-                               (h := $(mkIdent `Simulation.sBisim.lam) fun _ ↦ ?_))),
-           (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_accept))),
-           (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_eq0)
-                               (er := $(mkIdent `Exp.c) _)
-                               (h := rfl))),
-           (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_share)
-                               (er := $(mkIdent `Exp.c) _)
-                               (h := rfl)
-                               (cont := fun _ ↦ ?_))),
-           (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_is_zero)
-                               (er := $(mkIdent `Exp.c) _)
-                               (h := rfl)
-                               (cont := fun _ ↦ ?_))),
-           (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_assert_range)
-                               (er := $(mkIdent `Exp.c) _)
-                               (h := rfl)))
-         ]
+  then goals.lineariseHeadBinds
+  else
+  if ←isBindPure lhs
+  then goals.bindPure
+  else
+    let goals' ← goals.seqTacs <|
+      -- TODO(workaround) We want to synthesise this list automatically.
+      ([] : List (TSyntax `tactic)) ++
+      -- TODO(simplicity) We want an attribute that attaches the lemmas.
+      [
+        (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.ext_lam)
+                            (h := $(mkIdent `Simulation.sBisim.lam) fun _ ↦ ?_))),
+        (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_accept))),
+        (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_eq0)
+                            (er := $(mkIdent `Exp.c) _)
+                            (h := rfl))),
+        (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_share)
+                            (er := $(mkIdent `Exp.c) _)
+                            (h := rfl)
+                            (cont := fun _ ↦ ?_))),
+        (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_is_zero)
+                            (er := $(mkIdent `Exp.c) _)
+                            (h := rfl)
+                            (cont := fun _ ↦ ?_))),
+      ]
+    goals'.getDM do
+      let (`Bind.bind, ⟨_ :: _ :: _ :: _ :: f :: _⟩) := lhs.getAppFnArgs | return goals
+      goals.unfoldAny f
 
 def extractTac (inferenceGoal : MVarId) : MetaM Goals := do
-  let mut goals ← curry inferenceGoal
+  let mut goals ← (⟨·, []⟩) <$> tryCatch (reduceCurry inferenceGoal) fun _ ↦ pure inferenceGoal
   -- let mut i := 0
   while true do
     match goals.inference with
     | .none => break
     | .some _ => goals ← Goals.unassignedGoals =<< step goals
-                        --  i := i + 1
-    -- if i == 5 then break
   return goals
-  -- TODO(workaround) Currently a stopgap measure before we incorporate currying in a better way
-  where curry (inferenceGoal : MVarId) : MetaM Goals := do
-    let ([inferenceGoal], _) ←
-      Elab.runTactic inferenceGoal (←`(tactic|try dsimp -zeta only [$(mkIdent `curry):ident]))
-      | throwError m!"Failed to curry {inferenceGoal}"
-    return ⟨inferenceGoal, []⟩
 
 open Elab Tactic in
 elab "extract" "using" name:ident : tactic => do
@@ -157,9 +220,9 @@ elab "#curry!" circuit:ident : command => do
   let circuitName := circuit.getId.components.getLast!
   let curriedCircuitName := s!"{circuitName}_curried"
   let declaration := s!"open Clap.Spec in def {curriedCircuitName} {implicits}:= {preamble}{body}"
-  let .ok stx := Parser.runParserCategory (←getEnv) `command declaration
+  let .ok declStx := Parser.runParserCategory (←getEnv) `command declaration
     | throwError s!"Failed to compile: {preamble}{body}"
-  elabCommand stx
+  elabCommand declStx
   logInfo m!"Circuit: {curriedCircuitName}"
   let explodedVecs := vecs.foldl (init := "") fun acc (name, len, _) ↦ s!"{acc} {explode name len}"
   let args := vecs.foldl (init := "") fun acc (name, _, type) ↦ acc ++ s!" \{{name} : {type}}"
@@ -168,11 +231,17 @@ elab "#curry!" circuit:ident : command => do
   let equiv_proof :=
     s!"theorem {curriedCircuitName}_equiv{args} : {circuitName} " ++
     s!"{" ".intercalate (vecs.map (toString ∘ Prod.fst)).toList}" ++
-    s!" = {curriedCircuitName}{explodedVecs} := rfl"
-  let .ok stx := Parser.runParserCategory (←getEnv) `command equiv_proof
+    s!" = {curriedCircuitName}{explodedVecs} := by first | rfl | sorry"
+  let .ok prfStx := Parser.runParserCategory (←getEnv) `command equiv_proof
     | throwError s!"Failed to compile: {equiv_proof}"
-  elabCommand stx
+  elabCommand prfStx
   logInfo m!"Proof: {curriedCircuitName}_equiv"
+  
+  let decl := (←getEnv).find? (.mkStr2 "Clap" s!"{curriedCircuitName}_equiv") |>.get!
+  if decl.value!.hasSorry
+  then logWarning <| s!"Cannot synthesise the proof of {curriedCircuitName}_equiv. Using sorry." ++
+                     s!"\nNOTE: The solution here is to simply generate a proof of equivalence, " ++
+                     s!"not equality. TODO(easy)."
 
 section EXAMPLES
 
@@ -180,6 +249,22 @@ open Spec Compiler
 
 def ex₁ (i : ZMod p) : Option Unit := do
   accept
+
+def extract_manual₁ :
+  { c:Circuitₑ p // Simulation.sBisim (ex₁ (p := p)) c.eval } := by
+  unfold ex₁
+  refine ⟨?c,?p⟩
+  case' p =>
+    apply ext_lam (h := Simulation.sBisim.lam fun _ ↦ ?rest)
+  case rest =>
+    apply equiv_accept
+  rfl
+
+def extract_automatic₁ :
+  { c : Circuitₑ p // Simulation.sBisim (ex₁ (p := p)) c.eval } := by
+  extract using ex₁
+
+example : (extract_automatic₁ (p := p)).1 = Circuit.lam fun _ => Circuit.nil := rfl
 
 def ex₂ (i: ZMod p) : Option Unit := do
   eq0 i
@@ -193,68 +278,27 @@ def ex₂ (i: ZMod p) : Option Unit := do
   eq0 i
   accept
 
+def extract_automatic₂ :
+  { c : Circuitₑ p // Simulation.sBisim (ex₂ (p := p)) c.eval } := by
+  extract using ex₂
+
+example : (extract_automatic₂ (p := p)).1 =
+  Circuit.lam fun x =>
+    Circuit.eq0 (Exp.c x)
+      (Circuit.eq0 (Exp.c x)
+        (Circuit.eq0 (Exp.c x)
+          (Circuit.eq0 (Exp.c x)
+            (Circuit.eq0 (Exp.c x)
+              (Circuit.eq0 (Exp.c x)
+                (Circuit.eq0 (Exp.c x)
+                  (Circuit.eq0 (Exp.c x)
+                    (Circuit.eq0 (Exp.c x) Circuit.nil)))))))) := rfl
+
 def ex₃ (i : ZMod p) : Option Unit := do
   eq0 i
   let vi ← share i
   eq0 (vi + i)
   accept
-
--- This is (eq0 i); baby steps.
-def ex₄ (i : ZMod p) : Option Unit := do
-  let x ← is_zero i
-  eq0 (1 - x)
-  accept
-
-def ex₅ (is₁ : ZMod p) (is₂ : ZMod p) : Option Unit := do
-  eq0 is₁
-  let vi <- share is₁
-  eq0 (vi + is₂)
-  accept
-
-def ex₆ :=
-  curry fun (is : Vector (ZMod p) 2) ↦ do
-  eq0 is[0]
-  let vi <- share is[0]
-  eq0 (vi + is[1])
-  return accept
-
-def ex₇ :=
-  curry fun (xs: Vector (ZMod p) 2) ↦
-  curry fun (ys: Vector (ZMod p) 2) ↦
-  curry fun (zs: Vector (ZMod p) 2) ↦ do
-  eq0 (xs[0]-zs[1])
-  eq0 (xs[1]-zs[0])
-  eq0 (ys[0]-zs[0])
-  eq0 (ys[1]-xs[1])
-  return accept
-
-def ex₇' (xs ys zs : Vector (ZMod p) 2) := do
-  eq0 (xs[0]-zs[1])
-  eq0 (xs[1]-zs[0])
-  eq0 (ys[0]-zs[0])
-  eq0 (ys[1]-xs[1])
-  return accept
-
-def ex₈ (xs : Vector (ZMod p) 2) := do
-  eq0 (xs[0]!)
-  return accept
-
-def ex₉ (x : ZMod p) := do
-  eq0 (1 - x)
-  assert_range 8 x
-  return accept
-
-lemma lem {xs ys zs} : ex₇ xs[0] xs[1] ys[0] ys[1] zs[0] zs[1] = ex₇' (p := p) xs ys zs := by rfl
-
-def extract_manual₁ :
-  { c:Circuitₑ p // Simulation.sBisim (ex₁ (p := p)) c.eval } := by
-  unfold ex₁
-  refine ⟨?c,?p⟩
-  case' p =>
-    apply ext_lam (h := Simulation.sBisim.lam fun _ ↦ ?rest)
-  case rest =>
-    apply equiv_accept
-  rfl
 
 def extract_manual₃ :
   { c : Circuitₑ p // Simulation.sBisim (ex₃ (p := p)) c.eval } := by
@@ -271,6 +315,22 @@ def extract_manual₃ :
   swap
   rfl
 
+def extract_automatic₃ :
+  { c : Circuitₑ p // Simulation.sBisim (ex₃ (p := p)) c.eval } := by
+  extract using ex₃
+
+example : (extract_automatic₃ (p := p)).1 =
+  Circuit.lam fun x =>
+    Circuit.eq0 (Exp.c x)
+      (Circuit.share (Exp.c x)
+        fun x_1 => Circuit.eq0 (Exp.c (x_1 + x)) Circuit.nil) := rfl
+
+-- This is (eq0 i); baby steps.
+def ex₄ (i : ZMod p) : Option Unit := do
+  let x ← is_zero i
+  eq0 (1 - x)
+  accept
+
 def extract_manual₄ :
   { c : Circuitₑ p // Simulation.sBisim (ex₄ (p := p)) c.eval } := by
   unfold ex₄
@@ -285,13 +345,65 @@ def extract_manual₄ :
   swap
   rfl
 
+def extract_automatic₄ :
+  { c : Circuitₑ p // Simulation.sBisim (ex₄ (p := p)) c.eval } := by
+  extract using ex₄
+
+example : (extract_automatic₄ (p := p)).1 =
+  Circuit.lam fun x =>
+    Circuit.is_zero (Exp.c x) fun x =>
+      Circuit.eq0 (Exp.c (1 - x)) Circuit.nil := rfl
+
+def ex₅ (is₁ : ZMod p) (is₂ : ZMod p) : Option Unit := do
+  eq0 is₁
+  let vi <- share is₁
+  eq0 (vi + is₂)
+  accept
+
+def extract_automatic₅ :
+  { c : Circuitₑ p // Simulation.sBisim (ex₅ (p := p)) c.eval } := by
+  extract using ex₅
+
+example : (extract_automatic₅ (p := p)).1 =
+  Circuit.lam fun x =>
+    Circuit.lam fun x_1 =>
+      Circuit.eq0 (Exp.c x)
+        (Circuit.share (Exp.c x) fun x => Circuit.eq0 (Exp.c (x + x_1)) Circuit.nil) := rfl
+
+def ex₆ :=
+  curry fun (is : Vector (ZMod p) 2) ↦ do
+  eq0 is[0]
+  let vi <- share is[0]
+  eq0 (vi + is[1])
+  return accept
+
+def extract_automatic₆ :
+  { c : Circuitₑ p // Simulation.sBisim (ex₆ (p := p)) c.eval } := by
+  extract using ex₆
+
+example : (extract_automatic₆ (p := p)).1 =
+  Circuit.lam fun x =>
+    Circuit.lam fun x_1 =>
+      Circuit.eq0 (Exp.c x)
+        (Circuit.share
+          (Exp.c x) fun x_2 => Circuit.eq0 (Exp.c (x_2 + x_1)) Circuit.nil) := rfl
+
+def ex₇ :=
+  curry fun (xs: Vector (ZMod p) 2) ↦
+  curry fun (ys: Vector (ZMod p) 2) ↦
+  curry fun (zs: Vector (ZMod p) 2) ↦ do
+  eq0 (xs[0] - zs[1])
+  eq0 (xs[1] - zs[0])
+  eq0 (ys[0] - zs[0])
+  eq0 (ys[1] - xs[1])
+  return accept
+
 def extract_manual₇ :
   { c:Circuitₑ p // Simulation.sBisim (ex₇ (p := p)) c.eval } := by
   unfold ex₇
   refine ⟨?c,?p⟩
   swap
   dsimp -zeta only [curry]
-
   apply ext_lam (h := Simulation.sBisim.lam fun _ ↦ ?_)
   rotate_right 2
   apply ext_lam (h := Simulation.sBisim.lam fun _ ↦ ?_)
@@ -312,81 +424,9 @@ def extract_manual₇ :
   apply equiv_accept
   any_goals rfl
 
-def extract_automatic₁ :
-  { c : Circuitₑ p // Simulation.sBisim (ex₁ (p := p)) c.eval } := by
-  extract using ex₁
-
-def extract_automatic₂ :
-  { c : Circuitₑ p // Simulation.sBisim (ex₂ (p := p)) c.eval } := by
-  extract using ex₂
-
-def extract_automatic₃ :
-  { c : Circuitₑ p // Simulation.sBisim (ex₃ (p := p)) c.eval } := by
-  extract using ex₃
-
-def extract_automatic₄ :
-  { c : Circuitₑ p // Simulation.sBisim (ex₄ (p := p)) c.eval } := by
-  extract using ex₄
-
-def extract_automatic₅ :
-  { c : Circuitₑ p // Simulation.sBisim (ex₅ (p := p)) c.eval } := by
-  extract using ex₅
-
-def extract_automatic₆ :
-  { c : Circuitₑ p // Simulation.sBisim (ex₆ (p := p)) c.eval } := by
-  extract using ex₆
-
 def extract_automatic₇ :
   { c : Circuitₑ p // Simulation.sBisim (ex₇ (p := p)) c.eval } := by
   extract using ex₇
-
-#curry! Clap.ex₇' -- Obtain `ex₇'_curried`.
-
-def extract_automatic₇' :
-  { c : Circuitₑ p // Simulation.sBisim (ex₇'_curried (p := p)) c.eval } := by
-  extract using ex₇'_curried
-
-def extract_automatic₉ :
-  { c : Circuitₑ p // Simulation.sBisim (ex₉ (p := p)) c.eval } := by
-  extract using ex₉
-
-example : (extract_automatic₁ (p := p)).1 = Circuit.lam fun _ => Circuit.nil := rfl
-
-example : (extract_automatic₂ (p := p)).1 =
-  Circuit.lam fun x =>
-    Circuit.eq0 (Exp.c x)
-      (Circuit.eq0 (Exp.c x)
-        (Circuit.eq0 (Exp.c x)
-          (Circuit.eq0 (Exp.c x)
-            (Circuit.eq0 (Exp.c x)
-              (Circuit.eq0 (Exp.c x)
-                (Circuit.eq0 (Exp.c x)
-                  (Circuit.eq0 (Exp.c x)
-                    (Circuit.eq0 (Exp.c x) Circuit.nil)))))))) := rfl
-
-example : (extract_automatic₃ (p := p)).1 =
-  Circuit.lam fun x =>
-    Circuit.eq0 (Exp.c x)
-      (Circuit.share (Exp.c x)
-        fun x_1 => Circuit.eq0 (Exp.c (x_1 + x)) Circuit.nil) := rfl
-
-example : (extract_automatic₄ (p := p)).1 =
-  Circuit.lam fun x =>
-    Circuit.is_zero (Exp.c x) fun x =>
-      Circuit.eq0 (Exp.c (1 - x)) Circuit.nil := rfl
-
-example : (extract_automatic₅ (p := p)).1 =
-  Circuit.lam fun x =>
-    Circuit.lam fun x_1 =>
-      Circuit.eq0 (Exp.c x)
-        (Circuit.share (Exp.c x) fun x => Circuit.eq0 (Exp.c (x + x_1)) Circuit.nil) := rfl
-
-example : (extract_automatic₆ (p := p)).1 =
-  Circuit.lam fun x =>
-    Circuit.lam fun x_1 =>
-      Circuit.eq0 (Exp.c x)
-        (Circuit.share
-          (Exp.c x) fun x_2 => Circuit.eq0 (Exp.c (x_2 + x_1)) Circuit.nil) := rfl
 
 example : (extract_automatic₇ (p := p)).1 =
   Circuit.lam fun x =>
@@ -395,19 +435,31 @@ example : (extract_automatic₇ (p := p)).1 =
         Circuit.lam fun x_3 =>
           Circuit.lam fun x_4 =>
             Circuit.lam fun x_5 =>
-              Circuit.eq0
-                (Exp.c (x - x_5))
-                  (Circuit.eq0 (Exp.c (x_1 - x_4))
-                               (Circuit.eq0
-                                  (Exp.c (x_2 - x_4))
-                                  (Circuit.eq0 (Exp.c (x_3 - x_1)) Circuit.nil))) := rfl
+              Circuit.eq0 (Exp.c (x   - x_5))
+             (Circuit.eq0 (Exp.c (x_1 - x_4))
+             (Circuit.eq0 (Exp.c (x_2 - x_4))
+             (Circuit.eq0 (Exp.c (x_3 - x_1)) Circuit.nil))) := rfl
 
-#print extract_automatic₇'
+def ex₈ (xs : Vector (ZMod p) 3) : Option Unit := do
+  for x in xs do
+    eq0 x
 
-example : (extract_automatic₉ (p := p)).1 =
-  Circuit.lam fun x =>
-    Circuit.eq0 (Exp.c (1 - x))
-      (Circuit.assert_range 8 (Exp.c x) Circuit.nil) := rfl
+#curry! Clap.ex₈
+
+def extract_automatic₈ :
+  { c : Circuitₑ p // Simulation.sBisim (ex₈_curried (p := p)) c.eval } := by
+  extract using ex₈_curried
+
+example : (extract_automatic₈ (p := p)).1 =
+    Circuit.lam fun x =>
+      Circuit.lam fun x_1 =>
+        Circuit.lam fun x_2 =>
+          Circuit.eq0 x
+            (Circuit.eq0 x_1
+              (Circuit.eq0 x_2
+                Circuit.nil)) := rfl
+
+#print extract_automatic₈._proof_4
 
 end EXAMPLES
 

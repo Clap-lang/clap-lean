@@ -1,3 +1,6 @@
+import Lean
+import Mathlib.Lean.Meta
+
 namespace Clap
 
 @[reducible]
@@ -10,5 +13,32 @@ def curry {α β : Type} {n : Nat} (k : Vector α n → β) : typ α β n :=
   match n with
   | 0     => k #v[]
   | n + 1 => fun x => curry fun l => k ⟨⟨x :: l.toList⟩, by simp⟩
+
+section
+
+open Lean Meta
+
+/--
+This is abstracted over because the current implementation is the simplest approximation
+that may (or may not) interfere with the context - if it does, it is easily fixable.
+
+TODO(workaround) Currently a stopgap measure before we incorporate currying in a better way
+The better way would involve systematically expressing `v : Vec n` as `#v[v[0], ... v[n-1]]`.
+Thus, this will not be needed at all.
+-/
+def reduceCurry (goal : MVarId) : MetaM MVarId := goal.withContext do
+  let ([goal], _) ← Elab.runTactic goal
+    (←`(tactic|dsimp -zeta only
+      [
+        curry, Vector.toList_mk, Vector.getElem_mk,
+        List.getElem_toArray, List.getElem_cons_succ,
+        List.getElem_cons_zero
+      ]))
+    | throwError m!"`reduceCurry` failed in:\n{goal}"
+  return goal
+
+elab "reduce_curry" : tactic => Elab.Tactic.liftMetaTactic' reduceCurry
+
+end
 
 end Clap
