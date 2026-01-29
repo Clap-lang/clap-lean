@@ -16,7 +16,7 @@ namespace Clap
   in term of constraints.
 -/
 
-variable {p : ℕ} {var : Type}
+variable {p : ℕ} {var : Type} [Fact (Nat.Prime p)]
 
 def Exp.toNat : Exp p (ℕ × var) → Exp p ℕ
   | .v (var, _) => .v var
@@ -51,7 +51,7 @@ def dedupAux (c : Circuit p (ℕ × var)) (n : ℕ) (set : Finset (Exp p ℕ)) :
   | .lam k => .lam fun x => dedupAux (k (n, x)) (n + 1) set
   | .share e k => .share e.toVar fun x => dedupAux (k (n, x)) (n + 1) set
   | .is_zero e k => .is_zero e.toVar fun x => dedupAux (k (n, x)) (n + 1) set
-  | .assert_range w e c => .assert_range w e.toVar (dedupAux c n ({e.toNat} ∪ set))
+  | .num2bits w e k => .num2bits w e.toVar fun xs => (dedupAux (k ((List.range' n w 1).zip xs)) n ({e.toNat} ∪ set))
 
 def dedup (c : Circuit p (Nat × var)) : Circuit p var := dedupAux c 0 ∅
 

@@ -4,7 +4,7 @@ import Clap.Id
 
 namespace Clap
 
-variable {p : ℕ}
+variable {p : ℕ} [Fact (Nat.Prime p)]
 
 /-
   Unshare optimization - inlines an expression previously shared.
@@ -28,7 +28,7 @@ def Circuit.unshareAllF (c : Circuitₑ p) : Circuitₑ p :=
   | .eq0 e c => .eq0 e c.unshareAllF
   | .lam k => .lam fun x => (k x).unshareAllF
   | .is_zero e k => .is_zero e fun x => (k x).unshareAllF
-  | .assert_range w e c => .assert_range w e c.unshareAllF
+  | .num2bits w e k => .num2bits w e fun x => (k x).unshareAllF
   | .share e k => k e.eval
 
 theorem unshare_all_sem_pre_F {c : Circuitₑ p} : c ≈ c.unshareAllF := by
@@ -36,6 +36,7 @@ theorem unshare_all_sem_pre_F {c : Circuitₑ p} : c ≈ c.unshareAllF := by
   any_goals gcongr
   grind
   constructor
+  grind
   grind
 
 /-
@@ -56,7 +57,7 @@ def Circuit.unshareAll {var} (c : Circuit p (Exp p var)) : Circuit p var :=
   | .eq0 e c => .eq0 e.unwrap c.unshareAll
   | .lam k => .lam fun x ↦ (k (.v x)).unshareAll
   | .is_zero e k => .is_zero e.unwrap fun x ↦ unshareAll (k (.v x))
-  | .assert_range w e c => .assert_range w e.unwrap c.unshareAll
+  | .num2bits w e k => .num2bits w e.unwrap fun x ↦ (k (x.map .v)).unshareAll
   | .share e k => (k e.unwrap).unshareAll
 
 def unshareAll' (c:Circuit' p) : Circuit' p := fun var => Circuit.unshareAll (c (Exp p var))
@@ -170,8 +171,8 @@ def Circuit.unshareDegCps {var} (c : Circuit p (Exp p var))
   | .lam k' => .lam fun x => (k' (.v x)).unshareDegCps k
   | .is_zero e k' =>
     .is_zero e.unwrap fun x => unshareDegCps (k' (.v x)) (fun (b, c) => k (b && e.degree <= 2, c))
-  | .assert_range w e c =>
-     unshareDegCps c (fun (b,c) => k (b && e.degree <= 2, .assert_range w e.unwrap c))
+  | .num2bits w e k' =>
+    .num2bits w e.unwrap fun x => (k' (x.map .v)).unshareDegCps (fun (b,c) => k (b && e.degree <= 2, c))
   | .share e k' =>
     unshareDegCps (k' e.unwrap) fun (b,c) =>
       if b && e.degree <= 2
@@ -185,15 +186,28 @@ def unshareDeg' (c : Circuit' p) : Circuit' p := fun var => Circuit.unshareDeg (
 
 namespace TestUnshare
 
-def do_optimize : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.share (.v x * .v x) (fun x => Circuit.eq0 (.v x) Circuit.nil))
+def do_optimize : Circuit' 7 := fun _ => .lam (fun x => .share (.v x * .v x) (fun x => .eq0 (.v x) .nil))
 
-def expected_optimized : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.eq0 (.v x * .v x) Circuit.nil)
+def expected_optimized : Circuit' 7 := fun _ => .lam (fun x => .eq0 (.v x * .v x) .nil)
 
-def do_not_optimize : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.share (.v x * .v x * .v x) (fun x => Circuit.eq0 (.v x) Circuit.nil))
+def do_not_optimize : Circuit' 7 := fun _ => .lam (fun x => .share (.v x * .v x * .v x) (fun x => .eq0 (.v x) .nil))
 
 #guard s!"{unshareDeg' do_optimize Nat}" = s!"{expected_optimized Nat}"
 #guard s!"{unshareDeg' do_not_optimize Nat}" = s!"{do_not_optimize Nat}"
 
 end TestUnshare
+
+-- namespace TestUnshare2
+
+-- def do_optimize : Circuit' 7 := fun _ => .lam (fun x => .share (.v x * .v x) (fun x => .assert_range 2 (.v x) (fun xs => .eq0 (.v xs[0]) .nil)))
+
+-- def expected_optimized : Circuit' 7 := fun _ => .lam (fun x => .eq0 (.v x * .v x) .nil)
+
+-- def do_not_optimize : Circuit' 7 := fun _ => .lam (fun x => .share (.v x * .v x * .v x) (fun x => .eq0 (.v x) .nil))
+
+-- #guard s!"{unshareDeg' do_optimize Nat}" = s!"{expected_optimized Nat}"
+-- #guard s!"{unshareDeg' do_not_optimize Nat}" = s!"{do_not_optimize Nat}"
+
+-- end TestUnshare2
 
 end Clap

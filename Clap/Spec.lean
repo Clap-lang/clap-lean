@@ -1,12 +1,13 @@
-import Mathlib.Data.ZMod.Basic
+import Mathlib.FieldTheory.Finite.Basic -- field operations
 
+import Clap.Primes
 import Clap.Circuit
 import Clap.Simulation
 import Clap.Wheels
 
 namespace Clap
 
-variable {p : ℕ}
+variable {p : ℕ} [Fact (Nat.Prime p)]
 
 namespace Spec
 
@@ -23,7 +24,9 @@ def share (e : ZMod p) : Option (ZMod p) := e
 def is_zero (e : ZMod p) : Option (ZMod p) := if e = 0 then .some 1 else .some 0
 
 @[irreducible]
-def assert_range (w : ℕ) (e : ZMod p) : Option Unit := if e.val < 2^w then .some () else .none
+def num2bits (w : ℕ) (e : ZMod p) : Option (List (ZMod p)) := if e.val < 2^w then .some (num2bits_pure w e) else .none
+
+def assert_range (w : ℕ) (e : ZMod p) : Option Unit := do let _ <- num2bits w e ; ()
 
 namespace Compiler
 
@@ -64,11 +67,11 @@ lemma equiv_is_zero {el : ZMod p} {kl : ZMod p → Option Unit} {er : Expₑ p} 
   aesop (add simp [Circuit.eval, bind, share, is_zero])
 
 @[aesop safe apply]
-lemma equiv_assert_range {cl : Option Unit} {cr : Circuitₑ p} {w : ℕ}
-  (cont : cl ~ₛ cr.eval)
+lemma equiv_num2bits {kl : List (ZMod p) -> Option Unit} {kr : List (ZMod p) -> Circuitₑ p} {w:ℕ}
+  (cont : ∀ x, kl x ~ₛ (kr x).eval)
   (h : el = Exp.eval er) :
-  (do assert_range w el; cl) ~ₛ (Circuit.assert_range w er cr).eval := by
-  aesop (add simp assert_range)
+  (num2bits w el >>= kl) ~ₛ (Circuit.num2bits w er kr).eval := by
+  aesop (add simp num2bits)
 
 end
 
@@ -84,15 +87,16 @@ open Spec
   A circuit is a function from any number of arguments of type F or Vector F to Option Unit.
 -/
 
-def ex p (i: ZMod p) : Option Unit := do
+def ex (i: ZMod p) : Option Unit := do
   eq0 i
   let vi <- share i
   eq0 (vi + i)
-  assert_range 2 vi
+  let bs <- num2bits 2 vi
+  eq0 bs[1]!
   accept
 
-#guard ex 7 0 = some ()
-#guard ex 7 1 = none
+#guard ex (p:=7) 0 = some ()
+#guard ex (p:=7) 1 = none
 
 -- def ex_unfolded : F -> Option Unit :=
 --   fun i =>

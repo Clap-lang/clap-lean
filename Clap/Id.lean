@@ -108,14 +108,14 @@ def id {var} : Circuit p (Exp p var) → Circuit p var
   | .lam k => .lam fun x ↦ id (k (.v x))
   | .is_zero e k => .is_zero e.unwrap fun x ↦ id (k (.v x))
   | .share e k => .share e.unwrap fun x ↦ id (k (.v x))
-  | .assert_range w e c => .assert_range w e.unwrap (id c)
+  | .num2bits w e k => .num2bits w e.unwrap fun x ↦ id (k (x.map .v))
 
 section
 
 attribute [local grind =] Exp.eval
 
 open Circuit in
-theorem id_sem_pre {cl : Circuitₑ p} {cr : Circuit p (Expₑ p)} {G}
+theorem id_sem_pre [Fact (Nat.Prime p)] {cl : Circuitₑ p} {cr : Circuit p (Expₑ p)} {G}
   (h₁ : Circuit.wf G cl cr)
   (h₂ : ∀ entry ∈ G, entry.1 = entry.2.eval) :
   cl ≈ id cr := by

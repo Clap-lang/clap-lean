@@ -1,5 +1,6 @@
 import Lean
 import Mathlib.Lean.Meta
+import Mathlib.FieldTheory.Finite.Basic -- field operations
 
 namespace Clap
 
@@ -40,5 +41,15 @@ def reduceCurry (goal : MVarId) : MetaM MVarId := goal.withContext do
 elab "reduce_curry" : tactic => Elab.Tactic.liftMetaTactic' reduceCurry
 
 end
+
+variable {p : ℕ} [Fact (Nat.Prime p)]
+
+def num2bits_pure (n:ℕ) (f:ZMod p) : List (ZMod p) :=
+  match n with
+  | 0 => []
+  | n+1 =>
+    let bit := f % 2
+    let rem := f / 2
+    bit::(num2bits_pure n rem)
 
 end Clap

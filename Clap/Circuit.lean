@@ -1,3 +1,4 @@
+import Clap.Wheels
 import Mathlib.FieldTheory.Finite.Basic -- field operations
 
 /-
@@ -169,7 +170,7 @@ inductive Circuit (p : ℕ) (var : Type) : Type where
   | lam (cont : var → Circuit p var)
   | share (e : Exp p var) (cont : var → Circuit p var)
   | is_zero (e : Exp p var) (cont : var → Circuit p var)
-  | assert_range (w : ℕ) (e : Exp p var) (c : Circuit p var)
+  | num2bits (w : ℕ) (e : Exp p var) (cont: List var -> Circuit p var)
 
 abbrev Circuitₑ (p : ℕ) := Circuit p (ZMod p)
 -- TODO remove all ' definitions
@@ -208,13 +209,14 @@ export Index (index)
 def repr [Repr var] [Index var]
   (l : ℕ) (c : Circuit p var) : Std.Format :=
   letI go (l : ℕ) (k : var → Circuit p var) := repr (l+1) (k (index l)) -- `k ∘ index : ℕ (→ var) → Circuit ..`
+  letI gos (w l : ℕ) (k : List var → Circuit p var) := repr (l+w) (k ((List.range w).map index))
   match c with
   | .nil => "nil"
   | .lam k => s!"λ{l} {go l k}"
   | .eq0 e c => s!"eq0 {_root_.repr e} {repr l c}"
   | .share e k => s!"share {_root_.repr e} {go l k}"
   | .is_zero e k => s!"is_zero {_root_.repr e} {go l k}"
-  | .assert_range w e c => s!"assert_range {w} {_root_.repr e} {repr l c}"
+  | .num2bits w e k => s!"assert_range {w} {_root_.repr e} {gos w l k}"
 
 instance [Repr var] [Index var] : Repr (Circuit p var) where
   reprPrec c _ := c.repr 0
@@ -230,6 +232,8 @@ def a : Circuit' 7 := fun _ => .lam (fun x => .lam (fun y => .eq0 (.v x + .v y) 
 
 end Test
 
+variable [Fact (Nat.Prime p)]
+
 def eval : Circuitₑ p → denotation (ZMod p)
   | .nil =>
       .u
@@ -241,8 +245,8 @@ def eval : Circuitₑ p → denotation (ZMod p)
       (k e.eval).eval
   | .is_zero e k =>
       if e.eval = 0 then (k 1).eval else (k 0).eval
-  | .assert_range w e c =>
-      if e.eval.val < 2^w then eval c else .n
+  | .num2bits w e k =>
+      if e.eval.val < 2^w then (k (num2bits_pure w e.eval)).eval else .n
 
 def eval' (c : Circuit' p) : denotation (ZMod p) := eval (c (ZMod p))
 
@@ -263,8 +267,8 @@ lemma eval_is_zero :
   (is_zero e cont).eval = if e.eval = 0 then (cont 1).eval else (cont 0).eval := rfl
 
 @[simp]
-lemma eval_assert_range {w : ℕ} :
-  (assert_range w e c).eval = if e.eval.val < 2^w then eval c else .n := by rfl
+lemma eval_assert_range {w : ℕ} {k: List (ZMod p) -> Circuitₑ p} :
+  (num2bits w e k).eval = if e.eval.val < 2^w then (k (num2bits_pure w e.eval)).eval else .n := by rfl
 
 def equiv (c₁ c₂ : Circuitₑ p) : Prop := c₁.eval = c₂.eval
 
@@ -287,7 +291,7 @@ theorem eq0_congr (he : el ≈ er) (hc: cl ≈ cr) :
    aesop
 
 @[gcongr]
-theorem lam_congr : (∀ x, kl x ≈ kr x) ->
+theorem lam_congr (h: ∀ x, kl x ≈ kr x) :
   lam kl ≈ lam kr := by
   aesop
 
@@ -302,8 +306,8 @@ theorem is_zero_congr (he : el ≈ er) (h: ∀ x, kl x ≈ kr x) :
   aesop
 
 @[gcongr]
-theorem assert_range_congr w (he: el ≈ er) (hc: cl ≈ cr) :
-  assert_range w el cl ≈ assert_range w er cr := by
+theorem assert_range_congr w {kl kr : List (ZMod p) -> Circuitₑ p} (he: el ≈ er) (hc: ∀ x, kl x ≈ kr x) :
+  num2bits w el kl ≈ num2bits w er kr := by
   aesop
 
 end

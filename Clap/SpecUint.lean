@@ -47,7 +47,8 @@ instance : CoeOut (@Valid p) ℕ where
 
 def mk (x:FU8 p) : Option Unit := Spec.assert_range 8 x
 
-def mk_some (x:FU8 p) (h:x.val<256) : x.mk = some () := by simp [mk,Spec.assert_range]; assumption
+def mk_some (x:FU8 p) (h:x.val<256) : x.mk = some () := by
+  aesop (add simp [mk,Spec.assert_range,Spec.num2bits])
 
 def add (a b : FU8 p) : Option (FU8 p) := do
   let o := a + b
@@ -85,7 +86,8 @@ instance : CoeOut (@Valid p) ℕ where
 
 def mk (x:FU32 p) : Option Unit := Spec.assert_range 32 x
 
-def mk_some (x:FU32 p) (h:x.val<2^32) : x.mk = some () := by simp [mk,Spec.assert_range]; assumption
+def mk_some (x:FU32 p) (h:x.val<2^32) : x.mk = some () := by
+  aesop (add simp [mk,Spec.assert_range,Spec.num2bits])
 
 instance : Coe (FU8 p) (FU32 p) where
   coe u8 := u8

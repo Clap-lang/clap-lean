@@ -8,7 +8,7 @@ namespace Clap
   This optimization does not depend on any choice of var.
 -/
 
-variable {var : Type} {p : ℕ}
+variable {var : Type} {p : ℕ} [Fact (Nat.Prime p)]
 
 /-
   Note: this function contains some pattern matchings that don't look ideal
@@ -50,7 +50,7 @@ def Circuit.cfold {var : Type} (c : Circuit p var) : Circuit p var :=
   | .lam k => .lam fun x => (k x).cfold
   | .share e k => .share e.cfold fun x => (k x).cfold
   | .is_zero e k => .is_zero e.cfold fun x => (k x).cfold
-  | .assert_range w e c => .assert_range w e.cfold c.cfold
+  | num2bits w e c => num2bits w e.cfold fun bits => (c bits).cfold
 
 def cfold' (c : Circuit' p) : Circuit' p := fun var => Circuit.cfold (c var)
 
