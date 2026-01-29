@@ -49,6 +49,7 @@ def runTactic (goals : Goals) (lem : Syntax) : MetaM Goals := do
   let .some inferenceGoal := goals.inference | return goals
   let (inferenceGoals, _) ← inferenceGoal.withContext do
     Elab.runTactic inferenceGoal (←`(tactic|$(⟨lem⟩)))
+  logInfo m!"ran: {lem}"
   match inferenceGoals with
   | [] => return {goals with inference := .none}
   | inferenceGoals =>
@@ -67,23 +68,104 @@ def lineariseHeadBinds (goals : Goals) : MetaM Goals := do
 def reduceMatch (goals : Goals) : MetaM Goals := do
   goals.runTactic (←`(tactic|dsimp -zeta +beta only))
 
-partial def unfoldAny (goals : Goals) (e : Expr) : MetaM Goals := do
-  let .some _ := goals.inference | logInfo m!"OBLA"; return goals
+-- partial def unfoldAny? (e : Expr) : MetaM Expr := do
+
+  -- let .const declName _ := e.getAppFn | return e
+  --   if (← isIrreducible declName) then
+  --     return none
+  -- unfoldDefinition? e (ignoreTransparency := true)
+
+-- partial def unfoldAny (goals : Goals) (e : Expr) : MetaM (Goals × Bool) := do
+--   logInfo m!"unfoldAny: {e} - WHNF: {←Meta.whnf e}"
+--   let .some _ := goals.inference | return (goals, false)
+--   if let .const name _ := e.getAppFn then
+--     if ← Meta.isMatcher name
+--     then try let x ← goals.reduceMatch; return (x, true) catch _ =>
+--          let .some m ← Meta.getMatcherInfo? name | return (goals, false)
+--          let args := e.getAppArgs
+--          let mut goals := goals
+--          for discr in m.getDiscrRange.toArray do
+--            let t ← Meta.inferType args[discr]!
+--            if (←Meta.inferType t).isProp then continue
+--            goals ← (·.1) <$> goals.unfoldAny args[discr]!
+--          return (goals, true)
+--     else if (←isIrreducible name) || (←Meta.isConstructorApp e)
+--          then return (goals, false)
+--          else let nameStx := mkIdent name
+--               (·, true) <$> goals.runTactic (←`(tactic|first | dsimp -zeta +beta only [$nameStx:ident] | unfold $nameStx))
+--               -- goals.runTactic (←`(tactic|first | dsimp -zeta +beta only [$nameStx:ident] | unfold $nameStx))
+--         /-
+--           Why not just unfold:
+--             `return {goals with inference := ←Meta.unfoldTarget inferenceGoal name}`
+
+--           The trick is to use `dsimp`'s smart unfolding and override some of the smartness
+--           with manually handling some cases, such as the matcher logic.
+--         -/
+--   else
+--     let .proj (struct := struct) .. := e.getAppFn | return (goals, false)
+--     let .const name _ := struct.getAppFn | return (goals, false)
+--     (·, true) <$> goals.runTactic (←`(tactic | dsimp -zeta +beta only [$(mkIdent name):ident]))
+#check MVarId.replaceTargetDefEq
+open Lean Elab Tactic Meta
+#check Expr
+def reduceAny (goal : MVarId) : MetaM MVarId := goal.withContext do
+  -- let mut goal ← goal.replaceTargetDefEq (←whnf (←goal.getType))
+  let conclusion ← goal.getType
+  let fn := conclusion.getAppFn
+  let args := (← goal.getType).getAppArgs
+  let result := mkAppN fn args
+  let goal' := mkMVar goal
+  let res ← isDefEq goal' result
+  logInfo m!"goal': {goal'} conclusion: {result} res: {res}"
+
+  -- goal'.assign result
+  return goal
+
+  -- logInfo m!"fn: {fn}"
+  -- let mvarId1 ← mkFreshExprMVar (Expr.forallE `xxx a b .default)
+  -- for arg in args do
+  --   logInfo m!"GOAL: {goal}"
+  --   if (← inferType arg).isType then continue
+  --   logInfo m!"whnf of {arg} is {← whnf arg}"
+  --   goal ← goal.replaceTargetDefEq (← whnf arg)
+  -- return goal
+
+elab "whnf!" : tactic => liftMetaTactic' reduceAny
+
+-- #check Meta.whnf
+-- #check MVarId.rewrite
+-- elab "whnf!" : tactic => withMainContext do
+--   let goal ← getMainGoal
+--   let conclusion ← goal.getType
+--   let whnfE ← whnf conclusion
+--   logInfo m!"conclusion: {conclusion} WHNF: {whnfE}"
+--   let isDefeq ← isDefEq conclusion whnfE
+--   logInfo m!"Defeq? - {isDefeq}"
+--   replaceMainGoal [← goal.replaceTargetDefEq whnfE]
+
+example : [1, 2].map (fun x ↦ (x, x)) = [1, 2].zip [1, 2] := by
+  whnf!
+  
+
+
+partial def unfoldAny (goals : Goals) (e : Expr) : MetaM (Goals × Bool) := do
+  logInfo m!"unfoldAny: {e} - WHNF: {←Meta.whnf e}"
+  let .some _ := goals.inference | return (goals, false)
   if let .const name _ := e.getAppFn then
     if ← Meta.isMatcher name
-    then try let x ← goals.reduceMatch; return x catch _ =>
-         let .some m ← Meta.getMatcherInfo? name | return goals
+    then try let x ← goals.reduceMatch; return (x, true) catch _ =>
+         let .some m ← Meta.getMatcherInfo? name | return (goals, false)
          let args := e.getAppArgs
          let mut goals := goals
          for discr in m.getDiscrRange.toArray do
            let t ← Meta.inferType args[discr]!
            if (←Meta.inferType t).isProp then continue
-           goals ← unfoldAny goals args[discr]!
-         return goals
+           goals ← (·.1) <$> goals.unfoldAny args[discr]!
+         return (goals, true)
     else if (←isIrreducible name) || (←Meta.isConstructorApp e)
-         then return goals
+         then return (goals, false)
          else let nameStx := mkIdent name
-              goals.runTactic (←`(tactic|first | dsimp -zeta +beta only [$nameStx:ident] | unfold $nameStx))
+              (·, true) <$> goals.runTactic (←`(tactic|first | dsimp -zeta +beta only [$nameStx:ident] | unfold $nameStx))
               -- goals.runTactic (←`(tactic|first | dsimp -zeta +beta only [$nameStx:ident] | unfold $nameStx))
         /-
           Why not just unfold:
@@ -93,12 +175,15 @@ partial def unfoldAny (goals : Goals) (e : Expr) : MetaM Goals := do
           with manually handling some cases, such as the matcher logic.
         -/
   else
-    let .proj (struct := struct) .. := e.getAppFn | return goals
-    let .const name _ := struct.getAppFn | return goals
-    goals.runTactic (←`(tactic|dsimp -zeta +beta only [$(mkIdent name):ident]))
+    let .proj (struct := struct) .. := e.getAppFn | return (goals, false)
+    let .const name _ := struct.getAppFn | return (goals, false)
+    (·, true) <$> goals.runTactic (←`(tactic | dsimp -zeta +beta only [$(mkIdent name):ident]))
 
-def bindPure (goals : Goals) : MetaM Goals := do
-  -- goals.unfoldAny 
+def bindPure (goals : Goals) (e : Expr) : MetaM Goals := do
+  let ⟨_ :: _ :: _ :: _ :: e :: _⟩ := e.getAppArgs | return goals
+  let ⟨_ :: e :: _⟩ := e.getAppArgs | return goals
+  let (goals, unfolded) ← goals.unfoldAny e
+  if unfolded then return goals
   goals.runTactic (←`(tacticSeq| try rw [Option.pure_def]
                                  try rw [Option.bind_eq_bind]
                                  rw [Option.bind_some]))
@@ -150,7 +235,7 @@ def step (goals : Goals) : MetaM Goals := do
   then goals.lineariseHeadBinds
   else
   if ←isBindPure lhs
-  then goals.bindPure
+  then goals.bindPure lhs
   else
     let goals' ← goals.seqTacs <|
       -- TODO(workaround) We want to synthesise this list automatically.
@@ -174,15 +259,17 @@ def step (goals : Goals) : MetaM Goals := do
       ]
     goals'.getDM do
       let (`Bind.bind, ⟨_ :: _ :: _ :: _ :: f :: _⟩) := lhs.getAppFnArgs | return goals
-      goals.unfoldAny f
+      (·.1) <$> goals.unfoldAny f
 
 def extractTac (inferenceGoal : MVarId) : MetaM Goals := do
   let mut goals ← (⟨·, []⟩) <$> tryCatch (reduceCurry inferenceGoal) fun _ ↦ pure inferenceGoal
-  -- let mut i := 0
+  let mut i := 0
   while true do
     match goals.inference with
     | .none => break
     | .some _ => goals ← Goals.unassignedGoals =<< step goals
+                 i := i + 1
+    if i == 42 then break
   return goals
 
 open Elab Tactic in
@@ -460,6 +547,42 @@ example : (extract_automatic₈ (p := p)).1 =
                 Circuit.nil)) := rfl
 
 #print extract_automatic₈._proof_4
+
+def ex₉ (xs : Vector (ZMod p) 3) : Option Unit := do
+  let x ← .some (xs.zipWith (·+·) xs)
+  eq0 x[1]!
+
+#curry! Clap.ex₉
+
+def extract_automatic₉ :
+  { c : Circuitₑ p // Simulation.sBisim (ex₉_curried (p := p)) c.eval } := by
+  extract using ex₉_curried
+
+def extract_manual₉ :
+  { c : Circuitₑ p // Simulation.sBisim (ex₉_curried (p := p)) c.eval } := by
+  constructor
+  unfold ex₉_curried
+  reduce_curry
+  try extract_lets
+  repeat rw [← Option.bind_eq_bind]
+  apply Clap.Spec.Compiler.ext_lam (h := Simulation.sBisim.lam fun _ ↦ ?_); rotate_left 3
+  try extract_lets
+  repeat rw [← Option.bind_eq_bind]
+  apply Clap.Spec.Compiler.ext_lam (h := Simulation.sBisim.lam fun _ ↦ ?_); rotate_left 3
+  try extract_lets
+  repeat rw [← Option.bind_eq_bind]
+  apply Clap.Spec.Compiler.ext_lam (h := Simulation.sBisim.lam fun _ ↦ ?_); rotate_left 3
+  try extract_lets
+  repeat rw [← Option.bind_eq_bind]
+  try rw [Option.pure_def]
+  try rw [Option.bind_eq_bind]
+  rw [Option.bind_some]
+  expose_names
+  have : Vector.zipWith (fun x1 x2 => x1 + x2) (Vector.mk { toList := [x_2, x_1, x] } sorry)
+            (Vector.mk { toList := [x_2, x_1, x] } sorry) = sorry := by
+    sorry
+
+#print extract_automatic₉
 
 end EXAMPLES
 
