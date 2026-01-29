@@ -8,4 +8,5 @@ import Clap.Cfold
 import Clap.Unshare
 import Clap.Dedup
 import Clap.Spec
+import Clap.SpecUint
 import Clap.Wheels
