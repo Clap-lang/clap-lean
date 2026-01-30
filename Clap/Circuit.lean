@@ -41,7 +41,7 @@ instance : Fact (Nat.Prime prime_babybear) := by native_decide
 variable {p : ℕ}
 variable {var : Type}
 
-inductive Exp (p:ℕ) (var : Type) where
+inductive Exp (p : ℕ) (var : Type) where
   | v : var -> Exp p var
   | c : ZMod p -> Exp p var
   | add : Exp p var -> Exp p var -> Exp p var

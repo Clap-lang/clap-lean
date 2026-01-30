@@ -106,18 +106,148 @@ def to_cs (c : Circuit p var) : Cs p var :=
 
 def to_cs' (c : Circuit' p) : Cs' p := fun var => to_cs (c var)
 
-inductive Wg (F:Type) : Type where
+inductive Wg (F : Type) : Type where
   | nil : Wg F
   | cons : F -> Wg F -> Wg F
   | input : (F -> Wg F) -> Wg F
 
-def num2bits (n:ℕ) (f : ZMod p) : List (ZMod p) :=
+def num2bits (n : ℕ) (f : ZMod p) : List (ZMod p) :=
   if n = 0
   then []
   else
     let bit := f.val % 2
     let rem := f.val / 2
-    bit::num2bits (n-1) rem
+    bit :: num2bits (n-1) rem
+
+omit inst' in
+lemma num2bits_length {w : ℕ} {v : ZMod p} : (num2bits w v).length = w := by
+  revert v
+  induction w with
+  | zero => simp [num2bits]
+  | succ w ih =>
+    intros v
+    unfold num2bits
+    simp only [Nat.add_eq_zero_iff, one_ne_zero, and_false, ↓reduceIte, add_tsub_cancel_right,
+      List.length_cons, ih]
+
+
+example {w : ℕ} {v : ZMod p} :
+  2 ^ w.succ < p →
+  v.val < 2 ^ w.succ →
+    let b : ZMod p :=
+      if 2 ^ w ≤ v.val
+      then 1
+      else 0
+    num2bits w.succ v = (num2bits w (v - b * 2 ^ w)) ++ [b] := by
+    revert v
+    induction w with
+    | zero =>
+      intros v p_cond h
+      simp only [Nat.succ_eq_add_one, zero_add, pow_one] at h
+      split_ifs with cond
+      · have : v = 1 := by
+          have : v.val = 1 := by linarith
+          refine (ZMod.val_eq_one ?_ v).mp this
+          apply Nat.Prime.one_lt
+          exact inst.out
+        simp [num2bits, this, ZMod.val_one]
+      · have : v = 0 := by
+          simp only [pow_zero, not_le, Nat.lt_one_iff, ZMod.val_eq_zero] at cond
+          exact cond
+        simp [num2bits, this]
+      -- have : v = 1 := by
+      --   have : v.val = 1 := by linarith
+      --   refine (ZMod.val_eq_one ?_ v).mp this
+      --   apply Nat.Prime.one_lt
+      --   exact inst.out
+      -- simp [num2bits, this, ZMod.val_one]
+    | succ w ih =>
+      intros v p_cond h
+      split_ifs with cond
+      swap
+      · unfold num2bits
+        simp only [Nat.succ_eq_add_one, Nat.add_eq_zero_iff, one_ne_zero, and_false, and_self,
+          ↓reduceIte, add_tsub_cancel_right, List.cons_append, List.cons.injEq]
+        have p_cond' : 2 ^ (w + 1) < p := by
+          refine lt_trans ?_ p_cond
+          refine Nat.pow_lt_pow_succ ?_
+          decide
+        have v_div_2_le_p: v.val / 2 < p := by
+          apply lt_of_le_of_lt (Nat.div_le_self v.val 2)
+          exact lt_trans h p_cond
+        have : ((v.val / 2 : ℕ) : ZMod p).val < 2 ^ w.succ := by
+          rw [ZMod.val_natCast, Nat.mod_eq_of_lt v_div_2_le_p]
+          apply lt_of_le_of_lt (Nat.div_le_self v.val 2)
+          simp at cond
+          exact cond
+        specialize @ih (v.val / 2 : ℕ) p_cond' this
+
+        have importantFact : (2 ^ (w + 1) : ZMod p).val = 2 ^ (w + 1) := by
+          have : (2 : ZMod p).val = 2 := by
+            refine ZMod.val_ofNat_of_lt ?_
+            by_contra h'
+            simp only [not_lt] at h'
+            have := inst.out
+            have := inst'.out
+            omega
+          rw [ZMod.val_pow]
+          · rw [this]
+          · rw [this]
+            exact p_cond'
+        apply And.intro
+        · simp
+        · rw [ih]
+          split_ifs with cond'
+          · have : (v - 2 ^ (w + 1)).val = v.val - 2 ^ (w + 1) := by
+              rw [ZMod.val_sub (by rw [importantFact]; exact cond)]
+              have two_eq_two: (2 : ZMod p).val = 2 := by
+                  apply ZMod.val_ofNat_of_lt
+                  by_contra h''
+                  simp only [not_lt] at h''
+                  have : p = 0 ∨ p = 1 ∨ p = 2 := by
+                    omega
+                  rcases this with h | h | h
+                  · have fct := inst.out
+                    rw [h] at fct
+                    exact Nat.prime_zero_false fct
+                  · have fct := inst.out
+                    rw [h] at fct
+                    exact Nat.prime_one_false fct
+                  · have fct := inst'.out
+                    rw [h] at fct
+                    simp at fct
+              have : (2 ^ (w + 1) : ZMod p).val = 2 ^ (w + 1) := by
+                rw [ZMod.val_pow] <;> rw [two_eq_two]
+                nlinarith
+              rw [this]
+            rw [this]
+            have : (v.val - 2 ^ (w + 1)) / 2 = v.val / 2 - 2 ^ w := by
+              rw [Nat.pow_succ, mul_comm, Nat.sub_mul_div_of_le]
+              rw [mul_comm,←Nat.pow_succ]
+              exact cond
+            rw [this, one_mul]
+            have : (((v.val / 2 - 2 ^ w) : ℕ) : ZMod p) = ((v.val / 2 : ℕ) : ZMod p) - 2 ^ w := by
+              rw [Nat.cast_sub]
+              simp only [Nat.cast_pow, Nat.cast_ofNat]
+              convert cond'
+              simp only [ZMod.val_natCast]
+              rw [Nat.div_mod_eq_div (ZMod.val_lt v)]
+            rw [this]
+
+          · simp only [ZMod.val_natCast, not_le] at cond'
+            have : v.val / 2 < p := by
+              exact lt_of_le_of_lt (Nat.div_le_self v.val 2) (ZMod.val_lt v)
+            rw [Nat.mod_eq_of_lt this] at cond'
+            have : v.val / 2 < v.val / 2 := by
+              apply lt_of_lt_of_le
+              exact cond'
+              rw [Nat.le_div_iff_mul_le, ←Nat.pow_succ]
+              exact cond
+              decide
+            simp at this
+
+
+      · sorry
 
 def to_wg (c : Circuit p (ZMod p)) : Wg (ZMod p) :=
   match c with
@@ -623,12 +753,14 @@ theorem soundness :
 -- --      rw [<-hr]
 --     sorry
 
-theorem soundness' : ∀ (c:Circuit' p),
+theorem soundness' : ∀ (c : Circuit' p),
   rw_bisim (Circuit.eval' c) (Cs.eval' (to_cs' c)) := by
   intro c
   apply soundness
 
-def completeness : ∀ (c:Circuit p (ZMod p)),
+#check List.foldr
+
+def completeness : ∀ (c : Circuit p (ZMod p)),
   Circuit.eval c = Cs.eval (wrap (to_wg c) (to_cs c)) := by
   intro c
   induction c with
@@ -659,11 +791,45 @@ def completeness : ∀ (c:Circuit p (ZMod p)),
         apply h
       case isFalse he0' =>
         simp [*] at *
-  | assert_range e c h =>
-    unfold to_wg to_cs wrap
-    simp only [Circuit.eval_assert_range]
+  | assert_range w e c ih =>
+    -- unfold to_wg to_cs wrap
+    -- Circuit.eval, Cs.eval,
+    simp only [Circuit.eval_assert_range, ih]
+    split_ifs with h
+    · conv =>
+        right
+        rw [to_wg, to_cs]
+      -- unfold assert_bits_e assert_bit_e
 
-    sorry
+      induction w with
+      | zero =>
+        have : e.eval = 0 := by
+          simp only [pow_zero, Nat.lt_one_iff, ZMod.val_eq_zero] at h
+          exact h
+        simp [num2bits, Cs.curry, assert_bits_e, bits2num_e, wrap, Cs.eval, Exp.eval, this]
+      | succ w ih =>
+        have := @List.foldl_append
+
+
+        unfold num2bits Cs.curry
+        simp
+        -- simp [num2bits]
+
+        sorry
+
+
+
+      -- have : wrap (to_wg (Circuit.assert_range w e c)) (to_cs (Circuit.assert_range w e c)) = sorry := by
+      --   unfold to_wg to_cs wrap
+      --   simp only
+      --   sorry
+
+
+      -- sorry
+    · rw [not_lt] at h
+
+
+      sorry
   | div_rem e c h =>
     -- simp [Exp.eval,Circuit.eval,Cs.eval,to_cs,to_wg,wrap]
     sorry
