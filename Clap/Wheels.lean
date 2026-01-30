@@ -63,3 +63,13 @@ def num2bits_pure (n:ℕ) (f:ZMod p) : List (ZMod p) :=
     bit::(num2bits_pure n rem)
 
 end Clap
+
+def Lean.Expr.foldlRecM {α : Type}
+  {m : Type → Type} [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] 
+  (f : α → Expr → m α) (init : α) (e : Expr) : m α :=
+  (·.2) <$> (
+    StateT.run (
+      Meta.transform e <| fun e' ↦
+        Functor.mapConst TransformStep.continue (get >>= monadLift ∘ flip f e' >>= set)
+    ) init
+  )
