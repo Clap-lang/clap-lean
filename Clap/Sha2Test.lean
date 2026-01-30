@@ -62,8 +62,8 @@ namespace TestFU
 -- TODO I should not be able to instantiate U8 with a prime and U32 with another prime
 -- TODO I should not be able to instantiate U32 with a field smaller than 32bits likes babybear, or U8 with a field smaller than 8 bits
 
-abbrev U8  : Type := ZMod Primes.goldilocks
-abbrev U32 : Type := ZMod Primes.goldilocks
+abbrev U8  : Type := ZMod Primes.prime_goldilocks
+abbrev U32 : Type := ZMod Primes.prime_goldilocks
 
 -- instance : Coe UInt8 U8 where
 --   coe u8 := (u8.toNat : ZMod Primes.prime_goldilocks)
@@ -79,20 +79,20 @@ abbrev U32 : Type := ZMod Primes.goldilocks
 --   coe u32 := u32 % 2^32
 
 -- instance : Coe UInt32 U32 where
---   coe u32 := (u32.toNat : ZMod Primes.goldilocks)
+--   coe u32 := (u32.toNat : ZMod Primes.prime_goldilocks)
 
 -- instance : Coe (BitVec 32) U32 where
 --   coe u32 := u32.toNat
 
 -- instance {n:Nat} : OfNat U32 n where
---   --ofNat := (n % (2^32) : ZMod Primes.goldilocks)
---   ofNat := (n : ZMod Primes.goldilocks)
+--   --ofNat := (n % (2^32) : ZMod Primes.prime_goldilocks)
+--   ofNat := (n : ZMod Primes.prime_goldilocks)
 
 
 --#synth ∀ (n:Nat), OfNat U32 n
 
 -- instance : Coe U8 U32 where
---   coe u8 := (u8.toNat : ZMod Primes.goldilocks)
+--   coe u8 := (u8.toNat : ZMod Primes.prime_goldilocks)
 
 -- instance : HAnd U32 U32 U32 where
 --   hAnd a b := ((UInt32.ofNat a.val) &&& (UInt32.ofNat b.val))
@@ -115,14 +115,14 @@ abbrev U32 : Type := ZMod Primes.goldilocks
 
 -- --TODO
 -- instance : HAdd U32 U32 U32 where
---   hAdd a b := (a.toNat : ZMod Primes.goldilocks) +
---               (b.toNat : ZMod Primes.goldilocks)
+--   hAdd a b := (a.toNat : ZMod Primes.prime_goldilocks) +
+--               (b.toNat : ZMod Primes.prime_goldilocks)
 -- instance : HSub U32 U32 U32 where
---   hSub a b := (a.toNat : ZMod Primes.goldilocks) -
---               (b.toNat : ZMod Primes.goldilocks)
+--   hSub a b := (a.toNat : ZMod Primes.prime_goldilocks) -
+--               (b.toNat : ZMod Primes.prime_goldilocks)
 -- instance : HMul U32 U32 U32 where
---   hMul a b := (a.toNat : ZMod Primes.goldilocks) *
---               (b.toNat : ZMod Primes.goldilocks)
+--   hMul a b := (a.toNat : ZMod Primes.prime_goldilocks) *
+--               (b.toNat : ZMod Primes.prime_goldilocks)
 
 -- instance : Inhabited U32 where
 --   default := 0
@@ -138,7 +138,7 @@ abbrev U32 : Type := ZMod Primes.goldilocks
 --   dsimp
 --   congr 3
 --   . unfold ZMod.val
---     unfold Primes.goldilocks
+--     unfold Primes.prime_goldilocks
 --     dsimp
 --     unfold Fin.val
 --     --unfold_projs
