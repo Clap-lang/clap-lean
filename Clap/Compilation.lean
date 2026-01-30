@@ -42,15 +42,31 @@ inductive Cs (p : ℕ) (var : Type) : Type where
   | eq0 (_ : Exp p var) (_ : Cs p var)
   | lam (_ : var -> Cs p var)
 
+def Csₑ (p:Nat) : Type := Cs p (ZMod p)
+def Cs' (p:Nat) : Type _ := (var:Type) -> Cs p var
+
 variable {p : ℕ} {var : Type} [Fact (Nat.Prime p)]
+
+open Clap.Circuit in
+def Cs.repr [Repr var] [Clap.Circuit.Index var]
+  (l : ℕ) (c : Cs p var) : Std.Format :=
+  letI go (l : ℕ) (k : var → Cs p var) := repr (l+1) (k (index l))
+  match c with
+  | .nil => "nil"
+  | .lam k => s!"λ{l} {go l k}"
+  | .eq0 e c => s!"eq0 {_root_.repr e} {repr l c}"
+
+instance [Repr var] [Clap.Circuit.Index var] : Repr (Cs p var) where
+  reprPrec c _ := c.repr 0
+
+instance [Repr var] [Clap.Circuit.Index var] : ToString (Cs p var) :=
+  ⟨Std.Format.pretty ∘ Cs.repr 0⟩
 
 def Cs.eval (c : Cs p (ZMod p)) : denotation (ZMod p) :=
   match c with
   | .nil => .u
   | .lam k => .l fun x => (k x).eval
   | .eq0 e c => if e.eval = 0 then c.eval else .n
-
-def Cs' (p:Nat) : Type _ := (var:Type) -> Cs p var
 
 def eval' (cs:Cs' p) : denotation (ZMod p) := (cs (ZMod p)).eval
 
@@ -99,6 +115,19 @@ inductive Wg (p : ℕ) : Type where
   | cons (_ : ZMod p) (_ : Wg p)
   | input (_ : ZMod p → Wg p)
 
+def Wg.repr (l : ℕ) (c : Wg p) : Std.Format :=
+  letI go (l : ℕ) (k : (ZMod p) → Wg p) := repr (l+1) (k l)
+  match c with
+  | .nil => "[]"
+  | .cons e c => s!"{_root_.repr e} :: {repr l c}"
+  | .input k => s!"λ{l} {go l k}"
+
+instance : Repr (Wg p) where
+  reprPrec c _ := c.repr 0
+
+instance : ToString (Wg p) :=
+  ⟨Std.Format.pretty ∘ Wg.repr 0⟩
+
 def Circuit.toWg (c : Circuitₑ p) : Wg p :=
   match c with
   | .nil => Wg.nil
@@ -114,6 +143,8 @@ def Circuit.toWg (c : Circuitₑ p) : Wg p :=
   | .num2bits w e c =>
     letI bits := num2bits_pure w (Exp.eval e)
     List.foldl (fun acc b => .cons b acc) (c bits).toWg bits
+
+def toWg' (c:Circuit' p) : Wg p := (c (ZMod p)).toWg
 
 def wrap (wg : Wg p) (cs : Cs p (ZMod p)) : Cs p (ZMod p) :=
   match wg,cs with
