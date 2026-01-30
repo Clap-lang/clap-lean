@@ -119,7 +119,7 @@ def ex p (is : Vector (ZMod p) 2) : Option Unit := do
   eq0 (vi + is[1])
   accept
 
-def ex_circuit_fun {var} (p : ℕ) : Circuit p var :=
+def ex_circuit_fun (p : ℕ) : Circuit' p := fun _ =>
   .lam fun x ↦ .lam fun y ↦
   .eq0 (.v x) (
   .share (.v x) fun vi =>
@@ -127,7 +127,7 @@ def ex_circuit_fun {var} (p : ℕ) : Circuit p var :=
   .nil))
 
 theorem equiv [Fact (Nat.Prime p)] :
-  Simulation.sBisim (curry (n := 2) (ex p)) ((ex_circuit_fun p).eval) := by
+  Simulation.sBisim (curry (n := 2) (ex p)) (Circuit.eval' (ex_circuit_fun p)) := by
   unfold ex_circuit_fun
   unfold ex
   dsimp only [curry]
@@ -164,14 +164,14 @@ def ex p :=
 #guard ex 7 2 4 1 1 3 5 = some 90 -- [2,4] + [1,1] = [3,5]
 #guard ex 7 2 4 1 1 3 6 = none
 
-def ex_circuit_fun {var} (p : ℕ) : Circuit p var :=
+def ex_circuit_fun (p : ℕ) : Circuit' p := fun _ =>
   .lam fun x1 ↦ .lam fun x2 ↦ .lam fun x3 ↦ .lam fun x4 ↦ .lam fun x5 ↦ .lam fun x6 ↦
   .eq0 ((.v x1) + (.v x3) - (.v x5)) (
   .eq0 ((.v x2) + (.v x4) - (.v x6)) (
   .nil))
 
 theorem equiv [Fact (Nat.Prime p)] :
-    Simulation.sBisim (ex p) (Circuit.eval (ex_circuit_fun p)) := by
+    Simulation.sBisim (ex p) (Circuit.eval' (ex_circuit_fun p)) := by
   unfold ex_circuit_fun
   unfold ex
   simp only [curry]
