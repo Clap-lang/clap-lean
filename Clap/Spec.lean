@@ -7,7 +7,7 @@ import Clap.Wheels
 
 namespace Clap
 
-variable {p : ℕ} [Fact (Nat.Prime p)]
+variable {p : ℕ}
 
 namespace Spec
 
@@ -24,9 +24,11 @@ def share (e : ZMod p) : Option (ZMod p) := e
 def is_zero (e : ZMod p) : Option (ZMod p) := if e = 0 then .some 1 else .some 0
 
 @[irreducible]
-def num2bits (w : ℕ) (e : ZMod p) : Option (List (ZMod p)) := if e.val < 2^w then .some (num2bits_pure w e) else .none
+def num2bits [Fact (Nat.Prime p)] (w : ℕ) (e : ZMod p) : Option (List (ZMod p)) :=
+  if e.val < 2^w then .some (num2bits_pure w e) else .none
 
-def assert_range (w : ℕ) (e : ZMod p) : Option Unit := do let _ <- num2bits w e ; ()
+def assert_range [Fact (Nat.Prime p)] (w : ℕ) (e : ZMod p) : Option Unit := do
+  let _ <- num2bits w e ; ()
 
 namespace Compiler
 
@@ -34,7 +36,7 @@ section
 
 open scoped Simulation
 
-variable {el : ZMod p} {er : Expₑ p}
+variable {el : ZMod p} {er : Expₑ p} [Fact (Nat.Prime p)]
 
 @[aesop safe apply]
 lemma equiv_lam {α : Type} {f : ZMod p → α} {g : ZMod p → Circuitₑ p}
@@ -87,7 +89,7 @@ open Spec
   A circuit is a function from any number of arguments of type F or Vector F to Option Unit.
 -/
 
-def ex (i: ZMod p) : Option Unit := do
+def ex [Fact (Nat.Prime p)] (i: ZMod p) : Option Unit := do
   eq0 i
   let vi <- share i
   eq0 (vi + i)
@@ -124,7 +126,7 @@ def ex_circuit_fun {var} (p : ℕ) : Circuit p var :=
   .eq0 (.v vi + .v y) (
   .nil))
 
-theorem equiv :
+theorem equiv [Fact (Nat.Prime p)] :
   Simulation.sBisim (curry (n := 2) (ex p)) ((ex_circuit_fun p).eval) := by
   unfold ex_circuit_fun
   unfold ex
@@ -168,7 +170,7 @@ def ex_circuit_fun {var} (p : ℕ) : Circuit p var :=
   .eq0 ((.v x2) + (.v x4) - (.v x6)) (
   .nil))
 
-theorem equiv :
+theorem equiv [Fact (Nat.Prime p)] :
     Simulation.sBisim (ex p) (Circuit.eval (ex_circuit_fun p)) := by
   unfold ex_circuit_fun
   unfold ex

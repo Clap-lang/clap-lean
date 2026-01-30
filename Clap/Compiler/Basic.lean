@@ -105,7 +105,7 @@ def bindPure (goals : Goals) : MetaM Goals := do
 
 end Goals
 
-private lemma Spec.Compiler.ext_lam {α : Type}
+private lemma Spec.Compiler.ext_lam [Fact (Nat.Prime p)] {α : Type}
   {f : ZMod p → α} {g : ZMod p → Circuitₑ p} {g' : Circuitₑ p}
   (h : Simulation.sBisim f (Circuit.lam g).eval)
   (hint : g' = Circuit.lam g) :
@@ -244,6 +244,8 @@ elab "#curry!" circuit:ident : command => do
                      s!"not equality. TODO(easy)."
 
 section EXAMPLES
+
+variable [Fact (Nat.Prime p)]
 
 open Spec Compiler
 
