@@ -1,3 +1,4 @@
+import Clap.Primes
 import Clap.Spec
 
 namespace Clap.Spec
@@ -115,13 +116,13 @@ def of_nat_be (x:ℕ) (len:Nat) : Array (FU8 p) :=
 
 #guard
   let n : ℕ := 255 + 1
-  of_nat_be (p:=prime_babybear) n 2 = #[1,0]
+  of_nat_be (p:=Primes.babybear) n 2 = #[1,0]
 #guard
   let n : ℕ := 2^16 + 2
-  of_nat_be (p:=prime_babybear) n 3 = #[1,0,2]
+  of_nat_be (p:=Primes.babybear) n 3 = #[1,0,2]
 #guard
   let n : ℕ := 2^16 + 2
-  of_nat_be (p:=prime_babybear) n 4 = #[0,1,0,2]
+  of_nat_be (p:=Primes.babybear) n 4 = #[0,1,0,2]
 
 /-
 Rust playground
@@ -132,8 +133,8 @@ dbg!(z.to_be_bytes());  # [0,1,0,2]
 def to_nat_be (bs:Array (FU8 p)) : ℕ :=
   Array.foldl (fun acc (b:ZMod p) => acc * 256 + (b:ℕ)) (0:ℕ) bs
 
-#guard to_nat_be (p:=prime_babybear) #[1] = 1
-#guard to_nat_be (p:=prime_babybear) #[255,1] = 255*256+1
+#guard to_nat_be (p:=Primes.babybear) #[1] = 1
+#guard to_nat_be (p:=Primes.babybear) #[255,1] = 255*256+1
 
 def min_bits (x:ℕ) : ℕ :=
   let n_bits := Nat.log2 x
@@ -148,19 +149,19 @@ lemma roundrip1 (x:ℕ) (len:ℕ) (h: len <= min_bytes x) :
 
 #guard
   let n : ℕ := 255 + 1
-  to_nat_be (of_nat_be (p:=prime_babybear) n 2) = n
+  to_nat_be (of_nat_be (p:=Primes.babybear) n 2) = n
 #guard
   let n : ℕ := 2^16 + 2
-  to_nat_be (of_nat_be (p:=prime_babybear) n 3) = n
+  to_nat_be (of_nat_be (p:=Primes.babybear) n 3) = n
 #guard
   let n : ℕ := 2^16 + 2
-  to_nat_be (of_nat_be (p:=prime_babybear) n 4) = n
+  to_nat_be (of_nat_be (p:=Primes.babybear) n 4) = n
 
 lemma roundrip2 (bs:Array (FU8 p)) :
   of_nat_be (to_nat_be bs) bs.size = bs := sorry
 
-#guard of_nat_be (p:=prime_babybear) (to_nat_be (p:=prime_babybear) #[1]) 1 = #[1]
-#guard of_nat_be (p:=prime_babybear) (to_nat_be  (p:=prime_babybear) #[255,1]) 2 = #[255,1]
+#guard of_nat_be (p:=Primes.babybear) (to_nat_be (p:=Primes.babybear) #[1]) 1 = #[1]
+#guard of_nat_be (p:=Primes.babybear) (to_nat_be  (p:=Primes.babybear) #[255,1]) 2 = #[255,1]
 
 end ByteArray
 

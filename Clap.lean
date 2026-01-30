@@ -1,5 +1,6 @@
 import Clap.Compiler.Basic
 
+import Clap.Primes
 import Clap.Circuit
 import Clap.Simulation
 import Clap.Compilation
