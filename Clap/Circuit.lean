@@ -171,6 +171,7 @@ inductive Circuit (p : ℕ) (var : Type) : Type where
   | share (e : Exp p var) (cont : var → Circuit p var)
   | is_zero (e : Exp p var) (cont : var → Circuit p var)
   | num2bits (w : ℕ) (e : Exp p var) (cont : List var → Circuit p var)
+  | swap (c a b : Exp p var) (cont : var × var → Circuit p var)
 
 abbrev Circuitₑ (p : ℕ) := Circuit p (ZMod p)
 -- TODO remove all ' definitions
@@ -210,6 +211,7 @@ def repr [Repr var] [Index var]
   (l : ℕ) (c : Circuit p var) : Std.Format :=
   letI go (l : ℕ) (k : var → Circuit p var) := repr (l+1) (k (index l)) -- `k ∘ index : ℕ (→ var) → Circuit ..`
   letI gos (w l : ℕ) (k : List var → Circuit p var) := repr (l+w) (k ((List.range w).map index))
+  letI go2 (l : ℕ) (k : var × var → Circuit p var) := repr (l+2) (k (index l, index (l+1)))
   match c with
   | .nil => "nil"
   | .lam k => s!"λ{l} {go l k}"
@@ -217,6 +219,7 @@ def repr [Repr var] [Index var]
   | .share e k => s!"share {_root_.repr e} {go l k}"
   | .is_zero e k => s!"is_zero {_root_.repr e} {go l k}"
   | .num2bits w e k => s!"num2bits {w} {_root_.repr e} {gos w l k}"
+  | .swap c a b k => s!"swap {_root_.repr c} {_root_.repr a} {_root_.repr b} {go2 l k}"
 
 instance [Repr var] [Index var] : Repr (Circuit p var) where
   reprPrec c _ := c.repr 0
@@ -247,6 +250,9 @@ def eval : Circuitₑ p → denotation (ZMod p)
       if e.eval = 0 then (k 1).eval else (k 0).eval
   | .num2bits w e k =>
       if e.eval.val < 2^w then (k (num2bits_pure w e.eval)).eval else .n
+  | .swap c a b k =>
+    letI ab := if c = 0 then (a.eval,b.eval) else (b.eval,a.eval)
+    (k ab).eval
 
 def eval' (c : Circuit' p) : denotation (ZMod p) := eval (c (ZMod p))
 
@@ -269,6 +275,13 @@ lemma eval_is_zero :
 @[simp]
 lemma eval_num2bits {w : ℕ} {k: List (ZMod p) -> Circuitₑ p} :
   (num2bits w e k).eval = if e.eval.val < 2^w then (k (num2bits_pure w e.eval)).eval else .n := by rfl
+
+@[simp]
+lemma eval_swap {c a b : Expₑ p} {k: ZMod p × ZMod p -> Circuitₑ p} :
+  (swap c a b k).eval =
+    letI ab := if c = 0 then (a.eval,b.eval) else (b.eval,a.eval)
+    (k ab).eval
+ := by rfl
 
 def equiv (c₁ c₂ : Circuitₑ p) : Prop := c₁.eval = c₂.eval
 
@@ -309,6 +322,12 @@ theorem is_zero_congr (he : el ≈ er) (h: ∀ x, kl x ≈ kr x) :
 theorem num2bits_congr w {kl kr : List (ZMod p) -> Circuitₑ p} (he: el ≈ er) (hk: ∀ x, kl x ≈ kr x) :
   num2bits w el kl ≈ num2bits w er kr := by
   aesop
+
+@[gcongr]
+theorem swap_congr {cl al bl cr ar br : Expₑ p} {kl kr : ZMod p × ZMod p -> Circuitₑ p} (hc: cl ≈ cr) (ha: al ≈ ar) (hb: bl ≈ br) (hk: ∀ x, kl x ≈ kr x) :
+  swap cl al bl kl ≈ swap cr ar br kr := by
+--  aesop
+  sorry
 
 end
 

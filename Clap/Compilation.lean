@@ -91,6 +91,12 @@ def Circuit.toCs (c : Circuit p var) : Cs p var :=
       letI rest := (c bits.toList).toCs
       letI rest := Cs.eq0 (bits2num_e bits - e) rest
       assert_bits_e bits rest)
+  | .swap c a b k =>
+    .lam fun l =>
+    .lam fun r =>
+    .eq0 (.v l - (c * b + (1-c) * a)) (
+    .eq0 (.v r - (c * a + (1-c) * b))
+    (k (l,r)).toCs)
 
 def toCs' (c : Circuit' p) : Cs' p := fun var => (c var).toCs
 
@@ -114,6 +120,9 @@ def Circuit.toWg (c : Circuitₑ p) : Wg p :=
   | .num2bits w e c =>
     letI bits := num2bits_pure w (Exp.eval e)
     List.foldl (fun acc b => .cons b acc) (c bits).toWg bits
+  | .swap c a b k =>
+    letI ab := if c = 0 then (a.eval,b.eval) else (b.eval,a.eval)
+    .cons ab.1 (.cons ab.2 (k ab).toWg)
 
 def wrap (wg : Wg p) (cs : Cs p (ZMod p)) : Cs p (ZMod p) :=
   match wg,cs with
@@ -176,7 +185,8 @@ theorem soundness {c : Circuitₑ p} : wrBisim c.eval c.toCs.eval := by
           aesop
         case isFalse hmul => constructor
       case isFalse hsub => constructor
-  | num2bits w e c h =>
+  | num2bits w e c h
+  | swap c a b =>
       sorry
 
 theorem soundness' {c:Circuit' p} :
@@ -214,5 +224,6 @@ def completeness [Fact (Nat.Prime p)] {c : Circuitₑ p} :
         apply h
       case isFalse he0' =>
         simp [*] at *
-  | num2bits e c h =>
+  | num2bits e c h
+  | swap c a b =>
     sorry

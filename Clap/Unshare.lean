@@ -29,6 +29,7 @@ def Circuit.unshareAllF (c : Circuitₑ p) : Circuitₑ p :=
   | .lam k => .lam fun x => (k x).unshareAllF
   | .is_zero e k => .is_zero e fun x => (k x).unshareAllF
   | .num2bits w e k => .num2bits w e fun x => (k x).unshareAllF
+  | .swap c a b k => .swap c a b fun ab => (k ab).unshareAllF
   | .share e k => k e.eval
 
 theorem unshare_all_sem_pre_F {c : Circuitₑ p} : c ≈ c.unshareAllF := by
@@ -36,6 +37,7 @@ theorem unshare_all_sem_pre_F {c : Circuitₑ p} : c ≈ c.unshareAllF := by
   any_goals gcongr
   grind
   constructor
+  grind
   grind
   grind
 
@@ -58,6 +60,7 @@ def Circuit.unshareAll {var} (c : Circuit p (Exp p var)) : Circuit p var :=
   | .lam k => .lam fun x ↦ (k (.v x)).unshareAll
   | .is_zero e k => .is_zero e.unwrap fun x ↦ unshareAll (k (.v x))
   | .num2bits w e k => .num2bits w e.unwrap fun x ↦ (k (x.map .v)).unshareAll
+  | .swap c a b k => .swap c.unwrap a.unwrap b.unwrap fun ab ↦ (k (.v ab.1, .v ab.2)).unshareAll
   | .share e k => (k e.unwrap).unshareAll
 
 def unshareAll' (c:Circuit' p) : Circuit' p := fun var => Circuit.unshareAll (c (Exp p var))
@@ -173,6 +176,9 @@ def Circuit.unshareDegCps {var} (c : Circuit p (Exp p var))
     .is_zero e.unwrap fun x => unshareDegCps (k' (.v x)) (fun (b, c) => k (b && e.degree <= 2, c))
   | .num2bits w e k' =>
     .num2bits w e.unwrap fun x => (k' (x.map .v)).unshareDegCps (fun (b,c) => k (b && e.degree <= 2, c))
+  | .swap c a b k' =>
+    letI d := c.degree <=2 && a.degree <=2 && b.degree <=2
+    .swap c.unwrap a.unwrap b.unwrap fun ab => (k' (.v ab.1, .v ab.2)).unshareDegCps (fun (b,c) => k (b && d, c))
   | .share e k' =>
     unshareDegCps (k' e.unwrap) fun (b,c) =>
       if b && e.degree <= 2
