@@ -68,7 +68,7 @@ def reduceMatch (goals : Goals) : MetaM Goals := do
   goals.runTactic (←`(tactic|dsimp -zeta +beta only))
 
 partial def unfoldAny (goals : Goals) (e : Expr) : MetaM Goals := do
-  let .some _ := goals.inference | logInfo m!"OBLA"; return goals
+  let .some _ := goals.inference | return goals
   if let .const name _ := e.getAppFn then
     if ← Meta.isMatcher name
     then try let x ← goals.reduceMatch; return x catch _ =>
@@ -129,7 +129,7 @@ def isBindPure (lhs : Expr) : MetaM Bool := do
 TODO(cleanup) - We should not always be checking for the outermost bind. Pass in the 'next' thing.
 -/
 def isForInVector (lhs : Expr) : MetaM Bool := do
-  logInfo m!"LHS: {lhs}"
+  -- logInfo m!"LHS: {lhs}"
   let (``Bind.bind, ⟨_ :: _ :: _ :: _ :: f :: _⟩) := lhs.getAppFnArgs | return false
   let (``ForIn.forIn, ⟨_ :: t :: _⟩) := f.getAppFnArgs | return false
   return t.isAppOf `Vector
@@ -178,7 +178,6 @@ def step (goals : Goals) : MetaM Goals := do
 
 def extractTac (inferenceGoal : MVarId) : MetaM Goals := do
   let mut goals ← (⟨·, []⟩) <$> tryCatch (reduceCurry inferenceGoal) fun _ ↦ pure inferenceGoal
-  -- let mut i := 0
   while true do
     match goals.inference with
     | .none => break
@@ -193,39 +192,81 @@ elab "extract" "using" name:ident : tactic => do
   extractTac proof >>= setGoals ∘ (·.toLeanGoals ++ rest)
   evalTactic (←`(tactic|any_goals rfl))
 
-private def explode (name : Name) (len : Nat) : String :=
+private def explodeVec (name : Name) (len : Nat) : String :=
   String.intercalate " " <| List.range len |>.map fun i ↦ s!"{name}[{i}]"
 
-open Meta Elab Command in
-elab "#curry!" circuit:ident : command => do
+private def explodeStruct (name : Name) (argmap: Std.HashMap Name (Array Name)) (type : Name) : String :=
+  -- dbg_trace s!"name: {name} argmap: {repr argmap} type: {type} rtype: {argmap.contains type}"
+  String.intercalate " " <| argmap[type]!.toList |>.map fun proj ↦ s!"{name}.{proj}"
+
+open Meta Elab Term Command in
+elab "#compile" circuit:ident : command => do
   let .some decl := (←getEnv).find? circuit.getId | throwError m!"Undeclared constant: {circuit}"
-  let (preamble, implicits, vecs) ← liftTermElabM <| forallTelescopeReducing decl.type fun args _ ↦ do
+  let (preamble, implicits, vecs, argmap, customTypes) ← liftTermElabM <| forallTelescopeReducing decl.type fun args _ ↦ do
     let mut preamble := ""
     let mut implicits := ""
     let mut vecs := #[]
+    -- Can technically use ProjectionFunctionInfo.i
+    let mut argmap : Std.HashMap Name (Array Name) := {}
+    let mut customTypes := #[]
     let mut depth := 1
     for arg in args do
       if (←arg.fvarId!.getDecl).binderInfo == .implicit
       then implicits := implicits ++ s!"\{{←PrettyPrinter.ppExpr arg}} "
            continue
       let t ← Meta.inferType arg
-      let (`Vector, #[_, len]) := t.getAppFnArgs | continue
       let userName ← arg.getAppFn.fvarId!.getUserName
-      vecs := vecs.push (userName, len.nat?.get!, (←PrettyPrinter.ppExpr t).pretty)
-      preamble := preamble ++ s!"Clap.curry fun ({userName} : {←PrettyPrinter.ppExpr t}) ↦ "
-      depth := depth + 1
-    return (preamble, implicits, vecs)
-  let body ← liftTermElabM <| lambdaTelescope decl.value! fun _ body ↦
-    Format.pretty <$> PrettyPrinter.ppExpr body
+      if let (`Vector, #[_, len]) := t.getAppFnArgs then
+        vecs := vecs.push (userName, len.nat?.get!, (←PrettyPrinter.ppExpr t).pretty, s!"{userName}")
+        preamble := preamble ++ s!"Clap.curry fun ({userName} : {←PrettyPrinter.ppExpr t}) ↦ "
+        depth := depth + 1
+      else
+        let typeName := t.getAppFn.constName
+        if !isStructure (←getEnv) typeName then continue
+        customTypes := customTypes.push typeName
+        let fields := getStructureFields (←getEnv) typeName
+        vecs := vecs.push (userName, fields.size, s!"{(←PrettyPrinter.ppExpr t).pretty}", s!"{typeName}")
+        preamble := preamble ++ s!"Clap.curry fun ({userName} : Vector (ZMod p) {fields.size}) ↦ "
+        argmap := argmap.insert typeName fields
+        -- logInfo m!"arg: {arg} of type: {t} s: {fields}"
+    -- logInfo m!"vecs: {vecs} argmap: {repr argmap} customTypes: {customTypes}"
+    return (preamble, implicits, vecs, argmap, customTypes)
+  let body ←
+    if customTypes.isEmpty
+    then liftTermElabM <| lambdaTelescope decl.value! fun _ body ↦ PrettyPrinter.delab body
+    else liftTermElabM <| lambdaTelescope decl.value! fun args body ↦ do
+      let argNames ← args.mapM (·.fvarId!.getUserName)
+      -- logInfo m!"body: {body}"
+      let stx ← PrettyPrinter.delab body
+      let newStx ← stx.replaceM fun s ↦ do
+        try
+          if s.isIdent && !argNames.contains s.getId then return .none
+          let e ← elabTerm s .none
+          let (name, _) := e.getAppFnArgs
+          let isProj ← isProjectionFn name
+          let isRelevant := customTypes.contains name.getPrefix
+          if isProj && isRelevant then
+            let (type, proj) := (name.getPrefix, name.components.getLast!)
+            let idx := argmap[type]!.idxOf proj
+            let `($f.$proj) := s | return .none -- TODO(generalise) - Technically needs to be more general for `Point.x p`.
+            -- logInfo m!"s: {s}\nt: {e}\nf: {name}\nidx: {idx}\nf[{f}]-proj[{proj}]"
+            return .some (←`(($f)[$(Syntax.mkNatLit idx)]))
+        catch _ => return .none
+        return .none
+      -- logInfo m!"newBody: {body}\n\nnew: {stx}\nreplaced: {newStx}"
+      return newStx
+  let body ← Format.pretty <$> (liftTermElabM <| Lean.PrettyPrinter.ppCategory `command body)
+    -- Format.pretty <$> PrettyPrinter.ppExpr e
   let circuitName := circuit.getId.components.getLast!
   let curriedCircuitName := s!"{circuitName}_curried"
   let declaration := s!"open Clap.Spec in def {curriedCircuitName} {implicits}:= {preamble}{body}"
   let .ok declStx := Parser.runParserCategory (←getEnv) `command declaration
-    | throwError s!"Failed to compile: {preamble}{body}"
+    | throwError m!"Failed to compile: {declaration}"
+  logInfo m!"{declStx}"
   elabCommand declStx
   logInfo m!"Circuit: {curriedCircuitName}"
-  let explodedVecs := vecs.foldl (init := "") fun acc (name, len, _) ↦ s!"{acc} {explode name len}"
-  let args := vecs.foldl (init := "") fun acc (name, _, type) ↦ acc ++ s!" \{{name} : {type}}"
+  let explodedVecs := vecs.foldl (init := "") fun acc (name, len, _, _) ↦ s!"{acc} {explodeVec name len}"
+  let args := vecs.foldl (init := "") fun acc (name, _, type, _) ↦ acc ++ s!" \{{name} : {type}}"
   -- TODO(simpler) - There's a better solution here. More specifically, we don't need this equality.
   -- It would be fine to simply show equivalence with respect to bisimulation, which is easier.
   let equiv_proof :=
@@ -233,21 +274,58 @@ elab "#curry!" circuit:ident : command => do
     s!"{" ".intercalate (vecs.map (toString ∘ Prod.fst)).toList}" ++
     s!" = {curriedCircuitName}{explodedVecs} := by first | rfl | sorry"
   let .ok prfStx := Parser.runParserCategory (←getEnv) `command equiv_proof
-    | throwError s!"Failed to compile: {equiv_proof}"
-  elabCommand prfStx
-  logInfo m!"Proof: {curriedCircuitName}_equiv"
-  
-  let decl := (←getEnv).find? (.mkStr2 "Clap" s!"{curriedCircuitName}_equiv") |>.get!
-  if decl.value!.hasSorry
-  then logWarning <| s!"Cannot synthesise the proof of {curriedCircuitName}_equiv. Using sorry." ++
-                     s!"\nNOTE: The solution here is to simply generate a proof of equivalence, " ++
-                     s!"not equality. TODO(easy)."
+    | throwError m!"Failed to compile: {equiv_proof}"
+  -- Redundant with match.
+  if customTypes.isEmpty then
+    elabCommand prfStx
+    logInfo m!"Proof: {curriedCircuitName}_equiv"
+  match (←getEnv).find? (.mkStr2 "Clap" s!"{curriedCircuitName}_equiv") with
+  | .none => let args := vecs.foldl (init := "") fun acc (name, _, t, _) ↦ acc ++ s!" \{{name} : {t}}"
+             let explodedVecs := vecs.foldl (init := "") fun acc (name, len, type, typename) ↦
+               s!"{acc} {explodeStruct name argmap (.mkStr2 (typename.splitOn ".")[0]! (typename.splitOn ".")[1]!)}"
+             let equiv_proof :=
+               s!"theorem {curriedCircuitName}_equiv{args} : {circuitName} " ++
+               s!"{" ".intercalate (vecs.map (toString ∘ Prod.fst)).toList}" ++
+               s!" = {curriedCircuitName}{explodedVecs} := by first | rfl | sorry"
+             logInfo m!"equiv_proof: {equiv_proof}"
+             let .ok prfStx := Parser.runParserCategory (←getEnv) `command equiv_proof
+               | throwError m!"Failed to compile: {equiv_proof}"
+             elabCommand prfStx
+  | .some decl =>
+    if decl.value!.hasSorry
+    then logWarning <| s!"Cannot synthesise the proof of {curriedCircuitName}_equiv. Using sorry." ++
+                      s!"\nNOTE: The solution here is to simply generate a proof of equivalence, " ++
+                      s!"not equality. TODO(easy)."
 
 section EXAMPLES
 
 variable [Fact (Nat.Prime p)]
 
 open Spec Compiler
+
+structure Point (p : ℕ) where
+  x : ZMod p
+  y : ZMod p
+  z : ZMod p
+
+def ex₀ (point : Point p) : Option Unit := do
+  eq0 (point.x + point.y)
+  eq0 (point.x + point.z)
+  accept
+
+#compile Clap.ex₀
+
+def extract_manual₀ :
+  { c:Circuitₑ p // Simulation.sBisim (ex₀_curried (p := p)) c.eval } := by
+  extract using ex₀_curried
+
+example : (extract_manual₀ (p := p)).1 =
+  Circuit.lam fun x =>
+    Circuit.lam fun x_1 =>
+      Circuit.lam fun x_2 =>
+        Circuit.eq0 (Exp.c (x + x_1))
+          (Circuit.eq0 (Exp.c (x + x_2)) Circuit.nil) := rfl
+
 
 def ex₁ (i : ZMod p) : Option Unit := do
   accept
@@ -446,7 +524,7 @@ def ex₈ (xs : Vector (ZMod p) 3) : Option Unit := do
   for x in xs do
     eq0 x
 
-#curry! Clap.ex₈
+#compile Clap.ex₈
 
 def extract_automatic₈ :
   { c : Circuitₑ p // Simulation.sBisim (ex₈_curried (p := p)) c.eval } := by
@@ -460,6 +538,8 @@ example : (extract_automatic₈ (p := p)).1 =
             (Circuit.eq0 x_1
               (Circuit.eq0 x_2
                 Circuit.nil)) := rfl
+
+#print ex₈_curried
 
 #print extract_automatic₈._proof_4
 
