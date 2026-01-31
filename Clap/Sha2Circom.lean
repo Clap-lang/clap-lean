@@ -228,9 +228,9 @@ abbrev ofNat32 := @FBitVec32.ofUInt32Nat Primes.babybear
 #guard (FBitVec32.shr' (ofNat32 (2^32 - 1)) 32).toNat = (2^32 - 1) >>> 32
 #guard (FBitVec32.shr' (ofNat32 (2^31)) 15).toNat     = (2^31) >>> 15
 #guard (FBitVec32.shr' (ofNat32 123456) 3).toNat      = 123456 >>> 3
-#guard (FBitVec32.shr' (ofNat32 100) 2).toNat         = 25
-#guard (FBitVec32.shr' (ofNat32 (2^31)) 31).toNat     = 1
-#guard (FBitVec32.shr' (ofNat32 (2^31)) 30).toNat     = 2
+#guard (FBitVec32.shr' (ofNat32 100) 2).toNat         = 100 >>> 2
+#guard (FBitVec32.shr' (ofNat32 (2^31)) 31).toNat     = 2^31 >>> 31
+#guard (FBitVec32.shr' (ofNat32 (2^31)) 30).toNat     = 2^31 >>> 30
 
 end Tests
 
