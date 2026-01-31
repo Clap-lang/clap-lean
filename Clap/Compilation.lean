@@ -146,6 +146,15 @@ def Circuit.toWg (c : Circuitₑ p) : Wg p :=
 
 def toWg' (c:Circuit' p) : Wg p := (c (ZMod p)).toWg
 
+def Wg.run (wg: Wg p) (ins : List (ZMod p)) : List (ZMod p) :=
+  match wg with
+  | nil => []
+  | cons x wg => x::(wg.run ins)
+  | input k =>
+    match ins with
+    | [] => []
+    | i::ins => (k i).run ins
+
 def wrap (wg : Wg p) (cs : Cs p (ZMod p)) : Cs p (ZMod p) :=
   match wg,cs with
   |         .nil , .nil      => .nil

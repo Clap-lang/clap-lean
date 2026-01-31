@@ -48,15 +48,23 @@ def extract_vec :
   extract using ex_vec_curried
 
 -- This is what the extracted circuit looks like
-example : (extract_vec (p := p)).1 =
+abbrev extracted_vec : Circuitₑ p := (extract_vec (p := p)).1
+
+example : extracted_vec (p := p) =
   .lam fun x_0 =>
   .lam fun x_1 =>
   .lam fun x_2 =>
-  .eq0 x_0   (
+  .eq0 x_0 (
   .eq0 x_1 (
   .eq0 x_2
   .nil)) := rfl
 
+def cs : Csₑ p := extracted_vec.toCs
+def wg : Wg p := extracted_vec.toWg
+
+#eval (wg (p:=Primes.babybear)).run [0,1,2]
+
+#print cs
 
 /-
   This example showcases the use of a structure (equivalent to struct
