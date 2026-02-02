@@ -2,6 +2,8 @@ import Lean
 import Mathlib.Lean.Meta
 import Mathlib.FieldTheory.Finite.Basic -- field operations
 
+import Clap.Primes
+
 namespace Clap
 
 @[reducible]
@@ -58,9 +60,11 @@ def num2bits_pure (n:ℕ) (f:ZMod p) : List (ZMod p) :=
   match n with
   | 0 => []
   | n+1 =>
-    let bit := f % 2
-    let rem := f / 2
+    let bit := f.val % 2
+    let rem := f.val / 2
     bit::(num2bits_pure n rem)
+
+#guard num2bits_pure (p:=Primes.babybear) 3 1 = [1,0,0]
 
 end Clap
 
