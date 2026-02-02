@@ -74,7 +74,10 @@ def ofFBitVec8 (x : FBitVec8 p) : FBitVec32 p :=
 def toNat : FBitVec32 p → ℕ :=
   List.foldr (fun b acc => acc * 2 + b) 0
 
+-- Constants
 def zero : FBitVec32 p := List.replicate 32 0
+
+def bv256 : FBitVec32 p := [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 /--
   Adds two FBitVec32 numbers using ripple-carry addition.
@@ -134,6 +137,9 @@ where
       let next_a := (0 :: shifted_a).take 32
       aux next_a bs new_acc
 
+def ofAFBitVec8 (bs : Array (FBitVec8 p)) : FBitVec32 p :=
+  bs.foldl (fun acc b ↦ (acc.mul bv256).add b) zero
+
 /--
   Shifts bits to the right by `n` positions.
   Inputs: x (FBitVec32 p) - value to shift; n (ℕ) - number of positions to shift right.
@@ -144,6 +150,18 @@ where
 -/
 def shr (x : FBitVec32 p) (n : ℕ) : FBitVec32 p :=
   (x.drop n) ++ (List.replicate n 0)
+
+def shl (x : FBitVec32 p) (n : ℕ) : FBitVec32 p :=
+  (List.replicate n 0 ++ x).take 32
+
+def and (a b : FBitVec32 p) : FBitVec32 p :=
+  a.zip b |>.map (fun (a,b) ↦ a * b)
+
+def or (a b : FBitVec32 p) : FBitVec32 p :=
+  a.zip b |>.map (fun (a,b) ↦ a + b - a*b)
+
+def not (a : FBitVec32 p) : FBitVec32 p :=
+  a |>.map (fun a ↦ 1 + a - 2*a)
 
 end FBitVec32
 
@@ -156,6 +174,7 @@ instance : Add (FBitVec32 p) := ⟨FBitVec32.add⟩
 instance : Sub (FBitVec32 p) := ⟨FBitVec32.sub⟩
 instance : Mul (FBitVec32 p) := ⟨FBitVec32.mul⟩
 instance : HShiftRight (FBitVec32 p) ℕ (FBitVec32 p) := ⟨FBitVec32.shr⟩
+instance : HShiftLeft (FBitVec32 p) ℕ (FBitVec32 p) := ⟨FBitVec32.shl⟩
 
 section Tests
 
@@ -163,6 +182,7 @@ abbrev FBitVec32.add' := @FBitVec32.add Primes.babybear
 abbrev FBitVec32.sub' := @FBitVec32.sub Primes.babybear
 abbrev FBitVec32.mul' := @FBitVec32.mul Primes.babybear
 abbrev FBitVec32.shr' := @FBitVec32.shr Primes.babybear
+abbrev FBitVec32.shl' := @FBitVec32.shl Primes.babybear
 abbrev ofNat32 := @FBitVec32.ofUInt32Nat Primes.babybear
 
 #guard (FBitVec32.add' 30 30).toNat                                      = (30 + 30 : UInt32).toNat
@@ -260,7 +280,7 @@ def sigmaConstants : Array (ZMod p) := #[7, 18, 3, 17, 19, 10]
 def sigma0 (x : FBitVec32 p) : FBitVec32 p :=
   let rota := rotr x sigmaConstants[0]!
   let rotb := rotr x sigmaConstants[1]!
-  let shrc := x.shr (sigmaConstants (p := p))[2]!
+  let shrc := rotr x sigmaConstants[2]!
   xor3 rota rotb shrc
 
 -- https://github.com/iden3/circomlib/blob/v2.0.5/circuits/sha256/sigma.circom
@@ -271,22 +291,28 @@ def sigma1 (x : FBitVec32 p) : FBitVec32 p :=
   xor3 rota rotb shrc
 
 -- https://github.com/iden3/circomlib/blob/v2.0.5/circuits/sha256/sigmaplus.circom
-def sum0 (a b : FBitVec32 p) : FBitVec32 p :=
-  sigma0 a + b
+def sum0 (a : FBitVec32 p) : FBitVec32 p :=
+  let rota := rotr a sigmaConstants[0]!
+  let rotb := rotr a sigmaConstants[1]!
+  let rotc := rotr a sigmaConstants[2]!
+  xor3 rota rotb rotc
 
 -- https://github.com/iden3/circomlib/blob/v2.0.5/circuits/sha256/sigmaplus.circom
-def sum1 (a b : FBitVec32 p) : FBitVec32 p :=
-  sigma1 a + b
+def sum1 (a : FBitVec32 p) : FBitVec32 p :=
+  let rota := rotr a sigmaConstants[3]!
+  let rotb := rotr a sigmaConstants[4]!
+  let rotc := rotr a sigmaConstants[5]!
+  xor3 rota rotb rotc
 
 end CIRCOMLibSHA256
 
--- instance : Clap.Sha2.ShaU32 (FBitVec32 p) (FBitVec8 p) where
---   sum_0 := sum0
---   sum_1 := sum1
---   sigma_0 := sigma0
---   sigma_1 := sigma1
---   to_nat_be
---   ch
---   maj
+instance : Clap.Sha2.ShaU32 (FBitVec32 p) (FBitVec8 p) where
+  sum_0 := sum0
+  sum_1 := sum1
+  sigma_0 := sigma0
+  sigma_1 := sigma1
+  to_nat_be := FBitVec32.ofAFBitVec8
+  ch
+  maj
 
 end Clap.Sha2.Circom
