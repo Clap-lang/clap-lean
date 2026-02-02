@@ -144,12 +144,29 @@ elab "whnf!" : tactic => liftMetaTactic' reduceAny
 --   logInfo m!"Defeq? - {isDefeq}"
 --   replaceMainGoal [← goal.replaceTargetDefEq whnfE]
 
+def foo : Nat → Nat
+  | 0 => 42
+  | x@(_ + 1) => foo (x - 1)
+
+example : foo 0 = 42 := by
+  unfold foo
+  rfl
 
 def unfoldAnyStep (e : Expr) : MetaM TransformStep := do
   let .const name _ := e.getAppFn | return .continue
-  let some v ← unfoldDefinition? e | logInfo m!"Failed to unfold: {name}"; return .continue
-  logInfo m!"Unfolding: {name}"
-  return .visit v
+  if let .some name ← Meta.getUnfoldEqnFor? name
+  then logInfo m!"READY: {name}"
+       let const ← getConstInfo name
+       logInfo m!"heh: {const.value!}"
+      --  logInfo m!"{←e.rewrite const.value!}"
+      --  logInfo m!"{←e.rewrite (←mkEq e r.expr)}"
+       let r ← unfold e name
+      --  logInfo m!"r: {r.expr}"
+       logInfo m!"r: {r.expr} prf: {r.proof?} w: {←r.getProof' e}"
+       return .continue
+  else let some v ← unfoldDefinition? e | logInfo m!"Failed to unfold: {name}"; return .continue
+       logInfo m!"Unfolding: {name}"
+       return .visit v
 
 def unfoldAny (e : Expr) : MetaM Expr := do
   Meta.transform e (pre := unfoldAnyStep)
@@ -605,9 +622,15 @@ def ex₉ (xs : Vector (ZMod p) 3) : Option Unit := do
 
 #check isProjectionFn
 
+-- attribute [local semireducible] Array.zipWithMAux
+
 def extract_automatic₉ :
   { c : Circuitₑ p // Simulation.sBisim (ex₉_curried (p := p)) c.eval } := by
   extract using ex₉_curried
+
+open Elab Tactic in
+elab "meh" : tactic => do
+  Elab.Tactic.replaceMainGoal [← Meta.unfoldTarget (← getMainGoal) declName]
 
 def extract_manual₉ :
   { c : Circuitₑ p // Simulation.sBisim (ex₉_curried (p := p)) c.eval } := by
@@ -629,9 +652,16 @@ def extract_manual₉ :
   try rw [Option.bind_eq_bind]
   rw [Option.bind_some]
   expose_names
-  have : Vector.zipWith (n := 3) (fun x1 x2 : ZMod p => x1 + x2) (Vector.mk { toList := [x_2, x_1, x] } sorry)
-            (Vector.mk { toList := [x_2, x_1, x] } sorry) = sorry := by
+  have {g} : Vector.zipWith (n := 3) (fun x1 x2 : ZMod p => x1 + x2) (Vector.mk { toList := [x_2, x_1, x] } sorry)
+            (Vector.mk { toList := [x_2, x_1, x] } g) = sorry := by
+    
     KAMEHAMEHA!
+    unfold Array.zipWithMAux
+    dsimp
+    unfold Array.zipWithMAux
+    
+    -- rw [Array.zipWithMAux.eq_def]
+    -- unfold Array.zipWithMAux
     
     -- kaplonk!
     -- wargh!
