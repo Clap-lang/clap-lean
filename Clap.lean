@@ -12,3 +12,4 @@ import Clap.Spec
 import Clap.SpecUint
 import Clap.Wheels
 import Clap.Milestone
+import Clap.R1CS
