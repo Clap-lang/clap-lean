@@ -23,4 +23,7 @@ instance : Fact (Nat.Prime goldilocks) := by sorry
 def bn254 := 21888242871839275222246405745257275088548364400416034343698204186575808495617
 instance : Fact (Nat.Prime bn254) := by sorry
 
+instance {p:ℕ}: ToString (ZMod p) where
+  toString z := toString z.val
+
 end Primes
