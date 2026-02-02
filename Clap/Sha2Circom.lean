@@ -160,6 +160,9 @@ def and (a b : FBitVec32 p) : FBitVec32 p :=
 def or (a b : FBitVec32 p) : FBitVec32 p :=
   a.zip b |>.map (fun (a,b) ↦ a + b - a*b)
 
+def xor (a b : FBitVec32 p) : FBitVec32 p :=
+  a.zip b |>.map (fun (a,b) ↦ a + b - 2*a*b)
+
 def not (a : FBitVec32 p) : FBitVec32 p :=
   a |>.map (fun a ↦ 1 + a - 2*a)
 
@@ -175,6 +178,10 @@ instance : Sub (FBitVec32 p) := ⟨FBitVec32.sub⟩
 instance : Mul (FBitVec32 p) := ⟨FBitVec32.mul⟩
 instance : HShiftRight (FBitVec32 p) ℕ (FBitVec32 p) := ⟨FBitVec32.shr⟩
 instance : HShiftLeft (FBitVec32 p) ℕ (FBitVec32 p) := ⟨FBitVec32.shl⟩
+instance : HAnd (FBitVec32 p) (FBitVec32 p) (FBitVec32 p) where hAnd := FBitVec32.and
+instance : HOr  (FBitVec32 p) (FBitVec32 p) (FBitVec32 p) where hOr := FBitVec32.or
+instance : HXor (FBitVec32 p) (FBitVec32 p) (FBitVec32 p) where hXor := FBitVec32.xor
+instance : Complement (FBitVec32 p) := ⟨FBitVec32.not⟩
 
 section Tests
 
@@ -257,17 +264,13 @@ end Tests
 section CIRCOMLibSHA256
 
 -- https://github.com/iden3/circomlib/blob/v2.0.5/circuits/sha256/ch.circom
-def ch (a b c : FBitVec32 p) : FBitVec32 p := a * (b - c) + c
+def ch (a b c : FBitVec32 p) : FBitVec32 p := (a &&& b) ^^^ ((~~~a) &&& c)
 
 -- https://github.com/iden3/circomlib/blob/v2.0.5/circuits/sha256/maj.circom
-def maj (a b c : FBitVec32 p) : FBitVec32 p :=
-  let mid := b * c
-  a * (b + c - 2*mid) + mid
+def maj (a b c : FBitVec32 p) : FBitVec32 p := (a &&& b) ^^^ (a &&& c) ^^^ (b &&& c)
 
 -- https://github.com/iden3/circomlib/blob/v2.0.5/circuits/sha256/xor3.circom
-def xor3 (a b c : FBitVec32 p) : FBitVec32 p :=
-  let mid := b * c;
-  a * (1 - 2*b - 2*c + 4*mid) + b + c - 2*mid
+def xor3 (a b c : FBitVec32 p) : FBitVec32 p := a ^^^ b ^^^ c
 
 -- https://github.com/iden3/circomlib/blob/v2.0.5/circuits/sha256/rotate.circom
 -- ra will be known at compile time as well i when reducing it. So (i + ra) % 32 is known number.
