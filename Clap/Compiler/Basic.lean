@@ -108,6 +108,7 @@ def reduceMatch (goals : Goals) : MetaM Goals := do
 #check MVarId.replaceTargetDefEq
 open Lean Elab Tactic Meta
 #check Expr
+
 def reduceAny (goal : MVarId) : MetaM MVarId := goal.withContext do
   -- let mut goal ← goal.replaceTargetDefEq (←whnf (←goal.getType))
   let conclusion ← goal.getType
@@ -143,10 +144,58 @@ elab "whnf!" : tactic => liftMetaTactic' reduceAny
 --   logInfo m!"Defeq? - {isDefeq}"
 --   replaceMainGoal [← goal.replaceTargetDefEq whnfE]
 
-example : [1, 2].map (fun x ↦ (x, x)) = [1, 2].zip [1, 2] := by
-  whnf!
-  
 
+def unfoldAnyStep (e : Expr) : MetaM TransformStep := do
+  let .const name _ := e.getAppFn | return .continue
+  let some v ← unfoldDefinition? e | logInfo m!"Failed to unfold: {name}"; return .continue
+  logInfo m!"Unfolding: {name}"
+  return .visit v
+
+def unfoldAny (e : Expr) : MetaM Expr := do
+  Meta.transform e (pre := unfoldAnyStep)
+
+def forceUnfold (goal : MVarId) : MetaM MVarId :=
+  goal.transformTarget unfoldAny >>= MVarId.transformTarget (f := liftM ∘ Core.betaReduce)
+
+def foldProjs (e : Expr) : MetaM Expr := do
+  if (e.find? (·.isProj)).isNone then return e
+  let post (e : Expr) := do
+    let .proj structName idx s := e | return .done e
+    let some info := getStructureInfo? (← getEnv) structName | return .done e
+    if h : idx < info.fieldNames.size then
+      let fieldName := info.fieldNames[idx]
+      -- logInfo m!"Reducing: {s} with {fieldName}"
+      return .visit (← withDefault <| mkProjection s fieldName)
+    else
+      return .done e
+  Meta.transform e (post := post)
+
+elab "wargh!" : tactic => do
+  liftMetaTactic' (MVarId.transformTarget (f := foldProjs))
+
+elab "kaplonk!" : tactic => do
+  liftMetaTactic' (MVarId.transformTarget (f := unfoldAny))
+  liftMetaTactic' (MVarId.transformTarget (f := (Core.betaReduce ·)))
+
+elab "KAMEHAMEHA!" : tactic => do
+  liftMetaTactic' (MVarId.transformTarget (f := unfoldAny))
+  liftMetaTactic' (MVarId.transformTarget (f := foldProjs))
+  liftMetaTactic' (MVarId.transformTarget (f := (Core.betaReduce ·)))
+
+elab "whnf?!" : tactic => do
+  let goal ← getMainGoal
+  logInfo m!"main: {←getMainTarget} reduced: {←Grind.unfoldReducible (←getMainTarget)}"
+  let goal ← goal.replaceTargetDefEq (←Grind.unfoldReducible (←getMainTarget))
+  replaceMainGoal [goal]
+
+elab "whnf?!" : tactic => liftMetaTactic' MVarId.unfoldReducible
+
+-- example {x y : Nat} : (do let x ← Option.some ([x, y].map (fun x ↦ (x, x))); return x : Option _) = (do let x ← [x, y].zip [x, y]; return x) := by
+--   -- whnf!
+--   reduce
+--   kaplonk!
+  
+--   done
 
 partial def unfoldAny (goals : Goals) (e : Expr) : MetaM (Goals × Bool) := do
   logInfo m!"unfoldAny: {e} - WHNF: {←Meta.whnf e}"
@@ -554,6 +603,8 @@ def ex₉ (xs : Vector (ZMod p) 3) : Option Unit := do
 
 #curry! Clap.ex₉
 
+#check isProjectionFn
+
 def extract_automatic₉ :
   { c : Circuitₑ p // Simulation.sBisim (ex₉_curried (p := p)) c.eval } := by
   extract using ex₉_curried
@@ -578,9 +629,16 @@ def extract_manual₉ :
   try rw [Option.bind_eq_bind]
   rw [Option.bind_some]
   expose_names
-  have : Vector.zipWith (fun x1 x2 => x1 + x2) (Vector.mk { toList := [x_2, x_1, x] } sorry)
+  have : Vector.zipWith (n := 3) (fun x1 x2 : ZMod p => x1 + x2) (Vector.mk { toList := [x_2, x_1, x] } sorry)
             (Vector.mk { toList := [x_2, x_1, x] } sorry) = sorry := by
-    sorry
+    KAMEHAMEHA!
+    
+    -- kaplonk!
+    -- wargh!
+    
+    proje
+    -- reduce
+    
 
 #print extract_automatic₉
 
