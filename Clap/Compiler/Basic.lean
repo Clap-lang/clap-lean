@@ -307,6 +307,17 @@ variable [Fact (Nat.Prime p)]
 
 open Spec Compiler
 
+def exAll (i: ZMod p) : Option Unit := do
+  eq0 i
+  let i <- share i
+  let i <- is_zero i
+  let _is <- num2bits 2 i
+  accept
+
+def extract_manual_all :
+  { c:Circuitₑ p // Simulation.sBisim (exAll (p := p)) c.eval } := by
+  extract using exAll
+
 structure Point (p : ℕ) where
   x : ZMod p
   y : ZMod p
