@@ -184,13 +184,19 @@ def step (goals : Goals) : MetaM Goals := do
       goals.unfoldAny f
   >>= Goals.unassignedGoals
 
-def extractTac (inferenceGoal : MVarId) : MetaM Goals := do
-  let mut goals ← (⟨·, []⟩) <$> tryCatch (reduceCurry inferenceGoal) fun _ ↦ pure inferenceGoal
-  while true do
+-- TODO this step will probably be included in the more general arguments preprocessing
+def currying (goal : MVarId) : MetaM MVarId :=
+  tryCatch (reduceCurry goal) fun _ ↦ pure goal
+
+partial def extractTac (inferenceGoal : MVarId) : MetaM Goals := do
+  let inference : MVarId <- currying inferenceGoal
+  aux {inference, rest := []}
+where
+  aux (goals : Goals) := do
     match goals.inference with
-    | .none => break
-    | .some _ => goals ← step goals
-  return goals
+    | .none => pure goals
+    | .some _ => aux (<- step goals)
+
 
 open Elab Tactic in
 elab "extract" "using" name:ident : tactic => do
