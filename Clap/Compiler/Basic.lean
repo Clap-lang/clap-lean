@@ -179,13 +179,14 @@ def step (goals : Goals) : MetaM Goals := do
     goals'.getDM do
       let (`Bind.bind, ⟨_ :: _ :: _ :: _ :: f :: _⟩) := lhs.getAppFnArgs | return goals
       goals.unfoldAny f
+  >>= Goals.unassignedGoals
 
 def extractTac (inferenceGoal : MVarId) : MetaM Goals := do
   let mut goals ← (⟨·, []⟩) <$> tryCatch (reduceCurry inferenceGoal) fun _ ↦ pure inferenceGoal
   while true do
     match goals.inference with
     | .none => break
-    | .some _ => goals ← Goals.unassignedGoals =<< step goals
+    | .some _ => goals ← step goals
   return goals
 
 open Elab Tactic in
