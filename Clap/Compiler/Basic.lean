@@ -134,6 +134,32 @@ def isForInVector (lhs : Expr) : MetaM Bool := do
   let (``ForIn.forIn, ⟨_ :: t :: _⟩) := f.getAppFnArgs | return false
   return t.isAppOf `Vector
 
+def toDeepEmbedding (goals : Goals) : MetaM (Option Goals) := do
+  goals.seqTacs <|
+    -- TODO(workaround) We want to synthesise this list automatically.
+    ([] : List (TSyntax `tactic)) ++
+    -- TODO(simplicity) We want an attribute that attaches the lemmas.
+    [
+      (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.ext_lam)
+                          (h := $(mkIdent `Simulation.sBisim.lam) fun _ ↦ ?_))),
+      (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_accept))),
+      (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_eq0)
+                          (er := $(mkIdent `Exp.c) _)
+                          (h := rfl))),
+      (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_share)
+                          (er := $(mkIdent `Exp.c) _)
+                          (h := rfl)
+                          (cont := fun _ ↦ ?_))),
+      (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_is_zero)
+                          (er := $(mkIdent `Exp.c) _)
+                          (h := rfl)
+                          (cont := fun _ ↦ ?_))),
+      (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_num2bits)
+                          (er := $(mkIdent `Exp.c) _)
+                          (h := rfl)
+                          (cont := fun _ ↦ ?_))),
+    ]
+
 set_option hygiene false in -- We'll see about this one, tired of `mkIdent` :).
 /--
 Use `lhs` for granular control over matching if needed.
@@ -152,30 +178,7 @@ def step (goals : Goals) : MetaM Goals := do
   if ←isBindPure lhs
   then goals.bindPure
   else
-    let goals' ← goals.seqTacs <|
-      -- TODO(workaround) We want to synthesise this list automatically.
-      ([] : List (TSyntax `tactic)) ++
-      -- TODO(simplicity) We want an attribute that attaches the lemmas.
-      [
-        (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.ext_lam)
-                            (h := $(mkIdent `Simulation.sBisim.lam) fun _ ↦ ?_))),
-        (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_accept))),
-        (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_eq0)
-                            (er := $(mkIdent `Exp.c) _)
-                            (h := rfl))),
-        (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_share)
-                            (er := $(mkIdent `Exp.c) _)
-                            (h := rfl)
-                            (cont := fun _ ↦ ?_))),
-        (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_is_zero)
-                            (er := $(mkIdent `Exp.c) _)
-                            (h := rfl)
-                            (cont := fun _ ↦ ?_))),
-        (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_num2bits)
-                            (er := $(mkIdent `Exp.c) _)
-                            (h := rfl)
-                            (cont := fun _ ↦ ?_))),
-      ]
+    let goals' ← toDeepEmbedding goals
     goals'.getDM do
       let (`Bind.bind, ⟨_ :: _ :: _ :: _ :: f :: _⟩) := lhs.getAppFnArgs | return goals
       goals.unfoldAny f
