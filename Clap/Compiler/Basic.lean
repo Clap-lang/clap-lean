@@ -64,6 +64,12 @@ def lineariseHeadBinds (goals : Goals) : MetaM Goals := do
   goals.runTactic (←`(tacticSeq| rw [bind_assoc]
                                  try (rw [Option.bind_eq_bind, Option.bind_some])))
 
+def bindPure (goals : Goals) : MetaM Goals := do
+  -- goals.unfoldAny
+  goals.runTactic (←`(tacticSeq| try rw [Option.pure_def]
+                                 try rw [Option.bind_eq_bind]
+                                 rw [Option.bind_some]))
+
 def reduceMatch (goals : Goals) : MetaM Goals := do
   goals.runTactic (←`(tactic|dsimp -zeta +beta only))
 
@@ -96,12 +102,6 @@ partial def unfoldAny (goals : Goals) (e : Expr) : MetaM Goals := do
     let .proj (struct := struct) .. := e.getAppFn | return goals
     let .const name _ := struct.getAppFn | return goals
     goals.runTactic (←`(tactic|dsimp -zeta +beta only [$(mkIdent name):ident]))
-
-def bindPure (goals : Goals) : MetaM Goals := do
-  -- goals.unfoldAny
-  goals.runTactic (←`(tacticSeq| try rw [Option.pure_def]
-                                 try rw [Option.bind_eq_bind]
-                                 rw [Option.bind_some]))
 
 end Goals
 
