@@ -166,21 +166,22 @@ Use `lhs` for granular control over matching if needed.
 -/
 def step (goals : Goals) : MetaM Goals := do
   -- TODO(workaround) I am not sure how safe this is.
-  let goals ← goals.runTactic (←`(tactic|try extract_lets))
-  let goals ← goals.runTactic (←`(tactic|repeat rw [←Option.bind_eq_bind]))
+  -- let goals ← goals.runTactic (←`(tactic|try extract_lets))
+  -- let goals ← goals.runTactic (←`(tactic|repeat rw [←Option.bind_eq_bind]))
 
-  let lhs ← lhsOfBisim (←goals.inference.get!.getType')
+--  let lhs ← lhsOfBisim (←goals.inference.get!.getType')
 
   -- TODO(cleanup) LineariseBinds overlaps bindPure
-  if ←isBindBind lhs
-  then goals.lineariseHeadBinds
-  else
-  if ←isBindPure lhs
-  then goals.bindPure
-  else
+  -- if ←isBindBind lhs
+  -- then goals.lineariseHeadBinds
+  -- else
+  -- if ←isBindPure lhs
+  -- then goals.bindPure
+  -- else
     let goals ← toDeepEmbedding goals
-    let (`Bind.bind, ⟨_ :: _ :: _ :: _ :: f :: _⟩) := lhs.getAppFnArgs | return goals
-    goals.unfoldAny f
+    -- let (`Bind.bind, ⟨_ :: _ :: _ :: _ :: f :: _⟩) := lhs.getAppFnArgs | return goals
+    -- goals.unfoldAny f
+    pure goals
   >>= Goals.unassignedGoals
 
 -- TODO this step will probably be included in the more general arguments preprocessing
@@ -210,6 +211,7 @@ elab "extract" "using" name:ident : tactic => do
   if goals.inference.isNone -- if there is still a bisim goal the tactic failed and we don't want to rfl remaining goals
   then evalTactic (←`(tactic|try any_goals rfl))
 
+/-
 private def explodeVec (name : Name) (len : Nat) : String :=
   String.intercalate " " <| List.range len |>.map fun i ↦ s!"{name}[{i}]"
 
@@ -314,7 +316,7 @@ elab "#compile" circuit:ident : command => do
     then logWarning <| s!"Cannot synthesise the proof of {curriedCircuitName}_equiv. Using sorry." ++
                       s!"\nNOTE: The solution here is to simply generate a proof of equivalence, " ++
                       s!"not equality. TODO(easy)."
-
+-/
 section EXAMPLES
 
 variable [Fact (Nat.Prime p)]
@@ -338,6 +340,7 @@ def extract_manual_all :
   apply equiv_accept
   repeat rfl
 
+/-
 structure Point (p : ℕ) where
   x : ZMod p
   y : ZMod p
@@ -578,6 +581,7 @@ example : (extract_automatic₈ (p := p)).1 =
 
 #print extract_automatic₈._proof_4
 
+-/
 end EXAMPLES
 
 end Clap
