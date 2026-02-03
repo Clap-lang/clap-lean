@@ -98,7 +98,7 @@ partial def unfoldAny (goals : Goals) (e : Expr) : MetaM Goals := do
     goals.runTactic (←`(tactic|dsimp -zeta +beta only [$(mkIdent name):ident]))
 
 def bindPure (goals : Goals) : MetaM Goals := do
-  -- goals.unfoldAny 
+  -- goals.unfoldAny
   goals.runTactic (←`(tacticSeq| try rw [Option.pure_def]
                                  try rw [Option.bind_eq_bind]
                                  rw [Option.bind_some]))
@@ -144,7 +144,7 @@ def step (goals : Goals) : MetaM Goals := do
   let goals ← goals.runTactic (←`(tactic|repeat rw [←Option.bind_eq_bind]))
 
   let lhs ← lhsOfBisim (←goals.inference.get!.getType')
-  
+
   -- TODO(cleanup) LineariseBinds overlaps bindPure
   if ←isBindBind lhs
   then goals.lineariseHeadBinds
@@ -168,6 +168,10 @@ def step (goals : Goals) : MetaM Goals := do
                             (h := rfl)
                             (cont := fun _ ↦ ?_))),
         (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_is_zero)
+                            (er := $(mkIdent `Exp.c) _)
+                            (h := rfl)
+                            (cont := fun _ ↦ ?_))),
+        (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_num2bits)
                             (er := $(mkIdent `Exp.c) _)
                             (h := rfl)
                             (cont := fun _ ↦ ?_))),
