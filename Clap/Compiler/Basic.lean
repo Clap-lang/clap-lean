@@ -154,10 +154,10 @@ def toDeepEmbedding (goals : Goals) : MetaM Goals := do
                           (er := $(mkIdent `Exp.c) _)
                           (h := rfl)
                           (cont := fun _ ↦ ?_))),
-      (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_num2bits)
-                          (er := $(mkIdent `Exp.c) _)
-                          (h := rfl)
-                          (cont := fun _ ↦ ?_))),
+      -- (←`(tactic|apply $(mkIdent ``Clap.Spec.Compiler.equiv_num2bits)
+      --                     (er := $(mkIdent `Exp.c) _)
+      --                     (h := rfl)
+      --                     (cont := fun _ ↦ ?_))),
     ]
 
 set_option hygiene false in -- We'll see about this one, tired of `mkIdent` :).
@@ -331,6 +331,12 @@ def exAll (i: ZMod p) : Option Unit := do
 def extract_manual_all :
   { c:Circuitₑ p // Simulation.sBisim (exAll (p := p)) c.eval } := by
   extract using exAll
+--  apply equiv_num2bits (er:=.c ?_) (h:=rfl) (cont := fun _ ↦ ?_); intro -- ko
+  apply equiv_num2bits (er:=.c ?_) (cont := fun _ ↦ ?_) -- ok
+--  apply equiv_num2bits (er:=.c ?_) ; intro -- ok
+  rotate_left 3
+  apply equiv_accept
+  repeat rfl
 
 structure Point (p : ℕ) where
   x : ZMod p
