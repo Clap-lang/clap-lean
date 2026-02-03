@@ -203,8 +203,10 @@ elab "extract" "using" name:ident : tactic => do
   evalTactic (←`(tacticSeq|unfold $name
                            constructor))
   let (proof :: rest) ← getUnsolvedGoals | throwError "Expected two goals; proof and witness."
-  extractTac proof >>= setGoals ∘ (·.toLeanGoals ++ rest)
-  evalTactic (←`(tactic|any_goals rfl))
+  let goals <- extractTac proof
+  setGoals (goals.toLeanGoals ++ rest)
+  if goals.inference.isNone -- if there is still a bisim goal the tactic failed and we don't want to rfl remaining goals
+  then evalTactic (←`(tactic|try any_goals rfl))
 
 private def explodeVec (name : Name) (len : Nat) : String :=
   String.intercalate " " <| List.range len |>.map fun i ↦ s!"{name}[{i}]"
