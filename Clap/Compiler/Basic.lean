@@ -56,9 +56,9 @@ def runTactic (goals : Goals) (lem : Syntax) : MetaM Goals := do
       | throwError m!"Logic error: `putOnTop should have thrown a 'no bisimulation error'"
     return ⟨newInference, goals.rest ++ restInference⟩
 
-def seqTacs (goals : Goals) : List Syntax → MetaM (Option Goals)
-  | [] => return .none
-  | tac₁ :: rest => (.some <$> goals.runTactic tac₁) <|> seqTacs goals rest
+def seqTacs (goals : Goals) : List Syntax → MetaM Goals
+  | [] => throwError m!"No tactic applied to {goals.inference}"
+  | tac₁ :: rest => (goals.runTactic tac₁) <|> seqTacs goals rest
 
 def lineariseHeadBinds (goals : Goals) : MetaM Goals := do
   goals.runTactic (←`(tacticSeq| rw [bind_assoc]
@@ -134,7 +134,7 @@ def isForInVector (lhs : Expr) : MetaM Bool := do
   let (``ForIn.forIn, ⟨_ :: t :: _⟩) := f.getAppFnArgs | return false
   return t.isAppOf `Vector
 
-def toDeepEmbedding (goals : Goals) : MetaM (Option Goals) := do
+def toDeepEmbedding (goals : Goals) : MetaM Goals := do
   goals.seqTacs <|
     -- TODO(workaround) We want to synthesise this list automatically.
     ([] : List (TSyntax `tactic)) ++
@@ -178,10 +178,9 @@ def step (goals : Goals) : MetaM Goals := do
   if ←isBindPure lhs
   then goals.bindPure
   else
-    let goals' ← toDeepEmbedding goals
-    goals'.getDM do
-      let (`Bind.bind, ⟨_ :: _ :: _ :: _ :: f :: _⟩) := lhs.getAppFnArgs | return goals
-      goals.unfoldAny f
+    let goals ← toDeepEmbedding goals
+    let (`Bind.bind, ⟨_ :: _ :: _ :: _ :: f :: _⟩) := lhs.getAppFnArgs | return goals
+    goals.unfoldAny f
   >>= Goals.unassignedGoals
 
 -- TODO this step will probably be included in the more general arguments preprocessing
@@ -195,8 +194,11 @@ where
   aux (goals : Goals) := do
     match goals.inference with
     | .none => pure goals
-    | .some _ => aux (<- step goals)
-
+    | .some _ =>
+        try aux (<-step goals)
+        catch e => do
+        logWarning m!"Step failed on\n{←goals.inference.get!.getType'}\nwith\n{e.toMessageData}"
+        pure goals
 
 open Elab Tactic in
 elab "extract" "using" name:ident : tactic => do
