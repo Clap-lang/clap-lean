@@ -59,13 +59,6 @@ example : extracted_vec (p := p) =
   .eq0 x_2
   .nil)) := rfl
 
-def cs : Csₑ p := extracted_vec.toCs
-def wg : Wg p := extracted_vec.toWg
-
-#eval (wg (p:=Primes.babybear)).run [0,1,2]
-
-#print cs
-
 /-
   This example showcases the use of a structure (equivalent to struct
   in Rust).
@@ -104,3 +97,30 @@ example : (extracted_point (p := p)).1 =
   .eq0 (Exp.c (x_0 + x_1)) (
   .eq0 (Exp.c (x_0 + x_2))
   .nil) := rfl
+
+def expected : Circuit' p := fun _ =>
+  .lam fun x_0 =>
+  .lam fun x_1 =>
+  .lam fun x_2 =>
+  .eq0 (.v x_0 + .v x_1) <|
+  .eq0 (.v x_0 + .v x_2) <|
+  .nil
+
+def cs : Cs' p := Clap.toCs' expected
+def wg : Wg p := Clap.toWg' expected
+
+example : wg (p:=p) =
+  .input fun _ =>
+  .input fun _ =>
+  .input fun _ =>
+  .nil
+:= rfl
+
+#guard s!"{cs (p:=Primes.babybear) ℕ}" = "λ0 λ1 λ2 eq0 (v0 + v1) eq0 (v0 + v2) nil"
+#guard s!"{wg (p:=Primes.babybear)}" = "λ0 λ1 λ2 []"
+
+#eval (wg (p:=Primes.babybear)).run [0,1,2]
+
+def wg_synth (point : Point p) : List (ZMod p) := sorry
+
+-- TODO use is_zero

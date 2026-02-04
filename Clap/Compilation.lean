@@ -116,11 +116,10 @@ inductive Wg (p : ℕ) : Type where
   | input (_ : ZMod p → Wg p)
 
 def Wg.repr (l : ℕ) (c : Wg p) : Std.Format :=
-  letI go (l : ℕ) (k : (ZMod p) → Wg p) := repr (l+1) (k l)
   match c with
   | .nil => "[]"
   | .cons e c => s!"{_root_.repr e} :: {repr l c}"
-  | .input k => s!"λ{l} {go l k}"
+  | .input k => s!"λ{l} {repr (l+1) (k l)}"
 
 instance : Repr (Wg p) where
   reprPrec c _ := c.repr 0
