@@ -100,10 +100,16 @@ where
 
 -- Section 6.2.2 step 1
 def schedule (block : Block U32) : RoundConstantsTable U32 :=
+  dbg_trace s!"Schedule called with block size = {block.size}"
   aux block 16
 where
   aux (acc : Array U32) (i:Nat) : Array U32 :=
     if i >= K_SIZE then acc else
+    dbg_trace s!"acc length = {acc.size}"
+    dbg_trace s!"t16 index = {i - 16}"
+    dbg_trace s!"t15 index = {i - 15}"
+    dbg_trace s!"t7  index = {i - 7}"
+    dbg_trace s!"t2  index = {i - 2}"
     let t16 := acc[i - 16]!
     let t15 := acc[i - 15]!
     let t7 := acc[i - 7]!
