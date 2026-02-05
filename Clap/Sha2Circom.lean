@@ -15,7 +15,6 @@ def minBytes (x : ℕ) : ℕ :=
   let nb := minBits x
   let nb8 := nb / 8
   if nb % 8 = 0 then nb8 else nb8 + 1
-
 end Wheels
 
 namespace Clap.Sha2.Circom
@@ -72,6 +71,9 @@ def ofFBitVec8 (x : FBitVec8 p) : FBitVec32 p :=
   x ++ List.replicate 24 0
 
 def toNat : FBitVec32 p → ℕ :=
+  List.foldr (fun b acc => acc * 2 + b) 0
+
+def toZMod : FBitVec32 p → ZMod p :=
   List.foldr (fun b acc => acc * 2 + b) 0
 
 -- Constants
@@ -140,20 +142,6 @@ where
 def ofAFBitVec8 (bs : Array (FBitVec8 p)) : FBitVec32 p :=
   bs.foldl (fun acc b ↦ (acc.mul bv256).add b) zero
 
-/--
-  Shifts bits to the right by `n` positions.
-  Inputs: x (FBitVec32 p) - value to shift; n (ℕ) - number of positions to shift right.
-  Output: FBitVec32 p - shifted value (zeros inserted at MSB).
-  Drops the first `n` elements (LSBs) and appends `n` zeros to the end (MSBs) to maintain the fixed 32-bit length.
-  Obs: this follows the behavior of `>>>` operator in Nat, not UInt32. It appears to be equivalent with
-  https://github.com/iden3/circomlib/blob/v2.0.5/circuits/sha256/shift.circom
--/
-def shr (x : FBitVec32 p) (n : ℕ) : FBitVec32 p :=
-  (x.drop n) ++ (List.replicate n 0)
-
-def shl (x : FBitVec32 p) (n : ℕ) : FBitVec32 p :=
-  (List.replicate n 0 ++ x).take 32
-
 def and (a b : FBitVec32 p) : FBitVec32 p :=
   a.zip b |>.map (fun (a,b) ↦ a * b)
 
@@ -166,6 +154,15 @@ def xor (a b : FBitVec32 p) : FBitVec32 p :=
 def not (a : FBitVec32 p) : FBitVec32 p :=
   a |>.map (fun a ↦ 1 + a - 2*a)
 
+def shr (x n : FBitVec32 p) : FBitVec32 p :=
+  let shifted := x.drop n.toNat
+  let padding := List.replicate (x.length - shifted.length) 0
+  shifted ++ padding
+
+def shl (x n : FBitVec32 p) : FBitVec32 p :=
+  let zeroes := List.replicate n.toNat 0
+  (zeroes ++ x).take x.length
+
 end FBitVec32
 
 instance : Inhabited (FBitVec32 p) := ⟨FBitVec32.zero⟩
@@ -176,8 +173,8 @@ instance : Coe ℕ (FBitVec32 p) := ⟨FBitVec32.ofUInt32Nat⟩
 instance : Add (FBitVec32 p) := ⟨FBitVec32.add⟩
 instance : Sub (FBitVec32 p) := ⟨FBitVec32.sub⟩
 instance : Mul (FBitVec32 p) := ⟨FBitVec32.mul⟩
-instance : HShiftRight (FBitVec32 p) ℕ (FBitVec32 p) := ⟨FBitVec32.shr⟩
-instance : HShiftLeft (FBitVec32 p) ℕ (FBitVec32 p) := ⟨FBitVec32.shl⟩
+instance : ShiftRight (FBitVec32 p) := ⟨FBitVec32.shr⟩
+instance : ShiftLeft (FBitVec32 p) := ⟨FBitVec32.shl⟩
 instance : HAnd (FBitVec32 p) (FBitVec32 p) (FBitVec32 p) where hAnd := FBitVec32.and
 instance : HOr  (FBitVec32 p) (FBitVec32 p) (FBitVec32 p) where hOr := FBitVec32.or
 instance : HXor (FBitVec32 p) (FBitVec32 p) (FBitVec32 p) where hXor := FBitVec32.xor
@@ -191,6 +188,7 @@ abbrev FBitVec32.mul' := @FBitVec32.mul Primes.babybear
 abbrev FBitVec32.shr' := @FBitVec32.shr Primes.babybear
 abbrev FBitVec32.shl' := @FBitVec32.shl Primes.babybear
 abbrev ofNat32 := @FBitVec32.ofUInt32Nat Primes.babybear
+abbrev toNat' := @FBitVec32.toNat Primes.babybear
 
 #guard (FBitVec32.add' 30 30).toNat                                      = (30 + 30 : UInt32).toNat
 #guard (FBitVec32.add' 0 0).toNat                                        = (0 + 0 : UInt32).toNat
@@ -242,22 +240,37 @@ abbrev ofNat32 := @FBitVec32.ofUInt32Nat Primes.babybear
 #guard (FBitVec32.mul' (ofNat32 4000000000) (ofNat32 3000000000)).toNat  = (4000000000 * 3000000000 : UInt32).toNat
 #guard (FBitVec32.mul' 100 100).toNat                                    = (100 * 100 : UInt32).toNat
 
--- Shift Right tests
-#guard (FBitVec32.shr' (ofNat32 10) 0).toNat          = 10 >>> 0
-#guard (FBitVec32.shr' (ofNat32 0) 5).toNat           = 0 >>> 5
-#guard (FBitVec32.shr' (ofNat32 2) 1).toNat           = 2 >>> 1
-#guard (FBitVec32.shr' (ofNat32 123) 32).toNat        = 123 >>> 32
-#guard (FBitVec32.shr' (ofNat32 123) 33).toNat        = 123 >>> 33
-#guard (FBitVec32.shr' (ofNat32 (2^32 - 1)) 1).toNat  = (2^32 - 1) >>> 1
-#guard (FBitVec32.shr' (ofNat32 (2^32 - 1)) 31).toNat = (2^32 - 1) >>> 31
-#guard (FBitVec32.shr' (ofNat32 0xAAAAAAAA) 1).toNat  = 0xAAAAAAAA >>> 1
-#guard (FBitVec32.shr' (ofNat32 0x55555555) 1).toNat  = 0x55555555 >>> 1
-#guard (FBitVec32.shr' (ofNat32 (2^32 - 1)) 32).toNat = (2^32 - 1) >>> 32
-#guard (FBitVec32.shr' (ofNat32 (2^31)) 15).toNat     = (2^31) >>> 15
-#guard (FBitVec32.shr' (ofNat32 123456) 3).toNat      = 123456 >>> 3
-#guard (FBitVec32.shr' (ofNat32 100) 2).toNat         = 100 >>> 2
-#guard (FBitVec32.shr' (ofNat32 (2^31)) 31).toNat     = 2^31 >>> 31
-#guard (FBitVec32.shr' (ofNat32 (2^31)) 30).toNat     = 2^31 >>> 30
+#guard FBitVec32.shr' 10 0   = 10 >>> 0
+#guard FBitVec32.shr' 0 5    = 0 >>> 5
+#guard FBitVec32.shr' 2 1    = 2 >>> 1
+#guard FBitVec32.shr' 123 32 = 123 >>> 32
+#guard FBitVec32.shr' 123 33 = 123 >>> 33
+#guard FBitVec32.shr' (ofNat32 (2^32 - 1)) 1 = (2^32 - 1) >>> 1
+#guard FBitVec32.shr' (ofNat32 (2^32 - 1)) 31 = (2^32 - 1) >>> 31
+#guard FBitVec32.shr' 0xAAAAAAAA 1  = 0xAAAAAAAA >>> 1
+#guard FBitVec32.shr' 0x55555555 2  = 0x55555555 >>> 2
+#guard FBitVec32.shr' (ofNat32 (2^32 - 1)) 32 = (2^32 - 1) >>> 32
+#guard FBitVec32.shr' (ofNat32 (2^31)) 15 = (2^31) >>> 15
+#guard FBitVec32.shr' 123456 3 = 123456 >>> 3
+#guard FBitVec32.shr' 100 2 = 100 >>> 2
+#guard FBitVec32.shr' (ofNat32 (2^31)) 31 = 2^31 >>> 31
+#guard FBitVec32.shr' (ofNat32 (2^31)) 30 = 2^31 >>> 30
+
+#guard FBitVec32.shl' 10 0   = 10 <<< 0
+#guard FBitVec32.shl' 0 5    = 0 <<< 5
+#guard FBitVec32.shl' 2 1    = 2 <<< 1
+#guard FBitVec32.shl' 123 32 = 123 <<< 32
+#guard FBitVec32.shl' 123 33 = 123 <<< 33
+#guard FBitVec32.shl' (ofNat32 (2^32 - 1)) 1 = (2^32 - 1) <<< 1
+#guard FBitVec32.shl' (ofNat32 (2^32 - 1)) 31 = (2^32 - 1) <<< 31
+#guard FBitVec32.shl' 0xAAAAAAAA 1  = 0xAAAAAAAA <<< 1
+#guard FBitVec32.shl' 0x55555555 2  = 0x55555555 <<< 2
+#guard FBitVec32.shl' (ofNat32 (2^32 - 1)) 32 = (2^32 - 1) <<< 32
+#guard FBitVec32.shl' (ofNat32 (2^31)) 15 = (2^31) <<< 15
+#guard FBitVec32.shl' 123456 3 = 123456 <<< 3
+#guard FBitVec32.shl' 100 2 = 100 <<< 2
+#guard FBitVec32.shl' (ofNat32 (2^31)) 31 = 2^31 <<< 31
+#guard FBitVec32.shl' (ofNat32 (2^31)) 30 = 2^31 <<< 30
 
 end Tests
 
@@ -274,10 +287,13 @@ def xor3 (a b c : FBitVec32 p) : FBitVec32 p := a ^^^ b ^^^ c
 
 -- https://github.com/iden3/circomlib/blob/v2.0.5/circuits/sha256/rotate.circom
 -- ra will be known at compile time as well i when reducing it. So (i + ra) % 32 is known number.
-def rotr (x : FBitVec32 p) (ra : ZMod p) : FBitVec32 p := do
-  (FBitVec32.zero).mapIdx (fun i (_ : ZMod p) => x[(i + ra) % 32]!)
+-- def rotr (x : FBitVec32 p) (ra : ZMod p) : FBitVec32 p := do
+--   (FBitVec32.zero).mapIdx (fun i (_ : ZMod p) => x[(i + ra) % 32]!)
 
-def sigmaConstants : Array (ZMod p) := #[7, 18, 3, 17, 19, 10]
+def rotr (x n : FBitVec32 p) : FBitVec32 p := do
+  (x >>> n) ||| (x <<< (32 - n))
+
+def sigmaConstants : Array (FBitVec32 p) := #[7, 18, 3, 17, 19, 10].map FBitVec32.ofUInt32Nat
 
 -- https://github.com/iden3/circomlib/blob/v2.0.5/circuits/sha256/sigma.circom
 def sigma0 (x : FBitVec32 p) : FBitVec32 p :=
