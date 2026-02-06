@@ -78,10 +78,13 @@ def ofFBitVec8 (x : FBitVec8 p) : FBitVec32 p :=
 def toNat (x : FBitVec32 p) : ℕ :=
   x.reverse.foldr (fun b acc => acc * 2 + b) 0
 
--- Constants
+section Constants
+
 def zero : FBitVec32 p := List.replicate 32 0
 
 def bv256 : FBitVec32 p := ofUInt32Nat 256
+
+end Constants
 
 /--
   Adds two FBitVec32 numbers using ripple-carry addition.
@@ -182,8 +185,6 @@ instance : HAnd (FBitVec32 p) (FBitVec32 p) (FBitVec32 p) where hAnd := FBitVec3
 instance : HOr  (FBitVec32 p) (FBitVec32 p) (FBitVec32 p) where hOr := FBitVec32.or
 instance : HXor (FBitVec32 p) (FBitVec32 p) (FBitVec32 p) where hXor := FBitVec32.xor
 instance : Complement (FBitVec32 p) := ⟨FBitVec32.not⟩
-instance : ToString (FBitVec32 p) := ⟨fun x => x.toNat⟩
-instance : ToString (FBitVec8 p) := ⟨fun x => x.toNat⟩
 
 section Tests
 
@@ -290,11 +291,7 @@ def maj (a b c : FBitVec32 p) : FBitVec32 p := (a &&& b) ^^^ (a &&& c) ^^^ (b &&
 -- https://github.com/iden3/circomlib/blob/v2.0.5/circuits/sha256/xor3.circom
 def xor3 (a b c : FBitVec32 p) : FBitVec32 p := a ^^^ b ^^^ c
 
--- https://github.com/iden3/circomlib/blob/v2.0.5/circuits/sha256/rotate.circom
--- ra will be known at compile time as well i when reducing it. So (i + ra) % 32 is known number.
--- def rotr (x : FBitVec32 p) (ra : ZMod p) : FBitVec32 p := do
---   (FBitVec32.zero).mapIdx (fun i (_ : ZMod p) => x[(i + ra) % 32]!)
-
+-- Spec: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf
 def rotr (x n : FBitVec32 p) : FBitVec32 p := do
   (x >>> n) ||| (x <<< (32 - n))
 
