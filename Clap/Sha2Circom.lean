@@ -28,21 +28,26 @@ def decompose (b l x : ℕ) : List (ZMod p) :=
   if l = 0 then [] else r :: (decompose b (l - 1) d)
 
 @[reducible]
-def decomposeBits : ℕ → ℕ → List (ZMod p) := decompose 2
+def decomposeBits : ℕ → ℕ → List (ZMod p) :=
+  λ a b ↦ List.reverse $ decompose 2 a b
 
 @[reducible]
-def decomposeBytes : ℕ → ℕ → List (ZMod p) := decompose 256
+def decomposeBytes : ℕ → ℕ → List (ZMod p) :=
+  λ a b ↦ List.reverse $ decompose 256 a b
 
 abbrev FBitVec8 p := List (ZMod p)
 
 namespace FBitVec8
 
-/-- x < 2^8. output in LSB -/
+/-- x < 2^8. output in MSB -/
 def ofUInt8Nat : ℕ → FBitVec8 p := decomposeBits 8
 
-/-- Any ℕ. output in LSB -/
-def ofNat (x : ℕ) (l : ℕ) : Array (FBitVec8 p) :=
-  decomposeBytes (p := p) x l |>.map ofUInt8Nat |>.toArray
+/-- Any ℕ. output in MSB -/
+def ofNat (x len : ℕ) : Array (FBitVec8 p) :=
+  decomposeBytes (p := p) len x |>.map ofUInt8Nat |>.toArray
+
+def toNat (x : FBitVec8 p) : ℕ :=
+  x.reverse.foldr (fun b acc => acc * 2 + b) 0
 
 def fromString (s : String) : Array (FBitVec8 p) :=
   let bs : ByteArray := s.toUTF8
@@ -70,27 +75,24 @@ def ofUInt32Nat : ℕ → FBitVec32 p := decomposeBits 32
 def ofFBitVec8 (x : FBitVec8 p) : FBitVec32 p :=
   x ++ List.replicate 24 0
 
-def toNat : FBitVec32 p → ℕ :=
-  List.foldr (fun b acc => acc * 2 + b) 0
-
-def toZMod : FBitVec32 p → ZMod p :=
-  List.foldr (fun b acc => acc * 2 + b) 0
+def toNat (x : FBitVec32 p) : ℕ :=
+  x.reverse.foldr (fun b acc => acc * 2 + b) 0
 
 -- Constants
 def zero : FBitVec32 p := List.replicate 32 0
 
-def bv256 : FBitVec32 p := [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+def bv256 : FBitVec32 p := ofUInt32Nat 256
 
 /--
   Adds two FBitVec32 numbers using ripple-carry addition.
-  Inputs: a, b: FBitVec32 p (LSB first).
+  Inputs: a, b: FBitVec32 p (MSB first).
   Output: FBitVec32 p - sum of a and b (modulo 2^32).
   Iterates through bits from LSB to MSB, tracking a carry bit.
 -/
 def add (a b : FBitVec32 p) : FBitVec32 p :=
-  aux a b 0
+  aux a.reverse b.reverse 0 |>.reverse
 where
-  aux a b c :=
+  aux (a b : FBitVec32 p) (c : ℕ) :=
     match a, b with
     | [], [] => []
     | x :: xs, y :: ys =>
@@ -102,15 +104,15 @@ where
 
 /--
   Subtracts two FBitVec32 numbers using ripple-borrow subtraction.
-  Inputs: a, b: FBitVec32 p (LSB first).
+  Inputs: a, b: FBitVec32 p (MSB first).
   Output: FBitVec32 p - result of a - b (modulo 2^32).
   Iterates through bits from LSB to MSB. Computes `x - y - borrow`.
   If the result is negative, adds 2 to the current bit and sets the borrow for the next bit.
 -/
 def sub (a b : FBitVec32 p) : FBitVec32 p :=
-  aux a b 0
+  aux a.reverse b.reverse 0 |>.reverse
 where
-  aux a b borrow :=
+  aux (a b : FBitVec32 p) (borrow : ℕ) :=
     match a, b with
     | [], [] => []
     | x :: xs, y :: ys =>
@@ -129,13 +131,14 @@ where
   The result is truncated to 32 bits to simulate wrapping behavior.
 -/
 def mul (a b : FBitVec32 p) : FBitVec32 p :=
-  aux a b zero
+  aux a.reverse b.reverse zero |>.reverse
 where
-  aux shifted_a b_bits acc :=
+  -- LSB
+  aux (shifted_a b_bits acc : FBitVec32 p) :=
     match b_bits with
     | [] => acc
     | b :: bs =>
-      let new_acc := if b.val = 1 then add acc shifted_a else acc
+      let new_acc := if b.val = 1 then add acc.reverse shifted_a.reverse |>.reverse else acc
       let next_a := (0 :: shifted_a).take 32
       aux next_a bs new_acc
 
@@ -155,13 +158,13 @@ def not (a : FBitVec32 p) : FBitVec32 p :=
   a |>.map (fun a ↦ 1 + a - 2*a)
 
 def shr (x n : FBitVec32 p) : FBitVec32 p :=
-  let shifted := x.drop n.toNat
+  let shifted := x.reverse.drop n.toNat
   let padding := List.replicate (x.length - shifted.length) 0
-  shifted ++ padding
+  shifted ++ padding |>.reverse
 
 def shl (x n : FBitVec32 p) : FBitVec32 p :=
   let zeroes := List.replicate n.toNat 0
-  (zeroes ++ x).take x.length
+  (zeroes ++ x.reverse).take x.length |>.reverse
 
 end FBitVec32
 
@@ -179,6 +182,8 @@ instance : HAnd (FBitVec32 p) (FBitVec32 p) (FBitVec32 p) where hAnd := FBitVec3
 instance : HOr  (FBitVec32 p) (FBitVec32 p) (FBitVec32 p) where hOr := FBitVec32.or
 instance : HXor (FBitVec32 p) (FBitVec32 p) (FBitVec32 p) where hXor := FBitVec32.xor
 instance : Complement (FBitVec32 p) := ⟨FBitVec32.not⟩
+instance : ToString (FBitVec32 p) := ⟨fun x => x.toNat⟩
+instance : ToString (FBitVec8 p) := ⟨fun x => x.toNat⟩
 
 section Tests
 
