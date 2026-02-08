@@ -50,6 +50,11 @@ def minBits (x : ℕ) : ℕ :=
   let nb := Nat.log2 x
   if 2^nb ≤ x then nb + 1 else nb
 
+def minBytes (x : ℕ) : ℕ :=
+  let nb := minBits x
+  let nb8 := nb / 8
+  if nb % 8 = 0 then nb8 else nb8 + 1
+
 variable {p : ℕ} [Fact (Nat.Prime p)]
 
 /-- Computes the `n` bit binary representation of `f`.
