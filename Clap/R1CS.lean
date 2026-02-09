@@ -1,6 +1,6 @@
 import Clap.Compilation
 import Clap.Cfold
-import R1serialize.Basic
+import R1Serialize.R1CS
 
 namespace Clap
 

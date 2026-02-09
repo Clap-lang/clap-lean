@@ -1,5 +1,7 @@
 import Clap.Compiler.Basic
 
+import R1Serialize.R1CS
+
 import Clap.Primes
 import Clap.Circuit
 import Clap.Simulation
@@ -12,7 +14,7 @@ import Clap.Spec
 import Clap.Lang
 import Clap.Wheels
 import Clap.Milestone
---import Clap.R1CS -- disabled when bumped to 4.27
+import Clap.R1CS
 import Clap.SpecString
 import Clap.Sha2.Basic
 import Clap.Sha2.Cpu
