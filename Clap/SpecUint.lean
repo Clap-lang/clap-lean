@@ -1,184 +1,169 @@
 import Clap.Primes
 import Clap.Spec
 
-namespace Clap.Spec
+namespace Clap.Lang
 
-variable {p : ℕ} [Fact (Nat.Prime p)]
+class Core (p : ℕ) [Fact (Nat.Prime p)] : Type _ where
+  F           : Type
+  [instF      : Field F]
+  [instFChar  : CharP F p]
+  FB          : Type
+  [instFB     : Field FB]
+  [instFBChar : CharP FB p]
+  convert     : FB → F
+  const       : ZMod p → F
+  accept      : Unit
+  eq0         : F → Option Unit
+  isZero      : F → Option FB
+  num2bits    : ℕ → F → Option (List FB)
+  [onlyForDebugF  : ToString F  ]
+  [onlyForDebugFB : ToString FB ]
 
-abbrev FB p := ZMod p
+attribute [instance] Core.instF Core.instFChar Core.instFB Core.instFBChar
+
+variable {p : ℕ} [Fact (Nat.Prime p)] [Core p]
+
+open Core
+
+namespace F
+
+def assert_range (w : ℕ) (e : F p) : Option Unit := do
+  let _ <- num2bits w e ; ()
+
+def assert_eq (a b : F p) : Option Unit := do
+  eq0 (a - b)
+
+def eq (a b : F p) : Option (FB p) := do
+  isZero (a - b)
+
+end F
 
 namespace FB
 
-def isValid (x:FB p) : Prop := x.val < 2
+/-
+  For now we assume that true is anything ≠ 0, double check this and
+  make sure that any use of covert does not rely on true=1
+-/
 
-def Valid : Type := {x:FB p // x.isValid }
+def eq (a b : FB p) : Option (FB p) := do
+  F.eq (convert a) (convert b)
 
-instance : CoeOut (FB p) ℕ where
-  coe x := x.val
+-- 0 0 0
+-- 0 t 0
+-- t 0 0
+-- t t t*t
+def and (a b : FB p) : FB p := a * b
 
-instance : CoeOut (@Valid p) (FB p) where
-  coe x := x.val
+instance : HAnd (FB p) (FB p) (FB p) where
+  hAnd := and
 
--- instance : CoeOut (@Valid p) ℕ where
---   coe x := x.val
+-- 0 0 0
+-- 0 t t
+-- t 0 t
+-- t t 2t
+def or (a b : FB p) : FB p := a + b
 
-def true (h:p≠1): @Valid p := ⟨1, by simp [isValid]; rw [ZMod.val_one''] ; simp ; assumption⟩
-def false : @Valid p := ⟨0, by simp [isValid]⟩
+instance : HOr (FB p) (FB p) (FB p) where
+  hOr := or
+
+-- 0 1
+-- t 0
+def not (a : FB p) : Option (FB p) := isZero (convert a)
+
+-- 0 0 0
+-- 0 t -t
+-- t 0 t
+-- t t 0
+def xor (a b : FB p) : (FB p) := a - b
+
+instance : HXor (FB p) (FB p) (FB p) where
+  hXor := xor
+
+-- a → b or ¬a ∨ b
+-- 0 0 1
+-- 0 1 1
+-- 1 0 0
+-- 1 1 1
+
+def lessThanEq (a b : FB p) : Option (FB p) := do
+  let na <- not a
+  return or na b
+
+def assert (a : FB p) : Option Unit := do
+  let b <- isZero (convert a)
+  eq0 (convert b)
+
+def assert_eq (a b : FB p) : Option Unit := do
+  F.assert_eq (convert a) (convert b)
 
 end FB
 
+def F.lessThanEq (w : ℕ) (a b : F p) : Option (FB p) := do
+  let a <- num2bits w a
+  let b <- num2bits w b
+  -- we want to check from the MSB
+  let ab := (List.reverse (a.zip b))
+  List.foldl (fun acc (a,b) => do
+    let l : FB p <- FB.lessThanEq a b
+    (<-acc) &&& l) (some 1) ab
 
-abbrev FU8 p := ZMod p
-
-namespace FU8
-
-def isValid (x:FU8 p) : Prop := x.val < 2^8
-
-def Valid : Type := {x:FU8 p // x.isValid }
-
-instance : CoeOut (FU8 p) ℕ where
-  coe x := x.val
-
-instance : CoeOut (@Valid p) (FU8 p) where
-  coe x := x.val
-
--- instance : CoeOut (@Valid p) ℕ where
---   coe x := x.val
-
-def mk (x:FU8 p) : Option Unit := Spec.assert_range 8 x
-
-def mk_some (x:FU8 p) (h:x.val<256) : x.mk = some () := by
-  aesop (add simp [mk,Spec.assert_range,Spec.num2bits])
-
-def add (a b : FU8 p) : Option (FU8 p) := do
-  let o := a + b
-  Spec.assert_range 8 o
-  o
-
--- instance : Coe Nat (FU8 p) where
---   coe n := n
-
-instance : Coe UInt8 (FU8 p) where
-  coe n := n.toNat
-
--- instance {n:Nat} : OfNat (FU8 p) n where
---   ofNat := n
-
--- instance : Coe Nat (FU8 p) where
---   coe n := n
-
-end FU8
+/-- LSB first, like the output of num2bits -/
+abbrev FBitVec := List (FB p)
 
 
-abbrev FU32 p := ZMod p
+def FBitVec.toF (v : FBitVec (p:=p)) : F p :=
+  aux (1:ZMod p) (const 0) v
+where
+  aux pow acc v :=
+    match v with
+    | [] => acc
+    | b::rest =>
+        let acc := acc + ((convert b) * (const pow))
+        aux (pow*2) acc rest
 
-namespace FU32
+-- if arguments are both n-bit long, result is n+1 bits
+def FBitVec.binSum (a b : FBitVec (p:=p)) : Option (FBitVec (p:=p)) :=
+  let sum : F p := a.toF + b.toF
+  num2bits (List.length a + 1) sum
 
-def isValid (x:FU32 p) : Prop := x.val < 2^32
+def FBitVec.assert_eq (a b : FBitVec (p:=p)) : Option Unit :=
+  for (a,b) in a.zip b do
+    FB.assert_eq a b
 
-def Valid : Type := {x:FU32 p // x.isValid }
+namespace Test
 
-instance : CoeOut (FU32 p) ℕ where
-  coe x := x.val
+abbrev F' := ZMod Primes.babybear
 
-instance : CoeOut (@Valid p) (FU32 p) where
-  coe x := x.val
+open Clap.Spec
 
--- instance : CoeOut (@Valid p) ℕ where
---   coe x := x.val
+instance instCoreZMod : Core Primes.babybear where
+  F := F'
+  FB := F'
+  convert := id
+  const := id
+  accept := Compiler.accept
+  eq0 := Compiler.eq0
+  isZero := Compiler.is_zero
+  num2bits := Compiler.num2bits
 
-def mk (x:FU32 p) : Option Unit := Spec.assert_range 32 x
+attribute [instance] instCoreZMod
 
-def mk_some (x:FU32 p) (h:x.val<2^32) : x.mk = some () := by
-  aesop (add simp [mk,Spec.assert_range,Spec.num2bits])
+def testLTE (w:ℕ) (a b : F') : Option Unit := do
+  FB.assert (p:=Primes.babybear) (<-F.lessThanEq w a b)
 
--- instance : Coe (FU8 p) (FU32 p) where
---   coe u8 := u8
-
-def addOption (a b : FU32 p) : Option (FU32 p) := do
-  let o := a + b
-  Spec.assert_range 8 o
-  o
-
-instance : HAnd (FU32 p) (FU32 p) (FU32 p) where
-  hAnd := (· + ·)
-
-end FU32
+#guard (testLTE 3 4 5) = some ()
+#guard (testLTE 3 5 5) = some ()
+#guard (testLTE 3 5 4) = none
+#guard (testLTE 3 2 1) = none
 
 
-namespace ByteArray
+def testBinSum (a b expected : FBitVec (p:=Primes.babybear)) : Option Unit := do
+  FBitVec.assert_eq (<-FBitVec.binSum a b) expected
 
-def of_nat_be (x:ℕ) (len:Nat) : Array (FU8 p) :=
-    (List.reverse (aux x len)).toArray
-  where
-    aux (x:ℕ) (len:Nat) : List (FU8 p) :=
-      let d : ℕ := x / (2^8)
-      let r : ℕ := x % (2^8)
-      -- let r : UInt8 := UInt8.ofNatLT r.val (by sorry)
-      let r : FU8 p := r -- does not wrap as r < 256
-      if len=0 then [] else
-      r::(aux d (len-1))
+#guard (testBinSum [1,0,0] [1,0,0] [0,1,0,0]) = some ()
+#guard (testBinSum [0,0,1] [0,0,1] [0,0,0,1]) = some ()
+#guard (testBinSum [1,1,1] [1,0,0] [0,0,0,1]) = some ()
 
-#guard
-  let n : ℕ := 255 + 1
-  of_nat_be (p:=Primes.babybear) n 2 = #[1,0]
-#guard
-  let n : ℕ := 2^16 + 2
-  of_nat_be (p:=Primes.babybear) n 3 = #[1,0,2]
-#guard
-  let n : ℕ := 2^16 + 2
-  of_nat_be (p:=Primes.babybear) n 4 = #[0,1,0,2]
+end Test
 
-/-
-Rust playground
-let z : u32 = 65536 + 2;
-dbg!(z.to_be_bytes());  # [0,1,0,2]
--/
-
-def to_nat_be (bs:Array (FU8 p)) : ℕ :=
-  Array.foldl (fun acc (b:ZMod p) => acc * 256 + (b:ℕ)) (0:ℕ) bs
-
-#guard to_nat_be (p:=Primes.babybear) #[1] = 1
-#guard to_nat_be (p:=Primes.babybear) #[255,1] = 255*256+1
-
-def min_bits (x:ℕ) : ℕ :=
-  let n_bits := Nat.log2 x
-  if 2^n_bits < x then n_bits+1 else n_bits
-
-def min_bytes (x:ℕ) : ℕ :=
-  let n_bits := min_bits x
-  if n_bits % 8 = 0 then n_bits / 8 else (n_bits / 8) + 1
-
-lemma roundrip1 (x:ℕ) (len:ℕ) (h: len <= min_bytes x) :
-  to_nat_be (of_nat_be (p:=p) x len) = x := sorry
-
-#guard
-  let n : ℕ := 255 + 1
-  to_nat_be (of_nat_be (p:=Primes.babybear) n 2) = n
-#guard
-  let n : ℕ := 2^16 + 2
-  to_nat_be (of_nat_be (p:=Primes.babybear) n 3) = n
-#guard
-  let n : ℕ := 2^16 + 2
-  to_nat_be (of_nat_be (p:=Primes.babybear) n 4) = n
-
-lemma roundrip2 (bs:Array (FU8 p)) :
-  of_nat_be (to_nat_be bs) bs.size = bs := sorry
-
-#guard of_nat_be (p:=Primes.babybear) (to_nat_be (p:=Primes.babybear) #[1]) 1 = #[1]
-#guard of_nat_be (p:=Primes.babybear) (to_nat_be  (p:=Primes.babybear) #[255,1]) 2 = #[255,1]
-
-end ByteArray
-
-#check BitVec
-
-abbrev FBitVec p := List (ZMod p)
-
-namespace BitVec
-
--- def decompose {h:2^32<p} (e:FU32 p) : FBitVec 32 p :=
---   Spec.assert_range e 32
-
-end BitVec
-
-end Clap.Spec
+end Clap.Lang
