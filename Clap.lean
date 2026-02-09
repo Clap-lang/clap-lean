@@ -14,7 +14,6 @@ import Clap.Spec
 import Clap.Lang
 import Clap.Wheels
 import Clap.Milestone
-import Clap.R1CS
 import Clap.SpecString
 import Clap.Sha2.Basic
 import Clap.Sha2.Cpu
@@ -24,6 +23,7 @@ import Clap.Poseidon.Poseidon
 import Clap.Packing
 import Clap.Compiler.Basic
 import Clap.Compiler.Deep
+import Clap.Quadratic
 import Clap.Test.Wheels
 import Clap.Test.Compiler.Serialise
 import Clap.Test.Compiler.Curry
