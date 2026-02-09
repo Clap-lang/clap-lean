@@ -61,20 +61,28 @@ variable {p : ℕ} [Fact (Nat.Prime p)]
     If `n < minBits f` the result is truncated.
     If `n > minBits f` the result is padded with zeros.
 -/
-def num2bits_pure (n:ℕ) (f:ZMod p) : List (ZMod p) :=
+def num2bitsLsbPure (n:ℕ) (f:ZMod p) : List (ZMod p) :=
   match n with
   | 0 => []
   | n+1 =>
     let bit := f.val % 2
     let rem := f.val / 2
-    bit::(num2bits_pure n rem)
+    bit::(num2bitsLsbPure n rem)
 
-#guard num2bits_pure (p:=Primes.babybear) 3 1 = [1,0,0]
+#guard num2bitsLsbPure (p:=Primes.babybear) 3 1 = [1,0,0]
+#guard num2bitsLsbPure (p:=Primes.babybear) 3 4 = [0,0,1]
+#guard num2bitsLsbPure (p:=Primes.babybear) 4 1 = [1,0,0,0]
+
+def num2bitsMsbPure (n:ℕ) (f:ZMod p) : List (ZMod p) :=
+  num2bitsLsbPure n f |> List.reverse
+
+#guard num2bitsMsbPure (p:=Primes.babybear) 3 1 = [0,0,1]
+#guard num2bitsMsbPure (p:=Primes.babybear) 4 1 = [0,0,0,1]
 
 end Clap
 
 def Lean.Expr.foldlRecM {α : Type}
-  {m : Type → Type} [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] 
+  {m : Type → Type} [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m]
   (f : α → Expr → m α) (init : α) (e : Expr) : m α :=
   (·.2) <$> (
     StateT.run (
