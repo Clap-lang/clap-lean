@@ -1,13 +1,14 @@
-import Clap.Circuit
+--import Clap.Circuit
+import Clap.Primes
 import Clap.Compilation
-import Clap.Spec
+import Clap.SpecUint
 import Clap.Compiler.Basic
 
-namespace Clap
+open Clap.Lang
 
-open Clap Clap.Spec
+variable {p : ℕ} [Fact (Nat.Prime p)] [Core p]
 
-variable {p : ℕ} [Fact (Nat.Prime p)]
+open Core
 
 /-
   This example showcases a circuit that takes a vector of field
@@ -15,11 +16,12 @@ variable {p : ℕ} [Fact (Nat.Prime p)]
   elements are zero using a very natural for loop.
 -/
 
-def ex_vec (xs : Vector (ZMod p) 3) : Option Unit := do
+def ex_vec (xs : Vector (F p) 3) : Option Unit := do
   for x in xs do
     eq0 x
-  accept
+  accept (p:=p)
 
+/-
 /-
    This is how we call the first step of the compiler to curry the circuit.
    Note: in the future everything will be called by a single command,
@@ -56,7 +58,7 @@ example : (extract_vec (p := p)).1 =
   .eq0 x_1 (
   .eq0 x_2
   .nil)) := rfl
-
+-/
 
 /-
   This example showcases the use of a structure (equivalent to struct
@@ -65,16 +67,17 @@ example : (extract_vec (p := p)).1 =
   refer to any field of the struct.
 -/
 
-structure Point3 (p : ℕ) where
-  x : ZMod p
-  y : ZMod p
-  z : ZMod p
+structure Point3 where
+  x : F p
+  y : F p
+  z : F p
 
-def ex_point (point : Point p) : Option Unit := do
+def ex_point (point : Point3 (p:=p)) : Option Unit := do
   eq0 (point.x + point.y)
   eq0 (point.x + point.z)
-  accept
+  accept (p:=p)
 
+/-
 #compile Clap.ex_point
 
 def extracted_point :
@@ -96,3 +99,4 @@ example : (extracted_point (p := p)).1 =
   .eq0 (Exp.c (x_0 + x_1)) (
   .eq0 (Exp.c (x_0 + x_2))
   .nil) := rfl
+-/

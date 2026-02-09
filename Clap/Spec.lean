@@ -1,6 +1,3 @@
-import Mathlib.FieldTheory.Finite.Basic -- field operations
-
-import Clap.Primes
 import Clap.Circuit
 import Clap.Simulation
 import Clap.Wheels
@@ -9,7 +6,7 @@ namespace Clap
 
 variable {p : ℕ}
 
-namespace Spec
+namespace Spec.Compiler
 
 @[irreducible]
 def accept : Unit := ()
@@ -26,11 +23,6 @@ def is_zero (e : ZMod p) : Option (ZMod p) := if e = 0 then .some 1 else .some 0
 @[irreducible]
 def num2bits [Fact (Nat.Prime p)] (w : ℕ) (e : ZMod p) : Option (List (ZMod p)) :=
   if e.val < 2^w then .some (num2bitsLsbPure w e) else .none
-
-def assert_range [Fact (Nat.Prime p)] (w : ℕ) (e : ZMod p) : Option Unit := do
-  let _ <- num2bits w e ; ()
-
-namespace Compiler
 
 section
 
@@ -83,7 +75,7 @@ end Spec
 
 namespace Example_base
 
-open Spec
+open Spec.Compiler
 
 /-
   A circuit is a function from any number of arguments of type F or Vector F to Option Unit.
@@ -111,7 +103,7 @@ end Example_base
 
 namespace Example_vec
 
-open Spec
+open Spec.Compiler
 
 def ex p (is : Vector (ZMod p) 2) : Option Unit := do
   eq0 is[0]
@@ -131,13 +123,13 @@ theorem equiv [Fact (Nat.Prime p)] :
   unfold ex_circuit_fun
   unfold ex
   dsimp only [curry]
-  apply Compiler.equiv_lam fun _ ↦ ?_
-  apply Compiler.equiv_lam fun _ ↦ ?_
-  apply Compiler.equiv_eq0
-  apply Compiler.equiv_share
+  apply equiv_lam fun _ ↦ ?_
+  apply equiv_lam fun _ ↦ ?_
+  apply equiv_eq0
+  apply equiv_share
   intros
-  apply Compiler.equiv_eq0
-  apply Compiler.equiv_accept
+  apply equiv_eq0
+  apply equiv_accept
   rfl
   rfl
   rfl
@@ -146,7 +138,7 @@ end Example_vec
 
 namespace Example_fold
 
-open Spec
+open Spec.Compiler
 
 /- TODO these curry should disappear, the signature should be:
 def ex p (xs ys zs: Vector (ZMod p) 2) : Option Unit :=
@@ -175,20 +167,20 @@ theorem equiv [Fact (Nat.Prime p)] :
   unfold ex_circuit_fun
   unfold ex
   simp only [curry]
-  apply Compiler.equiv_lam fun _ ↦ ?_
-  apply Compiler.equiv_lam fun _ ↦ ?_
-  apply Compiler.equiv_lam fun _ ↦ ?_
-  apply Compiler.equiv_lam fun _ ↦ ?_
-  apply Compiler.equiv_lam fun _ ↦ ?_
-  apply Compiler.equiv_lam fun _ ↦ ?_
+  apply equiv_lam fun _ ↦ ?_
+  apply equiv_lam fun _ ↦ ?_
+  apply equiv_lam fun _ ↦ ?_
+  apply equiv_lam fun _ ↦ ?_
+  apply equiv_lam fun _ ↦ ?_
+  apply equiv_lam fun _ ↦ ?_
   generalize h : @Circuit.eq0 p _ _ _ = rhs
   simp! [-Option.bind_eq_bind]; rw [←h]
-  apply Compiler.equiv_eq0
+  apply equiv_eq0
   rw [Option.bind_eq_bind, Option.bind_some]; dsimp only
   rw [bind_assoc]
-  apply Compiler.equiv_eq0
+  apply equiv_eq0
   simp
-  apply Compiler.equiv_accept
+  apply equiv_accept
   rfl
   rfl
 
