@@ -74,25 +74,13 @@ def sum_1 (x : U32) : U32 :=
   (rotR sum_constants[4]!) x ^^^
   (rotR sum_constants[5]!) x
 
-def sigma_constants : Array U32 := #[7, 18, 3, 17, 19, 10]
-
--- Sigma_0(x) = ROTR^{d0}(x) XOR ROTR^{d1}(x) XOR SHR^{d2}(x)
-def sigma_0 (x : U32) : U32 :=
-  (rotR sigma_constants[0]! x) ^^^
-  (rotR sigma_constants[1]! x) ^^^
-  (x >>> (sigma_constants[2]! : U32))
-
--- Sigma_1(x) = ROTR^{d3}(x) XOR ROTR^{d4}(x) XOR SHR^{d5}(x)
-def sigma_1 (x : U32) : U32 :=
-  (rotR sigma_constants[3]! x) ^^^
-  (rotR sigma_constants[4]! x) ^^^
-  (x >>> (sigma_constants[5]! : U32))
+def sigma (c0 c1 c2 x : U32) : U32 :=
+  (rotR c0 x) ^^^ (rotR c1 x) ^^^ (x >>> c2)
 
 instance : Clap.Sha2.ShaU32 U32 U8 where
   sum_0
   sum_1
-  sigma_0
-  sigma_1
+  sigma
   to_nat_be
   ch
   maj

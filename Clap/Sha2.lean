@@ -7,8 +7,7 @@ class ShaU8 (U8 : Type) where
 class ShaU32 (U32 : Type) (U8 : Type) where
   sum_0 : U32 -> U32
   sum_1 : U32 -> U32
-  sigma_0 : U32 -> U32
-  sigma_1 : U32 -> U32
+  sigma : U32 -> U32 -> U32 -> U32 -> U32
   to_nat_be : Array U8 -> U32
   ch : (x y z : U32) -> U32
   maj : (x y z : U32) -> U32
@@ -23,6 +22,20 @@ variable {U32 : Type}
   [Coe UInt32 U32]
   [HAdd U32 U32 U32]
   [Inhabited U32]
+
+def sigma_constants : Array U32 := #[7, 18, 3, 17, 19, 10]
+
+-- Sigma_0(x) = ROTR^{d0}(x) XOR ROTR^{d1}(x) XOR SHR^{d2}(x)
+def sigma_0 (x : U32) : U32 :=
+  ShaU32.sigma (U8:=U8) sigma_constants[0]!
+                        sigma_constants[1]!
+                        sigma_constants[2]! x
+
+-- Sigma_1(x) = ROTR^{d3}(x) XOR ROTR^{d4}(x) XOR SHR^{d5}(x)
+def sigma_1 (x : U32) : U32 :=
+  ShaU32.sigma (U8:=U8) sigma_constants[3]!
+                        sigma_constants[4]!
+                        sigma_constants[5]! x
 
 -- https://github.com/cryspen/hax/blob/main/examples/sha256/src/sha256.rs
 /-
@@ -108,8 +121,8 @@ where
     let t15 := acc[i - 15]!
     let t7 := acc[i - 7]!
     let t2 := acc[i - 2]!
-    let acc := acc.push ((ShaU32.sigma_1 (U32:=U32) (U8:=U8)  t2) +  t7 +
-                         (ShaU32.sigma_0 (U32:=U32) (U8:=U8) t15) + t16)
+    let acc := acc.push ((sigma_1 (U32:=U32) (U8:=U8)  t2) +  t7 +
+                         (sigma_0 (U32:=U32) (U8:=U8) t15) + t16)
     aux acc (i+1)
 
 -- Section 6.2.2 step 3
