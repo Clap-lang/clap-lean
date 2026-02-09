@@ -1,6 +1,6 @@
 import Clap.Compiler.Basic
 import Clap.Compilation
-import Clap.R1CS
+import Clap.Quadratic
 import Clap.Lang
 
 namespace Circuit
