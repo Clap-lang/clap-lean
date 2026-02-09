@@ -45,6 +45,10 @@ namespace FB
   make sure that any use of covert does not rely on true=1
 -/
 
+def true : FB p := 1
+
+def false : FB p := 0
+
 def eq (a b : FB p) : Option (FB p) := do
   F.eq (convert a) (convert b)
 
@@ -110,8 +114,12 @@ def F.lessThanEq (w : ℕ) (a b : F p) : Option (FB p) := do
 /-- LSB first, like the output of num2bits -/
 abbrev FBitVec := List (FB p)
 
+namespace FBitVec
 
-def FBitVec.toF (v : FBitVec (p:=p)) : F p :=
+def ofF (w:ℕ) (x:F p) : Option (FBitVec (p:=p)) :=
+  num2bits w x
+
+def toF (v : FBitVec (p:=p)) : F p :=
   aux (1:ZMod p) (const 0) v
 where
   aux pow acc v :=
@@ -122,13 +130,32 @@ where
         aux (pow*2) acc rest
 
 -- if arguments are both n-bit long, result is n+1 bits
-def FBitVec.binSum (a b : FBitVec (p:=p)) : Option (FBitVec (p:=p)) :=
+def binSum (a b : FBitVec (p:=p)) : Option (FBitVec (p:=p)) :=
   let sum : F p := a.toF + b.toF
   num2bits (List.length a + 1) sum
 
-def FBitVec.assert_eq (a b : FBitVec (p:=p)) : Option Unit :=
+def assert_eq (a b : FBitVec (p:=p)) : Option Unit :=
   for (a,b) in a.zip b do
     FB.assert_eq a b
+
+end FBitVec
+
+abbrev F8 := FBitVec (p:=p)
+
+namespace F8
+
+def ofF (x:F p) : Option (F8 (p:=p)) :=
+  FBitVec.ofF 8 x
+
+def ofUInt8 (u:UInt8) : Option (F8 (p:=p)) :=
+  num2bits 8 (u.toNat)
+
+def zero : F8 (p:=p) := List.replicate 8 0
+
+def eq (a b : F8 (p:=p)) : Option (FB (p:=p)) :=
+  List.foldlM (fun acc (a,b) => (FB.and acc) <$> (FB.eq a b))  FB.true (a.zip b)
+
+end F8
 
 namespace Test
 

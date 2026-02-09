@@ -1,56 +1,31 @@
 import Clap.SpecUint
 
-namespace Clap
-open Clap.Spec
+open Clap.Lang
 
-variable {p : ℕ} [Fact (Nat.Prime p)] {maxLen : ℕ}
+variable {p : ℕ} [Fact (Nat.Prime p)] [Core p]
 
-variable {F : Type}
-  [HAdd F F F]
-  [HSub F F F]
-  [ToString F] -- TODO remove?
-
-variable {FB : Type}
-  [Zero FB] -- false
-  [One FB]  -- true
-  [Coe FB F]
-  [Inhabited FB]
-  [HAdd FB FB FB] -- Or
-  [HMul FB FB FB] -- And
-  [HSub FB FB FB] -- Xor
-  [ToString FB] -- TODO remove?
-
-variable {F8 : Type}
-  [Coe F8 F]
-  [Inhabited F8]
-
-variable [@Core F FB]
 open Core
 
-structure MyString (p maxLen:ℕ) where
-  chars : Vector F8 maxLen
-  len : F8
+structure MyString (maxLen : ℕ) where
+  chars : Vector (F8 (p:=p)) maxLen
+  len : F (p:=p)
 
-def assertString (s : MyString (F8:=F8) p maxLen) : Option Unit := do
+def assertString {maxLen : ℕ} (s : MyString (p:=p) maxLen) : Option Unit := do
   for i in [0:maxLen] do
-    let b <- Spec.F.eq (s.chars[i]!:F) (const 0)
+    let b <- F8.eq s.chars[i]! F8.zero
     -- not(i<len) <-> len<=i
-    let expected <- Spec.F.lessThanEq maxLen (s.len:F) (const i)
-    Spec.FB.assert_eq (F:=F) b expected
+    let expected <- F.lessThanEq maxLen (s.len) (const (i:ZMod p))
+    FB.assert_eq b expected
+
+namespace Test
 
 open Primes
 
-def ok : MyString (p:=babybear) (F8:=ZMod babybear) (maxLen:=3) := {
-  chars := #v[0x11,0x15,0x00]
-  len := 2
-}
+def test {maxLen} (chars : Vector UInt8 maxLen) (len : ℕ) := do
+  let chars <- Vector.mapM F8.ofUInt8 chars
+  assertString (p:=p) { chars, len }
 
-def ko : MyString (p:=babybear) (F8:=ZMod babybear) (maxLen:=3) := {
-  chars := #v[0x11,0x15,0x00]
-  len := 3
-}
+#guard (test (p:=babybear) #v[0x11,0x15,0x00] 2 ) = some ()
+#guard (test (p:=babybear) #v[0x11,0x15,0x00] 3 ) = none
 
-#guard (assertString (F:=ZMod babybear) ok) = some ()
-#guard (assertString (F:=ZMod babybear) ko) = none
-
-end Clap
+end Test
