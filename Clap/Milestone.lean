@@ -3,6 +3,10 @@ import Clap.Primes
 import Clap.Compilation
 import Clap.Lang
 import Clap.Compiler.Basic
+import Clap.Cfold
+import Clap.Compilation
+import Clap.Quadratic
+import R1Serialize.R1CS
 
 open Clap.Lang
 
