@@ -141,7 +141,7 @@ def Circuit.toWg (c : Circuitₑ p) : Wg p :=
     let o : ZMod p := if e = 0 then 1 else 0
     .cons e⁻¹ (.cons o (k o).toWg)
   | .num2bits w e c =>
-    letI bits := num2bits_pure w (Exp.eval e)
+    letI bits := num2bitsLsbPure w (Exp.eval e)
     List.foldl (fun acc b => .cons b acc) (c bits).toWg bits
 
 def toWg' (c:Circuit' p) : Wg p := (c (ZMod p)).toWg

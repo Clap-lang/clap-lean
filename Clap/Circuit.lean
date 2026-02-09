@@ -246,7 +246,7 @@ def eval : Circuitₑ p → denotation (ZMod p)
   | .is_zero e k =>
       if e.eval = 0 then (k 1).eval else (k 0).eval
   | .num2bits w e k =>
-      if e.eval.val < 2^w then (k (num2bits_pure w e.eval)).eval else .n
+      if e.eval.val < 2^w then (k (num2bitsLsbPure w e.eval)).eval else .n
 
 def eval' (c : Circuit' p) : denotation (ZMod p) := eval (c (ZMod p))
 
@@ -268,7 +268,7 @@ lemma eval_is_zero :
 
 @[simp]
 lemma eval_num2bits {w : ℕ} {k: List (ZMod p) -> Circuitₑ p} :
-  (num2bits w e k).eval = if e.eval.val < 2^w then (k (num2bits_pure w e.eval)).eval else .n := by rfl
+  (num2bits w e k).eval = if e.eval.val < 2^w then (k (num2bitsLsbPure w e.eval)).eval else .n := by rfl
 
 def equiv (c₁ c₂ : Circuitₑ p) : Prop := c₁.eval = c₂.eval
 
