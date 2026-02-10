@@ -146,11 +146,11 @@ def ex p (xs ys zs: Vector (ZMod p) 2) : Option Unit :=
 def ex p :=
   curry (fun (xs: Vector (ZMod p) 2) =>
   curry (fun (ys: Vector (ZMod p) 2) =>
-  curry (fun (zs: Vector (ZMod p) 2) => do
+  curry (fun (zs: Vector (ZMod p) 2) => (do
   let xys := Vector.map (fun ((x,y): ZMod p × ZMod p) => x+y) (Vector.zip xs ys)
   for (xy,z) in Vector.zip xys zs do
     eq0 (xy-z)
-  return accept
+  return accept : Option Unit)
   )))
 
 #guard ex 7 2 4 1 1 3 5 = some 90 -- [2,4] + [1,1] = [3,5]
