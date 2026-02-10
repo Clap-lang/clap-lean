@@ -12,7 +12,7 @@ import Clap.Spec
 import Clap.SpecUint
 import Clap.Wheels
 import Clap.Milestone
-import Clap.R1CS
+--import Clap.R1CS -- disabled when bumped to 4.27
 import Clap.SpecString
 import Clap.Sha2Ops
 import Clap.Sha2
