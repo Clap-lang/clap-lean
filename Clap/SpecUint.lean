@@ -54,6 +54,9 @@ def true : FB p := 1
 
 def false : FB p := 0
 
+instance : Inhabited (FB p) where
+  default := false
+
 def eq (a b : FB p) : Option (FB p) := do
   F.eq (convert a) (convert b)
 
@@ -182,6 +185,9 @@ def ofF8 (u8 : F8 p) : F32 p :=
 def ofUInt32 (u:UInt32) : Option (F32 p) :=
   num2bits 32 (u.toNat)
 
+-- TODO can you have decidable between F and F?
+-- TODO can I have assert that hijacks the option monad?
+
 def add (a b : F32 p) : (F32 p) :=
   List.take 32 (FBitVec.binSum a b)
 
@@ -194,15 +200,11 @@ end F32
 
 end Clap.Lang
 
-
-namespace Test
-
+open Clap.Spec
 open Clap.Lang
 
 abbrev p := Primes.goldilocks
 abbrev F' := ZMod p
-
-open Clap.Spec
 
 instance instCoreZMod : Core p where
   F := F'
@@ -216,6 +218,8 @@ instance instCoreZMod : Core p where
   bits2num := Compiler.bits2num
 
 attribute [instance] instCoreZMod
+
+namespace Test
 
 def testLTE (w:ℕ) (a b : F') : Option Unit := do
   FB.assert (p:=p) (<-F.lessThanEq w a b)
@@ -234,3 +238,52 @@ def testBinSum (a b expected : FBitVec p) : Option Unit := do
 #guard (testBinSum [1,1,1] [1,0,0] [0,0,0,1]) = some ()
 
 end Test
+
+namespace Equiv
+
+lemma bits2numBound (v : List (ZMod p)) :
+  ((Core.bits2num (p:=p) v)).val (n:=p) < (2 ^ v.length)
+  := sorry
+
+lemma bla (a b : FBitVec p) (h : a.length = b.length) :
+  (a.toF + b.toF).val (n:=p) < 2 ^ (a.length + 1) := by
+  unfold FBitVec.toF
+  have h2 x : (2 ^ (x + 1)) = (2 ^ x + 2 ^ x) := by grind
+  rw [h2 (a.length)]
+  have ha := bits2numBound a
+  have hb := bits2numBound b
+  have h2 := add_lt_add ha hb
+  have h3 := ZMod.val_add_le (n:=p) (Core.bits2num a (p:=p)) (Core.bits2num b (p:=p))
+  apply lt_or_eq_of_le at h3
+  rw [<-h] at h2
+  cases h3
+  . case _ h3 =>
+    apply lt_trans
+    assumption
+    assumption
+  . case _ h3 =>
+    rw [h3]
+    assumption
+
+#check add_lt_add
+
+def binSum (a b : FBitVec p) (h : a.length = b.length) :
+  (Core.num2bits (p:=p) (a.length + 1) (a.toF + b.toF)).isSome := by
+  have h2 : Core.num2bits (p:=p) = Clap.Spec.Compiler.num2bits (p:=p) := by rfl -- TODO
+  rw [h2]
+  rw [Clap.Spec.Compiler.num2bitsUnfold (p:=p)]
+  split
+  . simp
+  . have h3 := bla a b h
+    contradiction
+
+instance : Coe UInt32 (F32 p) where
+  coe n := Clap.num2bitsLsbPure (p:=p) 32 (n.toNat:ZMod p)
+
+lemma equiv (a b : UInt32) :
+  (F32.add (p:=p) (a : F32 p) (b: F32 p)) =
+    (UInt32.add a b : F32 p) := by
+  unfold F32.add
+  sorry
+
+end Equiv

@@ -26,6 +26,12 @@ def num2bits [Fact (Nat.Prime p)] (w : ℕ) (e : ZMod p) : Option (List (ZMod p)
 
 export Clap (bits2num)
 
+--@[simp]
+lemma num2bitsUnfold [Fact (Nat.Prime p)] (w : ℕ) (e : ZMod p) :
+  num2bits w e = if e.val < 2^w then .some (num2bitsLsbPure w e) else .none := by
+  unfold num2bits
+  rfl
+
 section
 
 open scoped Simulation
