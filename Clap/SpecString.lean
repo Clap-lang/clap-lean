@@ -1,5 +1,7 @@
 import Clap.SpecUint
 
+namespace StringExample
+
 open Clap.Lang
 
 variable {p : ℕ} [Fact (Nat.Prime p)] [Core p]
@@ -17,15 +19,21 @@ def assertString {maxLen : ℕ} (s : MyString (p:=p) maxLen) : Option Unit := do
     let expected <- F.lessThanEq maxLen (s.len) (const (i:ZMod p))
     FB.assert_eq b expected
 
-namespace Test
+end StringExample
 
-open Primes
+namespace TestStringExample
+
+open StringExample
+open Clap.Lang
+
+abbrev p := Primes.goldilocks
+abbrev F' := ZMod p
 
 def test {maxLen} (chars : Vector UInt8 maxLen) (len : ℕ) := do
   let chars <- Vector.mapM F8.ofUInt8 chars
   assertString (p:=p) { chars, len }
 
-#guard (test (p:=babybear) #v[0x11,0x15,0x00] 2 ) = some ()
-#guard (test (p:=babybear) #v[0x11,0x15,0x00] 3 ) = none
+#guard (test #v[0x11,0x15,0x00] 2 ) = some ()
+#guard (test #v[0x11,0x15,0x00] 3 ) = none
 
-end Test
+end TestStringExample

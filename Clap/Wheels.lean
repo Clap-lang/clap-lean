@@ -79,6 +79,16 @@ def num2bitsMsbPure (n:ℕ) (f:ZMod p) : List (ZMod p) :=
 #guard num2bitsMsbPure (p:=Primes.babybear) 3 1 = [0,0,1]
 #guard num2bitsMsbPure (p:=Primes.babybear) 4 1 = [0,0,0,1]
 
+def bits2num (v : List (ZMod p)) : ZMod p :=
+  aux 1 0 v
+where
+  aux pow acc v :=
+    match v with
+    | [] => acc
+    | b::rest =>
+        let acc := acc + (b * pow)
+        aux (pow*2) acc rest
+
 end Clap
 
 def Lean.Expr.foldlRecM {α : Type}

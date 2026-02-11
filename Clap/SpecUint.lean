@@ -16,16 +16,22 @@ class Core (p : ℕ) [Fact (Nat.Prime p)] : Type _ where
   eq0         : F → Option Unit
   isZero      : F → Option FB
   num2bits    : ℕ → F → Option (List FB)
+  bits2num    : List FB → F
+
   [onlyForDebugF  : ToString F  ]
   [onlyForDebugFB : ToString FB ]
 
-attribute [instance] Core.instF Core.instFChar Core.instFB Core.instFBChar
+attribute [instance] Core.instF Core.instFChar Core.instFB Core.instFBChar Core.onlyForDebugF Core.onlyForDebugFB
 
 variable {p : ℕ} [Fact (Nat.Prime p)] [Core p]
 
 open Core
 
+
 namespace F
+
+instance : Inhabited (F p) where
+  default := 42
 
 def assert_range (w : ℕ) (e : F p) : Option Unit := do
   let _ <- num2bits w e ; ()
@@ -112,58 +118,90 @@ def F.lessThanEq (w : ℕ) (a b : F p) : Option (FB p) := do
     (<-acc) &&& l) (some 1) ab
 
 /-- LSB first, like the output of num2bits -/
-abbrev FBitVec := List (FB p)
+abbrev FBitVec (p:ℕ) [Fact (Nat.Prime p)] [Core p] := List (FB p)
 
 namespace FBitVec
 
-def ofF (w:ℕ) (x:F p) : Option (FBitVec (p:=p)) :=
-  num2bits w x
+def default (l:ℕ) : FBitVec p := List.replicate l 0
 
-def toF (v : FBitVec (p:=p)) : F p :=
-  aux (1:ZMod p) (const 0) v
-where
-  aux pow acc v :=
-    match v with
-    | [] => acc
-    | b::rest =>
-        let acc := acc + ((convert b) * (const pow))
-        aux (pow*2) acc rest
+def ofF (w:ℕ) (e:F p) : FBitVec p :=
+  Option.getD (num2bits w e) (default w)
+
+abbrev toF (v:FBitVec p) : F p := Core.bits2num v
 
 -- if arguments are both n-bit long, result is n+1 bits
-def binSum (a b : FBitVec (p:=p)) : Option (FBitVec (p:=p)) :=
+def binSum (a b : FBitVec p) : FBitVec p := Option.getD (do
   let sum : F p := a.toF + b.toF
-  num2bits (List.length a + 1) sum
+  num2bits (a.length + 1) sum)
+  (FBitVec.default (a.length + 1))
 
-def assert_eq (a b : FBitVec (p:=p)) : Option Unit :=
+def assert_eq (a b : FBitVec p) : Option Unit :=
   for (a,b) in a.zip b do
     FB.assert_eq a b
 
 end FBitVec
 
-abbrev F8 := FBitVec (p:=p)
+abbrev F8 (p:ℕ) [Fact (Nat.Prime p)] [Core p] := FBitVec p
 
 namespace F8
 
-def ofF (x:F p) : Option (F8 (p:=p)) :=
+def ofF (x:F p) : (F8 p) :=
   FBitVec.ofF 8 x
 
-def ofUInt8 (u:UInt8) : Option (F8 (p:=p)) :=
+def ofUInt8 (u:UInt8) : Option (F8 p) :=
   num2bits 8 (u.toNat)
 
-def zero : F8 (p:=p) := List.replicate 8 0
+def zero : F8 p := FBitVec.default 8
 
-def eq (a b : F8 (p:=p)) : Option (FB (p:=p)) :=
-  List.foldlM (fun acc (a,b) => (FB.and acc) <$> (FB.eq a b))  FB.true (a.zip b)
+def eq (a b : F8 p) : Option (FB p) :=
+  List.foldlM (fun acc (a,b) => (FB.and acc) <$> (FB.eq a b)) FB.true (a.zip b)
+
+def assert_eq (a b : F8 p) := FBitVec.assert_eq a b
 
 end F8
 
+
+abbrev F32 (p:ℕ) [Fact (Nat.Prime p)] [Core p] := FBitVec p
+
+namespace F32
+
+def default : F32 p := FBitVec.default 32
+
+instance : Inhabited (F32 p) where
+  default
+
+def ofF (x:F p) : (F32 p) :=
+  FBitVec.ofF 32 x
+
+def ofF8 (u8 : F8 p) : F32 p :=
+  u8 ++ (List.replicate 24 (0:FB p))
+
+def ofUInt32 (u:UInt32) : Option (F32 p) :=
+  num2bits 32 (u.toNat)
+
+def add (a b : F32 p) : (F32 p) :=
+  List.take 32 (FBitVec.binSum a b)
+
+instance : HAdd (F32 p) (F32 p) (F32 p) where
+  hAdd := add
+
+def assert_eq (a b : F32 p) := FBitVec.assert_eq a b
+
+end F32
+
+end Clap.Lang
+
+
 namespace Test
 
-abbrev F' := ZMod Primes.babybear
+open Clap.Lang
+
+abbrev p := Primes.goldilocks
+abbrev F' := ZMod p
 
 open Clap.Spec
 
-instance instCoreZMod : Core Primes.babybear where
+instance instCoreZMod : Core p where
   F := F'
   FB := F'
   convert := id
@@ -172,11 +210,12 @@ instance instCoreZMod : Core Primes.babybear where
   eq0 := Compiler.eq0
   isZero := Compiler.is_zero
   num2bits := Compiler.num2bits
+  bits2num := Compiler.bits2num
 
 attribute [instance] instCoreZMod
 
 def testLTE (w:ℕ) (a b : F') : Option Unit := do
-  FB.assert (p:=Primes.babybear) (<-F.lessThanEq w a b)
+  FB.assert (p:=p) (<-F.lessThanEq w a b)
 
 #guard (testLTE 3 4 5) = some ()
 #guard (testLTE 3 5 5) = some ()
@@ -184,13 +223,11 @@ def testLTE (w:ℕ) (a b : F') : Option Unit := do
 #guard (testLTE 3 2 1) = none
 
 
-def testBinSum (a b expected : FBitVec (p:=Primes.babybear)) : Option Unit := do
-  FBitVec.assert_eq (<-FBitVec.binSum a b) expected
+def testBinSum (a b expected : FBitVec p) : Option Unit := do
+  FBitVec.assert_eq (FBitVec.binSum a b) expected
 
 #guard (testBinSum [1,0,0] [1,0,0] [0,1,0,0]) = some ()
 #guard (testBinSum [0,0,1] [0,0,1] [0,0,0,1]) = some ()
 #guard (testBinSum [1,1,1] [1,0,0] [0,0,0,1]) = some ()
 
 end Test
-
-end Clap.Lang
