@@ -7,7 +7,7 @@ namespace Clap.Sha2.Circuit
 
 open Clap.Lang
 
-variable {p : ℕ} [Fact (Nat.Prime p)] [Core p]
+variable {p : ℕ} [Fact (Nat.Prime p)] [Core p] [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)]
 
 open Core
 
@@ -28,6 +28,7 @@ Ch(x, y, z) =
 110 1
 111 1
 -/
+
 def ch (x y z : F32 p) : F32 p :=
   List.map (fun ((x,y),z) => x * (y - z) + z) ((x.zip y).zip z)
 
@@ -73,7 +74,7 @@ def shiftRight (n : USize) (x : F32 p) : F32 p :=
   let l := List.drop n.toNat x
   l ++ List.replicate n.toNat 0
 
-abbrev t p [Fact (Nat.Prime p)] [Core p] : Clap.Sha2.T := {
+abbrev t p [Fact (Nat.Prime p)] [Core p] [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)] : Clap.Sha2.T := {
   US:=F (p:=p),
   U8:=F8 (p:=p),
   U32:=F32 (p:=p)

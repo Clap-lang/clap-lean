@@ -4,12 +4,12 @@ namespace StringExample
 
 open Clap.Lang
 
-variable {p : ℕ} [Fact (Nat.Prime p)] [Core p]
+variable {p : ℕ} [Fact (Nat.Prime p)] [Core p] [Fact (Primes.fits p 8)]
 
 open Core
 
 structure MyString (maxLen : ℕ) where
-  chars : Vector (F8 (p:=p)) maxLen
+  chars : Vector (F8 p) maxLen
   len : F (p:=p)
 
 def assertString {maxLen : ℕ} (s : MyString (p:=p) maxLen) : Option Unit := do

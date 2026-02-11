@@ -27,7 +27,6 @@ variable {p : ℕ} [Fact (Nat.Prime p)] [Core p]
 
 open Core
 
-
 namespace F
 
 instance : Inhabited (F p) where
@@ -141,9 +140,11 @@ def assert_eq (a b : FBitVec p) : Option Unit :=
 
 end FBitVec
 
-abbrev F8 (p:ℕ) [Fact (Nat.Prime p)] [Core p] := FBitVec p
+abbrev F8 (p:ℕ) [Fact (Primes.fits p 8)] [Fact (Nat.Prime p)] [Core p] := FBitVec p
 
 namespace F8
+
+variable [Fact (Primes.fits p 8)]
 
 def ofF (x:F p) : (F8 p) :=
   FBitVec.ofF 8 x
@@ -161,9 +162,11 @@ def assert_eq (a b : F8 p) := FBitVec.assert_eq a b
 end F8
 
 
-abbrev F32 (p:ℕ) [Fact (Nat.Prime p)] [Core p] := FBitVec p
+abbrev F32 (p:ℕ) [Fact (Primes.fits p 32)] [Fact (Nat.Prime p)] [Core p] := FBitVec p
 
 namespace F32
+
+variable [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)]
 
 def default : F32 p := FBitVec.default 32
 
