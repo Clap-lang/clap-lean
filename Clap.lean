@@ -16,4 +16,5 @@ import Clap.Milestone
 import Clap.SpecString
 import Clap.Sha2
 import Clap.Sha2Cpu
+import Clap.Sha2Circuit
 import Clap.Sha2Test
