@@ -204,11 +204,11 @@ open Clap.Spec
 open Clap.Lang
 
 abbrev p := Primes.goldilocks
-abbrev F' := ZMod p
+abbrev F := ZMod p
 
 instance instCoreZMod : Core p where
-  F := F'
-  FB := F'
+  F := F
+  FB := F
   convert := id
   const := id
   accept := Compiler.accept
@@ -221,7 +221,7 @@ attribute [instance] instCoreZMod
 
 namespace Test
 
-def testLTE (w:ℕ) (a b : F') : Option Unit := do
+def testLTE (w:ℕ) (a b : F) : Option Unit := do
   FB.assert (p:=p) (<-F.lessThanEq w a b)
 
 #guard (testLTE 3 4 5) = some ()
