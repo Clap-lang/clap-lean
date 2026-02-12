@@ -242,10 +242,10 @@ end Test
 namespace Equiv
 
 lemma bits2numBound (v : List (ZMod p)) :
-  ((Core.bits2num (p:=p) v)).val (n:=p) < (2 ^ v.length)
+  (Core.bits2num (p:=p) v).val (n:=p) < 2 ^ v.length
   := sorry
 
-lemma bla (a b : FBitVec p) (h : a.length = b.length) :
+lemma addBound (a b : FBitVec p) (h : a.length = b.length) :
   (a.toF + b.toF).val (n:=p) < 2 ^ (a.length + 1) := by
   unfold FBitVec.toF
   have h2 x : (2 ^ (x + 1)) = (2 ^ x + 2 ^ x) := by grind
@@ -267,15 +267,26 @@ lemma bla (a b : FBitVec p) (h : a.length = b.length) :
 
 #check add_lt_add
 
-def binSum (a b : FBitVec p) (h : a.length = b.length) :
-  (Core.num2bits (p:=p) (a.length + 1) (a.toF + b.toF)).isSome := by
+def binSumSome (a b : FBitVec p) (h : a.length = b.length) :
+  (Core.num2bits (p:=p) (a.length + 1) (a.toF + b.toF)) =
+    some (Clap.num2bitsLsbPure (p:=p) (a.length + 1) (a.toF + b.toF)) := by
   have h2 : Core.num2bits (p:=p) = Clap.Spec.Compiler.num2bits (p:=p) := by rfl -- TODO
   rw [h2]
   rw [Clap.Spec.Compiler.num2bitsUnfold (p:=p)]
   split
   . simp
-  . have h3 := bla a b h
+  . have h3 := addBound a b h
     contradiction
+
+instance : Coe ℕ (F32 p) where
+  coe n := Clap.num2bitsLsbPure (p:=p) 32 (n:ZMod p)
+
+lemma equivBinSum (a b : ℕ) :
+  (FBitVec.binSum (p:=p) (a : F32 p) (b: F32 p)) =
+    (Nat.add a b : F32 p) := by
+  unfold FBitVec.binSum
+  rw [binSumSome]
+  dsimp
 
 instance : Coe UInt32 (F32 p) where
   coe n := Clap.num2bitsLsbPure (p:=p) 32 (n.toNat:ZMod p)
@@ -284,6 +295,6 @@ lemma equiv (a b : UInt32) :
   (F32.add (p:=p) (a : F32 p) (b: F32 p)) =
     (UInt32.add a b : F32 p) := by
   unfold F32.add
-  sorry
+
 
 end Equiv

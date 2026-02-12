@@ -6,10 +6,8 @@ namespace TestUInt
 
 open Clap.Sha2
 
-def stringToU8s (s:String) : Array UInt8 :=
-  let bs : ByteArray := s.toUTF8
-  let bs : Array UInt8 := bs.data
-  bs
+def stringToU8s (s:String) : Array UInt8 := s.toUTF8.data
+
 
 #guard digest (t := Clap.Sha2.Cpu.t) (stringToU8s "abc") =
   #[0xba7816bf, 0x8f01cfea, 0x414140de, 0x5dae2223, 0xb00361a3, 0x96177a9c, 0xb410ff61, 0xf20015ad]
@@ -28,8 +26,7 @@ abbrev p := Primes.goldilocks
 abbrev F' := ZMod p
 
 def stringToU8s (s:String) : Array (F8 p) :=
-  let bs : ByteArray := s.toUTF8
-  let bs : Array UInt8 := bs.data
+  let bs : Array UInt8 := s.toUTF8.data
   bs.map fun b =>
     let b : F' := (b.toNat : F')
     F8.ofF b
