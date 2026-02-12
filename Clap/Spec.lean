@@ -1,3 +1,4 @@
+import Clap.BitVec
 import Clap.Circuit
 import Clap.Simulation
 import Clap.Wheels
