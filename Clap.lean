@@ -18,3 +18,6 @@ import Clap.Sha2
 import Clap.Sha2Cpu
 import Clap.Sha2Circuit
 import Clap.Sha2Test
+import Clap.Compiler.Basic
+import Clap.Test.Wheels
+import Clap.Test.Compiler.Serialise
