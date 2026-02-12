@@ -76,14 +76,100 @@ def Cs.curry (n:ℕ) (k:Vector var n -> Cs p var) : Cs p var :=
   | 0 => k #v[]
   | n+1 => .lam (fun x:var => Cs.curry n (fun l => k (l.push x) ))
 
-def assert_bit_e (rest: Cs p var) (b:var) : Cs p var :=
+def assert_bit_e (b:var) (rest: Cs p var) : Cs p var :=
   .eq0 (.v b * (.c 1 - .v b)) rest
 
-def assert_bits_e {w:ℕ} (bs:Vector var w) (rest: Cs p var) : Cs p var :=
-  Vector.foldl assert_bit_e rest bs
+lemma assert_bit_e_spec {b : ZMod p} {rest : Cs p (ZMod p)} :
+    (assert_bit_e b rest).eval = if b = 0 ∨ b = 1 then rest.eval else denotation.n := by
+  unfold assert_bit_e
+  rewrite (occs := .pos [1]) [Cs.eval]
+  have : (Exp.v b * (Exp.c 1 - Exp.v b)).eval = 0 ↔ (b = 0 ∨ b = 1) := by
+    simp only [Exp.eval]
+    simp
+    have : 1 - b = 0 ↔ b = 1 := by
+      rw [sub_eq_iff_eq_add, zero_add]
+      aesop
+    rw [this]
+  simp only [this]
 
-def bits2num_e {w} (bits:Vector var w) : Exp p var :=
-  Vector.foldl (fun acc b => .v b + .c 2 * acc) (.c 0) bits
+def assert_bits_e {w:ℕ} (bs:Vector var w) (rest: Cs p var) : Cs p var :=
+  Vector.foldr assert_bit_e rest bs
+
+lemma assert_bits_e_spec {w : ℕ} {bs : Vector (ZMod p) w} {rest : Cs p (ZMod p)} :
+    (assert_bits_e bs rest).eval = if (∀ i : Fin w, bs[i] = 0 ∨ bs[i] = 1) then rest.eval else denotation.n := by
+  unfold assert_bits_e Vector.foldr
+  rw [←Array.foldr_toList]
+  have w_eq : w = bs.toArray.toList.length := by
+    simp
+  have {i : Fin w} : bs[i] = bs.toArray.toList.get (w_eq ▸ i) := by
+    simp
+    convert rfl
+    · simp
+    · exact eqRec_heq w_eq i
+  simp only [this]
+  clear this
+  have {ls : List (ZMod p) } :
+      (List.foldr assert_bit_e rest ls).eval =
+        if ∀ i, ls.get i = 0 ∨ ls.get i = 1 then rest.eval
+        else denotation.n := by
+    induction ls with
+    | nil => simp
+    | cons l ls ih =>
+      simp only [List.foldr_cons, List.length_cons, List.get_eq_getElem]
+      split_ifs with h
+      · have h₁ : l = 0 ∨ l = 1 := by
+          specialize h 0
+          simpa using h
+        have h₂ : ∀ (i : Fin ls.length), ls.get i = 0 ∨ ls.get i = 1 := by
+          intros i
+          specialize h i.succ
+          simp only [Fin.val_succ, List.getElem_cons_succ] at h
+          exact h
+        simp only [assert_bit_e_spec, h₁, ↓reduceIte, ih]
+        split_ifs
+        rfl
+      · rw [assert_bit_e_spec, ih]
+        split_ifs with h' h''
+        · exfalso
+          simp only [not_forall, not_or] at h
+          rcases h with ⟨i', h⟩
+          match i' with
+          | ⟨0, _⟩ =>
+            simp only [List.getElem_cons_zero] at h
+            tauto
+          | ⟨.succ i', i'_lt⟩ =>
+            simp only [Nat.succ_eq_add_one, List.getElem_cons_succ] at h
+            specialize h'' ⟨i', by linarith⟩
+            simp only [List.get_eq_getElem] at h h''
+            tauto
+        · rfl
+        · rfl
+  specialize @this bs.toArray.toList
+  convert this
+  apply Iff.intro
+  · intros h i
+    specialize h (w_eq.symm ▸ i)
+    have : i = w_eq ▸ w_eq.symm ▸ i :=
+      eq_of_heq (heq_eqRec_iff_heq.mpr (HEq.symm (eqRec_heq (Eq.symm w_eq) i)))
+    convert h
+  · intros h i
+    specialize h (w_eq ▸ i)
+    exact h
+
+def bits2num_e (bits : List var) : Exp p var :=
+  List.foldr (fun b acc => .v b + .c 2 * acc) (.c 0) bits
+
+lemma bits2num_eq_eval_bits2num_e {bits : List (ZMod p)} : (bits2num_e bits).eval = bits2num bits := by
+  unfold bits2num bits2num_e
+  generalize e_eq : Exp.c 0 = e
+  generalize v_eq : (0 : ZMod p) = v
+  have h : v = e.eval := by
+    rw [←v_eq, ←e_eq, Exp.eval]
+  induction bits with
+  | nil =>
+    simpa using h.symm
+  | cons l ls ih =>
+    simp only [List.foldr_cons, Exp.eval_add, ih, Exp.eval]
 
 def Circuit.toCs (c : Circuit p var) : Cs p var :=
   match c with
@@ -105,7 +191,7 @@ def Circuit.toCs (c : Circuit p var) : Cs p var :=
   | .num2bits w e c =>
     Cs.curry w (fun bits =>
       letI rest := (c bits.toList).toCs
-      letI rest := Cs.eq0 (bits2num_e bits - e) rest
+      letI rest := Cs.eq0 (bits2num_e bits.toArray.toList - e) rest
       assert_bits_e bits rest)
 
 def toCs' (c : Circuit' p) : Cs' p := fun var => (c var).toCs
