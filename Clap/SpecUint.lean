@@ -217,6 +217,8 @@ instance instCoreZMod : Core p where
 
 attribute [instance] instCoreZMod
 
+lemma equiv_eq0 : Core.eq0 (p:=p) = Clap.Spec.Compiler.eq0 (p:=p) := by rfl
+
 def testLTE (w:ℕ) (a b : F') : Option Unit := do
   FB.assert (p:=p) (<-F.lessThanEq w a b)
 

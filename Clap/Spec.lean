@@ -24,6 +24,15 @@ def is_zero (e : ZMod p) : Option (ZMod p) := if e = 0 then .some 1 else .some 0
 def num2bits [Fact (Nat.Prime p)] (w : ℕ) (e : ZMod p) : Option (List (ZMod p)) :=
   if e.val < 2^w then .some (num2bitsLsbPure w e) else .none
 
+namespace SeeThrough
+
+def equiv_eq0 (e : ZMod p) :
+  eq0 e = if e = 0 then .some () else .none := by
+  unfold eq0
+  rfl
+
+end SeeThrough
+
 export Clap (bits2num)
 
 section
