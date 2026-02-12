@@ -1,3 +1,4 @@
+import Clap.BitVec
 import Clap.Wheels
 import Mathlib.FieldTheory.Finite.Basic -- field operations
 
