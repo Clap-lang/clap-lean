@@ -45,7 +45,7 @@ inductive Cs (p : ℕ) (var : Type) : Type where
 def Csₑ (p:Nat) : Type := Cs p (ZMod p)
 def Cs' (p:Nat) : Type _ := (var:Type) -> Cs p var
 
-variable {p : ℕ} {var : Type} [Fact (Nat.Prime p)]
+variable {p : ℕ} {var : Type} [inst : Fact (Nat.Prime p)] [inst' : Fact (p ≠ 2)]
 
 open Clap.Circuit in
 def Cs.repr [Repr var] [Clap.Circuit.Index var]
@@ -79,6 +79,7 @@ def Cs.curry (n:ℕ) (k:Vector var n -> Cs p var) : Cs p var :=
 def assert_bit_e (b:var) (rest: Cs p var) : Cs p var :=
   .eq0 (.v b * (.c 1 - .v b)) rest
 
+omit inst' in
 lemma assert_bit_e_spec {b : ZMod p} {rest : Cs p (ZMod p)} :
     (assert_bit_e b rest).eval = if b = 0 ∨ b = 1 then rest.eval else denotation.n := by
   unfold assert_bit_e
@@ -156,9 +157,75 @@ lemma assert_bits_e_spec {w : ℕ} {bs : Vector (ZMod p) w} {rest : Cs p (ZMod p
     specialize h (w_eq ▸ i)
     exact h
 
+def assert_bits (args : List (ZMod p)) : Bool :=
+  List.all args (fun (x : ZMod p) => x == 0 ∨ x == 1)
+
+lemma bits2num_val_lt_2_pow_w_of_assert_bits  {args : List (ZMod p)} : assert_bits args → (bits2num args).val < 2 ^ args.length := by
+        intro cond₁
+        unfold assert_bits at cond₁
+        simp only [beq_iff_eq, Bool.decide_or, List.all_eq_true, Bool.or_eq_true,
+          decide_eq_true_eq] at cond₁
+        rw [bits2num_spec]
+        have {w : ℕ} {f : Fin w → ZMod p} : (∑ i, f i).val = (∑ i, (f i).val) % p := by
+          rw [Fin.sum_univ_def, Fin.sum_univ_def]
+          unfold List.sum
+          generalize ap_eq : (0 : ZMod p) = ap
+          generalize a_eq : 0 = a
+          generalize h : (List.finRange w) = ls
+          have : ap.val = a % p := by
+            aesop
+          clear a_eq ap_eq h
+          induction ls with
+          | nil =>
+            simpa using this
+          | cons l ls ih =>
+            simp [ZMod.val_add, ih, Nat.add_mod_mod]
+        rw [this]
+        apply Nat.mod_lt_of_lt
+        have : ∑ i : Fin args.length, (2 ^ i.1 * args[i]).val ≤ ∑ i : Fin args.length, 2 ^ i.1 := by
+          have {α : Type} [Fintype α] {f g : α → ℕ} : (∀ i, f i ≤ g i) → ∑ i, f i ≤ ∑ i, g i :=
+            fun a => Finset.sum_le_sum fun i a_1 => a i
+          apply this
+          intros i
+          specialize cond₁ args[i] (by simp)
+          rcases cond₁ with cond₁ | cond₁
+          · simp [cond₁]
+          · simp [cond₁]
+            have {a : ZMod p} {e : ℕ}: (a ^ e).val = a.val ^ e % p := by
+              induction e with
+              | zero =>
+                simp
+                exact ZMod.val_one_eq_one_mod p
+              | succ e ih =>
+                rw [pow_succ, pow_succ, ←Nat.mod_mul_mod, ←ih, ZMod.val_mul]
+            rw [this]
+            have : (2 : ZMod p).val = 2 := by
+              apply ZMod.val_ofNat_of_lt
+              apply Nat.two_lt_of_ne <;> intros h
+              · have := h ▸ inst.out
+                exact Nat.prime_zero_false this
+              · have := h ▸ inst.out
+                exact Nat.prime_one_false this
+              · have := h ▸ inst'.out
+                simp at this
+            rw [this]
+            exact Nat.mod_le _ _
+        apply lt_of_le_of_lt
+
+        exact this
+        clear this
+        clear this
+        clear cond₁
+        induction args.length with
+        | zero =>
+          simp
+        | succ w ih =>
+          simpa [Fin.sum_univ_castSucc, Nat.pow_succ, Nat.mul_two] using ih
+
 def bits2num_e (bits : List var) : Exp p var :=
   List.foldr (fun b acc => .v b + .c 2 * acc) (.c 0) bits
 
+omit inst' in
 lemma bits2num_eq_eval_bits2num_e {bits : List (ZMod p)} : (bits2num_e bits).eval = bits2num bits := by
   unfold bits2num bits2num_e
   generalize e_eq : Exp.c 0 = e
