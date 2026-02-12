@@ -19,7 +19,7 @@ structure Point3 (p : Nat) where
   y : ZMod p
   z : ZMod p
 
-def ex₀ {p : Nat} (p₁ : Point2 p) (p₂ : Point3 p) : Option Unit := do
+def Serialise.ex₁ {p : Nat} (p₁ : Point2 p) (p₂ : Point3 p) : Option Unit := do
   Spec.Compiler.eq0 (p₁.x + p₂.z)
   Spec.Compiler.accept
 
@@ -35,7 +35,7 @@ info: type -
 #guard_msgs(info, whitespace := lax) in
 set_option pp.funBinderTypes true in
 run_elab do
-  let serialised ← serialise `p (←find! `ex₀).value!
+  let serialised ← serialise `p (←find! `Serialise.ex₁).value!
   logInfo m!"def - {serialised}"
   logInfo m!"type - {←inferType serialised}"
 

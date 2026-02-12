@@ -21,3 +21,4 @@ import Clap.Sha2Test
 import Clap.Compiler.Basic
 import Clap.Test.Wheels
 import Clap.Test.Compiler.Serialise
+import Clap.Test.Compiler.Curry
