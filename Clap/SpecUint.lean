@@ -133,7 +133,7 @@ abbrev toF (v:FBitVec p) : F p := Core.bits2num v
 
 -- if arguments are both n-bit long, result is n+1 bits
 def binSum (a b : FBitVec p) : FBitVec p := Option.getD (do
-  let sum : F p := a.toF + b.toF
+  letI sum : F p := a.toF + b.toF
   num2bits (a.length + 1) sum)
   (FBitVec.default (a.length + 1))
 
@@ -241,15 +241,28 @@ end Test
 
 namespace Equiv
 
-lemma bits2numBound (v : List (ZMod p)) :
+lemma bits2numBound (v : List (ZMod p)) (h : 2 ^ v.length < p) :
   (Core.bits2num (p:=p) v).val (n:=p) < 2 ^ v.length
   := sorry
+
+lemma num2bits_length (w : ℕ) (e : ZMod p) :
+  (Clap.num2bitsLsbPure w e).length = w
+  := sorry
+
+lemma bits2num_num2bits (w : ℕ) (e : ZMod p) (h : e.val < 2^w) :
+  (Core.bits2num (p:=p) (Clap.num2bitsLsbPure w e)) = e
+  := sorry
+
+lemma bits2num_num2bits2 (w : ℕ) (e : ZMod p) (h : Clap.minBits e.val < w) :
+  (Core.bits2num (p:=p) (Clap.num2bitsLsbPure w e)) = e
+  := sorry
+
+lemma bla x : (2 ^ (x + 1)) = (2 ^ x + 2 ^ x) := by grind
 
 lemma addBound (a b : FBitVec p) (h : a.length = b.length) :
   (a.toF + b.toF).val (n:=p) < 2 ^ (a.length + 1) := by
   unfold FBitVec.toF
-  have h2 x : (2 ^ (x + 1)) = (2 ^ x + 2 ^ x) := by grind
-  rw [h2 (a.length)]
+  rw [bla (a.length)]
   have ha := bits2numBound a
   have hb := bits2numBound b
   have h2 := add_lt_add ha hb
@@ -267,26 +280,48 @@ lemma addBound (a b : FBitVec p) (h : a.length = b.length) :
 
 #check add_lt_add
 
+@[simp]
+def weird : Core.num2bits (p:=p) = Clap.Spec.Compiler.num2bits (p:=p) := by rfl -- TODO
+
 def binSumSome (a b : FBitVec p) (h : a.length = b.length) :
   (Core.num2bits (p:=p) (a.length + 1) (a.toF + b.toF)) =
     some (Clap.num2bitsLsbPure (p:=p) (a.length + 1) (a.toF + b.toF)) := by
-  have h2 : Core.num2bits (p:=p) = Clap.Spec.Compiler.num2bits (p:=p) := by rfl -- TODO
-  rw [h2]
+  rw [weird]
   rw [Clap.Spec.Compiler.num2bitsUnfold (p:=p)]
   split
   . simp
   . have h3 := addBound a b h
     contradiction
 
-instance : Coe ℕ (F32 p) where
-  coe n := Clap.num2bitsLsbPure (p:=p) 32 (n:ZMod p)
+instance : Coe (ZMod p) (FBitVec p) where
+  coe n := Clap.num2bitsLsbPure (p:=p) (Clap.minBits p) (n:ZMod p)
 
-lemma equivBinSum (a b : ℕ) :
-  (FBitVec.binSum (p:=p) (a : F32 p) (b: F32 p)) =
-    (Nat.add a b : F32 p) := by
-  unfold FBitVec.binSum
-  rw [binSumSome]
-  dsimp
+lemma equivBinSum (a b : ZMod p) (hp : p ≠ 0):
+  FBitVec.binSum (p:=p) (a : FBitVec p) (b : FBitVec p) =
+    (((a + b) : ZMod p) : FBitVec p) := by
+  have h1 := binSumSome a b
+  unfold FBitVec.binSum FBitVec.toF at *
+  rw [weird] at *
+  repeat (rw [bits2num_num2bits2] at *)
+  rw [num2bits_length] at *
+  repeat (rw [num2bits_length] at *)
+  simp at h1
+  simp [h1]
+  . sorry -- num2bitsLsbPure (minBits p + 1) (a + b) =
+          -- num2bitsLsbPure (minBits p)     (a + b)
+  . sorry -- Clap.minBits b.val < Clap.minBits p
+  . sorry -- same
+  . sorry -- Clap.minBits a.val < Clap.minBits p
+  . sorry -- same
+
+    -- have h2 := Nat.log2_self_le (n:=p) hp
+    -- simp only [Clap.minBits] at *
+    --     . apply lt_trans (b:=p)
+    --       apply ZMod.val_lt
+    --       apply Nat.lt_log2_self
+    --     . have h5 := ZMod.val_lt b
+    --       apply lt_trans h5
+    --       grind
 
 instance : Coe UInt32 (F32 p) where
   coe n := Clap.num2bitsLsbPure (p:=p) 32 (n.toNat:ZMod p)
