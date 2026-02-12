@@ -42,6 +42,12 @@ def fvarPrimeOfName (p : Name) (args : Array Expr) : MetaM Expr := do
 
 def serialisedUserName (name : Name) : Name := name.appendAfter "_ser"
 
+def curriedUserName (name : Name) (i : Nat) : Name :=
+  name.appendBefore s!"curried{i}_"
+
+def curriedUserNamesOfSize (name : Name) (n : Nat) : Array Name :=
+  (Array.range n).map (curriedUserName name)
+
 def vectorTypeOfSerialisable (prime : Q(Nat)) (sz : Nat) : Expr :=
   mkApp2 (.const `Vector [.zero]) q(ZMod $prime) (ToExpr.toExpr sz)
 
@@ -103,6 +109,36 @@ def serialise (p : Name) (f : Expr) : TermElabM Expr := do
     let (lctx, ictx, res) ← serialisedBody body newFVars toSerialise
     withLCtx lctx ictx do
       mkLambdaFVars (lctx.getFVars.filter (!serialisableFVars.contains ·)) res
+
+def curriedArgs (args : Array Expr) (p : Expr) : MetaM (Array FVar) := do
+  let mut newFVars := #[]
+  for arg in args do
+    let userName ← arg.fvarId!.getUserName
+    let (``Vector, #[_, sz]) := (← inferType arg).getAppFnArgs | continue
+    let bi ← arg.fvarId!.getBinderInfo
+    let names := curriedUserNamesOfSize userName sz.nat?.get!
+    for name in names do
+      newFVars := newFVars.push ⟨name, bi, ←mkAppM ``ZMod #[p]⟩
+  return newFVars
+
+def curriedBody (body : Expr) (newFVars : Array FVar) : TermElabM (LocalContext × LocalInstances × Expr) := do
+  withLocalDecls (newFVars.map (·.toLocalDeclD)) fun _ ↦ do
+    let lctx ← getLCtx
+    let ictx ← getLocalInstances
+    let res ← Meta.transform (skipConstInApp := true) body fun e ↦ do
+      let_expr GetElem.getElem _ _ _ _ _ coll idx _ := e | return .continue
+      let userName := curriedUserName (←coll.fvarId!.getUserName) idx.nat?.get!
+      let .some fvar := lctx.findFromUserName? userName | throwError m!"Unknown local declaration: {userName}"
+      return .done fvar.toExpr
+    return (lctx, ictx, res)
+
+def curry (p : Name) (f : Expr) : TermElabM Expr := do 
+  lambdaTelescope f fun args body ↦ do
+    let p ← fvarPrimeOfName p args
+    let newFVars ← curriedArgs args p
+    let (lctx, ictx, res) ← curriedBody body newFVars
+    withLCtx lctx ictx do
+      mkLambdaFVars (←lctx.getFVars.filterM fun fvar ↦ do return !(←inferType fvar).isAppOf ``Vector) res
 
 end Compiler
 
