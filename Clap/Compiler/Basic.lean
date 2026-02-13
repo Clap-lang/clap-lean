@@ -3,6 +3,9 @@ import Mathlib.Data.ZMod.Basic
 import Lean
 import Qq
 
+import Clap.Compilation
+import Clap.Compiler.Deep
+
 namespace Clap
 
 open Lean Qq Elab Meta
@@ -139,6 +142,63 @@ def curry (p : Name) (f : Expr) : TermElabM Expr := do
     let (lctx, ictx, res) ← curriedBody body newFVars
     withLCtx lctx ictx do
       mkLambdaFVars (←lctx.getFVars.filterM fun fvar ↦ do return !(←inferType fvar).isAppOf ``Vector) res
+
+def componentsOf (e : Expr) : MetaM (Array Expr) := do
+  let env ← getEnv
+  let type ← inferType e
+  let typeName := type.getAppFn.constName
+  if !isStructure env typeName then throwError m!"{type} is not a structure."
+  getStructureFields env typeName |>.mapM (mkProjection e)
+
+def wg (circuitName : Name) (argFvars : Array Expr) : TermElabM Expr := do
+  let #[(primeInst, p)] ← argFvars.filterMapM fun arg ↦ do
+    let ⟨0, ~q(Fact (Nat.Prime $p)), _⟩ ← inferTypeQ arg | return .none
+    return .some (arg, p)
+    | throwError m!"Expecting a single instance of `Nat.Prime`."
+  let args' ← argFvars.foldlM (init := #[]) fun acc arg ↦ do
+    let t ← inferType arg
+    let .some name := t.getAppFn.constName? | return acc
+    if (←arg.fvarId!.getBinderInfo).isExplicit && isStructure (←getEnv) name
+    then let components ← componentsOf arg
+         return acc.append components
+    else return acc
+  let zmodType ← inferType <| ←args'[0]?.getDM (throwError m!"No explicit arguments found.")
+  let args' ← mkAppM ``Array.mk #[←mkListLit zmodType args'.toList]
+  let body ←
+    mkAppM ``Wg.run #[
+      ←mkAppM ``Clap.toWg' #[mkAppN (.const circuitName []) #[p, primeInst]], args'
+    ]
+  mkLambdaFVars argFvars body
+
+def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
+  let compiledF ← serialise p f >>= curry p >>= toDeep
+  let compiledFname := serialisedUserName circuitName
+  addAndCompile <| .defnDecl {
+    name        := compiledFname
+    levelParams := []
+    type        := ←inferType compiledF
+    value       := compiledF
+    hints       := .regular 18
+    safety      := .safe
+  }
+  logInfo m!"Compiled {circuitName} into {compiledFname}."
+  lambdaTelescope f fun args _ ↦ do
+  let wg ← wg compiledFname args
+  let wgName := compiledFname.appendAfter "_wg"
+  addAndCompile <| .defnDecl {
+    name        := wgName
+    levelParams := []
+    type        := ←inferType wg
+    value       := wg
+    hints       := .regular 18
+    safety      := .safe
+  }
+  logInfo m!"Wg for {circuitName} is {wgName}."
+
+elab "#compile" circuit:ident "using" p:ident : command => Command.liftTermElabM do
+  let [decl] ← realizeGlobalConst circuit | throwError m!"Ambiguous constant: {circuit}"
+  let .some decl := (←getEnv).find? decl | throwError m!"Undeclared constant: {circuit}"
+  compile p.getId circuit.getId decl.value!
 
 end Compiler
 
