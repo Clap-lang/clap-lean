@@ -15,10 +15,10 @@ def accept : Unit := ()
 def eq0 (e : ZMod p) : Option Unit := if e = 0 then .some () else .none
 
 @[irreducible]
-def share (e : ZMod p) : Option (ZMod p) := e
+def share (e : ZMod p) : ZMod p := e
 
 @[irreducible]
-def is_zero (e : ZMod p) : Option (ZMod p) := if e = 0 then .some 1 else .some 0
+def is_zero (e : ZMod p) : ZMod p := if e = 0 then 1 else 0
 
 @[irreducible]
 def num2bits [Fact (Nat.Prime p)] (w : ℕ) (e : ZMod p) : Option (List (ZMod p)) :=

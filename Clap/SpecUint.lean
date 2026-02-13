@@ -14,8 +14,8 @@ class Core (p : ℕ) [Fact (Nat.Prime p)] : Type _ where
   const       : ZMod p → F
   accept      : Unit
   eq0         : F → Option Unit
-  share       : F → Option F
-  isZero      : F → Option FB
+  share       : F → F
+  isZero      : F → FB
   num2bits    : ℕ → F → Option (List FB)
   bits2num    : List FB → F
 
