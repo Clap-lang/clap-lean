@@ -63,7 +63,7 @@ def or (a b : FB p) : FB p := a + b - a * b
 instance : HOr (FB p) (FB p) (FB p) where
   hOr := or
 
-def not (a : FB p) : FB p := 1 + a - 2 * a
+def not (a : FB p) : FB p := 1 - a
 
 def xor (a b : FB p) : FB p := a + b - 2 * a * b
 
@@ -81,8 +81,7 @@ def lessThanEq (a b : FB p) : Option (FB p) := do
   return or na b
 
 def assert (a : FB p) : Option Unit := do
-  let b <- isZero (convert a)
-  eq0 (convert b)
+  eq0 (convert (not a))
 
 def assert_eq (a b : FB p) : Option Unit := do
   F.assert_eq (convert a) (convert b)
