@@ -15,6 +15,7 @@ class Core (p : ℕ) [Fact (Nat.Prime p)] : Type _ where
   accept      : Unit
   eq0         : F → Option Unit
   share       : F → F
+  shareB      : FB → FB
   isZero      : F → FB
   num2bits    : ℕ → F → Option (List FB)
   bits2num    : List FB → F
@@ -199,6 +200,7 @@ instance instCoreZMod : Core p where
   accept := Compiler.accept
   eq0 := Compiler.eq0
   share := Compiler.share
+  shareB := Compiler.share
   isZero := Compiler.is_zero
   num2bits := Compiler.num2bits
   bits2num := Compiler.bits2num

@@ -44,7 +44,7 @@ out = x*(y + z - 2*yz) + yz
 -/
 def maj (x y z : F32 p) : F32 p :=
   List.map (fun ((x,y),z) =>
-    let yz := y * z -- share (y * z)
+    let yz := shareB (y * z)
     x * (y + z - 2 * yz) + yz)
   ((x.zip y).zip z)
 
@@ -59,7 +59,7 @@ out = x * (1 - 2*y - 2*z + 4*yz) + y + z - 2 * yz
 -/
 def xor3 (x y z : F32 p) : F32 p :=
   List.map (fun ((x,y),z) =>
-    let yz := y * z -- share (y * z)
+    let yz := shareB (y * z)
     x * (1 - 2 * y - 2 * z + 4 * yz) + y + z - 2 * yz)
   ((x.zip y).zip z)
 
