@@ -108,6 +108,9 @@ def default (l:ℕ) : FBitVec p := List.replicate l 0
 def ofF (w:ℕ) (e:F p) : FBitVec p :=
   Option.getD (num2bits w e) (default w)
 
+def ofF! (w:ℕ) (e:F p) : Option (FBitVec p) :=
+  num2bits w e
+
 abbrev toF (v:FBitVec p) : F p := Core.bits2num v
 
 -- if arguments are both n-bit long, result is n+1 bits
@@ -130,6 +133,9 @@ variable [Fact (Primes.fits p 8)]
 
 def ofF (x:F p) : (F8 p) :=
   FBitVec.ofF 8 x
+
+def ofF! (x:F p) : Option (F8 p) :=
+  FBitVec.ofF! 8 x
 
 def ofUInt8 (u:UInt8) : Option (F8 p) :=
   num2bits 8 (u.toNat)
