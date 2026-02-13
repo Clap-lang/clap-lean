@@ -10,7 +10,7 @@ class Core (p : ℕ) [Fact (Nat.Prime p)] : Type _ where
   FB          : Type
   [instFB     : Field FB]
   [instFBChar : CharP FB p]
-  convert     : FB → F
+  convert     : FB → F -- true = 1, false = 0
   const       : ZMod p → F
   accept      : Unit
   eq0         : F → Option Unit
@@ -46,11 +46,6 @@ end F
 
 namespace FB
 
-/-
-  For now we assume that true is anything ≠ 0, double check this and
-  make sure that any use of covert does not rely on true=1
--/
-
 def true : FB p := 1
 
 def false : FB p := 0
@@ -58,33 +53,19 @@ def false : FB p := 0
 def eq (a b : FB p) : Option (FB p) := do
   F.eq (convert a) (convert b)
 
--- 0 0 0
--- 0 t 0
--- t 0 0
--- t t t*t
 def and (a b : FB p) : FB p := a * b
 
 instance : HAnd (FB p) (FB p) (FB p) where
   hAnd := and
 
--- 0 0 0
--- 0 t t
--- t 0 t
--- t t 2t
-def or (a b : FB p) : FB p := a + b
+def or (a b : FB p) : FB p := a + b - a * b
 
 instance : HOr (FB p) (FB p) (FB p) where
   hOr := or
 
--- 0 1
--- t 0
-def not (a : FB p) : Option (FB p) := isZero (convert a)
+def not (a : FB p) : FB p := 1 + a - 2 * a
 
--- 0 0 0
--- 0 t -t
--- t 0 t
--- t t 0
-def xor (a b : FB p) : (FB p) := a - b
+def xor (a b : FB p) : FB p := a + b - 2 * a * b
 
 instance : HXor (FB p) (FB p) (FB p) where
   hXor := xor
