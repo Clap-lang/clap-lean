@@ -1,4 +1,4 @@
-import Clap.SpecUint
+import Clap.Lang
 
 namespace StringExample
 

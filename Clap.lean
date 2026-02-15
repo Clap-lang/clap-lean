@@ -9,7 +9,7 @@ import Clap.Cfold
 import Clap.Unshare
 import Clap.Dedup
 import Clap.Spec
-import Clap.SpecUint
+import Clap.Lang
 import Clap.Wheels
 import Clap.Milestone
 --import Clap.R1CS -- disabled when bumped to 4.27

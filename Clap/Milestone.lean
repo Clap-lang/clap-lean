@@ -1,7 +1,7 @@
 --import Clap.Circuit
 import Clap.Primes
 import Clap.Compilation
-import Clap.SpecUint
+import Clap.Lang
 import Clap.Compiler.Basic
 
 open Clap.Lang

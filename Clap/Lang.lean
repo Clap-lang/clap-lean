@@ -3,7 +3,7 @@ import Clap.Spec
 
 namespace Clap.Lang
 
-class Core (p : ℕ) [Fact (Nat.Prime p)] : Type _ where
+class Core (p : ℕ) : Type _ where
   F           : Type
   [instF      : Field F]
   [instFChar  : CharP F p]
@@ -183,18 +183,20 @@ end F32
 end Clap.Lang
 
 
-namespace Test
+namespace Clap.Lang.ZMod
 
-open Clap.Lang
+open Clap Lang
+open Clap Spec
 
-abbrev p := Primes.goldilocks
-abbrev F' := ZMod p
-
-open Clap.Spec
-
-instance instCoreZMod : Core p where
-  F := F'
-  FB := F'
+/-
+  This instance should be avaible only when proving or testing a
+  circuit, never while writing it. The risk is that a circuit which
+  breaks the abstraction of Core won't be compilable.
+-/
+scoped instance instCoreZMod (p:ℕ) [Fact (Nat.Prime p)]
+: Core p where
+  F := ZMod p
+  FB := ZMod p
   convert := id
   const := id
   accept := Compiler.accept
@@ -205,9 +207,19 @@ instance instCoreZMod : Core p where
   num2bits := Compiler.num2bits
   bits2num := Compiler.bits2num
 
-attribute [instance] instCoreZMod
+--attribute [instance] instCoreZMod
 
-def testLTE (w:ℕ) (a b : F') : Option Unit := do
+end Clap.Lang.ZMod
+
+
+namespace Test
+
+abbrev p := Primes.babybear
+
+open Clap Lang Core
+open Clap Lang ZMod
+
+def testLTE (w:ℕ) (a b : F p) : Option Unit := do
   FB.assert (p:=p) (<-F.lessThanEq w a b)
 
 #guard (testLTE 3 4 5) = some ()

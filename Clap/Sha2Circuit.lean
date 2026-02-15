@@ -1,4 +1,4 @@
-import Clap.SpecUint
+import Clap.Lang
 import Clap.Sha2
 import Clap.Sha2Cpu
 import Clap.Wheels
