@@ -228,7 +228,7 @@ end Clap.Lang
 
 namespace Test
 
-abbrev p := Primes.babybear
+abbrev p := Primes.goldilocks
 
 open Clap.Lang Core ZMod
 
@@ -247,5 +247,15 @@ def testBinSum (a b expected : FBitVec p) : Option Unit := do
 example : (testBinSum [1,0,0] [1,0,0] [0,1,0,0]) = some () := by native_decide
 example : (testBinSum [0,0,1] [0,0,1] [0,0,0,1]) = some () := by native_decide
 example : (testBinSum [1,1,1] [1,0,0] [0,0,0,1]) = some () := by native_decide
+
+instance : Coe UInt32 (F32 p) where
+  coe n := Clap.num2bitsLsbPure 32 n.toNat
+
+instance (n:ℕ) : OfNat (F32 p) n where
+  ofNat := Clap.num2bitsLsbPure 32 n
+
+example :
+  letI a : UInt32 := 2^32 - 1
+  (F32.add (a : F32 p) (1 : F32 p)) = ((UInt32.add a 1) : F32 p) := by native_decide
 
 end Test
