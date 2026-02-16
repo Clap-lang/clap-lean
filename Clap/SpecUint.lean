@@ -3,7 +3,7 @@ import Clap.Spec
 
 namespace Clap.Lang
 
-class Core (p : ℕ) [Fact (Nat.Prime p)] : Type _ where
+class Core (p : ℕ) : Type _ where
   F           : Type
   [instF      : Field F]
   [instFChar  : CharP F p]

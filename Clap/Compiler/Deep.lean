@@ -134,12 +134,22 @@ partial def addVar (p : Expr) (body : Expr) : MetaM Expr := do
 --  logInfo m!"addVar RETURN {(<-inferType e)}"
   return e
 
-partial def skipFact (p e : Expr) : MetaM Expr := do
+partial def skipCore (p e : Expr) : MetaM Expr := do
   match e with
   | .lam name type body bi =>
     let e <- withLocalDecl name bi type fun fvar => do
       let body := body.instantiate1 fvar
       let body <- addVar p body
+      mkLambdaFVars #[fvar] body
+    return e
+  | _ => throwError m!"skip: first argument not a lambda\n{e}"
+
+partial def skipFact (p e : Expr) : MetaM Expr := do
+  match e with
+  | .lam name type body bi =>
+    let e <- withLocalDecl name bi type fun fvar => do
+      let body := body.instantiate1 fvar
+      let body ← skipCore p body
       mkLambdaFVars #[fvar] body
     return e
   | _ => throwError m!"skip: first argument not a lambda\n{e}"
