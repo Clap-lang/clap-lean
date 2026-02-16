@@ -34,10 +34,10 @@ instance : Fact (fits goldilocks 32) := by decide
 -- BN254 scalar field
 def bn254 := 21888242871839275222246405745257275088548364400416034343698204186575808495617
 instance : Fact (Nat.Prime bn254) := by sorry
-instance : Fact (fits babybear 8) := by decide
+instance : Fact (fits bn254 8) := by decide
 instance : Fact (fits bn254 16) := by decide
 instance : Fact (fits bn254 32) := by decide
-instance : Fact (fits bn254 128) := by decide
+instance : Fact (fits bn254 64) := by decide
 
 instance {p:ℕ}: ToString (ZMod p) where
   toString z := toString z.val

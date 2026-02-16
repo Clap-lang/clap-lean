@@ -21,6 +21,7 @@ import Clap.Sha2.Cpu
 import Clap.Sha2.Circuit
 import Clap.Sha2.Test
 import Clap.Poseidon.Poseidon
+import Clap.Packing
 import Clap.Compiler.Basic
 import Clap.Compiler.Deep
 import Clap.Test.Wheels
