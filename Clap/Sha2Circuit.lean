@@ -111,52 +111,39 @@ abbrev p := Primes.goldilocks
 open Clap.Sha2.Circuit
 open Clap.Lang Core ZMod
 
-instance : Coe ℕ (List (ZMod p)) where
-  coe n := Clap.num2bitsLsbPure (p:=p) 32 (n:ZMod p)
+instance : Coe USize (F p) where
+  coe n := n.toNat
 
-def testCh (x y z expected : ZMod p) : Option Unit :=
-  F32.assert_eq (p := p) (ch x y z) expected
+instance : Coe UInt8 (F8 p) where
+  coe n := Clap.num2bitsLsbPure 8 n.toNat
 
-example : testCh 23 45 56 45 = some () := by native_decide
-example : (Clap.Sha2.Cpu.ch 23 45 56 = 45) := by native_decide
+instance (n:ℕ) : OfNat (F32 p) n where
+  ofNat := Clap.num2bitsLsbPure 32 n
 
-example : testCh 12 465 678 674 = some () := by native_decide
-example : (Clap.Sha2.Cpu.ch 12 465 678 = 674) := by native_decide
+instance : Coe UInt32 (F32 p) where
+  coe n := Clap.num2bitsLsbPure 32 n.toNat
 
-def testMaj (x y z expected : ZMod p) : Option Unit :=
-  F32.assert_eq (p := p) (maj x y z) expected
+example : ch (p:=p) 23 45 56 = Clap.Sha2.Cpu.ch 23 45 56 := by native_decide
+example : ch (p:=p) 12 465 678 = Clap.Sha2.Cpu.ch 12 465 678 := by native_decide
 
-example : testMaj 23 45 56 61 = some () := by native_decide
-example : (Clap.Sha2.Cpu.maj 23 45 56 = 61) := by native_decide
+example : maj (p:=p) 23 45 56 = Clap.Sha2.Cpu.maj 23 45 56 := by native_decide
+example : maj (p:=p) 12 465 678 = Clap.Sha2.Cpu.maj 12 465 678 := by native_decide
 
-example : testMaj 12 465 678 132 = some () := by native_decide
-example : (Clap.Sha2.Cpu.maj 12 465 678 = 132) := by native_decide
+example : xor3 (p:=p) 23 45 56 = Clap.Sha2.Cpu.xor3 23 45 56 := by native_decide
+example : xor3 (p:=p) 12 465 678 = Clap.Sha2.Cpu.xor3 12 465 678 := by native_decide
 
-def testXor3 (x y z expected : ZMod p) : Option Unit :=
-  F32.assert_eq (p := p) (xor3 x y z) expected
+example :
+  letI n : USize := 3
+  letI ins : UInt32 := 56
+  rotR (p:=p) n (ins : F32 p) = Clap.Sha2.Cpu.rotR n ins := by native_decide
 
-example : testXor3 23 45 56 2 = some () := by native_decide
-example : (Clap.Sha2.Cpu.xor3 23 45 56 = 2) := by native_decide
+example :
+  letI n : USize := 3
+  letI ins : UInt32 := 56
+  shiftRight (p:=p) n (ins : F32 p) = Clap.Sha2.Cpu.shiftRight n ins := by native_decide
 
-example : testXor3 12 465 678 891 = some () := by native_decide
-example : (Clap.Sha2.Cpu.xor3 12 465 678 = 891) := by native_decide
-
-def testRotR (n:USize) (x expected : ZMod p) : Option Unit :=
-  F32.assert_eq (p := p) (rotR n x) expected
-
-example : testRotR 3 56 7 = some () := by native_decide
-example : (Clap.Sha2.Cpu.rotR 3 56 = 7) := by native_decide
-
-def testShiftRight (n:USize) (x expected : ZMod p) : Option Unit :=
-  F32.assert_eq (p := p) (shiftRight n x) expected
-
-example : testShiftRight 3 56 7 = some () := by native_decide
-example : (Clap.Sha2.Cpu.shiftRight 3 56 = 7) := by native_decide
-
-def testToNatBe (bs: Array (List (ZMod p))) (expected : ZMod p) : Option Unit :=
-  F32.assert_eq (p := p) (to_nat_be bs) expected
-
-#guard (Clap.Sha2.Cpu.to_nat_be #[3,5,7] = 197895)
-#guard! testToNatBe (#[3,5,7].map (fun (x:ℕ) => (x:List (ZMod p)))) 197895 = some ()
+example :
+  letI ins : Array UInt8 := #[3,5,7,9]
+  to_nat_be (p:=p) (ins.map fun (u8:UInt8) => (u8:F8 p)) = Clap.Sha2.Cpu.to_nat_be ins := by native_decide
 
 end Tests
