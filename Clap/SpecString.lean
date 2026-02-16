@@ -51,7 +51,7 @@ def test {maxLen} (fs : Vector (F p) maxLen) : Option (F p) := do
   let s <- MyString.ofVec fs
   s.len
 
-#guard test #v[255,15,0] = some 2
-#guard test #v[256,15,0] = none
+example : test #v[255,15,0] = some 2 := by native_decide
+example : test #v[256,15,0] = none := by native_decide
 
 end TestStringExample
