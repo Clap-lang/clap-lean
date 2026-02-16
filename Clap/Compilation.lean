@@ -42,10 +42,10 @@ inductive Cs (p : ℕ) (var : Type) : Type where
   | eq0 (_ : Exp p var) (_ : Cs p var)
   | lam (_ : var -> Cs p var)
 
-def Csₑ (p:Nat) : Type := Cs p (ZMod p)
-def Cs' (p:Nat) : Type _ := (var:Type) -> Cs p var
+def Csₑ (p : ℕ) : Type := Cs p (ZMod p)
+def Cs' (p : ℕ) : Type _ := (var : Type) -> Cs p var
 
-variable {p : ℕ} {var : Type} [inst : Fact (Nat.Prime p)] [inst' : Fact (p ≠ 2)]
+variable {p : ℕ} {var : Type} [inst : Fact (Nat.Prime p)] [inst' : Fact (p > 2)]
 
 open Clap.Circuit in
 def Cs.repr [Repr var] [Clap.Circuit.Index var]
@@ -71,12 +71,12 @@ def Cs.eval (c : Cs p (ZMod p)) : denotation (ZMod p) :=
 def eval' (cs:Cs' p) : denotation (ZMod p) := (cs (ZMod p)).eval
 
 @[reducible]
-def Cs.curry (n:ℕ) (k:Vector var n -> Cs p var) : Cs p var :=
+def Cs.curry (n : ℕ) (k : Vector var n -> Cs p var) : Cs p var :=
   match n with
   | 0 => k #v[]
-  | n+1 => .lam (fun x:var => Cs.curry n (fun l => k (l.push x) ))
+  | n+1 => .lam (fun (x : var) => Cs.curry n (fun l => k (l.push x) ))
 
-def assert_bit_e (b:var) (rest: Cs p var) : Cs p var :=
+def assert_bit_e (b : var) (rest : Cs p var) : Cs p var :=
   .eq0 (.v b * (.c 1 - .v b)) rest
 
 omit inst' in
@@ -93,134 +93,117 @@ lemma assert_bit_e_spec {b : ZMod p} {rest : Cs p (ZMod p)} :
     rw [this]
   simp only [this]
 
-def assert_bits_e {w:ℕ} (bs:Vector var w) (rest: Cs p var) : Cs p var :=
-  Vector.foldr assert_bit_e rest bs
+def assert_bits_e (bs : List var) (rest : Cs p var) : Cs p var :=
+  List.foldr assert_bit_e rest bs
 
-lemma assert_bits_e_spec {w : ℕ} {bs : Vector (ZMod p) w} {rest : Cs p (ZMod p)} :
-    (assert_bits_e bs rest).eval = if (∀ i : Fin w, bs[i] = 0 ∨ bs[i] = 1) then rest.eval else denotation.n := by
-  unfold assert_bits_e Vector.foldr
-  rw [←Array.foldr_toList]
-  have w_eq : w = bs.toArray.toList.length := by
-    simp
-  have {i : Fin w} : bs[i] = bs.toArray.toList.get (w_eq ▸ i) := by
-    simp
-    convert rfl
-    · simp
-    · exact eqRec_heq w_eq i
-  simp only [this]
-  clear this
-  have {ls : List (ZMod p) } :
-      (List.foldr assert_bit_e rest ls).eval =
-        if ∀ i, ls.get i = 0 ∨ ls.get i = 1 then rest.eval
-        else denotation.n := by
-    induction ls with
-    | nil => simp
-    | cons l ls ih =>
-      simp only [List.foldr_cons, List.length_cons, List.get_eq_getElem]
-      split_ifs with h
-      · have h₁ : l = 0 ∨ l = 1 := by
-          specialize h 0
-          simpa using h
-        have h₂ : ∀ (i : Fin ls.length), ls.get i = 0 ∨ ls.get i = 1 := by
-          intros i
-          specialize h i.succ
-          simp only [Fin.val_succ, List.getElem_cons_succ] at h
-          exact h
-        simp only [assert_bit_e_spec, h₁, ↓reduceIte, ih]
-        split_ifs
-        rfl
-      · rw [assert_bit_e_spec, ih]
-        split_ifs with h' h''
-        · exfalso
-          simp only [not_forall, not_or] at h
-          rcases h with ⟨i', h⟩
-          match i' with
-          | ⟨0, _⟩ =>
-            simp only [List.getElem_cons_zero] at h
-            tauto
-          | ⟨.succ i', i'_lt⟩ =>
-            simp only [Nat.succ_eq_add_one, List.getElem_cons_succ] at h
-            specialize h'' ⟨i', by linarith⟩
-            simp only [List.get_eq_getElem] at h h''
-            tauto
-        · rfl
-        · rfl
-  specialize @this bs.toArray.toList
-  convert this
-  apply Iff.intro
-  · intros h i
-    specialize h (w_eq.symm ▸ i)
-    have : i = w_eq ▸ w_eq.symm ▸ i :=
-      eq_of_heq (heq_eqRec_iff_heq.mpr (HEq.symm (eqRec_heq (Eq.symm w_eq) i)))
-    convert h
-  · intros h i
-    specialize h (w_eq ▸ i)
-    exact h
+omit inst' in
+lemma assert_bits_e_spec {bs : List (ZMod p)} {rest : Cs p (ZMod p)} :
+    (assert_bits_e bs rest).eval =
+      if (∀ i : Fin bs.length, bs[i] = 0 ∨ bs[i] = 1)
+      then rest.eval
+      else denotation.n := by
+  unfold assert_bits_e
+  induction bs with
+  | nil => simp
+  | cons l ls ih =>
+    simp only [List.foldr_cons, List.length_cons]
+    split_ifs with h
+    · have h₁ : l = 0 ∨ l = 1 := by
+        specialize h 0
+        simpa using h
+      have h₂ : ∀ (i : Fin ls.length), ls.get i = 0 ∨ ls.get i = 1 := by
+        intros i
+        specialize h i.succ
+        simp only [Fin.getElem_fin, Fin.val_succ, List.getElem_cons_succ] at h
+        exact h
+      simp only [assert_bit_e_spec, h₁, ↓reduceIte, ih]
+      split_ifs with h'
+      · rfl
+      · exfalso; apply h'; exact h₂
+    · rw [assert_bit_e_spec, ih]
+      split_ifs with h' h''
+      · exfalso
+        simp only [not_forall, not_or] at h
+        rcases h with ⟨i', h⟩
+        match i' with
+        | ⟨0, _⟩ =>
+          simp only [Fin.zero_eta, Fin.getElem_fin, Fin.coe_ofNat_eq_mod, Nat.zero_mod,
+            List.getElem_cons_zero] at h
+          tauto
+        | ⟨.succ i', i'_lt⟩ =>
+          simp only [Nat.succ_eq_add_one] at h
+          specialize h'' ⟨i', by linarith⟩
+          tauto
+      · rfl
+      · rfl
+
+omit inst in
+omit inst' in
+lemma rw_bisim_uncurry : ∀ (w : ℕ) (d : denotation (ZMod p)) (k : Vector (ZMod p) w -> Cs p (ZMod p)),
+ (∀ args : Vector (ZMod p) w, Simulation.wrBisim d (k args).eval) ->
+ Simulation.wrBisim d (Cs.curry _ k).eval := by
+  intro w
+  induction w
+  case _ =>
+    intros d k h
+    simp [Cs.curry]
+    apply h
+  case _ ih =>
+    intros d k h
+    simp [Cs.curry]
+    constructor
+    intro x
+    apply ih
+    intro args
+    apply h
 
 def assert_bits (args : List (ZMod p)) : Bool :=
   List.all args (fun (x : ZMod p) => x == 0 ∨ x == 1)
 
-lemma bits2num_val_lt_2_pow_w_of_assert_bits  {args : List (ZMod p)} : assert_bits args → (bits2num args).val < 2 ^ args.length := by
-        intro cond₁
-        unfold assert_bits at cond₁
-        simp only [beq_iff_eq, Bool.decide_or, List.all_eq_true, Bool.or_eq_true,
-          decide_eq_true_eq] at cond₁
-        rw [bits2num_spec]
-        have {w : ℕ} {f : Fin w → ZMod p} : (∑ i, f i).val = (∑ i, (f i).val) % p := by
-          rw [Fin.sum_univ_def, Fin.sum_univ_def]
-          unfold List.sum
-          generalize ap_eq : (0 : ZMod p) = ap
-          generalize a_eq : 0 = a
-          generalize h : (List.finRange w) = ls
-          have : ap.val = a % p := by
-            aesop
-          clear a_eq ap_eq h
-          induction ls with
-          | nil =>
-            simpa using this
-          | cons l ls ih =>
-            simp [ZMod.val_add, ih, Nat.add_mod_mod]
-        rw [this]
-        apply Nat.mod_lt_of_lt
-        have : ∑ i : Fin args.length, (2 ^ i.1 * args[i]).val ≤ ∑ i : Fin args.length, 2 ^ i.1 := by
-          have {α : Type} [Fintype α] {f g : α → ℕ} : (∀ i, f i ≤ g i) → ∑ i, f i ≤ ∑ i, g i :=
-            fun a => Finset.sum_le_sum fun i a_1 => a i
-          apply this
-          intros i
-          specialize cond₁ args[i] (by simp)
-          rcases cond₁ with cond₁ | cond₁
-          · simp [cond₁]
-          · simp [cond₁]
-            have {a : ZMod p} {e : ℕ}: (a ^ e).val = a.val ^ e % p := by
-              induction e with
-              | zero =>
-                simp
-                exact ZMod.val_one_eq_one_mod p
-              | succ e ih =>
-                rw [pow_succ, pow_succ, ←Nat.mod_mul_mod, ←ih, ZMod.val_mul]
-            rw [this]
-            have : (2 : ZMod p).val = 2 := by
-              apply ZMod.val_ofNat_of_lt
-              apply Nat.two_lt_of_ne <;> intros h
-              · have := h ▸ inst.out
-                exact Nat.prime_zero_false this
-              · have := h ▸ inst.out
-                exact Nat.prime_one_false this
-              · have := h ▸ inst'.out
-                simp at this
-            rw [this]
-            exact Nat.mod_le _ _
-        apply lt_of_le_of_lt
+omit inst' in
+lemma assert_bits_spec (args : List (ZMod p)) :
+  assert_bits args ↔ ∀ i : Fin args.length, args[i] = 0 ∨ args[i] = 1 := by
+    apply Iff.intro
+    · intros h i
+      unfold assert_bits at h
+      simp only [beq_iff_eq, Bool.decide_or, List.all_eq_true, Bool.or_eq_true,
+        decide_eq_true_eq] at h
+      exact h _ (by simp)
+    · intros h
+      unfold assert_bits
+      simp only [beq_iff_eq, Bool.decide_or, List.all_eq_true, Bool.or_eq_true, decide_eq_true_eq]
+      intros x h'
+      rcases List.mem_iff_get.mp h' with ⟨i, h'⟩
+      rw [←h']
+      exact h i
 
-        exact this
-        clear this
-        clear this
-        clear cond₁
-        induction args.length with
-        | zero =>
-          simp
-        | succ w ih =>
-          simpa [Fin.sum_univ_castSucc, Nat.pow_succ, Nat.mul_two] using ih
+lemma bits2num_val_lt_2_pow_w_of_assert_bits  {args : List (ZMod p)} : assert_bits args → (bits2num args).val < 2 ^ args.length := by
+  intro cond₁
+  unfold assert_bits at cond₁
+  simp only [beq_iff_eq, Bool.decide_or, List.all_eq_true, Bool.or_eq_true,
+    decide_eq_true_eq] at cond₁
+  rw [bits2num_spec, ZMod.val_sum]
+  apply Nat.mod_lt_of_lt
+  have : ∑ i : Fin args.length, (2 ^ i.1 * args[i]).val ≤ ∑ i : Fin args.length, 2 ^ i.1 := by
+    apply Finset.sum_le_sum
+    intros i _
+    specialize cond₁ args[i] (by simp)
+    rcases cond₁ with cond₁ | cond₁
+    · simp [cond₁]
+    · simp [cond₁]
+      convert ZMod.val_pow_le
+      refine Eq.symm (ZMod.val_ofNat_of_lt inst'.out)
+      constructor
+      linarith [inst'.out]
+  apply lt_of_le_of_lt
+  exact this
+  clear this
+  clear cond₁
+  induction args.length with
+  | zero =>
+    simp
+  | succ w ih =>
+    simpa [Fin.sum_univ_castSucc, Nat.pow_succ, Nat.mul_two] using ih
 
 def bits2num_e (bits : List var) : Exp p var :=
   List.foldr (fun b acc => .v b + .c 2 * acc) (.c 0) bits
@@ -237,6 +220,75 @@ lemma bits2num_eq_eval_bits2num_e {bits : List (ZMod p)} : (bits2num_e bits).eva
     simpa using h.symm
   | cons l ls ih =>
     simp only [List.foldr_cons, Exp.eval_add, ih, Exp.eval]
+
+
+
+omit inst' in
+lemma reduce₁ :
+  ∀ {args : List (ZMod p)} {cs : Cs p (ZMod p)},
+    assert_bits args -> (assert_bits_e args cs).eval = cs.eval := by
+  intros args cs
+  rw [assert_bits_e_spec]
+  unfold assert_bits
+  aesop
+
+omit inst' in
+lemma reduce₂ :
+  ∀ {args : List (ZMod p)} {e : Expₑ p} {cs : Cs p (ZMod p)},
+    e.eval = bits2num args -> (Cs.eq0 (bits2num_e args - e) cs).eval = cs.eval := by
+  intros args e cs h
+  rw (occs := .pos [1]) [Cs.eval]
+  unfold Exp.eval
+  rw [bits2num_spec] at h
+  rw [bits2num_eq_eval_bits2num_e, h, bits2num_spec]
+  simp
+
+omit inst' in
+lemma reduce {args : List (ZMod p)} {e : Expₑ p} {cs : Cs p (ZMod p)} :
+  assert_bits args /\ e.eval = bits2num args ->
+    (assert_bits_e args (.eq0 (bits2num_e args - e) cs)).eval = cs.eval := by
+  rintro ⟨h₁, h₂⟩
+  rw [reduce₁ h₁, reduce₂ h₂]
+
+omit inst' in
+lemma fail₁ :
+  ∀ {args : List (ZMod p)} {cs : Cs p (ZMod p)},
+    ¬ assert_bits args -> (assert_bits_e args cs).eval = .n := by
+  intros args cs h
+  rw [assert_bits_e_spec]
+  unfold assert_bits at h
+  simp only [beq_iff_eq, Bool.decide_or, List.all_eq_true, Bool.or_eq_true, decide_eq_true_eq,
+    not_forall, not_or] at h
+  split_ifs with h'
+  · exfalso
+    rcases h with ⟨_, xh, _⟩
+    rcases List.mem_iff_get.mp xh with ⟨i, _⟩
+    specialize h' i
+    aesop
+  · rfl
+
+omit inst' in
+lemma fail₂ :
+  ∀ {args : List (ZMod p)} {e : Expₑ p} {cs : Cs p (ZMod p)},
+    e.eval ≠ (bits2num args) -> (Cs.eq0 (bits2num_e args - e) cs).eval = .n := by
+  intros args e cs h
+  unfold Cs.eval Exp.eval
+  rw [bits2num_eq_eval_bits2num_e]
+  split_ifs with h'
+  · exfalso
+    apply h
+    rw [sub_eq_zero, eq_comm] at h'
+    rw [h']
+  · rfl
+
+omit inst' in
+lemma fail : ∀ {args : List (ZMod p)} {e : Expₑ p} {cs : Cs p (ZMod p)},
+ (¬ (assert_bits args /\ e.eval = bits2num args)) ->
+ (assert_bits_e args (.eq0 (bits2num_e args - e) cs)).eval = denotation.n := by
+  intros args e cs h
+  by_cases h' : assert_bits args
+  · rw [reduce₁ h', fail₂ (by tauto)]
+  · rw [fail₁ h']
 
 def Circuit.toCs (c : Circuit p var) : Cs p var :=
   match c with
@@ -257,9 +309,10 @@ def Circuit.toCs (c : Circuit p var) : Cs p var :=
      -- e≠0 inv=e^-1 o=0
   | .num2bits w e c =>
     Cs.curry w (fun bits =>
+      let ls := bits.toArray.toList
       letI rest := (c bits.toList).toCs
-      letI rest := Cs.eq0 (bits2num_e bits.toArray.toList - e) rest
-      assert_bits_e bits rest)
+      letI rest := Cs.eq0 (bits2num_e ls - e) rest
+      assert_bits_e ls rest)
 
 def toCs' (c : Circuit' p) : Cs' p := fun var => (c var).toCs
 
@@ -361,16 +414,38 @@ theorem soundness {c : Circuitₑ p} : wrBisim c.eval c.toCs.eval := by
         case isFalse hmul => constructor
       case isFalse hsub => constructor
     case is_zero.h.h.isFalse he0 =>
-      -- aesop
       split
       case isTrue hsub =>
         split
-        case isTrue hmul =>
-          aesop
+        case isTrue hmul => aesop
         case isFalse hmul => constructor
       case isFalse hsub => constructor
   | num2bits w e c h =>
-      sorry
+      simp [Circuit.eval, Circuit.toCs]
+      apply rw_bisim_uncurry
+      intros args
+      by_cases cond₁ : assert_bits args.toArray.toList <;> by_cases cond₂ : Exp.eval e = bits2num args.toArray.toList
+      · rw [reduce ⟨cond₁, cond₂⟩]
+        have : e.eval.val < 2 ^ w := by
+          have : w = args.toArray.toList.length := by
+            rw [Array.length_toList, Vector.size_toArray]
+          simp only [cond₂, this]
+          exact bits2num_val_lt_2_pow_w_of_assert_bits cond₁
+        simp [this]
+        have : (num2bitsLsbPure w (bits2num args.toList)) = args.toList := by
+          rw [assert_bits_spec] at cond₁
+          convert num2bitsLsbPure_of_bits2num_eq sorry cond₁
+          simp
+        unfold Vector.toList at this
+        rw [cond₂, this]
+        exact h _
+      · rw [reduce₁ cond₁, fail₂ cond₂]
+        exact wrBisim.none
+      · rw [fail₁ cond₁]
+        exact wrBisim.none
+      · rw [fail₁ cond₁]
+        exact wrBisim.none
+
 
 theorem soundness' {c:Circuit' p} :
   wrBisim (Circuit.eval' c) (eval' (toCs' c)) := by

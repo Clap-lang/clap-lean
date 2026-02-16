@@ -66,3 +66,25 @@ def Lean.Expr.foldlRecM {α : Type}
         Functor.mapConst TransformStep.continue (get >>= monadLift ∘ flip f e' >>= set)
     ) init
   )
+
+lemma ZMod.val_sum' {m n : ℕ} [NeZero n] {f : Fin m → ZMod n} :
+    (∑ i, f i).val =  (∑ i, (f i).val) % n := by
+  induction m with
+  | zero => simp
+  | succ m ih =>
+    rw [Fin.sum_univ_succ, Fin.sum_univ_succ, ZMod.val_add, ih, Nat.add_mod_mod]
+
+lemma ZMod.val_sum {n : ℕ} [NeZero n] {α : Type} [Fintype α] {f : α → ZMod n} :
+    (∑ i, f i).val =  (∑ i, (f i).val) % n := by
+  rcases Finite.exists_equiv_fin α with ⟨α_size, ⟨exists_bij⟩⟩
+  let g := exists_bij.toFun
+  let g_inv := exists_bij.invFun
+  have h₁ {β : Type} [Semiring β] {f : α → β} : ∑ i, f i = ∑ i, f (g_inv i) := by
+    refine Function.Bijective.finset_sum g (Equiv.bijective exists_bij) f (fun x => f (g_inv x)) ?_
+    intros x
+    simp only
+    congr
+    dsimp [g, g_inv]
+    exact (Equiv.apply_eq_iff_eq_symm_apply exists_bij).mp rfl
+  rw [h₁, h₁]
+  exact val_sum'
