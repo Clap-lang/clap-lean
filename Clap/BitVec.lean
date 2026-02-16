@@ -1,9 +1,12 @@
-import Clap.Primes
 import Mathlib.FieldTheory.Finite.Basic
+
+import Clap.Primes
+import Clap.Wheels
+
 
 namespace Clap
 
-variable {p : ℕ} [Fact (Nat.Prime p)]
+variable {p : ℕ} [inst : Fact (Nat.Prime p)]
 
 /-- Computes the `n` bit binary representation of `f`.
     If `n < minBits f` the result is truncated.
@@ -17,6 +20,15 @@ def num2bitsLsbPure (n : ℕ) (f : ZMod p) : List (ZMod p) :=
     let bit := f.val % 2
     let rem := f.val / 2
     bit::(num2bitsLsbPure n rem)
+
+lemma num2bitsLsbPure_length {w : ℕ} {v : ZMod p} : (num2bitsLsbPure w v).length = w := by
+  revert v
+  induction w with
+  | zero => simp [num2bitsLsbPure]
+  | succ w ih =>
+    intros v
+    unfold num2bitsLsbPure
+    simp [ih]
 
 #guard num2bitsLsbPure (p := Primes.babybear) 3 1 = [1,0,0]
 #guard num2bitsLsbPure (p := Primes.babybear) 3 4 = [0,0,1]
@@ -111,5 +123,94 @@ lemma bits2num_spec {bits : List (ZMod p)} : bits2num bits = ∑ i : Fin bits.le
         grind
       simp only [h₁ h, Nat.cast_ofNat, List.foldr_cons, LeftDistribClass.left_distrib, ←mul_assoc, this]
       erw [ih]
+
+lemma sum_pow_2_eq [inst' : Fact (p > 2)] {w : ℕ} {f : Fin w → ZMod p} :
+  2 ^ w < p → (∀ i, f i = 0 ∨ f i = 1) →
+    (∑ i, 2 ^ i.1 * f i).val = ∑ i, 2 ^ i.1 * (f i).val := by
+  intros h₁ h₂
+  rw [ZMod.val_sum]
+  have : (∑ i, (2 ^ i.1 * f i).val) = (∑ i, 2 ^ i.1 * (f i).val) := by
+    congr; ext i
+    rw [ZMod.val_mul]
+    rcases h₂ i with h₂ | h₂ <;> rw [h₂]
+    · simp
+    · have p_fact : 2 < p := by
+        refine Nat.two_lt_of_ne ?_ ?_ ?_ <;> intros h
+        · rw [h] at inst
+          exact Nat.prime_zero_false inst.out
+        · rw [h] at inst
+          exact Nat.prime_one_false inst.out
+        · rw [h] at inst'
+          simpa using inst'.out
+      have : ZMod.val (2 : ZMod p) ^ i.1 < p := by
+        rw [ZMod.val_ofNat_of_lt p_fact]
+        have : OfNat.ofNat 2 = 2 := by decide
+        rw [this]
+        transitivity
+        exact (Nat.pow_lt_pow_iff_right (by decide)).mpr i.isLt
+        exact h₁
+      rw [ZMod.val_pow this, ZMod.val_one, mul_one, mul_one]
+      rw [ZMod.val_ofNat_of_lt p_fact, Nat.mod_eq_of_lt]
+      transitivity
+      · exact (Nat.pow_lt_pow_iff_right (by decide)).mpr i.isLt
+      · exact h₁
+  rw [this, Nat.mod_eq_of_lt]
+  apply lt_of_le_of_lt
+  apply Finset.sum_le_sum
+  intros i _
+  have {a b : ℕ} : b = 0 ∨ b = 1 → a * b ≤ a := by aesop
+  apply this
+  rcases h₂ i with h₂ | h₂ <;> rw [h₂]
+  · aesop
+  · right; exact ZMod.val_one p
+  refine lt_trans ?_ h₁
+  rw [@Fin.sum_univ_eq_sum_range, Nat.geomSum_eq]
+  simp; rfl
+
+lemma num2bitsLsbPure_of_bits2num_eq [Fact (p > 2)] {ls : List (ZMod p)} :
+  2 ^ ls.length < p →
+  (∀ i : Fin ls.length, ls[i] = 0 ∨ ls[i] = 1) →
+  (num2bitsLsbPure ls.length (bits2num ls)) = ls := by
+    intros p_bound h'
+    rw [bits2num_spec]
+    induction ls with
+    | nil =>
+     simp [num2bitsLsbPure]
+    | cons l ls ih =>
+      simp only [List.length_cons, Fin.getElem_fin, num2bitsLsbPure, List.cons.injEq]
+      simp only [List.length_cons] at p_bound
+      rw [sum_pow_2_eq p_bound (by simpa using h')]
+      have len_bound : 2 ^ ls.length < p := by rw [pow_succ] at p_bound; nlinarith
+      specialize ih len_bound (fun i ↦ by simpa using h' i.succ)
+      have : ∑ i : Fin (ls.length + 1), 2 ^ i.1 * (l :: ls)[i.1].val = l.val + 2 * ∑ i : Fin ls.length, 2 ^ i.1 * ls[i].val := by
+        induction ls with
+        | nil => simp
+        | cons l' ls ih' =>
+          rw [Fin.univ_succ]
+          simp only [Finset.sum_cons, List.length_cons, Fin.coe_ofNat_eq_mod, Nat.zero_mod, pow_zero,
+            List.getElem_cons_zero, one_mul, Finset.sum_map, Function.Embedding.coeFn_mk,
+            Fin.val_succ, List.getElem_cons_succ, Fin.getElem_fin, add_right_inj, Finset.mul_sum]
+          grind
+      have l_lt_2 : l.val < 2 := by
+        simp only [List.length_cons] at h'
+        specialize h' 0; simp only [Fin.getElem_fin, Fin.coe_ofNat_eq_mod, Nat.zero_mod,
+          List.getElem_cons_zero] at h'
+        rcases h' with h' | h' <;> simp [h', ZMod.val_one]
+      rw [this, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt l_lt_2]
+      apply And.intro (by simp)
+      have l_div_2_eq : l.val / 2 = 0 := by
+        refine Nat.div_eq_of_lt ?_
+        have : (l :: ls).length = ls.length + 1 := by simp
+        simp only [List.length_cons] at h'
+        rcases h' 0 with h' | h' <;> simp only [Fin.getElem_fin, Fin.coe_ofNat_eq_mod, Nat.zero_mod,
+          List.getElem_cons_zero] at h' <;> simp [h', ZMod.val_one]
+      have : ∀ (i : Fin ls.length), ls[i] = 0 ∨ ls[i] = 1 := by
+        intro i
+        simp only [List.length_cons] at h'
+        specialize h' i.succ
+        simpa using h'
+      rw [Nat.add_mul_div_left _ _ ((by decide) : 0 < 2), l_div_2_eq, zero_add, ←sum_pow_2_eq len_bound this]
+      convert ih
+      exact ZMod.natCast_zmod_val _
 
 end Clap
