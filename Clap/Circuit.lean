@@ -175,7 +175,7 @@ inductive Circuit (p : ℕ) (var : Type) : Type where
 
 abbrev Circuitₑ (p : ℕ) := Circuit p (ZMod p)
 -- TODO remove all ' definitions
-abbrev Circuit' (p : ℕ) : Type _ := (var:Type) -> Circuit p var
+abbrev Circuit' (p : ℕ) : Type _ := (var : Type) -> Circuit p var
 
 /-
   Warning: var must be kept abstract, if var is fixed we can write bogus examples
@@ -307,7 +307,7 @@ theorem is_zero_congr (he : el ≈ er) (h: ∀ x, kl x ≈ kr x) :
   aesop
 
 @[gcongr]
-theorem num2bits_congr w {kl kr : List (ZMod p) -> Circuitₑ p} (he: el ≈ er) (hk: ∀ x, kl x ≈ kr x) :
+theorem num2bits_congr {w : ℕ} {kl kr : List (ZMod p) -> Circuitₑ p} (he: el ≈ er) (hk: ∀ x, kl x ≈ kr x) :
   num2bits w el kl ≈ num2bits w er kr := by
   aesop
 
