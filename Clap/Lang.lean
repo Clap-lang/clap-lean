@@ -180,6 +180,17 @@ def assert_eq (a b : F32 p) := FBitVec.assert_eq a b
 
 end F32
 
+abbrev F64 (p:ℕ) [Fact (Primes.fits p 64)] [Core p] := FBitVec p
+
+namespace F64
+
+variable [Fact (Primes.fits p 64)]
+
+def ofF! (x:F p) : Option (F64 p) :=
+  FBitVec.ofF! 64 x
+
+end F64
+
 namespace ZMod
 
 open Clap.Spec
