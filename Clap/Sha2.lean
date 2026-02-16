@@ -29,6 +29,8 @@ class Sha (t : T) where
   [i₃ : Inhabited t.U32]
   [i₅ : HAdd t.U32 t.U32 t.U32]
   [i₆ : Inhabited t.US]
+  [i₇ : ToString t.U32]
+  [i₈ : ToString t.U8]
   to_nat_be : Array t.U8 -> t.U32
   rotR       : USize -> t.U32 -> t.U32
   shiftRight : USize -> t.U32 -> t.U32
@@ -36,7 +38,7 @@ class Sha (t : T) where
   ch   : (x y z : t.U32) -> t.U32
   maj  : (x y z : t.U32) -> t.U32
 
-attribute [instance] Sha.i₀ Sha.i₁ Sha.i₂ Sha.i₃ Sha.i₄ Sha.i₅ Sha.i₆
+attribute [instance] Sha.i₀ Sha.i₁ Sha.i₂ Sha.i₃ Sha.i₄ Sha.i₅ Sha.i₆ Sha.i₇ Sha.i₈
 
 variable {t : T} [Sha t]
 
@@ -134,13 +136,14 @@ def padding (msg : Array t.U8) : Array t.U8 :=
 
 -- result size 16
 def parse_u32 (msg : Array t.U8) : Array t.U32 :=
+  assert! (msg.size == 64)
   aux 0 #[]
 where
   aux (start:Nat) (acc : Array t.U32) : Array t.U32 :=
     let u32 : t.U32 := Sha.to_nat_be (Array.extract msg start (stop:=start+4))
     let acc := acc.push u32
     if start >= msg.size-4
-    then acc
+    then assert! (acc.size = 16) ; acc
     else aux (start+4) acc
 
 -- Section 5.2
@@ -149,11 +152,11 @@ def parse_blocks (msg : Array t.U8) : Array (Block t.U32) :=
   aux 0 #[]
 where
   aux (start : Nat) (acc : Array (Block t.U32)) : Array (Block t.U32) :=
-  let block : Array t.U8 := Array.extract msg start (stop:=start+64)
-  let acc := acc.push (parse_u32 block)
-  if start >= msg.size-64
-  then acc
-  else aux (start+64) acc
+    let block : Array t.U8 := Array.extract msg start (stop:=start+64)
+    let acc := acc.push (parse_u32 block)
+    if start >= msg.size-64
+    then acc
+    else aux (start+64) acc
 
 -- Section 6.2.2 step 1
 def schedule (block : Block t.U32) : RoundConstantsTable t.U32 :=
@@ -199,9 +202,9 @@ def shuffle_i (ws:RoundConstantsTable t.U32) (hash: Hash t.U32) (i:Nat) : Hash t
 def shuffle (ws:RoundConstantsTable t.U32) (hash: Hash t.U32) : Hash t.U32 :=
   aux hash 0
 where
-  aux a (i:Nat) :=
-    if i>=64 then a else
-    let hash := shuffle_i ws a i
+  aux hash (i:Nat) :=
+    if i>=64 then hash else
+    let hash := shuffle_i ws hash i
     aux hash (i+1)
 
 def compress (block : Block t.U32) (hash : Hash t.U32) : Hash t.U32 :=

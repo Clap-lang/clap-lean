@@ -85,6 +85,11 @@ def natToHex (n : ℕ) : String :=
   let s := String.ofList ((natToBytesBe n).map natToHexChar)
   if s.length % 2 = 0 then s else "0" ++ s
 
+def natOfBytesBe (a : Array UInt8) : ℕ :=
+  (a.reverse.foldl (fun (pow,acc) i => (pow*256, acc + (i.toNat * pow))) (1,0)).2
+
+--#eval natToHex (natOfBytesBe #[0x61, 0x62, 0x63, 0x80])
+
 end Clap
 
 def Lean.Expr.foldlRecM {α : Type}

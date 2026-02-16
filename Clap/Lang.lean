@@ -184,6 +184,9 @@ namespace ZMod
 
 open Clap.Spec
 
+instance onlyForDebugF {p:ℕ} : ToString (ZMod p) where
+  toString f := natToHex f.val
+
 /-
   This instance should be avaible only when proving or testing a
   circuit, never while writing it. The risk is that a circuit which
@@ -201,6 +204,9 @@ scoped instance instCoreZMod (p:ℕ) [Fact (Nat.Prime p)] : Core p where
   isZero := Compiler.is_zero
   num2bits := Compiler.num2bits
   bits2num := Compiler.bits2num
+  onlyForDebugF
+  onlyForDebugFB := onlyForDebugF
+
 
 /-
 TODO it should be possible to replace the extended definition below with this definition but there is an error

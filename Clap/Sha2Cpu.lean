@@ -1,3 +1,4 @@
+import Clap.Wheels
 import Clap.Sha2
 
 namespace Clap.Sha2.Cpu
@@ -40,6 +41,9 @@ def shiftRight (n : USize) (x : UInt32) : UInt32 :=
 
 abbrev t : Clap.Sha2.T := {US:=USize, U8:=UInt8, U32:=UInt32}
 
+instance (priority := high) i₇ : ToString UInt32 where
+  toString f := Clap.natToHex f.toNat
+
 instance : Clap.Sha2.Sha t where
   xor3
   rotR
@@ -47,5 +51,6 @@ instance : Clap.Sha2.Sha t where
   to_nat_be
   ch
   maj
+  i₇
 
 end Clap.Sha2.Cpu
