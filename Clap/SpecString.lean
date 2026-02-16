@@ -4,9 +4,15 @@ namespace StringExample
 
 open Clap.Lang
 
-variable {p : ℕ} [Fact (Nat.Prime p)] [Core p] [Fact (Primes.fits p 8)]
+variable {p : ℕ} [abstractCore : Core p] [Fact (Primes.fits p 8)]
 
 open Core
+
+/--
+info: abstractCore
+-/
+#guard_msgs in
+#synth Core p
 
 def countZeros {maxLen : ℕ} (fs : Vector (F p) maxLen) : Option (F p) := do
   Vector.foldlM (fun (len:F p) f => do
@@ -36,17 +42,13 @@ end StringExample
 
 namespace TestStringExample
 
+open Clap.Lang Core ZMod
 open StringExample
-open Clap.Lang
 
-abbrev p := Primes.goldilocks
-abbrev F := ZMod p
+abbrev p := Primes.babybear
 
-instance : Coe ℕ F where
-  coe n := Core.const (n:ZMod p)
-
-def test {maxLen} (fs : Vector F maxLen) : Option F := do
-  let s <- MyString.ofVec (p:=p) (Vector.map Core.const fs)
+def test {maxLen} (fs : Vector (F p) maxLen) : Option (F p) := do
+  let s <- MyString.ofVec fs
   s.len
 
 #guard test #v[255,15,0] = some 2

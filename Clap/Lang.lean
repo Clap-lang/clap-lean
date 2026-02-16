@@ -25,7 +25,7 @@ class Core (p : ℕ) : Type _ where
 
 attribute [instance] Core.instF Core.instFChar Core.instFB Core.instFBChar Core.onlyForDebugF Core.onlyForDebugFB
 
-variable {p : ℕ} [Fact (Nat.Prime p)] [Core p]
+variable {p : ℕ} [Core p]
 
 open Core
 
@@ -99,7 +99,7 @@ def F.lessThanEq (w : ℕ) (a b : F p) : Option (FB p) := do
     (<-acc) &&& l) (some 1) ab
 
 /-- LSB first, like the output of num2bits -/
-abbrev FBitVec (p:ℕ) [Fact (Nat.Prime p)] [Core p] := List (FB p)
+abbrev FBitVec (p:ℕ) [Core p] := List (FB p)
 
 namespace FBitVec
 
@@ -125,7 +125,7 @@ def assert_eq (a b : FBitVec p) : Option Unit :=
 
 end FBitVec
 
-abbrev F8 (p:ℕ) [Fact (Primes.fits p 8)] [Fact (Nat.Prime p)] [Core p] := FBitVec p
+abbrev F8 (p:ℕ) [Fact (Primes.fits p 8)] [Core p] := FBitVec p
 
 namespace F8
 
@@ -150,7 +150,7 @@ def assert_eq (a b : F8 p) := FBitVec.assert_eq a b
 end F8
 
 
-abbrev F32 (p:ℕ) [Fact (Primes.fits p 32)] [Fact (Nat.Prime p)] [Core p] := FBitVec p
+abbrev F32 (p:ℕ) [Fact (Primes.fits p 32)] [Core p] := FBitVec p
 
 namespace F32
 
@@ -180,21 +180,16 @@ def assert_eq (a b : F32 p) := FBitVec.assert_eq a b
 
 end F32
 
-end Clap.Lang
+namespace ZMod
 
-
-namespace Clap.Lang.ZMod
-
-open Clap Lang
-open Clap Spec
+open Clap.Spec
 
 /-
   This instance should be avaible only when proving or testing a
   circuit, never while writing it. The risk is that a circuit which
   breaks the abstraction of Core won't be compilable.
 -/
-scoped instance instCoreZMod (p:ℕ) [Fact (Nat.Prime p)]
-: Core p where
+scoped instance instCoreZMod (p:ℕ) [Fact (Nat.Prime p)] : Core p where
   F := ZMod p
   FB := ZMod p
   convert := id
@@ -207,32 +202,48 @@ scoped instance instCoreZMod (p:ℕ) [Fact (Nat.Prime p)]
   num2bits := Compiler.num2bits
   bits2num := Compiler.bits2num
 
---attribute [instance] instCoreZMod
+/-
+TODO it should be possible to replace the extended definition below with this definition but there is an error
+class Extended (p:ℕ) [Fact (Nat.Prime p)] : Type _ extends Core p, DecidableEq (Core.F p)
+-/
 
-end Clap.Lang.ZMod
+class extended (p:ℕ) [Fact (Nat.Prime p)] [Core p] : Type _ where
+  ins : Core p
+  [i₀ : DecidableEq (Core.F p)]
+  [i₁ : {n:ℕ} → OfNat (Core.F p) n]
+
+attribute [instance] extended.i₀ extended.i₁
+
+scoped instance bla (p:ℕ) [Fact (Nat.Prime p)] : extended p where
+  ins := instCoreZMod p
+  i₀ := inferInstanceAs (DecidableEq (ZMod p))
+  i₁ := inferInstanceAs ({n:ℕ} → OfNat (ZMod p) n)
+
+end ZMod
+
+end Clap.Lang
 
 
 namespace Test
 
 abbrev p := Primes.babybear
 
-open Clap Lang Core
-open Clap Lang ZMod
+open Clap.Lang Core ZMod
 
 def testLTE (w:ℕ) (a b : F p) : Option Unit := do
   FB.assert (p:=p) (<-F.lessThanEq w a b)
 
-#guard (testLTE 3 4 5) = some ()
-#guard (testLTE 3 5 5) = some ()
-#guard (testLTE 3 5 4) = none
-#guard (testLTE 3 2 1) = none
+example : (testLTE 3 4 5) = some () := by native_decide
+example : (testLTE 3 5 5) = some () := by native_decide
+example : (testLTE 3 5 4) = none := by native_decide
+example : (testLTE 3 2 1) = none := by native_decide
 
 
 def testBinSum (a b expected : FBitVec p) : Option Unit := do
   FBitVec.assert_eq (FBitVec.binSum a b) expected
 
-#guard (testBinSum [1,0,0] [1,0,0] [0,1,0,0]) = some ()
-#guard (testBinSum [0,0,1] [0,0,1] [0,0,0,1]) = some ()
-#guard (testBinSum [1,1,1] [1,0,0] [0,0,0,1]) = some ()
+example : (testBinSum [1,0,0] [1,0,0] [0,1,0,0]) = some () := by native_decide
+example : (testBinSum [0,0,1] [0,0,1] [0,0,0,1]) = some () := by native_decide
+example : (testBinSum [1,1,1] [1,0,0] [0,0,0,1]) = some () := by native_decide
 
 end Test
