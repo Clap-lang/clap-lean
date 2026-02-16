@@ -371,21 +371,35 @@ def wrap (wg : Wg p) (cs : Cs p (ZMod p)) : Cs p (ZMod p) :=
 
 open Simulation
 
-theorem soundness {c : Circuitₑ p} : wrBisim c.eval c.toCs.eval := by
+def circuitWF : Circuitₑ p → Prop
+| .nil => True
+| .eq0 _ c => circuitWF c
+| .lam c => ∀ i, circuitWF (c i)
+| .share _ c => ∀ i, circuitWF (c i)
+| .is_zero _ c => ∀ i, circuitWF (c i)
+| .num2bits w _ c => 2 ^ w < p ∧ ∀ i, circuitWF (c i)
+
+
+theorem soundness {c : Circuitₑ p} : circuitWF c → wrBisim c.eval c.toCs.eval := by
   induction c with
   | nil =>
+    intros h
     simp [Circuit.eval,Circuit.toCs]
     constructor
-  | lam k h =>
+  | lam k ih =>
+    intros h
+    unfold circuitWF at h
     simp [Circuit.eval,Circuit.toCs]
     constructor
-    exact h
-  | eq0 e c h =>
+    exact fun x ↦ ih _ (h x)
+  | eq0 e c ih =>
+    intros h
     simp [Circuit.eval,Cs.eval,Circuit.toCs]
     split
-    apply h
+    apply ih h
     constructor
-  | share e c h =>
+  | share e c ih =>
+    intros h
     simp [Circuit.eval,Cs.eval,Circuit.toCs]
     apply wrBisim.right
     intro x
@@ -393,9 +407,10 @@ theorem soundness {c : Circuitₑ p} : wrBisim c.eval c.toCs.eval := by
     split
     have hmy : x = Exp.eval e := by grind
     rw [<-hmy]
-    apply h
+    apply ih _ (h x)
     constructor
-  | is_zero e c h =>
+  | is_zero e c ih =>
+    intros h
     apply wrBisim.right
     intro inv
     apply wrBisim.right
@@ -410,7 +425,7 @@ theorem soundness {c : Circuitₑ p} : wrBisim c.eval c.toCs.eval := by
           simp [*] at *
           have hmy : o=1 := by grind
           rw [hmy]
-          apply h
+          apply ih _ (h 1)
         case isFalse hmul => constructor
       case isFalse hsub => constructor
     case is_zero.h.h.isFalse he0 =>
@@ -420,7 +435,8 @@ theorem soundness {c : Circuitₑ p} : wrBisim c.eval c.toCs.eval := by
         case isTrue hmul => aesop
         case isFalse hmul => constructor
       case isFalse hsub => constructor
-  | num2bits w e c h =>
+  | num2bits w e c ih =>
+      rintro ⟨inv, h⟩
       simp [Circuit.eval, Circuit.toCs]
       apply rw_bisim_uncurry
       intros args
@@ -434,11 +450,12 @@ theorem soundness {c : Circuitₑ p} : wrBisim c.eval c.toCs.eval := by
         simp [this]
         have : (num2bitsLsbPure w (bits2num args.toList)) = args.toList := by
           rw [assert_bits_spec] at cond₁
-          convert num2bitsLsbPure_of_bits2num_eq sorry cond₁
-          simp
+          have : args.toArray.toList.length = w := by simp
+          convert num2bitsLsbPure_of_bits2num_eq (by convert inv) cond₁
+          exact this.symm
         unfold Vector.toList at this
         rw [cond₂, this]
-        exact h _
+        exact ih _ (h args.toArray.toList)
       · rw [reduce₁ cond₁, fail₂ cond₂]
         exact wrBisim.none
       · rw [fail₁ cond₁]
@@ -447,8 +464,8 @@ theorem soundness {c : Circuitₑ p} : wrBisim c.eval c.toCs.eval := by
         exact wrBisim.none
 
 
-theorem soundness' {c:Circuit' p} :
-  wrBisim (Circuit.eval' c) (eval' (toCs' c)) := by
+theorem soundness' {c : Circuit' p} :
+  circuitWF (c (ZMod p)) → wrBisim (Circuit.eval' c) (eval' (toCs' c)) := by
   apply soundness
 
 
