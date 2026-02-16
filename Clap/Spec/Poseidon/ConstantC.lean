@@ -1,6 +1,6 @@
 import Clap.Primes
 
-namespace Clap.Poseidon.Constant.C
+namespace Clap.Spec.Poseidon.Constant.C
 
 open Primes
 
@@ -2276,4 +2276,4 @@ def C17 : Array (ZMod bn254) := #[
   0xe7119275a25b2b8a4a6aca534650e84ec72b490a41384d44975ed8c80a2a28a
 ]
 
-end Clap.Poseidon.Constant.C
+end Clap.Spec.Poseidon.Constant.C

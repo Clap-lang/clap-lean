@@ -1,4 +1,4 @@
-namespace Clap.Sha2
+namespace Clap.Spec.Sha2
 
 -- https://github.com/cryspen/hax/blob/main/examples/sha256/src/sha256.rs
 /-
@@ -221,4 +221,4 @@ where
     let acc := compress blocks[i]! acc
     process_blocks blocks acc (i+1)
 
-end Clap.Sha2
+end Clap.Spec.Sha2

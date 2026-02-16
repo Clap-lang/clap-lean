@@ -1,9 +1,10 @@
 import Clap.Lang
-import Clap.Sha2
-import Clap.Sha2Cpu
+import Clap.Spec.BitVec
+import Clap.Spec.Sha2.Basic
+import Clap.Spec.Sha2.Sha2Cpu
 import Clap.Wheels
 
-namespace Clap.Sha2.Circuit
+namespace Clap.Spec.Sha2.Circuit
 
 open Clap.Lang
 
@@ -74,7 +75,7 @@ def shiftRight (n : USize) (x : F32 p) : F32 p :=
   let l := List.drop n.toNat x
   l ++ List.replicate n.toNat 0
 
-abbrev t p [Core p] [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)] : Clap.Sha2.T := {
+abbrev t p [Core p] [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)] : Clap.Spec.Sha2.T := {
   US:=F (p:=p),
   U8:=F8 (p:=p),
   U32:=F32 (p:=p)
@@ -93,7 +94,7 @@ def to_nat_be (bs:Array (F8 p)) : F32 p :=
   let litteEndian := bs.toList.reverse
   List.flatten litteEndian
 
-instance : Clap.Sha2.Sha (t p) where
+instance : Clap.Spec.Sha2.Sha (t p) where
   xor3
   rotR
   shiftRight
@@ -101,14 +102,14 @@ instance : Clap.Sha2.Sha (t p) where
   maj
   to_nat_be
 
-end Clap.Sha2.Circuit
+end Clap.Spec.Sha2.Circuit
 
 
 namespace Tests
 
 abbrev p := Primes.goldilocks
 
-open Clap.Sha2.Circuit
+open Clap.Spec.Sha2.Circuit
 open Clap.Lang Core ZMod
 
 instance : Coe ℕ (List (ZMod p)) where
@@ -118,45 +119,45 @@ def testCh (x y z expected : ZMod p) : Option Unit :=
   F32.assert_eq (p := p) (ch x y z) expected
 
 #guard testCh 23 45 56 45 = some ()
-#guard (Clap.Sha2.Cpu.ch 23 45 56 = 45)
+#guard (Clap.Spec.Sha2.Cpu.ch 23 45 56 = 45)
 
 #guard testCh 12 465 678 674 = some ()
-#guard (Clap.Sha2.Cpu.ch 12 465 678 = 674)
+#guard (Clap.Spec.Sha2.Cpu.ch 12 465 678 = 674)
 
 def testMaj (x y z expected : ZMod p) : Option Unit :=
   F32.assert_eq (p := p) (maj x y z) expected
 
 #guard testMaj 23 45 56 61 = some ()
-#guard (Clap.Sha2.Cpu.maj 23 45 56 = 61)
+#guard (Clap.Spec.Sha2.Cpu.maj 23 45 56 = 61)
 
 #guard testMaj 12 465 678 132 = some ()
-#guard (Clap.Sha2.Cpu.maj 12 465 678 = 132)
+#guard (Clap.Spec.Sha2.Cpu.maj 12 465 678 = 132)
 
 def testXor3 (x y z expected : ZMod p) : Option Unit :=
   F32.assert_eq (p := p) (xor3 x y z) expected
 
 #guard testXor3 23 45 56 2 = some ()
-#guard (Clap.Sha2.Cpu.xor3 23 45 56 = 2)
+#guard (Clap.Spec.Sha2.Cpu.xor3 23 45 56 = 2)
 
 #guard testXor3 12 465 678 891 = some ()
-#guard (Clap.Sha2.Cpu.xor3 12 465 678 = 891)
+#guard (Clap.Spec.Sha2.Cpu.xor3 12 465 678 = 891)
 
 def testRotR (n:USize) (x expected : ZMod p) : Option Unit :=
   F32.assert_eq (p := p) (rotR n x) expected
 
 #guard testRotR 3 56 7 = some ()
-#guard (Clap.Sha2.Cpu.rotR 3 56 = 7)
+#guard (Clap.Spec.Sha2.Cpu.rotR 3 56 = 7)
 
 def testShiftRight (n:USize) (x expected : ZMod p) : Option Unit :=
   F32.assert_eq (p := p) (shiftRight n x) expected
 
 #guard testShiftRight 3 56 7 = some ()
-#guard (Clap.Sha2.Cpu.shiftRight 3 56 = 7)
+#guard (Clap.Spec.Sha2.Cpu.shiftRight 3 56 = 7)
 
 def testToNatBe (bs: Array (List (ZMod p))) (expected : ZMod p) : Option Unit :=
   F32.assert_eq (p := p) (to_nat_be bs) expected
 
-#guard (Clap.Sha2.Cpu.to_nat_be #[3,5,7] = 197895)
+#guard (Clap.Spec.Sha2.Cpu.to_nat_be #[3,5,7] = 197895)
 #guard! testToNatBe (#[3,5,7].map (fun (x:ℕ) => (x:List (ZMod p)))) 197895 = some ()
 
 end Tests

@@ -1,6 +1,9 @@
 import Clap.Lang
+import Clap.Spec
+import Clap.Spec.F
+import Clap.Spec.BitVec
 
-namespace StringExample
+namespace Clap.Spec.String
 
 open Clap.Lang
 
@@ -38,12 +41,12 @@ def MyString.ofVec {maxLen : ℕ} (fs : Vector (F p) maxLen) : Option (MyString 
   let chars <- Vector.mapM F8.ofF! fs
   some {chars,len}
 
-end StringExample
+end Clap.Spec.String
 
 namespace TestStringExample
 
 open Clap.Lang Core ZMod
-open StringExample
+open Clap.Spec.String
 
 abbrev p := Primes.babybear
 

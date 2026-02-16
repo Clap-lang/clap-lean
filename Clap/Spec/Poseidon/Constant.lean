@@ -1,10 +1,12 @@
 import Clap.Primes
-import Clap.Poseidon.ConstantC
-import Clap.Poseidon.ConstantM
-import Clap.Poseidon.ConstantP
-import Clap.Poseidon.ConstantS
+import Clap.Spec.Poseidon.ConstantC
+import Clap.Spec.Poseidon.ConstantM
+import Clap.Spec.Poseidon.ConstantP
+import Clap.Spec.Poseidon.ConstantS
 
-namespace Clap.Poseidon.Constant
+namespace Clap.Spec.Poseidon.Constant
+
+open Clap.Spec.Poseidon.Constant
 
 open Primes C M P S
 
@@ -20,4 +22,4 @@ def P : Array (Array (Array (ZMod bn254))) :=
 def S : Array (Array (ZMod bn254)) :=
   #[S02, S03, S04, S05, S06, S07, S08, S09, S10, S11, S12, S13, S14, S15, S16, S17]
 
-end Clap.Poseidon.Constant
+end Clap.Spec.Poseidon.Constant

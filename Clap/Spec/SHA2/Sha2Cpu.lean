@@ -1,6 +1,6 @@
-import Clap.Sha2
+import Clap.Spec.Sha2.Basic
 
-namespace Clap.Sha2.Cpu
+namespace Clap.Spec.Sha2.Cpu
 
 instance : Coe UInt8 UInt32 where
   coe u8 := UInt32.ofNat u8.toNat
@@ -38,9 +38,9 @@ def rotR (n : USize) (x : UInt32) : UInt32 :=
 def shiftRight (n : USize) (x : UInt32) : UInt32 :=
   x >>> (n:UInt32)
 
-abbrev t : Clap.Sha2.T := {US:=USize, U8:=UInt8, U32:=UInt32}
+abbrev t : Clap.Spec.Sha2.T := {US:=USize, U8:=UInt8, U32:=UInt32}
 
-instance : Clap.Sha2.Sha t where
+instance : Clap.Spec.Sha2.Sha t where
   xor3
   rotR
   shiftRight
@@ -48,4 +48,4 @@ instance : Clap.Sha2.Sha t where
   ch
   maj
 
-end Clap.Sha2.Cpu
+end Clap.Spec.Sha2.Cpu

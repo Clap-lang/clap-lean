@@ -1,7 +1,8 @@
 import Clap.Primes
 import Clap.Spec
 import Clap.Lang
-import Clap.Poseidon.Constant
+import Clap.Spec.F
+import Clap.Spec.Poseidon.Constant
 
 namespace Clap.Poseidon
 
@@ -182,12 +183,12 @@ private def liftMat (xs : Array (Array (ZMod p))) : Array (Array (F p)) := xs.ma
 private def testPoseidon (inputs : Array (ZMod p)) (expected : F p) : Option Unit := do
   let t := inputs.size + 1
   -- element 2 is at array index 0 and so on
-  let C ← Clap.Poseidon.Constant.C[t-2]?
-  let S ← Clap.Poseidon.Constant.S[t-2]?
-  let M ← Clap.Poseidon.Constant.M[t-2]?
-  let P ← Clap.Poseidon.Constant.P[t-2]?
+  let C ← Clap.Spec.Poseidon.Constant.C[t-2]?
+  let S ← Clap.Spec.Poseidon.Constant.S[t-2]?
+  let M ← Clap.Spec.Poseidon.Constant.M[t-2]?
+  let P ← Clap.Spec.Poseidon.Constant.P[t-2]?
   let e ← poseidon (inputs.map const) (liftArr C) (liftArr S) (liftMat M) (liftMat P)
-  F.assert_eq e expected
+  F.assertEq e expected
 
 -- circomlib test vector: hash([1, 2]) with t=3
 -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L50
