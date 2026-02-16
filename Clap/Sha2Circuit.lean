@@ -117,41 +117,41 @@ instance : Coe ℕ (List (ZMod p)) where
 def testCh (x y z expected : ZMod p) : Option Unit :=
   F32.assert_eq (p := p) (ch x y z) expected
 
-#guard testCh 23 45 56 45 = some ()
-#guard (Clap.Sha2.Cpu.ch 23 45 56 = 45)
+example : testCh 23 45 56 45 = some () := by native_decide
+example : (Clap.Sha2.Cpu.ch 23 45 56 = 45) := by native_decide
 
-#guard testCh 12 465 678 674 = some ()
-#guard (Clap.Sha2.Cpu.ch 12 465 678 = 674)
+example : testCh 12 465 678 674 = some () := by native_decide
+example : (Clap.Sha2.Cpu.ch 12 465 678 = 674) := by native_decide
 
 def testMaj (x y z expected : ZMod p) : Option Unit :=
   F32.assert_eq (p := p) (maj x y z) expected
 
-#guard testMaj 23 45 56 61 = some ()
-#guard (Clap.Sha2.Cpu.maj 23 45 56 = 61)
+example : testMaj 23 45 56 61 = some () := by native_decide
+example : (Clap.Sha2.Cpu.maj 23 45 56 = 61) := by native_decide
 
-#guard testMaj 12 465 678 132 = some ()
-#guard (Clap.Sha2.Cpu.maj 12 465 678 = 132)
+example : testMaj 12 465 678 132 = some () := by native_decide
+example : (Clap.Sha2.Cpu.maj 12 465 678 = 132) := by native_decide
 
 def testXor3 (x y z expected : ZMod p) : Option Unit :=
   F32.assert_eq (p := p) (xor3 x y z) expected
 
-#guard testXor3 23 45 56 2 = some ()
-#guard (Clap.Sha2.Cpu.xor3 23 45 56 = 2)
+example : testXor3 23 45 56 2 = some () := by native_decide
+example : (Clap.Sha2.Cpu.xor3 23 45 56 = 2) := by native_decide
 
-#guard testXor3 12 465 678 891 = some ()
-#guard (Clap.Sha2.Cpu.xor3 12 465 678 = 891)
+example : testXor3 12 465 678 891 = some () := by native_decide
+example : (Clap.Sha2.Cpu.xor3 12 465 678 = 891) := by native_decide
 
 def testRotR (n:USize) (x expected : ZMod p) : Option Unit :=
   F32.assert_eq (p := p) (rotR n x) expected
 
-#guard testRotR 3 56 7 = some ()
-#guard (Clap.Sha2.Cpu.rotR 3 56 = 7)
+example : testRotR 3 56 7 = some () := by native_decide
+example : (Clap.Sha2.Cpu.rotR 3 56 = 7) := by native_decide
 
 def testShiftRight (n:USize) (x expected : ZMod p) : Option Unit :=
   F32.assert_eq (p := p) (shiftRight n x) expected
 
-#guard testShiftRight 3 56 7 = some ()
-#guard (Clap.Sha2.Cpu.shiftRight 3 56 = 7)
+example : testShiftRight 3 56 7 = some () := by native_decide
+example : (Clap.Sha2.Cpu.shiftRight 3 56 = 7) := by native_decide
 
 def testToNatBe (bs: Array (List (ZMod p))) (expected : ZMod p) : Option Unit :=
   F32.assert_eq (p := p) (to_nat_be bs) expected
