@@ -211,13 +211,15 @@ class extended (p:ℕ) [Fact (Nat.Prime p)] [Core p] : Type _ where
   ins : Core p
   [i₀ : DecidableEq (Core.F p)]
   [i₁ : {n:ℕ} → OfNat (Core.F p) n]
+  [i₂ : DecidableEq (Core.FB p)]
 
-attribute [instance] extended.i₀ extended.i₁
+attribute [instance] extended.i₀ extended.i₁ extended.i₂
 
 scoped instance bla (p:ℕ) [Fact (Nat.Prime p)] : extended p where
   ins := instCoreZMod p
   i₀ := inferInstanceAs (DecidableEq (ZMod p))
   i₁ := inferInstanceAs ({n:ℕ} → OfNat (ZMod p) n)
+  i₂ := inferInstanceAs (DecidableEq (ZMod p))
 
 end ZMod
 
