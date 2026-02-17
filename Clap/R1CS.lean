@@ -152,7 +152,7 @@ def quadraticToR1CS (cs : Cs p ℕ) : R1CSv1 :=
 private def cs₁ : Cs 7 Nat :=
   .eq0 (.v 1 * .v 2 - .c 3) .nil -- w₁ * w₂ - 3 * w₀ = 0
 
-#guard quadraticToR1CS cs₁ ==
+example : quadraticToR1CS cs₁ ==
   { header :=
     { fieldElemSize := 8
       prime := 7
@@ -172,13 +172,13 @@ private def cs₁ : Cs 7 Nat :=
       ]
     wireToLabelMap := #[0, 1, 2]
     ultraPLONKCustomGateList := (), ultraPLONKCustomGateApplication := ()
-  }
+  } := by native_decide
 
 
 private def cs₂ : Cs 7 Nat :=
   .eq0 (.c 1 * .c 1 - .c 1) .nil
 
-#guard quadraticToR1CS cs₂ ==
+example : quadraticToR1CS cs₂ ==
   { header :=
     { fieldElemSize := 8
       prime := 7
@@ -198,13 +198,13 @@ private def cs₂ : Cs 7 Nat :=
       ]
     wireToLabelMap := #[0]
     ultraPLONKCustomGateList := (), ultraPLONKCustomGateApplication := ()
-  }
+  } := by native_decide
 
 open Exp in
 private def cs₃ : Cs 7 Nat :=
   .eq0 ((c 1 + 5 * v 1 + 2 * v 2) * (c 2 + v 1) - (v 2)) .nil
 
-#guard quadraticToR1CS cs₃ ==
+example: quadraticToR1CS cs₃ ==
   { header :=
     { fieldElemSize := 8,
       prime := 7
@@ -224,7 +224,7 @@ private def cs₃ : Cs 7 Nat :=
       ]
     wireToLabelMap := #[0, 1, 2]
     ultraPLONKCustomGateList := (), ultraPLONKCustomGateApplication := ()
-  }
+  } := by native_decide
 
 open Exp in
 private def cs₄ : Cs 7 Nat :=
@@ -232,7 +232,7 @@ private def cs₄ : Cs 7 Nat :=
     .eq0 (v 1 * v 2 - v 4) <|
       .eq0 (v 1 * v 1 - v 1) .nil
 
-#guard quadraticToR1CS cs₄ ==
+example : quadraticToR1CS cs₄ ==
   { header :=
     { fieldElemSize := 8
       prime := 7
@@ -261,7 +261,7 @@ private def cs₄ : Cs 7 Nat :=
         }
       ]
     wireToLabelMap := #[0, 1, 2, 3, 4, 5, 6],
-    ultraPLONKCustomGateList := (), ultraPLONKCustomGateApplication := () }
+    ultraPLONKCustomGateList := (), ultraPLONKCustomGateApplication := () } := by native_decide
 
 -- #eval serializeR1CS "cs1.r1cs" (quadraticToR1CS cs₁)
 -- #eval serializeR1CS "cs2.r1cs" (quadraticToR1CS cs₂)
