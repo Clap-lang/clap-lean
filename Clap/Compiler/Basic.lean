@@ -6,6 +6,7 @@ import Qq
 import Clap.Compilation
 import Clap.Compiler.Deep
 import Clap.SpecUint
+import Clap.Compiler.Reduce
 
 namespace Clap
 
@@ -93,19 +94,23 @@ def serialisedLam (body : Expr) : TermElabM Expr := do
       let serialisedIdx := (←getProjectionFnInfo? name).get!.i
       .done <$> getElemVectorOfIdx fvar serialisedIdx
 
+def isAtomic (typeName : Name) : Bool := typeName == ``ZMod
+
 def isPrivileged (fvar : Expr) : TermElabM Bool := do
   let (p, primeInst, coreInst) ← fvarPrimeOfCore
-  return [p, primeInst, coreInst].contains fvar || (←inferType fvar).isAppOf ``Vector
+  let type ← inferType fvar
+  return [p, primeInst, coreInst].contains fvar ||
+         type.isAppOf ``Vector || type.isAppOf ``ZMod
 
 def isSerialisableType (typeName : Name) : MetaM Bool := do
   return isStructure (←getEnv) typeName && !isClass (←getEnv) typeName
 
+
 def serialiseArg (arg : Expr) : TermElabM (Option (Name × Expr)) := do
   let fvar := arg.fvarId!
   let typeName := (←Meta.inferType arg).getAppFn.constName
-  let env ← getEnv
   if ←isSerialisableType typeName
-  then let size := getStructureFields env typeName |>.size
+  then let size := getStructureFields (←getEnv) typeName |>.size
        return .some (
          serialisedUserName (←fvar.getUserName),
          vectorTypeOfSerialisable (←fvarPrimeOfCore).1 size
@@ -156,16 +161,15 @@ def componentsOf (e : Expr) : MetaM (Array Expr) := do
 
 def wg (circuitName : Name) (argFvars : Array Expr) : TermElabM Expr := do
   let (p, primeInst, coreInst) ← fvarPrimeOfCore
-  -- let #[(primeInst, p)] ← argFvars.filterMapM fun arg ↦ do
-  --   let ⟨0, ~q(Fact (Nat.Prime $p)), _⟩ ← inferTypeQ arg | return .none
-  --   return .some (arg, p)
-  --   | throwError m!"Expecting a single instance of `Nat.Prime`."
   let args' ← argFvars.foldlM (init := #[]) fun acc arg ↦ do
     let t ← inferType arg
     let .some name := t.getAppFn.constName? | return acc
-    if (←arg.fvarId!.getBinderInfo).isExplicit && isStructure (←getEnv) name
-    then let components ← componentsOf arg
-         return acc.append components
+    -- TODO: This handling is temporary. We'll be splitting on public/private inputs at some point.
+    if (←arg.fvarId!.getBinderInfo).isExplicit
+    then if isStructure (←getEnv) name
+         then let components ← componentsOf arg
+              return acc.append components
+         else return acc.push arg
     else return acc
   let zmodType ← inferType <| ←args'[0]?.getDM (throwError m!"No explicit arguments found.")
   let args' ← mkAppM ``Array.mk #[←mkListLit zmodType args'.toList]
@@ -175,8 +179,17 @@ def wg (circuitName : Name) (argFvars : Array Expr) : TermElabM Expr := do
     ]
   mkLambdaFVars argFvars body
 
+def linearise (e : Expr) : TermElabM Expr := do
+  Meta.transform e fun e ↦ do
+    let (``Bind.bind, ⟨_ :: _ :: _ :: _ :: lhs :: [rhs]⟩) := e.getAppFnArgs | return .continue
+    let (``Bind.bind, ⟨_ :: _ :: lamArgT :: _ :: lhs' :: [rhs']⟩) := lhs.getAppFnArgs | return .continue
+    let binderName ← getUnusedUserName `x
+    withLocalDecl binderName .default lamArgT fun fvar ↦ do
+      let lam ← mkLambdaFVars #[fvar] (←mkAppM ``Bind.bind #[.app rhs' fvar, rhs])
+      return .visit (←Core.betaReduce (←mkAppM ``Bind.bind #[lhs', lam]))
+
 def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
-  let compiledF ← serialise f >>= curry p >>= toDeep
+  let compiledF ← serialise f >>= curry p >>= (reduceExpr ·) >>= linearise >>= toDeep
   let compiledFname := serialisedUserName circuitName
   addAndCompile <| .defnDecl {
     name        := compiledFname

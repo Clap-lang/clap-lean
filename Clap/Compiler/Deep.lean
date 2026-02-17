@@ -42,10 +42,11 @@ def typeZModp (p:Expr) : Expr := .app (mkConst ``ZMod) p
 def typeCircuit (p var : Expr) : Expr := .app (.app (mkConst ``Clap.Circuit) p) var
 def typeCircuit' (p : Expr) : Expr := .app (mkConst ``Clap.Circuit') p
 
-def matchBinds (e:Expr) : Option (Expr × Expr) :=
+def matchBinds (e:Expr) : Option (Expr × Expr) := do
   if let (``Bind.bind, ⟨_ :: _ :: _ :: _ :: e :: k :: _⟩) := e.getAppFnArgs then some (e,k)
   -- -- TODO this appeared after simp, can we keep only one of them?
   -- else if let (``Option.bind, ⟨_ :: _ :: e :: k :: _⟩) := e.getAppFnArgs then some (e,k)
+  else if let (``bind, ⟨_ :: _ :: _ :: _ :: e :: [k]⟩) := e.getAppFnArgs then some (e,k)
   else none
 
 partial def compile (p : Expr) (var : Expr) (e : Expr) : MetaM Expr := do
@@ -72,10 +73,12 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : MetaM Expr := do
     return e
 
   else if let some (e,k) := matchBinds e then
+    -- logInfo m!"BOUND -- e: {e} k: {k} heh: {e.getAppFnArgs}"
 --    logInfo m!"compile.bind: bind\n{e.getAppFnArgs}"
     let .lam name type body _bi := k | throwError m!"compile.bind: not a lam"
     if let (`Clap.Spec.Compiler.eq0, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
 --      dbg_trace s!"eq0"
+      -- logInfo m!"Here."
       let e : Expr <- compileExp p var e
       -- TODO check type (mkConst `Unit)
       let k <- withLocalDecl name .default type fun u => do

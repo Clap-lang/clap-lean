@@ -1,6 +1,8 @@
 import Clap.Spec
 import Clap.Compiler.Deep
 import Clap.Test.Wheels
+import Clap.SpecUint
+import Clap.Compiler.Basic
 
 namespace Clap
 
@@ -8,10 +10,10 @@ namespace Test
 
 namespace Compiler
 
-open Lean Clap Meta
+open Lean Clap Meta Lang
 
 open Spec Compiler in
-def ToDeep.ex₁ {p:ℕ} [Fact (Nat.Prime p)] (x:ZMod p) : Option Unit :=
+def ToDeep.ex₁ {p:ℕ} [Fact (Nat.Prime p)] [Core p] (x:ZMod p) : Option Unit :=
   let y : ZMod p := 1
   let z : ZMod p := is_zero y
   do
@@ -20,8 +22,7 @@ def ToDeep.ex₁ {p:ℕ} [Fact (Nat.Prime p)] (x:ZMod p) : Option Unit :=
   accept
 
 /--
-info: def -
-fun (p : ℕ) [Fact (Nat.Prime p)] (var : Type) =>
+info: def - fun (p : ℕ) [Fact (Nat.Prime p)] [Core p] (var : Type) =>
   Circuit.lam fun (x : var) =>
     Circuit.share (Exp.c 1) fun (y : var) =>
       Circuit.is_zero (Exp.v y) fun (z : var) =>
@@ -29,8 +30,7 @@ fun (p : ℕ) [Fact (Nat.Prime p)] (var : Type) =>
           Circuit.eq0 ((((Exp.v x).add ((Exp.c 1).mul (Exp.v x))).sub (Exp.v y)).add (Exp.v z))
             ((fun (x : PUnit.{1}) => Circuit.nil) ())
 ---
-info: type -
-(p : ℕ) → [Fact (Nat.Prime p)] → (var : Type) → Circuit p var
+info: type - (p : ℕ) → [Fact (Nat.Prime p)] → [Core p] → (var : Type) → Circuit p var
 -/
 #guard_msgs(info, whitespace := lax) in
 set_option pp.funBinderTypes true in
@@ -78,6 +78,36 @@ set_option pp.funBinderTypes true in
 run_elab do
   try
     let deep ← toDeep (←find! `ToDeep.ex₃).value!
+    logInfo m!"def - {deep}"
+    logInfo m!"type - {←inferType deep}"
+  catch e =>
+    logInfo m!"{(e.toMessageData)}"
+
+open Spec Compiler in
+def ToDeep.ex₄ {p : ℕ} [Fact (Nat.Prime p)] [Core p] (x y : ZMod p) : Option Unit := do
+  (do
+     eq0 x
+     eq0 y
+     eq0 y)
+  some accept
+
+/--
+info: def - fun (p : ℕ) [Fact (Nat.Prime p)] [Core p] (var : Type) =>
+  Circuit.lam fun (x : var) =>
+    Circuit.lam fun (y : var) =>
+      Circuit.eq0 (Exp.v x)
+        ((fun (x_1 : Unit) =>
+            Circuit.eq0 (Exp.v y)
+              ((fun (x_2 : Unit) => Circuit.eq0 (Exp.v y) ((fun (x : PUnit.{1}) => Circuit.nil) ())) ()))
+          ())
+---
+info: type - (p : ℕ) → [Fact (Nat.Prime p)] → [Core p] → (var : Type) → Circuit p var
+-/
+#guard_msgs(info, whitespace := lax) in
+set_option pp.funBinderTypes true in
+run_elab do
+  try
+    let deep ← toDeep (←Compiler.linearise (←find! `ToDeep.ex₄).value!)
     logInfo m!"def - {deep}"
     logInfo m!"type - {←inferType deep}"
   catch e =>

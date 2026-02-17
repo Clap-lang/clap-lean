@@ -8,7 +8,7 @@ namespace Test
 
 namespace Compiler
 
-open Lean Clap Meta Spec Compiler
+open Lean Clap Meta Spec Compiler Lang
 
 variable {p : Nat} [Fact (Nat.Prime p)]
 
@@ -17,16 +17,14 @@ structure Point (p : ℕ) where
   y : ZMod p
   z : ZMod p
 
-def ToWg.ex₁_aux {p : Nat} [Fact (Nat.Prime p)] (var : Type) : Circuit p var := .nil
-def ToWg.ex₁ {p : Nat} [Fact (Nat.Prime p)] (_point : Point p) : Option Unit := accept
+def ToWg.ex₁_aux {p : Nat} [Fact (Nat.Prime p)] [Core p] (var : Type) : Circuit p var := .nil
+def ToWg.ex₁ {p : Nat} [Fact (Nat.Prime p)] [Core p] (_point : Point p) : Option Unit := accept
 
 /--
-info: def -
-  fun {p : ℕ} [Fact (Nat.Prime p)] (_point : Point p) =>
-    (toWg' ToWg.ex₁_aux).run { toList := [_point.x, _point.y, _point.z] }
+info: def - fun {p : ℕ} [Fact (Nat.Prime p)] [Core p] (_point : Point p) =>
+  (toWg' ToWg.ex₁_aux).run { toList := [_point.x, _point.y, _point.z] }
 ---
-info: type -
-  {p : ℕ} → [Fact (Nat.Prime p)] → Point p → Array (ZMod p)
+info: type - {p : ℕ} → [Fact (Nat.Prime p)] → [Core p] → Point p → Array (ZMod p)
 -/
 #guard_msgs(info, whitespace := lax) in
 set_option pp.funBinderTypes true in
