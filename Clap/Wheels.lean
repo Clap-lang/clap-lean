@@ -55,6 +55,36 @@ def minBytes (x : ℕ) : ℕ :=
   let nb8 := nb / 8
   if nb % 8 = 0 then nb8 else nb8 + 1
 
+def natToHexChar : ℕ → Char
+  | 0 => '0'
+  | 1 => '1'
+  | 2 => '2'
+  | 3 => '3'
+  | 4 => '4'
+  | 5 => '5'
+  | 6 => '6'
+  | 7 => '7'
+  | 8 => '8'
+  | 9 => '9'
+  | 10 => 'a'
+  | 11 => 'b'
+  | 12 => 'c'
+  | 13 => 'd'
+  | 14 => 'e'
+  | 15 => 'f'
+  | _ => '*'
+
+def natToBytesBe (n : ℕ) : List ℕ :=
+  let q := n / 16
+  let r := n % 16
+  if q == 0 then [r]
+  else natToBytesBe q ++ [r]
+decreasing_by grind
+
+def natToHex (n : ℕ) : String :=
+  let s := String.ofList ((natToBytesBe n).map natToHexChar)
+  if s.length % 2 = 0 then s else "0" ++ s
+
 end Clap
 
 def Lean.Expr.foldlRecM {α : Type}
