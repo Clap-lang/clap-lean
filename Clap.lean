@@ -14,10 +14,10 @@ import Clap.Wheels
 import Clap.Milestone
 --import Clap.R1CS -- disabled when bumped to 4.27
 import Clap.SpecString
-import Clap.Sha2
-import Clap.Sha2Cpu
-import Clap.Sha2Circuit
-import Clap.Sha2Test
+import Clap.Sha2.Basic
+import Clap.Sha2.Cpu
+import Clap.Sha2.Circuit
+import Clap.Sha2.Test
 import Clap.Poseidon.Poseidon
 import Clap.Compiler.Basic
 import Clap.Compiler.Deep

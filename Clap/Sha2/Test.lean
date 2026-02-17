@@ -1,6 +1,6 @@
-import Clap.Sha2Circuit
-import Clap.Sha2Cpu
-import Clap.Sha2
+import Clap.Sha2.Circuit
+import Clap.Sha2.Cpu
+import Clap.Sha2.Basic
 
 namespace TestCpu
 

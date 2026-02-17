@@ -1,5 +1,5 @@
 import Clap.Wheels
-import Clap.Sha2
+import Clap.Sha2.Basic
 
 namespace Clap.Sha2.Cpu
 
