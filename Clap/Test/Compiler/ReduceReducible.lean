@@ -45,7 +45,8 @@ info: Wg for Reduce.ex₁ is Reduce.ex₁_ser_wg.
 #compile Reduce.ex₁ using p
 
 def Reduce.ex₂ {p : Nat} [Fact (Nat.Prime p)] [Core p] (x y : ZMod p) : Option Unit := do
-  produceEq0 ([x, x, y].map id) (by simp)
+  let z := [x, x, y].map id
+  produceEq0 z (by simp [z])
   accept
 
 /--
