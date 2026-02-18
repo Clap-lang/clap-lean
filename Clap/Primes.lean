@@ -4,10 +4,10 @@ namespace Primes
 
 /-- Computes the maximum power of 2 that can fit into the input. -/
 def maxPow2 (x : ℕ) : ℕ :=
-  2^(Nat.log2 x |> Nat.log2)
+  2^(Nat.log2 x)
 
-def fits (x max:ℕ) : Bool :=
-  maxPow2 x ≥ max
+def fits (x exp:ℕ) : Bool :=
+  maxPow2 x ≥ 2^exp
 
 -- only for small tests and examples
 instance : Fact (Nat.Prime 7) := by decide
@@ -38,8 +38,5 @@ instance : Fact (fits bn254 8) := by decide
 instance : Fact (fits bn254 16) := by decide
 instance : Fact (fits bn254 32) := by decide
 instance : Fact (fits bn254 64) := by decide
-
-instance {p:ℕ}: ToString (ZMod p) where
-  toString z := toString z.val
 
 end Primes
