@@ -30,7 +30,7 @@ info: Wg for Reduce.ex₀ is Reduce.ex₀_ser_wg.
 #guard_msgs(info, whitespace := lax) in
 #compile Reduce.ex₀ using Primes.babybear
 
-def Reduce.ex₁ {p : Nat} [Fact (Nat.Prime p)] [Core p] (x y : ZMod p) : Option Unit := do
+def Reduce.ex₁ (x y : ZMod Primes.babybear) : Option Unit := do
   eq0 x
   eq0 x
   eq0 y
@@ -42,9 +42,9 @@ info: Compiled Reduce.ex₁ into Reduce.ex₁_ser.
 info: Wg for Reduce.ex₁ is Reduce.ex₁_ser_wg.
 -/
 #guard_msgs(info, whitespace := lax) in
-#compile Reduce.ex₁ using p
+#compile Reduce.ex₁ using Primes.babybear
 
-def Reduce.ex₂ {p : Nat} [Fact (Nat.Prime p)] [Core p] (x y : ZMod p) : Option Unit := do
+def Reduce.ex₂ (x y : ZMod Primes.babybear) : Option Unit := do
   let z := [x, x, y].map id
   produceEq0 z (by simp [z])
   accept
@@ -55,13 +55,11 @@ info: Compiled Reduce.ex₂ into Reduce.ex₂_ser.
 info: Wg for Reduce.ex₂ is Reduce.ex₂_ser_wg.
 -/
 #guard_msgs(info, whitespace := lax) in
-#compile Reduce.ex₂ using p
+#compile Reduce.ex₂ using Primes.babybear
 
-example {p : Nat} [Fact (Nat.Prime p)] [Core p] :
-  Reduce.ex₀_ser (p := p) = Reduce.ex₁_ser p := rfl
+example : Reduce.ex₀_ser = Reduce.ex₁_ser := rfl
 
-example {p : Nat} [Fact (Nat.Prime p)] [Core p] :
-  Reduce.ex₀_ser (p := p) = Reduce.ex₂_ser p := rfl
+example : Reduce.ex₀_ser = Reduce.ex₂_ser := rfl
 
 end Compiler
 

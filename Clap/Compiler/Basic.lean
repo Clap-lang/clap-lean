@@ -6,6 +6,7 @@ import Qq
 import Clap.Compilation
 import Clap.Compiler.Deep
 import Clap.Lang
+import Clap.Compiler.Reduce
 
 namespace Clap
 
@@ -180,8 +181,17 @@ def wg (p : Name) (argFvars : Array Expr) : TermElabM Expr := do
     let body ← mkAppM ``Wg.run #[fvar, args']
     mkLambdaFVars (#[fvar] ++ argFvars) body
 
+def linearise (e : Expr) : TermElabM Expr := do
+  Meta.transform e fun e ↦ do
+    let (``Bind.bind, ⟨_ :: _ :: _ :: _ :: lhs :: [rhs]⟩) := e.getAppFnArgs | return .continue
+    let (``Bind.bind, ⟨_ :: _ :: lamArgT :: _ :: lhs' :: [rhs']⟩) := lhs.getAppFnArgs | return .continue
+    let binderName ← getUnusedUserName `x
+    withLocalDecl binderName .default lamArgT fun fvar ↦ do
+      let lam ← mkLambdaFVars #[fvar] (←mkAppM ``Bind.bind #[.app rhs' fvar, rhs])
+      return .visit (←Core.betaReduce (←mkAppM ``Bind.bind #[lhs', lam]))
+
 def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
-  let compiledF ← serialise p f >>= curry p >>= toDeep p
+  let compiledF ← serialise p f >>= curry p >>= (reduceExpr ·) >>= linearise >>= toDeep p
   let compiledFname := serialisedUserName circuitName
   addAndCompile <| .defnDecl {
     name        := compiledFname
