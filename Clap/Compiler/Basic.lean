@@ -44,15 +44,15 @@ def fvarPrimeOfName (p : Name) (args : Array Expr) : MetaM Expr := do
     | throwError m!"{p} not found."
   return p
 
-def fvarPrimeOfCore : MetaM (Q(Nat) × Expr × Expr) := do
-  let lctx ← LocalContext.getFVars <$> getLCtx
-  let #[(_, primeInst), (p, coreInst)] ← lctx.filterMapM fun arg ↦ do
-    if let ⟨0, ~q(Fact (Nat.Prime $p)), _⟩ ← inferTypeQ arg
-    then return .some (p, arg)
-    else let ⟨2, ~q(Lang.Core $p), _⟩ ← inferTypeQ arg | return .none
-         return .some (p, arg)
-    | throwError m!"There must be a single instance of `Core`."
-  return (p, primeInst, coreInst)
+-- def fvarPrimeOfCore : MetaM (Q(Nat) × Expr × Expr) := do
+--   let lctx ← LocalContext.getFVars <$> getLCtx
+--   let #[(_, primeInst), (p, coreInst)] ← lctx.filterMapM fun arg ↦ do
+--     if let ⟨0, ~q(Fact (Nat.Prime $p)), _⟩ ← inferTypeQ arg
+--     then return .some (p, arg)
+--     else let ⟨2, ~q(Lang.Core $p), _⟩ ← inferTypeQ arg | return .none
+--          return .some (p, arg)
+--     | throwError m!"There must be a single instance of `Core`."
+--   return (p, primeInst, coreInst)
 
 def serialisedUserName (name : Name) : Name := name.appendAfter "_ser"
 
@@ -62,8 +62,11 @@ def curriedUserName (name : Name) (i : Nat) : Name :=
 def curriedUserNamesOfSize (name : Name) (n : Nat) : Array Name :=
   (Array.range n).map (curriedUserName name)
 
-def vectorTypeOfSerialisable (prime : Q(Nat)) (sz : Nat) : Expr :=
-  mkApp2 (.const `Vector [.zero]) q(ZMod $prime) (ToExpr.toExpr sz)
+-- def vectorTypeOfSerialisable (prime : Q(Nat)) (sz : Nat) : Expr :=
+--   mkApp2 (.const `Vector [.zero]) q(ZMod $prime) (ToExpr.toExpr sz)
+
+def vectorTypeOfSerialisable (prime : Name) (sz : Nat) : Expr :=
+  mkApp2 (.const `Vector [.zero]) (.app (.const `ZMod []) (.const prime [])) (ToExpr.toExpr sz)
 
 def getElemVectorOfIdx (coll : Expr) (idx : Nat) : TermElabM Expr := do
   let_expr Vector _ sz := ← Meta.inferType coll | throwError m!"{coll} must be a Vector."
@@ -106,7 +109,7 @@ def isPrivileged (fvar : Expr) : TermElabM Bool := do
 def isSerialisableType (typeName : Name) : MetaM Bool := do
   return isStructure (←getEnv) typeName && !isClass (←getEnv) typeName
 
-def serialiseArg (arg : Expr) : TermElabM (Option (Name × Expr)) := do
+def serialiseArg (prime : Name) (arg : Expr) : TermElabM (Option (Name × Expr)) := do
   let fvar := arg.fvarId!
   let typeName := (←Meta.inferType arg).getAppFn.constName
   let env ← getEnv
@@ -114,13 +117,13 @@ def serialiseArg (arg : Expr) : TermElabM (Option (Name × Expr)) := do
   then let size := getStructureFields env typeName |>.size
        return .some (
          serialisedUserName (←fvar.getUserName),
-         vectorTypeOfSerialisable (←fvarPrimeOfCore).1 size
+         vectorTypeOfSerialisable prime size
        )
   else return .none
 
-def serialise (f : Expr) : TermElabM Expr := do
+def serialise (prime : Name) (f : Expr) : TermElabM Expr := do
   lambdaTelescope f fun args body ↦ do
-    withTransformedArgs args serialiseArg fun _ ↦ do
+    withTransformedArgs args (serialiseArg prime) fun _ ↦ do
       mkLambdaFVars (←(←getLCtx).getFVars.filterM isPrivileged) (←serialisedLam body)
 
 def curriedArgs (args : Array Expr) (p : Name) : MetaM (Array FVar) := do
@@ -182,7 +185,7 @@ def wg (p : Name) (argFvars : Array Expr) : TermElabM Expr := do
 
 def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
   logInfo m!"Initial expr: {f}"
-  let compiledF ← serialise f >>= curry p >>= toDeep p
+  let compiledF ← serialise p f >>= curry p >>= toDeep p
   logInfo m!"Compiled expr: {compiledF}"
   let compiledFname := serialisedUserName circuitName
   addAndCompile <| .defnDecl {
