@@ -9,24 +9,37 @@ open Clap Lang
 
 open Core
 
-structure Point2 (p : ℕ) where
-  x : ZMod p
-  y : ZMod p
+structure Point2 (p : ℕ) [Core p] where
+  x : F p
+  y : F p
 
-structure Point3 (p : ℕ) where
-  x : ZMod p
-  y : ZMod p
-  z : ZMod p
+structure Point3 (p : ℕ) [Core p] where
+  x : F p
+  y : F p
+  z : F p
 
-def test {p:ℕ} [Core p] (x y z : Core.F p) (p₁ : Point2 p) (p₂ : Point3 p) : Option Unit := do
-  eq0 (x * (y - z) + z)
-  accept p
+def produceEq0 (l : List (ZMod Primes.babybear)) (h : l ≠ []) : Option Unit :=
+  match l with
+  | [hd] => do
+    Spec.Compiler.eq0 hd
+  | x₁ :: x₂ :: tl => do
+    Spec.Compiler.eq0 x₁
+    produceEq0 (x₂ :: tl) (by simp)
+
+-- Need to address the `structure P (p : Nat) [Core ] where F p <-`.
+-- def test {p:ℕ} [Core p] (x y z : Core.F p) (p₁ : Point2 p) (p₂ : Point3 p) : Option Unit := do
+--   let w := [x, x, y].map id
+--   produceEq0 w (by simp [w])
+--   id eq0 (x * (y - z) + z + p₁.x + p₂.x)
+--   accept p
 
 open ZMod
 
 abbrev test' (x y z : ZMod Primes.babybear)
              (p₁ : Point2 Primes.babybear) (p₂ : Point3 Primes.babybear) : Option Unit := do
-  Spec.Compiler.eq0 (x * (y - z) + p₁.x + p₂.x)
+  let w := [x, x, y].map id
+  produceEq0 w (by simp [w])
+  Spec.Compiler.eq0 (x * (y - z) + z + p₁.x + p₂.x)
   Spec.Compiler.accept
 
 /--
@@ -62,10 +75,20 @@ fun (var : Type) =>
             Circuit.lam fun (curried0_p₂_ser : var) =>
               Circuit.lam fun (curried1_p₂_ser : var) =>
                 Circuit.lam fun (curried2_p₂_ser : var) =>
-                  Circuit.eq0
-                    ((((Exp.v x).mul ((Exp.v y).sub (Exp.v z))).add (Exp.v curried0_p₁_ser)).add
-                      (Exp.v curried0_p₂_ser))
-                    ((fun (x : PUnit.{1}) => Circuit.nil) ())
+                  Circuit.eq0 (Exp.v x)
+                    ((fun (x_1 : Unit) =>
+                        Circuit.eq0 (Exp.v x)
+                          ((fun (x_2 : Unit) =>
+                              Circuit.eq0 (Exp.v y)
+                                ((fun (x_3 : PUnit.{1}) =>
+                                    Circuit.eq0
+                                      (((((Exp.v x).mul ((Exp.v y).sub (Exp.v z))).add (Exp.v z)).add
+                                            (Exp.v curried0_p₁_ser)).add
+                                        (Exp.v curried0_p₂_ser))
+                                      ((fun (x : PUnit.{1}) => Circuit.nil) ()))
+                                  ()))
+                            ()))
+                      ())
 -/
 #guard_msgs(info, whitespace := lax) in
 set_option pp.funBinderTypes true in
@@ -99,7 +122,7 @@ def r1cs := Clap.toR1CS (Circuit.test'_ser)
 set_option pp.funBinderTypes true in
 #check cs
 
-/-- info: eq0 (((v1 * (v2 - v3)) + v4) + v6) nil -/
+/-- info: eq0 v1 eq0 v1 eq0 v2 eq0 ((((v1 * (v2 - v3)) + v3) + v4) + v6) nil -/
 #guard_msgs(info, whitespace := lax) in
 set_option pp.funBinderTypes true in
 #eval r1cs
