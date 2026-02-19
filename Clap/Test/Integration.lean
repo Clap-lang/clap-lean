@@ -22,8 +22,19 @@ abbrev test' (x y z : ZMod Primes.babybear) : Option Unit := do
 
 #compile Circuit.test' using Primes.babybear
 
--- def cs := Clap.toCs' (Circuit.test_ser p)
--- def r1cs := Clap.toR1CS (Circuit.test_ser p)
+#print Circuit.test'_ser_wg
+#print Circuit.test'_ser
+
+def wg := toWg' Circuit.test'_ser
+#print wg
+def wg' := Circuit.test'_ser_wg wg
+#print wg'
+
+def cs := Clap.toCs' (Circuit.test'_ser)
+def r1cs := Clap.toR1CS (Circuit.test'_ser)
+
+#check cs
+#eval r1cs
 
 -- open Clap
 

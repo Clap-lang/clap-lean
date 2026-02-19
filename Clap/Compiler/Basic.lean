@@ -159,22 +159,26 @@ def componentsOf (e : Expr) : MetaM (Array Expr) := do
   if !isStructure env typeName then throwError m!"{type} is not a structure."
   getStructureFields env typeName |>.mapM (mkProjection e)
 
-def wg (circuitName : Name) (argFvars : Array Expr) : TermElabM Expr := do
-  let (p, primeInst, coreInst) ← fvarPrimeOfCore
+def wg (p : Name) (argFvars : Array Expr) : TermElabM Expr := do
+  -- let (p, primeInst, coreInst) ← fvarPrimeOfCore
   let args' ← argFvars.foldlM (init := #[]) fun acc arg ↦ do
     let t ← inferType arg
     let .some name := t.getAppFn.constName? | return acc
-    if (←arg.fvarId!.getBinderInfo).isExplicit && isStructure (←getEnv) name
-    then let components ← componentsOf arg
-         return acc.append components
+    -- TODO: This handling is temporary. We'll be splitting on public/private inputs at some point.
+    if (←arg.fvarId!.getBinderInfo).isExplicit
+    then if isStructure (←getEnv) name
+         then let components ← componentsOf arg
+              return acc.append components
+         else return acc.push arg
     else return acc
   let zmodType ← inferType <| ←args'[0]?.getDM (throwError m!"No explicit arguments found.")
   let args' ← mkAppM ``Array.mk #[←mkListLit zmodType args'.toList]
-  let body ←
-    mkAppM ``Wg.run #[
-      ←mkAppM ``Clap.toWg' #[mkAppN (.const circuitName []) #[p, primeInst, coreInst]], args'
-    ]
-  mkLambdaFVars argFvars body
+  withLocalDecl `wg .default (.app (.const ``Wg []) (.const p [])) fun fvar ↦ do
+    let body ← mkAppM ``Wg.run #[fvar, args']
+    logInfo m!"args: {argFvars.push fvar}"
+    logInfo m!"body: {body}"
+    mkLambdaFVars (#[fvar] ++ argFvars) body
+  -- Clap.toWg' (@circuit p primeInst coreInst) args'
 
 def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
   logInfo m!"Initial expr: {f}"
@@ -191,7 +195,7 @@ def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
   }
   logInfo m!"Compiled {circuitName} into {compiledFname}."
   lambdaTelescope f fun args _ ↦ do
-  let wg ← wg compiledFname args
+  let wg ← wg p args
   let wgName := compiledFname.appendAfter "_wg"
   addAndCompile <| .defnDecl {
     name        := wgName
