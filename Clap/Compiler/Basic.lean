@@ -178,15 +178,10 @@ def wg (p : Name) (argFvars : Array Expr) : TermElabM Expr := do
   let args' ← mkAppM ``Array.mk #[←mkListLit zmodType args'.toList]
   withLocalDecl `wg .default (.app (.const ``Wg []) (.const p [])) fun fvar ↦ do
     let body ← mkAppM ``Wg.run #[fvar, args']
-    logInfo m!"args: {argFvars.push fvar}"
-    logInfo m!"body: {body}"
     mkLambdaFVars (#[fvar] ++ argFvars) body
-  -- Clap.toWg' (@circuit p primeInst coreInst) args'
 
 def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
-  logInfo m!"Initial expr: {f}"
   let compiledF ← serialise p f >>= curry p >>= toDeep p
-  logInfo m!"Compiled expr: {compiledF}"
   let compiledFname := serialisedUserName circuitName
   addAndCompile <| .defnDecl {
     name        := compiledFname
