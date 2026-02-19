@@ -18,27 +18,26 @@ structure Point3 (p : ℕ) [Core p] where
   y : F p
   z : F p
 
-def produceEq0 (l : List (ZMod Primes.babybear)) (h : l ≠ []) : Option Unit :=
+def produceEq0 {p} [Core p] (l : List (F p)) (h : l ≠ []) : Option Unit :=
   match l with
-  | [hd] => do
-    Spec.Compiler.eq0 hd
-  | x₁ :: x₂ :: tl => do
-    Spec.Compiler.eq0 x₁
-    produceEq0 (x₂ :: tl) (by simp)
+  | [hd] => eq0 hd
+  | hd :: hd' :: tl => do
+    eq0 hd
+    produceEq0 (hd' :: tl) (by simp)
 
 -- Need to address the `structure P (p : Nat) [Core ] where F p <-`.
--- def test {p:ℕ} [Core p] (x y z : Core.F p) (p₁ : Point2 p) (p₂ : Point3 p) : Option Unit := do
---   let w := [x, x, y].map id
---   produceEq0 w (by simp [w])
---   id eq0 (x * (y - z) + z + p₁.x + p₂.x)
---   accept p
+def test {p:ℕ} [Core p] (x y z : Core.F p) (p₁ : Point2 p) (p₂ : Point3 p) : Option Unit := do
+  let w := [x, x, y].map id
+  produceEq0 w (by simp [w])
+  id eq0 (x * (y - z) + z + p₁.x + p₂.x)
+  accept p
 
 open ZMod
 
-abbrev test' (x y z : ZMod Primes.babybear)
+def test' (x y z : ZMod Primes.babybear)
              (p₁ : Point2 Primes.babybear) (p₂ : Point3 Primes.babybear) : Option Unit := do
   let w := [x, x, y].map id
-  produceEq0 w (by simp [w])
+  produceEq0 (p := Primes.babybear) w (by simp [w])
   Spec.Compiler.eq0 (x * (y - z) + z + p₁.x + p₂.x)
   Spec.Compiler.accept
 

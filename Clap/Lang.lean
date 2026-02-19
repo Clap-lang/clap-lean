@@ -218,7 +218,6 @@ scoped instance instCoreZMod (p:ℕ) [Fact (Nat.Prime p)] : Core p where
   onlyForDebugF
   onlyForDebugFB := onlyForDebugF
 
-
 /-
 TODO it should be possible to replace the extended definition below with this definition but there is an error
 class Extended (p:ℕ) [Fact (Nat.Prime p)] : Type _ extends Core p, DecidableEq (Core.F p)

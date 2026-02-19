@@ -36,7 +36,7 @@ partial def compileExp (p : Expr) (var : Expr) (e : Expr) : MetaM Expr := do
     let l <- compileExp p var l
     let r <- compileExp p var r
     return Expr.app (.app (.app (.app (mkConst ``Clap.Exp.sub) p) var) l) r
-  else throwError "compileExp: no match"
+  else throwError m!"compileExp: no match for {e}"
 
 def typeZModp (p:Expr) : Expr := .app (mkConst ``ZMod) p
 def typeCircuit (p var : Expr) : Expr := .app (.app (mkConst ``Clap.Circuit) p) var
@@ -48,8 +48,8 @@ def matchBinds (e:Expr) : Option (Expr × Expr) :=
   -- else if let (``Option.bind, ⟨_ :: _ :: e :: k :: _⟩) := e.getAppFnArgs then some (e,k)
   else none
 
-partial def compile (p : Expr) (var : Expr) (e : Expr) : MetaM Expr := do
---  logInfo m!"compile\n{e.getAppFnArgs}"
+partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
+  -- logInfo m!"compile\n{e}"
 --  dbg_trace s!"compile\n{(<-ppExpr e)}"
 
   if let .lam name type body bi := e then
@@ -72,10 +72,16 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : MetaM Expr := do
     return e
 
   else if let some (e,k) := matchBinds e then
+    -- logInfo m!"bound\ne:{e}\nk:{k}"
 --    logInfo m!"compile.bind: bind\n{e.getAppFnArgs}"
     let .lam name type body _bi := k | throwError m!"compile.bind: not a lam"
-    if let (`Clap.Spec.Compiler.eq0, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
---      dbg_trace s!"eq0"
+    let (eqf, args) := e.getAppFnArgs
+    if eqf.componentsRev[0]! == `eq0 then
+    -- TODO redo all this if speghetti
+      let lhs := mkAppN (Expr.const eqf []) (args.take args.size.pred)
+      let rhs := Expr.app (.const `Clap.Spec.Compiler.eq0 []) p
+      let e := e.getAppRevArgs[0]!
+      if !(←isDefEq lhs rhs) then throwError "compile.bind: unrecognised shape of eq0"
       let e : Expr <- compileExp p var e
       -- TODO check type (mkConst `Unit)
       let k <- withLocalDecl name .default type fun u => do
@@ -126,7 +132,7 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : MetaM Expr := do
 
   else throwError m!"compile: not supported\n{e.getAppFnArgs}"
 
-partial def addVar (p : Expr) (body : Expr) : MetaM Expr := do
+partial def addVar (p : Expr) (body : Expr) : TermElabM Expr := do
   let e <- withLocalDecl `var .default (mkSort levelOne) fun var => do
     let body := body.instantiate1 var
     let body ← compile p var body

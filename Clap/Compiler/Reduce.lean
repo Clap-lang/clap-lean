@@ -3,6 +3,7 @@ import Qq
 import Mathlib.Tactic
 import Mathlib.Lean.Meta
 import Clap.Spec
+import Clap.Lang
 
 open Lean Qq Meta
 
@@ -34,10 +35,15 @@ def isNameFormer (e : Expr) (typeName : Name) : MetaM Bool :=
 def isPrivileged (e : Expr) : MetaM Bool := do
   return (←Meta.isTypeFormer e) || /-Probably wrong.-/ e.isAppOf ``Bind.bind ||
          (←Meta.inferType e).isAppOf ``Monad || (←Meta.inferType e).isAppOf ``Bind ||
-         (←isNameFormer (←Meta.inferType e) ``Bind) || (←isNameFormer (←Meta.inferType e) ``Monad)
+         (←isNameFormer (←Meta.inferType e) ``Bind) || (←isNameFormer (←Meta.inferType e) ``Monad) ||
+         (←isNameFormer (←Meta.inferType e) ``Lang.Core)
+
+def _root_.Lean.Expr.isIrreducibleExpr (e : Expr) : MetaM Bool := do
+  e.getAppFn.constName?.elim (return false) isIrreducible
 
 def unfoldAnyStep (e : Expr) : MetaM TransformStep := do
-  if ←isPrivileged e then return .continue
+  -- Do we want to catch irreducible expressions?
+  if (←e.isIrreducibleExpr) || (←isPrivileged e) then return .continue
   let some v ← unfoldDefinition? e | return .continue
   return .visit v
 
