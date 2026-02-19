@@ -134,41 +134,41 @@ partial def addVar (p : Expr) (body : Expr) : MetaM Expr := do
 --  logInfo m!"addVar RETURN {(<-inferType e)}"
   return e
 
-partial def skipCore (p e : Expr) : MetaM Expr := do
-  match e with
-  | .lam name type body bi =>
-    let e <- withLocalDecl name bi type fun fvar => do
-      let body := body.instantiate1 fvar
-      let body <- addVar p body
-      mkLambdaFVars #[fvar] body
-    return e
-  | _ => throwError m!"skip: first argument not a lambda\n{e}"
+-- partial def skipCore (p e : Expr) : MetaM Expr := do
+--   match e with
+--   | .lam name type body bi =>
+--     let e <- withLocalDecl name bi type fun fvar => do
+--       let body := body.instantiate1 fvar
+--       let body <- addVar p body
+--       mkLambdaFVars #[fvar] body
+--     return e
+--   | _ => throwError m!"skip: first argument not a lambda\n{e}"
 
-partial def skipFact (p e : Expr) : MetaM Expr := do
-  match e with
-  | .lam name type body bi =>
-    let e <- withLocalDecl name bi type fun fvar => do
-      let body := body.instantiate1 fvar
-      let body ← skipCore p body
-      mkLambdaFVars #[fvar] body
-    return e
-  | _ => throwError m!"skip: first argument not a lambda\n{e}"
+-- partial def skipFact (p e : Expr) : MetaM Expr := do
+--   match e with
+--   | .lam name type body bi =>
+--     let e <- withLocalDecl name bi type fun fvar => do
+--       let body := body.instantiate1 fvar
+--       let body ← skipCore p body
+--       mkLambdaFVars #[fvar] body
+--     return e
+--   | _ => throwError m!"skip: first argument not a lambda\n{e}"
 
-partial def addP (e : Expr) : MetaM Expr := do
-  match e with
-  | .lam _name type body _bi =>
-    if not (<- isDefEq type (mkConst `Nat))
-    then throwError "addP: first argument not nat {type}"
-    let e <- withLocalDecl `p .default (mkConst `Nat) fun p => do
-      let body := body.instantiate1 p
-      let body <- skipFact p body
-      mkLambdaFVars #[p] body
-    return e
-  | _ => throwError m!"addP: first argument not a lambda\n{e}"
+-- partial def addP (e : Expr) : MetaM Expr := do
+--   match e with
+--   | .lam _name type body _bi =>
+--     if not (<- isDefEq type (mkConst `Nat))
+--     then throwError "addP: first argument not nat {type}"
+--     let e <- withLocalDecl `p .default (mkConst `Nat) fun p => do
+--       let body := body.instantiate1 p
+--       let body <- addVar p body
+--       mkLambdaFVars #[p] body
+--     return e
+--   | _ => throwError m!"addP: first argument not a lambda\n{e}"
 
 open Meta Elab Term Command in
-def toDeep (c : Expr) : TermElabM Expr := do
-  let e <- addP c
+def toDeep (p : Name) (c : Expr) : TermElabM Expr := do
+  let e <- addVar (.const p []) c
   return e
 
 -- open Meta Elab Term Command in

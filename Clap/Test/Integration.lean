@@ -15,7 +15,10 @@ def test {p:ℕ} [Core p] (x y z : Core.F p) : Option Unit := do
 
 open ZMod
 
-def test' (x y z : ZMod Primes.babybear) := test (p := Primes.babybear)
+abbrev test' (x y z : ZMod Primes.babybear) : Option Unit := do
+  Spec.Compiler.eq0 (x * (y - z) + z)
+  Spec.Compiler.accept
+
 
 #compile Circuit.test' using Primes.babybear
 

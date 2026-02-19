@@ -161,10 +161,6 @@ def componentsOf (e : Expr) : MetaM (Array Expr) := do
 
 def wg (circuitName : Name) (argFvars : Array Expr) : TermElabM Expr := do
   let (p, primeInst, coreInst) ← fvarPrimeOfCore
-  -- let #[(primeInst, p)] ← argFvars.filterMapM fun arg ↦ do
-  --   let ⟨0, ~q(Fact (Nat.Prime $p)), _⟩ ← inferTypeQ arg | return .none
-  --   return .some (arg, p)
-  --   | throwError m!"Expecting a single instance of `Nat.Prime`."
   let args' ← argFvars.foldlM (init := #[]) fun acc arg ↦ do
     let t ← inferType arg
     let .some name := t.getAppFn.constName? | return acc
@@ -182,7 +178,7 @@ def wg (circuitName : Name) (argFvars : Array Expr) : TermElabM Expr := do
 
 def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
   logInfo m!"Initial expr: {f}"
-  let compiledF ← serialise f >>= curry p -- >>= toDeep
+  let compiledF ← serialise f >>= curry p >>= toDeep p
   logInfo m!"Compiled expr: {compiledF}"
   let compiledFname := serialisedUserName circuitName
   addAndCompile <| .defnDecl {
