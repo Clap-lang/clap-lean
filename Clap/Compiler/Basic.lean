@@ -95,11 +95,13 @@ def serialisedLam (body : Expr) : TermElabM Expr := do
 
 -- def isPrivileged (fvar : Expr) : TermElabM Bool := do
 --   let (p, primeInst, coreInst) ← fvarPrimeOfCore
---   return [p, primeInst, coreInst].contains fvar || (←inferType fvar).isAppOf ``Vector
+--   let type ← inferType fvar
+--   return [p, primeInst, coreInst].contains fvar ||
+--          type.isAppOf ``Vector || type.isAppOf ``ZMod
 
 def isPrivileged (fvar : Expr) : TermElabM Bool := do
-  let (p, primeInst, coreInst) ← fvarPrimeOfCore
-  return [p, primeInst, coreInst].contains fvar || (←inferType fvar).isAppOf ``Vector
+  let type ← inferType fvar
+  return type.isAppOf ``Vector || type.isAppOf ``ZMod
 
 def isSerialisableType (typeName : Name) : MetaM Bool := do
   return isStructure (←getEnv) typeName && !isClass (←getEnv) typeName
@@ -121,7 +123,7 @@ def serialise (f : Expr) : TermElabM Expr := do
     withTransformedArgs args serialiseArg fun _ ↦ do
       mkLambdaFVars (←(←getLCtx).getFVars.filterM isPrivileged) (←serialisedLam body)
 
-def curriedArgs (args : Array Expr) (p : Expr) : MetaM (Array FVar) := do
+def curriedArgs (args : Array Expr) (p : Name) : MetaM (Array FVar) := do
   let mut newFVars := #[]
   for arg in args do
     let userName ← arg.fvarId!.getUserName
@@ -129,7 +131,7 @@ def curriedArgs (args : Array Expr) (p : Expr) : MetaM (Array FVar) := do
     let bi ← arg.fvarId!.getBinderInfo
     let names := curriedUserNamesOfSize userName sz.nat?.get!
     for name in names do
-      newFVars := newFVars.push ⟨name, bi, ←mkAppM ``ZMod #[p]⟩
+      newFVars := newFVars.push ⟨name, bi, ←mkAppM ``ZMod #[.const p []]⟩
   return newFVars
 
 def curriedBody (body : Expr) (newFVars : Array FVar) : TermElabM (LocalContext × LocalInstances × Expr) := do
@@ -145,7 +147,6 @@ def curriedBody (body : Expr) (newFVars : Array FVar) : TermElabM (LocalContext 
 
 def curry (p : Name) (f : Expr) : TermElabM Expr := do 
   lambdaTelescope f fun args body ↦ do
-    let p ← fvarPrimeOfName p args
     let newFVars ← curriedArgs args p
     let (lctx, ictx, res) ← curriedBody body newFVars
     withLCtx lctx ictx do
@@ -180,7 +181,9 @@ def wg (circuitName : Name) (argFvars : Array Expr) : TermElabM Expr := do
   mkLambdaFVars argFvars body
 
 def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
-  let compiledF ← serialise f >>= curry p >>= toDeep
+  logInfo m!"Initial expr: {f}"
+  let compiledF ← serialise f >>= curry p -- >>= toDeep
+  logInfo m!"Compiled expr: {compiledF}"
   let compiledFname := serialisedUserName circuitName
   addAndCompile <| .defnDecl {
     name        := compiledFname

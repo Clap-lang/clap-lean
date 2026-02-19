@@ -17,7 +17,7 @@ open ZMod
 
 def test' (x y z : ZMod Primes.babybear) := test (p := Primes.babybear)
 
--- #compile Circuit.test' using p
+#compile Circuit.test' using Primes.babybear
 
 -- def cs := Clap.toCs' (Circuit.test_ser p)
 -- def r1cs := Clap.toR1CS (Circuit.test_ser p)
