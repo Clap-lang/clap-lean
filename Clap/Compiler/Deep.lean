@@ -65,8 +65,8 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
     return e
 
   else if let (``Option.some, ⟨_ :: accept :: _⟩) := e.getAppFnArgs then
-    if not (accept == (mkConst `Clap.Spec.Compiler.accept))
-    then throwError m!"compile.accept: not accept"
+    if not (←isDefEq accept (.const ``Clap.Spec.Compiler.accept []))
+    then throwError m!"compile.accept: not accept - {accept}"
 --    dbg_trace s!"accept"
     let e : Expr := .app (.app (mkConst ``Clap.Circuit.nil) p) var
     return e
@@ -79,7 +79,7 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
     if eqf.componentsRev[0]! == `eq0 then
     -- TODO redo all this if speghetti
       let lhs := mkAppN (Expr.const eqf []) (args.take args.size.pred)
-      let rhs := Expr.app (.const `Clap.Spec.Compiler.eq0 []) p
+      let rhs := Expr.app (.const ``Clap.Spec.Compiler.eq0 []) p
       let e := e.getAppRevArgs[0]!
       if !(←isDefEq lhs rhs) then throwError "compile.bind: unrecognised shape of eq0"
       let e : Expr <- compileExp p var e

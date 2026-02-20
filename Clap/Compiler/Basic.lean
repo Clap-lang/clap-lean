@@ -103,9 +103,9 @@ def serialisedLam (body : Expr) : TermElabM Expr := do
 --   return [p, primeInst, coreInst].contains fvar ||
 --          type.isAppOf ``Vector || type.isAppOf ``ZMod
 
-def isPrivileged (fvar : Expr) : TermElabM Bool := do
+def isPrivileged (p : Q(ℕ)) (fvar : Expr) : TermElabM Bool := do
   let type ← inferType fvar
-  return type.isAppOf ``Vector || type.isAppOf ``ZMod
+  return type.isAppOf ``Vector || (←isDefEq type q(ZMod $p))
 
 def isSerialisableType (typeName : Name) : MetaM Bool := do
   return isStructure (←getEnv) typeName && !isClass (←getEnv) typeName
@@ -125,7 +125,7 @@ def serialiseArg (prime : Name) (arg : Expr) : TermElabM (Option (Name × Expr))
 def serialise (prime : Name) (f : Expr) : TermElabM Expr := do
   lambdaTelescope f fun args body ↦ do
     withTransformedArgs args (serialiseArg prime) fun _ ↦ do
-      mkLambdaFVars (←(←getLCtx).getFVars.filterM isPrivileged) (←serialisedLam body)
+      mkLambdaFVars (←(←getLCtx).getFVars.filterM (isPrivileged (.const prime []))) (←serialisedLam body)
 
 def curriedArgs (args : Array Expr) (p : Name) : MetaM (Array FVar) := do
   let mut newFVars := #[]
@@ -195,6 +195,7 @@ def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
   --   (fun x ↦ do logInfo m!"Before reduction: {x}"; reduceExpr x) >>=
   --   (fun x ↦ do logInfo m!"After reduction: {x}"; linearise x) >>=
   --   fun x ↦ do logInfo m!"After linearise: {x}"; toDeep p x
+  -- let compiledF ← serialise p f >>= curry p >>= (reduceExpr ·)
   let compiledF ← serialise p f >>= curry p >>= (reduceExpr ·) >>= linearise >>= toDeep p
   let compiledFname := serialisedUserName circuitName
   addAndCompile <| .defnDecl {
@@ -219,10 +220,16 @@ def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
   }
   logInfo m!"Wg for {circuitName} is {wgName}."
 
+def fixPrime (e p : Expr) : TermElabM Expr := do
+  instantiateLambda e #[p, ←Elab.Term.mkInstMVar (.app (.const ``Lang.Core []) p)]
+
 elab "#compile" circuit:ident "using" p:ident : command => Command.liftTermElabM do
   let [decl] ← realizeGlobalConst circuit | throwError m!"Ambiguous constant: {circuit}"
   let .some decl := (←getEnv).find? decl | throwError m!"Undeclared constant: {circuit}"
-  compile p.getId circuit.getId decl.value!
+  -- logInfo m!"decl: {decl.value!}"
+  -- logInfo m!"new: {←fixPrime decl.value! (.const p.getId [])}"
+  -- compile p.getId circuit.getId decl.value!
+  compile p.getId circuit.getId (←fixPrime decl.value! (.const p.getId []))
 
 end Compiler
 
