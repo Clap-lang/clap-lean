@@ -9,51 +9,40 @@ open Lean Qq Meta
 
 namespace Clap
 
--- def unfoldAnyStep (e : Expr) : MetaM TransformStep := do
---   let .const name _ := e.getAppFn | return .continue
---   if let .some name ← Meta.getUnfoldEqnFor? name
---   then logInfo m!"{e} has an unfold def called {name}"
---        let r ← unfold e name
---        return .continue r.expr
---   else let some v ← unfoldDefinition? e | return .continue
---        return .visit v
-
--- def unfoldAnyStep (e : Expr) : MetaM TransformStep := do
---   if (←Meta.isTypeFormer e) then return .continue
---   if let some v ← unfoldDefinition? e
---   then return .visit v
---   else let .some name ← Meta.getUnfoldEqnFor? (e.getAppFn.constName?.getD default) | return .continue
---        if name.getRoot != `Clap then return .continue
---        logInfo m!"name: {name}"
---        let r ← unfold e (e.getAppFn.constName!)
---        logInfo m!"r: {r.expr}"
---        return .continue 
-
 def isNameFormer (e : Expr) (typeName : Name) : MetaM Bool :=
   forallTelescopeReducing e fun _ ret ↦ return ret.isAppOf typeName
 
 def isPrivileged (e : Expr) : MetaM Bool := do
   return (←Meta.isTypeFormer e) || /-Probably wrong.-/ e.isAppOf ``Bind.bind ||
          (←Meta.inferType e).isAppOf ``Monad || (←Meta.inferType e).isAppOf ``Bind ||
-         (←isNameFormer (←Meta.inferType e) ``Bind) || (←isNameFormer (←Meta.inferType e) ``Monad) ||
-         (←isNameFormer (←Meta.inferType e) ``Lang.Core)
+         (←isNameFormer (←Meta.inferType e) ``Bind) || (←isNameFormer (←Meta.inferType e) ``Monad)
+        -- || (←isNameFormer (←Meta.inferType e) ``Lang.Core)
+
+/--
+TODO: Temporary. We'll want to reduce this at some point.
+-/
+def isArith (e : Expr) : MetaM Bool := do
+  return [``HAdd.hAdd, ``HSub.hSub, ``HMul.hMul, ``HPow.hPow, ``OfNat.ofNat].map e.isAppOf |>.any (·==true)
 
 def _root_.Lean.Expr.isIrreducibleExpr (e : Expr) : MetaM Bool := do
   e.getAppFn.constName?.elim (return false) isIrreducible
 
 def unfoldAnyStep (e : Expr) : MetaM TransformStep := do
+  if ←isArith e then return .continue
   -- Do we want to catch irreducible expressions?
   if (←e.isIrreducibleExpr) || (←isPrivileged e) then return .continue
-  let some v ← unfoldDefinition? e | return .continue
-  return .visit v
+  match ← reduceMatcher? e with
+  | .reduced v => return .visit v
+  | _ => let some v ← unfoldDefinition? e | return .continue
+          return .visit v
 
 def unfoldAny (e : Expr) : MetaM Expr := do
-  Meta.transform e (pre := unfoldAnyStep)
+  Meta.transform e (skipConstInApp := true) (pre := unfoldAnyStep)
 
-def forceUnfold (goal : MVarId) : MetaM MVarId :=
-  goal.transformTarget unfoldAny >>= MVarId.transformTarget (f := liftM ∘ Core.betaReduce)
-
-def foldProjs (e : Expr) : MetaM Expr := do
+/--
+TODO: Unused.
+-/
+def forceFoldProjs (e : Expr) : MetaM Expr := do
   if (e.find? (·.isProj)).isNone then return e
   let post (e : Expr) := do
     if ←isPrivileged e then return .continue
@@ -66,25 +55,42 @@ def foldProjs (e : Expr) : MetaM Expr := do
       return .done e
   Meta.transform e (post := post)
 
+def foldProjs (e : Expr) : MetaM Expr := do
+  if (e.find? (·.isProj)).isNone then return e
+  let post (e : Expr) := do
+    let .some e' ← reduceProj? e | return .continue
+    -- TODO: Is this a hack?
+    if e'.isAppOf ``id then return .continue
+    return .visit e'
+  Meta.transform e (post := post)
+
 def zetaHaveStep (e : Expr) : MetaM TransformStep := do
-  if ←isPrivileged e then return .continue
   let .letE _ _ v b _ := e | return .continue
-  -- logInfo m!"v: {v} b: {b} e: {e} | Expand: {Meta.expandLet b #[v]}"
   return .visit <| Meta.expandLet b #[v]
-  -- if e.isHave
-  -- then logInfo m!"Telescoping: {e}"
-  --      letTelescope e fun args body ↦ do
-  --        let #[arg] := args | throwError "let expressions must bind a single value"
-  --        logInfo m!"args: {args} e: {e} e.val: {e.letValue!} body: {body}"
-  --        let subst := FVarSubst.empty.insert arg.fvarId! e.letValue!
-  --        return .visit (subst.apply body)
-  -- else return .continue
 
 def zetaHave (e : Expr) : MetaM Expr := do
   Meta.transform e (pre := zetaHaveStep)
 
-def reduceExpr (e : Expr) : MetaM Expr := do -- >>= reduce
-  zetaHave e >>= unfoldAny >>= foldProjs >>= (Core.betaReduce ·)
+def reduceExpr (e : Expr) : MetaM Expr := -- >>= reduce
+  zetaHave e >>=
+  unfoldAny >>= (Core.betaReduce ·) >>=
+  foldProjs >>= (Core.betaReduce ·)
+
+  -- do
+  --   logInfo m!"Initial:\n{e}"
+  --   let zeta ← zetaHave e
+  --   logInfo m!"Zeta:\n{zeta}"
+  --   let beta₀ ← Core.betaReduce zeta
+  --   logInfo m!"Beta:\n{beta₀}"
+  --   let unfolded ← unfoldAny beta₀
+  --   logInfo m!"Unfolded:\n{unfolded}"
+  --   let beta₁ ← Core.betaReduce unfolded
+  --   logInfo m!"Beta:\n{beta₁}"
+  --   let folded ← foldProjs beta₁
+  --   logInfo m!"Folded:\n{folded}"
+  --   let beta₂ ← Core.betaReduce folded
+  --   logInfo m!"Beta:\n{beta₂}"
+  --   return beta₂
 
 open MVarId in
 def _root_.Lean.MVarId.reduceTarget (goal : MVarId) : MetaM MVarId :=
@@ -93,15 +99,6 @@ def _root_.Lean.MVarId.reduceTarget (goal : MVarId) : MetaM MVarId :=
 open Elab Tactic in
 elab "test_reduce" : tactic => do
   liftMetaTactic' MVarId.reduceTarget
-
--- def ex₀ {p : Nat} [Fact (Nat.Prime p)] (x y : ZMod p) : Option Unit := do
---   Clap.Spec.Compiler.eq0 (x + y)
---   Clap.Spec.Compiler.eq0 (y + x)
---   Clap.Spec.Compiler.accept
-
--- example {x y} : ex₀ (p := 2) x y = Option.some () := by
---   unfold ex₀
---   test_reduce
 
 def produceEq0 {p} (l : List (ZMod p)) : Option Unit :=
   match l with
@@ -112,14 +109,15 @@ def produceEq0 {p} (l : List (ZMod p)) : Option Unit :=
 
 def x {p : Nat} [Fact (Nat.Prime p)] (x : ZMod p) : Option Unit := do
   let y := id (x + 2)
-  let myList := [(1 : ZMod p), 42, y].map (·+1)
+  let myList := [y].map (·+1)
   produceEq0 myList
   .some Clap.Spec.Compiler.accept
 
 example : x (p := 2) = sorry := by
   unfold x
-  
   test_reduce
+  
+  -- test_reduce
   sorry
   
   -- unfold produceEq0

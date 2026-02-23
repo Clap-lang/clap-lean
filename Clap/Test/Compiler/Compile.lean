@@ -8,7 +8,7 @@ namespace Test
 
 namespace Compiler
 
-open Lean Clap Meta Spec Compiler
+open Lean Clap Meta Spec Compiler Lang ZMod
 
 structure Compile.Point (p : ℕ) where
   x : ZMod p
@@ -21,7 +21,7 @@ structure Compile.Point' (p : ℕ) where
   z : ZMod p
   w : ZMod p
 
-def Compile.ex₀ (point₁ point₂ : Point Primes.babybear) (point₃ : Point' Primes.babybear) : Option Unit := do
+def Compile.ex₀ {p : ℕ} [Core p] (point₁ point₂ : Point p) (point₃ : Point' p) : Option Unit := do
   eq0 (point₁.x + point₃.w)
   eq0 (point₂.x + point₁.z)
   accept

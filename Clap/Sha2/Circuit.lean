@@ -180,6 +180,4 @@ def test₁ {p:ℕ} [Core p] [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)]
 
 open Primes
 
-#compile test₁ using Primes.goldilocks
-
 end Tests

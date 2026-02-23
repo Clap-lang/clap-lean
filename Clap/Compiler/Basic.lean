@@ -217,10 +217,6 @@ def linearise (e : Expr) : TermElabM Expr := do
       return .visit (←Core.betaReduce (←mkAppM ``Bind.bind #[lhs', lam]))
 
 def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
-  -- let compiledF ← serialise p f >>= curry p >>=
-  --   (fun x ↦ do logInfo m!"Before reduction: {x}"; reduceExpr x) >>=
-  --   (fun x ↦ do logInfo m!"After reduction: {x}"; linearise x) >>=
-  --   fun x ↦ do logInfo m!"After linearise: {x}"; toDeep p x
   let compiledF ← serialise p f >>= curry p >>= (reduceExpr ·) >>= linearise >>= toDeep p
   let compiledFname := serialisedUserName circuitName
   addAndCompile <| .defnDecl {

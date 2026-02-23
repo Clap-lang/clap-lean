@@ -49,9 +49,7 @@ def ToDeep.ex₂ (x : ZMod Primes.babybear) : Option Unit := do
   eq0 (j[0]!)
   accept
 
-/--
-info: compileExp: no match
--/
+/-- info: compileExp: no match for vars[0]! -/
 #guard_msgs(info, whitespace := lax) in
 set_option pp.funBinderTypes true in
 run_elab do
@@ -68,9 +66,7 @@ def ToDeep.ex₃ (x : ZMod Primes.babybear) : Option Unit := do
   eq0 (is_zero x + share x)
   accept
 
-/--
-info: compileExp: no match
--/
+/-- info: compileExp: no match for Spec.Compiler.is_zero x -/
 #guard_msgs(info, whitespace := lax) in
 set_option pp.funBinderTypes true in
 run_elab do
