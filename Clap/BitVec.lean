@@ -204,11 +204,8 @@ lemma num2bitsLsbPure_of_bits2num_eq [Fact (p > 2)] {ls : List (ZMod p)} :
         simp only [List.length_cons] at h'
         rcases h' 0 with h' | h' <;> simp only [Fin.getElem_fin, Fin.coe_ofNat_eq_mod, Nat.zero_mod,
           List.getElem_cons_zero] at h' <;> simp [h', ZMod.val_one]
-      have : ∀ (i : Fin ls.length), ls[i] = 0 ∨ ls[i] = 1 := by
-        intro i
-        simp only [List.length_cons] at h'
-        specialize h' i.succ
-        simpa using h'
+      have : ∀ (i : Fin ls.length), ls[i] = 0 ∨ ls[i] = 1 :=
+        fun i ↦ by simpa [List.length_cons] using h' i.succ
       rw [Nat.add_mul_div_left _ _ ((by decide) : 0 < 2), l_div_2_eq, zero_add, ←sum_pow_2_eq len_bound this]
       convert ih
       exact ZMod.natCast_zmod_val _
