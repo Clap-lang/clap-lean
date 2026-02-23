@@ -125,7 +125,7 @@ def serialiseArg (prime : Name) (arg : Expr) : TermElabM (Option (Name × Expr))
 def serialise (prime : Name) (f : Expr) : TermElabM Expr := do
   lambdaTelescope f fun args body ↦ do
     withTransformedArgs args (serialiseArg prime) fun _ ↦ do
-      mkLambdaFVars (←(←getLCtx).getFVars.filterM (isPrivileged (.const prime []))) (←serialisedLam body)
+      mkLambdaFVars (usedOnly := true) (←getLCtx).getFVars (←serialisedLam body)
 
 def curriedArgs (args : Array Expr) (p : Name) : MetaM (Array FVar) := do
   let mut newFVars := #[]
@@ -142,18 +142,41 @@ def curriedBody (body : Expr) (newFVars : Array FVar) : TermElabM (LocalContext 
   withLocalDecls (newFVars.map (·.toLocalDeclD)) fun _ ↦ do
     let lctx ← getLCtx
     let ictx ← getLocalInstances
+    /-
+    Replace every `x[k]` with `x_k`.
+    TODO: We should simply replace every `x` with `#[x_0, ...]` and reduce. Remove this at some point.
+    -/
     let res ← Meta.transform (skipConstInApp := true) body fun e ↦ do
       let_expr GetElem.getElem _ _ _ _ _ coll idx _ := e | return .continue
       let userName := curriedUserName (←coll.fvarId!.getUserName) idx.nat?.get!
       let .some fvar := lctx.findFromUserName? userName | throwError m!"Unknown local declaration: {userName}"
       return .done fvar.toExpr
+    -- Replace every `x` with `#[x_0, ...]`.
+    let res ← Meta.transform (skipConstInApp := true) res fun e ↦ do
+      if e.isFVar
+      then -- TODO: Refactor, reuses `curriedArgs`.
+           let (``Vector, #[t, sz]) := (←inferType e).getAppFnArgs | return .continue
+           let names := curriedUserNamesOfSize (←e.fvarId!.getUserName) sz.nat?.get!
+           let array ← mkAppM ``Array.mk #[
+             ←mkListLit t (←names.mapM (return lctx.findFromUserName? · |>.get!.toExpr)).toList
+           ]
+           let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, sz, array] 
+           let Expr.forallE _ t _ _ ← inferType vecSansProof | throwError "Expected function type."
+           let vec := Expr.app vecSansProof (←mkEqRefl t)
+           return .done vec
+      else return .continue
     return (lctx, ictx, res)
 
+/--
+TODO: Needs the same refactor as serialise (using `withTransformedArgs`, etc.).
+      Currently, `curry` is ugly.
+-/
 def curry (p : Name) (f : Expr) : TermElabM Expr := do 
   lambdaTelescope f fun args body ↦ do
     let newFVars ← curriedArgs args p
     let (lctx, ictx, res) ← curriedBody body newFVars
     withLCtx lctx ictx do
+      -- Note: `usedOnly := true` is actually too aggressive. It optimises out some arguments.
       mkLambdaFVars (←lctx.getFVars.filterM fun fvar ↦ do return !(←inferType fvar).isAppOf ``Vector) res
 
 def componentsOf (e : Expr) : MetaM (Array Expr) := do
@@ -163,6 +186,9 @@ def componentsOf (e : Expr) : MetaM (Array Expr) := do
   if !isStructure env typeName then throwError m!"{type} is not a structure."
   getStructureFields env typeName |>.mapM (mkProjection e)
 
+/--
+TODO: Needs refactor. Shares with `curry/serialise`.
+-/
 def wg (p : Name) (argFvars : Array Expr) : TermElabM Expr := do
   -- let (p, primeInst, coreInst) ← fvarPrimeOfCore
   let args' ← argFvars.foldlM (init := #[]) fun acc arg ↦ do
@@ -195,7 +221,6 @@ def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
   --   (fun x ↦ do logInfo m!"Before reduction: {x}"; reduceExpr x) >>=
   --   (fun x ↦ do logInfo m!"After reduction: {x}"; linearise x) >>=
   --   fun x ↦ do logInfo m!"After linearise: {x}"; toDeep p x
-  -- let compiledF ← serialise p f >>= curry p >>= (reduceExpr ·)
   let compiledF ← serialise p f >>= curry p >>= (reduceExpr ·) >>= linearise >>= toDeep p
   let compiledFname := serialisedUserName circuitName
   addAndCompile <| .defnDecl {
@@ -220,15 +245,24 @@ def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
   }
   logInfo m!"Wg for {circuitName} is {wgName}."
 
+def instantiateLambdaHeadInst (e : Expr) : TermElabM (Option Expr) := do
+  let .lam _ type _ bi := e | return .none
+  if bi.isInstImplicit
+  then instantiateLambda e #[←Elab.Term.mkInstMVar type]
+  else return .none
+
+partial def trySynthAll (e : Expr) : TermElabM Expr := do
+  let .lam n t body bi := e | return e
+  match ← instantiateLambdaHeadInst e with
+  | .none => return .lam n t (←trySynthAll body) bi
+  | .some e => trySynthAll e
+
 def fixPrime (e p : Expr) : TermElabM Expr := do
-  instantiateLambda e #[p, ←Elab.Term.mkInstMVar (.app (.const ``Lang.Core []) p)]
+  instantiateLambda e #[p] >>= trySynthAll
 
 elab "#compile" circuit:ident "using" p:ident : command => Command.liftTermElabM do
   let [decl] ← realizeGlobalConst circuit | throwError m!"Ambiguous constant: {circuit}"
   let .some decl := (←getEnv).find? decl | throwError m!"Undeclared constant: {circuit}"
-  -- logInfo m!"decl: {decl.value!}"
-  -- logInfo m!"new: {←fixPrime decl.value! (.const p.getId [])}"
-  -- compile p.getId circuit.getId decl.value!
   compile p.getId circuit.getId (←fixPrime decl.value! (.const p.getId []))
 
 end Compiler

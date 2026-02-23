@@ -22,6 +22,9 @@ structure Point3 (p : ℕ) [Core p] where
   y : F p
   z : F p
 
+class Woob (p : ℕ) where
+  zoob : Nat
+
 def produceEq0 {p} [Core p] (l : List (F p)) (h : l ≠ []) : Option Unit :=
   match l with
   | [hd] => eq0 hd
