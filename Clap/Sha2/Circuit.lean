@@ -65,17 +65,17 @@ def xor3 (x y z : F32 p) : F32 p :=
 
 
 -- ROTR n x = (x >> n) ∨ (x << w - n)
-def rotR (n : USize) (x : F32 p) : F32 p :=
-  let (l,r) := List.splitAt n.toNat x
+def rotR (n : ℕ) (x : F32 p) : F32 p :=
+  let (l,r) := List.splitAt n x
   r++l
 
 
-def shiftRight (n : USize) (x : F32 p) : F32 p :=
-  let l := List.drop n.toNat x
-  l ++ List.replicate n.toNat 0
+def shiftRight (n : ℕ) (x : F32 p) : F32 p :=
+  let l := List.drop n x
+  l ++ List.replicate n 0
 
 abbrev t p [Core p] [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)] : Clap.Sha2.T := {
-  US  := F   (p:=p),
+  N  := F   (p:=p),
   U8  := F8  (p:=p),
   U32 := F32 (p:=p)
 }
@@ -134,8 +134,8 @@ abbrev p := Primes.goldilocks
 open Clap.Sha2.Circuit
 open Clap.Lang Core ZMod
 
-instance : Coe USize (F p) where
-  coe n := n.toNat
+instance : Coe ℕ (F p) where
+  coe n := n
 
 instance : Coe UInt8 (F8 p) where
   coe n := Clap.num2bitsLsbPure 8 n.toNat
@@ -156,12 +156,12 @@ example : xor3 (p:=p) 23 45 56 = Clap.Sha2.Cpu.xor3 23 45 56 := by native_decide
 example : xor3 (p:=p) 12 465 678 = Clap.Sha2.Cpu.xor3 12 465 678 := by native_decide
 
 example :
-  letI n : USize := 3
+  letI n : ℕ := 3
   letI ins : UInt32 := 56
   rotR (p:=p) n (ins : F32 p) = Clap.Sha2.Cpu.rotR n ins := by native_decide
 
 example :
-  letI n : USize := 3
+  letI n : ℕ := 3
   letI ins : UInt32 := 56
   shiftRight (p:=p) n (ins : F32 p) = Clap.Sha2.Cpu.shiftRight n ins := by native_decide
 

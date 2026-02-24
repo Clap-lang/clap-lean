@@ -26,20 +26,20 @@ def xor3 (x y z : UInt32) : UInt32 :=
      new 32-bit word. For SHA-512, 64-bit operations are used.
 -/
 
-instance : Coe USize UInt8 where
-  coe u := UInt8.ofNat u.toNat
+instance : Coe ℕ UInt8 where
+  coe := UInt8.ofNat
 
-instance : Coe USize UInt32 where
-  coe u := UInt32.ofNat u.toNat
+instance : Coe ℕ UInt32 where
+  coe := UInt32.ofNat
 
 -- ROTR n x = (x >> n) ∨ (x << w - n)
-def rotR (n : USize) (x : UInt32) : UInt32 :=
+def rotR (n : ℕ) (x : UInt32) : UInt32 :=
   (x >>> (n:UInt32)) ||| (x <<< (32 - (n:UInt32)))
 
-def shiftRight (n : USize) (x : UInt32) : UInt32 :=
+def shiftRight (n : ℕ) (x : UInt32) : UInt32 :=
   x >>> (n:UInt32)
 
-abbrev t : Clap.Sha2.T := {US:=USize, U8:=UInt8, U32:=UInt32}
+abbrev t : Clap.Sha2.T := {N:=ℕ, U8:=UInt8, U32:=UInt32}
 
 instance (priority := high) i₇ : ToString UInt32 where
   toString f := Clap.natToHex f.toNat
