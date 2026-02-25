@@ -89,19 +89,19 @@ def chunksToFieldElems {numChuncks : ℕ}
     .none
  where
   step (chunksPerScalar : ℕ) (h₁ : 0 < chunksPerScalar)
-    (bits : List (F p))
+    (chunks : List (F p))
     (acc : Array (F p)) :
     Option (Array (F p))
   :=
-    if h₂ : bits.isEmpty then acc else do
-      let x := bits.take chunksPerScalar
-      let x ← chunksToFieldElem' numChuncks bitsPerChunk x
-      have : 0 < bits.length := by
+    if h₂ : chunks.isEmpty then acc else do
+      let x := chunks.take chunksPerScalar
+      let x ← chunksToFieldElem' chunksPerScalar bitsPerChunk x
+      have : 0 < chunks.length := by
         simp [List.isEmpty_iff] at h₂
         simp only [← Nat.ne_zero_iff_zero_lt, ne_eq, List.length_eq_zero_iff]
         exact h₂
-      step chunksPerScalar h₁ (bits.drop chunksPerScalar) (acc.push x)
-  termination_by bits.length
+      step chunksPerScalar h₁ (chunks.drop chunksPerScalar) (acc.push x)
+  termination_by chunks.length
 
 end Packing
 
