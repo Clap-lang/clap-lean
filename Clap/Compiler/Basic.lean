@@ -5,6 +5,8 @@ import Qq
 
 import Clap.Compilation
 import Clap.Compiler.Deep
+import Clap.Lang
+import Clap.Compiler.Reduce
 
 namespace Clap
 
@@ -51,8 +53,8 @@ def curriedUserName (name : Name) (i : Nat) : Name :=
 def curriedUserNamesOfSize (name : Name) (n : Nat) : Array Name :=
   (Array.range n).map (curriedUserName name)
 
-def vectorTypeOfSerialisable (prime : Q(Nat)) (sz : Nat) : Expr :=
-  mkApp2 (.const `Vector [.zero]) q(ZMod $prime) (ToExpr.toExpr sz)
+def vectorTypeOfSerialisable (prime : Name) (sz : Nat) : Expr :=
+  mkApp2 (.const `Vector [.zero]) (.app (.const `ZMod []) (.const prime [])) (ToExpr.toExpr sz)
 
 def getElemVectorOfIdx (coll : Expr) (idx : Nat) : TermElabM Expr := do
   let_expr Vector _ sz := ← Meta.inferType coll | throwError m!"{coll} must be a Vector."
@@ -63,57 +65,50 @@ def getElemVectorOfIdx (coll : Expr) (idx : Nat) : TermElabM Expr := do
   Term.synthesizeSyntheticMVarsNoPostponing
   instantiateMVars <| mkAppN getElemSansProof #[proof]
 
-def serialisedArgs (args : Array Expr) (p : Expr) :
-  MetaM (Array FVar × Std.HashSet Expr × Std.HashSet Name) := do
+def withTransformedArgs.{u}
+  {n : Type → Type u} [MonadControlT MetaM n] [Monad n] {α : Type} [Inhabited α]
+  (args : Array Expr)
+  (f : Expr → n (Option (Name × Expr))) (k : Array Expr → n α) : n α := do
+  withLocalDeclsDND (←args.filterMapM f) k
+
+def serialisedLam (body : Expr) : TermElabM Expr := do
+  Meta.transform (skipConstInApp := true) body fun e ↦ do
+    let env ← getEnv
+    let (name, _) := e.getAppFnArgs
+    match env.getProjectionStructureName? name with
+    | .none => return .continue
+    | .some val =>
+      if isClass env val then return .continue
+      let projectee ← serialisedUserName <$> e.projecteeOfType val
+      let fvar := (←getLCtx).findFromUserName? projectee |>.get!.toExpr
+      let serialisedIdx := (←getProjectionFnInfo? name).get!.i
+      .done <$> getElemVectorOfIdx fvar serialisedIdx
+
+def isPrivileged (p : Q(ℕ)) (fvar : Expr) : TermElabM Bool := do
+  let type ← inferType fvar
+  return type.isAppOf ``Vector || (←isDefEq type q(ZMod $p))
+
+def isSerialisableType (typeName : Name) : MetaM Bool := do
+  return isStructure (←getEnv) typeName && !isClass (←getEnv) typeName
+
+def serialiseArg (prime : Name) (arg : Expr) : TermElabM (Option (Name × Expr)) := do
+  let fvar := arg.fvarId!
+  let typeName := (←Meta.inferType arg).getAppFn.constName
   let env ← getEnv
-  let mut newFVars := #[]
-  let mut serialisableFVars : Std.HashSet Expr := ∅
-  let mut toSerialise : Std.HashSet Name := ∅
-  for arg in args do
-    let userName ← arg.fvarId!.getUserName
-    let typeName := (←Meta.inferType arg).getAppFn.constName
-    if isStructure env typeName && !(←arg.fvarId!.getBinderInfo).isInstImplicit
-    then let bi ← arg.fvarId!.getBinderInfo
-         let size := getStructureFields env typeName |>.size
-         newFVars := newFVars.push ⟨serialisedUserName userName, bi, vectorTypeOfSerialisable p size⟩
-         serialisableFVars := serialisableFVars.insert arg
-         toSerialise := toSerialise.insert typeName
-  return (newFVars, serialisableFVars, toSerialise)
+  if ←isSerialisableType typeName
+  then let size := getStructureFields env typeName |>.size
+       return .some (
+         serialisedUserName (←fvar.getUserName),
+         vectorTypeOfSerialisable prime size
+       )
+  else return .none
 
-def serialisedBody (body : Expr) (newFVars : Array FVar) (toSerialise : Std.HashSet Name) :
-  TermElabM (LocalContext × LocalInstances × Expr) :=
-  withLocalDecls (newFVars.map (·.toLocalDeclD)) fun _ ↦ do
-    let lctx ← getLCtx
-    let ictx ← getLocalInstances
-    let res ← Meta.transform (skipConstInApp := true) body fun e ↦ do
-      let (name, _) := e.getAppFnArgs
-      match (←getEnv).getProjectionStructureName? name with
-      | .none => return .continue
-      | .some val =>
-        if toSerialise.contains val
-        then let projectee ← serialisedUserName <$> e.projecteeOfType val
-             let serialisedIdx := (←getProjectionFnInfo? name).get!.i
-             let fvar := lctx.findFromUserName? projectee |>.get!.toExpr
-             let vectorAccess ← getElemVectorOfIdx fvar serialisedIdx
-             return .done vectorAccess
-        return .continue
-    return (lctx, ictx, res)
-
-def serialise (p : Name) (f : Expr) : TermElabM Expr := do
+def serialise (prime : Name) (f : Expr) : TermElabM Expr := do
   lambdaTelescope f fun args body ↦ do
-    let p ← fvarPrimeOfName p args
-    /-
-    Synthesise all `FVar`s first to preserve 'the' `Meta.transform` invariant.
+    withTransformedArgs args (serialiseArg prime) fun _ ↦ do
+      mkLambdaFVars (usedOnly := true) (←getLCtx).getFVars (←serialisedLam body)
 
-    We need both serialisable _and_ their serialised counterpart in the context
-    while we synthesize the transformed expression.
-    -/
-    let (newFVars, serialisableFVars, toSerialise) ← serialisedArgs args p
-    let (lctx, ictx, res) ← serialisedBody body newFVars toSerialise
-    withLCtx lctx ictx do
-      mkLambdaFVars (lctx.getFVars.filter (!serialisableFVars.contains ·)) res
-
-def curriedArgs (args : Array Expr) (p : Expr) : MetaM (Array FVar) := do
+def curriedArgs (args : Array Expr) (p : Name) : MetaM (Array FVar) := do
   let mut newFVars := #[]
   for arg in args do
     let userName ← arg.fvarId!.getUserName
@@ -121,26 +116,48 @@ def curriedArgs (args : Array Expr) (p : Expr) : MetaM (Array FVar) := do
     let bi ← arg.fvarId!.getBinderInfo
     let names := curriedUserNamesOfSize userName sz.nat?.get!
     for name in names do
-      newFVars := newFVars.push ⟨name, bi, ←mkAppM ``ZMod #[p]⟩
+      newFVars := newFVars.push ⟨name, bi, ←mkAppM ``ZMod #[.const p []]⟩
   return newFVars
 
 def curriedBody (body : Expr) (newFVars : Array FVar) : TermElabM (LocalContext × LocalInstances × Expr) := do
   withLocalDecls (newFVars.map (·.toLocalDeclD)) fun _ ↦ do
     let lctx ← getLCtx
     let ictx ← getLocalInstances
+    /-
+    Replace every `x[k]` with `x_k`.
+    TODO: We should simply replace every `x` with `#[x_0, ...]` and reduce. Remove this at some point.
+    -/
     let res ← Meta.transform (skipConstInApp := true) body fun e ↦ do
       let_expr GetElem.getElem _ _ _ _ _ coll idx _ := e | return .continue
       let userName := curriedUserName (←coll.fvarId!.getUserName) idx.nat?.get!
       let .some fvar := lctx.findFromUserName? userName | throwError m!"Unknown local declaration: {userName}"
       return .done fvar.toExpr
+    -- Replace every `x` with `#[x_0, ...]`.
+    let res ← Meta.transform (skipConstInApp := true) res fun e ↦ do
+      if e.isFVar
+      then -- TODO: Refactor, reuses `curriedArgs`.
+           let (``Vector, #[t, sz]) := (←inferType e).getAppFnArgs | return .continue
+           let names := curriedUserNamesOfSize (←e.fvarId!.getUserName) sz.nat?.get!
+           let array ← mkAppM ``Array.mk #[
+             ←mkListLit t (←names.mapM (return lctx.findFromUserName? · |>.get!.toExpr)).toList
+           ]
+           let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, sz, array] 
+           let Expr.forallE _ t _ _ ← inferType vecSansProof | throwError "Expected function type."
+           let vec := Expr.app vecSansProof (←mkEqRefl t)
+           return .done vec
+      else return .continue
     return (lctx, ictx, res)
 
+/--
+TODO: Needs the same refactor as serialise (using `withTransformedArgs`, etc.).
+      Currently, `curry` is ugly.
+-/
 def curry (p : Name) (f : Expr) : TermElabM Expr := do 
   lambdaTelescope f fun args body ↦ do
-    let p ← fvarPrimeOfName p args
     let newFVars ← curriedArgs args p
     let (lctx, ictx, res) ← curriedBody body newFVars
     withLCtx lctx ictx do
+      -- Note: `usedOnly := true` is actually too aggressive. It optimises out some arguments.
       mkLambdaFVars (←lctx.getFVars.filterM fun fvar ↦ do return !(←inferType fvar).isAppOf ``Vector) res
 
 def componentsOf (e : Expr) : MetaM (Array Expr) := do
@@ -150,28 +167,43 @@ def componentsOf (e : Expr) : MetaM (Array Expr) := do
   if !isStructure env typeName then throwError m!"{type} is not a structure."
   getStructureFields env typeName |>.mapM (mkProjection e)
 
-def wg (circuitName : Name) (argFvars : Array Expr) : TermElabM Expr := do
-  let #[(primeInst, p)] ← argFvars.filterMapM fun arg ↦ do
-    let ⟨0, ~q(Fact (Nat.Prime $p)), _⟩ ← inferTypeQ arg | return .none
-    return .some (arg, p)
-    | throwError m!"Expecting a single instance of `Nat.Prime`."
+/--
+TODO: Needs refactor. Shares with `curry/serialise`.
+-/
+def wg (p : Name) (argFvars : Array Expr) : TermElabM Expr := do
   let args' ← argFvars.foldlM (init := #[]) fun acc arg ↦ do
     let t ← inferType arg
     let .some name := t.getAppFn.constName? | return acc
-    if (←arg.fvarId!.getBinderInfo).isExplicit && isStructure (←getEnv) name
-    then let components ← componentsOf arg
-         return acc.append components
+    -- TODO: This handling is temporary. We'll be splitting on public/private inputs at some point.
+    if (←arg.fvarId!.getBinderInfo).isExplicit
+    then if ←isDefEq t.getAppFn (.const ``Vector [.zero])
+         then -- TODO: Refactor, reuses `curriedBody`.
+              let (``Vector, #[_, sz]) := t.getAppFnArgs | return acc
+              let components ← Array.range sz.nat?.get! |>.mapM (getElemVectorOfIdx arg)
+              return acc.append components
+         else
+         if isStructure (←getEnv) name
+         then let components ← componentsOf arg
+              return acc.append components
+         else return acc.push arg
     else return acc
   let zmodType ← inferType <| ←args'[0]?.getDM (throwError m!"No explicit arguments found.")
   let args' ← mkAppM ``Array.mk #[←mkListLit zmodType args'.toList]
-  let body ←
-    mkAppM ``Wg.run #[
-      ←mkAppM ``Clap.toWg' #[mkAppN (.const circuitName []) #[p, primeInst]], args'
-    ]
-  mkLambdaFVars argFvars body
+  withLocalDecl `wg .default (.app (.const ``Wg []) (.const p [])) fun fvar ↦ do
+    let body ← mkAppM ``Wg.run #[fvar, args']
+    mkLambdaFVars (#[fvar] ++ argFvars) body
+
+def linearise (e : Expr) : TermElabM Expr := do
+  Meta.transform e fun e ↦ do
+    let (``Bind.bind, ⟨_ :: _ :: _ :: _ :: lhs :: [rhs]⟩) := e.getAppFnArgs | return .continue
+    let (``Bind.bind, ⟨_ :: _ :: lamArgT :: _ :: lhs' :: [rhs']⟩) := lhs.getAppFnArgs | return .continue
+    let binderName ← getUnusedUserName `x
+    withLocalDecl binderName .default lamArgT fun fvar ↦ do
+      let lam ← mkLambdaFVars #[fvar] (←mkAppM ``Bind.bind #[.app rhs' fvar, rhs])
+      return .visit (←Core.betaReduce (←mkAppM ``Bind.bind #[lhs', lam]))
 
 def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
-  let compiledF ← serialise p f >>= curry p >>= toDeep
+  let compiledF ← serialise p f >>= curry p >>= (reduceExpr ·) >>= linearise >>= toDeep p
   let compiledFname := serialisedUserName circuitName
   addAndCompile <| .defnDecl {
     name        := compiledFname
@@ -183,7 +215,7 @@ def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
   }
   logInfo m!"Compiled {circuitName} into {compiledFname}."
   lambdaTelescope f fun args _ ↦ do
-  let wg ← wg compiledFname args
+  let wg ← wg p args
   let wgName := compiledFname.appendAfter "_wg"
   addAndCompile <| .defnDecl {
     name        := wgName
@@ -195,10 +227,25 @@ def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
   }
   logInfo m!"Wg for {circuitName} is {wgName}."
 
+def instantiateLambdaHeadInst (e : Expr) : TermElabM (Option Expr) := do
+  let .lam _ type _ bi := e | return .none
+  if bi.isInstImplicit
+  then instantiateLambda e #[←Elab.Term.mkInstMVar type]
+  else return .none
+
+partial def trySynthAll (e : Expr) : TermElabM Expr := do
+  let .lam n t body bi := e | return e
+  match ← instantiateLambdaHeadInst e with
+  | .none => return .lam n t (←trySynthAll body) bi
+  | .some e => trySynthAll e
+
+def fixPrime (e p : Expr) : TermElabM Expr := do
+  instantiateLambda e #[p] >>= trySynthAll
+
 elab "#compile" circuit:ident "using" p:ident : command => Command.liftTermElabM do
   let [decl] ← realizeGlobalConst circuit | throwError m!"Ambiguous constant: {circuit}"
   let .some decl := (←getEnv).find? decl | throwError m!"Undeclared constant: {circuit}"
-  compile p.getId circuit.getId decl.value!
+  compile p.getId circuit.getId (←fixPrime decl.value! (.const p.getId []))
 
 end Compiler
 

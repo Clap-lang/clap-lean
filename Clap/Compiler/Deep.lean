@@ -36,7 +36,7 @@ partial def compileExp (p : Expr) (var : Expr) (e : Expr) : MetaM Expr := do
     let l <- compileExp p var l
     let r <- compileExp p var r
     return Expr.app (.app (.app (.app (mkConst ``Clap.Exp.sub) p) var) l) r
-  else throwError "compileExp: no match"
+  else throwError m!"compileExp: no match for {e}"
 
 def typeZModp (p:Expr) : Expr := .app (mkConst ``ZMod) p
 def typeCircuit (p var : Expr) : Expr := .app (.app (mkConst ``Clap.Circuit) p) var
@@ -48,8 +48,8 @@ def matchBinds (e:Expr) : Option (Expr × Expr) :=
   -- else if let (``Option.bind, ⟨_ :: _ :: e :: k :: _⟩) := e.getAppFnArgs then some (e,k)
   else none
 
-partial def compile (p : Expr) (var : Expr) (e : Expr) : MetaM Expr := do
---  logInfo m!"compile\n{e.getAppFnArgs}"
+partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
+  -- logInfo m!"compile\n{e}"
 --  dbg_trace s!"compile\n{(<-ppExpr e)}"
 
   if let .lam name type body bi := e then
@@ -65,17 +65,21 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : MetaM Expr := do
     return e
 
   else if let (``Option.some, ⟨_ :: accept :: _⟩) := e.getAppFnArgs then
-    if not (accept == (mkConst `Clap.Spec.Compiler.accept))
-    then throwError m!"compile.accept: not accept"
+    if not (←isDefEq accept (.const ``Clap.Spec.Compiler.accept []))
+    then throwError m!"compile.accept: not accept - {accept}"
 --    dbg_trace s!"accept"
     let e : Expr := .app (.app (mkConst ``Clap.Circuit.nil) p) var
     return e
 
   else if let some (e,k) := matchBinds e then
---    logInfo m!"compile.bind: bind\n{e.getAppFnArgs}"
     let .lam name type body _bi := k | throwError m!"compile.bind: not a lam"
-    if let (`Clap.Spec.Compiler.eq0, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
---      dbg_trace s!"eq0"
+    let (eqf, args) := e.getAppFnArgs
+    if eqf.componentsRev[0]! == `eq0 then
+    -- TODO redo all this if speghetti
+      let lhs := mkAppN (Expr.const eqf []) (args.take args.size.pred)
+      let rhs := Expr.app (.const ``Clap.Spec.Compiler.eq0 []) p
+      let e := e.getAppRevArgs[0]!
+      if !(←isDefEq lhs rhs) then throwError "compile.bind: unrecognised shape of eq0"
       let e : Expr <- compileExp p var e
       -- TODO check type (mkConst `Unit)
       let k <- withLocalDecl name .default type fun u => do
@@ -83,11 +87,9 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : MetaM Expr := do
         let body <- compile p var body
         mkLambdaFVars #[u] body
       let e : Expr := .app (.app (.app (.app (mkConst ``Clap.Circuit.eq0) p) var) e) (.app k (mkConst ``Unit.unit)) -- TODO
---      dbg_trace s!"eq0:return"
       return e
 
     else if let (`Clap.Spec.Compiler.num2bits, ⟨_ :: _ :: w :: e :: _⟩) := e.getAppFnArgs then
---      dbg_trace s!"num2bits"
         let e : Expr <- compileExp p var e
         let k <- withLocalDecl `vars .default (<- mkAppM ``List #[var]) fun fvar => do
           let body := body.instantiate1 fvar
@@ -126,7 +128,7 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : MetaM Expr := do
 
   else throwError m!"compile: not supported\n{e.getAppFnArgs}"
 
-partial def addVar (p : Expr) (body : Expr) : MetaM Expr := do
+partial def addVar (p : Expr) (body : Expr) : TermElabM Expr := do
   let e <- withLocalDecl `var .default (mkSort levelOne) fun var => do
     let body := body.instantiate1 var
     let body ← compile p var body
@@ -134,54 +136,7 @@ partial def addVar (p : Expr) (body : Expr) : MetaM Expr := do
 --  logInfo m!"addVar RETURN {(<-inferType e)}"
   return e
 
-partial def skipFact (p e : Expr) : MetaM Expr := do
-  match e with
-  | .lam name type body bi =>
-    let e <- withLocalDecl name bi type fun fvar => do
-      let body := body.instantiate1 fvar
-      let body <- addVar p body
-      mkLambdaFVars #[fvar] body
-    return e
-  | _ => throwError m!"skip: first argument not a lambda\n{e}"
-
-partial def addP (e : Expr) : MetaM Expr := do
-  match e with
-  | .lam _name type body _bi =>
-    if not (<- isDefEq type (mkConst `Nat))
-    then throwError "addP: first argument not nat {type}"
-    let e <- withLocalDecl `p .default (mkConst `Nat) fun p => do
-      let body := body.instantiate1 p
-      let body <- skipFact p body
-      mkLambdaFVars #[p] body
-    return e
-  | _ => throwError m!"addP: first argument not a lambda\n{e}"
-
 open Meta Elab Term Command in
-def toDeep (c : Expr) : TermElabM Expr := do
-  let e <- addP c
+def toDeep (p : Name) (c : Expr) : TermElabM Expr := do
+  let e <- addVar (.const p []) c
   return e
-
--- open Meta Elab Term Command in
--- elab "#toDeep" c:ident : command => do
---   let name := Name.mkSimple (c.getId.components.getLast!.toString ++ "_circuit")
--- --  let env ← getEnv
---   let some c <- ((←getEnv).find? (←realizeGlobalConst c))[0]!).get!
-
---   let .some c := env.find? c.getId | throwError m!"Can't find {c}"
--- -- TODO type check c - iterate through ZMod p until Option Unit
---   let c := c.value!
---   let tc <- liftTermElabM do
---     let e <- addP c
---     let type <- inferType e
---     pure (type,e)
---   let (type,value) := tc
---   let decl := Declaration.defnDecl {
---     name
---     type
---     value
---     levelParams := []
---     hints := .regular 0
---     safety := .safe
---   }
---   liftTermElabM do
---     addAndCompile decl
