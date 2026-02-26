@@ -3,6 +3,8 @@ import Clap.Sha2.Basic
 import Clap.Sha2.Cpu
 import Clap.Wheels
 
+import Clap.Compiler.Basic
+
 namespace Clap.Sha2.Circuit
 
 open Clap.Lang
@@ -168,5 +170,25 @@ example :
 example :
   letI ins : Array UInt8 := #[3,5,7,9]
   to_nat_be (p:=p) (ins.map fun (u8:UInt8) => (u8:F8 p)) = Clap.Sha2.Cpu.to_nat_be ins := by native_decide
+
+namespace TestCompilation
+
+def test₁ {p:ℕ} [Core p] [Fact (Primes.fits p 32)]
+  (x y z : Vector (FB p) 32) : Option Unit := do
+  let x : F32 p := x.toList
+  let y : F32 p := y.toList
+  let z : F32 p := z.toList
+  F32.assert_eq (Clap.Sha2.Circuit.ch x y z) F32.default
+  -- accept p
+
+/--
+info: Compiled test₁ into test₁_ser.
+---
+info: Wg for test₁ is test₁_ser_wg.
+-/
+#guard_msgs in
+#compile test₁ using Primes.goldilocks
+
+end TestCompilation
 
 end Tests
