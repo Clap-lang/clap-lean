@@ -103,7 +103,7 @@ abbrev FBitVec (p:ℕ) [Core p] := List (FB p)
 
 namespace FBitVec
 
-def default (l:ℕ) : FBitVec p := List.replicate l 0
+def default (l:ℕ) : FBitVec p := List.replicate l FB.false
 
 def ofF (w:ℕ) (e:F p) : FBitVec p :=
   Option.getD (num2bits w e) (default w)
@@ -120,8 +120,12 @@ def binSum (a b : FBitVec p) : FBitVec p := Option.getD (do
   (FBitVec.default (a.length + 1))
 
 def assert_eq (a b : FBitVec p) : Option Unit :=
-  for (a,b) in a.zip b do
-    FB.assert_eq a b
+  match a,b with
+  | [],[] => some ()
+  | ha::tla,hb::tlb => do
+      FB.assert_eq ha hb
+      assert_eq tla tlb
+  | _,_ => none
 
 end FBitVec
 
