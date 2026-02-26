@@ -1,8 +1,8 @@
 import Mathlib.FieldTheory.Finite.Basic
+import Mathlib.Tactic
 
 import Clap.Primes
 import Clap.Wheels
-
 
 namespace Clap
 
@@ -29,6 +29,36 @@ lemma num2bitsLsbPure_length {w : ℕ} {v : ZMod p} : (num2bitsLsbPure w v).leng
     intros v
     unfold num2bitsLsbPure
     simp [ih]
+
+lemma num2bitsLsbPure_bits {w : ℕ} {v : ZMod p} : ∀ i : Fin _, (num2bitsLsbPure w v)[i] = 0 ∨ (num2bitsLsbPure w v)[i] = 1 := by
+  revert v
+  induction w with
+  | zero =>
+    intros _ i
+    erw [List.length_nil] at i
+    exact Fin.elim0 i
+  | succ w ih =>
+    intros v
+    rw! (castMode := .all) [num2bitsLsbPure_length] at ⊢
+    intros i
+    simp only [num2bitsLsbPure]
+    by_cases h : i = 0
+    · simp only [h, Fin.getElem_fin, Fin.coe_ofNat_eq_mod, Nat.zero_mod, List.getElem_cons_zero]
+      rcases Nat.mod_two_eq_zero_or_one v.val <;> aesop
+    · have : ∃ i' : Fin w, i'.succ = i := by
+        use ⟨i.val - 1, by omega⟩
+        have : i.val - 1 + 1 = i.val := by
+          apply Nat.sub_add_cancel
+          by_contra h'
+          apply h
+          simpa using h'
+        simp only [Fin.succ_mk, this]
+      rcases this with ⟨i', this⟩
+      rw [←this]
+      simp only [Fin.getElem_fin, Fin.val_succ, List.getElem_cons_succ]
+      specialize @ih  ((v.val / 2) : ℕ)
+      rw! [num2bitsLsbPure_length] at ih
+      exact ih i'
 
 #guard num2bitsLsbPure (p := Primes.babybear) 3 1 = [1,0,0]
 #guard num2bitsLsbPure (p := Primes.babybear) 3 4 = [0,0,1]
@@ -164,8 +194,25 @@ lemma sum_pow_2_eq [inst' : Fact (p > 2)] {w : ℕ} {f : Fin w → ZMod p} :
   · aesop
   · right; exact ZMod.val_one p
   refine lt_trans ?_ h₁
-  rw [@Fin.sum_univ_eq_sum_range, Nat.geomSum_eq]
+  rw [Fin.sum_univ_eq_sum_range, Nat.geomSum_eq]
   simp; rfl
+
+lemma bits2num_bound [Fact (p > 2)]  {bits : List (ZMod p)} :
+    (∀ i : Fin bits.length, bits[i] = 0 ∨ bits[i] = 1) → (bits2num bits).val < 2 ^ bits.length := by
+  intros h
+  by_cases h' : 2 ^ bits.length < p
+  · rw [bits2num_spec, sum_pow_2_eq h' h]
+    apply lt_of_le_of_lt
+    · apply Finset.sum_le_sum
+      intros i _
+      have {a b : ℕ} : b = 0 ∨ b = 1 → a * b ≤ a := by
+        aesop
+      apply this
+      rcases h i with h | h <;> simp [h, ZMod.val_one]
+    · rw [Fin.sum_univ_eq_sum_range, Nat.geomSum_eq (by decide)]
+      simp
+  · rw [not_lt] at h'
+    exact lt_of_lt_of_le (ZMod.val_lt _) h'
 
 lemma num2bitsLsbPure_of_bits2num_eq [Fact (p > 2)] {ls : List (ZMod p)} :
   2 ^ ls.length < p →
@@ -199,7 +246,7 @@ lemma num2bitsLsbPure_of_bits2num_eq [Fact (p > 2)] {ls : List (ZMod p)} :
       rw [this, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt l_lt_2]
       apply And.intro (by simp)
       have l_div_2_eq : l.val / 2 = 0 := by
-        refine Nat.div_eq_of_lt ?_
+        apply Nat.div_eq_of_lt
         have : (l :: ls).length = ls.length + 1 := by simp
         simp only [List.length_cons] at h'
         rcases h' 0 with h' | h' <;> simp only [Fin.getElem_fin, Fin.coe_ofNat_eq_mod, Nat.zero_mod,
@@ -209,5 +256,28 @@ lemma num2bitsLsbPure_of_bits2num_eq [Fact (p > 2)] {ls : List (ZMod p)} :
       rw [Nat.add_mul_div_left _ _ ((by decide) : 0 < 2), l_div_2_eq, zero_add, ←sum_pow_2_eq len_bound this]
       convert ih
       exact ZMod.natCast_zmod_val _
+
+lemma bits2num_of_num2bitsLsbPure_eq [inst' : Fact (2 < p)] {w : ℕ} {v : ZMod p} : v.val < 2 ^ w → bits2num (num2bitsLsbPure w v) = v := by
+  revert v
+  induction w with
+  | zero =>
+    intros _ h
+    simp only [pow_zero, Nat.lt_one_iff, ZMod.val_eq_zero] at h
+    simp [h, num2bitsLsbPure, bits2num]
+  | succ w ih =>
+    intros v h
+    unfold num2bitsLsbPure bits2num
+    simp only [List.foldr_cons]
+    unfold bits2num at ih
+    have h' : (((v.val / 2) : ℕ) : ZMod p).val < 2 ^ w := by
+      simp only [ZMod.val_natCast]
+      apply lt_of_le_of_lt (Nat.mod_le _ _)
+      exact Nat.nat_repr_len_aux v.val 2 w (by decide) h
+    rw [ih h']
+    apply ZMod.val_injective
+    rw [ZMod.val_add, ZMod.val_mul]
+    simp [ZMod.val_ofNat_of_lt inst'.out]
+    rw [Nat.mod_add_div, Nat.mod_eq_of_lt]
+    exact ZMod.val_lt v
 
 end Clap

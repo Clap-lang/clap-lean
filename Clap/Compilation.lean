@@ -74,7 +74,7 @@ def eval' (cs:Cs' p) : denotation (ZMod p) := (cs (ZMod p)).eval
 def Cs.curry (n : ℕ) (k : Vector var n -> Cs p var) : Cs p var :=
   match n with
   | 0 => k #v[]
-  | n+1 => .lam (fun (x : var) => Cs.curry n (fun l => k (l.push x) ))
+  | n+1 => .lam (fun (x : var) => Cs.curry n (fun l => k ⟨⟨x :: l.toList⟩, by simp⟩ ))
 
 def assert_bit_e (b : var) (rest : Cs p var) : Cs p var :=
   .eq0 (.v b * (.c 1 - .v b)) rest
@@ -176,6 +176,21 @@ lemma assert_bits_spec (args : List (ZMod p)) :
       rcases List.mem_iff_get.mp h' with ⟨i, h'⟩
       rw [←h']
       exact h i
+
+omit inst' in
+lemma assert_bits_of_num2bits {w : ℕ} {v : ZMod p} : assert_bits (num2bitsLsbPure w v) := by
+  revert v
+  induction w with
+  | zero =>
+    simp [num2bitsLsbPure, assert_bits]
+  | succ w ih =>
+    intros v
+    unfold num2bitsLsbPure
+    unfold assert_bits at ih ⊢
+    simp only [beq_iff_eq, Bool.decide_or, List.all_cons, Bool.and_eq_true, Bool.or_eq_true,
+      decide_eq_true_eq, List.all_eq_true] at ih ⊢
+    refine And.intro ?_ ih
+    rcases Nat.mod_two_eq_zero_or_one v.val with h | h <;> simp [h]
 
 lemma bits2num_val_lt_2_pow_w_of_assert_bits  {args : List (ZMod p)} : assert_bits args → (bits2num args).val < 2 ^ args.length := by
   intro cond₁
@@ -309,7 +324,7 @@ def Circuit.toCs (c : Circuit p var) : Cs p var :=
      -- e≠0 inv=e^-1 o=0
   | .num2bits w e c =>
     Cs.curry w (fun bits =>
-      let ls := bits.toArray.toList
+      let ls := bits.toList
       letI rest := (c bits.toList).toCs
       letI rest := Cs.eq0 (bits2num_e ls - e) rest
       assert_bits_e ls rest)
@@ -348,7 +363,7 @@ def Circuit.toWg (c : Circuitₑ p) : Wg p :=
     .cons e⁻¹ (.cons o (k o).toWg)
   | .num2bits w e c =>
     letI bits := num2bitsLsbPure w (Exp.eval e)
-    List.foldl (fun acc b => .cons b acc) (c bits).toWg bits
+    List.foldr (fun b acc => .cons b acc) (c bits).toWg bits
 
 def toWg' (c:Circuit' p) : Wg p := (c (ZMod p)).toWg
 
@@ -440,7 +455,7 @@ theorem soundness {c : Circuitₑ p} : circuitWF c → wrBisim c.eval c.toCs.eva
       simp [Circuit.eval, Circuit.toCs]
       apply rw_bisim_uncurry
       intros args
-      by_cases cond₁ : assert_bits args.toArray.toList <;> by_cases cond₂ : Exp.eval e = bits2num args.toArray.toList
+      by_cases cond₁ : assert_bits args.toList <;> by_cases cond₂ : Exp.eval e = bits2num args.toList
       · rw [reduce ⟨cond₁, cond₂⟩]
         have : e.eval.val < 2 ^ w := by
           have : w = args.toArray.toList.length := by
@@ -454,7 +469,7 @@ theorem soundness {c : Circuitₑ p} : circuitWF c → wrBisim c.eval c.toCs.eva
           convert num2bitsLsbPure_of_bits2num_eq (by convert inv) cond₁
           exact this.symm
         unfold Vector.toList at this
-        rw [cond₂, this]
+        erw [cond₂, this]
         exact ih _ (h args.toArray.toList)
       · rw [reduce₁ cond₁, fail₂ cond₂]
         exact wrBisim.none
@@ -468,36 +483,93 @@ theorem soundness' {c : Circuit' p} :
   circuitWF (c (ZMod p)) → wrBisim (Circuit.eval' c) (eval' (toCs' c)) := by
   apply soundness
 
+omit inst' in
+lemma foldr_curry {n : ℕ} {ls : List (ZMod p)} {wg : Wg p} {f : Vector (ZMod p) n → Cs p (ZMod p)}
+    (h : ls.length = n) : wrap (List.foldr (fun b acc => Wg.cons b acc) wg ls) (Cs.curry n f) =
+      wrap wg (f ⟨⟨ls⟩, h⟩) := by
+  revert ls
+  induction n with
+  | zero =>
+    intros ls h
+    simp [List.eq_nil_iff_length_eq_zero.mpr h]
+  | succ n ih =>
+    intros ls h
+    rcases List.exists_cons_of_length_eq_add_one h with ⟨l, ls', h'⟩
+    simp only [h', List.foldr_cons]
+    rw (occs := .pos [1]) [wrap, ih (by aesop)]
+    rfl
+
+omit inst' in
+lemma assert_bits_e_wrap {wg : Wg p} {ls : List (ZMod p)} {rest : Cs p (ZMod p)} :
+    wrap wg (assert_bits_e ls rest) = assert_bits_e ls (wrap wg rest) := by
+  unfold assert_bits_e assert_bit_e
+  induction ls with
+  | nil => simp
+  | cons l ls ih => simpa [wrap] using ih
+
 
 def completeness [Fact (Nat.Prime p)] {c : Circuitₑ p} :
-  c.eval = (wrap c.toWg c.toCs).eval := by
+  circuitWF c → c.eval = (wrap c.toWg c.toCs).eval := by
   induction c with
   | nil =>
+    intros cWF
     simp [Circuit.eval,Circuit.toCs,Circuit.toWg,wrap]
     constructor
   | lam k h =>
+    intros cWF
+    unfold circuitWF at cWF
     simp [Circuit.eval,Cs.eval,Circuit.toCs,Circuit.toWg,wrap]
     funext
-    apply h
+    apply h _ (cWF _)
   | eq0 e c h =>
+    intros cWF
+    unfold circuitWF at cWF
     simp [Circuit.eval,Cs.eval,Circuit.toCs,Circuit.toWg,wrap]
     split
-    exact h
+    exact h cWF
     constructor
   | share e c h =>
+    intros cWF
+    unfold circuitWF at cWF
     simp [Exp.eval,Circuit.eval,Cs.eval,Circuit.toCs,Circuit.toWg,wrap]
-    apply h
+    apply h _ (cWF _)
   | is_zero e c h =>
+    intros cWF
+    unfold circuitWF at cWF
     simp [Exp.eval,Circuit.eval,Cs.eval,Circuit.toCs,Circuit.toWg,wrap]
     split
     case is_zero.isTrue he0 =>
       simp
-      split <;> apply h
+      split <;> apply h _ (cWF _)
     case is_zero.isFalse he0 =>
       split
       case isTrue he0' =>
-        apply h
+        apply h _ (cWF _)
       case isFalse he0' =>
         simp [*] at *
-  | num2bits e c h =>
-    sorry
+  | num2bits w e c ih =>
+    intros cWF
+    unfold circuitWF at cWF
+    rcases cWF with ⟨w_bound, cWF⟩
+    unfold Circuit.eval Circuit.toWg Circuit.toCs
+    rw [foldr_curry num2bitsLsbPure_length]
+    rw [Vector.toList, assert_bits_e_wrap]
+    unfold wrap
+    simp only
+    rw [reduce₁ assert_bits_of_num2bits]
+    split_ifs with h
+    · rw [ih _ (cWF _)]
+      rw [reduce₂ (bits2num_of_num2bitsLsbPure_eq h).symm]
+    · rw [not_lt] at h
+      unfold Cs.eval
+      split_ifs with h'
+      · exfalso
+        have h' := add_eq_of_eq_sub h'.symm
+        rw [zero_add] at h'
+        rw [h', bits2num_eq_eval_bits2num_e] at h
+        have : (bits2num (num2bitsLsbPure w e.eval)).val < 2 ^ w := by
+          have := @bits2num_bound p _ _ (num2bitsLsbPure w e.eval) num2bitsLsbPure_bits
+          rw [num2bitsLsbPure_length] at this
+          exact this
+        linarith
+      · rfl
