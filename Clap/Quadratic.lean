@@ -239,13 +239,20 @@ def Cs.nVars : Cs p ℕ → ℕ
     a.nVars ⊔ b.nVars ⊔ c.nVars ⊔ Cs.nVars rest
   | _ => 0
 
-def quadraticToConstraints : Cs p ℕ → Constraints
+def quadraticToConstraints (cs:Cs p ℕ) : Constraints :=
+  match cs with
   | .nil => #[]
   | .eq0 (.sub (.mul a b) c) rest =>
     if a.isLinear && b.isLinear && c.isLinear then
-      #[constraint a b c] ++ quadraticToConstraints rest
-    else #[]
-  | _ => #[]
+      let cstr := constraint a b c
+      #[cstr] ++ quadraticToConstraints rest
+    else dbg_trace s!"R1CS: invalid expression {cs}" ; #[]
+  | .eq0 a rest =>
+    if a.isLinear then
+      let cstr := constraint a (.c 1) (.c 0)
+      #[cstr] ++ quadraticToConstraints rest
+    else dbg_trace s!"R1CS: invalid expression {cs}" ; #[]
+  | _ => dbg_trace s!"R1CS: invalid expression {cs}" ; #[]
  where
   constraint (a b c : Exp p ℕ) : Constraint :=
     let termsA := coefficientsToTerms (constantOfLinearExp a) a.toCoeff
