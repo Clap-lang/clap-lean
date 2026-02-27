@@ -9,6 +9,10 @@ leanOptions = [
   { name = "autoImplicit", value = false },
 ]
 
+[[lean_exe]]
+name = "Milestone"
+root = "Clap.Milestone"
+
 [[lean_lib]]
 name = "R1Serialize"
 leanOptions = [

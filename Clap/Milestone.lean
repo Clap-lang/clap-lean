@@ -1,106 +1,86 @@
---import Clap.Circuit
-import Clap.Primes
-import Clap.Compilation
 import Clap.Lang
 import Clap.Compiler.Basic
 import Clap.Cfold
 import Clap.Compilation
 import Clap.Quadratic
-import R1Serialize.R1CS
+import Clap.Sha2.Circuit
 
-open Clap.Lang
+open Primes
+open Clap
+open Lang
 
-variable {p : ℕ} [Fact (Nat.Prime p)] [Core p]
+/-
+  We assume the existance of a p, prime, that fits a number up 32 bits,
+-/
+variable {p : ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 32)]
+
+/-
+  We assume for that p, we have an instance of our Core subset
+-/
+variable [Core p]
 
 open Core
 
-/-
-  This example showcases a circuit that takes a vector of field
-  elements (the tye `ZMod p`) of length 3 and simply checks that all
-  elements are zero using a very natural for loop.
--/
+structure MyCouple (p:ℕ) [Core p] where
+  x : F (p:=p)
+  y : F (p:=p)
 
-def ex_vec (xs : Vector (F p) 3) : Option Unit := do
-  for x in xs do
-    eq0 x
-  accept (p:=p)
+def test (xy : MyCouple p) : Option Unit := do
+  eq0 xy.x
+  eq0 xy.y
+  F.assert_eq xy.x xy.y
+  accept p
 
-/-
-/-
-   This is how we call the first step of the compiler to curry the circuit.
-   Note: in the future everything will be called by a single command,
-   right now it's still split in multiple steps.
--/
-#compile Clap.ex_vec
+-- def test {p:ℕ} [Core p] [Fact (Primes.fits p 32)]
+--   (x y z : Vector (FB p) 32) : Option Unit := do
+--   let x : F32 p := x.toList
+--   let y : F32 p := y.toList
+--   let z : F32 p := z.toList
+--   F32.assert_eq (Clap.Sha2.Circuit.ch x y z) F32.default
+--   -- accept p
 
-/-
-The compiler produces the curried version:
+-- def test (x y : F p) : Option Unit := do
+--   let e := 5 * x - 3+1
+--   F.assert_eq e y
+--   accept p
 
-def ex_vec_curried (x0 x1 x2: ZMod p) : Option Unit := do
-  for x in #[x0,x1,x2] do
-    eq0 x
-  accept
+-- def test2 (x y : F p) : Option Unit := do
+--   let xs := F32.ofF x
+--   let ys := F32.ofF y
+--   let res := F32.add xs ys
+--   F32.assert_eq F32.default res
+--   accept p
 
-were the vector is replaced with a series of arguments, each being a
-single field elements.
--/
+-- def test3 (x : F p) : Option Unit := do
+--   let xs := isZero x
+--   FB.assert_eq xs FB.true
+--   accept p
 
-/-
-  Here we tranform the curried version, which is still Lean code, into
-  our Circuit IR of type `Circuit p`.
--/
-def extract_vec :
-  { c : Circuitₑ p // Simulation.sBisim (ex_vec_curried (p := p)) c.eval } := by
-  extract using ex_vec_curried
+open Clap.Lang.ZMod
 
--- This is what the extracted circuit looks like
-example : (extract_vec (p := p)).1 =
-  .lam fun x_0 =>
-  .lam fun x_1 =>
-  .lam fun x_2 =>
-  .eq0 x_0   (
-  .eq0 x_1 (
-  .eq0 x_2
-  .nil)) := rfl
--/
+#compile test using Primes.bn254
 
-/-
-  This example showcases the use of a structure (equivalent to struct
-  in Rust).
-  Notice that in the body of the circuit `ex_point` we can freely
-  refer to any field of the struct.
--/
+/- The compiler gives us a circuit that we can compile further. -/
+def test_circ : Circuit' bn254 := test_ser
 
-structure Point3 where
-  x : F p
-  y : F p
-  z : F p
+/- But also a wg_wrap which we can use to wrap our witness generator. -/
+def test_wg_wrap : Wg bn254 -> MyCouple bn254 -> Array (ZMod bn254) := test_ser_wg
 
-def ex_point (point : Point3 (p:=p)) : Option Unit := do
-  eq0 (point.x + point.y)
-  eq0 (point.x + point.z)
-  accept (p:=p)
+/- We can optimize the circuit. -/
+def test_circ_opt := Clap.cfold' test_circ
 
-/-
-#compile Clap.ex_point
+/- Compile the circuit to a cs. -/
+def test_cs : Clap.Cs' bn254 := Clap.toCs' test_circ
 
-def extracted_point :
-  { c:Circuitₑ p // Simulation.sBisim (ex_point_curried (p := p)) c.eval } := by
-  extract using ex_point_curried
+/- Compile the circuit to a wg. -/
+def test_wg_raw : Clap.Wg bn254 := Clap.toWg' test_circ
+/- And use the wrapper to get nicer arguments. -/
+def test_wg : MyCouple bn254 → Array (ZMod bn254) := test_wg_wrap (Clap.toWg' test_circ)
 
-/-
-  The struct is replaced by a vector of 3 elements and any reference
-  to its fields is replaced by accesses to the vector at the right
-  index.
-  The vector is then replaced by 3 distict arguments in the currying
-  phase.
--/
+/- Serialize the cs to r1cs -/
+def r1cs : R1CSv1 := quadraticToR1CS (Clap.toLevels test_cs)
 
-example : (extracted_point (p := p)).1 =
-  .lam fun x_0 =>
-  .lam fun x_1 =>
-  .lam fun x_2 =>
-  .eq0 (Exp.c (x_0 + x_1)) (
-  .eq0 (Exp.c (x_0 + x_2))
-  .nil) := rfl
--/
+def main (args : List String) : IO UInt32 := do
+  IO.println s!"snarkjs ri {args[0]!}"
+  serializeR1CS args[0]! r1cs
+  return 0
