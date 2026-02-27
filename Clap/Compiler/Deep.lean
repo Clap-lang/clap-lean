@@ -18,10 +18,7 @@ namespace Clap
 partial def compileExp (p : Expr) (var : Expr) (e : Expr) : MetaM Expr := do
 --  dbg_trace s!"compileExp\n{(<-ppExpr e)}"
   if let (``OfNat.ofNat, ⟨t :: _ :: _⟩) := e.getAppFnArgs then
-    if let (``ZMod, ⟨p' :: _⟩) := t.getAppFnArgs then
-      if not (<-isDefEq p p') then throwError m!"compileExp.c not same p {p} {p'}"
-      return Expr.app (.app (.app (mkConst ``Clap.Exp.c) p) var) e
-    else throwError m!"compileExp.c: OfNat of {t}"
+    return Expr.app (.app (.app (mkConst ``Clap.Exp.c) p) var) e
   else if let .fvar _ := e then
     return Expr.app (.app (.app (mkConst ``Clap.Exp.v) p) var) e
   else if let (``HAdd.hAdd, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
