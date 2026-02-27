@@ -6,7 +6,7 @@ import Clap.Wheels
 
 namespace Clap
 
-variable {p : ℕ} [inst : Fact (Nat.Prime p)]
+variable {p : ℕ}
 
 /-- Computes the `n` bit binary representation of `f`.
     If `n < minBits f` the result is truncated.
@@ -154,7 +154,9 @@ lemma bits2num_spec {bits : List (ZMod p)} : bits2num bits = ∑ i : Fin bits.le
       simp only [h₁ h, Nat.cast_ofNat, List.foldr_cons, LeftDistribClass.left_distrib, ←mul_assoc, this]
       erw [ih]
 
-lemma sum_pow_2_eq [inst' : Fact (p > 2)] {w : ℕ} {f : Fin w → ZMod p} :
+variable [inst : Fact (Nat.Prime p)]  [inst' : Fact (2 < p)]
+
+lemma sum_pow_2_eq {w : ℕ} {f : Fin w → ZMod p} :
   2 ^ w < p → (∀ i, f i = 0 ∨ f i = 1) →
     (∑ i, 2 ^ i.1 * f i).val = ∑ i, 2 ^ i.1 * (f i).val := by
   intros h₁ h₂
@@ -197,7 +199,7 @@ lemma sum_pow_2_eq [inst' : Fact (p > 2)] {w : ℕ} {f : Fin w → ZMod p} :
   rw [Fin.sum_univ_eq_sum_range, Nat.geomSum_eq]
   simp; rfl
 
-lemma bits2num_bound [Fact (p > 2)]  {bits : List (ZMod p)} :
+lemma bits2num_bound {bits : List (ZMod p)} :
     (∀ i : Fin bits.length, bits[i] = 0 ∨ bits[i] = 1) → (bits2num bits).val < 2 ^ bits.length := by
   intros h
   by_cases h' : 2 ^ bits.length < p
@@ -214,7 +216,7 @@ lemma bits2num_bound [Fact (p > 2)]  {bits : List (ZMod p)} :
   · rw [not_lt] at h'
     exact lt_of_lt_of_le (ZMod.val_lt _) h'
 
-lemma num2bitsLsbPure_of_bits2num_eq [Fact (p > 2)] {ls : List (ZMod p)} :
+lemma num2bitsLsbPure_of_bits2num_eq {ls : List (ZMod p)} :
   2 ^ ls.length < p →
   (∀ i : Fin ls.length, ls[i] = 0 ∨ ls[i] = 1) →
   (num2bitsLsbPure ls.length (bits2num ls)) = ls := by
@@ -257,7 +259,7 @@ lemma num2bitsLsbPure_of_bits2num_eq [Fact (p > 2)] {ls : List (ZMod p)} :
       convert ih
       exact ZMod.natCast_zmod_val _
 
-lemma bits2num_of_num2bitsLsbPure_eq [inst' : Fact (2 < p)] {w : ℕ} {v : ZMod p} : v.val < 2 ^ w → bits2num (num2bitsLsbPure w v) = v := by
+lemma bits2num_of_num2bitsLsbPure_eq {w : ℕ} {v : ZMod p} : v.val < 2 ^ w → bits2num (num2bitsLsbPure w v) = v := by
   revert v
   induction w with
   | zero =>

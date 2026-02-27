@@ -22,7 +22,7 @@ def share (e : ZMod p) : ZMod p := e
 def is_zero (e : ZMod p) : ZMod p := if e = 0 then 1 else 0
 
 @[irreducible]
-def num2bits [Fact (Nat.Prime p)] (w : ℕ) (e : ZMod p) : Option (List (ZMod p)) :=
+def num2bits (w : ℕ) (e : ZMod p) : Option (List (ZMod p)) :=
   if e.val < 2^w then .some (num2bitsLsbPure w e) else .none
 
 export Clap (bits2num)
