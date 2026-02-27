@@ -17,7 +17,7 @@ namespace Clap
 
 partial def compileExp (p : Expr) (var : Expr) (e : Expr) : MetaM Expr := do
 --  dbg_trace s!"compileExp\n{(<-ppExpr e)}"
-  if let (``OfNat.ofNat, ⟨t :: _ :: _⟩) := e.getAppFnArgs then
+  if let (``OfNat.ofNat, ⟨_ :: _ :: _⟩) := e.getAppFnArgs then
     return Expr.app (.app (.app (mkConst ``Clap.Exp.c) p) var) e
   else if let .fvar _ := e then
     return Expr.app (.app (.app (mkConst ``Clap.Exp.v) p) var) e
@@ -86,7 +86,7 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
       let e : Expr := .app (.app (.app (.app (mkConst ``Clap.Circuit.eq0) p) var) e) (.app k (mkConst ``Unit.unit)) -- TODO
       return e
 
-    else if let (`Clap.Spec.Compiler.num2bits, ⟨_ :: _ :: w :: e :: _⟩) := e.getAppFnArgs then
+    else if let (`Clap.Spec.Compiler.num2bits, ⟨_ :: w :: e :: _⟩) := e.getAppFnArgs then
         let e : Expr <- compileExp p var e
         let k <- withLocalDecl `vars .default (<- mkAppM ``List #[var]) fun fvar => do
           let body := body.instantiate1 fvar

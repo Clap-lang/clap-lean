@@ -178,7 +178,7 @@ abbrev F32 (p:ℕ) [Fact (Primes.fits p 32)] [Core p] := FBitVec p
 
 namespace F32
 
-variable [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)]
+variable [Fact (Primes.fits p 32)]
 
 def default : F32 p := FBitVec.default 32
 
@@ -188,7 +188,7 @@ instance : Inhabited (F32 p) where
 def ofF (x:F p) : (F32 p) :=
   FBitVec.ofF 32 x
 
-def ofF8 (u8 : F8 p) : F32 p :=
+def ofF8 [Fact (Primes.fits p 8)] (u8 : F8 p) : F32 p :=
   u8 ++ (List.replicate 24 (0:FB p))
 
 def ofUInt32 (u:UInt32) : Option (F32 p) :=
