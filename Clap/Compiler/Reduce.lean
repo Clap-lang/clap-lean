@@ -60,33 +60,44 @@ def foldProjs (e : Expr) : MetaM Expr := do
   let post (e : Expr) := do
     let .some e' ← reduceProj? e | return .continue
     -- TODO: Is this a hack?
+    -- TODO: I don't think check is needed anymore.
     if e'.isAppOf ``id then return .continue
     return .visit e'
   Meta.transform e (post := post)
 
-def zetaHaveStep (e : Expr) : MetaM TransformStep := do
+def zetaHaveStep (p e : Expr) : MetaM TransformStep := do
   let .letE _ _ v b _ := e | return .continue
+  let blacklist :=
+    (Expr.app (arg := p) ∘ Expr.const (us := [])) <$> [
+      ``Spec.Compiler.is_zero,
+      ``Spec.Compiler.num2bits,
+      ``Spec.Compiler.share
+    ]
+  if ←blacklist.anyM fun e ↦ do
+    isDefEq v.getAppFn e then
+      return .continue
+
   return .visit <| Meta.expandLet b #[v]
 
-def zetaHave (e : Expr) : MetaM Expr := do
-  Meta.transform e (pre := zetaHaveStep)
+def zetaHave (p e : Expr) : MetaM Expr := do
+  Meta.transform e (pre := zetaHaveStep p)
 
 /--
 TODO: Think about the ordering here. Do we need unfold / zeta / unfold, do we repeat, etc.
 -/
-def reduceExpr (e : Expr) : MetaM Expr :=
+def reduceExpr (p e : Expr) : MetaM Expr :=
   pure e >>=
-  unfoldAny >>= (Core.betaReduce ·) >>=
-  zetaHave  >>=
-  unfoldAny >>= (Core.betaReduce ·) >>=
-  foldProjs >>= (Core.betaReduce ·)
+  unfoldAny  >>= (Core.betaReduce ·) >>=
+  zetaHave p >>=
+  unfoldAny  >>= (Core.betaReduce ·) >>=
+  foldProjs  >>= (Core.betaReduce ·)
 
 open MVarId in
-def _root_.Lean.MVarId.reduceTarget (goal : MVarId) : MetaM MVarId :=
-  goal.transformTarget (f := reduceExpr)
+def _root_.Lean.MVarId.reduceTarget (p : Expr) (goal : MVarId) : MetaM MVarId :=
+  goal.transformTarget (f := reduceExpr p)
 
 open Elab Tactic in
-elab "test_reduce" : tactic => do
-  liftMetaTactic' MVarId.reduceTarget
+elab "test_reduce" "using" p:ident : tactic => do
+  liftMetaTactic' (MVarId.reduceTarget (Expr.const p.getId []))
 
 end Clap
