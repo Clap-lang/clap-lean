@@ -63,30 +63,61 @@ def foldProjs (e : Expr) : MetaM Expr := do
     return .visit e'
   Meta.transform e (post := post)
 
-def zetaHaveStep (e : Expr) : MetaM TransformStep := do
+def zetaHaveStepPre (p e : Expr) : MetaM TransformStep := do
   let .letE _ _ v b _ := e | return .continue
-  return .visit <| Meta.expandLet b #[v]
 
-def zetaHave (e : Expr) : MetaM Expr := do
-  Meta.transform e (pre := zetaHaveStep)
+  let blacklist :=
+    Expr.const (us := []) <$> [
+      ``Spec.Compiler.is_zero,
+      ``Spec.Compiler.num2bits,
+      ``Spec.Compiler.share
+    ]
+
+  if ←blacklist.anyM fun rejE ↦ do
+    isDefEq v.getAppFn rejE then
+      logInfo m!"Rejected. Continuation: {b}"
+      return .continue b
+
+  return .visit <| b.instantiate1 v
+
+def zetaHave (p e : Expr) : MetaM Expr := do
+  logInfo m!"{e}"
+  Meta.transform e (pre := zetaHaveStepPre p)
+
+partial def zeta (e : Expr) : MetaM Expr := do
+  match e with
+  | .letE declName type value body nondep =>
+    -- TODO: Checking defeq is tricky, the expressions can contain bvars :thinking:.
+    if blacklist.contains value.getAppFn.constName then
+      return .letE declName type (←zeta value) (←zeta body) nondep
+    zeta (body.instantiate1 value)
+  | .app fn arg => return .app (← zeta fn) (← zeta arg)
+  | .lam binderName binderType body binderInfo =>
+    return .lam binderName binderType (←zeta body) binderInfo
+  | .forallE binderName binderType body binderInfo =>
+    return .forallE binderName binderType (←zeta body) binderInfo
+  | _ => return e
+  where blacklist := [
+    ``Spec.Compiler.is_zero,
+    ``Spec.Compiler.num2bits,
+    ``Spec.Compiler.share]
 
 /--
 TODO: Think about the ordering here. Do we need unfold / zeta / unfold, do we repeat, etc.
 -/
-def reduceExpr (e : Expr) : MetaM Expr := do
+def reduceExpr (p e : Expr) : MetaM Expr :=
   pure e >>=
-  unfoldAny >>= (Core.betaReduce ·) >>=
-  zetaHave  >>=
-  unfoldAny >>= (Core.betaReduce ·) >>=
-  foldProjs >>= (Core.betaReduce ·) >>=
-  unfoldAny >>= (Core.betaReduce ·)
+  unfoldAny  >>= (Core.betaReduce ·) >>=
+  zeta >>=
+  unfoldAny  >>= (Core.betaReduce ·) >>=
+  foldProjs  >>= (Core.betaReduce ·)
 
 open MVarId in
-def _root_.Lean.MVarId.reduceTarget (goal : MVarId) : MetaM MVarId :=
-  goal.transformTarget (f := reduceExpr)
+def _root_.Lean.MVarId.reduceTarget (p : Expr) (goal : MVarId) : MetaM MVarId :=
+  goal.transformTarget (f := reduceExpr p)
 
 open Elab Tactic in
-elab "test_reduce" : tactic => do
-  liftMetaTactic' MVarId.reduceTarget
+elab "test_reduce" "using" p:ident : tactic => do
+  liftMetaTactic' (MVarId.reduceTarget (Expr.const p.getId []))
 
 end Clap

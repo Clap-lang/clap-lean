@@ -1,6 +1,9 @@
 import Clap.Spec
 import Clap.Compiler.Basic
 import Clap.Test.Wheels
+import Qq
+
+open Lean Qq
 
 namespace Clap
 
