@@ -141,7 +141,7 @@ def curriedBody (body : Expr) (newFVars : Array FVar) : TermElabM (LocalContext 
            let array ← mkAppM ``Array.mk #[
              ←mkListLit t (←names.mapM (return lctx.findFromUserName? · |>.get!.toExpr)).toList
            ]
-           let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, sz, array] 
+           let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, sz, array]
            let Expr.forallE _ t _ _ ← inferType vecSansProof | throwError "Expected function type."
            let vec := Expr.app vecSansProof (←mkEqRefl t)
            return .done vec
@@ -152,7 +152,7 @@ def curriedBody (body : Expr) (newFVars : Array FVar) : TermElabM (LocalContext 
 TODO: Needs the same refactor as serialise (using `withTransformedArgs`, etc.).
       Currently, `curry` is ugly.
 -/
-def curry (p : Name) (f : Expr) : TermElabM Expr := do 
+def curry (p : Name) (f : Expr) : TermElabM Expr := do
   lambdaTelescope f fun args body ↦ do
     let newFVars ← curriedArgs args p
     let (lctx, ictx, res) ← curriedBody body newFVars

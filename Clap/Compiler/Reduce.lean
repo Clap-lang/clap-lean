@@ -83,12 +83,22 @@ def foldProjs (e : Expr) : MetaM Expr := do
     return .visit e'
   Meta.transform e (post := post)
 
-def zetaHaveStep (e : Expr) : MetaM TransformStep := do
-  let .letE _ _ v b _ := e | return .continue
-  return .visit <| Meta.expandLet b #[v]
-
-def zetaHave (e : Expr) : MetaM Expr := do
-  Meta.transform e (pre := zetaHaveStep)
+partial def zeta (e : Expr) : MetaM Expr := do
+  match e with
+  | .letE declName type value body nondep =>
+    -- TODO: Checking defeq is tricky, the expressions can contain bvars :thinking:.
+    if blacklist.contains value.getAppFn.constName then
+      return .letE declName type (←zeta value) (←zeta body) nondep
+    zeta (body.instantiate1 value)
+  | .app fn arg => return .app (← zeta fn) (← zeta arg)
+  | .lam binderName binderType body binderInfo =>
+    return .lam binderName binderType (←zeta body) binderInfo
+  | .forallE binderName binderType body binderInfo =>
+    return .forallE binderName binderType (←zeta body) binderInfo
+  | _ => return e
+  where blacklist := [
+    ``Spec.Compiler.is_zero,
+    ``Spec.Compiler.share]
 
 /--
 TODO: Think about the ordering here. Do we need unfold / zeta / unfold, do we repeat, etc.
@@ -97,7 +107,7 @@ def reduceExpr (e : Expr) : MetaM Expr :=
   let numIters := 128
   do pure e >>=
      unfold_mAny numIters false >>= (Core.betaReduce ·) >>=
-     zetaHave >>=
+     zeta >>=
      unfold_mAny numIters false >>= (Core.betaReduce ·) >>=
      foldProjs                  >>= (Core.betaReduce ·) >>=
      unfold_mAny numIters false >>= (Core.betaReduce ·)

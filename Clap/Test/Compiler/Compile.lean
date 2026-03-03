@@ -70,6 +70,49 @@ fun (wg : Wg Primes.babybear) (point₁ point₂ : Compile.Point Primes.babybear
 set_option pp.funBinderTypes true in
 #print Compile.ex₀_ser_wg
 
+
+-- TODO should work with Core
+-- def Compile.ex₁ {p : ℕ} [Core p] (x : Core.F p) : Option Unit := do
+--   let x := Core.share x
+--   let y := Core.const (1:ZMod p)
+--   let z := Core.isZero y
+--   let k <- Core.num2bits 2 (x + Core.convert z)
+--   -- TODO expand k
+--   Core.eq0 (Core.convert k[0]!)
+--   Core.accept p
+
+open Spec.Compiler
+
+def Compile.ex₁ {p : ℕ} (x : ZMod p) : Option Unit := do
+  let x := share x
+  let y := (1:ZMod p)
+  let z := is_zero y
+  let _ <- num2bits 2 (x + z)
+--  eq0 k[0]!
+  accept
+
+open Clap.Lang.ZMod
+
+/--
+info: Compiled Compile.ex₁ into Compile.ex₁_ser.
+---
+info: Wg for Compile.ex₁ is Compile.ex₁_ser_wg.
+-/
+#guard_msgs(info, whitespace := lax) in
+#compile Compile.ex₁ using Primes.babybear
+
+/--
+info: def Compile.ex₁_ser : (var : Type) → Circuit Primes.babybear var :=
+fun (var : Type) =>
+  Circuit.lam fun (x : var) =>
+    Circuit.share (Exp.v x) fun (x : var) =>
+      Circuit.is_zero (Exp.c 1) fun (z : var) =>
+        Circuit.num2bits 2 ((Exp.v x).add (Exp.v z)) fun (vars : List var) => Circuit.nil
+-/
+#guard_msgs(info, whitespace := lax) in
+set_option pp.funBinderTypes true in
+#print Compile.ex₁_ser
+
 end Compiler
 
 end Test
