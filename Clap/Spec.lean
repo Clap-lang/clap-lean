@@ -22,8 +22,12 @@ def share (e : ZMod p) : ZMod p := e
 def is_zero (e : ZMod p) : ZMod p := if e = 0 then 1 else 0
 
 @[irreducible]
-def num2bits (w : ℕ) (e : ZMod p) : Option (List (ZMod p)) :=
-  if e.val < 2^w then .some (num2bitsLsbPure w e) else .none
+def assertRange (w : ℕ) (e : ZMod p) : Option Unit :=
+  if e.val < 2^w then .some () else .none
+
+@[irreducible]
+def num2bits (w : ℕ) (e : ZMod p) : List (ZMod p) :=
+  num2bitsLsbPure w e
 
 export Clap (bits2num)
 
@@ -63,12 +67,19 @@ lemma equiv_is_zero {el : ZMod p} {kl : ZMod p → Option Unit} {er : Expₑ p} 
   Simulation.sBisim (bind (is_zero el) kl) (Circuit.eval (.is_zero er kr)) := by
   aesop (add simp [Circuit.eval, bind, share, is_zero])
 
+-- @[aesop safe apply]
+-- lemma equiv_num2bits {kl : List (ZMod p) -> Option Unit} {kr : List (ZMod p) -> Circuitₑ p} {w:ℕ}
+--   (cont : ∀ x, kl x ~ₛ (kr x).eval)
+--   (h : el = Exp.eval er) :
+--   (num2bits w el |> kl) ~ₛ (Circuit.num2bits w er kr).eval := by
+--   aesop (add simp num2bits)
+
 @[aesop safe apply]
-lemma equiv_num2bits {kl : List (ZMod p) -> Option Unit} {kr : List (ZMod p) -> Circuitₑ p} {w:ℕ}
-  (cont : ∀ x, kl x ~ₛ (kr x).eval)
+lemma equiv_assertRange {cl : Option Unit} {cr : Circuitₑ p} {w:ℕ}
+  (cont : cl ~ₛ cr.eval)
   (h : el = Exp.eval er) :
-  (num2bits w el >>= kl) ~ₛ (Circuit.num2bits w er kr).eval := by
-  aesop (add simp num2bits)
+  (do assertRange w el ; cl) ~ₛ (Circuit.num2bits w er (fun _ ↦ cr)).eval := by
+  aesop (add simp assertRange)
 
 end
 
@@ -88,7 +99,7 @@ def ex [Fact (Nat.Prime p)] (i: ZMod p) : Option Unit := do
   eq0 i
   let vi <- share i
   eq0 (vi + i)
-  let bs <- num2bits 2 vi
+  let bs := num2bits 2 vi
   eq0 bs[1]!
   accept
 

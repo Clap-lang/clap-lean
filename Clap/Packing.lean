@@ -11,15 +11,13 @@ def assertIs64BitLimbs [Fact (Primes.fits p 64)] {numLimbs : ℕ}
   (a : Vector (F p) numLimbs) :
   Option Unit
 := do
-  _ ← a.mapM F64.ofF
-  pure ()
+  a.foldlM (fun () => F64.assertRange) ()
 
 def assertIsBytes [Fact (Primes.fits p 8)] {numBytes : ℕ}
   (a : Vector (F p) numBytes) :
   Option Unit
 := do
-  _ ← a.mapM F8.ofF
-  pure ()
+  a.foldlM (fun () => F8.assertRange) ()
 
 def bigEndianBits2Num : FBitVec p → F p := bits2num ∘ .reverse
 

@@ -31,7 +31,7 @@ def singleEndArray (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
 def arraySelector (len : ℕ) (startIdx endIdx : F p) : Option (Vector (FB p) len) := do
   let w := Clap.minBits len
   if w ≤ Clap.minBits p then
-    FB.assert (← F.lessThan w startIdx endIdx)
+    FB.assert (F.lessThan w startIdx endIdx)
     let startMask ← singleOneArray len startIdx
     let endMask ← singleEndArray len endIdx
     -- At each position, turn on at startIdx (OR with startMask) and turn off at endIdx (AND with NOT endMask).
