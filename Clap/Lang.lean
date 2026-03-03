@@ -17,7 +17,8 @@ class Core (p : ℕ) : Type _ where
   share       : F → F
   shareB      : FB → FB
   isZero      : F → FB
-  num2bits    : ℕ → F → Option (List FB)
+  assertRange : ℕ → F → Option Unit
+  num2bits    : ℕ → F → List FB
   bits2num    : List FB → F
 
   [onlyForDebugF  : ToString F  ]
@@ -33,9 +34,6 @@ namespace F
 
 instance : Inhabited (F p) where
   default := 42
-
-def assert_range (w : ℕ) (e : F p) : Option Unit := do
-  let _ <- num2bits w e ; ()
 
 def assert_eq (a b : F p) : Option Unit := do
   eq0 (a - b)
@@ -90,8 +88,8 @@ def assert_eq (a b : FB p) : Option Unit := do
 end FB
 
 def F.lessThanEq (w : ℕ) (a b : F p) : Option (FB p) := do
-  let a <- num2bits w a
-  let b <- num2bits w b
+  let a := num2bits w a
+  let b := num2bits w b
   -- we want to check from the MSB
   let ab := (List.reverse (a.zip b))
   List.foldl (fun acc (a,b) => do
@@ -105,19 +103,15 @@ namespace FBitVec
 
 def default (l:ℕ) : FBitVec p := List.replicate l FB.false
 
-def ofF (w:ℕ) (e:F p) : FBitVec p :=
-  Option.getD (num2bits w e) (default w)
-
-def ofF! (w:ℕ) (e:F p) : Option (FBitVec p) :=
+def ofF! (w:ℕ) (e:F p) : FBitVec p :=
   num2bits w e
 
 abbrev toF (v:FBitVec p) : F p := Core.bits2num v
 
 -- if arguments are both n-bit long, result is n+1 bits
-def binSum (a b : FBitVec p) : FBitVec p := Option.getD (do
+def binSum (a b : FBitVec p) : FBitVec p :=
   let sum : F p := a.toF + b.toF
-  num2bits (a.length + 1) sum)
-  (FBitVec.default (a.length + 1))
+  num2bits (a.length + 1) sum
 
 def assert_eq (a b : FBitVec p) : Option Unit :=
   match a,b with
@@ -135,14 +129,19 @@ namespace F8
 
 variable [Fact (Primes.fits p 8)]
 
-def ofF (x:F p) : (F8 p) :=
-  FBitVec.ofF 8 x
+def assertRange (x:F p) : Option Unit :=
+  Core.assertRange 8 x
 
-def ofF! (x:F p) : Option (F8 p) :=
+def ofF! (x:F p) : F8 p := do
   FBitVec.ofF! 8 x
 
-def ofUInt8 (u:UInt8) : Option (F8 p) :=
-  num2bits 8 (u.toNat)
+def ofF (x:F p) : Option (F8 p) := do
+  assertRange x
+  ofF! x
+
+def ofUInt8 (u:UInt8) : Option (F8 p) := do
+  assertRange (u.toNat:F p)
+  some (num2bits 8 u.toNat)
 
 def zero : F8 p := FBitVec.default 8
 
@@ -165,14 +164,22 @@ def default : F32 p := FBitVec.default 32
 instance : Inhabited (F32 p) where
   default
 
-def ofF (x:F p) : (F32 p) :=
-  FBitVec.ofF 32 x
+def assertRange (x:F p) : Option Unit :=
+  Core.assertRange 32 x
+
+def ofF! (x:F p) : F32 p := do
+  FBitVec.ofF! 32 x
+
+def ofF (x:F p) : Option (F8 p) := do
+  assertRange x
+  ofF! x
 
 def ofF8 (u8 : F8 p) : F32 p :=
   u8 ++ (List.replicate 24 (0:FB p))
 
-def ofUInt32 (u:UInt32) : Option (F32 p) :=
-  num2bits 32 (u.toNat)
+def ofUInt32 (u:UInt32) : Option (F32 p) := do
+  assertRange (u.toNat:F p)
+  some (num2bits 32 u.toNat)
 
 def add (a b : F32 p) : (F32 p) :=
   List.take 32 (FBitVec.binSum a b)
@@ -190,8 +197,15 @@ namespace F64
 
 variable [Fact (Primes.fits p 64)]
 
-def ofF! (x:F p) : Option (F64 p) :=
+def assertRange (x:F p) : Option Unit :=
+  Core.assertRange 64 x
+
+def ofF! (x:F p) : F64 p := do
   FBitVec.ofF! 64 x
+
+def ofF (x:F p) : Option (F64 p) := do
+  assertRange x
+  ofF! x
 
 end F64
 
@@ -217,6 +231,7 @@ scoped instance instCoreZMod (p:ℕ) [Fact (Nat.Prime p)] : Core p where
   share := Compiler.share
   shareB := Compiler.share
   isZero := Compiler.is_zero
+  assertRange := Compiler.assertRange
   num2bits := Compiler.num2bits
   bits2num := Compiler.bits2num
   onlyForDebugF

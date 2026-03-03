@@ -35,7 +35,7 @@ structure MyString (maxLen : ℕ) where
 def MyString.ofVec {maxLen : ℕ} (fs : Vector (F p) maxLen) : Option (MyString (p:=p) maxLen) := do
   let zeros <- countZeros fs
   let len := maxLen - zeros
-  let chars <- Vector.mapM F8.ofF! fs
+  let chars <- Vector.mapM F8.ofF fs
   some {chars,len}
 
 end StringExample
