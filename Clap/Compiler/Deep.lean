@@ -86,20 +86,9 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
       let e : Expr := .app (.app (.app (.app (mkConst ``Clap.Circuit.eq0) p) var) e) (.app k (mkConst ``Unit.unit)) -- TODO
       return e
 
-    else if let (`Clap.Spec.Compiler.num2bits, ⟨_ :: w :: e :: _⟩) := e.getAppFnArgs then
-        let e : Expr <- compileExp p var e
-        let k <- withLocalDecl `vars .default (<- mkAppM ``List #[var]) fun fvar => do
-          let body := body.instantiate1 fvar
-          let body <- compile p var body
-          mkLambdaFVars #[fvar] body
-        let e : Expr <- mkAppM ``Clap.Circuit.num2bits #[w, e, k]
-        return e
     else throwError m!"compile.bind: unknown bind\n{e.getAppFnArgs}"
 
-  -- is_zero has precedence over share
-  else if let .letE name type e body _ := e then
-    if not (<- isDefEq type (typeZModp p))
-    then throwError m!"compile.let: argument not a ZMod p\n{type}"
+  else if let .letE name _ e body _ := e then
 
     if let (`Clap.Spec.Compiler.is_zero, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
 --      dbg_trace s!"is_zero"
@@ -112,7 +101,7 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
 --      dbg_trace s!"is_zero:return"
       return e
 
-    else
+    else if let (`Clap.Spec.Compiler.share, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
 --      dbg_trace s!"share"
       let k <- withLocalDecl name .default var fun fvar => do
         let body := body.instantiate1 fvar
@@ -122,6 +111,17 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
       let e : Expr := .app (.app (.app (.app (mkConst ``Clap.Circuit.share) p) var) e) k
 --      dbg_trace s!"share:return"
       return e
+
+    else if let (`Clap.Spec.Compiler.num2bits, ⟨_ :: w :: e :: _⟩) := e.getAppFnArgs then
+        let e : Expr <- compileExp p var e
+        let k <- withLocalDecl `vars .default (<- mkAppM ``List #[var]) fun fvar => do
+          let body := body.instantiate1 fvar
+          let body <- compile p var body
+          mkLambdaFVars #[fvar] body
+        let e : Expr <- mkAppM ``Clap.Circuit.num2bits #[w, e, k]
+        return e
+
+    else throwError m!"compile.let: not supported\n{e}"
 
   else throwError m!"compile: not supported\n{e.getAppFnArgs}"
 
