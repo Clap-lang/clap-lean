@@ -77,7 +77,7 @@ def zetaHaveStep (p e : Expr) : MetaM TransformStep := do
     isDefEq v.getAppFn e then
       return .continue
 
-  return .visit <| Meta.expandLet b #[v]
+  return .done <| b.instantiate1 v
 
 def zetaHave (p e : Expr) : MetaM Expr := do
   Meta.transform e (pre := zetaHaveStep p)
