@@ -12,7 +12,7 @@ open Lean Clap Meta
 
 open Spec Compiler in
 def ToDeep.ex₁ (x : ZMod Primes.babybear) : Option Unit :=
-  let y : ZMod Primes.babybear := 1
+  let y : ZMod Primes.babybear := share 1
   let z : ZMod Primes.babybear := is_zero y
   do
   let _j <- num2bits 2 y
@@ -46,7 +46,7 @@ run_elab do
 open Spec Compiler in
 def ToDeep.ex₂ (x : ZMod Primes.babybear) : Option Unit := do
   let j <- num2bits 2 x
-  eq0 (j[0]!)
+  eq0 j[0]!
   accept
 
 /-- info: compileExp: no match for vars[0]! -/
