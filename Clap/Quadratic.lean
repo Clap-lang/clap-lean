@@ -37,17 +37,23 @@ section TestScalarArithmetic
 
 open Exp
 
-#guard
-  ((4 * 3 - 5 * 2) * v 1 + (1 - (1 + 1)) * v 2 : Exp 7 ℕ).scalarArithmetic =
+example :
+  ((4 * 3 - 5 * 2) * v 1 + (1 - (1 + 1)) * v 2 : Exp 7 ℕ).scalarArithmetic ==
     ((2 * v 1) + (6 * v 2) : Exp 7 ℕ)
+:= by
+  native_decide
 
-#guard
-  ((5 * v 1 + (3 + 2) * v 2) * ((1 + 1) * v 1) : Exp 7 ℕ).scalarArithmetic =
+example :
+  ((5 * v 1 + (3 + 2) * v 2) * ((1 + 1) * v 1) : Exp 7 ℕ).scalarArithmetic ==
     ((5 * v 1) + (5 * v 2)) * (2 * v 1)
+:= by
+  native_decide
 
-#guard
-  ((2 * (1 + ((2 * 1 + 1 * 2) * 2) + 1) * v 1) : Exp 7 ℕ).scalarArithmetic =
+example :
+  ((2 * (1 + ((2 * 1 + 1 * 2) * 2) + 1) * v 1) : Exp 7 ℕ).scalarArithmetic ==
     20 * v 1
+:= by
+  native_decide
 
 end TestScalarArithmetic
 
@@ -87,21 +93,29 @@ section TestMulByConstants
 
 open Exp
 
-#guard (3 * (v 1 * 2) : Exp 7 ℕ).mulByConstants = 6 * v 1
+example : (3 * (v 1 * 2) : Exp 7 ℕ).mulByConstants = 6 * v 1 := by native_decide
 
-#guard (2 * (3 * v 1) : Exp 7 ℕ).mulByConstants = 6 * v 1
+example : (2 * (3 * v 1) : Exp 7 ℕ).mulByConstants = 6 * v 1 := by native_decide
 
-#guard
+example :
   (4 * v 1 * 2 + 2 * v 2 * 4 : Exp 7 ℕ).mulByConstants = 8 * v 1 + 8 * v 2
+:= by
+  native_decide
 
-#guard
+example :
   (2 * (v 1 * 5) + 5 * (v 2 * 2) : Exp 7 ℕ).mulByConstants = 10 * v 1 + 10 * v 2
+:= by
+  native_decide
 
-#guard
+example :
   (2 * (3 * v 1 + 1 * v 2) * 2 : Exp 7 ℕ).mulByConstants = 12 * v 1 + 4 * v 2
+:= by
+  native_decide
 
-#guard
+example :
   (2 * (3 * v 1 * (v 2 * 4)) : Exp 7 ℕ).mulByConstants = (6 * v 1) * (v 2 * 4)
+:= by
+  native_decide
 
 end TestMulByConstants
 
@@ -217,42 +231,35 @@ section
 
 open Exp
 
-#guard (1 + v 1 + 5 * v 3 + v 2 * 2 + 3 : Exp 7 ℕ).isLinear = true
-#guard (v 5 * v 3 : Exp 7 ℕ).isLinear = false
-#guard (v 1 * (1 + 1) : Exp 7 ℕ).isLinear == false
+example : (1 + v 1 + 5 * v 3 + v 2 * 2 + 3 : Exp 7 ℕ).isLinear = true := by
+  native_decide
+example : (v 5 * v 3 : Exp 7 ℕ).isLinear = false := by native_decide
+example : (v 1 * (1 + 1) : Exp 7 ℕ).isLinear == false := by native_decide
 
-#guard (1 + v 1 + 5 * v 3 + v 2 * 2 + 3 : Exp 7 ℕ).toCoeff = #[1, 2, 5]
-#guard
+example : (1 + v 1 + 5 * v 3 + v 2 * 2 + 3 : Exp 7 ℕ).toCoeff = #[1, 2, 5] := by
+  native_decide
+example :
   (1 + v 1 - (3 * v 2) + 5 * v 3 + v 2 * 2 + 3 : Exp 7 ℕ).toCoeff = #[1, -1, 5]
-#guard /- not linear -/ (v 5 * v 3 : Exp 7 ℕ).toCoeff = #[]
-#guard /- not linear -/ (v 1 * (1 + 1) : Exp 7 ℕ).toCoeff = #[]
+:= by
+  native_decide
+example : /- not linear -/ (v 5 * v 3 : Exp 7 ℕ).toCoeff = #[] := by native_decide
+example : /- not linear -/ (v 1 * (1 + 1) : Exp 7 ℕ).toCoeff = #[] := by native_decide
 
-#guard (1 + 3 + 0 : Exp 7 ℕ).nVars = 0
-#guard (1 + v 1 : Exp 7 ℕ).nVars = 1
-#guard (1 + v 1 + v 5 : Exp 7 ℕ).nVars = 5
+example : (1 + 3 + 0 : Exp 7 ℕ).nVars = 0 := by native_decide
+example : (1 + v 1 : Exp 7 ℕ).nVars = 1 := by native_decide
+example : (1 + v 1 + v 5 : Exp 7 ℕ).nVars = 5 := by native_decide
 
 end
 
-def Cs.nVars : Cs p ℕ → ℕ
-  | .nil => 0
-  | .eq0 (.sub (.mul a b) c) rest =>
-    a.nVars ⊔ b.nVars ⊔ c.nVars ⊔ Cs.nVars rest
-  | _ => 0
-
+/--
+Assumes the `Cs` is in R1CS normal form. To be used after `r1csNormalizeGetNVars`.
+-/
 def quadraticToConstraints (cs:Cs p ℕ) : Constraints :=
   match cs with
   | .nil => #[]
   | .eq0 (.sub (.mul a b) c) rest =>
-    if a.isLinear && b.isLinear && c.isLinear then
-      let cstr := constraint a b c
-      #[cstr] ++ quadraticToConstraints rest
-    else dbg_trace s!"R1CS: invalid expression {cs}" ; #[]
-  | .eq0 a rest =>
-    if a.isLinear then
-      let cstr := constraint a (.c 1) (.c 0)
-      #[cstr] ++ quadraticToConstraints rest
-    else dbg_trace s!"R1CS: invalid expression {cs}" ; #[]
-  | _ => dbg_trace s!"R1CS: invalid expression {cs}" ; #[]
+      #[constraint a b c] ++ quadraticToConstraints rest
+  | _ => #[]
  where
   constraint (a b c : Exp p ℕ) : Constraint :=
     let termsA := coefficientsToTerms (constantOfLinearExp a) a.toCoeff
@@ -283,60 +290,22 @@ def Exp.normalQuadratic (e : Exp p var) : Exp p var :=
   | some (.inl e) => .sub (.mul (.c 0) (.c 0)) (.sub 0 e)
   | some (.inr ⟨A, B, C⟩) => .sub (.mul A B) C
 
-section TestConstraint
-
-open Exp
-
-private def Exp.r1csTransform (e : Exp p ℕ) : Option Constraint := do
-  let r ← e.scalarArithmetic.mulByConstants.normalQuadratic₀
-  match r with
-  | .inl e => pure (quadraticToConstraints.constraint (.c 0) (.c 0) (.sub 0 e))
-  | .inr ⟨A, B, C⟩ => pure (quadraticToConstraints.constraint A B C)
-
-#guard
-  (1 : Exp 7 ℕ).r1csTransform ==
-  some
-    { nA := 0, nB := 0, nC := 1
-      termsA := #[]
-      termsB := #[]
-      termsC := #[(0, 6)] -- v 0 * (-1)
-    }
-
-#guard
-  (2 * (2 * v 1 * 2) : Exp 7 ℕ).r1csTransform ==
-  some
-    { nA := 0, nB := 0, nC := 1
-      termsA := #[]
-      termsB := #[]
-      termsC := #[(1, 6)] -- v 1 * (-1)
-    }
-
-#guard (v 1 + v 1 * v 2 - 1 + 3 * v 2 : Exp 7 ℕ).r1csTransform ==
-  some
-    { nA := 1, nB := 1, nC := 3
-      termsA := #[(1, 1)]
-      termsB := #[(2, 1)]
-      termsC := #[(0, 1), (1, 6), (2, 3)]
-      -- C = 1 + v 1 * (-1) + v 2 * (-3)
-    }
-
-#guard
-  r1csTransform
-    ((v 1 + 1 * (v 1 + (v 2 + v 3) * 2) * (2 * v 2 + 2 * v 1)) : Exp 7 ℕ)
-    ==
-    some
-      { nA := 3, nB := 2, nC := 1,
-        termsA := #[(1, 1), (2, 2), (3, 2)] -- A = v 1 + v 2 * 2 + v 3 * 2
-        termsB := #[(1, 2), (2, 2)] -- B = v 1 * 2 + v 2 * 2
-        termsC := #[(1, 6)] -- C = -1
-      }
-
-
-end TestConstraint
+def Cs.r1csNormalizeGetNVars : Cs p ℕ → Cs p ℕ × ℕ
+  | .nil => (.nil, 0)
+  | .eq0 e rest =>
+    match e.normalQuadratic with
+    | .sub (.mul a b) c =>
+      if a.isLinear && b.isLinear && c.isLinear then
+        let (csRest, nvarsRest) := rest.r1csNormalizeGetNVars
+        let cs := .eq0 (.sub (.mul a b) c) csRest
+        (cs, a.nVars ⊔ b.nVars ⊔ c.nVars ⊔ nvarsRest)
+      else dbg_trace s!"R1CS: invalid expression {_root_.repr e}" ; (.nil, 0)
+    | _ => dbg_trace s!"R1CS: invalid expression {_root_.repr e}" ; (.nil, 0)
+  | cs => dbg_trace s!"R1CS: invalid constraint system {_root_.repr cs}" ; (.nil, 0)
 
 def quadraticToR1CS (cs : Cs p ℕ) : R1CSv1 :=
+  let (cs, nVars) := cs.r1csNormalizeGetNVars
   let c := quadraticToConstraints cs
-  let nVars := Cs.nVars cs
   let nWires := nVars + 1
   let h : Header := {
     fieldElemSize := ⟨fieldSize p⟩
@@ -355,10 +324,91 @@ def quadraticToR1CS (cs : Cs p ℕ) : R1CSv1 :=
   fieldSize (p : ℕ) (size₀ : ℕ := 8) :=
     if p < 2^64 then size₀ else fieldSize (p >>> 64) (size₀ + 8)
 
+private def csVar : Cs 7 Nat :=
+  .eq0 (.v 1) .nil
+
+example : quadraticToR1CS csVar ==
+  { header :=
+    { fieldElemSize := 8
+      prime := 7
+      nWires := 2
+      nPubOut := 0
+      nPubIn := 0
+      nPrvIn := 1
+      nLabels := 2
+      mConstraints := 1
+    }
+    constraints :=
+      #[{ nA := 0, nB := 0, nC := 1
+          termsA := #[]
+          termsB := #[]
+          termsC := #[(1, 6)] -- w₁ * (-1)
+        }
+      ]
+    wireToLabelMap := #[0, 1]
+    ultraPLONKCustomGateList := (), ultraPLONKCustomGateApplication := ()
+    }
+:= by
+  native_decide
+
+private def csVarSubVAr : Cs 7 Nat :=
+  .eq0 (.v 1 - .v 2) .nil
+
+example : quadraticToR1CS csVarSubVAr ==
+  { header :=
+      { fieldElemSize := 8
+        prime := 7
+        nWires := 3
+        nPubOut := 0
+        nPubIn := 0
+        nPrvIn := 2
+        nLabels := 3
+        mConstraints := 1
+      }
+    constraints :=
+      #[{ nA := 0, nB := 0, nC := 2
+          termsA := #[]
+          termsB := #[]
+          termsC := #[(1, 6), (2, 1)] -- w₁ * (-1) + w₂ * 1
+        }
+      ]
+    wireToLabelMap := #[0,1,2]
+    ultraPLONKCustomGateList := (), ultraPLONKCustomGateApplication := ()
+  }
+:= by
+  native_decide
+
 private def cs₁ : Cs 7 Nat :=
+  .eq0 (.v 1 * .v 2) .nil
+
+example : quadraticToR1CS cs₁ ==
+  { header :=
+    { fieldElemSize := 8
+      prime := 7
+      nWires := 3
+      nPubOut := 0
+      nPubIn := 0
+      nPrvIn := 2
+      nLabels := 3
+      mConstraints := 1
+    }
+    constraints :=
+      #[{ nA := 1, nB := 1, nC := 0
+          termsA := #[(1, 1)] -- w₁ * 1
+          termsB := #[(2, 1)] -- w₂ * 1
+          termsC := #[]
+        }
+      ]
+    wireToLabelMap := #[0, 1, 2]
+    ultraPLONKCustomGateList := (), ultraPLONKCustomGateApplication := ()
+  }
+:= by
+  native_decide
+
+private def cs₂ : Cs 7 Nat :=
   .eq0 (.v 1 * .v 2 - .c 3) .nil -- w₁ * w₂ - 3 * w₀ = 0
 
-#guard quadraticToR1CS cs₁ ==
+example : quadraticToR1CS cs₂ ==
   { header :=
     { fieldElemSize := 8
       prime := 7
@@ -379,37 +429,14 @@ private def cs₁ : Cs 7 Nat :=
     wireToLabelMap := #[0, 1, 2]
     ultraPLONKCustomGateList := (), ultraPLONKCustomGateApplication := ()
   }
-
-private def cs₂ : Cs 7 Nat :=
-  .eq0 (.c 1 * .c 1 - .c 1) .nil
-
-#guard quadraticToR1CS cs₂ ==
-  { header :=
-    { fieldElemSize := 8
-      prime := 7
-      nWires := 1
-      nPubOut := 0
-      nPubIn := 0
-      nPrvIn := 0
-      nLabels := 1
-      mConstraints := 1
-    }
-    constraints :=
-      #[{ nA := 1, nB := 1, nC := 1
-          termsA := #[(0, 1)] -- w₀ * 1
-          termsB := #[(0, 1)] -- w₀ * 1
-          termsC := #[(0, 1)] -- w₀ * 1
-        }
-      ]
-    wireToLabelMap := #[0]
-    ultraPLONKCustomGateList := (), ultraPLONKCustomGateApplication := ()
-  }
+:= by
+  native_decide
 
 open Exp in
 private def cs₃ : Cs 7 Nat :=
   .eq0 ((c 1 + 5 * v 1 + 2 * v 2) * (c 2 + v 1) - (v 2)) .nil
 
-#guard quadraticToR1CS cs₃ ==
+example : quadraticToR1CS cs₃ ==
   { header :=
     { fieldElemSize := 8,
       prime := 7
@@ -430,6 +457,8 @@ private def cs₃ : Cs 7 Nat :=
     wireToLabelMap := #[0, 1, 2]
     ultraPLONKCustomGateList := (), ultraPLONKCustomGateApplication := ()
   }
+:= by
+  native_decide
 
 open Exp in
 private def cs₄ : Cs 7 Nat :=
@@ -437,7 +466,7 @@ private def cs₄ : Cs 7 Nat :=
     .eq0 (v 1 * v 2 - v 4) <|
       .eq0 (v 1 * v 1 - v 1) .nil
 
-#guard quadraticToR1CS cs₄ ==
+example : quadraticToR1CS cs₄ ==
   { header :=
     { fieldElemSize := 8
       prime := 7
@@ -466,15 +495,18 @@ private def cs₄ : Cs 7 Nat :=
         }
       ]
     wireToLabelMap := #[0, 1, 2, 3, 4, 5, 6],
-    ultraPLONKCustomGateList := (), ultraPLONKCustomGateApplication := () }
+    ultraPLONKCustomGateList := (), ultraPLONKCustomGateApplication := ()
+  }
+:= by
+  native_decide
 
 open Exp in
 private def cs₅ : Cs 7 Nat :=
-  .eq0 (1 + v 1 * 1).normalQuadratic <|
-    .eq0 (2 * (v 1 + v 2) * (2 + 1) * (v 2 + (1 + 1)) + v 1).normalQuadratic <|
-      .eq0 (v 1 * v 1).normalQuadratic .nil
+  .eq0 (1 + v 1 * 1) <|
+    .eq0 (2 * (v 1 + v 2) * (2 + 1) * (v 2 + (1 + 1)) + v 1) <|
+      .eq0 (v 1 * v 1) .nil
 
-#guard quadraticToR1CS cs₅ ==
+example : quadraticToR1CS cs₅ ==
   { header :=
       { fieldElemSize := 8,
         prime := 7,
@@ -505,6 +537,8 @@ private def cs₅ : Cs 7 Nat :=
     wireToLabelMap := #[0, 1, 2]
     ultraPLONKCustomGateList := (), ultraPLONKCustomGateApplication := ()
   }
+:= by
+  native_decide
 
 -- #eval serializeR1CS "cs1.r1cs" (quadraticToR1CS cs₁)
 -- #eval serializeR1CS "cs2.r1cs" (quadraticToR1CS cs₂)
