@@ -165,6 +165,20 @@ def poseidon (inputs : Array (F p))
   -- let P ← Clap.Poseidon.Constant.P t
   (poseidonEx 1 inputs 0 C S M P)[0]!
 
+private def liftArr (xs : Array (ZMod p)) : Array (F p) := xs.map const
+private def liftMat (xs : Array (Array (ZMod p))) : Array (Array (F p)) := xs.map (·.map const)
+
+def poseidonBN254 (input : Array (F p)) : Option (F p) := do
+  let t := input.size + 1
+  -- element 2 is at array index 0 and so on
+  let C ← Clap.Poseidon.Constant.C[t-2]?
+  let S ← Clap.Poseidon.Constant.S[t-2]?
+  let M ← Clap.Poseidon.Constant.M[t-2]?
+  let P ← Clap.Poseidon.Constant.P[t-2]?
+  let e ←
+    Clap.Poseidon.poseidon input (liftArr C) (liftArr S) (liftMat M) (liftMat P)
+  pure e
+
 end Clap.Poseidon
 
 namespace Poseidon.Test
@@ -175,18 +189,9 @@ open Clap Lang Core
 open Clap Lang ZMod
 open Clap Poseidon
 
-private def liftArr (xs : Array (ZMod p)) : Array (F p) := xs.map const
-private def liftMat (xs : Array (Array (ZMod p))) : Array (Array (F p)) := xs.map (·.map const)
-
 /-- Run poseidon on `ZMod bn254` inputs, looking up constants by `t`. -/
 private def testPoseidon (inputs : Array (ZMod p)) (expected : F p) : Option Unit := do
-  let t := inputs.size + 1
-  -- element 2 is at array index 0 and so on
-  let C ← Clap.Poseidon.Constant.C[t-2]?
-  let S ← Clap.Poseidon.Constant.S[t-2]?
-  let M ← Clap.Poseidon.Constant.M[t-2]?
-  let P ← Clap.Poseidon.Constant.P[t-2]?
-  let e ← poseidon (inputs.map const) (liftArr C) (liftArr S) (liftMat M) (liftMat P)
+  let e ← poseidonBN254 (inputs.map const)
   F.assert_eq e expected
 
 -- circomlib test vector: hash([1, 2]) with t=3
