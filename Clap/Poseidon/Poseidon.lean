@@ -156,14 +156,25 @@ def poseidonEx (nOuts : ℕ) (inputs : Array (F p)) (initState : F p)
     the permutation output.
 
     Mirrors circomlib's `Poseidon(nInputs)` template. -/
-def poseidon (inputs : Array (F p))
-    (C S : Array (F p)) (M P : Array (Array (F p))) : Option (F p) := do
-  -- let t := inputs.size + 1
-  -- let C ← Clap.Poseidon.Constant.C t
-  -- let S ← Clap.Poseidon.Constant.S t
-  -- let M ← Clap.Poseidon.Constant.M t
-  -- let P ← Clap.Poseidon.Constant.P t
+def poseidon (inputs : Array (F p)) (C S : Array (F p)) (M P : Array (Array (F p))) : Option (F p) := do
   (poseidonEx 1 inputs 0 C S M P)[0]!
+
+section Poseidon254
+
+open Primes
+
+def liftArr (xs : Array (ZMod p)) : Array (F p) := xs.map const
+def liftMat (xs : Array (Array (ZMod p))) : Array (Array (F p)) := xs.map (·.map const)
+
+def poseidonBN254 (inputs : Array (F bn254)) : Option (F bn254) := do
+  let t := inputs.size + 1 -- element 2 is at array index 0 and so on
+  let C ← Clap.Poseidon.Constant.C[t-2]?
+  let S ← Clap.Poseidon.Constant.S[t-2]?
+  let M ← Clap.Poseidon.Constant.M[t-2]?
+  let P ← Clap.Poseidon.Constant.P[t-2]?
+  poseidon inputs (liftArr C) (liftArr S) (liftMat M) (liftMat P)
+
+end Poseidon254
 
 end Clap.Poseidon
 
@@ -175,19 +186,9 @@ open Clap Lang Core
 open Clap Lang ZMod
 open Clap Poseidon
 
-private def liftArr (xs : Array (ZMod p)) : Array (F p) := xs.map const
-private def liftMat (xs : Array (Array (ZMod p))) : Array (Array (F p)) := xs.map (·.map const)
-
 /-- Run poseidon on `ZMod bn254` inputs, looking up constants by `t`. -/
 private def testPoseidon (inputs : Array (ZMod p)) (expected : F p) : Option Unit := do
-  let t := inputs.size + 1
-  -- element 2 is at array index 0 and so on
-  let C ← Clap.Poseidon.Constant.C[t-2]?
-  let S ← Clap.Poseidon.Constant.S[t-2]?
-  let M ← Clap.Poseidon.Constant.M[t-2]?
-  let P ← Clap.Poseidon.Constant.P[t-2]?
-  let e ← poseidon (inputs.map const) (liftArr C) (liftArr S) (liftMat M) (liftMat P)
-  F.assert_eq e expected
+  F.assert_eq (← poseidonBN254 (inputs.map const)) expected
 
 -- circomlib test vector: hash([1, 2]) with t=3
 -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L50
