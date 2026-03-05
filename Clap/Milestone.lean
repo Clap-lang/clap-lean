@@ -112,9 +112,8 @@ def assert_eq (a b : List (F p)) : Option Unit :=
   | _,_ => none
 
 def test {p:ℕ} [Core p] [Fact (Primes.fits p 32)]
-  (x y z : (F p)) : Option Unit := do
-  let ch : (F p) := x * (y - z) + z
-  eq0 (ch - 0)
+  (x : (F p)) : Option Unit := do
+  eq0 (x - 0)
   accept p
 
 -- def test (x y : F p) : Option Unit := do
