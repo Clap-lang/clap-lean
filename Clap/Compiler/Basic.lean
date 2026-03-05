@@ -203,16 +203,19 @@ def linearise (e : Expr) : TermElabM Expr := do
       return .visit (←Core.betaReduce (←mkAppM ``Bind.bind #[lhs', lam]))
 
 def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
-  let compiledF ← serialise p f >>= curry p >>= (reduceExpr ·) >>= linearise >>= toDeep p
+  -- let compiledF ← serialise p f >>= curry p >>= (reduceExpr ·) >>= linearise >>= toDeep p
+  -- let s := s!"{compiledF}"
+  -- dbg_trace s!"compiledF {s.length}"
+  IO.FS.writeFile "compile.log" (toString f)
   let compiledFname := serialisedUserName circuitName
-  addAndCompile <| .defnDecl {
-    name        := compiledFname
-    levelParams := []
-    type        := ←inferType compiledF
-    value       := compiledF
-    hints       := .regular 18
-    safety      := .safe
-  }
+  -- addAndCompile <| .defnDecl {
+  --   name        := compiledFname
+  --   levelParams := []
+  --   type        := ←inferType compiledF
+  --   value       := compiledF
+  --   hints       := .regular 18
+  --   safety      := .safe
+  -- }
   logInfo m!"Compiled {circuitName} into {compiledFname}."
   -- lambdaTelescope f fun args _ ↦ do
   -- let wg ← wg p args

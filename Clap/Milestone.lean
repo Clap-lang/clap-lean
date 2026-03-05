@@ -61,9 +61,14 @@ def test {p:ℕ} [inst : Core p] (_x : F p) : Option Unit := do
 def minimal : (var : Type) → Circuit p var :=
 fun _var => Circuit.eq0 ((Exp.c 0).sub (Exp.c 0)) ((fun _x => Circuit.nil) ())
 
---#reduce ((1:ZMod 2) - 1)
+def minimal' : (var : Type) → Circuit p var := fun _var => Circuit.nil
 
 open Clap.Lang.ZMod
+
+#compile minimal' using Primes.goldilocks
+
+--#reduce ((1:ZMod 2) - 1)
+
 
 #compile test using Primes.goldilocks
 
