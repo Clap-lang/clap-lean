@@ -43,6 +43,9 @@ def assert_eq (a b : F p) : Option Unit := do
 def eq (a b : F p) : FB p :=
   isZero (a - b)
 
+def dotProduct {w : ℕ} (a b : Vector (F p) w) : F p :=
+  (a.zipWith (· * ·) b).foldl (· + ·) 0
+
 end F
 
 namespace FB
@@ -82,6 +85,8 @@ def assert_eq (a b : FB p) : Option Unit := do
 
 end FB
 
+namespace F
+
 /-
 requires:
 - a and b ∈ [0,2^w-1]
@@ -97,19 +102,21 @@ then a-b ∈ [0,2^w-1]
 then a-b+2^w ∈ [2^w,2^(w+1)-1]
 which does not fit in w bits, so when converted to a (w+1)-bit number, its MSB is 1
 -/
-def F.lessThan (w : ℕ) (a b : F p) : Option (FB p) := do
+def lessThan (w : ℕ) (a b : F p) : Option (FB p) := do
   let d := a - b + const (2^w)
   let d ← num2bits (w + 1) d
   return FB.not d[w]!
 
-def F.lessEqThan (w : ℕ) (a b : F p) : Option (FB p) :=
-  F.lessThan w a (b + 1)
+def lessEqThan (w : ℕ) (a b : F p) : Option (FB p) :=
+  lessThan w a (b + 1)
 
-def F.greaterThan (w : ℕ) (a b : F p) : Option (FB p) :=
-  F.lessThan w b a
+def greaterThan (w : ℕ) (a b : F p) : Option (FB p) :=
+  lessThan w b a
 
-def F.greaterEqThan (w : ℕ) (a b : F p) : Option (FB p) :=
-  F.lessThan w b (a + 1)
+def greaterEqThan (w : ℕ) (a b : F p) : Option (FB p) :=
+  lessThan w b (a + 1)
+
+end F
 
 /-- LSB first, like the output of num2bits -/
 abbrev FBitVec (p:ℕ) [Core p] := List (FB p)
