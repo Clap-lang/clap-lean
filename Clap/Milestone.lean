@@ -112,13 +112,10 @@ def assert_eq (a b : List (F p)) : Option Unit :=
   | _,_ => none
 
 def test {p:ℕ} [Core p] [Fact (Primes.fits p 32)]
-  (x y z : Vector (F p) 1) : Option Unit := do
-  let x := x.toList
-  let y := y.toList
-  let z := z.toList
-  let ch : List (F p) := List.map (fun ((x,y),z) => x * (y - z) + z) ((x.zip y).zip z)
-  assert_eq ch [0]
-  -- accept p
+  (x y z : (F p)) : Option Unit := do
+  let ch : (F p) := x * (y - z) + z
+  eq0 (ch - 0)
+  accept p
 
 -- def test (x y : F p) : Option Unit := do
 --   let e := 5 * x - 3+1
