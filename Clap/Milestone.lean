@@ -65,7 +65,7 @@ def minimal' : (var : Type) → Circuit p var := fun _var => Circuit.nil
 
 open Clap.Lang.ZMod
 
-#compile minimal' using Primes.goldilocks
+-- #compile minimal' using Primes.goldilocks
 
 --#reduce ((1:ZMod 2) - 1)
 

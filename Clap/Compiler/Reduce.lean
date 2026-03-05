@@ -22,7 +22,7 @@ def isPrivileged (e : Expr) : MetaM Bool := do
 TODO: Temporary. We'll want to reduce this at some point.
 -/
 def isArith (e : Expr) : MetaM Bool := do
-  return [``HAdd.hAdd, ``HSub.hSub, ``HMul.hMul, ``HPow.hPow, ``OfNat.ofNat].map e.isAppOf |>.any (·==true)
+  return [``HAdd.hAdd, ``HSub.hSub, ``HMul.hMul, ``HPow.hPow, ``OfNat.ofNat, ``OfNat.mk].map e.isAppOf |>.any (·==true)
 
 def _root_.Lean.Expr.isIrreducibleExpr (e : Expr) : MetaM Bool := do
   e.getAppFn.constName?.elim (return false) isIrreducible
@@ -34,6 +34,7 @@ def unfoldAnyStep (e : Expr) : MetaM TransformStep := do
   match ← reduceMatcher? e with
   | .reduced v => return .visit v
   | _ => let some v ← unfoldDefinition? e | return .continue
+         logInfo m!"done:\n{e}\nwith:\n{v}"
          return .visit v
 
 def unfoldAny (e : Expr) : MetaM Expr := do
