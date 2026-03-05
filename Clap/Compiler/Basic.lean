@@ -248,7 +248,7 @@ def fixPrime (e p : Expr) : TermElabM Expr := do
 elab "#compile" circuit:ident "using" p:ident : command => Command.liftTermElabM do
   let [decl] ← realizeGlobalConst circuit | throwError m!"Ambiguous constant: {circuit}"
   let .some decl := (←getEnv).find? decl | throwError m!"Undeclared constant: {circuit}"
-  compile p.getId circuit.getId (←fixPrime decl.value! (.const p.getId []))
+  compile p.getId circuit.getId (←fixPrime decl.value! (.const p.getId []) >>= instantiateMVars)
 
 end Compiler
 
