@@ -228,19 +228,19 @@ TODO it should be possible to replace the extended definition below with this de
 class Extended (p:ℕ) [Fact (Nat.Prime p)] : Type _ extends Core p, DecidableEq (Core.F p)
 -/
 
-class extended (p:ℕ) [Fact (Nat.Prime p)] [Core p] : Type _ where
-  ins : Core p
-  [i₀ : DecidableEq (Core.F p)]
-  [i₁ : {n:ℕ} → OfNat (Core.F p) n]
-  [i₂ : DecidableEq (Core.FB p)]
+-- class extended (p:ℕ) [Fact (Nat.Prime p)] [Core p] : Type _ where
+--   ins : Core p
+--   [i₀ : DecidableEq (Core.F p)]
+-- --  [i₁ : {n:ℕ} → OfNat (Core.F p) n]
+--   [i₂ : DecidableEq (Core.FB p)]
 
-attribute [instance] extended.i₀ extended.i₁ extended.i₂
+--attribute [instance] extended.i₀ extended.i₁ extended.i₂
 
-scoped instance bla (p:ℕ) [Fact (Nat.Prime p)] : extended p where
-  ins := instCoreZMod p
-  i₀ := inferInstanceAs (DecidableEq (ZMod p))
-  i₁ := inferInstanceAs ({n:ℕ} → OfNat (ZMod p) n)
-  i₂ := inferInstanceAs (DecidableEq (ZMod p))
+-- scoped instance bla (p:ℕ) [Fact (Nat.Prime p)] : extended p where
+--   ins := instCoreZMod p
+--   i₀ := inferInstanceAs (DecidableEq (ZMod p))
+-- --  i₁ := inferInstanceAs ({n:ℕ} → OfNat (ZMod p) n)
+--   i₂ := inferInstanceAs (DecidableEq (ZMod p))
 
 end ZMod
 
@@ -275,8 +275,8 @@ instance : Coe UInt32 (F32 p) where
 instance (n:ℕ) : OfNat (F32 p) n where
   ofNat := Clap.num2bitsLsbPure 32 n
 
-example :
-  letI a : UInt32 := 2^32 - 1
-  (F32.add (a : F32 p) (1 : F32 p)) = ((UInt32.add a 1) : F32 p) := by native_decide
+-- example :
+--   letI a : UInt32 := 2^32 - 1
+--   (F32.add (a : F32 p) (1 : F32 p)) = ((UInt32.add a 1) : F32 p) := by native_decide
 
 end Test
