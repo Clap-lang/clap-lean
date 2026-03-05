@@ -214,18 +214,18 @@ def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
     safety      := .safe
   }
   logInfo m!"Compiled {circuitName} into {compiledFname}."
-  lambdaTelescope f fun args _ ↦ do
-  let wg ← wg p args
-  let wgName := compiledFname.appendAfter "_wg"
-  addAndCompile <| .defnDecl {
-    name        := wgName
-    levelParams := []
-    type        := ←inferType wg
-    value       := wg
-    hints       := .regular 18
-    safety      := .safe
-  }
-  logInfo m!"Wg for {circuitName} is {wgName}."
+  -- lambdaTelescope f fun args _ ↦ do
+  -- let wg ← wg p args
+  -- let wgName := compiledFname.appendAfter "_wg"
+  -- addAndCompile <| .defnDecl {
+  --   name        := wgName
+  --   levelParams := []
+  --   type        := ←inferType wg
+  --   value       := wg
+  --   hints       := .regular 18
+  --   safety      := .safe
+  -- }
+  -- logInfo m!"Wg for {circuitName} is {wgName}."
 
 def instantiateLambdaHeadInst (e : Expr) : TermElabM (Option Expr) := do
   let .lam _ type _ bi := e | return .none
