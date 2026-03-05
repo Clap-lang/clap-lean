@@ -203,32 +203,34 @@ def linearise (e : Expr) : TermElabM Expr := do
       return .visit (←Core.betaReduce (←mkAppM ``Bind.bind #[lhs', lam]))
 
 def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
-  -- let compiledF ← serialise p f >>= curry p >>= (reduceExpr ·) >>= linearise >>= toDeep p
+  let compiledF ← serialise p f >>= curry p >>= (reduceExpr ·) >>= linearise >>= toDeep p
+  -- logInfo m!"{compiledF.sizeWithoutSharing}"
+  logInfo m!"{compiledF}"
   -- let s := s!"{compiledF}"
   -- dbg_trace s!"compiledF {s.length}"
-  IO.FS.writeFile "compile.log" (toString f)
+  -- IO.FS.writeFile "compile.log" (toString compiledF)
   let compiledFname := serialisedUserName circuitName
-  -- addAndCompile <| .defnDecl {
-  --   name        := compiledFname
-  --   levelParams := []
-  --   type        := ←inferType compiledF
-  --   value       := compiledF
-  --   hints       := .regular 18
-  --   safety      := .safe
-  -- }
+  addAndCompile <| .defnDecl {
+    name        := compiledFname
+    levelParams := []
+    type        := ←inferType compiledF
+    value       := compiledF
+    hints       := .regular 18
+    safety      := .safe
+  }
   logInfo m!"Compiled {circuitName} into {compiledFname}."
-  -- lambdaTelescope f fun args _ ↦ do
-  -- let wg ← wg p args
-  -- let wgName := compiledFname.appendAfter "_wg"
-  -- addAndCompile <| .defnDecl {
-  --   name        := wgName
-  --   levelParams := []
-  --   type        := ←inferType wg
-  --   value       := wg
-  --   hints       := .regular 18
-  --   safety      := .safe
-  -- }
-  -- logInfo m!"Wg for {circuitName} is {wgName}."
+  lambdaTelescope f fun args _ ↦ do
+  let wg ← wg p args
+  let wgName := compiledFname.appendAfter "_wg"
+  addAndCompile <| .defnDecl {
+    name        := wgName
+    levelParams := []
+    type        := ←inferType wg
+    value       := wg
+    hints       := .regular 18
+    safety      := .safe
+  }
+  logInfo m!"Wg for {circuitName} is {wgName}."
 
 def instantiateLambdaHeadInst (e : Expr) : TermElabM (Option Expr) := do
   let .lam _ type _ bi := e | return .none

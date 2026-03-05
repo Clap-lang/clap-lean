@@ -49,12 +49,39 @@ variable {p : ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 32)]
 variable [Core p]
 
 open Core
+open ZMod
 
-set_option pp.all true
+-- set_option pp.all true
 
 def test {p:ℕ} [inst : Core p] (_x : F p) : Option Unit := do
   eq0 ((0:F p))
   accept p
+
+example {x : F Primes.goldilocks} : test x = sorry := by
+  unfold test
+  unfold OfNat.ofNat
+  unfold Zero.toOfNat0
+  dsimp -zeta only
+  unfold Zero.zero
+  unfold_projs
+  dsimp
+  unfold OfNat.ofNat
+  unfold instOfNatNat
+  dsimp
+  unfold OfNat.ofNat
+  unfold instOfNatNat
+  dsimp
+  unfold OfNat.ofNat
+  unfold instOfNatNat
+  dsimp
+  unfold OfNat.ofNat
+  unfold instOfNatNat
+  dsimp
+  unfold OfNat.ofNat
+  unfold instOfNatNat
+  dsimp
+  dsimp only
+
 
 --#print test
 
@@ -65,10 +92,9 @@ def minimal' : (var : Type) → Circuit p var := fun _var => Circuit.nil
 
 open Clap.Lang.ZMod
 
-#compile minimal' using Primes.goldilocks
+-- #compile minimal using Primes.goldilocks
 
 --#reduce ((1:ZMod 2) - 1)
-
 
 #compile test using Primes.goldilocks
 

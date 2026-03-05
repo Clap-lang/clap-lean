@@ -34,7 +34,9 @@ def unfoldAnyStep (e : Expr) : MetaM TransformStep := do
   match ← reduceMatcher? e with
   | .reduced v => return .visit v
   | _ => let some v ← unfoldDefinition? e | return .continue
-         return .visit v
+        --  logInfo m!"e:{e}\nv:{v}"
+         return .done v
+        --  return .visit v
 
 def unfoldAny (e : Expr) : MetaM Expr := do
   Meta.transform e (skipConstInApp := true) (pre := unfoldAnyStep)
