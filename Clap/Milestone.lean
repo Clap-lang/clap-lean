@@ -103,12 +103,21 @@ open Core
 --   F32.assert_eq (Clap.Sha2.Circuit.ch x y z) F32.default
 --   -- accept p
 
+def assert_eq (a b : List (F p)) : Option Unit :=
+  match a,b with
+  | [],[] => some ()
+  | ha::tla,hb::tlb => do
+      F.assert_eq ha hb
+      assert_eq tla tlb
+  | _,_ => none
+
 def test {p:ℕ} [Core p] [Fact (Primes.fits p 32)]
-  (x y z : Vector (FB p) 1) : Option Unit := do
+  (x y z : Vector (F p) 1) : Option Unit := do
   let x := x.toList
   let y := y.toList
   let z := z.toList
-  F32.assert_eq (Clap.Sha2.Circuit.ch x y z) [0]
+  let ch : List (F p) := List.map (fun ((x,y),z) => x * (y - z) + z) ((x.zip y).zip z)
+  assert_eq ch [0]
   -- accept p
 
 -- def test (x y : F p) : Option Unit := do
