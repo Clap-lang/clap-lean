@@ -12,6 +12,9 @@ leanOptions = [
 [[lean_exe]]
 name = "Milestone"
 root = "Clap.Milestone"
+leanOptions = [
+  { name = "maxRecDepth", value = 100000 },
+]
 
 [[lean_lib]]
 name = "R1Serialize"

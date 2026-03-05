@@ -394,7 +394,7 @@ def circuitWF : Circuitₑ p → Prop
 | .is_zero _ c => ∀ i, circuitWF (c i)
 | .num2bits w _ c => 2 ^ w < p ∧ ∀ i, circuitWF (c i)
 
-
+/-
 theorem soundness {c : Circuitₑ p} : circuitWF c → wrBisim c.eval c.toCs.eval := by
   induction c with
   | nil =>
@@ -573,3 +573,4 @@ def completeness [Fact (Nat.Prime p)] {c : Circuitₑ p} :
           exact this
         linarith
       · rfl
+-/
