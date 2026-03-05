@@ -4,6 +4,32 @@ import Mathlib.FieldTheory.Finite.Basic -- field operations
 
 import Clap.Primes
 
+private def scanrAux {α β : Type} (f : α → β → β) (init : β) : List α → β × List β
+  | []     => (init, [])
+  | a :: l => let (acc, rs) := scanrAux f init l; (f a acc, acc :: rs)
+
+private lemma scanrAux_length {α β : Type} (f : α → β → β) (init : β) (l : List α) :
+    (scanrAux f init l).2.length = l.length := by
+  induction l with
+  | nil => rfl
+  | cons _ _ ih => simp [scanrAux, ih]
+
+def Vector.scanr {α β : Type} {n} (f : α → β → β) (init : β) (v : Vector α n) : Vector β n :=
+  ⟨⟨(scanrAux f init v.toList).2⟩, by simp [scanrAux_length]⟩
+
+private def scanlAux {α β : Type} (f : β → α → β) (init : β) : List α → List β
+  | []     => []
+  | a :: l => init :: scanlAux f (f init a) l
+
+private lemma scanlAux_length {α β : Type} (f : β → α → β) (init : β) (l : List α) :
+    (scanlAux f init l).length = l.length := by
+  induction l generalizing init with
+  | nil => rfl
+  | cons _ _ ih => simp [scanlAux, ih]
+
+def Vector.scanl {α β : Type} {n} (f : β → α → β) (init : β) (v : Vector α n) : Vector β n :=
+  ⟨⟨scanlAux f init v.toList⟩, by simp [scanlAux_length]⟩
+
 namespace Clap
 
 @[reducible]
