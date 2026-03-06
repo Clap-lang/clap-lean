@@ -50,7 +50,7 @@ variable [Core p]
 
 open Core
 
-set_option pp.all true
+-- set_option pp.all true
 
 def test {p:ℕ} [inst : Core p] (_x : F p) : Option Unit := do
   eq0 ((0:F p))

@@ -28,16 +28,23 @@ def _root_.Lean.Expr.isIrreducibleExpr (e : Expr) : MetaM Bool := do
   e.getAppFn.constName?.elim (return false) isIrreducible
 
 def unfoldAnyStep (e : Expr) : MetaM TransformStep := do
-  if ←isArith e then return .continue
+  logInfo m!"e: {e}"
+  if ←isArith e then logInfo m!"Rejected arith."; return .continue
   -- Do we want to catch irreducible expressions?
-  if (←e.isIrreducibleExpr) || (←isPrivileged e) then return .continue
+  -- if e.isAppOf ``Spec.Compiler.eq0
+  -- then .visit eq0.getAppA else _
+  if (←isInstance e.getAppFn.constName) then logInfo m!"Rejected instance."; return .continue
+  if (←e.isIrreducibleExpr) || (←isPrivileged e) then logInfo m!"Rejected irreducible or privileged."; return .continue
   match ← reduceMatcher? e with
   | .reduced v => return .visit v
   | _ => let some v ← unfoldDefinition? e | return .continue
-         logInfo m!"done:\n{e}\nwith:\n{v}"
+         logInfo m!"Unfolded into:\n{v}"
+        --  logInfo m!"EXPR:\n{e}\nUNFOLDED:\n{v}"
+        --  logInfo m!"e: {e}"
          return .visit v
 
 def unfoldAny (e : Expr) : MetaM Expr := do
+  -- logInfo m!"e: {e}\neRepr: {repr e}\n"
   Meta.transform e (skipConstInApp := true) (pre := unfoldAnyStep)
 
 /--
@@ -75,12 +82,12 @@ def zetaHave (e : Expr) : MetaM Expr := do
 /--
 TODO: Think about the ordering here. Do we need unfold / zeta / unfold, do we repeat, etc.
 -/
-def reduceExpr (e : Expr) : MetaM Expr :=
+def reduceExpr (e : Expr) : MetaM Expr := do
   pure e >>=
-  unfoldAny >>= (Core.betaReduce ·) >>=
-  zetaHave  >>=
-  unfoldAny >>= (Core.betaReduce ·) >>=
-  foldProjs >>= (Core.betaReduce ·)
+  unfoldAny >>= (fun x ↦ do logInfo m!"Unfold1: {x}"; return x) >>= (Core.betaReduce ·) >>= (fun x ↦ do logInfo m!"Beta1: {x}"; return x) >>=
+  zetaHave  >>= (fun x ↦ do logInfo m!"Zeta: {x}"; return x) >>=
+  unfoldAny >>= (fun x ↦ do logInfo m!"Unfold2: {x}"; return x) >>= (Core.betaReduce ·) >>= (fun x ↦ do logInfo m!"Beta2: {x}"; return x) >>=
+  foldProjs >>= (fun x ↦ do logInfo m!"Fold: {x}"; return x) >>= (Core.betaReduce ·)
 
 open MVarId in
 def _root_.Lean.MVarId.reduceTarget (goal : MVarId) : MetaM MVarId :=
