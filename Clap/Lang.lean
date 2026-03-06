@@ -51,6 +51,9 @@ def true : FB p := 1
 
 def false : FB p := 0
 
+instance : Inhabited (FB p) where
+  default := false
+
 def eq (a b : FB p) : Option (FB p) := do
   F.eq (convert a) (convert b)
 
@@ -71,16 +74,6 @@ def xor (a b : FB p) : FB p := a + b - 2 * a * b
 instance : HXor (FB p) (FB p) (FB p) where
   hXor := xor
 
--- a → b or ¬a ∨ b
--- 0 0 1
--- 0 1 1
--- 1 0 0
--- 1 1 1
-
-def lessThanEq (a b : FB p) : Option (FB p) := do
-  let na <- not a
-  return or na b
-
 def assert (a : FB p) : Option Unit := do
   eq0 (convert (not a))
 
@@ -89,14 +82,34 @@ def assert_eq (a b : FB p) : Option Unit := do
 
 end FB
 
-def F.lessThanEq (w : ℕ) (a b : F p) : Option (FB p) := do
-  let a <- num2bits w a
-  let b <- num2bits w b
-  -- we want to check from the MSB
-  let ab := (List.reverse (a.zip b))
-  List.foldl (fun acc (a,b) => do
-    let l : FB p <- FB.lessThanEq a b
-    (<-acc) &&& l) (some 1) ab
+/-
+requires:
+- a and b ∈ [0,2^w-1]
+- w+1 < p
+
+case a < b
+then a-b ∈ [-(2^w-1),-1]
+then a-b+2^w ∈ [1,2^w-1]
+which fits in w bits, so when converted to a (w+1)-bit number, its MSB is 0
+
+case a ≥ b
+then a-b ∈ [0,2^w-1]
+then a-b+2^w ∈ [2^w,2^(w+1)-1]
+which does not fit in w bits, so when converted to a (w+1)-bit number, its MSB is 1
+-/
+def F.lessThan (w : ℕ) (a b : F p) : Option (FB p) := do
+  let d := a - b + const (2^w)
+  let d ← num2bits (w + 1) d
+  return FB.not d[w]!
+
+def F.lessEqThan (w : ℕ) (a b : F p) : Option (FB p) :=
+  F.lessThan w a (b + 1)
+
+def F.greaterThan (w : ℕ) (a b : F p) : Option (FB p) :=
+  F.lessThan w b a
+
+def F.greaterEqThan (w : ℕ) (a b : F p) : Option (FB p) :=
+  F.lessThan w b (a + 1)
 
 /-- LSB first, like the output of num2bits -/
 abbrev FBitVec (p:ℕ) [Core p] := List (FB p)
@@ -246,20 +259,29 @@ end ZMod
 
 end Clap.Lang
 
-
 namespace Test
 
 abbrev p := Primes.goldilocks
 
 open Clap.Lang Core ZMod
 
-def testLTE (w:ℕ) (a b : F p) : Option Unit := do
-  FB.assert (p:=p) (<-F.lessThanEq w a b)
+example : F.lessThan (p := p) 1 0 1 == some 1 := by native_decide
+example : F.lessThan (p := p) 1 0 0 == some 0 := by native_decide
+example : F.lessThan (p := p) 2 1 2 == some 1 := by native_decide
+example : F.lessThan (p := p) 2 2 1 == some 0 := by native_decide
+example : F.lessThan (p := p) 8 42 (2^8 - 1) == some 1 := by native_decide
+example : F.lessThan (p := p) 8 (2^8 - 1) 42 == some 0 := by native_decide
 
-example : (testLTE 3 4 5) = some () := by native_decide
-example : (testLTE 3 5 5) = some () := by native_decide
-example : (testLTE 3 5 4) = none := by native_decide
-example : (testLTE 3 2 1) = none := by native_decide
+example : F.lessEqThan (p := p) 2 2 2 == some 1 := by native_decide
+example : F.lessEqThan (p := p) 2 1 2 == some 1 := by native_decide
+example : F.lessEqThan (p := p) 2 3 2 == some 0 := by native_decide
+
+example : F.greaterThan (p := p) 2 3 2 == some 1 := by native_decide
+example : F.greaterThan (p := p) 2 2 2 == some 0 := by native_decide
+
+example : F.greaterEqThan (p := p) 2 3 2 == some 1 := by native_decide
+example : F.greaterEqThan (p := p) 2 2 2 == some 1 := by native_decide
+example : F.greaterEqThan (p := p) 2 2 3 == some 0 := by native_decide
 
 
 def testBinSum (a b expected : FBitVec p) : Option Unit := do
