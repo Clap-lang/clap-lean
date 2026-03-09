@@ -21,15 +21,11 @@ def assertIsBytes [Fact (Primes.fits p 8)] {numBytes : ℕ}
   _ ← a.mapM F8.ofF!
   pure ()
 
-def num2BigEndianBits (w : ℕ) (x : F p) : Option (FBitVec p) := do
-  let bits ← num2bits w x
-  pure bits.reverse
-
 def bigEndianBits2Num : FBitVec p → F p := bits2num ∘ .reverse
 
-def bytes2BigEndianBits {n : ℕ} (bytes : Vector (F p) n) : Option (FBitVec p) := do
-  let bits ← bytes.mapM (num2BigEndianBits 8)
-  return bits.foldl .append []
+def bytes2BigEndianBits [Fact (Primes.fits p 8)] {n : ℕ} (bytes : Vector (F p) n) : Option (FBitVec p) := do
+  let bits ← bytes.mapM F8.ofF!
+  return bits.foldl (fun acc bits ↦ acc ++ bits.reverse) []
 
 def chunksToFieldElem {numChuncks : ℕ}
   (bitsPerChunk : ℕ)
@@ -121,12 +117,6 @@ example : assertIsBytes (p := p) #v[1, 2, 3, 4] = .some () := by native_decide
 example : assertIsBytes (p := p) #v[1, 2, 3, 2^8-1] = .some () := by native_decide
 example : assertIsBytes (p := p) #v[2^8] = .none := by native_decide
 example : assertIsBytes (p := p) #v[1, 2, 2^8+5] = .none := by native_decide
-
-example : num2BigEndianBits (p := p) 3 6 = .some [1, 1, 0] := by native_decide
-example : num2BigEndianBits (p := p) 3 1 = .some [0, 0, 1] := by native_decide
-example : num2BigEndianBits (p := p) 3 8 = .none := by native_decide
-example : num2BigEndianBits (p := p) 0 0 = .some [] := by native_decide
-example : num2BigEndianBits (p := p) 0 1 = .none := by native_decide
 
 example : bigEndianBits2Num (p := p) [] = 0 := by rfl
 example : bigEndianBits2Num (p := p) [0] = 0 := by rfl
