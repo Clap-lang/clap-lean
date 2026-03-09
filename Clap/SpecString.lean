@@ -1,4 +1,5 @@
 import Clap.Lang
+import Clap.Compiler.Basic
 
 namespace StringExample
 
@@ -55,3 +56,18 @@ example : test #v[255,15,0] = some 2 := by native_decide
 example : test #v[256,15,0] = none := by native_decide
 
 end TestStringExample
+
+namespace StringExampleCompile
+
+open Clap.Lang Core
+open StringExample
+
+def test {p} [Core p] [Fact (Primes.fits p 8)](fs : (Vector (F p) 10)) : Option Unit := do
+  let s <- MyString.ofVec fs
+  eq0 s.len
+
+open Clap.Lang.ZMod
+
+#compile test using Primes.babybear
+
+end StringExampleCompile
