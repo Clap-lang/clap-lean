@@ -58,6 +58,12 @@ def test (xy : MyCouple p) : Option Unit := do
 
 open Clap.Lang.ZMod
 
+/--
+info: Compiled test into test_ser.
+---
+info: Wg for test is test_ser_wg.
+-/
+#guard_msgs in
 #compile test using Primes.bn254
 
 /- The compiler gives us a circuit that we can compile further. -/

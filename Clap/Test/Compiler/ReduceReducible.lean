@@ -8,7 +8,7 @@ namespace Test
 
 namespace Compiler
 
-open Lean Clap Meta Spec Compiler Lang
+open Lean Clap Meta Spec Compiler Lang ZMod
 
 def produceEq0 {p} (l : List (ZMod p)) (h : l ≠ []) : Option Unit :=
   match l with
@@ -18,7 +18,7 @@ def produceEq0 {p} (l : List (ZMod p)) (h : l ≠ []) : Option Unit :=
     Clap.Spec.Compiler.eq0 x₁
     produceEq0 (x₂ :: tl) (by simp)
 
-def Reduce.ex₀ (x y : ZMod Primes.babybear) : Option Unit := do
+def Reduce.ex₀ {p} [Core p] (x y : ZMod p) : Option Unit := do
   produceEq0 [x, x, y] (by simp)
   accept
 
