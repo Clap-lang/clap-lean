@@ -187,6 +187,8 @@ private def testIsZero : IO Bool := do
   -- IO.println <| "output size: " ++ toString output.size
   return original == output
 
+/-- info: true -/
+#guard_msgs in
 #eval testIsZero
 
 private def header₁ : Header where
@@ -229,6 +231,8 @@ private def testEx₁ : IO Bool := do
   -- IO.println <| "output size: " ++ toString output.size
   return original == output
 
+/-- info: true -/
+#guard_msgs in
 #eval testEx₁
 
 structure Witness where
@@ -283,6 +287,8 @@ private def testWitness : IO Bool := do
   -- IO.println <| "output size: " ++ toString output.size
   return original == output
 
+/-- info: true -/
+#guard_msgs in
 #eval testWitness
 
 end Witness
