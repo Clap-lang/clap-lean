@@ -16,7 +16,7 @@ info: abstractCore
 
 def countZeros {maxLen : ℕ} (fs : Vector (F p) maxLen) : Option (F p) := do
   Vector.foldlM (fun (len:F p) f => do
-    let b <- F.eq f (const 0)
+    let b := F.eq f (const 0)
     some (len + convert b)
   ) (const 0) fs
 

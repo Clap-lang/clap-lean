@@ -40,7 +40,7 @@ def assert_range (w : ℕ) (e : F p) : Option Unit := do
 def assert_eq (a b : F p) : Option Unit := do
   eq0 (a - b)
 
-def eq (a b : F p) : Option (FB p) := do
+def eq (a b : F p) : FB p :=
   isZero (a - b)
 
 end F
@@ -54,7 +54,7 @@ def false : FB p := 0
 instance : Inhabited (FB p) where
   default := false
 
-def eq (a b : FB p) : Option (FB p) := do
+def eq (a b : FB p) : FB p :=
   F.eq (convert a) (convert b)
 
 def and (a b : FB p) : FB p := a * b
@@ -159,8 +159,8 @@ def ofUInt8 (u:UInt8) : Option (F8 p) :=
 
 def zero : F8 p := FBitVec.default 8
 
-def eq (a b : F8 p) : Option (FB p) :=
-  List.foldlM (fun acc (a,b) => (FB.and acc) <$> (FB.eq a b)) FB.true (a.zip b)
+def eq (a b : F8 p) : FB p :=
+  List.foldl (fun acc (a,b) => FB.and acc (FB.eq a b)) FB.true (a.zip b)
 
 def assert_eq (a b : F8 p) := FBitVec.assert_eq a b
 
