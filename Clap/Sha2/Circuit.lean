@@ -89,13 +89,13 @@ abbrev t p [Core p] [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)] : Clap.Sh
 -/
 
 instance i₁ : Coe (F p) (F32 p) where
-  coe := F32.ofF
+  coe := F32.ofF!
 
 instance i₂ : Coe (F8 p) (F32 p) where
   coe := F32.ofF8
 
 instance i₄ : Coe (F p) (F8 p) where
-  coe := F8.ofF
+  coe := F8.ofF!
 
 def to_nat_be (bs:Array (F8 p)) : F32 p :=
   let litteEndian := bs.toList.reverse

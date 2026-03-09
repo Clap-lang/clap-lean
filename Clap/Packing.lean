@@ -11,20 +11,20 @@ def assertIs64BitLimbs [Fact (Primes.fits p 64)] {numLimbs : ℕ}
   (a : Vector (F p) numLimbs) :
   Option Unit
 := do
-  _ ← a.mapM F64.ofF!
+  _ ← a.mapM F64.ofF
   pure ()
 
 def assertIsBytes [Fact (Primes.fits p 8)] {numBytes : ℕ}
   (a : Vector (F p) numBytes) :
   Option Unit
 := do
-  _ ← a.mapM F8.ofF!
+  _ ← a.mapM F8.ofF
   pure ()
 
 def bigEndianBits2Num : FBitVec p → F p := bits2num ∘ .reverse
 
 def bytes2BigEndianBits [Fact (Primes.fits p 8)] {n : ℕ} (bytes : Vector (F p) n) : Option (FBitVec p) := do
-  let bits ← bytes.mapM F8.ofF!
+  let bits ← bytes.mapM F8.ofF
   return bits.foldl (fun acc bits ↦ acc ++ bits.reverse) []
 
 def chunksToFieldElem {numChuncks : ℕ}
