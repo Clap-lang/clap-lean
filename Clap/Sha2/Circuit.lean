@@ -173,8 +173,9 @@ example :
 
 namespace TestCompilation
 
-def test₁ {p:ℕ} [Core p] [Fact (Primes.fits p 32)]
-  (x y z : Vector (FB p) 32) : Option Unit := do
+variable {p:ℕ} [Core p] [Fact (Primes.fits p 32)]
+
+def test_ch (x y z : Vector (FB p) 32) : Option Unit := do
   let x : F32 p := x.toList
   let y : F32 p := y.toList
   let z : F32 p := z.toList
@@ -182,12 +183,70 @@ def test₁ {p:ℕ} [Core p] [Fact (Primes.fits p 32)]
   -- accept p
 
 /--
-info: Compiled test₁ into test₁_ser.
+info: Compiled test_ch into test_ch_ser.
 ---
-info: Wg for test₁ is test₁_ser_wg.
+info: Wg for test_ch is test_ch_ser_wg.
 -/
 #guard_msgs in
-#compile test₁ using Primes.goldilocks
+#compile test_ch using Primes.goldilocks
+
+def test_maj (x y z : Vector (FB p) 32) : Option Unit := do
+  let x : F32 p := x.toList
+  let y : F32 p := y.toList
+  let z : F32 p := z.toList
+  F32.assert_eq (Clap.Sha2.Circuit.maj x y z) F32.default
+  -- accept p
+
+-- TODO
+/--
+info: Compiled test_maj into test_maj_ser.
+---
+info: Wg for test_maj is test_maj_ser_wg.
+-/
+#guard_msgs in
+#compile test_maj using Primes.goldilocks
+
+def test_xor3 (x y z : Vector (FB p) 32) : Option Unit := do
+  let x : F32 p := x.toList
+  let y : F32 p := y.toList
+  let z : F32 p := z.toList
+  F32.assert_eq (Clap.Sha2.Circuit.xor3 x y z) F32.default
+  -- accept p
+
+-- TODO
+/--
+info: Compiled test_xor3 into test_xor3_ser.
+---
+info: Wg for test_xor3 is test_xor3_ser_wg.
+-/
+#guard_msgs in
+#compile test_xor3 using Primes.goldilocks
+
+def test_rotR (x : Vector (FB p) 32) : Option Unit := do
+  let x : F32 p := x.toList
+  F32.assert_eq (Clap.Sha2.Circuit.rotR 3 x) F32.default
+  -- accept p
+
+/--
+info: Compiled test_rotR into test_rotR_ser.
+---
+info: Wg for test_rotR is test_rotR_ser_wg.
+-/
+#guard_msgs in
+#compile test_rotR using Primes.goldilocks
+
+def test_shiftRight (x : Vector (FB p) 32) : Option Unit := do
+  let x : F32 p := x.toList
+  F32.assert_eq (Clap.Sha2.Circuit.shiftRight 3 x) F32.default
+  -- accept p
+
+/--
+info: Compiled test_shiftRight into test_shiftRight_ser.
+---
+info: Wg for test_shiftRight is test_shiftRight_ser_wg.
+-/
+#guard_msgs in
+#compile test_shiftRight using Primes.goldilocks
 
 end TestCompilation
 
