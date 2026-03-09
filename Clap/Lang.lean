@@ -125,10 +125,10 @@ namespace FBitVec
 
 def default (l:ℕ) : FBitVec p := List.replicate l FB.false
 
-def ofF (w:ℕ) (e:F p) : FBitVec p :=
+def ofF! (w:ℕ) (e:F p) : FBitVec p :=
   Option.getD (num2bits w e) (default w)
 
-def ofF! (w:ℕ) (e:F p) : Option (FBitVec p) :=
+def ofF (w:ℕ) (e:F p) : Option (FBitVec p) :=
   num2bits w e
 
 abbrev toF (v:FBitVec p) : F p := Core.bits2num v
@@ -155,11 +155,11 @@ namespace F8
 
 variable [Fact (Primes.fits p 8)]
 
-def ofF (x:F p) : (F8 p) :=
-  FBitVec.ofF 8 x
-
-def ofF! (x:F p) : Option (F8 p) :=
+def ofF! (x:F p) : F8 p := do
   FBitVec.ofF! 8 x
+
+def ofF (x:F p) : Option (F8 p) := do
+  FBitVec.ofF 8 x
 
 def ofUInt8 (u:UInt8) : Option (F8 p) :=
   num2bits 8 (u.toNat)
@@ -185,7 +185,10 @@ def default : F32 p := FBitVec.default 32
 instance : Inhabited (F32 p) where
   default
 
-def ofF (x:F p) : (F32 p) :=
+def ofF! (x:F p) : F32 p := do
+  FBitVec.ofF! 32 x
+
+def ofF (x:F p) : Option (F32 p) := do
   FBitVec.ofF 32 x
 
 def ofF8 [Fact (Primes.fits p 8)] (u8 : F8 p) : F32 p :=
@@ -210,8 +213,11 @@ namespace F64
 
 variable [Fact (Primes.fits p 64)]
 
-def ofF! (x:F p) : Option (F64 p) :=
+def ofF! (x:F p) : F64 p := do
   FBitVec.ofF! 64 x
+
+def ofF (x:F p) : Option (F64 p) := do
+  FBitVec.ofF 64 x
 
 end F64
 
