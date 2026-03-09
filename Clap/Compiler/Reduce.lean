@@ -30,6 +30,7 @@ def _root_.Lean.Expr.isIrreducibleExpr (e : Expr) : MetaM Bool := do
 def unfoldAnyStep (e : Expr) : MetaM TransformStep := do
   if ←isArith e then return .continue
   -- Do we want to catch irreducible expressions?
+  if (←isInstance e.getAppFn.constName) then return .continue
   if (←e.isIrreducibleExpr) || (←isPrivileged e) then return .continue
   match ← reduceMatcher? e with
   | .reduced v => return .visit v
@@ -59,8 +60,6 @@ def foldProjs (e : Expr) : MetaM Expr := do
   if (e.find? (·.isProj)).isNone then return e
   let post (e : Expr) := do
     let .some e' ← reduceProj? e | return .continue
-    -- TODO: Is this a hack?
-    if e'.isAppOf ``id then return .continue
     return .visit e'
   Meta.transform e (post := post)
 
@@ -74,12 +73,13 @@ def zetaHave (e : Expr) : MetaM Expr := do
 /--
 TODO: Think about the ordering here. Do we need unfold / zeta / unfold, do we repeat, etc.
 -/
-def reduceExpr (e : Expr) : MetaM Expr :=
+def reduceExpr (e : Expr) : MetaM Expr := do
   pure e >>=
   unfoldAny >>= (Core.betaReduce ·) >>=
   zetaHave  >>=
   unfoldAny >>= (Core.betaReduce ·) >>=
-  foldProjs >>= (Core.betaReduce ·)
+  foldProjs >>= (Core.betaReduce ·) >>=
+  unfoldAny >>= (Core.betaReduce ·)
 
 open MVarId in
 def _root_.Lean.MVarId.reduceTarget (goal : MVarId) : MetaM MVarId :=
