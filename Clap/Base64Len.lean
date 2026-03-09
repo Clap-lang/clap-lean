@@ -54,6 +54,19 @@ def base64UrlLookup (i : F p) : Option (F p) := do
 
   pure sum_underscore
 
+def base64UrlDecode₀ (n : ℕ) (input : Array (F p)) : Option (Array (F p)) := do
+  if h : n > 0 then
+    let seq4Times6Bits ← input.take 4 |>.mapM (num2bits 6)
+    let seq3Times8Bits := seq4Times6Bits.reverse.toList.flatten.toChunks 8
+    let out := seq3Times8Bits.reverse.map bits2num
+    return Array.append ⟨out.take n⟩ (←base64UrlDecode₀ (n - 3) (input.drop 4))
+  else
+    return .empty
+
+def base64UrlDecode (n : ℕ) (input : Array (F p)) : Option (Array (F p)) := do
+  let a ← input.mapM base64UrlLookup
+  base64UrlDecode₀ n a
+
 end Base64Len
 
 namespace TestBase64Len
@@ -63,7 +76,24 @@ open Base64Len
 
 abbrev p := Primes.goldilocks
 
+private def testBase64UrlDecode (n : ℕ) (s : String) : Option String := do
+  let input := s.toList.map Char.toNat |>.map (fun n ↦ (ofNat(n) : ZMod p))
+  let output ← base64UrlDecode (p := p) n input.toArray
+  return String.ofList <| output.toList.map (fun z => Char.ofNat z.val)
+
+example : testBase64UrlDecode 13 "T3JpZ2luYWwgdGV4dA==" == "Original text" := by
+  native_decide
+example : testBase64UrlDecode  8 "T3JpZ2luYWwgdGV4dA==" == "Original" := by
+  native_decide
+example : testBase64UrlDecode  0 "T3JpZ2luYWwgdGV4dA==" == "" := by
+  native_decide
+example : testBase64UrlDecode  3 "YWJj" == "abc" := by
+  native_decide
+example : testBase64UrlDecode  5 "YWJjZGU=" == "abcde" := by
+  native_decide
+
 example : base64UrlLookup (p := p) 'A'.toNat == some 0 := by native_decide
+example : base64UrlLookup (p := p) 'T'.toNat == some 19 := by native_decide
 example : base64UrlLookup (p := p) 'Z'.toNat == some 25 := by native_decide
 example : base64UrlLookup (p := p) 'a'.toNat == some 26 := by native_decide
 example : base64UrlLookup (p := p) 'z'.toNat == some 51 := by native_decide
