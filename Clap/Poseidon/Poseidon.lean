@@ -17,9 +17,10 @@ open Core
 
     Mirrors circomlib's `Sigma` template -/
 def sigma (x : F p) : F p :=
-  let x2 := share (x * x)
-  let x4 := share (x2 * x2)
-  x4 * x
+  -- let x2 := share (x * x)
+  -- let x4 := share (x2 * x2)
+  -- x4 * x
+  x * x * x * x * x
 
 /-- **Ark (Add Round Constants):** Adds pre-computed round constants to every
     element of the state vector at a given round offset
