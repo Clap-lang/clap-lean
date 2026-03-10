@@ -63,7 +63,7 @@ def foldProjs (e : Expr) : MetaM Expr := do
     return .visit e'
   Meta.transform e (post := post)
 
-def zetaHaveStepPre (p e : Expr) : MetaM TransformStep := do
+def zetaHaveStepPre (e : Expr) : MetaM TransformStep := do
   let .letE _ _ v b _ := e | return .continue
 
   let blacklist :=
@@ -80,9 +80,9 @@ def zetaHaveStepPre (p e : Expr) : MetaM TransformStep := do
 
   return .visit <| b.instantiate1 v
 
-def zetaHave (p e : Expr) : MetaM Expr := do
+def zetaHave (e : Expr) : MetaM Expr := do
   logInfo m!"{e}"
-  Meta.transform e (pre := zetaHaveStepPre p)
+  Meta.transform e (pre := zetaHaveStepPre)
 
 partial def zeta (e : Expr) : MetaM Expr := do
   match e with
@@ -105,19 +105,20 @@ partial def zeta (e : Expr) : MetaM Expr := do
 /--
 TODO: Think about the ordering here. Do we need unfold / zeta / unfold, do we repeat, etc.
 -/
-def reduceExpr (p e : Expr) : MetaM Expr :=
+def reduceExpr (e : Expr) : MetaM Expr :=
   pure e >>=
-  unfoldAny  >>= (Core.betaReduce ·) >>=
+  unfoldAny >>= (Core.betaReduce ·) >>=
   zeta >>=
-  unfoldAny  >>= (Core.betaReduce ·) >>=
-  foldProjs  >>= (Core.betaReduce ·)
+  unfoldAny >>= (Core.betaReduce ·) >>=
+  foldProjs >>= (Core.betaReduce ·) >>=
+  unfoldAny >>= (Core.betaReduce ·)
 
 open MVarId in
-def _root_.Lean.MVarId.reduceTarget (p : Expr) (goal : MVarId) : MetaM MVarId :=
-  goal.transformTarget (f := reduceExpr p)
+def _root_.Lean.MVarId.reduceTarget (goal : MVarId) : MetaM MVarId :=
+  goal.transformTarget (f := reduceExpr)
 
 open Elab Tactic in
 elab "test_reduce" "using" p:ident : tactic => do
-  liftMetaTactic' (MVarId.reduceTarget (Expr.const p.getId []))
+  liftMetaTactic' (MVarId.reduceTarget)
 
 end Clap
