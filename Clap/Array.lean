@@ -71,42 +71,8 @@ open Array
 
 abbrev p := Primes.goldilocks
 
-instance onlyForDebugF {p : ℕ} : ToString (ZMod p) where
-  toString f := Clap.natToHex f.val
-
-scoped instance instCoreZMod [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] : Core p where
-  F := ZMod p
-  FB := ZMod p
-  convert := id
-  const := id
-  accept := Compiler.accept
-  eq0 := Compiler.eq0
-  share := Compiler.share
-  shareB := Compiler.share
-  isZero := Compiler.is_zero
-  num2bits := Compiler.num2bits
-  bits2num := Compiler.bits2num
-  onlyForDebugF
-  onlyForDebugFB := onlyForDebugF
-
 abbrev p' := 11
 local instance : Fact (Nat.Prime p') := by decide
-local instance : Fact (Primes.fits p' 3) := by decide
-
-scoped instance instCoreZMod' [Fact (Nat.Prime p')] [Fact (Primes.fits p' 3)] : Core p' where
-  F := ZMod p'
-  FB := ZMod p'
-  convert := id
-  const := id
-  accept := Compiler.accept
-  eq0 := Compiler.eq0
-  share := Compiler.share
-  shareB := Compiler.share
-  isZero := Compiler.is_zero
-  num2bits := Compiler.num2bits
-  bits2num := Compiler.bits2num
-  onlyForDebugF
-  onlyForDebugFB := onlyForDebugF
 
 -- singleOneArray tests
 -- from https://github.com/aptos-labs/keyless-zk-proofs/blob/main/circuit/templates/helpers/arrays/SingleOneArray.circom
