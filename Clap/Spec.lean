@@ -67,19 +67,33 @@ lemma equiv_is_zero {el : ZMod p} {kl : ZMod p → Option Unit} {er : Expₑ p} 
   Simulation.sBisim (bind (is_zero el) kl) (Circuit.eval (.is_zero er kr)) := by
   aesop (add simp [Circuit.eval, bind, share, is_zero])
 
--- @[aesop safe apply]
--- lemma equiv_num2bits {kl : List (ZMod p) -> Option Unit} {kr : List (ZMod p) -> Circuitₑ p} {w:ℕ}
---   (cont : ∀ x, kl x ~ₛ (kr x).eval)
---   (h : el = Exp.eval er) :
---   (num2bits w el |> kl) ~ₛ (Circuit.num2bits w er kr).eval := by
---   aesop (add simp num2bits)
-
 @[aesop safe apply]
 lemma equiv_assertRange {cl : Option Unit} {cr : Circuitₑ p} {w:ℕ}
   (cont : cl ~ₛ cr.eval)
   (h : el = Exp.eval er) :
   (do assertRange w el ; cl) ~ₛ (Circuit.num2bits w er (fun _ ↦ cr)).eval := by
   aesop (add simp assertRange)
+
+/-
+  Num2bits is the only case that requires either:
+  - to allow the deep embedding to fail at any time as captured by the relation `Simulation.isRefined`
+  - an hypotheses that num2bits never fails.
+-/
+
+@[aesop safe apply]
+lemma equiv_num2bits {kl : List (ZMod p) -> Option Unit} {kr : List (ZMod p) -> Circuitₑ p} {w:ℕ}
+  (cont : ∀ x, Simulation.isRefined (kl x) ((kr x).eval))
+  (h : el = Exp.eval er) :
+  Simulation.isRefined (num2bits w el |> kl) (Circuit.num2bits w er kr).eval := by
+  aesop (add simp num2bits)
+
+@[aesop safe apply]
+lemma equiv_num2bits' {kl : List (ZMod p) -> Option Unit} {kr : List (ZMod p) -> Circuitₑ p} {w:ℕ}
+  (h : el.val < 2^w)
+  (cont : ∀ x, (kl x) ~ₛ ((kr x).eval))
+  (h : el = Exp.eval er) :
+  (num2bits w el |> kl) ~ₛ (Circuit.num2bits w er kr).eval := by
+  aesop (add simp num2bits)
 
 end
 

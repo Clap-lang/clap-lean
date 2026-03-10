@@ -38,6 +38,19 @@ attribute [simp] sBisim.none sBisim.unit
 
 scoped infix:51 " ~ₛ " => sBisim
 
+/--
+  Relaxes sBisim by allowing the denotation to fail at any time.
+  The denotation refines the behavior of the program, in that, if it
+  does not fail, it behaves in the same way.
+-/
+inductive isRefined : Π {t : Type}, t → denotation F → Prop where
+  | none {t : Type} {p : t} : isRefined p .n
+  | unit : isRefined (some ()) .u
+  | lam {t' : Type} {kl : F → t'} {kr : F → denotation F}
+        (h : ∀ x, isRefined (kl x) (kr x)) : isRefined kl (.l kr)
+
+attribute [simp] isRefined.none isRefined.unit
+
 /-
   Weak-right bisimulation.
   Allows the right player, typically the Cs, to receive more inputs
