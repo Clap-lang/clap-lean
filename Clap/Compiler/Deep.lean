@@ -122,7 +122,7 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
 
     else throwError m!"compile.let: not supported\n{e}"
 
-  else throwError m!"compile: not supported\n{e.getAppFnArgs}"
+  else throwError m!"compile: not supported\n{e.getAppFnArgs} (missing accept?)"
 
 partial def addVar (p : Expr) (body : Expr) : TermElabM Expr := do
   let e <- withLocalDecl `var .default (mkSort levelOne) fun var => do

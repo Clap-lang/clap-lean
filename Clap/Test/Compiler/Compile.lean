@@ -1,6 +1,7 @@
 import Clap.Spec
 import Clap.Compiler.Basic
 import Clap.Test.Wheels
+import Mathlib
 
 namespace Clap
 
@@ -8,7 +9,7 @@ namespace Test
 
 namespace Compiler
 
-open Lean Clap Meta Spec Compiler Lang ZMod
+open Lean Clap Meta Spec Compiler Lang ZMod Core
 
 structure Compile.Point (p : ℕ) where
   x : ZMod p
@@ -112,6 +113,28 @@ fun (var : Type) =>
 #guard_msgs(info, whitespace := lax) in
 set_option pp.funBinderTypes true in
 #print Compile.ex₁_ser
+
+
+def Compile.adder {p : ℕ} [Fact (Nat.Prime p)] [Core p] (x y : F p) : Option (F p) := do
+  eq0 x
+  eq0 y
+  let z := x + y
+  eq0 z
+  return z
+
+def Compile.test {p : ℕ} [Fact (Nat.Prime p)] [Core p] (x y z : F p) : Option Unit := do
+  let a ← adder x y
+  let b ← adder y z
+  eq0 (a - b)
+  accept p
+
+/--
+info: Compiled Compile.test into Compile.test_ser.
+---
+info: Wg for Compile.test is Compile.test_ser_wg.
+-/
+#guard_msgs in
+#compile Compile.test using Primes.babybear
 
 end Compiler
 
