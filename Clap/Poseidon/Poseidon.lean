@@ -2,6 +2,8 @@ import Clap.Primes
 import Clap.Spec
 import Clap.Lang
 import Clap.Poseidon.Constant
+import Clap.Compiler.Basic
+import Clap.Test.Compiler.Compile
 
 namespace Clap.Poseidon
 
@@ -215,3 +217,20 @@ example : testPoseidon
   = some () := by native_decide
 
 end Poseidon.Test
+
+namespace PoseidonBN254Test
+
+open Clap.Lang Core ZMod
+open Clap.Poseidon
+
+abbrev p := Primes.bn254
+
+instance {n : Nat} : Fact (n = n) := ⟨by grind⟩
+
+def poseidonBN254Test {p} [Core p] [Fact (p = Primes.bn254)] (ins : Vector (F Primes.bn254) 5) : Option Unit := do
+  eq0 (<- poseidonBN254 (ins.toList))
+  accept p
+
+#compile poseidonBN254Test using Primes.bn254
+
+end PoseidonBN254Test
