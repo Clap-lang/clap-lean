@@ -71,6 +71,10 @@ def withTransformedArgs.{u}
   (f : Expr → n (Option (Name × Expr))) (k : Array Expr → n α) : n α := do
   withLocalDeclsDND (←args.filterMapM f) k
 
+def isPrivileged (p : Q(ℕ)) (e : Expr) : TermElabM Bool := do
+  let type ← inferType e
+  return type.isAppOf ``Vector || (←isDefEq type q(ZMod $p))
+
 def serialisedLam (body : Expr) : TermElabM Expr := do
   Meta.transform (skipConstInApp := true) body fun e ↦ do
     let env ← getEnv
@@ -78,15 +82,11 @@ def serialisedLam (body : Expr) : TermElabM Expr := do
     match env.getProjectionStructureName? name with
     | .none => return .continue
     | .some val =>
-      if isClass env val then return .continue
+      if isClass env val || e.isAppOf ``Vector.toArray then return .continue
       let projectee ← serialisedUserName <$> e.projecteeOfType val
       let fvar := (←getLCtx).findFromUserName? projectee |>.get!.toExpr
       let serialisedIdx := (←getProjectionFnInfo? name).get!.i
       .done <$> getElemVectorOfIdx fvar serialisedIdx
-
-def isPrivileged (p : Q(ℕ)) (fvar : Expr) : TermElabM Bool := do
-  let type ← inferType fvar
-  return type.isAppOf ``Vector || (←isDefEq type q(ZMod $p))
 
 def isSerialisableType (typeName : Name) : MetaM Bool := do
   return isStructure (←getEnv) typeName && !isClass (←getEnv) typeName
@@ -95,7 +95,7 @@ def serialiseArg (prime : Name) (arg : Expr) : TermElabM (Option (Name × Expr))
   let fvar := arg.fvarId!
   let typeName := (←Meta.inferType arg).getAppFn.constName
   let env ← getEnv
-  if ←isSerialisableType typeName
+  if (←isSerialisableType typeName) && !(←isPrivileged (.const prime []) arg)
   then let size := getStructureFields env typeName |>.size
        return .some (
          serialisedUserName (←fvar.getUserName),
