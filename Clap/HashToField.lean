@@ -25,7 +25,7 @@ def hash64BitLimbsToFieldWithLen {numLimbs : ℕ}
   if inputMaxbits > 64 || numLimbs == 0 then .none
   let elems ← Packing.chunksToFieldElems (p := p) 3 64 input
   let elems := elems.push len
-  Clap.Poseidon.poseidonBN254 elems
+  Clap.Poseidon.poseidonBN254 elems.toList
 
 def hashElemsToField (input : Array (F p)) : Option (F p) := do
   if input.size > 64 then .none
@@ -34,8 +34,8 @@ def hashElemsToField (input : Array (F p)) : Option (F p) := do
   let inputs₃ := input.extract 32 48
   let inputs₄ := input.extract 48 64
   let inputs := #[inputs₁, inputs₂, inputs₃, inputs₄].filter (not ·.isEmpty)
-  let leaves ← inputs.mapM Clap.Poseidon.poseidonBN254
-  Clap.Poseidon.poseidonBN254 leaves
+  let leaves ← inputs.mapM (fun x ↦ Clap.Poseidon.poseidonBN254 x.toList)
+  Clap.Poseidon.poseidonBN254 leaves.toList
 
 def hashBytesToFieldWithLen {numBytes : ℕ}
   (input : Vector (F p) numBytes)
