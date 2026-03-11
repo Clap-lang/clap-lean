@@ -16,6 +16,7 @@ import Clap.Wheels
 import Clap.Milestone
 import Clap.FString
 import Clap.HashToField
+import Clap.JWT
 import Clap.Sha2.Basic
 import Clap.Sha2.Cpu
 import Clap.Sha2.Circuit
