@@ -5,7 +5,7 @@ namespace Clap.Poseidon.Constant.C
 open Primes
 
 @[reducible]
-def C02 : Array (ZMod bn254) := #[
+def C02 : List (ZMod bn254) := [
   0x9c46e9ec68e9bd4fe1faaba294cba38a71aa177534cdd1b6c7dc0dbd0abd7a7,
   0xc0356530896eec42a97ed937f3135cfc5142b3ae405b8343c1d83ffa604cb81,
   0x250f5116a417d76aaa422952fcc5b33329f7714fc26d56c0432507fc740a87c4,
@@ -81,7 +81,7 @@ def C02 : Array (ZMod bn254) := #[
 ]
 
 @[reducible]
-def C03 : Array (ZMod bn254) := #[
+def C03 : List (ZMod bn254) := [
   0xee9a592ba9a9518d05986d656f40c2114c4993c11bb29938d21d47304cd8e6e,
   0xf1445235f2148c5986587169fc1bcd887b08d4d00868df5696fff40956e864,
   0x8dff3487e8ac99e1f29a058d0fa80b930c728730b7ab36ce879f3890ecf73f5,
@@ -166,7 +166,7 @@ def C03 : Array (ZMod bn254) := #[
 ]
 
 @[reducible]
-def C04 : Array (ZMod bn254) := #[
+def C04 : List (ZMod bn254) := [
   0x19b849f69450b06848da1d39bd5e4a4302bb86744edc26238b0878e269ed23e5,
   0x265ddfe127dd51bd7239347b758f0a1320eb2cc7450acc1dad47f80c8dcf34d6,
   0x199750ec472f1809e0f66a545e1e51624108ac845015c2aa3dfc36bab497d8aa,
@@ -258,7 +258,7 @@ def C04 : Array (ZMod bn254) := #[
 ]
 
 @[reducible]
-def C05 : Array (ZMod bn254) := #[
+def C05 : List (ZMod bn254) := [
   0xeb544fee2815dda7f53e29ccac98ed7d889bb4ebd47c3864f3c2bd81a6da891,
   0x554d736315b8662f02fdba7dd737fbca197aeb12ea64713ba733f28475128cb,
   0x2f83b9df259b2b68bcd748056307c37754907df0c0fb0035f5087c58d5e8c2d4,
@@ -362,7 +362,7 @@ def C05 : Array (ZMod bn254) := #[
 ]
 
 @[reducible]
-def C06 : Array (ZMod bn254) := #[
+def C06 : List (ZMod bn254) := [
   0x1448614598e00f98e7ae7dea45fbd83bd968653ef8390cde2e86b706ad40c651,
   0xab7b291388e5c9e43c0dc1f591fb83ecdb65022e1b70af43b8a7b40c1dff7c3,
   0x2b7cbb217896f52c9a8c088e654af21e84cde754a3cef5b15c4d5466612d6adf,
@@ -474,7 +474,7 @@ def C06 : Array (ZMod bn254) := #[
 ]
 
 @[reducible]
-def C07 : Array (ZMod bn254) := #[
+def C07 : List (ZMod bn254) := [
   0x2197703fceb4cbf07c6dbf46c4ad93e7d14e554db66d09102ff84824743fe4e7,
   0x1322f0fffc7e4854bd8b5fc23e7106b51f59bd5061d8b565aca2fd3efe512f79,
   0x19e414f80380aa2d222133118c337d82a8c5894c2f88861ee46f448fa9d61359,
@@ -597,7 +597,7 @@ def C07 : Array (ZMod bn254) := #[
 ]
 
 @[reducible]
-def C08 : Array (ZMod bn254) := #[
+def C08 : List (ZMod bn254) := [
   0x123992df3b9daa65139ec13fbb52f7d348e134333684c1596feb0e8d8c3ad596,
   0x2fa46f5dba9909ce9984a01e2af30b550dfec978be92b49119a3959c7f623703,
   0x21d8f94d3bd98f0b63a7aacb175b2cca13b2dd8a8cf68fc36d94ae29401b2d2c,
@@ -729,7 +729,7 @@ def C08 : Array (ZMod bn254) := #[
 ]
 
 @[reducible]
-def C09 : Array (ZMod bn254) := #[
+def C09 : List (ZMod bn254) := [
   0x2088ce9534577bf38be7bc457f2756d558d66e0c07b9cc001a580bd42cda0e77,
   0x1b86e63908c4b12af43cec6810356c94d21c9e37d73dfff9742a58e0ec356be1,
   0x9ca022ba1142d170f755212e2edc9d0a4ace33e16825f540d5d50d5a021a169,
@@ -868,7 +868,7 @@ def C09 : Array (ZMod bn254) := #[
 ]
 
 @[reducible]
-def C10 : Array (ZMod bn254) := #[
+def C10 : List (ZMod bn254) := [
   0xe1962c232fd0a6bb54ad8962a82b9838cfef19d290a55fc49d6debd061cd2f6,
   0x1e1f45cff3e74168accd0a94536fca6317128953eb47d8d2d79b847b355cf51,
   0x1367eec3b20cb74953618fd9261047755ef7f8aae5ffe96fc8f7d9a02e37bd1a,
@@ -1012,7 +1012,7 @@ def C10 : Array (ZMod bn254) := #[
 ]
 
 @[reducible]
-def C11 : Array (ZMod bn254) := #[
+def C11 : List (ZMod bn254) := [
   0x752af3c6fdccaf3868276685f0a69b9749e1706a82917b64ec2ef847f804559,
   0x69503d417e25f4568c7858ba8334301c0fa19c1b348bc7e18a4c1ace1d15418,
   0x25c1b121f33f4cf7b308ec4630f27b603d22aa81ca3595e801c5fa7d9770a096,
@@ -1170,7 +1170,7 @@ def C11 : Array (ZMod bn254) := #[
 ]
 
 @[reducible]
-def C12 : Array (ZMod bn254) := #[
+def C12 : List (ZMod bn254) := [
   0x1512df0135b6692589f071140a60749cf775c642b300da2fb4ad5c6e23ad4e5f,
   0x2b109ae037ed30361cf6544b2f4ce58f356589896d6a8849482ed3f9b66e1198,
   0x2585bece06eff553d485478a19eb149e2111ae4e1ecb1d61fc10cfe1c077f34,
@@ -1330,7 +1330,7 @@ def C12 : Array (ZMod bn254) := #[
 ]
 
 @[reducible]
-def C13 : Array (ZMod bn254) := #[
+def C13 : List (ZMod bn254) := [
   0x1373c771cdf15121a224f330d84b6688ef9fe0038a3bc26a28e3196578a0000d,
   0x29f9fbda3c999836017f76e121af3aca5ce78bb48fa867a6a95e5b9db387533a,
   0x1c7eb5116a20075c169b786d9dc86a24ee7a2525b565bbc262209a8cda490528,
@@ -1503,7 +1503,7 @@ def C13 : Array (ZMod bn254) := #[
 ]
 
 @[reducible]
-def C14 : Array (ZMod bn254) := #[
+def C14 : List (ZMod bn254) := [
   0x304c29aeb6f1873847879576d30f1f6e8a3ce41082c15c7632df920d6db5164d,
   0x2b7380d8b25bca649b3f8bbd0a86ae417109069be27066f46fdd1c7c87d4c40c,
   0x4c77200e5494b1cb8a3d334f69ae5bafa7e8775ba1924e563efe591eff302f7,
@@ -1689,7 +1689,7 @@ def C14 : Array (ZMod bn254) := #[
 ]
 
 @[reducible]
-def C15 : Array (ZMod bn254) := #[
+def C15 : List (ZMod bn254) := [
   0x148d9e4542066b125da6d69ff3fb676ebd27e6a38a1ff4281bd639c97af6ffd5,
   0xb60a28805324295fcaf51bb88d9692372cbf4eef1cba8b85cbc059346691a88,
   0x2d38f812ad1d7ac79c32fdd57a56edb861885f20fa4bc6d0d942c2f41e8e4a7d,
@@ -1873,7 +1873,7 @@ def C15 : Array (ZMod bn254) := #[
 ]
 
 @[reducible]
-def C16 : Array (ZMod bn254) := #[
+def C16 : List (ZMod bn254) := [
   0x11e27da7b7ef964948a332974d07cceea778bc33aedbcd09de222fa22ad0b101,
   0x1f60381b83b44a8fe65a0f4142faaafc5fbf55f79133c5740c53f036a3065b65,
   0xfc1e1ac8ad3524ebdbfa45dcc51576548234d0292adfe1cd70a706a1b6dadd8,
@@ -2069,7 +2069,7 @@ def C16 : Array (ZMod bn254) := #[
 ]
 
 @[reducible]
-def C17 : Array (ZMod bn254) := #[
+def C17 : List (ZMod bn254) := [
   0x2fb583762b37592c6c5a95eb1d06694b6c6f9dc4f1ad4862dd8f5e67cb7a3f5c,
   0x12e9f46cd8231bb03d4028bf7a11d7c0e331dc05c088e6dc3d1d001da58b85a5,
   0x1275cd70326f52f816a7c53fe62e323efe61a5b8d3747f6dec5837a825873afc,
