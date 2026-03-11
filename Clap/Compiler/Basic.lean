@@ -240,7 +240,7 @@ partial def trySynthAll (e : Expr) : TermElabM Expr := do
   | .some e => trySynthAll e
 
 def fixPrime (e p : Expr) : TermElabM Expr := do
-  instantiateLambda e #[p] >>= trySynthAll
+  instantiateLambda e #[p] >>= trySynthAll >>= instantiateMVars
 
 elab "#compile" circuit:ident "using" p:ident : command => Command.liftTermElabM do
   let [decl] ← realizeGlobalConst circuit | throwError m!"Ambiguous constant: {circuit}"
