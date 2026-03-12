@@ -145,17 +145,30 @@ def letSome (e : Expr) : MetaM Expr := do
 
     return .visit (←Core.betaReduce (.app rhs (lhs.getAppArgs[1]!)))
 
-/--
-TODO: Think about the ordering here. Do we need unfold / zeta / unfold, do we repeat, etc.
--/
-def reduceExpr (e : Expr) : MetaM Expr :=
-  let numIters := 128
-  do pure e >>=
-     unfold_mAny numIters false >>= (Core.betaReduce ·) >>=
-     zeta >>=
-     unfold_mAny numIters false >>= (Core.betaReduce ·) >>= linearise >>=
-     foldProjs                  >>= (Core.betaReduce ·) >>=
-     unfold_mAny numIters false >>= (Core.betaReduce ·) >>= letSome
+def step (e : Expr) : MetaM Expr :=
+  pure e >>=
+  unfoldAny >>=
+  zeta >>=
+  linearise >>=
+  foldProjs >>=
+  letSome
+
+partial def reduceExpr (e : Expr) : MetaM Expr := do
+  let e' ← step e
+  if e == e' then return e
+  reduceExpr e'
+
+-- /--
+-- TODO: Think about the ordering here. Do we need unfold / zeta / unfold, do we repeat, etc.
+-- -/
+-- def reduceExpr (e : Expr) : MetaM Expr :=
+--   let numIters := 128
+--   do pure e >>=
+--      unfold_mAny numIters false >>= (Core.betaReduce ·) >>=
+--      zeta >>=
+--      unfold_mAny numIters false >>= (Core.betaReduce ·) >>= linearise >>=
+--      foldProjs                  >>= (Core.betaReduce ·) >>=
+--      unfold_mAny numIters false >>= (Core.betaReduce ·) >>= letSome
 
 open MVarId in
 def _root_.Lean.MVarId.reduceTarget (goal : MVarId) : MetaM MVarId :=

@@ -194,7 +194,7 @@ def wg (p : Name) (argFvars : Array Expr) : TermElabM Expr := do
     mkLambdaFVars (#[fvar] ++ argFvars) body
 
 def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
-  let compiledF ← serialise p f >>= curry p >>= (reduceExpr ·) >>= toDeep p
+  let compiledF ← serialise p f >>= curry p >>= (reduceExpr ·) >>= (fun x ↦ do logInfo m!"Reduced: {x}"; return x) >>= toDeep p
   let compiledFname := serialisedUserName circuitName
   addAndCompile <| .defnDecl {
     name        := compiledFname
