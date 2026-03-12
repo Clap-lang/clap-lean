@@ -151,9 +151,11 @@ def letSome (e : Expr) : MetaM Expr := do
 
 partial def traverseCbv (f : Expr → MetaM Expr) (e : Expr) : MetaM Expr := do
   logInfo m!"BEGIN:\n{e}"
+  -- let e ← f e -- important
+  -- traverseCbv would have to be a lot more complex to work...
   let e' : Expr ←
     match e with
-    | .const _ _ => f e
+    -- | .const _ _ => f e
     | .letE declName type value body nondep =>
       let value ← traverseCbv f value
       let body ← traverseCbv f body
@@ -171,7 +173,7 @@ partial def traverseCbv (f : Expr → MetaM Expr) (e : Expr) : MetaM Expr := do
     | _ =>
       logInfo m!"Skipping {repr e}"
       pure e
-  logInfo m!"END:\n{e'}"
+  -- logInfo m!"END:\n{e'}"
   if e == e' then pure e else traverseCbv f e'
 
 
@@ -179,13 +181,13 @@ def mainLoop (m : Nat) (verbose : Bool := false) (e : Expr) : MetaM Expr := do
   if verbose then
     logInfo m!"Unfold_mAny:\n{e}}"
   traverseCbv (fun e =>
-      unfoldAnyCbv e >>=
-      (Core.betaReduce ·) >>=
-      zeta >>=
-      linearise >>=
-      foldProjs -- >>=
-      -- letSome
-      ) e
+    unfoldAnyCbv e >>=
+    (Core.betaReduce ·) >>=
+    zeta >>=
+    linearise >>=
+    foldProjs >>=
+    letSome
+  ) e
 
 /--
 TODO: Think about the ordering here. Do we need unfold / zeta / unfold, do we repeat, etc.
