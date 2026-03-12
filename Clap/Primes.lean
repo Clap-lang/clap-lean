@@ -25,6 +25,8 @@ instance : Fact (fits babybear 16) := by decide
 
 -- less than 64 bits
 abbrev goldilocks := (2^64) - (2^32) + 1
+
+set_option warn.sorry false in
 instance : Fact (Nat.Prime goldilocks) := by sorry
 instance : Fact (fits goldilocks 8) := by decide
 instance : Fact (fits goldilocks 16) := by decide
@@ -33,6 +35,8 @@ instance : Fact (fits goldilocks 32) := by decide
 -- less than 256 bits
 -- BN254 scalar field
 def bn254 := 21888242871839275222246405745257275088548364400416034343698204186575808495617
+
+set_option warn.sorry false in
 instance : Fact (Nat.Prime bn254) := by sorry
 instance : Fact (fits bn254 8) := by decide
 instance : Fact (fits bn254 16) := by decide
