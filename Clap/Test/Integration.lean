@@ -48,34 +48,34 @@ def test' (x y z : ZMod 🐻) (p₁ : Point2 🐻) (p₂ : Point3 🐻) : Option
   Spec.Compiler.accept
 
 /--
-info: Compiled Circuit.test into Circuit.test_ser.
+info: Compiled Circuit.test into Circuit.test_circuit.
 ---
-info: Wg for Circuit.test is Circuit.test_ser_wg.
+info: Wg for Circuit.test is Circuit.test_wg_wrap.
 -/
 #guard_msgs(info, whitespace := lax) in
 set_option pp.funBinderTypes true in
 #compile Circuit.test using Primes.babybear
 
 /--
-info: def Circuit.test_ser_wg : Wg 🐻 → F 🐻 → F 🐻 → F 🐻 → Point2 🐻 → Point3 🐻 → Array (ZMod 🐻) :=
+info: def Circuit.test_wg_wrap : Wg 🐻 → F 🐻 → F 🐻 → F 🐻 → Point2 🐻 → Point3 🐻 → Array (ZMod 🐻) :=
 fun (wg : Wg 🐻) (x y z : F 🐻) (p₁ : Point2 🐻) (p₂ : Point3 🐻) =>
   wg.run { toList := [x, y, z, p₁.x, p₁.y, p₂.x, p₂.y, p₂.z] }
 -/
 #guard_msgs(info, whitespace := lax) in
 set_option pp.funBinderTypes true in
-#print Circuit.test_ser_wg
+#print Circuit.test_wg_wrap
 
 /--
-info: def Circuit.test_ser : (var : Type) → Circuit 🐻 var :=
+info: def Circuit.test_circuit : (var : Type) → Circuit 🐻 var :=
 fun (var : Type) =>
   Circuit.lam fun (x : var) =>
     Circuit.lam fun (y : var) =>
       Circuit.lam fun (z : var) =>
-        Circuit.lam fun (curried0_p₁_ser : var) =>
-          Circuit.lam fun (curried1_p₁_ser : var) =>
-            Circuit.lam fun (curried0_p₂_ser : var) =>
-              Circuit.lam fun (curried1_p₂_ser : var) =>
-                Circuit.lam fun (curried2_p₂_ser : var) =>
+        Circuit.lam fun (curried0_p₁_circuit : var) =>
+          Circuit.lam fun (curried1_p₁_circuit : var) =>
+            Circuit.lam fun (curried0_p₂_circuit : var) =>
+              Circuit.lam fun (curried1_p₂_circuit : var) =>
+                Circuit.lam fun (curried2_p₂_circuit : var) =>
                   Circuit.eq0 (Exp.v x)
                     ((fun (x_1 : Unit) =>
                         Circuit.eq0 (Exp.v x)
@@ -84,8 +84,8 @@ fun (var : Type) =>
                                 ((fun (x_3 : PUnit.{1}) =>
                                     Circuit.eq0
                                       (((((Exp.v x).mul ((Exp.v y).sub (Exp.v z))).add (Exp.v z)).add
-                                            (Exp.v curried0_p₁_ser)).add
-                                        (Exp.v curried0_p₂_ser))
+                                            (Exp.v curried0_p₁_circuit)).add
+                                        (Exp.v curried0_p₂_circuit))
                                       ((fun (x : PUnit.{1}) => Circuit.nil) ()))
                                   ()))
                             ()))
@@ -93,28 +93,28 @@ fun (var : Type) =>
 -/
 #guard_msgs(info, whitespace := lax) in
 set_option pp.funBinderTypes true in
-#print Circuit.test_ser
+#print Circuit.test_circuit
 
-def wg := toWg' Circuit.test_ser
+def wg := toWg' Circuit.test_circuit
 /--
 info: def Circuit.wg : Wg 🐻 :=
-toWg' test_ser
+toWg' test_circuit
 -/
 #guard_msgs(info, whitespace := lax) in
 set_option pp.funBinderTypes true in
 #print wg
 
-def wg' := Circuit.test_ser_wg wg
+def wg' := Circuit.test_wg_wrap wg
 /--
 info: def Circuit.wg' : F 🐻 → F 🐻 → F 🐻 → Point2 🐻 → Point3 🐻 → Array (ZMod 🐻) :=
-test_ser_wg wg
+test_wg_wrap wg
 -/
 #guard_msgs(info, whitespace := lax) in
 set_option pp.funBinderTypes true in
 #print wg'
 
-def cs := Clap.toCs' (Circuit.test_ser)
-def r1cs := Clap.toR1CS (Circuit.test_ser)
+def cs := Clap.toCs' (Circuit.test_circuit)
+def r1cs := Clap.toR1CS (Circuit.test_circuit)
 
 /-- info: Circuit.cs : Cs' 🐻 -/
 #guard_msgs(info, whitespace := lax) in

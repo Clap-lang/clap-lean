@@ -59,29 +59,31 @@ def test (xy : MyCouple p) : Option Unit := do
 open Clap.Lang.ZMod
 
 /--
-info: Compiled test into test_ser.
+info: Compiled test into test_circuit.
 ---
-info: Wg for test is test_ser_wg.
+info: Wg for test is test_wg_wrap.
 -/
 #guard_msgs in
 #compile test using Primes.bn254
 
-/- The compiler gives us a circuit that we can compile further. -/
-def test_circ : Circuit' bn254 := test_ser
+/-- info: test_circuit (var : Type) : Circuit bn254 var -/
+#guard_msgs in
+#check test_circuit
 
-/- But also a wg_wrap which we can use to wrap our witness generator. -/
-def test_wg_wrap : Wg bn254 -> MyCouple bn254 -> Array (ZMod bn254) := test_ser_wg
+/-- info: test_wg_wrap (wg : Wg bn254) (xy : MyCouple bn254) : Array (ZMod bn254) -/
+#guard_msgs in
+#check test_wg_wrap
 
 /- We can optimize the circuit. -/
-def test_circ_opt := Clap.cfold' test_circ
+def test_circ_opt := Clap.cfold' test_circuit
 
 /- Compile the circuit to a cs. -/
-def test_cs : Clap.Cs' bn254 := Clap.toCs' test_circ
+def test_cs : Clap.Cs' bn254 := Clap.toCs' test_circuit
 
 /- Compile the circuit to a wg. -/
-def test_wg_raw : Clap.Wg bn254 := Clap.toWg' test_circ
+def test_wg_raw : Clap.Wg bn254 := Clap.toWg' test_circuit
 /- And use the wrapper to get nicer arguments. -/
-def test_wg : MyCouple bn254 → Array (ZMod bn254) := test_wg_wrap (Clap.toWg' test_circ)
+def test_wg : MyCouple bn254 → Array (ZMod bn254) := test_wg_wrap (Clap.toWg' test_circuit)
 
 /- Serialize the cs to r1cs -/
 def r1cs : R1CSv1 := quadraticToR1CS (Clap.toLevels test_cs)

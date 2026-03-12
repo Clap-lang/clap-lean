@@ -45,7 +45,7 @@ def fvarPrimeOfName (p : Name) (args : Array Expr) : MetaM Expr := do
     | throwError m!"{p} not found."
   return p
 
-def serialisedUserName (name : Name) : Name := name.appendAfter "_ser"
+def serialisedUserName (name : Name) : Name := name.appendAfter "_circuit"
 
 def curriedUserName (name : Name) (i : Nat) : Name :=
   name.appendBefore s!"curried{i}_"
@@ -207,7 +207,7 @@ def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
   logInfo m!"Compiled {circuitName} into {compiledFname}."
   lambdaTelescope f fun args _ ↦ do
   let wg ← wg p args
-  let wgName := compiledFname.appendAfter "_wg"
+  let wgName := circuitName.appendAfter "_wg_wrap"
   addAndCompile <| .defnDecl {
     name        := wgName
     levelParams := []

@@ -182,9 +182,9 @@ def test₁ {p:ℕ} [Core p] [Fact (Primes.fits p 32)]
   -- accept p
 
 /--
-info: Compiled test₁ into test₁_ser.
+info: Compiled test₁ into test₁_circuit.
 ---
-info: Wg for test₁ is test₁_ser_wg.
+info: Wg for test₁ is test₁_wg_wrap.
 -/
 #guard_msgs in
 #compile test₁ using Primes.goldilocks

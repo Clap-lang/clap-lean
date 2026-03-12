@@ -24,8 +24,8 @@ def Serialise.ex₁ (p₁ : Point2 Primes.babybear) (p₂ : Point3 Primes.babybe
   Spec.Compiler.accept
 
 /--
-info: def - fun (p₁_ser : Vector (ZMod Primes.babybear) 2) (p₂_ser : Vector (ZMod Primes.babybear) 3) => do
-  Spec.Compiler.eq0 (p₁_ser[0] + p₂_ser[2])
+info: def - fun (p₁_circuit : Vector (ZMod Primes.babybear) 2) (p₂_circuit : Vector (ZMod Primes.babybear) 3) => do
+  Spec.Compiler.eq0 (p₁_circuit[0] + p₂_circuit[2])
   some Spec.Compiler.accept
 ---
 info: type - Vector (ZMod Primes.babybear) 2 → Vector (ZMod Primes.babybear) 3 → Option Unit
