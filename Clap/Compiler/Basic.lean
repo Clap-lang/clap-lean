@@ -73,7 +73,9 @@ def withTransformedArgs.{u}
 
 def isPrivileged (p : Q(ℕ)) (e : Expr) : TermElabM Bool := do
   let type ← inferType e
-  return type.isAppOf ``Vector || (←isDefEq type q(ZMod $p))
+  return type.isAppOf ``Vector || type.isAppOf ``ZMod || type.isAppOf ``Clap.Lang.Core.F
+  -- using defEq was timing out
+  -- (←isDefEq type q(ZMod $p))
 
 def serialisedLam (body : Expr) : TermElabM Expr := do
   Meta.transform (skipConstInApp := true) body fun e ↦ do
@@ -82,7 +84,8 @@ def serialisedLam (body : Expr) : TermElabM Expr := do
     match env.getProjectionStructureName? name with
     | .none => return .continue
     | .some val =>
-      if isClass env val || e.isAppOf ``Vector.toArray then return .continue
+      if isClass env val -- || e.isAppOf ``Vector.toArray -- could be used for Array if we decide to support them
+      then return .continue
       let projectee ← serialisedUserName <$> e.projecteeOfType val
       let fvar := (←getLCtx).findFromUserName? projectee |>.get!.toExpr
       let serialisedIdx := (←getProjectionFnInfo? name).get!.i
@@ -194,7 +197,7 @@ def wg (p : Name) (argFvars : Array Expr) : TermElabM Expr := do
     mkLambdaFVars (#[fvar] ++ argFvars) body
 
 def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
-  let compiledF ← serialise p f >>= curry p >>= (reduceExpr ·) >>= toDeep p
+  let compiledF ← serialise p f >>= curry p >>= (fun e => do logInfo m!"{e}"; return e) >>= (reduceExpr ·) >>= toDeep p
   let compiledFname := serialisedUserName circuitName
   addAndCompile <| .defnDecl {
     name        := compiledFname
@@ -205,18 +208,18 @@ def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
     safety      := .safe
   }
   logInfo m!"Compiled {circuitName} into {compiledFname}."
-  lambdaTelescope f fun args _ ↦ do
-  let wg ← wg p args
-  let wgName := compiledFname.appendAfter "_wg"
-  addAndCompile <| .defnDecl {
-    name        := wgName
-    levelParams := []
-    type        := ←inferType wg
-    value       := wg
-    hints       := .regular 18
-    safety      := .safe
-  }
-  logInfo m!"Wg for {circuitName} is {wgName}."
+  -- lambdaTelescope f fun args _ ↦ do
+  -- let wg ← wg p args
+  -- let wgName := compiledFname.appendAfter "_wg"
+  -- addAndCompile <| .defnDecl {
+  --   name        := wgName
+  --   levelParams := []
+  --   type        := ←inferType wg
+  --   value       := wg
+  --   hints       := .regular 18
+  --   safety      := .safe
+  -- }
+  -- logInfo m!"Wg for {circuitName} is {wgName}."
 
 def instantiateLambdaHeadInst (e : Expr) : TermElabM (Option Expr) := do
   let .lam _ type _ bi := e | return .none

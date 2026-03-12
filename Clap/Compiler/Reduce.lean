@@ -51,31 +51,35 @@ def unfoldAnyStep (e : Expr) : MetaM TransformStep := do
   match ← reduceMatcher? e with
   | .reduced v =>
          return .done v -- return .visit v
-  | _ => let_expr Array.get!Internal _ _ arr idx := e |
-           let some v ← unfoldDefinition? e | return .continue
-           return .done v -- return .visit v
-         -- TODO: Special casing arrays here is temporary.
-         return .done (←mkAppM ``List.get!Internal #[←mkAppM ``Array.toList #[arr], idx])
+  -- this was to handle Arrays that we decided to not handle for now
+  -- | _ => let_expr Array.get!Internal _ _ arr idx := e |
+  --          let some v ← unfoldDefinition? e | return .continue
+  --          return .done v -- return .visit v
+  --        -- TODO: Special casing arrays here is temporary.
+  --        return .done (←mkAppM ``List.get!Internal #[←mkAppM ``Array.toList #[arr], idx])
+  | _ => let some v ← unfoldDefinition? e | return .continue
+         return .done v -- return .visit v
 
 
 def unfoldAny (e : Expr) : MetaM Expr := do
   Meta.transform e (skipConstInApp := true) (pre := unfoldAnyStep)
 
-def unfold_mAny (m : Nat) (verbose : Bool := false) (e : Expr) : MetaM Expr := do
-  if verbose then
-    logInfo m!"Unfold_mAny:\n{e}}"
-  let mut res := e
-  for i in List.range m do
-    if verbose then
-      logInfo m!"res[{i}]:\n{res}\n"
-    let res' ← unfoldAny res
-    if res' == res then
-      if verbose then
-        logInfo m!"Loop detected [{i}]:\n{res}"
-      return res'
-    res := res'
-  logInfo m!"Limit reached [{m}]:\n{res}"
-  return res
+def unfoldAnyCbv (e : Expr) : MetaM Expr := do
+  if (←isArith e) ||
+     (←isInstance e.getAppFn.constName) ||
+     (←e.isIrreducibleExpr) ||
+     (←isVerboten e) then return e
+  match ← reduceMatcher? e with
+  | .reduced v =>
+         return v -- return .visit v
+  -- this was to handle Arrays that we decided to not handle for now
+  -- | _ => let_expr Array.get!Internal _ _ arr idx := e |
+  --          let some v ← unfoldDefinition? e | return .continue
+  --          return .done v -- return .visit v
+  --        -- TODO: Special casing arrays here is temporary.
+  --        return .done (←mkAppM ``List.get!Internal #[←mkAppM ``Array.toList #[arr], idx])
+  | _ => let some v ← unfoldDefinition? e | return e
+         return v -- return .visit v
 
 /--
 TODO: Unused.
@@ -145,17 +149,49 @@ def letSome (e : Expr) : MetaM Expr := do
 
     return .visit (←Core.betaReduce (.app rhs (lhs.getAppArgs[1]!)))
 
+partial def traverseCbv (f : Expr → MetaM Expr) (e : Expr) : MetaM Expr := do
+  logInfo m!"BEGIN:\n{e}"
+  let e' : Expr ←
+    match e with
+    | .const _ _ => f e
+    | .letE declName type value body nondep =>
+      let value ← traverseCbv f value
+      let body ← traverseCbv f body
+      pure (.letE declName type value body nondep)
+    | .app fn arg =>
+      let arg ← traverseCbv f arg
+      let fn ← traverseCbv f fn
+      pure (.app fn arg)
+    | .lam binderName binderType body binderInfo =>
+      let body ← traverseCbv f body
+      pure (.lam binderName binderType body binderInfo)
+    | .forallE binderName binderType body binderInfo =>
+      let body ← traverseCbv f body
+      pure (.forallE binderName binderType body binderInfo)
+    | _ =>
+      logInfo m!"Skipping {repr e}"
+      pure e
+  logInfo m!"END:\n{e'}"
+  if e == e' then pure e else traverseCbv f e'
+
+
+def mainLoop (m : Nat) (verbose : Bool := false) (e : Expr) : MetaM Expr := do
+  if verbose then
+    logInfo m!"Unfold_mAny:\n{e}}"
+  traverseCbv (fun e =>
+      unfoldAnyCbv e >>=
+      (Core.betaReduce ·) >>=
+      zeta >>=
+      linearise >>=
+      foldProjs -- >>=
+      -- letSome
+      ) e
+
 /--
 TODO: Think about the ordering here. Do we need unfold / zeta / unfold, do we repeat, etc.
 -/
 def reduceExpr (e : Expr) : MetaM Expr :=
-  let numIters := 128
-  do pure e >>=
-     unfold_mAny numIters false >>= (Core.betaReduce ·) >>=
-     zeta >>=
-     unfold_mAny numIters false >>= (Core.betaReduce ·) >>= linearise >>=
-     foldProjs                  >>= (Core.betaReduce ·) >>=
-     unfold_mAny numIters false >>= (Core.betaReduce ·) >>= letSome
+  mainLoop 1 true e
 
 open MVarId in
 def _root_.Lean.MVarId.reduceTarget (goal : MVarId) : MetaM MVarId :=
