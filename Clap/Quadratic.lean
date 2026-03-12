@@ -162,6 +162,8 @@ def Cs.toLevels (cs : Cs p Nat) (n:ℕ) : Cs p ℕ :=
   | .eq0 e cs => .eq0 e (cs.toLevels n)
   | .lam k => (k n).toLevels (n+1)
 
+/- Circom assumes that the first wire in position 0 has value one, so we shift
+   all variables by one. -/
 def toLevels (cs : Cs' p) : Cs p Nat := (cs ℕ).toLevels 1
 
 def toR1CS (c : Circuit' p) : Cs p Nat :=
@@ -323,6 +325,17 @@ def quadraticToR1CS (cs : Cs p ℕ) : R1CSv1 :=
   /- Size in bytes of a field element. Must be a multiple of 8. -/
   fieldSize (p : ℕ) (size₀ : ℕ := 8) :=
     if p < 2^64 then size₀ else fieldSize (p >>> 64) (size₀ + 8)
+
+def Cs.toR1CS (cs : Cs' p) : R1CSv1 :=
+  quadraticToR1CS (Clap.toLevels cs)
+
+/- Circom assumes that the first wire in position 0 has value one, so we prepend
+   it to the witness. -/
+def Wg.toWtns (p : ℕ) (witness : Array (ZMod p)) : Witness where
+  n8 := UInt32.ofNat (minBytes p)
+  prime := p
+  nVars := UInt32.ofNat witness.size + 1
+  elements := #[1] ++ witness.map (·.val)
 
 private def csVar : Cs 7 Nat :=
   .eq0 (.v 1) .nil
