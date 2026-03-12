@@ -323,7 +323,7 @@ instance : Setoid (Circuit' p) where
     trans := fun h1 h2 => h1.trans h2
   }
 
-instance : IsRefl (Circuit' p) (· ≈ ·) where
+instance : Std.Refl (α := Circuit' p) equiv' where
   refl := Setoid.refl
 
 end Circuit
