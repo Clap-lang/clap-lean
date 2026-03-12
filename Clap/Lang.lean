@@ -215,7 +215,7 @@ namespace ZMod
 open Clap.Spec
 
 instance onlyForDebugF {p:ℕ} : ToString (ZMod p) where
-  toString f := natToHex f.val
+  toString f := f.val
 
 /-
   This instance should be avaible only when proving or testing a
