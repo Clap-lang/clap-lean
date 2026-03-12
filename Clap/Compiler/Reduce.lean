@@ -100,12 +100,17 @@ def foldProjs (e : Expr) : MetaM Expr := do
     return .visit e'
   Meta.transform e (post := post)
 
+def _root_.Lean.Expr.isAppOfUptoDefEq (e₁ e₂ : Expr) : MetaM Bool := do
+  let (mvars₁, _, _) ← forallMetaTelescope =<< inferType e₁
+  let (mvars₂, _, _) ← forallMetaTelescope =<< inferType e₂
+  isDefEq (mkAppN e₁ mvars₁) (mkAppN e₂ mvars₂)
+
 partial def zeta (e : Expr) : MetaM Expr := do
   match e with
   | .letE declName type value body nondep =>
-    -- TODO: Checking defeq is tricky, the expressions can contain bvars :thinking:.
-    if blacklist.contains value.getAppFn.constName then
-      return .letE declName type (←zeta value) (←zeta body) nondep
+    if !value.isApp then zeta (body.instantiate1 value) else
+    if ←blacklist.anyM value.getAppFn.isAppOfUptoDefEq then
+      return Expr.letE declName type (←zeta value) (←zeta body) nondep
     zeta (body.instantiate1 value)
   | .app fn arg => return .app (← zeta fn) (← zeta arg)
   | .lam binderName binderType body binderInfo =>
@@ -113,7 +118,7 @@ partial def zeta (e : Expr) : MetaM Expr := do
   | .forallE binderName binderType body binderInfo =>
     return .forallE binderName binderType (←zeta body) binderInfo
   | _ => return e
-  where blacklist := [
+  where blacklist := Expr.const (us := []) <$> [
     ``Spec.Compiler.is_zero,
     ``Spec.Compiler.share]
 
