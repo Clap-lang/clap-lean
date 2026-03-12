@@ -374,7 +374,7 @@ def Wg.run {p : Nat} [Fact (Nat.Prime p)] (wg : Wg p) (ins : Array (ZMod p)) : A
   | .input k =>
     match ins with
     | ⟨[]⟩ => #[]
-    | ⟨i::ins⟩ => (k i).run ins.toArray
+    | ⟨i::ins⟩ => #[i] ++ (k i).run ins.toArray
 
 def wrap (wg : Wg p) (cs : Cs p (ZMod p)) : Cs p (ZMod p) :=
   match wg,cs with
