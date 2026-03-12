@@ -190,7 +190,7 @@ abbrev p := Primes.bn254
 instance {n : Nat} : Fact (n = n) := ⟨by grind⟩
 
 def poseidonBN254Test {p} [Core p] [Fact (p = Primes.bn254)] (ins : Vector (F Primes.bn254) 5) : Option Unit := do
-  eq0 (<- poseidonBN254 (ins.toArray))
+  eq0 (<- poseidonBN254 (ins.toList))
   accept p
 
 #compile poseidonBN254Test using Primes.bn254
