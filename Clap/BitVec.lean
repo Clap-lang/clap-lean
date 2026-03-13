@@ -57,7 +57,7 @@ lemma num2bitsLsbPure_bits {w : ℕ} {v : ZMod p} : ∀ i : Fin _, (num2bitsLsbP
       rw [←this]
       simp only [Fin.getElem_fin, Fin.val_succ, List.getElem_cons_succ]
       specialize @ih  ((v.val / 2) : ℕ)
-      rw! [num2bitsLsbPure_length] at ih
+      rw! (castMode := .all) [num2bitsLsbPure_length] at ih
       exact ih i'
 
 #guard num2bitsLsbPure (p := Primes.babybear) 3 1 = [1,0,0]
@@ -228,7 +228,9 @@ lemma num2bitsLsbPure_of_bits2num_eq {ls : List (ZMod p)} :
     | cons l ls ih =>
       simp only [List.length_cons, Fin.getElem_fin, num2bitsLsbPure, List.cons.injEq]
       simp only [List.length_cons] at p_bound
-      rw [sum_pow_2_eq p_bound (by simpa using h')]
+      have := sum_pow_2_eq p_bound h'
+      rw [←show Fin.fintype (ls.length + 1) = Fin.fintype (l :: ls).length from rfl]
+      simp at this; rw [this]
       have len_bound : 2 ^ ls.length < p := by rw [pow_succ] at p_bound; nlinarith
       specialize ih len_bound (fun i ↦ by simpa using h' i.succ)
       have : ∑ i : Fin (ls.length + 1), 2 ^ i.1 * (l :: ls)[i.1].val = l.val + 2 * ∑ i : Fin ls.length, 2 ^ i.1 * ls[i].val := by
