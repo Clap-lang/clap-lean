@@ -180,7 +180,8 @@ def test₁ {p:ℕ} [Core p] [Fact (Primes.fits p 32)]
   let z : F32 p := z.toList
   F32.assert_eq (Clap.Sha2.Circuit.ch x y z) F32.default
   -- accept p
-
+  
+-- set_option trace.Clap.Compiler.reduce.trace true
 /--
 info: Compiled test₁ into test₁_circuit.
 ---

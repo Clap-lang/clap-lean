@@ -1,5 +1,6 @@
 import Clap.Spec
 import Clap.Compiler.Basic
+import Clap.Compiler.Wheels
 import Clap.Test.Wheels
 
 namespace Clap
@@ -101,6 +102,7 @@ info: Wg for Compile.ex₁ is Compile.ex₁_wg_wrap.
 #guard_msgs(info, whitespace := lax) in
 #compile Compile.ex₁ using Primes.babybear
 
+
 /--
 info: def Compile.ex₁_circuit : (var : Type) → Circuit Primes.babybear var :=
 fun (var : Type) =>
@@ -113,10 +115,9 @@ fun (var : Type) =>
 set_option pp.funBinderTypes true in
 #print Compile.ex₁_circuit
 
-
 def Compile.adder {p : ℕ} [Fact (Nat.Prime p)] [Core p] (x y : F p) : Option (F p) := do
   eq0 x
-  eq0 y
+  -- eq0 y
   let z := x + y
   eq0 z
   return z
