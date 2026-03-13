@@ -143,13 +143,8 @@ info: Wg for Compile.test is Compile.test_wg_wrap.
 #guard_msgs in
 #compile Compile.test using Primes.babybear
 
-attribute [local cbv_opaque] Clap.Lang.Core.eq0 Clap.Lang.Core.accept Bind.bind
-attribute [local cbv_eval] Option.some_bind pure_bind -- bind_assoc
-
-def _root_.Lean.Expr.isAppOfUptoDefEq (e₁ e₂ : Expr) : MetaM Bool := do
-  let (mvars₁, _, _) ← forallMetaTelescope =<< inferType e₁
-  let (mvars₂, _, _) ← forallMetaTelescope =<< inferType e₂
-  isDefEq (mkAppN e₁ mvars₁) (mkAppN e₂ mvars₂)
+attribute [local cbv_opaque] Clap.Lang.Core.eq0 Clap.Lang.Core.accept Bind.bind pure Clap.Spec.Compiler.eq0 Clap.Spec.Compiler.accept --Option.bind
+attribute [local cbv_eval] pure_bind bind_pure bind_assoc Option.bind_some Option.some_bind --Option.bind_eq_bind
 
 open Lean Meta Tactic Cbv in
 def cbv (e : Expr) : MetaM Expr := do
@@ -157,45 +152,57 @@ def cbv (e : Expr) : MetaM Expr := do
   | .rfl _ => return e
   | .step e _ _ => return e
 
-def applyCbv (e : Expr) : MetaM TransformStep := do
-  logInfo m!"Visit:\n{e}"
+def opaques := [``Eq, ``Core.eq0, ``Bind.bind, ``pure, ``HAdd.hAdd, ``HSub.hSub, ``HMul.hMul, ``OfNat.ofNat, ``Option.bind, ``Option.some, ``Clap.Spec.Compiler.eq0, ``Clap.Spec.Compiler.accept]
+
+def isDefEqToConst (e : Expr) (name : Name) : MetaM Bool := do
+  let c ← mkConstWithFreshMVarLevels name
+  isDefEq e c
+
+
+partial def applyCbv (e : Expr) : MetaM TransformStep := do
+  -- logInfo m!"Visit:\n{e}"
   match e with
-  | .app fn arg =>
+  | .app fn _ =>
     logInfo m!"fn: {fn}"
-    let (fn, args) := e.getAppFnArgs
-    if [``Eq, ``Core.eq0, ``Bind.bind, ``HAdd.hAdd, ``HSub.hSub, ``HMul.hMul, ``OfNat.ofNat, ``Option.bind].contains fn
-    then logInfo m!"Skipped: {fn}"
+    if <- opaques.anyM fun name => do isDefEqToConst fn name
+    then logInfo m!"App.Skipped: {fn}"
          return .continue
-    else return .done (←cbv e)
-  | .letE declName type value body nondep =>
-    return .done (←cbv e)
-  | .forallE binderName binderType body binderInfo => return .continue
-  | .bvar deBruijnIndex => return .continue
+    else logInfo m!"App.CBV: {e}"
+         return .done (←cbv e)
+  | .letE name ty val body _ =>
+      logInfo m!"Let.CBV {e}"
+      let e ← withLetDecl name ty val fun fvar => do
+        let body' ← Meta.transform (body.instantiate1 fvar) applyCbv
+        mkLetFVars #[fvar] body'
+--      let e ← cbv e
+      logInfo m!"Let.CBV.result {e}"
+      return .done e
   | .fvar fvarId =>
-    if !(←inferType e).isApp then return .continue
-    if ←(← inferType e).getAppFn.isAppOfUptoDefEq (.const ``ZMod [])
-    then return .continue
-    else return .done (←cbv e)
-  | .mvar mvarId => return .continue
-  | .sort u => return .continue
-  | .const declName us => return .continue
-  | .lam binderName binderType body binderInfo => return .continue
-  | .lit _ => return .continue
-  | .mdata data expr => return .continue
+    -- if !(←inferType e).isApp then return .continue
+    -- if ←(← inferType e).getAppFn.isAppOfUptoDefEq (.const ``ZMod [])
+    -- then return .continue
+    -- else
+    return .done e
+  | .lam name ty body bi =>
+      logInfo m!"LAM: {e}"
+      let e <- withLocalDecl name bi ty fun fvar => do
+        let body' ← Meta.transform (body.instantiate1 fvar) applyCbv
+        mkLambdaFVars #[fvar] body'
+      return .done e
   | .proj typeName idx struct => return .continue
+  | .forallE binderName binderType body binderInfo
+  | .mvar mvarId
+  | .const declName us
+  | .lit _
+  | .bvar deBruijnIndex
+  | .sort u
+  | .mdata data expr =>
+    logInfo m!"rest {e}"
+    return .done e
 
 open Lean Meta Tactic Cbv in
 def cbvAny (e : Expr) : MetaM Expr := do
-  Meta.transform e (skipConstInApp := true) (pre := applyCbv)
-  -- Meta.transform e fun e ↦ do
-  --   if ←isCbvCandidate e
-  --   then logInfo m!"Candidate to CBV:\n{e}"
-  --        return .done (←cbv e)
-  --   else return .continue
-  -- where cbv (e : Expr) : MetaM Expr := do
-  --   match ←cbvEntry e with
-  --   | .rfl _ => return e
-  --   | .step e _ _ => return e
+  Meta.transform e (pre := applyCbv)
 
 open MVarId in
 def _root_.Lean.MVarId.cbvNext (goal : MVarId) : MetaM MVarId :=
@@ -204,107 +211,47 @@ def _root_.Lean.MVarId.cbvNext (goal : MVarId) : MetaM MVarId :=
 open Elab Tactic in
 elab "cbv_next" : tactic => do
   liftMetaTactic' MVarId.cbvNext
+
 -- set_option pp.notation false in
+def produceEq0 {p} [Core p] (l : List (F p)) (h : l ≠ []) : Option Unit :=
+  match l with
+  | [hd] => do
+    Core.eq0 hd
+  | x₁ :: x₂ :: tl => do
+    Core.eq0 x₁
+    produceEq0 (x₂ :: tl) (by simp)
 
--- After unfold
--- do
---         Core.eq0 y
---         have z : F (15 * 2 ^ 27 + 1) := y + z
---         Core.eq0 z
---         pure z
+def Reduce.ex₀ {p} [Core p] (x y : F p) : Option Unit := do
+  produceEq0 [x, x, y] (by simp)
+  accept
+/-
+example {x y : ZMod Primes.babybear} : Reduce.ex₀ (p := Primes.babybear) x y = sorry := by
+  cbv_next
+  cbv_next
+  cbv_next
+  repeat first | rw [bind_assoc] | rw [bind_pure] | rw [pure_bind]
 
--- AFter cbv_next
--- do
---         Core.eq0 y
---         have z : F (15 * 2 ^ 27 + 1) := y + z
---         Core.eq0 z
---         pure z
+#check DSimp.Config
 
-set_option pp.notation false in
+set_option pp.fieldNotation false in
+--set_option pp.notation false in
 example {x y z : ZMod Primes.babybear} : Compile.test (p := Primes.babybear) x y z = sorry := by
 
+  -- -- works perfectly
+  -- unfold Compile.test Compile.adder
+  -- dsimp only
+  -- repeat first | rw [bind_assoc] | rw [bind_pure] | rw [pure_bind]
+
   cbv_next
-  rw [bind_assoc]
-  rw [bind_assoc]
-  rw [pure_bind]
-  -- cbv_next
-  unfold Compile.adder
-  have := @bind_assoc (m := Option) inferInstance inferInstance
-                      Unit (ZMod Primes.babybear) Unit
-                      (Core.eq0 (p := Primes.babybear) y)
-                      (f := fun x =>
-                        have z := HAdd.hAdd y z;
-                        bind (Core.eq0 (p := Primes.babybear) z) fun x => pure z)
-                      (g := fun b ↦ do Core.eq0 (p := Primes.babybear) (x + y - b); some (Core.accept (15 * 2 ^ 27 + 1)))
-                      -- (g := fun b : ZMod Primes.babybear ↦ do Core.eq0 (p := Primes.babybear) (x + y - b); some (Core.accept (15 * 2 ^ 27 + 1)))
-
-  rw [bind_assoc
-    (m := Option)
-    -- (x := Core.eq0 y)
-    -- (f := fun x =>
-    --         have z := HAdd.hAdd y z;
-    --         bind (Core.eq0 z) fun x => pure z)
-    (g := fun b ↦ do Core.eq0 (x + y - b); some (Core.accept (15 * 2 ^ 27 + 1)))
-  ]
-  rw [bind_assoc]
-  rw [pure_bind]
-  conv =>
-    enter [1, 2, a, 1]
-    skip
-    cbv
-
-  cbv
+  repeat first | rw [bind_assoc] | rw [bind_pure] | rw [pure_bind]
   cbv_next
-  -- cbv
-  -- cbv_next
-  -- cbv_next
+  repeat first | rw [bind_assoc] | rw [bind_pure] | rw [pure_bind]
+  cbv_next
+  repeat first | rw [bind_assoc] | rw [bind_pure] | rw [pure_bind]
 
 
-  -- cbv
-  -- conv =>
-  --   enter [1, 2, a, 1]
-  --   cbv
-  -- rw [bind_assoc]
-  -- rw [bind_assoc]
-  -- rw [bind_assoc]
-  -- rw [pure_bind]
-  -- rw [bind_assoc]
-  -- rw [bind_assoc]
-  -- rw [bind_assoc]
-  -- rw [pure_bind]
-
-  -- repeat first | rw [bind_assoc] | rw [pure_bind]
-
-
-  -- rw [bind_assoc]
-  -- rw [bind_assoc]
-  -- rw [pure_bind]
-  -- conv =>
-  --   enter [1, 2, x, 2, x, 2, x, 1]
-  --   cbv
-  -- rw [bind_assoc]
-  -- rw [bind_assoc]
-  -- rw [bind_assoc]
-  -- rw [pure_bind]
-
-  -- unfold Compile.adder
-
-
-
-
-  -- unfold Compile.test
-  -- unfold Compile.adder
-  -- cbv
-  -- rw [bind_assoc]
-  -- rw [bind_assoc]
-  -- rw [pure_bind]
-  -- rw [bind_assoc]
-  -- rw [bind_assoc]
-  -- rw [bind_assoc]
-  -- rw [pure_bind]
-
-
-
+--  dsimp -zeta -eta -beta -etaStruct -iota -proj only
+-/
 end Compiler
 
 end Test
