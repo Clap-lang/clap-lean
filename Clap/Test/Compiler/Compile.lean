@@ -136,6 +136,30 @@ info: Wg for Compile.test is Compile.test_ser_wg.
 #guard_msgs in
 #compile Compile.test using Primes.babybear
 
+attribute [local cbv_opaque] Clap.Lang.Core.eq0 Clap.Lang.Core.accept Bind.bind
+attribute [local cbv_eval] bind_assoc Option.some_bind pure_bind
+
+example {x y z : ZMod Primes.babybear} : Compile.test (p := Primes.babybear) x y z = sorry := by
+  cbv
+  rw [bind_assoc]
+  rw [bind_assoc]
+  
+  
+
+
+  unfold Compile.test
+  unfold Compile.adder
+  cbv
+  rw [bind_assoc]
+  rw [bind_assoc] 
+  rw [pure_bind]
+  rw [bind_assoc] 
+  rw [bind_assoc] 
+  rw [bind_assoc] 
+  rw [pure_bind]
+  
+  
+
 end Compiler
 
 end Test
