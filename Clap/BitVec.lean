@@ -1,5 +1,5 @@
 import Mathlib.FieldTheory.Finite.Basic
-import Mathlib.Tactic
+import Mathlib.Tactic.DepRewrite
 
 import Clap.Primes
 import Clap.Wheels

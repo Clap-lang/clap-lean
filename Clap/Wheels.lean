@@ -1,5 +1,3 @@
-import Lean
-import Mathlib.Lean.Meta
 import Mathlib.FieldTheory.Finite.Basic -- field operations
 
 import Clap.Primes

@@ -1,7 +1,5 @@
 import Lean
 import Qq
-import Mathlib.Tactic
-import Mathlib.Lean.Meta
 import Clap.Spec
 import Clap.Lang
 

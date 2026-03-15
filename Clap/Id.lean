@@ -1,6 +1,6 @@
 import Clap.Circuit
 import Clap.Simulation
-import Mathlib.Tactic
+import Mathlib.Tactic.Cases
 
 namespace Clap
 

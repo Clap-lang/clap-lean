@@ -1,4 +1,4 @@
-import Mathlib.Tactic
+import Mathlib.Data.Nat.Cast.Order.Ring
 
 def hello := "world"
 
