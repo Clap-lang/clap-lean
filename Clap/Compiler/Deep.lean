@@ -17,22 +17,22 @@ namespace Clap
 
 partial def compileExp (p : Expr) (var : Expr) (e : Expr) : MetaM Expr := do
 --  dbg_trace s!"compileExp\n{(<-ppExpr e)}"
-  if let (``OfNat.ofNat, ⟨_ :: _ :: _⟩) := e.getAppFnArgs then
-    return Expr.app (.app (.app (mkConst ``Clap.Exp.c) p) var) e
+  if let (``OfNat.ofNat,_) := e.getAppFnArgs then
+    mkAppOptM ``Clap.Exp.c #[p,var,e]
   else if let .fvar _ := e then
-    return Expr.app (.app (.app (mkConst ``Clap.Exp.v) p) var) e
+    mkAppOptM ``Clap.Exp.v #[p,var,e]
   else if let (``HAdd.hAdd, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
     let l <- compileExp p var l
     let r <- compileExp p var r
-    return Expr.app (.app (.app (.app (mkConst ``Clap.Exp.add) p) var) l) r
+    mkAppOptM ``Clap.Exp.add #[p,var,l,r]
   else if let (``HMul.hMul, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
     let l <- compileExp p var l
     let r <- compileExp p var r
-    return Expr.app (.app (.app (.app (mkConst ``Clap.Exp.mul) p) var) l) r
+    mkAppOptM ``Clap.Exp.mul #[p,var,l,r]
   else if let (``HSub.hSub, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
     let l <- compileExp p var l
     let r <- compileExp p var r
-    return Expr.app (.app (.app (.app (mkConst ``Clap.Exp.sub) p) var) l) r
+    mkAppOptM ``Clap.Exp.sub #[p,var,l,r]
   else throwError m!"compileExp: no match for {e}"
 
 def typeZModp (p:Expr) : Expr := .app (mkConst ``ZMod) p
@@ -57,34 +57,24 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
       let body := body.instantiate1 fvar
       let newBody ← compile p var body
       mkLambdaFVars #[fvar] newBody
-    let e := Expr.app (.app (.app (mkConst ``Clap.Circuit.lam) p) var) e
---    dbg_trace s!"lam"
-    return e
+    mkAppOptM ``Clap.Circuit.lam #[p,var,e]
 
   else if let (``Option.some, ⟨_ :: accept :: _⟩) := e.getAppFnArgs then
     if not (←isDefEq accept (.const ``Clap.Spec.Compiler.accept []))
     then throwError m!"compile.accept: not accept - {accept}"
 --    dbg_trace s!"accept"
-    let e : Expr := .app (.app (mkConst ``Clap.Circuit.nil) p) var
-    return e
+    mkAppOptM ``Clap.Circuit.nil #[p,var]
 
   else if let some (e,k) := matchBinds e then
     let .lam name type body _bi := k | throwError m!"compile.bind: not a lam"
-    let (eqf, args) := e.getAppFnArgs
-    if eqf.componentsRev[0]! == `eq0 then
-    -- TODO redo all this if speghetti
-      let lhs := mkAppN (Expr.const eqf []) (args.take args.size.pred)
-      let rhs := Expr.app (.const ``Clap.Spec.Compiler.eq0 []) p
-      let e := e.getAppRevArgs[0]!
-      if !(←isDefEq lhs rhs) then throwError "compile.bind: unrecognised shape of eq0"
+    if let (`Clap.Spec.Compiler.eq0, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
       let e : Expr <- compileExp p var e
-      -- TODO check type (mkConst `Unit)
       let k <- withLocalDecl name .default type fun u => do
         let body := body.instantiate1 u
         let body <- compile p var body
         mkLambdaFVars #[u] body
-      let e : Expr := .app (.app (.app (.app (mkConst ``Clap.Circuit.eq0) p) var) e) (.app k (mkConst ``Unit.unit)) -- TODO
-      return e
+      let c := Expr.app k (mkConst ``Unit.unit)
+      mkAppOptM ``Clap.Circuit.eq0 #[p,var,e,c]
 
     else if let (`Clap.Spec.Compiler.num2bits, ⟨_ :: w :: e :: _⟩) := e.getAppFnArgs then
         let e : Expr <- compileExp p var e
@@ -92,8 +82,7 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
           let body := body.instantiate1 fvar
           let body <- compile p var body
           mkLambdaFVars #[fvar] body
-        let e : Expr <- mkAppM ``Clap.Circuit.num2bits #[w, e, k]
-        return e
+        mkAppM ``Clap.Circuit.num2bits #[w, e, k]
     else throwError m!"compile.bind: unknown bind\n{e.getAppFnArgs}"
 
   else if let .letE name _ e body _ := e then
@@ -105,9 +94,7 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
         let body ← compile p var body
         mkLambdaFVars #[fvar] body
       let e : Expr <- compileExp p var e
-      let e : Expr := .app (.app (.app (.app (mkConst ``Clap.Circuit.is_zero) p) var) e) k
---      dbg_trace s!"is_zero:return"
-      return e
+      mkAppOptM ``Clap.Circuit.is_zero #[p,var,e,k]
 
     else if let (`Clap.Spec.Compiler.share, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
 --      dbg_trace s!"share"
@@ -116,9 +103,7 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
         let body ← compile p var body
         mkLambdaFVars #[fvar] body
       let e : Expr <- compileExp p var e
-      let e : Expr := .app (.app (.app (.app (mkConst ``Clap.Circuit.share) p) var) e) k
---      dbg_trace s!"share:return"
-      return e
+      mkAppOptM ``Clap.Circuit.share #[p,var,e,k]
 
     else throwError m!"compile.let: not supported\n{e}"
 
