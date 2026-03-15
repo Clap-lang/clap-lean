@@ -129,29 +129,29 @@ def poseidonEx (nOuts : ℕ) (inputs : List (F p)) (initState : F p)
   let nRoundsF : ℕ := 8
   let nRoundsP : ℕ := N_ROUNDS_P[t - 2]!
   let half : ℕ := nRoundsF / 2
+  [0]
+  -- -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
+  -- let state := ark ([initState] ++ inputs) C 0
 
-  -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
-  let state := ark ([initState] ++ inputs) C 0
+  -- -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
+  -- let state := (List.range (half - 1)).foldl (fun state r ↦
+  --   mix (ark (state.map sigma) C ((r + 1) * t)) M) state
 
-  -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
-  let state := (List.range (half - 1)).foldl (fun state r ↦
-    mix (ark (state.map sigma) C ((r + 1) * t)) M) state
+  -- -- Boundary round (r = half−1): sigma → ark → mix with P
+  -- let state := mix (ark (state.map sigma) C (half * t)) P
 
-  -- Boundary round (r = half−1): sigma → ark → mix with P
-  let state := mix (ark (state.map sigma) C (half * t)) P
+  -- -- Phase 2: partial rounds
+  -- let state := (List.range nRoundsP).foldl (fun state r ↦
+  --   let s0 := sigma state[0]! + C[(half + 1) * t + r]!
+  --   mixS r (state.set 0 s0) S) state
 
-  -- Phase 2: partial rounds
-  let state := (List.range nRoundsP).foldl (fun state r ↦
-    let s0 := sigma state[0]! + C[(half + 1) * t + r]!
-    mixS r (state.set 0 s0) S) state
+  -- -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
+  -- let state := (List.range (half - 1)).foldl (fun state r ↦
+  --   mix (ark (state.map sigma) C ((half + 1) * t + nRoundsP + r * t)) M) state
 
-  -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
-  let state := (List.range (half - 1)).foldl (fun state r ↦
-    mix (ark (state.map sigma) C ((half + 1) * t + nRoundsP + r * t)) M) state
-
-  -- Final round: sigma on all, then extract nOuts elements via MixLast
-  let state := state.map sigma
-  (List.range nOuts).map (mixLast state M)
+  -- -- Final round: sigma on all, then extract nOuts elements via MixLast
+  -- let state := state.map sigma
+  -- (List.range nOuts).map (mixLast state M)
 
 /-- **Poseidon:** Single-output Poseidon hash. Wraps `poseidonEx` with
     `nOuts = 1` and `initialState = 0`, returning the first element of
@@ -228,9 +228,29 @@ abbrev p := Primes.bn254
 instance {n : Nat} : Fact (n = n) := ⟨by grind⟩
 
 def poseidonBN254Test {p} [Core p] [Fact (p = Primes.bn254)] (ins : Vector (F Primes.bn254) 5) : Option Unit := do
-  eq0 (<- poseidonBN254 (ins.toList))
+  Core.eq0 (<- poseidonBN254 (ins.toList))
   accept p
 
-#compile poseidonBN254Test using Primes.bn254
+attribute [local cbv_opaque] Clap.Lang.Core.eq0 Clap.Lang.Core.accept Bind.bind pure Clap.Spec.Compiler.eq0 Clap.Spec.Compiler.accept --Option.bind
+attribute [local cbv_eval] pure_bind bind_pure bind_assoc Option.bind_some Option.some_bind --Option.bind_eq_bind
+
+set_option maxRecDepth 4096 in
+set_option diagnostics true in
+set_option trace.Debug.Meta.Tactic.cbv true in
+example {x0 x1 x2 x3 x4 : ZMod Primes.bn254} : poseidonBN254Test (p := Primes.bn254) #v[x0,x1,x2,x3,x4] = sorry := by
+  cbv_next
+ -- repeat first | rw [bind_assoc] | rw [bind_pure] | rw [pure_bind]
+ -- dsimp only [Option.pure_def, Option.bind_eq_bind, Option.bind_some]
+  cbv_next
+  cbv_next
+  dsimp?
+  dsimp?
+ cbv_next
+ -- cbv_next
+  -- repeat first | rw [bind_assoc] |  rw [pure_bind]
+  -- cbv_next
+
+
+--#compile poseidonBN254Test using Primes.bn254
 
 end PoseidonBN254Test
