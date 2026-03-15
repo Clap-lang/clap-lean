@@ -1,7 +1,6 @@
 import Clap.Spec
 import Clap.Compiler.Basic
 import Clap.Test.Wheels
-import Mathlib
 
 namespace Clap
 
