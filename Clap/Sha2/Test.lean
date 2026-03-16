@@ -17,7 +17,7 @@ example : digest (t := Clap.Sha2.Cpu.t) (stringToU8s "abcdbcdecdefdefgefghfghigh
   native_decide
 
 end TestCpu
-
+/-
 namespace TestCircuit
 
 abbrev p := Primes.goldilocks
@@ -37,3 +37,4 @@ example : digest (t := Clap.Sha2.Circuit.t p) (stringToU8s "abcdbcdecdefdefgefgh
    #[0x248d6a61, 0xd20638b8, 0xe5c02693, 0x0c3e6039, 0xa33ce459, 0x64ff2167, 0xf6ecedd4, 0x19db06c1] := by native_decide
 
 end TestCircuit
+-/

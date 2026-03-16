@@ -120,19 +120,15 @@ namespace FBitVec
 
 def default (l:ℕ) : FBitVec p := List.replicate l FB.false
 
-def ofF! (w:ℕ) (e:F p) : FBitVec p :=
-  Option.getD (num2bits w e) (default w)
-
 def ofF (w:ℕ) (e:F p) : Option (FBitVec p) :=
   num2bits w e
 
 abbrev toF (v:FBitVec p) : F p := Core.bits2num v
 
 -- if arguments are both n-bit long, result is n+1 bits
-def binSum (a b : FBitVec p) : FBitVec p := Option.getD (do
+def binSum (a b : FBitVec p) : Option (FBitVec p) :=
   let sum : F p := a.toF + b.toF
-  num2bits (a.length + 1) sum)
-  (FBitVec.default (a.length + 1))
+  num2bits (a.length + 1) sum
 
 def assert_eq (a b : FBitVec p) : Option Unit :=
   match a,b with
@@ -158,9 +154,6 @@ abbrev F8 (p:ℕ) [Fact (Primes.fits p 8)] [Core p] := FBitVec p
 namespace F8
 
 variable [Fact (Primes.fits p 8)]
-
-def ofF! (x:F p) : F8 p := do
-  FBitVec.ofF! 8 x
 
 def ofF (x:F p) : Option (F8 p) := do
   FBitVec.ofF 8 x
@@ -189,9 +182,6 @@ def default : F32 p := FBitVec.default 32
 instance : Inhabited (F32 p) where
   default
 
-def ofF! (x:F p) : F32 p := do
-  FBitVec.ofF! 32 x
-
 def ofF (x:F p) : Option (F32 p) := do
   FBitVec.ofF 32 x
 
@@ -201,11 +191,8 @@ def ofF8 [Fact (Primes.fits p 8)] (u8 : F8 p) : F32 p :=
 def ofUInt32 (u:UInt32) : Option (F32 p) :=
   num2bits 32 (u.toNat)
 
-def add (a b : F32 p) : (F32 p) :=
-  List.take 32 (FBitVec.binSum a b)
-
-instance : HAdd (F32 p) (F32 p) (F32 p) where
-  hAdd := add
+def add (a b : F32 p) : Option (F32 p) := do
+  List.take 32 (← FBitVec.binSum a b)
 
 def assert_eq (a b : F32 p) := FBitVec.assert_eq a b
 
@@ -216,9 +203,6 @@ abbrev F64 (p:ℕ) [Fact (Primes.fits p 64)] [Core p] := FBitVec p
 namespace F64
 
 variable [Fact (Primes.fits p 64)]
-
-def ofF! (x:F p) : F64 p := do
-  FBitVec.ofF! 64 x
 
 def ofF (x:F p) : Option (F64 p) := do
   FBitVec.ofF 64 x
@@ -296,7 +280,7 @@ example : F.greaterEqThan (p := p) 2 2 3 == some 0 := by native_decide
 
 
 def testBinSum (a b expected : FBitVec p) : Option Unit := do
-  FBitVec.assert_eq (FBitVec.binSum a b) expected
+  FBitVec.assert_eq (← FBitVec.binSum a b) expected
 
 example : (testBinSum [1,0,0] [1,0,0] [0,1,0,0]) = some () := by native_decide
 example : (testBinSum [0,0,1] [0,0,1] [0,0,0,1]) = some () := by native_decide
