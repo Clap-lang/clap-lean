@@ -6,7 +6,6 @@ namespace Clap.Lang
 class Core (p : ℕ) : Type _ where
   F           : Type
   [instF      : Field F]
-  [instFChar  : CharP F p]
   const       : ZMod p → F
   accept      : Unit
   eq0         : F → Option Unit
@@ -17,7 +16,7 @@ class Core (p : ℕ) : Type _ where
 
   [onlyForDebugF  : ToString F  ]
 
-attribute [instance] Core.instF Core.instFChar Core.onlyForDebugF
+attribute [instance] Core.instF Core.onlyForDebugF
 
 variable {p : ℕ} [Core p]
 
