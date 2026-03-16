@@ -148,14 +148,14 @@ instance (n:ℕ) : OfNat (F32 p) n where
 instance : Coe UInt32 (F32 p) where
   coe n := Clap.num2bitsLsbPure 32 n.toNat
 
-example : ch (p:=p) 23 45 56 = Clap.Sha2.Cpu.ch 23 45 56 := by native_decide
-example : ch (p:=p) 12 465 678 = Clap.Sha2.Cpu.ch 12 465 678 := by native_decide
+example : ch (23 : F32 p) 45 56 = Clap.Sha2.Cpu.ch 23 45 56 := by native_decide
+example : ch (12 : F32 p) 465 678 = Clap.Sha2.Cpu.ch 12 465 678 := by native_decide
 
-example : maj (p:=p) 23 45 56 = Clap.Sha2.Cpu.maj 23 45 56 := by native_decide
-example : maj (p:=p) 12 465 678 = Clap.Sha2.Cpu.maj 12 465 678 := by native_decide
+example : maj (23 : F32 p) 45 56 = Clap.Sha2.Cpu.maj 23 45 56 := by native_decide
+example : maj (12 : F32 p) 465 678 = Clap.Sha2.Cpu.maj 12 465 678 := by native_decide
 
-example : xor3 (p:=p) 23 45 56 = Clap.Sha2.Cpu.xor3 23 45 56 := by native_decide
-example : xor3 (p:=p) 12 465 678 = Clap.Sha2.Cpu.xor3 12 465 678 := by native_decide
+example : xor3 (23 : F32 p) 45 56 = Clap.Sha2.Cpu.xor3 23 45 56 := by native_decide
+example : xor3 (12 : F32 p) 465 678 = Clap.Sha2.Cpu.xor3 12 465 678 := by native_decide
 
 example :
   letI n : ℕ := 3
