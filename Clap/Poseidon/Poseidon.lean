@@ -156,7 +156,7 @@ def poseidonEx (nOuts : ℕ) (inputs : List (F p)) (initState : F p)
     the permutation output.
 
     Mirrors circomlib's `Poseidon(nInputs)` template. -/
-def poseidon (inputs : List (F p)) (C S : List (F p)) (M P : List (List (F p))) : Option (F p) := do
+def poseidon (inputs : List (F p)) (C S : List (F p)) (M P : List (List (F p))) : F p :=
   (poseidonEx 1 inputs 0 C S M P)[0]!
 
 section Poseidon254
@@ -166,12 +166,12 @@ open Primes
 def liftArr (xs : List (ZMod p)) : List (F p) := xs.map const
 def liftMat (xs : List (List (ZMod p))) : List (List (F p)) := xs.map (·.map const)
 
-def poseidonBN254 (inputs : List (F bn254)) : Option (F bn254) := do
+def poseidonBN254 (inputs : List (F bn254)) : F bn254 :=
   let t := inputs.length + 1 -- element 2 is at list index 0 and so on
-  let C ← Clap.Poseidon.Constant.C[t-2]?
-  let S ← Clap.Poseidon.Constant.S[t-2]?
-  let M ← Clap.Poseidon.Constant.M[t-2]?
-  let P ← Clap.Poseidon.Constant.P[t-2]?
+  let C := Clap.Poseidon.Constant.C[t-2]!
+  let S := Clap.Poseidon.Constant.S[t-2]!
+  let M := Clap.Poseidon.Constant.M[t-2]!
+  let P := Clap.Poseidon.Constant.P[t-2]!
   poseidon inputs (liftArr C) (liftArr S) (liftMat M) (liftMat P)
 
 end Poseidon254
