@@ -8,15 +8,19 @@ namespace Test
 
 namespace Compiler
 
-open Lean Clap Meta
+open Lean Meta
+open Clap.Lang Core
 
-open Spec Compiler in
-def ToDeep.ex₁ (x : ZMod Primes.babybear) : Option Unit :=
-  let y : ZMod Primes.babybear := share 1
-  let z : ZMod Primes.babybear := isZero y
+abbrev p := Primes.babybear
+
+variable [Core p]
+
+def ToDeep.ex₁ (x : F p) : M p Unit :=
+  let y : F p := share 1
+  let z : F p := isZero y
   do
   let _j <- num2bits 2 y
-  eq0 (x+(1:ZMod Primes.babybear) * x-y+z) -- cannot use j[0]!
+  eq0 (x + (1:F p) * x-y+z) -- cannot use j[0]!
   accept
 
 /--
@@ -34,7 +38,7 @@ info: type - (var : Type) → Circuit Primes.babybear var
 set_option pp.funBinderTypes true in
 run_elab do
   try
-    let deep ← toDeep `Primes.babybear (←find! `ToDeep.ex₁).value!
+    let deep ← toDeep `p (←find! `ToDeep.ex₁).value!
     logInfo m!"def - {deep}"
     logInfo m!"type - {←inferType deep}"
   catch e =>

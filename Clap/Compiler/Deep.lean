@@ -1,6 +1,6 @@
 import Lean
 
-import Clap.Spec
+import Clap.Lang
 
 open Lean Meta Elab
 
@@ -35,7 +35,7 @@ partial def compileExp (p : Expr) (var : Expr) (e : Expr) : MetaM Expr := do
     mkAppOptM ``Clap.Exp.sub #[p,var,l,r]
   else throwError m!"compileExp: no match for {e}"
 
-def typeZModp (p:Expr) : Expr := .app (mkConst ``ZMod) p
+def typeF (p:Expr) : Expr := .app (mkConst ``Clap.Lang.Core.F) p
 def typeCircuit (p var : Expr) : Expr := .app (.app (mkConst ``Clap.Circuit) p) var
 def typeCircuit' (p : Expr) : Expr := .app (mkConst ``Clap.Circuit') p
 
@@ -50,19 +50,18 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
 --  dbg_trace s!"compile\n{(<-ppExpr e)}"
 
   if let .lam name type body bi := e then
-    if not (<- isDefEq type (typeZModp p))
-    then throwError m!"compile.lam: argument not a ZMod p\n{type}"
---    dbg_trace s!"lam"
     let e <- withLocalDecl name bi var fun fvar => do
       let body := body.instantiate1 fvar
       let newBody ← compile p var body
       mkLambdaFVars #[fvar] newBody
-    mkAppOptM ``Clap.Circuit.lam #[p,var,e]
+    if not (<- isDefEq type (typeF p))
+    then
+      logInfo m!"compile.lam: skip argument {type}"
+      return e
+    else
+      mkAppOptM ``Clap.Circuit.lam #[p,var,e]
 
-  else if let (``Option.some, ⟨_ :: accept :: _⟩) := e.getAppFnArgs then
-    if not (←isDefEq accept (.const ``Clap.Spec.Compiler.accept []))
-    then throwError m!"compile.accept: not accept - {accept}"
---    dbg_trace s!"accept"
+  else if let (``Clap.Lang.Core.accept, _) := e.getAppFnArgs then
     mkAppOptM ``Clap.Circuit.nil #[p,var]
 
   else if let some (e,k) := matchBinds e then
@@ -76,7 +75,7 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
       let c := Expr.app k (mkConst ``Unit.unit)
       mkAppOptM ``Clap.Circuit.eq0 #[p,var,e,c]
 
-    else if let (`Clap.Spec.Compiler.num2bits, ⟨_ :: w :: e :: _⟩) := e.getAppFnArgs then
+    else if let (``Clap.Lang.Core.num2bits, ⟨_ :: w :: e :: _⟩) := e.getAppFnArgs then
         let e : Expr <- compileExp p var e
         let k <- withLocalDecl `vars .default (<- mkAppM ``List #[var]) fun fvar => do
           let body := body.instantiate1 fvar
@@ -87,7 +86,7 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
 
   else if let .letE name _ e body _ := e then
 
-    if let (`Clap.Spec.Compiler.isZero, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
+    if let (``Clap.Lang.Core.isZero, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
 --      dbg_trace s!"isZero"
       let k <- withLocalDecl name .default var fun fvar => do
         let body := body.instantiate1 fvar
@@ -96,7 +95,7 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
       let e : Expr <- compileExp p var e
       mkAppOptM ``Clap.Circuit.isZero #[p,var,e,k]
 
-    else if let (`Clap.Spec.Compiler.share, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
+    else if let (``Clap.Lang.Core.share, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
 --      dbg_trace s!"share"
       let k <- withLocalDecl name .default var fun fvar => do
         let body := body.instantiate1 fvar
