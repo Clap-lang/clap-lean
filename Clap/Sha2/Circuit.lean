@@ -46,7 +46,7 @@ out = x*(y + z - 2*yz) + yz
 -/
 def maj (x y z : F32 p) : F32 p :=
   List.map (fun ((x,y),z) =>
-    let yz := shareB (y * z)
+    let yz := share (y * z)
     x * (y + z - 2 * yz) + yz)
   ((x.zip y).zip z)
 
@@ -61,7 +61,7 @@ out = x * (1 - 2*y - 2*z + 4*yz) + y + z - 2 * yz
 -/
 def xor3 (x y z : F32 p) : F32 p :=
   List.map (fun ((x,y),z) =>
-    let yz := shareB (y * z)
+    let yz := share (y * z)
     x * (1 - 2 * y - 2 * z + 4 * yz) + y + z - 2 * yz)
   ((x.zip y).zip z)
 
@@ -84,7 +84,7 @@ abbrev t p [Core p] [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)] : Clap.Sh
 
 /-
   These instances must be given explicitely to avoid that the typeclass
-  resolution mixes F8 and F32, which are the same actual type (List FB)
+  resolution mixes F8 and F32, which are the same actual type (List F)
   but are encoded with a different number of bits, 32 instead of 8.
 -/
 
@@ -103,7 +103,7 @@ def to_nat_be (bs:Array (F8 p)) : F32 p :=
 
 def toString (w:ℕ) (f : FBitVec p) : String :=
   assert! (f.length = w)
-  let n : F p := ((f:List (FB p)).foldl (fun (pow,sum) i => (pow * 2, sum + ((convert i) * pow))) (1,0)).2
+  let n : F p := ((f:List (FB p)).foldl (fun (pow,sum) i => (pow * 2, sum + (i * pow))) (1,0)).2
   let s := Core.onlyForDebugF.toString n
   if f.length != w then "ER" else s
 

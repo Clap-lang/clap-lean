@@ -7,27 +7,23 @@ class Core (p : ℕ) : Type _ where
   F           : Type
   [instF      : Field F]
   [instFChar  : CharP F p]
-  FB          : Type
-  [instFB     : Field FB]
-  [instFBChar : CharP FB p]
-  convert     : FB → F -- true = 1, false = 0
   const       : ZMod p → F
   accept      : Unit
   eq0         : F → Option Unit
   share       : F → F
-  shareB      : FB → FB
-  isZero      : F → FB
-  num2bits    : ℕ → F → Option (List FB)
-  bits2num    : List FB → F
+  isZero      : F → F
+  num2bits    : ℕ → F → Option (List F)
+  bits2num    : List F → F
 
   [onlyForDebugF  : ToString F  ]
-  [onlyForDebugFB : ToString FB ]
 
-attribute [instance] Core.instF Core.instFChar Core.instFB Core.instFBChar Core.onlyForDebugF Core.onlyForDebugFB
+attribute [instance] Core.instF Core.instFChar Core.onlyForDebugF
 
 variable {p : ℕ} [Core p]
 
 open Core
+
+abbrev FB := F
 
 namespace F
 
@@ -58,7 +54,7 @@ instance : Inhabited (FB p) where
   default := false
 
 def eq (a b : FB p) : FB p :=
-  F.eq (convert a) (convert b)
+  F.eq a b
 
 def and (a b : FB p) : FB p := a * b
 
@@ -78,10 +74,10 @@ instance : HXor (FB p) (FB p) (FB p) where
   hXor := xor
 
 def assert (a : FB p) : Option Unit := do
-  eq0 (convert (not a))
+  eq0 (not a)
 
 def assert_eq (a b : FB p) : Option Unit := do
-  F.assert_eq (convert a) (convert b)
+  F.assert_eq a b
 
 end FB
 
@@ -244,18 +240,14 @@ instance onlyForDebugF {p:ℕ} : ToString (ZMod p) where
 -/
 scoped instance instCoreZMod (p:ℕ) [Fact (Nat.Prime p)] : Core p where
   F := ZMod p
-  FB := ZMod p
-  convert := id
   const := id
   accept := Compiler.accept
   eq0 := Compiler.eq0
   share := Compiler.share
-  shareB := Compiler.share
   isZero := Compiler.is_zero
   num2bits := Compiler.num2bits
   bits2num := Compiler.bits2num
   onlyForDebugF
-  onlyForDebugFB := onlyForDebugF
 
 
 /-
@@ -267,15 +259,13 @@ class extended (p:ℕ) [Fact (Nat.Prime p)] [Core p] : Type _ where
   ins : Core p
   [i₀ : DecidableEq (Core.F p)]
   [i₁ : {n:ℕ} → OfNat (Core.F p) n]
-  [i₂ : DecidableEq (Core.FB p)]
 
-attribute [instance] extended.i₀ extended.i₁ extended.i₂
+attribute [instance] extended.i₀ extended.i₁
 
 scoped instance bla (p:ℕ) [Fact (Nat.Prime p)] : extended p where
   ins := instCoreZMod p
   i₀ := inferInstanceAs (DecidableEq (ZMod p))
   i₁ := inferInstanceAs ({n:ℕ} → OfNat (ZMod p) n)
-  i₂ := inferInstanceAs (DecidableEq (ZMod p))
 
 end ZMod
 

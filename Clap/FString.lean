@@ -18,8 +18,8 @@ def isWhitespace (c : FChar p) : Option (FB p) := do
   let bv8  : F8 p := [0, 0, 0, 1, 0, 0, 0, 0]
   let bv14 : F8 p := [0, 1, 1, 1, 0, 0, 0, 0]
   let bv32 : F8 p := [0, 0, 0, 0, 0, 1, 0, 0]
-  let gt8 ← FBitVec.greaterThan c bv8
-  let lt14 ← FBitVec.lessThan c bv14
+  let gt8 := FBitVec.greaterThan c bv8
+  let lt14 := FBitVec.lessThan c bv14
   let isLineBreak : FB p := FB.and gt8 lt14
   let isSpace ← F8.eq c bv32 -- ASCII 32 is space
   return FB.or isLineBreak isSpace
@@ -40,7 +40,7 @@ variable {p : ℕ} [core : Core p] [Fact (Primes.fits p 8)]
 private def countTrailingZeros {maxLen : ℕ} (fs : Vector (F p) maxLen) : F p :=
   Vector.foldl (fun (len,keepCounting) f ↦
     let b := F.eq f (const 0)
-    let len := len + (convert b * convert keepCounting)
+    let len := len + (b * keepCounting)
     let keepCounting := FB.and keepCounting b
     (len, keepCounting)
   ) (const 0, FB.true) fs.reverse
@@ -64,10 +64,10 @@ def assertIsAsciiDigits {maxDigits : ℕ} (inp : FString p maxDigits) : Option U
   let bv58 : F8 p := [0, 1, 0, 1, 1, 1, 0, 0]
   for i in List.finRange maxDigits do
     let c := inp.chars[i]
-    let gt ← FBitVec.greaterThan c bv47
-    let lt ← FBitVec.lessThan c bv58
+    let gt := FBitVec.greaterThan c bv47
+    let lt := FBitVec.lessThan c bv58
     let isAsciiDigit := FB.and gt lt
-    eq0 (convert $ (1 - isAsciiDigit) * (selector[i]))
+    eq0 ((1 - isAsciiDigit) * (selector[i]))
 
 /--
   Given a vector of ASCII digit characters and a length, interprets the digits as a
@@ -88,7 +88,7 @@ def asciiDigitsToScalar {maxLen : ℕ} (inp : FString p maxLen) : Option (F p) :
     let (_, ieq_sum, acc) := (List.finRange maxLen).drop 1 |>.foldl
       (fun (state : F p × F p × F p) (i : Fin maxLen) ↦
         let (s, ieq_sum, acc) := state
-        let ieq       : F p := share $ convert (isZero (inp.len - const (i.1 : ZMod p)))
+        let ieq       : F p := share $ isZero (inp.len - const (i.1 : ZMod p))
         let s'        : F p := share $ s - ieq
         let acc_shift : F p := share $ const (10 : ZMod p) * acc + (inp.chars[i].toF - const (48 : ZMod p))
         let acc'      : F p := share $ (acc_shift - acc) * s' + acc
@@ -120,7 +120,7 @@ def isSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (subs
     -- Σ_k  hot[k] * str.chars[k + j] = str.chars[startIndex + j]
     let extracted : F p ← share $ (List.finRange maxStrLen).foldl (fun sum (k : Fin maxStrLen) ↦
       if h : k.val + j.val < maxStrLen then
-        sum + (convert hot[k]) * str.chars[k.val + j.val].toF
+        sum + hot[k] * str.chars[k.val + j.val].toF
       else
         sum
     ) (const 0)
@@ -167,7 +167,7 @@ def isSubstringFS {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLe
   -- Step 4: selected_str[i] = selector[i] * str[i]; ŝ(α) = Σᵢ selected_str[i] · powers[i]
   let mut strPolyEval : F bn254 := const 0
   for l : i in [0:maxStrLen] do
-    strPolyEval := strPolyEval + (convert selector[i]) * str.chars[i].toF * powers[i]
+    strPolyEval := strPolyEval + selector[i] * str.chars[i].toF * powers[i]
   -- Step 5: t(α) = Σⱼ substr[j] · powers[j]
   let mut substrPolyEval : F bn254 := const 0
   for l : j in [0:maxSubstrLen] do
@@ -215,11 +215,11 @@ def assertIsConcatenation
   -- rightArraySelector(left_len - 1) gives 1s at positions > left_len - 1, i.e. at [left_len, maxLeftLen)
   let leftSelector ← FArray.rightArraySelector maxLeftLen (left.len - const 1)
   for l : i in [0:maxLeftLen] do
-    eq0 ((convert leftSelector[i]) * left.chars[i].toF)
+    eq0 (leftSelector[i] * left.chars[i].toF)
   -- Step 2b: enforce that right is 0-padded after right.len
   let rightSelector ← FArray.rightArraySelector maxRightLen (right.len - const 1)
   for l : i in [0:maxRightLen] do
-    eq0 ((convert rightSelector[i]) * right.chars[i].toF)
+    eq0 (rightSelector[i] * right.chars[i].toF)
   -- Step 3: build challenge powers α⁰, α¹, …, α^{maxFullLen-1}
   let powers : Vector (F bn254) maxFullLen :=
     Vector.ofFn (fun i ↦ (List.iterate (fun x ↦ share (x * α)) (const (1 : ZMod bn254)) (i.val + 1)).getLast!)

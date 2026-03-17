@@ -17,27 +17,27 @@ def base64UrlLookup (i : F p) : Option (F p) := do
   let ge_A ← F.greaterEqThan 8 i 65
   let le_Z ← F.lessEqThan 8 i 90
   let range_AZ := FB.and ge_A le_Z
-  let sum_AZ := convert range_AZ * (i - 65)
+  let sum_AZ := range_AZ * (i - 65)
 
   -- check if i ∈ ['a', 'z']
   let ge_a ← F.greaterEqThan 8 i 97
   let le_z ← F.lessEqThan 8 i 122
   let range_az := FB.and ge_a le_z
-  let sum_az := sum_AZ + convert range_az * (i - 71)
+  let sum_az := sum_AZ + range_az * (i - 71)
 
   -- check if i ∈ ['0', '9']
   let ge_a ← F.greaterEqThan 8 i 48
   let le_z ← F.lessEqThan 8 i 57
   let range_09 := FB.and ge_a le_z
-  let sum_09 := sum_az + convert range_09 * (i + 4)
+  let sum_09 := sum_az + range_09 * (i + 4)
 
   -- check if i is '-'
   let eq_minus := isZero (i - 45)
-  let sum_minus := sum_09 + convert eq_minus * 62;
+  let sum_minus := sum_09 + eq_minus * 62;
 
   -- check if i is '_'
   let eq_underscore := isZero (i - 95)
-  let sum_underscore := sum_minus + convert eq_underscore * 63;
+  let sum_underscore := sum_minus + eq_underscore * 63;
 
   -- check if i is '='
   let eq_eqsign := isZero (i - 61)
@@ -47,7 +47,6 @@ def base64UrlLookup (i : F p) : Option (F p) := do
 
   -- exactly one case has to be true
   [range_AZ, range_az, range_09, eq_minus, eq_underscore, eq_eqsign, zero_padding]
-    |> List.map convert
     |> List.sum
     |> (· - 1)
     |> eq0
