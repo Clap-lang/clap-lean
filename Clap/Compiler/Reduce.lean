@@ -117,7 +117,7 @@ partial def zeta (e : Expr) : MetaM Expr := do
     return .forallE binderName binderType (←zeta body) binderInfo
   | _ => return e
   where blacklist := Expr.const (us := []) <$> [
-    ``Spec.Compiler.is_zero,
+    ``Spec.Compiler.isZero,
     ``Spec.Compiler.share]
 
 def linearise (e : Expr) : MetaM Expr := do

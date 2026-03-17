@@ -228,7 +228,7 @@ scoped instance instCoreZMod {p:ℕ} [Fact (Nat.Prime p)] : Core p where
   accept := Compiler.accept
   eq0 := Compiler.eq0
   share := Compiler.share
-  isZero := Compiler.is_zero
+  isZero := Compiler.isZero
   num2bits := Compiler.num2bits
   bits2num := Compiler.bits2num
   onlyForDebugF

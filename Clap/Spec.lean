@@ -19,7 +19,7 @@ def eq0 (e : ZMod p) : Option Unit := if e = 0 then .some () else .none
 def share (e : ZMod p) : ZMod p := e
 
 @[irreducible]
-def is_zero (e : ZMod p) : ZMod p := if e = 0 then 1 else 0
+def isZero (e : ZMod p) : ZMod p := if e = 0 then 1 else 0
 
 @[irreducible]
 def num2bits (w : ℕ) (e : ZMod p) : Option (List (ZMod p)) :=
@@ -57,11 +57,11 @@ lemma equiv_accept : some accept ~ₛ (Circuit.nil (p := p)).eval := by
   constructor
 
 @[aesop safe apply]
-lemma equiv_is_zero {el : ZMod p} {kl : ZMod p → Option Unit} {er : Expₑ p} {kr : ZMod p → Circuitₑ p}
+lemma equiv_isZero {el : ZMod p} {kl : ZMod p → Option Unit} {er : Expₑ p} {kr : ZMod p → Circuitₑ p}
   (cont : ∀ (x), kl x ~ₛ (kr x).eval)
   (h : el = er.eval) :
-  Simulation.sBisim (bind (is_zero el) kl) (Circuit.eval (.is_zero er kr)) := by
-  aesop (add simp [Circuit.eval, bind, share, is_zero])
+  Simulation.sBisim (bind (isZero el) kl) (Circuit.eval (.isZero er kr)) := by
+  aesop (add simp [Circuit.eval, bind, share, isZero])
 
 @[aesop safe apply]
 lemma equiv_num2bits {kl : List (ZMod p) -> Option Unit} {kr : List (ZMod p) -> Circuitₑ p} {w:ℕ}

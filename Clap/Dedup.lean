@@ -50,7 +50,7 @@ def dedupAux (c : Circuit p (ℕ × var)) (n : ℕ) (set : Finset (Exp p ℕ)) :
     else .eq0 e.toVar (dedupAux c n ({e.toNat} ∪ set))
   | .lam k => .lam fun x => dedupAux (k (n, x)) (n + 1) set
   | .share e k => .share e.toVar fun x => dedupAux (k (n, x)) (n + 1) set
-  | .is_zero e k => .is_zero e.toVar fun x => dedupAux (k (n, x)) (n + 1) set
+  | .isZero e k => .isZero e.toVar fun x => dedupAux (k (n, x)) (n + 1) set
   | .num2bits w e k => .num2bits w e.toVar fun xs => (dedupAux (k ((List.range' n w 1).zip xs)) n ({e.toNat} ∪ set))
 
 def dedup (c : Circuit p (Nat × var)) : Circuit p var := dedupAux c 0 ∅
