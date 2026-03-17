@@ -7,12 +7,11 @@ import Clap.Poseidon.Poseidon
 open Clap.Lang Core
 
 abbrev FChar (p : ℕ) [Fact (Primes.fits p 8)] [Core p] := F8 p
+--abbrev FChar := F8
 
 namespace FChar
 
-variable {p : ℕ} [core : Core p] [fits : Fact (Primes.fits p 8)]
-
-open FB
+variable {p : ℕ} [core : Core p] [Fact (Primes.fits p 8)]
 
 def isWhitespace (c : FChar p) : Option (FB p) := do
   -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
@@ -21,9 +20,9 @@ def isWhitespace (c : FChar p) : Option (FB p) := do
   let bv32 : F8 p := [0, 0, 0, 0, 0, 1, 0, 0]
   let gt8 ← FBitVec.greaterThan c bv8
   let lt14 ← FBitVec.lessThan c bv14
-  let isLineBreak : FB p := and gt8 lt14
+  let isLineBreak : FB p := FB.and gt8 lt14
   let isSpace ← F8.eq c bv32 -- ASCII 32 is space
-  return or isLineBreak isSpace
+  return FB.or isLineBreak isSpace
 
 end FChar
 
@@ -36,20 +35,23 @@ structure FString (p : ℕ) [Fact (Primes.fits p 8)] [Core p] (maxLen : ℕ) whe
 
 namespace FString
 
-variable {p : ℕ} [core : Core p] [fits : Fact (Primes.fits p 8)]
+variable {p : ℕ} [core : Core p] [Fact (Primes.fits p 8)]
 
-private def countZeros {maxLen : ℕ} (fs : Vector (F p) maxLen) : Option (F p) := do
-  Vector.foldlM (fun (len : F p) f ↦ do
-    let b ← F.eq f (const 0)
-    some (len + convert b)
-  ) (const 0) fs
+private def countTrailingZeros {maxLen : ℕ} (fs : Vector (F p) maxLen) : F p :=
+  Vector.foldl (fun (len,keepCounting) f ↦
+    let b := F.eq f (const 0)
+    let len := len + (convert b * convert keepCounting)
+    let keepCounting := FB.and keepCounting b
+    (len, keepCounting)
+  ) (const 0, FB.true) fs.reverse
+  |>.1
 
 /--
   Takes an arbitrary vector of field elements and returns a MyString.
   Fails if the input contains an element that is not a byte.
 -/
-def ofVec {maxLen : ℕ} (fs : Vector (F p) maxLen) : Option (FString (p := p) maxLen) := do
-  let zeros ← countZeros fs
+def ofFs {maxLen : ℕ} (fs : Vector (F p) maxLen) : Option (FString (p := p) maxLen) := do
+  let zeros := countTrailingZeros fs
   let len := maxLen - zeros
   let chars ← Vector.mapM F8.ofF fs
   some ⟨chars, len⟩
@@ -245,115 +247,122 @@ namespace TestString
 open Clap.Lang Core Clap.Spec ZMod
 open FChar FString
 
-abbrev p := Primes.goldilocks
+abbrev p := Primes.babybear
 
-instance onlyForDebugF {p : ℕ} : ToString (ZMod p) where
-  toString f := Clap.natToHex f.val
+/-
+we could not use `deriving DecidableEq` when we defined FString, because there is no DecidableEq over F.
+deriving instance DecidableEq for (FString p 5).
+Even after we open ZMod we still don't have it
+#synth DecidableEq (FString p 2)
+So we define it by hand here.
+-/
+instance {p m :ℕ} [Fact (Primes.fits p 8)] [Core p] [DecidableEq (F p)] [DecidableEq (FChar p)]: DecidableEq (FString p m) := by
+  intros a b
+  rcases a
+  rcases b
+  simp
+  infer_instance
 
-scoped instance instCoreZMod (p : ℕ) [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] : Core p where
-  F := ZMod p
-  FB := ZMod p
-  convert := id
-  const := id
-  accept := Compiler.accept
-  eq0 := Compiler.eq0
-  share := Compiler.share
-  shareB := Compiler.share
-  isZero := Compiler.is_zero
-  num2bits := Compiler.num2bits
-  bits2num := Compiler.bits2num
-  onlyForDebugF
-  onlyForDebugFB := onlyForDebugF
+example : countTrailingZeros #v[0,0] = (2: F p) := by native_decide
+example : countTrailingZeros #v[1,0] = (1: F p) := by native_decide
+example : countTrailingZeros #v[0,1,0,0] = (2: F p) := by native_decide
+example : countTrailingZeros #v[0,0,1,0] = (1: F p) := by native_decide
+
+example : (do FString.ofFs #v[]) = some {chars := #v[], len:= (0:F p)} := by native_decide
+example : (do FString.ofFs #v[(0:F p),1,0,0]) = some { chars := #v[[0,0,0,0,0,0,0,0],[1,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0]],len := 2 } := by native_decide
 
 -- isWhitespace tests
-example : FChar.isWhitespace (F8.ofF! (p := p) 9)  = some FB.true := by native_decide -- TAB
-example : FChar.isWhitespace (F8.ofF! (p := p) 10) = some FB.true := by native_decide -- LF
-example : FChar.isWhitespace (F8.ofF! (p := p) 11) = some FB.true := by native_decide -- VT
-example : FChar.isWhitespace (F8.ofF! (p := p) 12) = some FB.true := by native_decide -- FF
-example : FChar.isWhitespace (F8.ofF! (p := p) 13) = some FB.true := by native_decide -- CR
-example : FChar.isWhitespace (F8.ofF! (p := p) 32) = some FB.true := by native_decide -- SPACE
-example : FChar.isWhitespace (F8.ofF! (p := p) 65) = some FB.false := by native_decide -- 'A'
-example : FChar.isWhitespace (F8.ofF! (p := p) 0)  = some FB.false := by native_decide -- NUL
+example : (do FChar.isWhitespace (← F8.ofF ( 9 : F p))) = some FB.true := by native_decide -- TAB
+example : (do FChar.isWhitespace (← F8.ofF (10 : F p))) = some FB.true := by native_decide -- LF
+example : (do FChar.isWhitespace (← F8.ofF (11 : F p))) = some FB.true := by native_decide -- VT
+example : (do FChar.isWhitespace (← F8.ofF (12 : F p))) = some FB.true := by native_decide -- FF
+example : (do FChar.isWhitespace (← F8.ofF (13 : F p))) = some FB.true := by native_decide -- CR
+example : (do FChar.isWhitespace (← F8.ofF (32 : F p))) = some FB.true := by native_decide -- SPACE
+example : (do FChar.isWhitespace (← F8.ofF (65 : F p))) = some FB.false := by native_decide -- 'A'
+example : (do FChar.isWhitespace (← F8.ofF ( 0 : F p))) = some FB.false := by native_decide -- NUL
 
--- helpers
-private def ch (n : ℕ) : FChar p := F8.ofF! n
-/-- Construct an `FString` from a char vector and a length for use in tests. -/
-private def mkFStr (n : ℕ) (chars : Vector (FChar p) n) (len : F p) : FString p n := ⟨chars, len⟩
+/-- Construct an `FString` from a char vector and a length for use in tests.
+    Notably this allows to construct a "wrong" FString that FString.ofFs would not return. -/
+private def mkFStr {n : ℕ} (chars : Vector (F p) n) (len : ZMod p) : FString p n :=
+  let chars : Vector _ n := chars.map (Clap.num2bitsLsbPure 8)
+  ⟨chars, len⟩
 
 -- assertIsAsciiDigits tests
-example : FString.assertIsAsciiDigits (p := p) (mkFStr 3 (#v[48, 57, 0].map ch)   2) = some () := by native_decide
-example : FString.assertIsAsciiDigits (p := p) (mkFStr 3 (#v[48, 49, 50].map ch)  3) = some () := by native_decide
-example : FString.assertIsAsciiDigits (p := p) (mkFStr 3 (#v[48, 49, 100].map ch) 2) = some () := by native_decide -- non-digit after len OK
-example : FString.assertIsAsciiDigits (p := p) (mkFStr 3 (#v[47, 48, 0].map ch)   2) = none := by native_decide    -- '/'=47 below '0'
-example : FString.assertIsAsciiDigits (p := p) (mkFStr 3 (#v[48, 58, 0].map ch)   2) = none := by native_decide    -- ':'=58 above '9'
+example : (do FString.assertIsAsciiDigits (mkFStr #v[48, 57, 0]   2)) = some () := by native_decide
+example : (do FString.assertIsAsciiDigits (mkFStr #v[48, 49, 50]  3)) = some () := by native_decide
+example : (do FString.assertIsAsciiDigits (mkFStr #v[48, 49, 100] 2)) = some () := by native_decide -- non-digit after len OK
+example : (do FString.assertIsAsciiDigits (mkFStr #v[47, 48, 0]   2)) = none := by native_decide    -- '/'=47 below '0'
+example : (do FString.assertIsAsciiDigits (mkFStr #v[48, 58, 0]   2)) = none := by native_decide    -- ':'=58 above '9'
 
 -- asciiDigitsToScalar tests
 -- ASCII digit mapping: '0'=48 '1'=49 '2'=50 '3'=51 '4'=52 '5'=53 '6'=54 '7'=55 '8'=56 '9'=57
-example : FString.asciiDigitsToScalar (p := p) (mkFStr 3 (#v[55, 0, 0].map ch) 1) = some 7 := by native_decide            -- "7"     → 7
-example : FString.asciiDigitsToScalar (p := p) (mkFStr 3 (#v[49, 50, 0].map ch) 2) = some 12 := by native_decide          -- "12"    → 12
-example : FString.asciiDigitsToScalar (p := p) (mkFStr 4 (#v[49, 50, 51, 0].map ch) 3) = some 123 := by native_decide  -- "123"   → 123
-example : FString.asciiDigitsToScalar (p := p) (mkFStr 6 (#v[49, 50, 51, 52, 53, 0].map ch) 5) = some 12345 := by native_decide -- "12345" → 12345
-example : FString.asciiDigitsToScalar (p := p) (mkFStr 3 (#v[48, 0, 0].map ch) 1) = some 0 := by native_decide            -- "0"     → 0
-example : FString.asciiDigitsToScalar (p := p) (mkFStr 4 (#v[51, 48, 53, 0].map ch) 3) = some 305 := by native_decide  -- "305"   → 305 ('3'=51 '0'=48 '5'=53)
-example : FString.asciiDigitsToScalar (p := p) (mkFStr 5 (#v[57, 56, 55, 54, 0].map ch) 4) = some 9876 := by native_decide -- "9876"  → 9876 ('9'=57 '8'=56 '7'=55 '6'=54)
-example : FString.asciiDigitsToScalar (p := p) (mkFStr 4 (#v[52, 50, 100, 100].map ch) 2) = some 42 := by native_decide -- "42"    → 42 (non-digit padding beyond len ignored)
+example : (do FString.asciiDigitsToScalar (mkFStr #v[55, 0, 0]              1)) = some 7     := by native_decide -- "7"     → 7
+example : (do FString.asciiDigitsToScalar (mkFStr #v[49, 50, 0]             2)) = some 12    := by native_decide -- "12"    → 12
+example : (do FString.asciiDigitsToScalar (mkFStr #v[49, 50, 51, 0]         3)) = some 123   := by native_decide -- "123"   → 123
+example : (do FString.asciiDigitsToScalar (mkFStr #v[49, 50, 51, 52, 53, 0] 5)) = some 12345 := by native_decide -- "12345" → 12345
+example : (do FString.asciiDigitsToScalar (mkFStr #v[48, 0, 0]              1)) = some 0     := by native_decide -- "0"     → 0
+example : (do FString.asciiDigitsToScalar (mkFStr #v[51, 48, 53, 0]         3)) = some 305   := by native_decide -- "305"   → 305 ('3'=51 '0'=48 '5'=53)
+example : (do FString.asciiDigitsToScalar (mkFStr #v[57, 56, 55, 54, 0]     4)) = some 9876  := by native_decide -- "9876"  → 9876 ('9'=57 '8'=56 '7'=55 '6'=54)
+example : (do FString.asciiDigitsToScalar (mkFStr #v[52, 50, 100, 100]      2)) = some 42    := by native_decide -- "42"    → 42 (non-digit padding beyond len ignored)
 -- do we want this behaviour?
-example : FString.asciiDigitsToScalar (p := p) (mkFStr 3 (#v[49, 50, 51].map ch) 3) = none := by native_decide            -- len = maxLen: no index_eq fires
-example : FString.asciiDigitsToScalar (p := p) (mkFStr 4 (#v[57, 56, 55, 54].map ch) 4) = none := by native_decide     -- len = maxLen: digits valid but out of range
-example : FString.asciiDigitsToScalar (p := p) (mkFStr 3 (#v[49, 50, 51].map ch) 0) = none := by native_decide            -- len = 0: arraySelector rejects
-example : FString.asciiDigitsToScalar (p := p) (mkFStr 1 (#v[55].map ch) 1) = none := by native_decide                          -- maxLen = 1: fold empty, ieq_sum stays 0
-example : FString.asciiDigitsToScalar (p := p) (mkFStr 3 (#v[65, 49, 0].map ch) 2) = none := by native_decide             -- "A1": 'A'=65 not a digit, assertIsAsciiDigits fails
+example : (do FString.asciiDigitsToScalar (mkFStr #v[49, 50, 51]     3)) = none := by native_decide -- len = maxLen: no index_eq fires
+example : (do FString.asciiDigitsToScalar (mkFStr #v[57, 56, 55, 54] 4)) = none := by native_decide -- len = maxLen: digits valid but out of range
+example : (do FString.asciiDigitsToScalar (mkFStr #v[49, 50, 51]     0)) = none := by native_decide -- len = 0: arraySelector rejects
+example : (do FString.asciiDigitsToScalar (mkFStr #v[55]             1)) = none := by native_decide -- maxLen = 1: fold empty, ieq_sum stays 0
+example : (do FString.asciiDigitsToScalar (mkFStr #v[65, 49, 0]      2)) = none := by native_decide -- "A1": 'A'=65 not a digit, assertIsAsciiDigits fails
 
 -- isSubstring tests
 -- ASCII: 'h'=104 'e'=101 'l'=108 'o'=111 'a'=97 'b'=98 'c'=99 'x'=120 'y'=121 'z'=122
 
 -- "hel" in "hello" at 0
-example : FString.isSubstring (p := p)
-  (mkFStr 5 (#v[104, 101, 108, 108, 111].map ch) 5)
-  (mkFStr 3 (#v[104, 101, 108].map ch) 3) 0 = some FB.true := by native_decide
+example : FString.isSubstring
+    (mkFStr #v[104, 101, 108, 108, 111] 5)
+    (mkFStr #v[104, 101, 108] 3) 0 = some FB.true := by native_decide
 
 -- "ell" in "hello" at 1
-example : FString.isSubstring (p := p)
-  (mkFStr 5 (#v[104, 101, 108, 108, 111].map ch) 5)
-  (mkFStr 3 (#v[101, 108, 108].map ch) 3) 1 = some FB.true := by native_decide
+example : FString.isSubstring
+    (mkFStr #v[104, 101, 108, 108, 111] 5)
+    (mkFStr #v[101, 108, 108] 3) 1 = some FB.true := by native_decide
 
 -- "xyz" in "hello" at 0 (no match)
-example : FString.isSubstring (p := p)
-  (mkFStr 5 (#v[104, 101, 108, 108, 111].map ch) 5)
-  (mkFStr 3 (#v[120, 121, 122].map ch) 3) 0 = some FB.false := by native_decide
+example : FString.isSubstring
+  (mkFStr #v[104, 101, 108, 108, 111] 5)
+  (mkFStr #v[120, 121, 122] 3) 0 = some FB.false := by native_decide
 
 -- "lo" in "hello" at 3
-example : FString.isSubstring (p := p)
-  (mkFStr 5 (#v[104, 101, 108, 108, 111].map ch) 5)
-  (mkFStr 2 (#v[108, 111].map ch) 2) 3 = some FB.true := by native_decide
+example : FString.isSubstring
+  (mkFStr #v[104, 101, 108, 108, 111] 5)
+  (mkFStr #v[108, 111] 2) 3 = some FB.true := by native_decide
 
 -- Substr extends beyond str → false: "lo" in "hello" at 4
-example : FString.isSubstring (p := p)
-  (mkFStr 5 (#v[104, 101, 108, 108, 111].map ch) 5)
-  (mkFStr 3 (#v[108, 111, 0].map ch) 2) 4 = some FB.false := by native_decide
+example : FString.isSubstring
+  (mkFStr #v[104, 101, 108, 108, 111] 5)
+  (mkFStr #v[108, 111, 0] 2) 4 = some FB.false := by native_decide
 
 -- "b" in "abc" at 1
-example : FString.isSubstring (p := p)
-  (mkFStr 3 (#v[97, 98, 99].map ch) 3)
-  (mkFStr 1 (#v[98].map ch) 1) 1 = some FB.true := by native_decide
+example : FString.isSubstring
+  (mkFStr #v[97, 98, 99] 3)
+  (mkFStr #v[98] 1) 1 = some FB.true := by native_decide
 
 -- "ell" in "hello" at 1
-example : FString.assertIsSubstring (p := p)
-  (mkFStr 5 (#v[104, 101, 108, 108, 111].map ch) 5)
-  (mkFStr 3 (#v[101, 108, 108].map ch) 3) 1 = some () := by native_decide
+example : FString.assertIsSubstring
+  (mkFStr #v[104, 101, 108, 108, 111] 5)
+  (mkFStr #v[101, 108, 108] 3) 1 = some () := by native_decide
 
 -- assertIsSubstring failure: "xyz" in "hello" at 0
-example : FString.assertIsSubstring (p := p)
-  (mkFStr 5 (#v[104, 101, 108, 108, 111].map ch) 5)
-  (mkFStr 3 (#v[120, 121, 122].map ch) 3) 0 = none := by native_decide
+example : FString.assertIsSubstring
+  (mkFStr #v[104, 101, 108, 108, 111] 5)
+  (mkFStr #v[120, 121, 122] 3) 0 = none := by native_decide
+
 
 -- isSubstringFS tests (bn254-only due to Poseidon)
 -- ASCII: 'h'=104 'e'=101 'l'=108 'o'=111 'a'=97 'b'=98 'c'=99 'x'=120 'y'=121 'z'=122
 
 abbrev q := Primes.bn254
 
-private def chq (n : ℕ) : FChar q := F8.ofF! n
-private def mkFStrQ (n : ℕ) (chars : Vector (FChar q) n) (len : F q) : FString q n := ⟨chars, len⟩
+private def mkFStrQ {n : ℕ} (chars : Vector (F q) n) (len : F q) : FString q n :=
+  let chars : Vector _ n := chars.map (Clap.num2bitsLsbPure 8)
+  ⟨chars, len⟩
 
 /-- Compute `strHash` for an `FString` via `hashBytesToFieldWithLen`. -/
 private def strHashOf {n : ℕ} (s : FString q n) : Option (F q) :=
@@ -361,58 +370,58 @@ private def strHashOf {n : ℕ} (s : FString q n) : Option (F q) :=
 
 -- "hel" in "hello" at 0
 example : (do
-  let str := mkFStrQ 5 (#v[104, 101, 108, 108, 111].map chq) 5
+  let str := mkFStrQ #v[104, 101, 108, 108, 111] 5
   let h ← strHashOf str
-  FString.isSubstringFS (by omega) str h (mkFStrQ 3 (#v[104, 101, 108].map chq) 3) 0
+  FString.isSubstringFS (by omega) str h (mkFStrQ #v[104, 101, 108] 3) 0
   ) = some FB.true := by native_decide
 
 -- "ell" in "hello" at 1
 example : (do
-  let str := mkFStrQ 5 (#v[104, 101, 108, 108, 111].map chq) 5
+  let str := mkFStrQ #v[104, 101, 108, 108, 111] 5
   let h ← strHashOf str
-  FString.isSubstringFS (by omega) str h (mkFStrQ 3 (#v[101, 108, 108].map chq) 3) 1
+  FString.isSubstringFS (by omega) str h (mkFStrQ #v[101, 108, 108] 3) 1
   ) = some FB.true := by native_decide
 
 -- "xyz" in "hello" at 0 (no match)
 example : (do
-  let str := mkFStrQ 5 (#v[104, 101, 108, 108, 111].map chq) 5
+  let str := mkFStrQ #v[104, 101, 108, 108, 111] 5
   let h ← strHashOf str
-  FString.isSubstringFS (by omega) str h (mkFStrQ 3 (#v[120, 121, 122].map chq) 3) 0
+  FString.isSubstringFS (by omega) str h (mkFStrQ #v[120, 121, 122] 3) 0
   ) = some FB.false := by native_decide
 
 -- "lo" in "hello" at 3
 example : (do
-  let str := mkFStrQ 5 (#v[104, 101, 108, 108, 111].map chq) 5
+  let str := mkFStrQ #v[104, 101, 108, 108, 111] 5
   let h ← strHashOf str
-  FString.isSubstringFS (by omega) str h (mkFStrQ 2 (#v[108, 111].map chq) 2) 3
+  FString.isSubstringFS (by omega) str h (mkFStrQ #v[108, 111] 2) 3
   ) = some FB.true := by native_decide
 
 -- Substr extends beyond str → false: "lo" in "hello" at 4
 example : (do
-  let str := mkFStrQ 5 (#v[104, 101, 108, 108, 111].map chq) 5
+  let str := mkFStrQ #v[104, 101, 108, 108, 111] 5
   let h ← strHashOf str
-  FString.isSubstringFS (by omega) str h (mkFStrQ 3 (#v[108, 111, 0].map chq) 2) 4
+  FString.isSubstringFS (by omega) str h (mkFStrQ #v[108, 111, 0] 2) 4
   ) = some FB.false := by native_decide
 
 -- "b" in "abc" at 1
 example : (do
-  let str := mkFStrQ 3 (#v[97, 98, 99].map chq) 3
+  let str := mkFStrQ #v[97, 98, 99] 3
   let h ← strHashOf str
-  FString.isSubstringFS (by omega) str h (mkFStrQ 1 (#v[98].map chq) 1) 1
+  FString.isSubstringFS (by omega) str h (mkFStrQ #v[98] 1) 1
   ) = some FB.true := by native_decide
 
 -- assertIsSubstringFS: "ell" in "hello" at 1
 example : (do
-  let str := mkFStrQ 5 (#v[104, 101, 108, 108, 111].map chq) 5
+  let str := mkFStrQ #v[104, 101, 108, 108, 111] 5
   let h ← strHashOf str
-  FString.assertIsSubstringFS (by omega) str h (mkFStrQ 3 (#v[101, 108, 108].map chq) 3) 1
+  FString.assertIsSubstringFS (by omega) str h (mkFStrQ #v[101, 108, 108] 3) 1
   ) = some () := by native_decide
 
 -- assertIsSubstringFS failure: "xyz" in "hello" at 0
 example : (do
-  let str := mkFStrQ 5 (#v[104, 101, 108, 108, 111].map chq) 5
+  let str := mkFStrQ #v[104, 101, 108, 108, 111] 5
   let h ← strHashOf str
-  FString.assertIsSubstringFS (by omega) str h (mkFStrQ 3 (#v[120, 121, 122].map chq) 3) 0
+  FString.assertIsSubstringFS (by omega) str h (mkFStrQ #v[120, 121, 122] 3) 0
   ) = none := by native_decide
 
 -- assertIsConcatenation tests
@@ -420,72 +429,76 @@ example : (do
 
 -- 1. "hello" = "hel" ++ "lo" (basic concatenation)
 example : FString.assertIsConcatenation (by omega) (by omega)
-  (mkFStrQ 5 (#v[104, 101, 108, 108, 111].map chq) 5)
-  (mkFStrQ 3 (#v[104, 101, 108].map chq) 3)
-  (mkFStrQ 2 (#v[108, 111].map chq) 2)
+  (mkFStrQ #v[104, 101, 108, 108, 111] 5)
+  (mkFStrQ #v[104, 101, 108] 3)
+  (mkFStrQ #v[108, 111] 2)
   = some () := by native_decide
 
 -- 2. "hello" = "h" ++ "ello" (split at 1)
 example : FString.assertIsConcatenation (by omega) (by omega)
-  (mkFStrQ 5 (#v[104, 101, 108, 108, 111].map chq) 5)
-  (mkFStrQ 1 (#v[104].map chq) 1)
-  (mkFStrQ 4 (#v[101, 108, 108, 111].map chq) 4)
+  (mkFStrQ #v[104, 101, 108, 108, 111] 5)
+  (mkFStrQ #v[104] 1)
+  (mkFStrQ #v[101, 108, 108, 111] 4)
   = some () := by native_decide
 
 -- 3. "abc" = "ab" ++ "c" (different string)
 example : FString.assertIsConcatenation (by omega) (by omega)
-  (mkFStrQ 3 (#v[97, 98, 99].map chq) 3)
-  (mkFStrQ 2 (#v[97, 98].map chq) 2)
-  (mkFStrQ 1 (#v[99].map chq) 1)
+  (mkFStrQ #v[97, 98, 99] 3)
+  (mkFStrQ #v[97, 98] 2)
+  (mkFStrQ #v[99] 1)
   = some () := by native_decide
 
 -- 4. maxLen > actual len with 0-padding: full="ab\0" (len=2) = "a\0" (len=1) ++ "b\0" (len=1)
 example : FString.assertIsConcatenation (by omega) (by omega)
-  (mkFStrQ 3 (#v[97, 98, 0].map chq) 2)
-  (mkFStrQ 2 (#v[97, 0].map chq) 1)
-  (mkFStrQ 2 (#v[98, 0].map chq) 1)
+  (mkFStrQ #v[97, 98, 0] 2)
+  (mkFStrQ #v[97, 0] 1)
+  (mkFStrQ #v[98, 0] 1)
   = some () := by native_decide
 
 -- 5. Wrong concatenation: "abc" ≠ "ab" ++ "b" (right doesn't match)
 example : FString.assertIsConcatenation (by omega) (by omega)
-  (mkFStrQ 3 (#v[97, 98, 99].map chq) 3)
-  (mkFStrQ 2 (#v[97, 98].map chq) 2)
-  (mkFStrQ 1 (#v[98].map chq) 1)
+  (mkFStrQ #v[97, 98, 99] 3)
+  (mkFStrQ #v[97, 98] 2)
+  (mkFStrQ #v[98] 1)
   = none := by native_decide
 
 -- 6. Wrong concatenation: "abc" ≠ "ac" ++ "c" (left doesn't match)
 example : FString.assertIsConcatenation (by omega) (by omega)
-  (mkFStrQ 3 (#v[97, 98, 99].map chq) 3)
-  (mkFStrQ 2 (#v[97, 99].map chq) 2)
-  (mkFStrQ 1 (#v[99].map chq) 1)
+  (mkFStrQ #v[97, 98, 99] 3)
+  (mkFStrQ #v[97, 99] 2)
+  (mkFStrQ #v[99] 1)
   = none := by native_decide
 
 -- 7a. Left 0-padding valid: left = [97, 98, 0] with len=2 passes
 example : FString.assertIsConcatenation (by omega) (by omega)
-  (mkFStrQ 3 (#v[97, 98, 99].map chq) 3)
+  (mkFStrQ #v[97, 98, 99] 3)
   -- len=2, byte at index 2 is 0 → valid padding
-  (mkFStrQ 3 (#v[97, 98, 0].map chq) 2) (mkFStrQ 1 (#v[99].map chq) 1)
+  (mkFStrQ #v[97, 98, 0] 2)
+  (mkFStrQ #v[99] 1)
   = some () := by native_decide
 
 -- 7b. Left 0-padding violated: left = [97, 98, 99] with len=2 fails
 example : FString.assertIsConcatenation (by omega) (by omega)
-  (mkFStrQ 3 (#v[97, 98, 99].map chq) 3)
+  (mkFStrQ #v[97, 98, 99] 3)
   -- len=2, byte at index 2 is non-zero → fails
-  (mkFStrQ 3 (#v[97, 98, 99].map chq) 2) (mkFStrQ 1 (#v[99].map chq) 1)
+  (mkFStrQ #v[97, 98, 99] 2)
+  (mkFStrQ #v[99] 1)
   = none := by native_decide
 
 -- 8a. Right 0-padding valid: right = [99, 0] with len=1 passes
 example : FString.assertIsConcatenation (by omega) (by omega)
-  (mkFStrQ 3 (#v[97, 98, 99].map chq) 3)
+  (mkFStrQ #v[97, 98, 99] 3)
   -- len=1, byte at index 1 is 0 → valid padding
-  (mkFStrQ 2 (#v[97, 98].map chq) 2) (mkFStrQ 2 (#v[99, 0].map chq) 1)
+  (mkFStrQ #v[97, 98] 2)
+  (mkFStrQ #v[99, 0] 1)
   = some () := by native_decide
 
 -- 8b. Right 0-padding violated: right = [99, 100] with len=1 fails
 example : FString.assertIsConcatenation (by omega) (by omega)
-  (mkFStrQ 3 (#v[97, 98, 99].map chq) 3)
+  (mkFStrQ #v[97, 98, 99] 3)
   -- len=1, byte at index 1 is non-zero → fails
-  (mkFStrQ 2 (#v[97, 98].map chq) 2) (mkFStrQ 2 (#v[99, 100].map chq) 1)
+  (mkFStrQ #v[97, 98] 2)
+  (mkFStrQ #v[99, 100] 1)
   = none := by native_decide
 
 end TestString
