@@ -27,77 +27,51 @@ def bytes2BigEndianBits [Fact (Primes.fits p 8)] {n : ℕ} (bytes : Vector (F p)
   let bits ← bytes.mapM F8.ofF
   return bits.foldl (fun acc bits ↦ acc ++ bits.reverse) []
 
-def chunksToFieldElem {numChuncks : ℕ}
-  (bitsPerChunk : ℕ)
-  (chunks : Vector (F p) numChuncks) :
-  Option (F p)
-:= do
-  if ¬Primes.fits p (numChuncks * bitsPerChunk) then .none
-  let base := 2^bitsPerChunk
-  return chunks.reverse.foldl (fun acc x ↦ acc * base + x) 0
-
--- TODO (Andrei): Decide if `chunks` should be List or Vector.
-def chunksToFieldElem' (numChuncks : ℕ)
+def chunksToFieldElem (numChuncks : ℕ)
   (bitsPerChunk : ℕ)
   (chunks : List (F p)) :
-  Option (F p)
-:= do
-  if ¬Primes.fits p (numChuncks * bitsPerChunk) then .none
+  F p
+:=
+  assert! Primes.fits p (numChuncks * bitsPerChunk)
   let base := 2^bitsPerChunk
-  return chunks.reverse.foldl (fun acc x ↦ acc * base + x) 0
+  chunks.reverse.foldl (fun acc x ↦ acc * base + x) 0
 
-def bigEndianBitsToScalars
-  (bitsPerScalar : ℕ)
-  (bits : FBitVec p) :
-  Option (Array (F p))
-:= do
-  if ¬Primes.fits p bitsPerScalar then .none
-  if h : 0 < bitsPerScalar then
-    step bitsPerScalar h bits .empty
-  else
-    .none
+def bigEndianBitsToScalars (bitsPerScalar : ℕ) (bits : FBitVec p) : Array (F p) :=
+  assert! Primes.fits p bitsPerScalar
+  assert! 0 < bitsPerScalar
+  step bits 0 [] .empty
  where
-  step (bitsPerScalar : ℕ) (h₁ : 0 < bitsPerScalar)
-    (bits : FBitVec p)
-    (acc : Array (F p)) :
-    Array (F p)
-  :=
-    if h₂ : bits.isEmpty then acc else
-      let x := bits.take bitsPerScalar
-      let x := bigEndianBits2Num x
-      have : 0 < bits.length := by
-        simp [List.isEmpty_iff] at h₂
-        simp only [← Nat.ne_zero_iff_zero_lt, ne_eq, List.length_eq_zero_iff]
-        exact h₂
-      step bitsPerScalar h₁ (bits.drop bitsPerScalar) (acc.push x)
-  termination_by bits.length
+  step (bits : FBitVec p) (cnt:ℕ) (tmp:List (F p)) (res : Array (F p)) : Array (F p) :=
+    match bits with
+    | [] =>
+         res.push (bigEndianBits2Num tmp.reverse)
+    | bit::bits =>
+      if cnt = bitsPerScalar then
+        let res := res.push (bigEndianBits2Num tmp.reverse)
+        step bits 1 [bit] res
+      else
+      step bits (cnt+1) (bit::tmp) res
 
--- TODO (Andrei): Decide if `chunks` should be List or Vector.
 def chunksToFieldElems {numChuncks : ℕ}
   (chunksPerScalar bitsPerChunk : ℕ)
   (chunks : Vector (F p) numChuncks) :
-  Option (Array (F p))
-:= do
-  if numChuncks == 0 then .none
-  if h : 0 < chunksPerScalar then
-    step chunksPerScalar h chunks.toArray.toList .empty
-  else
-    .none
+  (Array (F p))
+:=
+  assert! numChuncks != 0
+  assert! 0 < chunksPerScalar
+  step chunks.toArray.toList 0 [] .empty
  where
-  step (chunksPerScalar : ℕ) (h₁ : 0 < chunksPerScalar)
-    (chunks : List (F p))
-    (acc : Array (F p)) :
-    Option (Array (F p))
-  :=
-    if h₂ : chunks.isEmpty then acc else do
-      let x := chunks.take chunksPerScalar
-      let x ← chunksToFieldElem' chunksPerScalar bitsPerChunk x
-      have : 0 < chunks.length := by
-        simp [List.isEmpty_iff] at h₂
-        simp only [← Nat.ne_zero_iff_zero_lt, ne_eq, List.length_eq_zero_iff]
-        exact h₂
-      step chunksPerScalar h₁ (chunks.drop chunksPerScalar) (acc.push x)
-  termination_by chunks.length
+  step (chunks : List (F p)) (cnt:ℕ) (tmp:List (F p)) (res : Array (F p)) : (Array (F p)) :=
+    match chunks with
+    | [] =>
+        let x := chunksToFieldElem chunksPerScalar bitsPerChunk tmp.reverse
+        res.push x
+    | c::chunks =>
+      if cnt = chunksPerScalar then
+        let x := chunksToFieldElem chunksPerScalar bitsPerChunk tmp.reverse
+        step chunks 1 [c] (res.push x)
+      else
+        step chunks (cnt+1) (c::tmp) res
 
 end Packing
 
@@ -138,30 +112,30 @@ example :
 := by
   native_decide
 
-example : chunksToFieldElem (p := p) 2 #v[] = .some 0 := by rfl
-/-- [00₂, 11₂, 10₂] -> 101100₂ -/
-example : chunksToFieldElem (p := p) 2 #v[0, 3, 2] = .some 44 := by native_decide
-/-- Doesn't fit -/
-example : chunksToFieldElem (p := p) (p.log2 + 1) #v[1] = .none := by rfl
+example : chunksToFieldElem (p := p) 0 2 [] = 0 := by rfl
+/- [00₂, 11₂, 10₂] -> 101100₂ -/
+example : chunksToFieldElem (p := p) 3 2 [0, 3, 2] = 44 := by native_decide
+/- Doesn't fit -/
+--example : chunksToFieldElem (p := p) 1 (p.log2 + 1) [1] = none := by rfl
 /-- [00₂, 11₂, 10₂, 01₂, 11₂, 10₂] -> 101100₂, 101101₂ -/
 
-example : chunksToFieldElems (p := p) 3 2 #v[0,3,2, 1,3,2] = .some #[44, 45] := by
+example : chunksToFieldElems (p := p) 3 2 #v[0,3,2, 1,3,2] = #[44, 45] := by
   native_decide
 example :
-  chunksToFieldElems (p := p) 1 2 #v[0, 3, 2, 1, 3, 2] =.some #[0, 3, 2, 1, 3, 2]
+  chunksToFieldElems (p := p) 1 2 #v[0, 3, 2, 1, 3, 2] = #[0, 3, 2, 1, 3, 2]
 := by native_decide
-example : chunksToFieldElems (p := p) 0 2 #v[0, 3, 2, 1, 3, 2] = .none := by native_decide
-example : chunksToFieldElems (p := p) 3 1 #v[0, 1, 1, 1, 0, 0] = some #[6, 1] := by native_decide
-example : chunksToFieldElems (p := p) 3 1 #v[0, 1, 1, 1] = some #[6, 1] := by native_decide
+--example : chunksToFieldElems (p := p) 0 2 #v[0, 3, 2, 1, 3, 2] = .none := by native_decide
+example : chunksToFieldElems (p := p) 3 1 #v[0, 1, 1, 1, 0, 0] = #[6, 1] := by native_decide
+example : chunksToFieldElems (p := p) 3 1 #v[0, 1, 1, 1] = #[6, 1] := by native_decide
 
 example :
-  bigEndianBitsToScalars (p := p) 4 [0,0,0,0, 0,0,0,1, 0,1,1] = .some #[0, 1, 3]
+  bigEndianBitsToScalars (p := p) 4 [0,0,0,0, 0,0,0,1, 0,1,1] = #[0, 1, 3]
 := by native_decide
 example :
-  bigEndianBitsToScalars (p := p) 4 [0,0,0,0, 0,0,0,1, 0,1,1,0] = .some #[0, 1, 6]
+  bigEndianBitsToScalars (p := p) 4 [0,0,0,0, 0,0,0,1, 0,1,1,0] = #[0, 1, 6]
 := by native_decide
-example :
-  bigEndianBitsToScalars (p := p) 0 [0,0,0,0, 0,0,0,1, 0,1,1,0] = .none
-:= by native_decide
+-- example :
+--   bigEndianBitsToScalars (p := p) 0 [0,0,0,0, 0,0,0,1, 0,1,1,0] = .none
+-- := by native_decide
 
 end TestPacking

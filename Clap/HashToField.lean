@@ -22,13 +22,13 @@ def hash64BitLimbsToFieldWithLen {numLimbs : ℕ}
   (len : F p) :
   Option (F p)
 := do
-  if inputMaxbits > 64 || numLimbs == 0 then .none
-  let elems ← Packing.chunksToFieldElems (p := p) 3 64 input
+  assert! inputMaxbits <= 64 && numLimbs != 0
+  let elems := Packing.chunksToFieldElems (p := p) 3 64 input
   let elems := elems.push len
   Clap.Poseidon.poseidonBN254 elems.toList
 
 def hashElemsToField (input : Array (F p)) : Option (F p) := do
-  if input.size > 64 then .none
+  assert! input.size <= 64
   let inputs₁ := input.extract 0 16
   let inputs₂ := input.extract 16 32
   let inputs₃ := input.extract 32 48
@@ -42,9 +42,9 @@ def hashBytesToFieldWithLen {numBytes : ℕ}
   (len : F p) :
   Option (F p)
 := do
-  if numBytes == 0 then .none
+  assert! numBytes != 0
   Packing.assertIsBytes input
-  let elems ← Packing.chunksToFieldElems (p := p) 31 8 input
+  let elems := Packing.chunksToFieldElems (p := p) 31 8 input
   let elems := elems.push len
   hashElemsToField elems
 
