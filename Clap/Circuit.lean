@@ -170,7 +170,7 @@ inductive Circuit (p : ℕ) (var : Type) : Type where
   | eq0 (e : Exp p var) (c : Circuit p var)
   | lam (cont : var → Circuit p var)
   | share (e : Exp p var) (cont : var → Circuit p var)
-  | is_zero (e : Exp p var) (cont : var → Circuit p var)
+  | isZero (e : Exp p var) (cont : var → Circuit p var)
   | num2bits (w : ℕ) (e : Exp p var) (cont : List var → Circuit p var)
 
 abbrev Circuitₑ (p : ℕ) := Circuit p (ZMod p)
@@ -216,7 +216,7 @@ def repr [Repr var] [Index var]
   | .lam k => s!"λ{l} {go l k}"
   | .eq0 e c => s!"eq0 {_root_.repr e} {repr l c}"
   | .share e k => s!"share {_root_.repr e} {go l k}"
-  | .is_zero e k => s!"is_zero {_root_.repr e} {go l k}"
+  | .isZero e k => s!"isZero {_root_.repr e} {go l k}"
   | .num2bits w e k => s!"num2bits {w} {_root_.repr e} {gos w l k}"
 
 instance [Repr var] [Index var] : Repr (Circuit p var) where
@@ -244,7 +244,7 @@ def eval : Circuitₑ p → denotation (ZMod p)
       if e.eval = 0 then eval c else .n
   | .share e k =>
       (k e.eval).eval
-  | .is_zero e k =>
+  | .isZero e k =>
       if e.eval = 0 then (k 1).eval else (k 0).eval
   | .num2bits w e k =>
       if e.eval.val < 2^w then (k (num2bitsLsbPure w e.eval)).eval else .n
@@ -264,8 +264,8 @@ lemma eval_lam : (lam cont).eval = .l fun x ↦ (cont x).eval := rfl
 lemma eval_share : (share e cont).eval = (cont e.eval).eval := rfl
 
 @[simp]
-lemma eval_is_zero :
-  (is_zero e cont).eval = if e.eval = 0 then (cont 1).eval else (cont 0).eval := rfl
+lemma eval_isZero :
+  (isZero e cont).eval = if e.eval = 0 then (cont 1).eval else (cont 0).eval := rfl
 
 @[simp]
 lemma eval_num2bits {w : ℕ} {k: List (ZMod p) -> Circuitₑ p} :
@@ -302,8 +302,8 @@ theorem share_congr (he : el ≈ er) (h : ∀ x, kl x ≈ kr x) :
   aesop
 
 @[gcongr]
-theorem is_zero_congr (he : el ≈ er) (h: ∀ x, kl x ≈ kr x) :
-  is_zero el kl ≈ is_zero er kr := by
+theorem isZero_congr (he : el ≈ er) (h: ∀ x, kl x ≈ kr x) :
+  isZero el kl ≈ isZero er kr := by
   aesop
 
 @[gcongr]

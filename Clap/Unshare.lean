@@ -27,7 +27,7 @@ def Circuit.unshareAllF (c : Circuitₑ p) : Circuitₑ p :=
   | .nil => .nil
   | .eq0 e c => .eq0 e c.unshareAllF
   | .lam k => .lam fun x => (k x).unshareAllF
-  | .is_zero e k => .is_zero e fun x => (k x).unshareAllF
+  | .isZero e k => .isZero e fun x => (k x).unshareAllF
   | .num2bits w e k => .num2bits w e fun x => (k x).unshareAllF
   | .share e k => k e.eval
 
@@ -56,7 +56,7 @@ def Circuit.unshareAll {var} (c : Circuit p (Exp p var)) : Circuit p var :=
   | .nil => .nil
   | .eq0 e c => .eq0 e.unwrap c.unshareAll
   | .lam k => .lam fun x ↦ (k (.v x)).unshareAll
-  | .is_zero e k => .is_zero e.unwrap fun x ↦ unshareAll (k (.v x))
+  | .isZero e k => .isZero e.unwrap fun x ↦ unshareAll (k (.v x))
   | .num2bits w e k => .num2bits w e.unwrap fun x ↦ (k (x.map .v)).unshareAll
   | .share e k => (k e.unwrap).unshareAll
 
@@ -169,8 +169,8 @@ def Circuit.unshareDegCps {var} (c : Circuit p (Exp p var))
   | .eq0 e c =>
      c.unshareDegCps fun (b, c) => k (b && e.degree <= 2, .eq0 e.unwrap c)
   | .lam k' => .lam fun x => (k' (.v x)).unshareDegCps k
-  | .is_zero e k' =>
-    .is_zero e.unwrap fun x => unshareDegCps (k' (.v x)) (fun (b, c) => k (b && e.degree <= 2, c))
+  | .isZero e k' =>
+    .isZero e.unwrap fun x => unshareDegCps (k' (.v x)) (fun (b, c) => k (b && e.degree <= 2, c))
   | .num2bits w e k' =>
     .num2bits w e.unwrap fun x => (k' (x.map .v)).unshareDegCps (fun (b,c) => k (b && e.degree <= 2, c))
   | .share e k' =>

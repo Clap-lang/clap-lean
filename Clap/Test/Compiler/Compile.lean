@@ -86,7 +86,7 @@ open Spec.Compiler
 def Compile.ex₁ {p : ℕ} (x : ZMod p) : Option Unit := do
   let x := share x
   let y := (1:ZMod p)
-  let z := is_zero y
+  let z := isZero y
   let _ <- num2bits 2 (x + z)
 --  eq0 k[0]!
   accept
@@ -106,7 +106,7 @@ info: def Compile.ex₁_circuit : (var : Type) → Circuit Primes.babybear var :
 fun (var : Type) =>
   Circuit.lam fun (x : var) =>
     Circuit.share (Exp.v x) fun (x : var) =>
-      Circuit.is_zero (Exp.c 1) fun (z : var) =>
+      Circuit.isZero (Exp.c 1) fun (z : var) =>
         Circuit.num2bits 2 ((Exp.v x).add (Exp.v z)) fun (vars : List var) => Circuit.nil
 -/
 #guard_msgs(info, whitespace := lax) in

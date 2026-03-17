@@ -69,10 +69,10 @@ inductive Circuit.wf {var₁ var₂ : Type} : Set (Entry var₁ var₂) → Circ
     Exp.wf G el er →
     (∀ xl xr, wf ({(xl, xr)} ∪ G) (kl xl) (kr xr)) →
     wf G (.share el kl) (.share er kr)
-  | is_zero {G el er kl kr} :
+  | isZero {G el er kl kr} :
     Exp.wf G el er →
     (∀ xl xr, wf ({(xl, xr)} ∪ G) (kl xl) (kr xr)) →
-    wf G (.is_zero el kl) (.is_zero er kr)
+    wf G (.isZero el kl) (.isZero er kr)
 
 -- TODO do we need to expose G ?
 def wf' (c : Circuit' p) : Prop := ∀ var1 var2, Circuit.wf {} (c var1) (c var2)
@@ -106,7 +106,7 @@ def id {var} : Circuit p (Exp p var) → Circuit p var
   | .nil => .nil
   | .eq0 e c => .eq0 e.unwrap (id c)
   | .lam k => .lam fun x ↦ id (k (.v x))
-  | .is_zero e k => .is_zero e.unwrap fun x ↦ id (k (.v x))
+  | .isZero e k => .isZero e.unwrap fun x ↦ id (k (.v x))
   | .share e k => .share e.unwrap fun x ↦ id (k (.v x))
   | .num2bits w e k => .num2bits w e.unwrap fun x ↦ id (k (x.map .v))
 
@@ -124,7 +124,7 @@ theorem id_sem_pre [Fact (Nat.Prime p)] {cl : Circuitₑ p} {cr : Circuit p (Exp
   · exact eq0_congr (Exp.unwrap_sem_pre ‹_› ‹_›) (cont ‹_› ‹_›)
   next _ wf => exact lam_congr fun _ ↦ cont _ (wf _ _) (by grind)
   next _ wf => exact share_congr (Exp.unwrap_sem_pre ‹_› ‹_›) (fun _ ↦ w _ (wf _ _) (by grind))
-  next _ wf => exact is_zero_congr (Exp.unwrap_sem_pre ‹_› ‹_›) (fun _ ↦ e _ (wf _ _) (by grind))
+  next _ wf => exact isZero_congr (Exp.unwrap_sem_pre ‹_› ‹_›) (fun _ ↦ e _ (wf _ _) (by grind))
 
 end
 

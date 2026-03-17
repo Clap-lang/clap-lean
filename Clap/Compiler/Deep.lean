@@ -87,14 +87,14 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
 
   else if let .letE name _ e body _ := e then
 
-    if let (`Clap.Spec.Compiler.is_zero, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
---      dbg_trace s!"is_zero"
+    if let (`Clap.Spec.Compiler.isZero, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
+--      dbg_trace s!"isZero"
       let k <- withLocalDecl name .default var fun fvar => do
         let body := body.instantiate1 fvar
         let body ← compile p var body
         mkLambdaFVars #[fvar] body
       let e : Expr <- compileExp p var e
-      mkAppOptM ``Clap.Circuit.is_zero #[p,var,e,k]
+      mkAppOptM ``Clap.Circuit.isZero #[p,var,e,k]
 
     else if let (`Clap.Spec.Compiler.share, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
 --      dbg_trace s!"share"

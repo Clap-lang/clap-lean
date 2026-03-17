@@ -315,7 +315,7 @@ def Circuit.toCs (c : Circuit p var) : Cs p var :=
       .lam fun x => (k x).toCs
   | .share e k =>
       .lam fun o => .eq0 (e - .v o) (k o).toCs
-  | .is_zero e k =>
+  | .isZero e k =>
     .lam fun inv =>
       .lam fun o =>
         .eq0 (.c 1 - .v inv * e - .v o)
@@ -357,7 +357,7 @@ def Circuit.toWg (c : Circuitₑ p) : Wg p :=
   | .share e k =>
     letI e := e.eval
     .cons e (k e).toWg
-  | .is_zero e k =>
+  | .isZero e k =>
     letI e := e.eval
     let o : ZMod p := if e = 0 then 1 else 0
     .cons e⁻¹ (.cons o (k o).toWg)
@@ -391,7 +391,7 @@ def circuitWF : Circuitₑ p → Prop
 | .eq0 _ c => circuitWF c
 | .lam c => ∀ i, circuitWF (c i)
 | .share _ c => ∀ i, circuitWF (c i)
-| .is_zero _ c => ∀ i, circuitWF (c i)
+| .isZero _ c => ∀ i, circuitWF (c i)
 | .num2bits w _ c => 2 ^ w < p ∧ ∀ i, circuitWF (c i)
 
 
@@ -424,7 +424,7 @@ theorem soundness {c : Circuitₑ p} : circuitWF c → wrBisim c.eval c.toCs.eva
     rw [<-hmy]
     apply ih _ (h x)
     constructor
-  | is_zero e c ih =>
+  | isZero e c ih =>
     intros h
     apply wrBisim.right
     intro inv
@@ -432,7 +432,7 @@ theorem soundness {c : Circuitₑ p} : circuitWF c → wrBisim c.eval c.toCs.eva
     intro o
     simp [Exp.eval,Circuit.eval,Cs.eval]
     split
-    case is_zero.h.h.isTrue he0 =>
+    case isZero.h.h.isTrue he0 =>
       split
       case isTrue hsub =>
         split
@@ -443,7 +443,7 @@ theorem soundness {c : Circuitₑ p} : circuitWF c → wrBisim c.eval c.toCs.eva
           apply ih _ (h 1)
         case isFalse hmul => constructor
       case isFalse hsub => constructor
-    case is_zero.h.h.isFalse he0 =>
+    case isZero.h.h.isFalse he0 =>
       split
       case isTrue hsub =>
         split
@@ -533,15 +533,15 @@ def completeness [Fact (Nat.Prime p)] {c : Circuitₑ p} :
     unfold circuitWF at cWF
     simp [Exp.eval,Circuit.eval,Cs.eval,Circuit.toCs,Circuit.toWg,wrap]
     apply h _ (cWF _)
-  | is_zero e c h =>
+  | isZero e c h =>
     intros cWF
     unfold circuitWF at cWF
     simp [Exp.eval,Circuit.eval,Cs.eval,Circuit.toCs,Circuit.toWg,wrap]
     split
-    case is_zero.isTrue he0 =>
+    case isZero.isTrue he0 =>
       simp
       split <;> apply h _ (cWF _)
-    case is_zero.isFalse he0 =>
+    case isZero.isFalse he0 =>
       split
       case isTrue he0' =>
         apply h _ (cWF _)

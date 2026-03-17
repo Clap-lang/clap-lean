@@ -49,7 +49,7 @@ def Circuit.cfold {var : Type} (c : Circuit p var) : Circuit p var :=
   | .eq0 e c => .eq0 e.cfold c.cfold
   | .lam k => .lam fun x => (k x).cfold
   | .share e k => .share e.cfold fun x => (k x).cfold
-  | .is_zero e k => .is_zero e.cfold fun x => (k x).cfold
+  | .isZero e k => .isZero e.cfold fun x => (k x).cfold
   | num2bits w e c => num2bits w e.cfold fun bits => (c bits).cfold
 
 def cfold' (c : Circuit' p) : Circuit' p := fun var => Circuit.cfold (c var)

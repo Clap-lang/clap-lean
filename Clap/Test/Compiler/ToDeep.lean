@@ -13,7 +13,7 @@ open Lean Clap Meta
 open Spec Compiler in
 def ToDeep.ex₁ (x : ZMod Primes.babybear) : Option Unit :=
   let y : ZMod Primes.babybear := share 1
-  let z : ZMod Primes.babybear := is_zero y
+  let z : ZMod Primes.babybear := isZero y
   do
   let _j <- num2bits 2 y
   eq0 (x+(1:ZMod Primes.babybear) * x-y+z) -- cannot use j[0]!
@@ -23,7 +23,7 @@ def ToDeep.ex₁ (x : ZMod Primes.babybear) : Option Unit :=
 info: def - fun (var : Type) =>
   Circuit.lam fun (x : var) =>
     Circuit.share (Exp.c 1) fun (y : var) =>
-      Circuit.is_zero (Exp.v y) fun (z : var) =>
+      Circuit.isZero (Exp.v y) fun (z : var) =>
         Circuit.num2bits 2 (Exp.v y) fun (vars : List var) =>
           Circuit.eq0 ((((Exp.v x).add ((Exp.c 1).mul (Exp.v x))).sub (Exp.v y)).add (Exp.v z))
             ((fun (x : PUnit.{1}) => Circuit.nil) ())
@@ -63,10 +63,10 @@ run_elab do
 
 open Spec Compiler in
 def ToDeep.ex₃ (x : ZMod Primes.babybear) : Option Unit := do
-  eq0 (is_zero x + share x)
+  eq0 (isZero x + share x)
   accept
 
-/-- info: compileExp: no match for Spec.Compiler.is_zero x -/
+/-- info: compileExp: no match for Spec.Compiler.isZero x -/
 #guard_msgs(info, whitespace := lax) in
 set_option pp.funBinderTypes true in
 run_elab do
