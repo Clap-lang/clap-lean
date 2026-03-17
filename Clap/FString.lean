@@ -76,29 +76,27 @@ def assertIsAsciiDigits {maxDigits : ℕ} (inp : FString p maxDigits) : Option U
   Requires `1 ≤ len < maxLen` (does not work when `maxLen ≤ 1`). The number represented must fit in the scalar field.
 -/
 def asciiDigitsToScalar {maxLen : ℕ} (inp : FString p maxLen) : Option (F p) := do
+  assert! 0 < maxLen
   assertIsAsciiDigits inp
-  if h : 0 < maxLen then
-    -- accumulators[0] = digits[0] - 48
-    let acc₀ : F p := inp.chars[0].toF - const (48 : ZMod p)
-    -- Fold over positions i = 1 .. maxLen-1.
-    -- State: (s, ieq_sum, acc)
-    --   s       : starts at 1, decremented to 0 at position `inp.len`
-    --   ieq_sum : running sum of index_eq[i]; must equal 1 at the end
-    --   acc     : accumulated digit value, frozen once s = 0
-    let (_, ieq_sum, acc) := (List.finRange maxLen).drop 1 |>.foldl
-      (fun (state : F p × F p × F p) (i : Fin maxLen) ↦
-        let (s, ieq_sum, acc) := state
-        let ieq       : F p := share $ isZero (inp.len - const (i.1 : ZMod p))
-        let s'        : F p := share $ s - ieq
-        let acc_shift : F p := share $ const (10 : ZMod p) * acc + (inp.chars[i].toF - const (48 : ZMod p))
-        let acc'      : F p := share $ (acc_shift - acc) * s' + acc
-        (s', ieq_sum + ieq, acc'))
-      (const (1 : ZMod p), const (0 : ZMod p), acc₀)
-    -- Exactly one index_eq must have been 1, i.e. len ∈ {1, ..., maxLen-1}
-    F.assert_eq ieq_sum (const (1 : ZMod p))
-    return acc
-  else
-    none
+  -- accumulators[0] = digits[0] - 48
+  let acc₀ : F p := inp.chars[0]!.toF - const (48 : ZMod p)
+  -- Fold over positions i = 1 .. maxLen-1.
+  -- State: (s, ieq_sum, acc)
+  --   s       : starts at 1, decremented to 0 at position `inp.len`
+  --   ieq_sum : running sum of index_eq[i]; must equal 1 at the end
+  --   acc     : accumulated digit value, frozen once s = 0
+  let (_, ieq_sum, acc) := (List.finRange maxLen).drop 1 |>.foldl
+    (fun (state : F p × F p × F p) (i : Fin maxLen) ↦
+      let (s, ieq_sum, acc) := state
+      let ieq       : F p := share $ isZero (inp.len - const (i.1 : ZMod p))
+      let s'        : F p := share $ s - ieq
+      let acc_shift : F p := share $ const (10 : ZMod p) * acc + (inp.chars[i].toF - const (48 : ZMod p))
+      let acc'      : F p := share $ (acc_shift - acc) * s' + acc
+      (s', ieq_sum + ieq, acc'))
+    (const (1 : ZMod p), const (0 : ZMod p), acc₀)
+  -- Exactly one index_eq must have been 1, i.e. len ∈ {1, ..., maxLen-1}
+  F.assert_eq ieq_sum (const (1 : ZMod p))
+  return acc
 
 /--
   Checks whether `substr` appears in `str` starting at `startIndex`.
