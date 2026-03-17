@@ -105,7 +105,7 @@ def escalarProduct (i₁ i₂ : List (F p)) : F p :=
 def enforceNotNested (len : ℕ)
   (startIndex fieldLen : F p)
   (bracketsDepthMap : List (F p)) :
-  Option Unit
+  M p Unit
 := do
   let endIndex := startIndex + fieldLen
   let bracketsSelector ← FArray.arraySelector len startIndex endIndex
@@ -133,7 +133,7 @@ def emailVerifiedCheck
   (evName : List (F p))
   (evValueLen : F p)
   (evValue : List (F p))
-  : Option (FB p)
+  : M p (FB p)
 := do
   let uidIsEmail := F.eq uidNameLen 5 &&& FList.eq uidName email
   conditionallyAssert uidIsEmail (FList.eq evName requiredEvName)
@@ -149,7 +149,7 @@ def emailVerifiedCheck
   conditionallyAssert checkEvValString (FList.eq evValue requiredEvValLen6)
   return uidIsEmail
  where
-  conditionallyAssert (antecedent consequent : FB p) : Option Unit :=
+  conditionallyAssert (antecedent consequent : FB p) : M p Unit :=
     -- a → c ≡ ¬(a ∧ ¬c)
     eq0 (antecedent * FB.not consequent)
 
@@ -188,7 +188,7 @@ private def parseJWTFieldSharedLogic
     (value       : FString bn254 maxValueLen)
     (colon_index : F bn254)
     (value_index : F bn254)
-    : Option Unit := do
+    : M bn254 Unit := do
   -- Check 0: name_len < colon_index
   -- w = 20 bits suffices for comparisons: 2^20 = 1_048_576 > any realistic JWT field length.
   -- Hardcoded in https://github.com/aptos-labs/keyless-zk-proofs/blob/main/circuit/templates/helpers/jwt/ParseJWTFieldSharedLogic.circom
@@ -243,7 +243,7 @@ def parseJWTFieldWithUnquotedValue
     (value       : FString bn254 maxValueLen)
     (colon_index : F bn254)
     (value_index : F bn254)
-    : Option Unit := do
+    : M bn254 Unit := do
   -- Delegate shared structural checks
   parseJWTFieldSharedLogic h_name h_value field name value colon_index value_index
   let fieldChars := field.chars.map FBitVec.toF
@@ -297,7 +297,7 @@ def parseJWTFieldWithQuotedValue
     (field_string_bodies : Vector (FB bn254) maxKVPairLen)
     (colon_index        : F bn254)
     (value_index        : F bn254)
-    : Option Unit := do
+    : M bn254 Unit := do
   -- Delegate shared structural checks
   parseJWTFieldSharedLogic h_name h_value field name value colon_index value_index
   let fieldChars := field.chars.map FBitVec.toF
@@ -365,7 +365,7 @@ def parseEmailVerifiedField
     (value      : FString bn254 maxValueLen)
     (colonIndex : F bn254)
     (valueIndex : F bn254)
-    : Option Unit := do
+    : M bn254 Unit := do
   -- Delegate shared structural checks
   parseJWTFieldSharedLogic h_name h_value field name value colonIndex valueIndex
   let fieldChars := field.chars.map FBitVec.toF

@@ -49,15 +49,15 @@ private def countTrailingZeros {maxLen : ℕ} (fs : Vector (F p) maxLen) : F p :
   Takes an arbitrary vector of field elements and returns a MyString.
   Fails if the input contains an element that is not a byte.
 -/
-def ofFs {maxLen : ℕ} (fs : Vector (F p) maxLen) : Option (FString (p := p) maxLen) := do
+def ofFs {maxLen : ℕ} (fs : Vector (F p) maxLen) : M p (FString (p := p) maxLen) := do
   let zeros := countTrailingZeros fs
   let len := maxLen - zeros
   let chars ← Vector.mapM F8.ofF fs
-  some ⟨chars, len⟩
+  return ⟨chars, len⟩
 
 open FB in
 /-- Asserts that every value in `inp` is a valid ASCII digit (i.e., in the range [48, 57]). -/
-def assertIsAsciiDigits {maxDigits : ℕ} (inp : FString p maxDigits) : Option Unit := do
+def assertIsAsciiDigits {maxDigits : ℕ} (inp : FString p maxDigits) : M p Unit := do
   let selector ← FArray.arraySelector maxDigits 0 inp.len
   let bv47 : F8 p := [1, 1, 1, 1, 0, 1, 0, 0]
   let bv58 : F8 p := [0, 1, 0, 1, 1, 1, 0, 0]
@@ -74,7 +74,7 @@ def assertIsAsciiDigits {maxDigits : ℕ} (inp : FString p maxDigits) : Option U
 
   Requires `1 ≤ len < maxLen` (does not work when `maxLen ≤ 1`). The number represented must fit in the scalar field.
 -/
-def asciiDigitsToScalar {maxLen : ℕ} (inp : FString p maxLen) : Option (F p) := do
+def asciiDigitsToScalar {maxLen : ℕ} (inp : FString p maxLen) : M p (F p) := do
   assert! 0 < maxLen
   assertIsAsciiDigits inp
   -- accumulators[0] = digits[0] - 48
@@ -103,7 +103,7 @@ def asciiDigitsToScalar {maxLen : ℕ} (inp : FString p maxLen) : Option (F p) :
   Positions beyond `substr.len` are automatically true. Fails (returns `none`) when `startIndex ≥ maxStrLen` or `substr.len = 0`.
   O(maxSubstrLen × maxStrLen)
 -/
-def isSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (substr : FString p maxSubstrLen) (startIndex : F p) : Option (FB p) := do
+def isSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (substr : FString p maxSubstrLen) (startIndex : F p) : M p (FB p) := do
   -- One-hot mask for startIndex; constrains 0 ≤ startIndex < maxStrLen
   let hot ← FArray.singleOneArray maxStrLen startIndex
   -- Selector for active substr positions [0, substr.len); constrains substr.len > 0
@@ -115,14 +115,14 @@ def isSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (subs
     -- (1) 0 * str.chars[X] = 0             except  startIndex + j
     -- (2) 1 * str.chars[X] = str.chars[X]  only at startIndex + j
     -- Σ_k  hot[k] * str.chars[k + j] = str.chars[startIndex + j]
-    let extracted : F p ← share $ (List.finRange maxStrLen).foldl (fun sum (k : Fin maxStrLen) ↦
+    let extracted := share $ (List.finRange maxStrLen).foldl (fun sum (k : Fin maxStrLen) ↦
       if h : k.val + j.val < maxStrLen then
         sum + hot[k] * str.chars[k.val + j.val].toF
       else
         sum
     ) 0
     -- Compare extracted value with substr char
-    let matched ← F.eq extracted substr.chars[j].toF
+    let matched := F.eq extracted substr.chars[j].toF
     -- position beyond substr.len → automatically true:
     -- If this position is part of the substring, check the match. If it's padding, skip it (always true)
     let gated := FB.or (FB.not substrSel[j]) matched
@@ -131,7 +131,7 @@ def isSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (subs
   return success
 
 /-- Asserts that `substr` appears in `str` starting at `startIndex`. -/
-def assertIsSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (substr : FString p maxSubstrLen) (startIndex : F p) : Option Unit := do
+def assertIsSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (substr : FString p maxSubstrLen) (startIndex : F p) : M p Unit := do
   FB.assert (← isSubstring str substr startIndex)
 
 variable [Core Primes.bn254]
@@ -150,11 +150,11 @@ def isSubstringFS {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLe
     (strHash    : F bn254)
     (substr     : FString bn254 maxSubstrLen)
     (startIndex : F bn254)
-    : Option (FB bn254) := do
+    : M bn254 (FB bn254) := do
   -- Step 1: hash substr and derive the random challenge α
   let substrHash ← hashBytesToFieldWithLen (substr.chars.map FBitVec.toF) substr.len
   -- random_challenge = H(str_hash, substr_hash, substr_len, start_index)
-  let α ← Clap.Poseidon.poseidonBN254 [strHash, substrHash, substr.len, startIndex]
+  let α := Clap.Poseidon.poseidonBN254 [strHash, substrHash, substr.len, startIndex]
   -- Step 2: build challenge powers α⁰, α¹, …, α^{maxStrLen-1}
   -- powers[0] = 1, powers[i] = α^i
   let powers : Vector (F bn254) maxStrLen :=
@@ -164,7 +164,7 @@ def isSubstringFS {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLe
   -- Step 4: selected_str[i] = selector[i] * str[i]; ŝ(α) = Σᵢ selected_str[i] · powers[i]
   let mut strPolyEval : F bn254 := 0
   for l : i in [0:maxStrLen] do
-    strPolyEval := strPolyEval + selector[i] * str.chars[i].toF * powers[i]
+    strPolyEval := strPolyEval + selector[i]! * str.chars[i].toF * powers[i]
   -- Step 5: t(α) = Σⱼ substr[j] · powers[j]
   let mut substrPolyEval : F bn254 := 0
   for l : j in [0:maxSubstrLen] do
@@ -183,7 +183,7 @@ def assertIsSubstringFS {maxStrLen maxSubstrLen : ℕ} (h : maxSubstrLen ≤ max
     (strHash    : F bn254)
     (substr     : FString bn254 maxSubstrLen)
     (startIndex : F bn254)
-    : Option Unit := do
+    : M bn254 Unit := do
   FB.assert (← isSubstringFS h str strHash substr startIndex)
 
 open Primes HashToField in
@@ -202,12 +202,12 @@ def assertIsConcatenation
     (fullStr : FString bn254 maxFullLen)
     (left    : FString bn254 maxLeftLen)
     (right   : FString bn254 maxRightLen)
-    : Option Unit := do
+    : M bn254 Unit := do
   -- Step 1: hash all three strings and derive the random challenge
   let leftHash  ← hashBytesToFieldWithLen (left.chars.map FBitVec.toF) left.len
   let rightHash ← hashBytesToFieldWithLen (right.chars.map FBitVec.toF) right.len
   let fullHash  ← hashBytesToFieldWithLen (fullStr.chars.map FBitVec.toF) (left.len + right.len)
-  let α ← Clap.Poseidon.poseidonBN254 [leftHash, rightHash, fullHash, left.len]
+  let α := Clap.Poseidon.poseidonBN254 [leftHash, rightHash, fullHash, left.len]
   -- Step 2: enforce that left is 0-padded after left.len
   -- rightArraySelector(left_len - 1) gives 1s at positions > left_len - 1, i.e. at [left_len, maxLeftLen)
   let leftSelector ← FArray.rightArraySelector maxLeftLen (left.len - 1)
@@ -265,7 +265,7 @@ example : countTrailingZeros #v[1,0] = (1: F p) := by native_decide
 example : countTrailingZeros #v[0,1,0,0] = (2: F p) := by native_decide
 example : countTrailingZeros #v[0,0,1,0] = (1: F p) := by native_decide
 
-example : (do FString.ofFs #v[]) = some {chars := #v[], len:= (0:F p)} := by native_decide
+example : (FString.ofFs #v[] : M p _) = some {chars := #v[], len:= (0:F p)} := by native_decide
 example : (do FString.ofFs #v[(0:F p),1,0,0]) = some { chars := #v[[0,0,0,0,0,0,0,0],[1,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0]],len := 2 } := by native_decide
 
 -- isWhitespace tests

@@ -6,13 +6,13 @@ open Clap.Lang Core
 
 variable {p : ℕ} [Core p]
 
-def base64UrlDecodedLength (w : ℕ) (m : F p) : Option (F p) := do
+def base64UrlDecodedLength (w : ℕ) (m : F p) : M p (F p) := do
   let _ ← num2bits w m                   -- range-check m < 2^w
   let three : F p := share (m + m + m)
   let bits ← num2bits (w + 2) three      -- decompose 3m, proves < 2^(w+2)
   return bits2num (bits.drop 2)          -- drop 2 LSBs = floor(3m/4)\
 
-def base64UrlLookup (i : F p) : Option (F p) := do
+def base64UrlLookup (i : F p) : M p (F p) := do
   -- check if i ∈ ['A', 'Z']
   let ge_A ← F.greaterEqThan 8 i 65
   let le_Z ← F.lessEqThan 8 i 90
@@ -53,7 +53,7 @@ def base64UrlLookup (i : F p) : Option (F p) := do
 
   pure sum_underscore
 
-def base64UrlDecode₀ (n : ℕ) (input : Array (F p)) : Option (Array (F p)) := do
+def base64UrlDecode₀ (n : ℕ) (input : Array (F p)) : M p (Array (F p)) := do
   if h : n > 0 then
     let seq4Times6Bits ← input.take 4 |>.mapM (num2bits 6)
     let seq3Times8Bits := seq4Times6Bits.reverse.toList.flatten.toChunks 8
@@ -62,7 +62,7 @@ def base64UrlDecode₀ (n : ℕ) (input : Array (F p)) : Option (Array (F p)) :=
   else
     return .empty
 
-def base64UrlDecode (n : ℕ) (input : Array (F p)) : Option (Array (F p)) := do
+def base64UrlDecode (n : ℕ) (input : Array (F p)) : M p (Array (F p)) := do
   let a ← input.mapM base64UrlLookup
   base64UrlDecode₀ n a
 

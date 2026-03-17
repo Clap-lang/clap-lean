@@ -12,7 +12,7 @@ private def oneHotRaw (len : ℕ) (idx : F p) : Vector (FB p) len :=
   Vector.ofFn (fun i : Fin len ↦ F.eq idx (const (i.1 : ZMod p)))
 
 /-- Returns a one-hot bit mask of length `len` with a 1 at index `idx` and 0s elsewhere. Only satisfiable when `0 ≤ idx < len`. -/
-def singleOneArray (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
+def singleOneArray (len : ℕ) (idx : F p) : M p (Vector (FB p) len) := do
   let out := oneHotRaw len idx
   let s : F p := out.foldl (fun acc b ↦ acc + b) 0
   F.assert_eq s 1
@@ -20,7 +20,7 @@ def singleOneArray (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
 
 /-- (SingleNegOneArray) Returns a one-hot bit mask of length `len` with a 1 at index `idx` and 0s elsewhere.
     Returns all zeros when `idx ≥ len`. -/
-def singleEndArray (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
+def singleEndArray (len : ℕ) (idx : F p) : M p (Vector (FB p) len) := do
   let out := oneHotRaw len idx
   let s : F p := out.foldl (fun acc b ↦ acc + b) 0
   F.assert_eq s (s * s) -- s² = s (at most one-hot)
@@ -28,7 +28,7 @@ def singleEndArray (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
 
 /-- Outputs a bit array with 1s at `[startIdx, endIdx)` and 0s elsewhere.
     Satisfiable when `startIdx < endIdx` and `startIdx < len`. If `endIdx ≥ len`, the bit array has 1s at `[startIdx, len)`. -/
-def arraySelector (len : ℕ) (startIdx endIdx : F p) : Option (Vector (FB p) len) := do
+def arraySelector (len : ℕ) (startIdx endIdx : F p) : M p (Vector (FB p) len) := do
   let w := Clap.minBits len
   assert! w ≤ Clap.minBits p
   FB.assert (← F.lessThan w startIdx endIdx)
@@ -40,22 +40,22 @@ def arraySelector (len : ℕ) (startIdx endIdx : F p) : Option (Vector (FB p) le
   return Vector.ofFn fun i ↦ (List.finRange len).take (i.1 + 1) |>.foldl step FB.false
 
 /-- Returns the element of `arr` at index `idx`. Fails when `idx ≥ len`. -/
-def selectArrayValue {len : ℕ} (arr : Vector (F p) len) (idx : F p) : Option (F p) := do
+def selectArrayValue {len : ℕ} (arr : Vector (F p) len) (idx : F p) : M p (F p) := do
   let hot ← singleOneArray len idx
   return F.dotProduct hot arr
 
 /-- Outputs a bit array with 1s at `[0, idx)` and 0s at `[idx, len)`. Only satisfiable when `0 ≤ idx < len`. Requires `len > 0`. -/
-def leftArraySelector (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
+def leftArraySelector (len : ℕ) (idx : F p) : M p (Vector (FB p) len) := do
   let bits ← singleOneArray len idx
   return bits.scanr (· + ·) 0
 
 /-- Outputs a bit array with 0s at `[0, idx]` and 1s at `(idx, len)`. Only satisfiable when `0 ≤ idx < len`. -/
-def rightArraySelector (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
+def rightArraySelector (len : ℕ) (idx : F p) : M p (Vector (FB p) len) := do
   let bits ← singleOneArray len idx
   return bits.scanl (· + ·) 0
 
 /-- Like `arraySelector`, but returns all zeros when `endIdx ≤ startIdx`. Does not work when `startIdx = 0`. -/
-def arraySelectorComplex (len : ℕ) (startIdx endIdx : F p) : Option (Vector (FB p) len) := do
+def arraySelectorComplex (len : ℕ) (startIdx endIdx : F p) : M p (Vector (FB p) len) := do
   FB.assert (FB.not (isZero startIdx))
   let right ← rightArraySelector len (startIdx - 1)
   let left ← leftArraySelector len endIdx
@@ -103,12 +103,12 @@ example : FArray.singleEndArray (p := p') 12 0 = none := by native_decide
 example : FArray.singleEndArray (p := p') 13 1 = none := by native_decide
 
 -- arraySelector tests
-example : FArray.arraySelector (p := p) 4 0 1 = some #v[1,0,0,0] := by native_decide
-example : FArray.arraySelector (p := p) 4 1 3 = some #v[0,1,1,0] := by native_decide
-example : FArray.arraySelector (p := p) 4 3 4 = some #v[0,0,0,1] := by native_decide
-example : FArray.arraySelector (p := p) 4 0 4 = some #v[1,1,1,1] := by native_decide
-example : FArray.arraySelector (p := p) 4 2 4 = some #v[0,0,1,1] := by native_decide
-example : FArray.arraySelector (p := p) 4 1 2 = some #v[0,1,0,0] := by native_decide
+example : FArray.arraySelector (p := p) 4 0 1 = some #v[(1:F p),0,0,0] := by native_decide
+example : FArray.arraySelector (p := p) 4 1 3 = some #v[(0:F p),1,1,0] := by native_decide
+example : FArray.arraySelector (p := p) 4 3 4 = some #v[(0:F p),0,0,1] := by native_decide
+example : FArray.arraySelector (p := p) 4 0 4 = some #v[(1:F p),1,1,1] := by native_decide
+example : FArray.arraySelector (p := p) 4 2 4 = some #v[(0:F p),0,1,1] := by native_decide
+example : FArray.arraySelector (p := p) 4 1 2 = some #v[(0:F p),1,0,0] := by native_decide
 example : FArray.arraySelector (p := p) 4 3 3 = none := by native_decide
 example : FArray.arraySelector (p := p) 4 0 0 = none := by native_decide
 

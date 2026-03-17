@@ -27,26 +27,26 @@ def hash64BitLimbsToFieldWithLen {numLimbs : ℕ}
   let elems := elems.push len
   Clap.Poseidon.poseidonBN254 elems.toList
 
-def hashElemsToField (input : Array (F p)) : Option (F p) := do
+def hashElemsToField (input : Array (F p)) : F p :=
   assert! input.size <= 64
   let inputs₁ := input.extract 0 16
   let inputs₂ := input.extract 16 32
   let inputs₃ := input.extract 32 48
   let inputs₄ := input.extract 48 64
-  let inputs := #[inputs₁, inputs₂, inputs₃, inputs₄].filter (not ·.isEmpty)
-  let leaves ← inputs.mapM (fun x ↦ Clap.Poseidon.poseidonBN254 x.toList)
-  Clap.Poseidon.poseidonBN254 leaves.toList
+  let inputs := [inputs₁, inputs₂, inputs₃, inputs₄].filter (not ·.isEmpty)
+  let leaves := inputs.map (fun x ↦ Clap.Poseidon.poseidonBN254 x.toList)
+  Clap.Poseidon.poseidonBN254 leaves
 
 def hashBytesToFieldWithLen {numBytes : ℕ}
   (input : Vector (F p) numBytes)
   (len : F p) :
-  Option (F p)
+  M p (F p)
 := do
   assert! numBytes != 0
   Packing.assertIsBytes input
   let elems := Packing.chunksToFieldElems (p := p) 31 8 input
   let elems := elems.push len
-  hashElemsToField elems
+  return hashElemsToField elems
 
 end HashToField
 
@@ -77,7 +77,7 @@ example : hashBytesToFieldWithLen (chunk31BytesZero ++ chunk31BytesZero) (31 + 3
 example :
   hashElemsToField #[0, 0, 0] ==
     /- poseidon [poseidon [0,0,0]] -/
-    some 9681385400934385481936708565543908657554561955376652473066345310499027876660
+    9681385400934385481936708565543908657554561955376652473066345310499027876660
 := by
   native_decide
 
@@ -87,7 +87,7 @@ example :
       poseidon
         [poseidon [1..1], poseidon [1..1], poseidon [1..1], poseidon [1,1,1]]
     -/
-    .some 11628121580149142260524838530806013087501953643589744849802502906921824536992
+    11628121580149142260524838530806013087501953643589744849802502906921824536992
 := by
   native_decide
 

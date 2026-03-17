@@ -4,20 +4,22 @@ import Clap.Spec
 namespace Clap.Lang
 
 class Core (p : ℕ) : Type _ where
+  M           : Type → Type
+  [instM      : Monad M]
   F           : Type
   [instF      : Field F]
   const       : ZMod p → F
   accept      : Unit
-  eq0         : F → Option Unit
+  eq0         : F → M Unit
   share       : F → F
   isZero      : F → F
-  num2bits    : ℕ → F → Option (List F)
+  num2bits    : ℕ → F → M (List F)
   bits2num    : List F → F
 
   [onlyForDebugF  : ToString F  ]
 
-attribute [reducible] Core.F Core.instF Core.const Core.accept Core.eq0 Core.share Core.isZero Core.num2bits Core.bits2num Core.onlyForDebugF
-attribute [instance] Core.instF Core.onlyForDebugF
+attribute [reducible] Core.M Core.instM Core.F Core.instF Core.const Core.accept Core.eq0 Core.share Core.isZero Core.num2bits Core.bits2num Core.onlyForDebugF
+attribute [instance] Core.instF Core.instM Core.onlyForDebugF
 
 variable {p : ℕ} [Core p]
 
@@ -30,10 +32,11 @@ namespace F
 instance : Inhabited (F p) where
   default := 42
 
-def assert_range (w : ℕ) (e : F p) : Option Unit := do
-  let _ <- num2bits w e ; ()
+def assert_range (w : ℕ) (e : F p) : M p Unit := do
+  let _ ← num2bits w e
+  pure ()
 
-def assert_eq (a b : F p) : Option Unit := do
+def assert_eq (a b : F p) : M p Unit := do
   eq0 (a - b)
 
 def eq (a b : F p) : FB p :=
@@ -73,10 +76,10 @@ def xor (a b : FB p) : FB p := a + b - 2 * a * b
 instance : HXor (FB p) (FB p) (FB p) where
   hXor := xor
 
-def assert (a : FB p) : Option Unit := do
+def assert (a : FB p) : M p Unit := do
   eq0 (not a)
 
-def assert_eq (a b : FB p) : Option Unit := do
+def assert_eq (a b : FB p) : M p Unit := do
   F.assert_eq a b
 
 end FB
@@ -98,18 +101,18 @@ then a-b ∈ [0,2^w-1]
 then a-b+2^w ∈ [2^w,2^(w+1)-1]
 which does not fit in w bits, so when converted to a (w+1)-bit number, its MSB is 1
 -/
-def lessThan (w : ℕ) (a b : F p) : Option (FB p) := do
+def lessThan (w : ℕ) (a b : F p) : M p (FB p) := do
   let d := a - b + const (2^w)
   let d ← num2bits (w + 1) d
   return FB.not d[w]!
 
-def lessEqThan (w : ℕ) (a b : F p) : Option (FB p) :=
+def lessEqThan (w : ℕ) (a b : F p) : M p (FB p) :=
   lessThan w a (b + 1)
 
-def greaterThan (w : ℕ) (a b : F p) : Option (FB p) :=
+def greaterThan (w : ℕ) (a b : F p) : M p (FB p) :=
   lessThan w b a
 
-def greaterEqThan (w : ℕ) (a b : F p) : Option (FB p) :=
+def greaterEqThan (w : ℕ) (a b : F p) : M p (FB p) :=
   lessThan w b (a + 1)
 
 end F
@@ -121,22 +124,22 @@ namespace FBitVec
 
 def default (l:ℕ) : FBitVec p := List.replicate l FB.false
 
-def ofF (w:ℕ) (e:F p) : Option (FBitVec p) :=
+def ofF (w:ℕ) (e:F p) : M p (FBitVec p) :=
   num2bits w e
 
 abbrev toF (v:FBitVec p) : F p := Core.bits2num v
 
 -- if arguments are both n-bit long, result is n+1 bits
-def binSum (a b : FBitVec p) : Option (FBitVec p) :=
+def binSum (a b : FBitVec p) : M p (FBitVec p) :=
   let sum : F p := a.toF + b.toF
   num2bits (a.length + 1) sum
 
-def assert_eq (a b : FBitVec p) : Option Unit :=
+def assert_eq (a b : FBitVec p) : Option (M p Unit) :=
   match a,b with
-  | [],[] => some ()
+  | [],[] => some (pure ())
   | ha::tla,hb::tlb => do
-      FB.assert_eq ha hb
-      assert_eq tla tlb
+      let res : M p Unit ← assert_eq tla tlb
+      some (do res ; FB.assert_eq ha hb)
   | _,_ => none
 
 def lessThan (a b : FBitVec p) : FB p :=
@@ -156,10 +159,10 @@ namespace F8
 
 variable [Fact (Primes.fits p 8)]
 
-def ofF (x:F p) : Option (F8 p) := do
+def ofF (x:F p) : M p (F8 p) := do
   FBitVec.ofF 8 x
 
-def ofUInt8 (u:UInt8) : Option (F8 p) :=
+def ofUInt8 (u:UInt8) : M p (F8 p) :=
   num2bits 8 (u.toNat)
 
 def zero : F8 p := FBitVec.default 8
@@ -183,17 +186,18 @@ def default : F32 p := FBitVec.default 32
 instance : Inhabited (F32 p) where
   default
 
-def ofF (x:F p) : Option (F32 p) := do
+def ofF (x:F p) : M p (F32 p) := do
   FBitVec.ofF 32 x
 
 def ofF8 [Fact (Primes.fits p 8)] (u8 : F8 p) : F32 p :=
   u8 ++ (List.replicate 24 (0:FB p))
 
-def ofUInt32 (u:UInt32) : Option (F32 p) :=
+def ofUInt32 (u:UInt32) : M p (F32 p) :=
   num2bits 32 (u.toNat)
 
-def add (a b : F32 p) : Option (F32 p) := do
-  List.take 32 (← FBitVec.binSum a b)
+def add (a b : F32 p) : M p (F32 p) := do
+  let sum ← FBitVec.binSum a b
+  return List.take 32 sum
 
 def assert_eq (a b : F32 p) := FBitVec.assert_eq a b
 
@@ -205,7 +209,7 @@ namespace F64
 
 variable [Fact (Primes.fits p 64)]
 
-def ofF (x:F p) : Option (F64 p) := do
+def ofF (x:F p) : M p (F64 p) := do
   FBitVec.ofF 64 x
 
 end F64
@@ -223,6 +227,7 @@ instance onlyForDebugF {p:ℕ} : ToString (ZMod p) where
   breaks the abstraction of Core won't be compilable.
 -/
 scoped instance instCoreZMod {p:ℕ} [Fact (Nat.Prime p)] : Core p where
+  M := Option
   F := ZMod p
   const := id
   accept := Compiler.accept
@@ -264,12 +269,14 @@ example : F.greaterEqThan 2 (2 : F p) 2 == some 1 := by native_decide
 example : F.greaterEqThan 2 (2 : F p) 3 == some 0 := by native_decide
 
 
-def testBinSum (a b expected : FBitVec p) : Option Unit := do
+def testBinSum (a b expected : FBitVec p) : Option (Option Unit) := do
   FBitVec.assert_eq (← FBitVec.binSum a b) expected
 
 example : (testBinSum [1,0,0] [1,0,0] [0,1,0,0]) = some () := by native_decide
 example : (testBinSum [0,0,1] [0,0,1] [0,0,0,1]) = some () := by native_decide
 example : (testBinSum [1,1,1] [1,0,0] [0,0,0,1]) = some () := by native_decide
+example : (testBinSum [1,1,1] [1,0,0] [0,0,0,2]) = some none := by native_decide
+example : (testBinSum [1,1,1] [1,0,0] [0,0,0,1,2]) = none := by native_decide
 
 instance : Coe UInt32 (F32 p) where
   coe n := Clap.num2bitsLsbPure 32 n.toNat
