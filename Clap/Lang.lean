@@ -147,6 +147,15 @@ def assert_eq (a b : FBitVec p) : Option Unit :=
       assert_eq tla tlb
   | _,_ => none
 
+def lessThan (a b : FBitVec p) : FB p :=
+  (a.zip b).foldl (fun acc (aᵢ, bᵢ) ↦
+    let eqᵢ := FB.eq aᵢ bᵢ
+    (eqᵢ &&& acc) ||| ((FB.not eqᵢ) &&& (FB.not aᵢ))
+  ) FB.false
+
+def greaterThan (a b : FBitVec p) : FB p :=
+  lessThan b a
+
 end FBitVec
 
 abbrev F8 (p:ℕ) [Fact (Primes.fits p 8)] [Core p] := FBitVec p
@@ -313,5 +322,16 @@ instance (n:ℕ) : OfNat (F32 p) n where
 example :
   letI a : UInt32 := 2^32 - 1
   (F32.add (a : F32 p) (1 : F32 p)) = ((UInt32.add a 1) : F32 p) := by native_decide
+
+def F8.ofF! : F p → F8 p := Clap.num2bitsLsbPure 8
+
+example : FBitVec.lessThan (p := p) (F8.ofF! 0) (F8.ofF! 1) == 1 := by native_decide
+example : FBitVec.lessThan (p := p) (F8.ofF! 1) (F8.ofF! 0) == 0 := by native_decide
+example : FBitVec.lessThan (p := p) (F8.ofF! 5) (F8.ofF! 5) == 0 := by native_decide
+example : FBitVec.lessThan (p := p) (F8.ofF! 42) (F8.ofF! 255) == 1 := by native_decide
+example : FBitVec.lessThan (p := p) (F8.ofF! 255) (F8.ofF! 42) == 0 := by native_decide
+example : FBitVec.greaterThan (p := p) (F8.ofF! 1) (F8.ofF! 0) == 1 := by native_decide
+example : FBitVec.greaterThan (p := p) (F8.ofF! 0) (F8.ofF! 1) == 0 := by native_decide
+example : FBitVec.greaterThan (p := p) (F8.ofF! 5) (F8.ofF! 5) == 0 := by native_decide
 
 end Test
