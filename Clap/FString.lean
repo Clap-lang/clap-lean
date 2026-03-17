@@ -6,8 +6,7 @@ import Clap.Poseidon.Poseidon
 
 open Clap.Lang Core
 
-abbrev FChar (p : ℕ) [Fact (Primes.fits p 8)] [Core p] := F8 p
---abbrev FChar := F8
+abbrev FChar := F8
 
 namespace FChar
 
@@ -146,7 +145,7 @@ open Primes HashToField in
   This is taken as a parameter to avoid re-hashing when repeatedly calling this template on the
   same string.
 -/
-def isSubstringFS {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLen)
+def isSubstringFS {maxStrLen maxSubstrLen : ℕ}
     (str        : FString bn254 maxStrLen)
     (strHash    : F bn254)
     (substr     : FString bn254 maxSubstrLen)
@@ -179,13 +178,13 @@ def isSubstringFS {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLe
 
 open Primes in
 /-- Asserts that `substr` appears in `str` starting at `startIndex` (Fiat-Shamir variant). -/
-def assertIsSubstringFS {maxStrLen maxSubstrLen : ℕ} (h : maxSubstrLen ≤ maxStrLen)
+def assertIsSubstringFS {maxStrLen maxSubstrLen : ℕ}
     (str        : FString bn254 maxStrLen)
     (strHash    : F bn254)
     (substr     : FString bn254 maxSubstrLen)
     (startIndex : F bn254)
     : Option Unit := do
-  FB.assert (← isSubstringFS h str strHash substr startIndex)
+  FB.assert (← isSubstringFS str strHash substr startIndex)
 
 open Primes HashToField in
 /--
@@ -199,7 +198,6 @@ open Primes HashToField in
 -/
 def assertIsConcatenation
     {maxFullLen maxLeftLen maxRightLen : ℕ}
-    (_hl : maxLeftLen ≤ maxFullLen) (_hr : maxRightLen ≤ maxFullLen)
     (fullStr : FString bn254 maxFullLen)
     (left    : FString bn254 maxLeftLen)
     (right   : FString bn254 maxRightLen)
@@ -370,105 +368,105 @@ private def strHashOf {n : ℕ} (s : FString q n) : Option (F q) :=
 example : (do
   let str := mkFStrQ #v[104, 101, 108, 108, 111] 5
   let h ← strHashOf str
-  FString.isSubstringFS (by omega) str h (mkFStrQ #v[104, 101, 108] 3) 0
+  FString.isSubstringFS str h (mkFStrQ #v[104, 101, 108] 3) 0
   ) = some FB.true := by native_decide
 
 -- "ell" in "hello" at 1
 example : (do
   let str := mkFStrQ #v[104, 101, 108, 108, 111] 5
   let h ← strHashOf str
-  FString.isSubstringFS (by omega) str h (mkFStrQ #v[101, 108, 108] 3) 1
+  FString.isSubstringFS str h (mkFStrQ #v[101, 108, 108] 3) 1
   ) = some FB.true := by native_decide
 
 -- "xyz" in "hello" at 0 (no match)
 example : (do
   let str := mkFStrQ #v[104, 101, 108, 108, 111] 5
   let h ← strHashOf str
-  FString.isSubstringFS (by omega) str h (mkFStrQ #v[120, 121, 122] 3) 0
+  FString.isSubstringFS str h (mkFStrQ #v[120, 121, 122] 3) 0
   ) = some FB.false := by native_decide
 
 -- "lo" in "hello" at 3
 example : (do
   let str := mkFStrQ #v[104, 101, 108, 108, 111] 5
   let h ← strHashOf str
-  FString.isSubstringFS (by omega) str h (mkFStrQ #v[108, 111] 2) 3
+  FString.isSubstringFS str h (mkFStrQ #v[108, 111] 2) 3
   ) = some FB.true := by native_decide
 
 -- Substr extends beyond str → false: "lo" in "hello" at 4
 example : (do
   let str := mkFStrQ #v[104, 101, 108, 108, 111] 5
   let h ← strHashOf str
-  FString.isSubstringFS (by omega) str h (mkFStrQ #v[108, 111, 0] 2) 4
+  FString.isSubstringFS str h (mkFStrQ #v[108, 111, 0] 2) 4
   ) = some FB.false := by native_decide
 
 -- "b" in "abc" at 1
 example : (do
   let str := mkFStrQ #v[97, 98, 99] 3
   let h ← strHashOf str
-  FString.isSubstringFS (by omega) str h (mkFStrQ #v[98] 1) 1
+  FString.isSubstringFS str h (mkFStrQ #v[98] 1) 1
   ) = some FB.true := by native_decide
 
 -- assertIsSubstringFS: "ell" in "hello" at 1
 example : (do
   let str := mkFStrQ #v[104, 101, 108, 108, 111] 5
   let h ← strHashOf str
-  FString.assertIsSubstringFS (by omega) str h (mkFStrQ #v[101, 108, 108] 3) 1
+  FString.assertIsSubstringFS str h (mkFStrQ #v[101, 108, 108] 3) 1
   ) = some () := by native_decide
 
 -- assertIsSubstringFS failure: "xyz" in "hello" at 0
 example : (do
   let str := mkFStrQ #v[104, 101, 108, 108, 111] 5
   let h ← strHashOf str
-  FString.assertIsSubstringFS (by omega) str h (mkFStrQ #v[120, 121, 122] 3) 0
+  FString.assertIsSubstringFS str h (mkFStrQ #v[120, 121, 122] 3) 0
   ) = none := by native_decide
 
 -- assertIsConcatenation tests
 -- ASCII: 'h'=104 'e'=101 'l'=108 'o'=111 'w'=119 'r'=114 'd'=100 'a'=97 'b'=98 'c'=99
 
 -- 1. "hello" = "hel" ++ "lo" (basic concatenation)
-example : FString.assertIsConcatenation (by omega) (by omega)
+example : FString.assertIsConcatenation
   (mkFStrQ #v[104, 101, 108, 108, 111] 5)
   (mkFStrQ #v[104, 101, 108] 3)
   (mkFStrQ #v[108, 111] 2)
   = some () := by native_decide
 
 -- 2. "hello" = "h" ++ "ello" (split at 1)
-example : FString.assertIsConcatenation (by omega) (by omega)
+example : FString.assertIsConcatenation
   (mkFStrQ #v[104, 101, 108, 108, 111] 5)
   (mkFStrQ #v[104] 1)
   (mkFStrQ #v[101, 108, 108, 111] 4)
   = some () := by native_decide
 
 -- 3. "abc" = "ab" ++ "c" (different string)
-example : FString.assertIsConcatenation (by omega) (by omega)
+example : FString.assertIsConcatenation
   (mkFStrQ #v[97, 98, 99] 3)
   (mkFStrQ #v[97, 98] 2)
   (mkFStrQ #v[99] 1)
   = some () := by native_decide
 
 -- 4. maxLen > actual len with 0-padding: full="ab\0" (len=2) = "a\0" (len=1) ++ "b\0" (len=1)
-example : FString.assertIsConcatenation (by omega) (by omega)
+example : FString.assertIsConcatenation
   (mkFStrQ #v[97, 98, 0] 2)
   (mkFStrQ #v[97, 0] 1)
   (mkFStrQ #v[98, 0] 1)
   = some () := by native_decide
 
 -- 5. Wrong concatenation: "abc" ≠ "ab" ++ "b" (right doesn't match)
-example : FString.assertIsConcatenation (by omega) (by omega)
+example : FString.assertIsConcatenation
   (mkFStrQ #v[97, 98, 99] 3)
   (mkFStrQ #v[97, 98] 2)
   (mkFStrQ #v[98] 1)
   = none := by native_decide
 
 -- 6. Wrong concatenation: "abc" ≠ "ac" ++ "c" (left doesn't match)
-example : FString.assertIsConcatenation (by omega) (by omega)
+example : FString.assertIsConcatenation
   (mkFStrQ #v[97, 98, 99] 3)
   (mkFStrQ #v[97, 99] 2)
   (mkFStrQ #v[99] 1)
   = none := by native_decide
 
 -- 7a. Left 0-padding valid: left = [97, 98, 0] with len=2 passes
-example : FString.assertIsConcatenation (by omega) (by omega)
+example : FString.assertIsConcatenation
   (mkFStrQ #v[97, 98, 99] 3)
   -- len=2, byte at index 2 is 0 → valid padding
   (mkFStrQ #v[97, 98, 0] 2)
@@ -476,7 +474,7 @@ example : FString.assertIsConcatenation (by omega) (by omega)
   = some () := by native_decide
 
 -- 7b. Left 0-padding violated: left = [97, 98, 99] with len=2 fails
-example : FString.assertIsConcatenation (by omega) (by omega)
+example : FString.assertIsConcatenation
   (mkFStrQ #v[97, 98, 99] 3)
   -- len=2, byte at index 2 is non-zero → fails
   (mkFStrQ #v[97, 98, 99] 2)
@@ -484,7 +482,7 @@ example : FString.assertIsConcatenation (by omega) (by omega)
   = none := by native_decide
 
 -- 8a. Right 0-padding valid: right = [99, 0] with len=1 passes
-example : FString.assertIsConcatenation (by omega) (by omega)
+example : FString.assertIsConcatenation
   (mkFStrQ #v[97, 98, 99] 3)
   -- len=1, byte at index 1 is 0 → valid padding
   (mkFStrQ #v[97, 98] 2)
@@ -492,7 +490,7 @@ example : FString.assertIsConcatenation (by omega) (by omega)
   = some () := by native_decide
 
 -- 8b. Right 0-padding violated: right = [99, 100] with len=1 fails
-example : FString.assertIsConcatenation (by omega) (by omega)
+example : FString.assertIsConcatenation
   (mkFStrQ #v[97, 98, 99] 3)
   -- len=1, byte at index 1 is non-zero → fails
   (mkFStrQ #v[97, 98] 2)
