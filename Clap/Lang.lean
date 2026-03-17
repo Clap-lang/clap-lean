@@ -9,7 +9,7 @@ class Core (p : ℕ) : Type _ where
   F           : Type
   [instF      : Field F]
   const       : ZMod p → F
-  accept      : Unit
+  accept      : M Unit
   eq0         : F → M Unit
   share       : F → F
   isZero      : F → F
