@@ -30,15 +30,14 @@ def singleEndArray (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
     Satisfiable when `startIdx < endIdx` and `startIdx < len`. If `endIdx ≥ len`, the bit array has 1s at `[startIdx, len)`. -/
 def arraySelector (len : ℕ) (startIdx endIdx : F p) : Option (Vector (FB p) len) := do
   let w := Clap.minBits len
-  if w ≤ Clap.minBits p then
-    FB.assert (← F.lessThan w startIdx endIdx)
-    let startMask ← singleOneArray len startIdx
-    let endMask ← singleEndArray len endIdx
-    -- At each position, turn on at startIdx (OR with startMask) and turn off at endIdx (AND with NOT endMask).
-    let step (prev : FB p) (i : Fin len) : FB p := FB.and (FB.or prev startMask[i]) (FB.not endMask[i])
-    -- Build the output by scanning `step` left-to-right through indices 0..i for each position i.
-    return Vector.ofFn fun i ↦ (List.finRange len).take (i.1 + 1) |>.foldl step FB.false
-  else .none
+  assert! w ≤ Clap.minBits p
+  FB.assert (← F.lessThan w startIdx endIdx)
+  let startMask ← singleOneArray len startIdx
+  let endMask ← singleEndArray len endIdx
+  -- At each position, turn on at startIdx (OR with startMask) and turn off at endIdx (AND with NOT endMask).
+  let step (prev : FB p) (i : Fin len) : FB p := FB.and (FB.or prev startMask[i]) (FB.not endMask[i])
+  -- Build the output by scanning `step` left-to-right through indices 0..i for each position i.
+  return Vector.ofFn fun i ↦ (List.finRange len).take (i.1 + 1) |>.foldl step FB.false
 
 /-- Returns the element of `arr` at index `idx`. Fails when `idx ≥ len`. -/
 def selectArrayValue {len : ℕ} (arr : Vector (F p) len) (idx : F p) : Option (F p) := do
