@@ -38,6 +38,7 @@ class Sha (t : T) where
   ch   : (x y z : t.U32) -> t.U32
   maj  : (x y z : t.U32) -> t.U32
 
+attribute [reducible] Sha.i₀ Sha.i₁ Sha.i₂ Sha.i₃ Sha.i₄ Sha.i₅ Sha.i₆ Sha.i₇ Sha.i₈
 attribute [instance] Sha.i₀ Sha.i₁ Sha.i₂ Sha.i₃ Sha.i₄ Sha.i₅ Sha.i₆ Sha.i₇ Sha.i₈
 
 variable {t : T} [Sha t]
