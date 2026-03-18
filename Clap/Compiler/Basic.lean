@@ -53,6 +53,10 @@ def curriedUserName (name : Name) (i : Nat) : Name :=
 def curriedUserNamesOfSize (name : Name) (n : Nat) : Array Name :=
   (Array.range n).map (curriedUserName name)
 
+def curriedUserNamesAndElemTypeOfFVar (e : Expr) : MetaM (Option (Array Name × Expr)) := do
+  let (``Vector, #[t, sz]) := (← inferType e).getAppFnArgs | return .none
+  return (curriedUserNamesOfSize (←e.fvarId!.getUserName) sz.nat?.get!, t)
+
 def vectorTypeOfSerialisable (prime : Name) (sz : Nat) : Expr :=
   mkApp2 (.const `Vector [.zero]) (.app (.const `ZMod []) (.const prime [])) (ToExpr.toExpr sz)
 
@@ -109,46 +113,40 @@ def serialise (prime : Name) (f : Expr) : TermElabM Expr := do
       mkLambdaFVars (usedOnly := true) (←getLCtx).getFVars (←serialisedLam body)
 
 def curryArg (prime : Name) (arg : Expr) : MetaM (Option (Array (Name × Expr))) := do
-  let userName ← arg.fvarId!.getUserName
-  let (``Vector, #[_, sz]) := (← inferType arg).getAppFnArgs | return .none
-  let names := curriedUserNamesOfSize userName sz.nat?.get!
+  let .some (names, _) ← curriedUserNamesAndElemTypeOfFVar arg | return .none
   let type ← mkAppM ``ZMod #[.const prime []]
-  return .some (Array.zip names (Array.replicate names.size type))
+  return .some (names.zip (Array.replicate names.size type))
 
-def curriedBody (body : Expr) : TermElabM (LocalContext × LocalInstances × Expr) := do
+def curriedBody (body : Expr) : TermElabM Expr := do
   let lctx ← getLCtx
-  let ictx ← getLocalInstances
-  -- Replace every `x` with `#[x_0, ...]`.
   let res ← Meta.transform (skipConstInApp := true) body
+    -- Replace every `x` with `#[x_0, ...]`.
     (pre := fun e ↦ do
       if e.isFVar
-      then -- TODO: Refactor, reuses `curriedArgs`.
-        let (``Vector, #[t, sz]) := (←inferType e).getAppFnArgs | return .continue
-        let names := curriedUserNamesOfSize (←e.fvarId!.getUserName) sz.nat?.get!
+      then
+        let .some (names, t) ← curriedUserNamesAndElemTypeOfFVar e | return .continue
         let array ← mkAppM ``Array.mk #[
           ←mkListLit t (←names.mapM (return lctx.findFromUserName? · |>.get!.toExpr)).toList
         ]
-        let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, sz, array]
+        let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, toExpr names.size, array]
         let Expr.forallE _ t _ _ ← inferType vecSansProof | throwError "Expected function type."
         let vec := Expr.app vecSansProof (←mkEqRefl t)
         return .done vec
       else return .continue)
+    -- And reduce `#[x₀, x₁, ..., xₖ][i (< k)]` to `xᵢ`.
     (post := fun e ↦ do
       if e.isAppOf ``GetElem.getElem
       then return .done (←Meta.reduce e) -- TODO: Do we need to be more specific than reduce?
       else return .continue)
-  return (lctx, ictx, res)
+  return res
 
-/--
-TODO: Needs the same refactor as serialise (using `withTransformedArgs`, etc.).
-      Currently, `curry` is ugly.
--/
 def curry (prime : Name) (f : Expr) : TermElabM Expr := do
   lambdaTelescope f fun args body ↦ do
     withTransformedArgs args (liftM ∘ curryArg prime) fun _ ↦ do
-      let (lctx, _, res) ← curriedBody body
-      mkLambdaFVars (←lctx.getFVars.filterM fun fvar ↦ do return !(←inferType fvar).isAppOf ``Vector)
-                    res
+      let res ← curriedBody body
+      mkLambdaFVars
+        (←(←getLCtx).getFVars.filterM fun fvar ↦ do return !(←inferType fvar).isAppOf ``Vector)
+        res
 
 def componentsOf (e : Expr) : MetaM (Array Expr) := do
   let env ← getEnv
@@ -157,9 +155,6 @@ def componentsOf (e : Expr) : MetaM (Array Expr) := do
   if !isStructure env typeName then throwError m!"{type} is not a structure."
   getStructureFields env typeName |>.mapM (mkProjection e)
 
-/--
-TODO: Needs refactor. Shares with `curry/serialise`.
--/
 def wg (p : Name) (argFvars : Array Expr) : TermElabM Expr := do
   let args' ← argFvars.foldlM (init := #[]) fun acc arg ↦ do
     let t ← inferType arg
@@ -167,8 +162,7 @@ def wg (p : Name) (argFvars : Array Expr) : TermElabM Expr := do
     -- TODO: This handling is temporary. We'll be splitting on public/private inputs at some point.
     if (←arg.fvarId!.getBinderInfo).isExplicit
     then if ←isDefEq t.getAppFn (.const ``Vector [.zero])
-         then -- TODO: Refactor, reuses `curriedBody`.
-              let (``Vector, #[_, sz]) := t.getAppFnArgs | return acc
+         then let (``Vector, #[_, sz]) := t.getAppFnArgs | return acc
               let components ← Array.range sz.nat?.get! |>.mapM (getElemVectorOfIdx arg)
               return acc.append components
          else
