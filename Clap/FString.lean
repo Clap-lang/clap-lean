@@ -38,11 +38,11 @@ variable {p : ℕ} [core : Core p] [Fact (Primes.fits p 8)]
 
 private def countTrailingZeros {maxLen : ℕ} (fs : Vector (F p) maxLen) : F p :=
   Vector.foldl (fun (len,keepCounting) f ↦
-    let b := F.eq f (const 0)
+    let b := F.eq f 0
     let len := len + (b * keepCounting)
     let keepCounting := FB.and keepCounting b
     (len, keepCounting)
-  ) (const 0, FB.true) fs.reverse
+  ) (0, FB.true) fs.reverse
   |>.1
 
 /--
@@ -58,7 +58,7 @@ def ofFs {maxLen : ℕ} (fs : Vector (F p) maxLen) : Option (FString (p := p) ma
 open FB in
 /-- Asserts that every value in `inp` is a valid ASCII digit (i.e., in the range [48, 57]). -/
 def assertIsAsciiDigits {maxDigits : ℕ} (inp : FString p maxDigits) : Option Unit := do
-  let selector ← FArray.arraySelector maxDigits (const 0) inp.len
+  let selector ← FArray.arraySelector maxDigits 0 inp.len
   let bv47 : F8 p := [1, 1, 1, 1, 0, 1, 0, 0]
   let bv58 : F8 p := [0, 1, 0, 1, 1, 1, 0, 0]
   for i in List.finRange maxDigits do
@@ -78,7 +78,7 @@ def asciiDigitsToScalar {maxLen : ℕ} (inp : FString p maxLen) : Option (F p) :
   assert! 0 < maxLen
   assertIsAsciiDigits inp
   -- accumulators[0] = digits[0] - 48
-  let acc₀ : F p := inp.chars[0]!.toF - const (48 : ZMod p)
+  let acc₀ : F p := inp.chars[0]!.toF - 48
   -- Fold over positions i = 1 .. maxLen-1.
   -- State: (s, ieq_sum, acc)
   --   s       : starts at 1, decremented to 0 at position `inp.len`
@@ -89,12 +89,12 @@ def asciiDigitsToScalar {maxLen : ℕ} (inp : FString p maxLen) : Option (F p) :
       let (s, ieq_sum, acc) := state
       let ieq       : F p := share $ isZero (inp.len - const (i.1 : ZMod p))
       let s'        : F p := share $ s - ieq
-      let acc_shift : F p := share $ const (10 : ZMod p) * acc + (inp.chars[i].toF - const (48 : ZMod p))
+      let acc_shift : F p := share $ 10 * acc + (inp.chars[i].toF - 48)
       let acc'      : F p := share $ (acc_shift - acc) * s' + acc
       (s', ieq_sum + ieq, acc'))
-    (const (1 : ZMod p), const (0 : ZMod p), acc₀)
+    (1, 0, acc₀)
   -- Exactly one index_eq must have been 1, i.e. len ∈ {1, ..., maxLen-1}
-  F.assert_eq ieq_sum (const (1 : ZMod p))
+  F.assert_eq ieq_sum 1
   return acc
 
 /--
@@ -107,7 +107,7 @@ def isSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (subs
   -- One-hot mask for startIndex; constrains 0 ≤ startIndex < maxStrLen
   let hot ← FArray.singleOneArray maxStrLen startIndex
   -- Selector for active substr positions [0, substr.len); constrains substr.len > 0
-  let substrSel ← FArray.arraySelector maxSubstrLen (const 0) substr.len
+  let substrSel ← FArray.arraySelector maxSubstrLen 0 substr.len
   -- For each position j in the substring, extract and compare
   let success ← (List.finRange maxSubstrLen).foldlM (fun (acc : FB p) (j : Fin maxSubstrLen) ↦ do
     -- Extract str[startIndex + j] via one-hot vector:
@@ -120,7 +120,7 @@ def isSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (subs
         sum + hot[k] * str.chars[k.val + j.val].toF
       else
         sum
-    ) (const 0)
+    ) 0
     -- Compare extracted value with substr char
     let matched ← isZero (extracted - substr.chars[j].toF)
     -- position beyond substr.len → automatically true:
@@ -158,15 +158,15 @@ def isSubstringFS {maxStrLen maxSubstrLen : ℕ}
   -- Step 2: build challenge powers α⁰, α¹, …, α^{maxStrLen-1}
   -- powers[0] = 1, powers[i] = α^i
   let powers : Vector (F bn254) maxStrLen :=
-    Vector.ofFn (fun i ↦ (List.iterate (fun x ↦ share (x * α)) (const (1 : ZMod bn254)) (i.val + 1)).getLast!)
+    Vector.ofFn (fun i ↦ (List.iterate (fun x ↦ share (x * α)) 1 (i.val + 1)).getLast!)
   -- Step 3: selector bits for [startIndex, startIndex + substr.len)
   let selector ← FArray.arraySelector maxStrLen startIndex (startIndex + substr.len)
   -- Step 4: selected_str[i] = selector[i] * str[i]; ŝ(α) = Σᵢ selected_str[i] · powers[i]
-  let mut strPolyEval : F bn254 := const 0
+  let mut strPolyEval : F bn254 := 0
   for l : i in [0:maxStrLen] do
     strPolyEval := strPolyEval + selector[i] * str.chars[i].toF * powers[i]
   -- Step 5: t(α) = Σⱼ substr[j] · powers[j]
-  let mut substrPolyEval : F bn254 := const 0
+  let mut substrPolyEval : F bn254 := 0
   for l : j in [0:maxSubstrLen] do
     substrPolyEval := substrPolyEval + substr.chars[j].toF * powers[j]!
   -- Step 6: α^startIndex = SelectArrayValue(powers, startIndex)
@@ -209,26 +209,26 @@ def assertIsConcatenation
   let α ← Clap.Poseidon.poseidonBN254 [leftHash, rightHash, fullHash, left.len]
   -- Step 2: enforce that left is 0-padded after left.len
   -- rightArraySelector(left_len - 1) gives 1s at positions > left_len - 1, i.e. at [left_len, maxLeftLen)
-  let leftSelector ← FArray.rightArraySelector maxLeftLen (left.len - const 1)
+  let leftSelector ← FArray.rightArraySelector maxLeftLen (left.len - 1)
   for l : i in [0:maxLeftLen] do
     eq0 (leftSelector[i] * left.chars[i].toF)
   -- Step 2b: enforce that right is 0-padded after right.len
-  let rightSelector ← FArray.rightArraySelector maxRightLen (right.len - const 1)
+  let rightSelector ← FArray.rightArraySelector maxRightLen (right.len - 1)
   for l : i in [0:maxRightLen] do
     eq0 (rightSelector[i] * right.chars[i].toF)
   -- Step 3: build challenge powers α⁰, α¹, …, α^{maxFullLen-1}
   let powers : Vector (F bn254) maxFullLen :=
-    Vector.ofFn (fun i ↦ (List.iterate (fun x ↦ share (x * α)) (const (1 : ZMod bn254)) (i.val + 1)).getLast!)
+    Vector.ofFn (fun i ↦ (List.iterate (fun x ↦ share (x * α)) 1 (i.val + 1)).getLast!)
   -- Step 4: left_poly_eval = Σᵢ left[i] · powers[i]
-  let mut leftPolyEval : F bn254 := const 0
+  let mut leftPolyEval : F bn254 := 0
   for l : i in [0:maxLeftLen] do
     leftPolyEval := leftPolyEval + left.chars[i].toF * powers[i]!
   -- Step 5: right_poly_eval = Σⱼ right[j] · powers[j]
-  let mut rightPolyEval : F bn254 := const 0
+  let mut rightPolyEval : F bn254 := 0
   for l : j in [0:maxRightLen] do
     rightPolyEval := rightPolyEval + right.chars[j].toF * powers[j]!
   -- Step 6: full_poly_eval = Σₖ fullStr[k] · powers[k]
-  let mut fullPolyEval : F bn254 := const 0
+  let mut fullPolyEval : F bn254 := 0
   for l : k in [0:maxFullLen] do
     fullPolyEval := fullPolyEval + fullStr.chars[k].toF * powers[k]
   -- Step 7: distinguishing_value = α^left_len = SelectArrayValue(powers, left_len)
