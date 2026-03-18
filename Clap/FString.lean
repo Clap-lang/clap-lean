@@ -87,7 +87,7 @@ def asciiDigitsToScalar {maxLen : ℕ} (inp : FString p maxLen) : Option (F p) :
   let (_, ieq_sum, acc) := (List.finRange maxLen).drop 1 |>.foldl
     (fun (state : F p × F p × F p) (i : Fin maxLen) ↦
       let (s, ieq_sum, acc) := state
-      let ieq       : F p := share $ isZero (inp.len - const (i.1 : ZMod p))
+      let ieq       : F p := share $ F.eq inp.len (const (i.1 : ZMod p))
       let s'        : F p := share $ s - ieq
       let acc_shift : F p := share $ 10 * acc + (inp.chars[i].toF - 48)
       let acc'      : F p := share $ (acc_shift - acc) * s' + acc
@@ -122,7 +122,7 @@ def isSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (subs
         sum
     ) 0
     -- Compare extracted value with substr char
-    let matched ← isZero (extracted - substr.chars[j].toF)
+    let matched ← F.eq extracted substr.chars[j].toF
     -- position beyond substr.len → automatically true:
     -- If this position is part of the substring, check the match. If it's padding, skip it (always true)
     let gated := FB.or (FB.not substrSel[j]) matched
@@ -173,7 +173,7 @@ def isSubstringFS {maxStrLen maxSubstrLen : ℕ}
   let distinguishingValue ← FArray.selectArrayValue powers startIndex
   -- Step 7: success = NOT(isZero(ŝ(α))) AND isEqual(ŝ(α), α^startIndex · t(α))
   let nonZero : FB bn254 := FB.not (isZero (share strPolyEval))
-  let polyEq  : FB bn254 := isZero (strPolyEval - distinguishingValue * substrPolyEval)
+  let polyEq  : FB bn254 := F.eq strPolyEval (distinguishingValue * substrPolyEval)
   return FB.and nonZero polyEq
 
 open Primes in
