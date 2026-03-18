@@ -161,11 +161,12 @@ def reduceExpr' (e : Expr) : MetaM Expr :=
      foldProjs                  >>= (Core.betaReduce ·) >>=
      unfold_mAny numIters false >>= (Core.betaReduce ·) >>= letSome
 
-def reduceStep (e : Expr) : MetaM Expr := do
+def dsimp (e : Expr) : MetaM Expr := do
   let cfg : Simp.Config := default
   let ctx ← mkSimpContext (simpOnly := true) (cfg := {cfg with zeta := false})
-  let dsimp := fun e ↦ (·.1) <$> dsimp e ctx
+  (·.1) <$> Meta.dsimp e ctx
 
+def reduceStep (e : Expr) : MetaM Expr := do
   let unfoldAnyS ← unfoldAny e
   trace[Clap.Compiler.reduce.unfoldAny] m!"[unfoldAny]:\n{skipIdentity e unfoldAnyS}"
 

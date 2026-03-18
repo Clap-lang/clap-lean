@@ -189,7 +189,7 @@ open Clap Lang ZMod
 open Clap Poseidon
 
 /-- Run poseidon on `ZMod bn254` inputs, looking up constants by `t`. -/
-private def testPoseidon {k} (inputs : Vector (ZMod p) k) (expected : F p) : Option Unit := do
+def testPoseidon {k} (inputs : Vector (ZMod p) k) (expected : F p) : Option Unit := do
   F.assert_eq (← poseidonBN254 (inputs.map const).toList) expected
 
 -- circomlib test vector: hash([1, 2]) with t=3

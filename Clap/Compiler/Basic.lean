@@ -68,8 +68,8 @@ def getElemVectorOfIdx (coll : Expr) (idx : Nat) : TermElabM Expr := do
 def withTransformedArgs.{u}
   {n : Type → Type u} [MonadControlT MetaM n] [Monad n] {α : Type} [Inhabited α]
   (args : Array Expr)
-  (f : Expr → n (Option (Name × Expr))) (k : Array Expr → n α) : n α := do
-  withLocalDeclsDND (←args.filterMapM f) k
+  (f : Expr → n (Option (Array (Name × Expr)))) (k : Array Expr → n α) : n α := do
+  withLocalDeclsDND (←Array.flatten <$> args.filterMapM f) k
 
 def isPrivileged (p : Q(ℕ)) (e : Expr) : TermElabM Bool := do
   let type ← inferType e
@@ -91,16 +91,16 @@ def serialisedLam (body : Expr) : TermElabM Expr := do
 def isSerialisableType (typeName : Name) : MetaM Bool := do
   return isStructure (←getEnv) typeName && !isClass (←getEnv) typeName
 
-def serialiseArg (prime : Name) (arg : Expr) : TermElabM (Option (Name × Expr)) := do
+def serialiseArg (prime : Name) (arg : Expr) : TermElabM (Option (Array (Name × Expr))) := do
   let fvar := arg.fvarId!
   let typeName := (←Meta.inferType arg).getAppFn.constName
   let env ← getEnv
   if (←isSerialisableType typeName) && !(←isPrivileged (.const prime []) arg)
   then let size := getStructureFields env typeName |>.size
-       return .some (
+       return .some #[(
          serialisedUserName (←fvar.getUserName),
          vectorTypeOfSerialisable prime size
-       )
+       )]
   else return .none
 
 def serialise (prime : Name) (f : Expr) : TermElabM Expr := do
@@ -108,57 +108,47 @@ def serialise (prime : Name) (f : Expr) : TermElabM Expr := do
     withTransformedArgs args (serialiseArg prime) fun _ ↦ do
       mkLambdaFVars (usedOnly := true) (←getLCtx).getFVars (←serialisedLam body)
 
-def curriedArgs (args : Array Expr) (p : Name) : MetaM (Array FVar) := do
-  let mut newFVars := #[]
-  for arg in args do
-    let userName ← arg.fvarId!.getUserName
-    let (``Vector, #[_, sz]) := (← inferType arg).getAppFnArgs | continue
-    let bi ← arg.fvarId!.getBinderInfo
-    let names := curriedUserNamesOfSize userName sz.nat?.get!
-    for name in names do
-      newFVars := newFVars.push ⟨name, bi, ←mkAppM ``ZMod #[.const p []]⟩
-  return newFVars
+def curryArg (prime : Name) (arg : Expr) : MetaM (Option (Array (Name × Expr))) := do
+  let userName ← arg.fvarId!.getUserName
+  let (``Vector, #[_, sz]) := (← inferType arg).getAppFnArgs | return .none
+  let names := curriedUserNamesOfSize userName sz.nat?.get!
+  let type ← mkAppM ``ZMod #[.const prime []]
+  return .some (Array.zip names (Array.replicate names.size type))
 
-def curriedBody (body : Expr) (newFVars : Array FVar) : TermElabM (LocalContext × LocalInstances × Expr) := do
-  withLocalDecls (newFVars.map (·.toLocalDeclD)) fun _ ↦ do
-    let lctx ← getLCtx
-    let ictx ← getLocalInstances
-    /-
-    Replace every `x[k]` with `x_k`.
-    TODO: We should simply replace every `x` with `#[x_0, ...]` and reduce. Remove this at some point.
-    -/
-    let res ← Meta.transform (skipConstInApp := true) body fun e ↦ do
-      let_expr GetElem.getElem _ _ _ _ _ coll idx _ := e | return .continue
-      let userName := curriedUserName (←coll.fvarId!.getUserName) idx.nat?.get!
-      let .some fvar := lctx.findFromUserName? userName | throwError m!"Unknown local declaration: {userName}"
-      return .done fvar.toExpr
-    -- Replace every `x` with `#[x_0, ...]`.
-    let res ← Meta.transform (skipConstInApp := true) res fun e ↦ do
+def curriedBody (body : Expr) : TermElabM (LocalContext × LocalInstances × Expr) := do
+  let lctx ← getLCtx
+  let ictx ← getLocalInstances
+  -- Replace every `x` with `#[x_0, ...]`.
+  let res ← Meta.transform (skipConstInApp := true) body
+    (pre := fun e ↦ do
       if e.isFVar
       then -- TODO: Refactor, reuses `curriedArgs`.
-           let (``Vector, #[t, sz]) := (←inferType e).getAppFnArgs | return .continue
-           let names := curriedUserNamesOfSize (←e.fvarId!.getUserName) sz.nat?.get!
-           let array ← mkAppM ``Array.mk #[
-             ←mkListLit t (←names.mapM (return lctx.findFromUserName? · |>.get!.toExpr)).toList
-           ]
-           let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, sz, array]
-           let Expr.forallE _ t _ _ ← inferType vecSansProof | throwError "Expected function type."
-           let vec := Expr.app vecSansProof (←mkEqRefl t)
-           return .done vec
-      else return .continue
-    return (lctx, ictx, res)
+        let (``Vector, #[t, sz]) := (←inferType e).getAppFnArgs | return .continue
+        let names := curriedUserNamesOfSize (←e.fvarId!.getUserName) sz.nat?.get!
+        let array ← mkAppM ``Array.mk #[
+          ←mkListLit t (←names.mapM (return lctx.findFromUserName? · |>.get!.toExpr)).toList
+        ]
+        let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, sz, array]
+        let Expr.forallE _ t _ _ ← inferType vecSansProof | throwError "Expected function type."
+        let vec := Expr.app vecSansProof (←mkEqRefl t)
+        return .done vec
+      else return .continue)
+    (post := fun e ↦ do
+      if e.isAppOf ``GetElem.getElem
+      then return .done (←Meta.reduce e) -- TODO: Do we need to be more specific than reduce?
+      else return .continue)
+  return (lctx, ictx, res)
 
 /--
 TODO: Needs the same refactor as serialise (using `withTransformedArgs`, etc.).
       Currently, `curry` is ugly.
 -/
-def curry (p : Name) (f : Expr) : TermElabM Expr := do
+def curry (prime : Name) (f : Expr) : TermElabM Expr := do
   lambdaTelescope f fun args body ↦ do
-    let newFVars ← curriedArgs args p
-    let (lctx, ictx, res) ← curriedBody body newFVars
-    withLCtx lctx ictx do
-      -- Note: `usedOnly := true` is actually too aggressive. It optimises out some arguments.
-      mkLambdaFVars (←lctx.getFVars.filterM fun fvar ↦ do return !(←inferType fvar).isAppOf ``Vector) res
+    withTransformedArgs args (liftM ∘ curryArg prime) fun _ ↦ do
+      let (lctx, _, res) ← curriedBody body
+      mkLambdaFVars (←lctx.getFVars.filterM fun fvar ↦ do return !(←inferType fvar).isAppOf ``Vector)
+                    res
 
 def componentsOf (e : Expr) : MetaM (Array Expr) := do
   let env ← getEnv
