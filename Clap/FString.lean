@@ -12,7 +12,7 @@ namespace FChar
 
 variable {p : ℕ} [core : Core p] [Fact (Primes.fits p 8)]
 
-def isWhitespace (c : FChar p) : Option (FB p) := do
+def isWhitespace (c : FChar p) : FB p :=
   -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
   let bv8  : F8 p := [0, 0, 0, 1, 0, 0, 0, 0]
   let bv14 : F8 p := [0, 1, 1, 1, 0, 0, 0, 0]
@@ -20,8 +20,8 @@ def isWhitespace (c : FChar p) : Option (FB p) := do
   let gt8 := FBitVec.greaterThan c bv8
   let lt14 := FBitVec.lessThan c bv14
   let isLineBreak : FB p := FB.and gt8 lt14
-  let isSpace ← F8.eq c bv32 -- ASCII 32 is space
-  return FB.or isLineBreak isSpace
+  let isSpace := F8.eq c bv32 -- ASCII 32 is space
+  FB.or isLineBreak isSpace
 
 end FChar
 
