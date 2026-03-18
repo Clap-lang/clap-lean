@@ -269,14 +269,14 @@ example : (do FString.ofFs #v[]) = some {chars := #v[], len:= (0:F p)} := by nat
 example : (do FString.ofFs #v[(0:F p),1,0,0]) = some { chars := #v[[0,0,0,0,0,0,0,0],[1,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0]],len := 2 } := by native_decide
 
 -- isWhitespace tests
-example : (do FChar.isWhitespace (← F8.ofF ( 9 : F p))) = some FB.true := by native_decide -- TAB
-example : (do FChar.isWhitespace (← F8.ofF (10 : F p))) = some FB.true := by native_decide -- LF
-example : (do FChar.isWhitespace (← F8.ofF (11 : F p))) = some FB.true := by native_decide -- VT
-example : (do FChar.isWhitespace (← F8.ofF (12 : F p))) = some FB.true := by native_decide -- FF
-example : (do FChar.isWhitespace (← F8.ofF (13 : F p))) = some FB.true := by native_decide -- CR
-example : (do FChar.isWhitespace (← F8.ofF (32 : F p))) = some FB.true := by native_decide -- SPACE
-example : (do FChar.isWhitespace (← F8.ofF (65 : F p))) = some FB.false := by native_decide -- 'A'
-example : (do FChar.isWhitespace (← F8.ofF ( 0 : F p))) = some FB.false := by native_decide -- NUL
+example : FChar.isWhitespace (F8.ofF! ( 9 : F p)) = FB.true := by native_decide -- TAB
+example : FChar.isWhitespace (F8.ofF! (10 : F p)) = FB.true := by native_decide -- LF
+example : FChar.isWhitespace (F8.ofF! (11 : F p)) = FB.true := by native_decide -- VT
+example : FChar.isWhitespace (F8.ofF! (12 : F p)) = FB.true := by native_decide -- FF
+example : FChar.isWhitespace (F8.ofF! (13 : F p)) = FB.true := by native_decide -- CR
+example : FChar.isWhitespace (F8.ofF! (32 : F p)) = FB.true := by native_decide -- SPACE
+example : FChar.isWhitespace (F8.ofF! (65 : F p)) = FB.false := by native_decide -- 'A'
+example : FChar.isWhitespace (F8.ofF! ( 0 : F p)) = FB.false := by native_decide -- NUL
 
 /-- Construct an `FString` from a char vector and a length for use in tests.
     Notably this allows to construct a "wrong" FString that FString.ofFs would not return. -/

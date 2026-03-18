@@ -233,6 +233,8 @@ scoped instance instCoreZMod {p:ℕ} [Fact (Nat.Prime p)] : Core p where
   bits2num := Compiler.bits2num
   onlyForDebugF
 
+def F8.ofF! {p:ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] : F p → F8 p := Clap.num2bitsLsbPure 8
+
 end ZMod
 
 end Clap.Lang
@@ -278,8 +280,6 @@ instance (n:ℕ) : OfNat (F32 p) n where
 example :
   letI a : UInt32 := 2^32 - 1
   (F32.add (a : F32 p) (1 : F32 p)) = ((UInt32.add a 1) : F32 p) := by native_decide
-
-def F8.ofF! : F p → F8 p := Clap.num2bitsLsbPure 8
 
 example : FBitVec.lessThan (p := p) (F8.ofF! 0) (F8.ofF! 1) == 1 := by native_decide
 example : FBitVec.lessThan (p := p) (F8.ofF! 1) (F8.ofF! 0) == 0 := by native_decide
