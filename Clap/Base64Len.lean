@@ -32,15 +32,15 @@ def base64UrlLookup (i : F p) : Option (F p) := do
   let sum_09 := sum_az + range_09 * (i + 4)
 
   -- check if i is '-'
-  let eq_minus := isZero (i - 45)
+  let eq_minus := F.eq i 45
   let sum_minus := sum_09 + eq_minus * 62;
 
   -- check if i is '_'
-  let eq_underscore := isZero (i - 95)
+  let eq_underscore := F.eq i 95
   let sum_underscore := sum_minus + eq_underscore * 63;
 
   -- check if i is '='
-  let eq_eqsign := isZero (i - 61)
+  let eq_eqsign := F.eq i 61
 
   -- check if i is zero
   let zero_padding := isZero i
