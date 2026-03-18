@@ -293,6 +293,74 @@ def parseJWTFieldWithQuotedValue
     -- String bodies reverse: non-name/value positions must NOT be inside string bodies
     eq0 (FB.not nv * sb)
 
+open Primes HashToField FString FArray in
+/--
+  Asserts structural correctness of the `email_verified` JWT field, which may have
+  its value either quoted (`"true"`) or unquoted (`true`).
+
+  Wraps `parseJWTFieldSharedLogic` with additional checks:
+
+  1. **Char before value**: must be `"` (quote), whitespace, or the colon itself
+     (i.e. `value_index - 1 == colon_index`).
+
+  2. **Char after value**: must be `"` (quote), whitespace, or the field delimiter
+     (i.e. `value_index + value_len == field_len - 1`).
+
+  3. **No mismatched quotes**: it is not the case that one side has a quote and
+     the other has whitespace (both quoted or both unquoted).
+
+  4. **Whitespace zones**: every character in the three gaps
+     - `[name_len + 2, colon_index)` (between closing name-quote and colon)
+     - `[colon_index + 1, value_index - 1)` (between colon and char before value)
+     - `[value_index + value_len + 1, field_len - 1)` (after char after value, before terminator)
+     must be a whitespace character.
+
+  Specialised to `Primes.bn254` because `assertIsSubstringFS` uses Poseidon.
+-/
+def parseEmailVerifiedField
+    {maxKVPairLen maxNameLen maxValueLen : ℕ}
+    (h_name  : maxNameLen  ≤ maxKVPairLen)
+    (h_value : maxValueLen ≤ maxKVPairLen)
+    (field      : FString bn254 maxKVPairLen)
+    (name       : FString bn254 maxNameLen)
+    (value      : FString bn254 maxValueLen)
+    (colonIndex : F bn254)
+    (valueIndex : F bn254)
+    : Option Unit := do
+  -- Delegate shared structural checks
+  parseJWTFieldSharedLogic h_name h_value field name value colonIndex valueIndex
+  let fieldChars := field.chars.map FBitVec.toF
+  -- Char before value
+  let charBeforeValue ← selectArrayValue fieldChars (valueIndex - const 1)
+  let beforeIsQuote      : FB bn254 := isZero (charBeforeValue - const 34) -- ASCII 34 = '"'
+  let beforeIsWhitespace : FB bn254 := FChar.isWhitespace (← F8.ofF charBeforeValue)
+  let beforeIsWsOrQuote := FB.or beforeIsQuote beforeIsWhitespace
+  -- Check: char before value is quote/whitespace, OR it is the colon (valueIndex - 1 == colonIndex)
+  eq0 ((const 1 - beforeIsWsOrQuote) * (valueIndex - const 1 - colonIndex))
+  -- Char after value
+  let charAfterValue ← selectArrayValue fieldChars (valueIndex + value.len)
+  let afterIsQuote      : FB bn254 := isZero (charAfterValue - const 34) -- ASCII 34 = '"'
+  let afterIsWhitespace : FB bn254 := FChar.isWhitespace (← F8.ofF charAfterValue)
+  let afterIsWsOrQuote := FB.or afterIsQuote afterIsWhitespace
+  -- Check: char after value is quote/whitespace, OR it is the field delimiter (fieldLen - 1 == valueIndex + valueLen)
+  eq0 ((const 1 - afterIsWsOrQuote) * (field.len - const 1 - valueIndex - value.len))
+  -- No mismatched quotes: ¬(before=quote ∧ after=whitespace) ∧ ¬(before=whitespace ∧ after=quote)
+  let mismatch1 := FB.and beforeIsQuote afterIsWhitespace
+  let mismatch2 := FB.and beforeIsWhitespace afterIsQuote
+  eq0 (mismatch1 + mismatch2)
+  -- Whitespace zones
+  -- Zone A: [nameLen + 2, colonIndex)  — between closing name-quote and colon
+  -- Zone B: [colonIndex + 1, valueIndex - 1)  — between colon and char before value (could be quote)
+  -- Zone C: [valueIndex + valueLen + 1, fieldLen - 1)  — after char after value, before terminator
+  let zoneA ← arraySelectorComplex maxKVPairLen (name.len + const 2) colonIndex
+  let zoneB ← arraySelectorComplex maxKVPairLen (colonIndex + const 1) (valueIndex - const 1)
+  let zoneC ← arraySelectorComplex maxKVPairLen (valueIndex + value.len + const 1) (field.len - const 1)
+  let inZone := (zoneA.zipWith FB.or zoneB).zipWith FB.or zoneC
+  -- For each position in a whitespace zone, the character must be whitespace
+  (inZone.zip field.chars).toList.forM fun (z, c) ↦ do
+    let ws ← FChar.isWhitespace c
+    eq0 (z * FB.not ws)
+
 end JWT
 
 namespace TestJWT
@@ -868,5 +936,96 @@ example : (do
   let value := strToFS 4 "a\\\"b"
   parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5
   ) = some () := by native_decide
+
+-- parseEmailVerifiedField tests
+
+-- valid: "a":b,  (unquoted value, colon immediately before value)
+-- field = "a":b,  →  0=" 1=a 2=" 3=: 4=b 5=,
+-- value_index=4, colon_index=3, char before value is ':', value_index-1 == colon_index
+example : (do
+  let field := strToFS 6 "\"a\":b,"
+  let name  := strToFS 1 "a"
+  let value := strToFS 1 "b"
+  parseEmailVerifiedField (by omega) (by omega) field name value 3 4
+  ) = some () := by native_decide
+
+-- valid: "a":"b",  (quoted value)
+-- field = "a":"b",  →  0=" 1=a 2=" 3=: 4=" 5=b 6=" 7=,
+-- value_index=5, colon_index=3, char before value is '"', char after value is '"'
+example : (do
+  let field := strToFS 8 "\"a\":\"b\","
+  let name  := strToFS 1 "a"
+  let value := strToFS 1 "b"
+  parseEmailVerifiedField (by omega) (by omega) field name value 3 5
+  ) = some () := by native_decide
+
+-- valid: "a":b}  (unquoted value, ending with '}')
+example : (do
+  let field := strToFS 6 "\"a\":b}"
+  let name  := strToFS 1 "a"
+  let value := strToFS 1 "b"
+  parseEmailVerifiedField (by omega) (by omega) field name value 3 4
+  ) = some () := by native_decide
+
+-- valid: "a":"b"}  (quoted value, ending with '}')
+example : (do
+  let field := strToFS 8 "\"a\":\"b\"}"
+  let name  := strToFS 1 "a"
+  let value := strToFS 1 "b"
+  parseEmailVerifiedField (by omega) (by omega) field name value 3 5
+  ) = some () := by native_decide
+
+-- valid: "sub": true ,  (unquoted value with whitespace around it)
+-- value_index=7, colon_index=5, char before value is ' ' (whitespace)
+-- char after value at index 11 is ' ' (whitespace)
+example : (do
+  let field := strToFS 14 "\"sub\": true ,"
+  let name  := strToFS 3 "sub"
+  let value := strToFS 4 "true"
+  parseEmailVerifiedField (by omega) (by omega) field name value 5 7
+  ) = some () := by native_decide
+
+-- valid: "sub": "true" ,  (quoted value with whitespace around quotes)
+-- value_index=8, colon_index=5, char before value is '"', char after value is '"'
+example : (do
+  let field := strToFS 16 "\"sub\": \"true\" ,"
+  let name  := strToFS 3 "sub"
+  let value := strToFS 4 "true"
+  parseEmailVerifiedField (by omega) (by omega) field name value 5 8
+  ) = some () := by native_decide
+
+-- valid: "ev":true,  (multi-char unquoted value, no gaps)
+example : (do
+  let field := strToFS 10 "\"ev\":true,"
+  let name  := strToFS 2 "ev"
+  let value := strToFS 4 "true"
+  parseEmailVerifiedField (by omega) (by omega) field name value 4 5
+  ) = some () := by native_decide
+
+-- Reject: mismatched quotes — quote before, whitespace after — "a":"b ,
+-- char before value is '"', char after value is ' ' → mismatched
+example : (do
+  let field := strToFS 8 "\"a\":\"b ,"
+  let name  := strToFS 1 "a"
+  let value := strToFS 1 "b"
+  parseEmailVerifiedField (by omega) (by omega) field name value 3 5
+  ) = none := by native_decide
+
+-- Reject: non-whitespace garbage between name-quote and colon — "a"X:b,
+example : (do
+  let field := strToFS 7 "\"a\"X:b,"
+  let name  := strToFS 1 "a"
+  let value := strToFS 1 "b"
+  parseEmailVerifiedField (by omega) (by omega) field name value 4 5
+  ) = none := by native_decide
+
+-- Reject: non-whitespace between colon and value (not quote/whitespace/colon) — "a":Xb,
+-- char before value at index 4 is 'X', which is not quote, not whitespace, and value_index-1 ≠ colon_index
+example : (do
+  let field := strToFS 7 "\"a\":Xb,"
+  let name  := strToFS 1 "a"
+  let value := strToFS 1 "b"
+  parseEmailVerifiedField (by omega) (by omega) field name value 3 5
+  ) = none := by native_decide
 
 end TestJWT
