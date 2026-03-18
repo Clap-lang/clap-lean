@@ -371,68 +371,75 @@ open Clap.Lang Core ZMod FString FArray HashToField Primes
 
 abbrev p := Primes.bn254
 
-private def parseCharsASCII (s : List Char) : List (ZMod p) := s.map (fun n ↦ (ofNat(n.toNat) : ZMod p))
+private def parseCharsASCII (s : String) : List (F p) :=
+  s.chars.map (fun n ↦ (n.toNat : ZMod p)) |>.toList
+private def parseBitString (s : String) : List (FB p) :=
+  s.chars.filter (fun c ↦ c != ' ') |>.map (fun c ↦ if c = '0' then 0 else 1) |>.toList
 
-/-- Build an `FString p maxLen` from a Lean `String`, zero-padding to `maxLen`. -/
-private def strToFS (maxLen : ℕ) (s : String) (h : s.length ≤ maxLen := by decide) : FString p maxLen :=
-  let ascii := s.toList.map (fun c ↦ ch c.toNat)
-  let padded := ascii ++ List.replicate (maxLen - ascii.length) (ch 0)
-  ⟨⟨padded.toArray, by simp [padded, ascii, String.length_toList]; omega⟩, (s.length : ZMod p)⟩
-where
-  ch (n : ℕ) : FChar p := Clap.num2bitsLsbPure 8 n
+/- from the Circom docstring
+  { asdfsdf "as\"df" }
+  00000000000111111000 -/
+example :
+  let inp      := parseCharsASCII "{ asdfsdf \"as\\\"df\" }"
+  let expected := parseBitString  "0000000000 011 1 111 000"
+  stringBodies (p := p) inp == expected := by native_decide
 
 /-
   { a "a\"a" } →
   000001111000
 -/
-private def str₀ :=
-  parseCharsASCII ['{', ' ', 'a', ' ', '"', 'a', '\\', '"', 'a', '"', ' ', '}']
-example : stringBodies (p := p) str₀ == [0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0] := by
-  native_decide
+example :
+  let inp      := parseCharsASCII "{ a \"a\\\"a\" }"
+  let expected := parseBitString  "0000 01 1 11 000"
+  stringBodies (p := p) inp == expected := by native_decide
 
 /-
   "i\i""i" →
   01110010
 -/
-private def str₁ := parseCharsASCII ['"', 'i', '\\', 'i', '"', '"', 'i', '"']
-example : stringBodies (p := p) str₁ == [0, 1, 1, 1, 0, 0, 1, 0] := by
-  native_decide
+example :
+  let inp      := parseCharsASCII "\"i\\i\"\"i\""
+  let expected := parseBitString  " 01 11 0 01 0"
+  stringBodies (p := p) inp == expected := by native_decide
 
 /-
   "i\"\\\"i" →
   0111111110
 -/
-private def str₂ :=
-  parseCharsASCII ['"', 'i', '\\', '"', '\\', '\\', '\\',  '"', 'i', '"']
-example : stringBodies (p := p) str₂ == [0, 1, 1, 1, 1, 1, 1, 1, 1, 0] := by
-  native_decide
+example :
+  let inp      := parseCharsASCII "\"i\\\"\\\\\\\"i\""
+  let expected := parseBitString  " 01 1 1 1 1 1 11 0"
+  stringBodies (p := p) inp == expected := by native_decide
 
 /-
   """""" →
   000000
 -/
-private def str₃ := parseCharsASCII ['"', '"', '"', '"', '"', '"']
-example : stringBodies (p := p) str₃ == [0, 0, 0, 0, 0, 0] := by native_decide
+example :
+  let inp      := parseCharsASCII "\"\"\"\"\"\""
+  let expected := parseBitString  " 0 0 0 0 0 0"
+  stringBodies (p := p) inp == expected := by native_decide
 
 /-
   \"\""i"\"\" →
   00000100000
 -/
-private def str₄ :=
-  parseCharsASCII ['\\', '"', '\\', '"','"', 'i', '"', '\\', '"', '\\', '"']
-example : stringBodies (p := p) str₄ == [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0] := by
-  native_decide
+example :
+  let inp      := parseCharsASCII "\\\"\\\"\"i\"\\\"\\\""
+  let expected := parseBitString  " 0 0 0 0 01 0 0 0 0 0"
+  stringBodies (p := p) inp == expected := by native_decide
 
 /-
   \\"\\" →
   000110
 -/
-private def str₅ := parseCharsASCII ['\\', '\\', '"', '\\', '\\', '"']
-example : stringBodies (p := p) str₅ == [0, 0, 0, 1, 1, 0] := by native_decide
+example :
+  let inp      := parseCharsASCII "\\\\\"\\\\\""
+  let expected := parseBitString  " 0 0 0 1 1 0"
+  stringBodies (p := p) inp == expected := by native_decide
 
 private def br :=
-  parseCharsASCII
-    ['{', 'h', 'e', '{', 'l', 'l', 'o', '{', '}', 'w', 'o', 'r', 'l', 'd', '!', '}', '}']
+  parseCharsASCII "{he{llo{}world!}}"
 example :
   bracketsMap (p := p) br == [1, 0, 0, 1, 0, 0, 0, 1, -1, 0, 0, 0, 0, 0, 0, -1, -1]
 := by
@@ -496,6 +503,14 @@ example : -- uid is not «email», the rest doesn't matter
 := by native_decide
 
 -- parseJWTFieldSharedLogic tests
+
+/-- Build an `FString p maxLen` from a Lean `String`, zero-padding to `maxLen`. -/
+private def strToFS (maxLen : ℕ) (s : String) (h : s.length ≤ maxLen := by decide) : FString p maxLen :=
+  let ascii := s.toList.map (fun c ↦ ch c.toNat)
+  let padded := ascii ++ List.replicate (maxLen - ascii.length) (ch 0)
+  ⟨⟨padded.toArray, by simp [padded, ascii, String.length_toList]; omega⟩, (s.length : ZMod p)⟩
+where
+  ch (n : ℕ) : FChar p := Clap.num2bitsLsbPure 8 n
 
 -- valid field "a":b,  (name="a", value="b", ending with ',')
 example : (do
