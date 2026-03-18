@@ -193,14 +193,14 @@ def wg (p : Name) (argFvars : Array Expr) : TermElabM Expr := do
     let body ← mkAppM ``Wg.run #[fvar, args']
     mkLambdaFVars (#[fvar] ++ argFvars) body
 
-def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
+def compile (p circuitName : Name) (f : Expr) (n : Nat) : TermElabM Unit := do
   let serialiseS ← serialise p f
   trace[Clap.Compiler.serialise] m!"{serialiseS}"
 
   let curryS ← curry p serialiseS
   trace[Clap.Compiler.curry] m!"{curryS}"
 
-  let reduceExprS ← reduceExpr curryS
+  let reduceExprS ← reduceExpr n curryS
   trace[Clap.Compiler.reduce] m!"{reduceExprS}"
 
   let compiledF ← pure reduceExprS >>= toDeep p
@@ -246,19 +246,23 @@ def fixPrime (e p : Expr) : TermElabM Expr := do
   trace[Clap.Compiler.preprocess] m!"{withFixedPS}"
   pure withFixedPS >>= trySynthAll >>= instantiateMVars
 
-elab "#compile" circuit:ident "using" p:ident : command => Command.liftTermElabM do
-  withTraceNode `Clap.Compiler (return m!"{exceptEmoji ·} Compiling {circuit} with {p}") do
+elab "#compile" circuit:ident "using" p:ident n:optional("iters" num) : command => Command.liftTermElabM do
+  let defaultIters : ℕ := 2048
+  /-
+  This is just a debugging feature so I do not care to make it pretty.
+  We sometimes get `.some <Nothing>` so we spoon to `defaultIters` one way or the other.
+  -/
+  let n := n.raw[1]?.elim defaultIters (let num := ·.toNat; if num == 0 then defaultIters else num)
+  
+  withTraceNode `Clap.Compiler (return m!"{exceptEmoji ·} Compiling {circuit} with {p} (iters = {n})") do
   let [decl] ← realizeGlobalConst circuit | throwError m!"Ambiguous constant: {circuit}"
   trace[Clap.Compiler.nameResolution] m!"Resolved {circuit} into {decl}"
   let .some decl := (←getEnv).find? decl | throwError m!"Undeclared constant: {circuit}"
-
   let preprocessedS ←
     withTraceNode `Clap.Compiler.preprocess
-                  (fun res ↦
-                    return m!"{exceptEmoji res} Fixed p = {p}, resolved typeclasses:\n\
-                              {match res with | .error _ => "<Failed>" | .ok res => res}") do
+                  (Trace.formatExprWith s!"Fixed p = {p}, resolved typeclasses:") do
                   fixPrime decl.value! (.const p.getId [])
-  compile p.getId circuit.getId preprocessedS
+  compile p.getId circuit.getId preprocessedS n
 
 end Compiler
 

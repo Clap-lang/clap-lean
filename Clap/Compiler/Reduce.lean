@@ -6,7 +6,7 @@ import Clap.Compiler.Wheels
 
 open Lean Qq Meta
 
-namespace Clap
+namespace Clap.Compiler
 
 def isNameFormer (e : Expr) (typeName : Name) : MetaM Bool :=
   forallTelescopeReducing e fun _ ret ↦ return ret.isAppOf typeName
@@ -196,12 +196,11 @@ def reduceStep (e : Expr) : MetaM Expr := do
       | _ => e
     skipIdentity (σ₁ σ₂ : Expr) := if σ₁ == σ₂ then m!"<Identity>" else m!"{σ₂}"
 
-def reduceExpr (e : Expr) : MetaM Expr := do
-  let numIters := 256
+def reduceExpr (iters : ℕ) (e : Expr) : MetaM Expr := do
   withTraceNode `Clap.Compiler.reduce
-    (return m!"{exceptEmoji ·} Reducing up to n = {numIters}") do
+    (Trace.formatExprWith s!"Reducing up to n = {iters}") do
   let mut res := e
-  for i in [0:numIters] do
+  for i in [0:iters] do
     let res' ← reduceStep res
     if res == res' then
       trace[Clap.Compiler.reduce.trace.numIters] m!"Reduction done after {i} iterations"
@@ -211,10 +210,10 @@ def reduceExpr (e : Expr) : MetaM Expr := do
 
 open MVarId in
 def _root_.Lean.MVarId.reduceTarget (goal : MVarId) : MetaM MVarId :=
-  goal.transformTarget (f := reduceExpr)
+  goal.transformTarget (f := reduceExpr 2048)
 
 open Elab Tactic in
 elab "test_reduce" : tactic => do
   liftMetaTactic' MVarId.reduceTarget
 
-end Clap
+end Clap.Compiler

@@ -30,3 +30,12 @@ initialize Lean.registerTraceClass `Clap.Compiler.reduce.letSome (inherited := t
 initialize Lean.registerTraceClass `Clap.Compiler.serialise (inherited := true)
 
 initialize Lean.registerTraceClass `Clap.Compiler.curry (inherited := true)
+
+namespace Clap.Compiler.Trace
+
+open Lean Elab.Term in
+def formatExprWith {m : Type _ → Type _} [Monad m]
+                   (s : String) (res : Except Exception Expr) : m MessageData :=
+  return m!"{exceptEmoji res} {s}\n{match res with | .error _ => "<Failed>" | .ok res => res}"
+
+end Clap.Compiler.Trace

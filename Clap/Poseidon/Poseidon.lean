@@ -2,6 +2,8 @@ import Clap.Primes
 import Clap.Spec
 import Clap.Lang
 import Clap.Poseidon.Constant
+import Clap.Compiler.Basic
+import Clap.Primes
 
 namespace Clap.Poseidon
 
@@ -187,31 +189,31 @@ open Clap Lang ZMod
 open Clap Poseidon
 
 /-- Run poseidon on `ZMod bn254` inputs, looking up constants by `t`. -/
-private def testPoseidon (inputs : List (ZMod p)) (expected : F p) : Option Unit := do
-  F.assert_eq (← poseidonBN254 (inputs.map const)) expected
+private def testPoseidon {k} (inputs : Vector (ZMod p) k) (expected : F p) : Option Unit := do
+  F.assert_eq (← poseidonBN254 (inputs.map const).toList) expected
 
 -- circomlib test vector: hash([1, 2]) with t=3
 -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L50
 example : testPoseidon
-  [1, 2] 7853200120776062878684798364095072458815029376092732009249414926327459813530
+  #v[1, 2] 7853200120776062878684798364095072458815029376092732009249414926327459813530
   = some () := by native_decide
 
 -- circomlib test vector: hash([3, 4]) with t=3
 -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L60
 example : testPoseidon
-  [3, 4] 14763215145315200506921711489642608356394854266165572616578112107564877678998
+  #v[3, 4] 14763215145315200506921711489642608356394854266165572616578112107564877678998
   = some () := by native_decide
 
 -- circomlib test vector: hash([1, 2, 0, 0, 0]) with t=6
 -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L29
 example : testPoseidon
-  [1, 2, 0, 0, 0] 1018317224307729531995786483840663576608797660851238720571059489595066344487
+  #v[1, 2, 0, 0, 0] 1018317224307729531995786483840663576608797660851238720571059489595066344487
   = some () := by native_decide
 
 -- circomlib test vector: hash([3, 4, 5, 10, 23]) with t=6
 -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L39
 example : testPoseidon
-  [3, 4, 5, 10, 23] 13034429309846638789535561449942021891039729847501137143363028890275222221409
+  #v[3, 4, 5, 10, 23] 13034429309846638789535561449942021891039729847501137143363028890275222221409
   = some () := by native_decide
 
 end Poseidon.Test
