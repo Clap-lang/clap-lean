@@ -9,19 +9,19 @@ open Clap.Lang Core Primes
 
 variable {p : ℕ} [Core p] [Core bn254]
 
+instance : Coe Char (F p) where
+  coe c := c.toNat
+
 private def stringBodiesRev₀ (input : List (F p)) : List (FB p) × FB p × FB p :=
   input.foldl
     ( fun (acc, openedQuotes, escaped) c ↦
-        let isNonEscQuotationMark := isQuotationMark c * FB.not escaped
+        let isNonEscQuotationMark := F.eq c '\"' &&& FB.not escaped
         let acc' := openedQuotes * FB.not isNonEscQuotationMark :: acc
         let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
-        let escaped' := isBackslash c * FB.not escaped
+        let escaped' := F.eq c '\\' &&& FB.not escaped
         (acc', openedQuotes', escaped')
     )
     ([], default, default)
- where
-  isQuotationMark (c : F p) : FB p := F.eq c 34
-  isBackslash (c : F p) : FB p := F.eq c 92
 
 /-- From keyless:
   Given an array of ask characters representing a JSON object, output a binary array demarquing
@@ -45,12 +45,7 @@ def stringBodies (input : List (F p)) : List (FB p) :=
   where `arr` is represented by its ASCII encoding, i.e. `{` = 123
 -/
 def bracketsMap (input : List (F p)) : List (FB p) :=
-  input.map (fun c ↦ isOpenBracket c - isClosedBracket c)
- where
-  /-- Returns true if the character is '{' -/
-  isOpenBracket (c : F p) : FB p := F.eq c 123
-  /-- Returns true if the character is '}' -/
-  isClosedBracket (c : F p) : FB p := F.eq c 125
+  input.map (fun c ↦ (F.eq c '{') - (F.eq c '}'))
 
 private def bracketsDepthMapRev₀ (input : List (F p)) : List (F p) × F p :=
   input.foldl
@@ -127,6 +122,8 @@ private def requiredEvValLen6 : List (F p) :=
   -- «"true"»
   [34, 116, 114, 117, 101, 34]
 
+def FList.eq (a b : List (F p)) : FB p := a.zipWith F.eq b |>.foldl (· * ·) 1
+
 /--
   Enforce that if uid name is "email", the email verified field is either true or "true"
 -/
@@ -138,22 +135,18 @@ def emailVerifiedCheck
   (evValue : List (F p))
   : Option (FB p)
 := do
-  let uidIsEmail :=
-    F.eq uidNameLen 5 * (uidName.zipWith F.eq email).foldl (· * ·) 1
-  conditionallyAssert uidIsEmail <|
-    (evName.zipWith F.eq requiredEvName).foldl (· * ·) 1
+  let uidIsEmail := F.eq uidNameLen 5 &&& FList.eq uidName email
+  conditionallyAssert uidIsEmail (FList.eq evName requiredEvName)
   let evValLenIs4 := F.eq evValueLen 4
   let evValLenIs6 := F.eq evValueLen 6
-  let evValLenOk := FB.or evValLenIs4 evValLenIs6
+  let evValLenOk := evValLenIs4 ||| evValLenIs6
   conditionallyAssert uidIsEmail evValLenOk
 
-  let checkEvValBool := evValLenIs4 * uidIsEmail
-  conditionallyAssert checkEvValBool <|
-    (evValue.zipWith F.eq requiredEvValLen4).foldl (· * ·) 1
+  let checkEvValBool := evValLenIs4 &&& uidIsEmail
+  conditionallyAssert checkEvValBool (FList.eq evValue requiredEvValLen4)
 
-  let checkEvValString := evValLenIs6 * uidIsEmail
-  conditionallyAssert checkEvValString <|
-    (evValue.zipWith F.eq requiredEvValLen6).foldl (· * ·) 1
+  let checkEvValString := evValLenIs6 &&& uidIsEmail
+  conditionallyAssert checkEvValString (FList.eq evValue requiredEvValLen6)
   return uidIsEmail
  where
   conditionallyAssert (antecedent consequent : FB p) : Option Unit :=
@@ -208,22 +201,22 @@ private def parseJWTFieldSharedLogic
   -- Pre-compute hash of field for Fiat-Shamir substring checks
   let fieldHash ← hashBytesToFieldWithLen (field.chars.map FBitVec.toF) field.len
   -- Check 3: field[0] == '"' (ASCII 34)
-  let firstChar ← selectArrayValue (field.chars.map FBitVec.toF) (const 0)
-  F.assert_eq firstChar (const 34)
+  let firstChar ← selectArrayValue (field.chars.map FBitVec.toF) 0
+  F.assert_eq firstChar '\"'
   -- Check 4: name is a substring of field starting at index 1
-  assertIsSubstringFS h_name field fieldHash name (const 1)
+  assertIsSubstringFS h_name field fieldHash name 1
   -- Check 5: field[name_len + 1] == '"' (ASCII 34)
-  let nameClosingQuote ← selectArrayValue (field.chars.map FBitVec.toF) (name.len + const 1)
-  F.assert_eq nameClosingQuote (const 34)
+  let nameClosingQuote ← selectArrayValue (field.chars.map FBitVec.toF) (name.len + 1)
+  F.assert_eq nameClosingQuote '\"'
   -- Check 6: field[colon_index] == ':' (ASCII 58)
   let colonChar ← selectArrayValue (field.chars.map FBitVec.toF) colon_index
-  F.assert_eq colonChar (const 58)
+  F.assert_eq colonChar ':'
   -- Check 7: value is a substring of field starting at value_index
   assertIsSubstringFS h_value field fieldHash value value_index
   -- Check 8: field[field_len - 1] == ',' (44) or '}' (125)
-  let lastChar ← selectArrayValue (field.chars.map FBitVec.toF) (field.len - const 1)
+  let lastChar ← selectArrayValue (field.chars.map FBitVec.toF) (field.len - 1)
   -- Enforce (lastChar - 44) * (lastChar - 125) == 0
-  eq0 ((lastChar - const 44) * (lastChar - const 125))
+  eq0 ((lastChar - (',' : F _)) &&& (lastChar - ('}' : F _)))
 
 open Primes HashToField FString FArray in
 /--
@@ -258,25 +251,22 @@ def parseJWTFieldWithUnquotedValue
   -- Zone A: [name_len + 2, colon_index)  — between closing name-quote and colon
   -- Zone B: [colon_index + 1, value_index)  — between colon and value (no quote around value)
   -- Zone C: [value_index + value_len, field_len - 1)  — after value, before terminator
-  let zoneA ← arraySelectorComplex maxKVPairLen (name.len + const 2) colon_index
-  let zoneB ← arraySelectorComplex maxKVPairLen (colon_index + const 1) value_index
-  let zoneC ← arraySelectorComplex maxKVPairLen (value_index + value.len) (field.len - const 1)
+  let zoneA ← arraySelectorComplex maxKVPairLen (name.len + 2) colon_index
+  let zoneB ← arraySelectorComplex maxKVPairLen (colon_index + 1) value_index
+  let zoneC ← arraySelectorComplex maxKVPairLen (value_index + value.len) (field.len - 1)
   -- Merge zones: inZone[i] = zoneA[i] ∨ zoneB[i] ∨ zoneC[i]
   let inZone := (zoneA.zipWith FB.or zoneB).zipWith FB.or zoneC
   -- For each position in a whitespace zone, the character must be whitespace
   (inZone.zip field.chars).toList.forM fun (z, c) ↦ do
-    let ws ← FChar.isWhitespace c
-    eq0 (z * FB.not ws)
+    let ws := FChar.isWhitespace c
+    eq0 (z &&& FB.not ws)
   -- Check 2: value must not contain ',', '}', or '"'
   -- valueSelector: 1s at [value_index, value_index + value_len)
   let valueSel ← arraySelector maxKVPairLen value_index (value_index + value.len)
   (valueSel.zip fieldChars).toList.forM fun (sel, c) ↦
-    let isComma    : FB bn254 := isZero (c - const 44)
-    let isEndBrace : FB bn254 := isZero (c - const 125)
-    let isQuote    : FB bn254 := isZero (c - const 34)
-    let isForbidden := FB.or (FB.or isComma isEndBrace) isQuote
+    let isForbidden := F.eq c ',' ||| F.eq c '}' ||| F.eq c '\"'
     -- If in value range, character must not be forbidden
-    eq0 (sel * isForbidden)
+    eq0 (sel &&& isForbidden)
 
 open Primes HashToField FString FArray in
 /--
@@ -312,21 +302,21 @@ def parseJWTFieldWithQuotedValue
   parseJWTFieldSharedLogic h_name h_value field name value colon_index value_index
   let fieldChars := field.chars.map FBitVec.toF
   -- Check 0: field[value_index - 1] == '"' (opening quote around value)
-  let valueFirstQuote ← selectArrayValue fieldChars (value_index - const 1)
-  F.assert_eq valueFirstQuote (const 34)
+  let valueFirstQuote ← selectArrayValue fieldChars (value_index - 1)
+  F.assert_eq valueFirstQuote 34
   -- Check 1: field[value_index + value_len] == '"' (closing quote around value)
   let valueSecondQuote ← selectArrayValue fieldChars (value_index + value.len)
-  F.assert_eq valueSecondQuote (const 34)
+  F.assert_eq valueSecondQuote 34
   -- Check 2: whitespace zones + string bodies
   -- Zone A: [name_len + 2, colon_index)  — between closing name-quote and colon
   -- Zone B: [colon_index + 1, value_index - 1)  — between colon and opening value-quote
   -- Zone C: [value_index + value_len + 1, field_len - 1)  — after closing value-quote, before terminator
-  let zoneA ← arraySelectorComplex maxKVPairLen (name.len + const 2) colon_index
-  let zoneB ← arraySelectorComplex maxKVPairLen (colon_index + const 1) (value_index - const 1)
-  let zoneC ← arraySelectorComplex maxKVPairLen (value_index + value.len + const 1) (field.len - const 1)
+  let zoneA ← arraySelectorComplex maxKVPairLen (name.len + 2) colon_index
+  let zoneB ← arraySelectorComplex maxKVPairLen (colon_index + 1) (value_index - 1)
+  let zoneC ← arraySelectorComplex maxKVPairLen (value_index + value.len + 1) (field.len - 1)
   let inZone := (zoneA.zipWith FB.or zoneB).zipWith FB.or zoneC
   -- Name selector: [1, name_len + 1) — name content inside its quotes
-  let nameSel ← arraySelector maxKVPairLen (const 1) (name.len + const 1)
+  let nameSel ← arraySelector maxKVPairLen 1 (name.len + 1)
   -- Value selector: [value_index, value_index + value_len) — value content inside its quotes
   let valueSel ← arraySelector maxKVPairLen value_index (value_index + value.len)
   let nameOrValue := nameSel.zipWith FB.or valueSel
@@ -335,12 +325,12 @@ def parseJWTFieldWithQuotedValue
   -- TODO: ugly zip, zip, zip. Better way todo it?
   (inZone.zip (nameOrValue.zip (field_string_bodies.zip field.chars))).toList.forM fun (z, nv, sb, c) ↦ do
     -- Whitespace check: if in a whitespace zone, the character must be whitespace
-    let ws ← FChar.isWhitespace c
-    eq0 (z * FB.not ws)
+    let ws := FChar.isWhitespace c
+    eq0 (z &&& FB.not ws)
     -- String bodies forward: name/value positions must be inside string bodies
-    eq0 (nv * FB.not sb)
+    eq0 (nv &&& FB.not sb)
     -- String bodies reverse: non-name/value positions must NOT be inside string bodies
-    eq0 (FB.not nv * sb)
+    eq0 (FB.not nv &&& sb)
 
 open Primes HashToField FString FArray in
 /--
@@ -380,35 +370,35 @@ def parseEmailVerifiedField
   parseJWTFieldSharedLogic h_name h_value field name value colonIndex valueIndex
   let fieldChars := field.chars.map FBitVec.toF
   -- Char before value
-  let charBeforeValue ← selectArrayValue fieldChars (valueIndex - const 1)
-  let beforeIsQuote      : FB bn254 := isZero (charBeforeValue - const 34) -- ASCII 34 = '"'
+  let charBeforeValue ← selectArrayValue fieldChars (valueIndex - 1)
+  let beforeIsQuote      : FB bn254 := F.eq charBeforeValue '\"'
   let beforeIsWhitespace : FB bn254 := FChar.isWhitespace (← F8.ofF charBeforeValue)
   let beforeIsWsOrQuote := FB.or beforeIsQuote beforeIsWhitespace
   -- Check: char before value is quote/whitespace, OR it is the colon (valueIndex - 1 == colonIndex)
-  eq0 ((const 1 - beforeIsWsOrQuote) * (valueIndex - const 1 - colonIndex))
+  eq0 ((1 - beforeIsWsOrQuote) &&& (valueIndex - 1 - colonIndex))
   -- Char after value
   let charAfterValue ← selectArrayValue fieldChars (valueIndex + value.len)
-  let afterIsQuote      : FB bn254 := isZero (charAfterValue - const 34) -- ASCII 34 = '"'
+  let afterIsQuote      : FB bn254 := F.eq charAfterValue '\"'
   let afterIsWhitespace : FB bn254 := FChar.isWhitespace (← F8.ofF charAfterValue)
   let afterIsWsOrQuote := FB.or afterIsQuote afterIsWhitespace
   -- Check: char after value is quote/whitespace, OR it is the field delimiter (fieldLen - 1 == valueIndex + valueLen)
-  eq0 ((const 1 - afterIsWsOrQuote) * (field.len - const 1 - valueIndex - value.len))
+  eq0 ((1 - afterIsWsOrQuote) &&& (field.len - 1 - valueIndex - value.len))
   -- No mismatched quotes: ¬(before=quote ∧ after=whitespace) ∧ ¬(before=whitespace ∧ after=quote)
-  let mismatch1 := FB.and beforeIsQuote afterIsWhitespace
-  let mismatch2 := FB.and beforeIsWhitespace afterIsQuote
+  let mismatch1 := beforeIsQuote &&& afterIsWhitespace
+  let mismatch2 := beforeIsWhitespace &&& afterIsQuote
   eq0 (mismatch1 + mismatch2)
   -- Whitespace zones
   -- Zone A: [nameLen + 2, colonIndex)  — between closing name-quote and colon
   -- Zone B: [colonIndex + 1, valueIndex - 1)  — between colon and char before value (could be quote)
   -- Zone C: [valueIndex + valueLen + 1, fieldLen - 1)  — after char after value, before terminator
-  let zoneA ← arraySelectorComplex maxKVPairLen (name.len + const 2) colonIndex
-  let zoneB ← arraySelectorComplex maxKVPairLen (colonIndex + const 1) (valueIndex - const 1)
-  let zoneC ← arraySelectorComplex maxKVPairLen (valueIndex + value.len + const 1) (field.len - const 1)
+  let zoneA ← arraySelectorComplex maxKVPairLen (name.len + 2) colonIndex
+  let zoneB ← arraySelectorComplex maxKVPairLen (colonIndex + 1) (valueIndex - 1)
+  let zoneC ← arraySelectorComplex maxKVPairLen (valueIndex + value.len + 1) (field.len - 1)
   let inZone := (zoneA.zipWith FB.or zoneB).zipWith FB.or zoneC
   -- For each position in a whitespace zone, the character must be whitespace
   (inZone.zip field.chars).toList.forM fun (z, c) ↦ do
-    let ws ← FChar.isWhitespace c
-    eq0 (z * FB.not ws)
+    let ws := FChar.isWhitespace c
+    eq0 (z &&& FB.not ws)
 
 end JWT
 
