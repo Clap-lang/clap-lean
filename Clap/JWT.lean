@@ -23,9 +23,27 @@ private def stringBodiesRev₀ (input : List (F p)) : List (FB p) × FB p × FB 
   isQuotationMark (c : F p) : FB p := F.eq c 34
   isBackslash (c : F p) : FB p := F.eq c 92
 
+/-- From keyless:
+  Given an array of ask characters representing a JSON object, output a binary array demarquing
+  the spaces in between quotes, so that the indices in between quotes in `in` are given the value
+  `1` in `out`, and are 0 otherwise. Escaped quotes are not considered quotes in this subcircuit
+  input =  { asdfsdf "as\"df" }
+  output = 00000000000111111000
+-/
 def stringBodies (input : List (F p)) : List (FB p) :=
   (stringBodiesRev₀ input).1.reverse
 
+/--
+  Given an array of ASCII characters `arr`, returns an array `brackets` with
+  a 1 in the position of each open bracket `{`, a -1 in the position of each closed bracket `}`
+  and 0 everywhere else.
+  See an example below. The real string is `arr` but we re-display it with "fake" spaces in `align_arr`
+  to more easily showcase which character in `arr` corresponds to the `-1` in `brackets`.
+  arr:       {he{llo{}world!}}
+  align_arr: {he{llo{ }world! } }
+  brackets:  10010001-1000000-1-1
+  where `arr` is represented by its ASCII encoding, i.e. `{` = 123
+-/
 def bracketsMap (input : List (F p)) : List (FB p) :=
   input.map (fun c ↦ isOpenBracket c - isClosedBracket c)
  where
@@ -45,6 +63,31 @@ private def bracketsDepthMapRev₀ (input : List (F p)) : List (F p) × F p :=
     )
     ([], 0)
 
+/--
+  Given an input array `arr` of length `LEN` containing `1`s corresponding to open
+  brackets `{`, `-1`s corresponding to closed brackets `}`, and 0s everywhere else, outputs an array
+  containing a positive integer in each index between nested brackets which indicates the depth
+  of the brackets nesting at that index, and 0 everywhere else. The outermost open and
+  closed bracket are both ignored. The open and closed brackets are not considered to be inside
+  their bracketed area. It is assumed that the input will contain an equal
+  number of closed and open brackets, and that a closed bracket will not appear while there are no unclosed open brackets
+  The basic algorithm is:
+  1. Compute an intermediate array where each index is a running sum of all previous indices in the input
+  2. Subtract 1 from each index in the result of step 1 to get a new array. This corresponds to ignoring the single pair of outermost brackets in the running sum from step 1
+  3. For each negative value in the result of step 2, change that value to 0
+  4. For each value greater than 1 compared to the previous value in the result of step 3, decrement that value by 1. This is to fix an off-by-1 error with step 1 in computing nested brackets depth, so that each depth excludes its open bracket. I.e.
+  step 4 in:  001112233332100
+  step 4 out: 000111223332100
+  Example input/output for the entire subcircuit, plus intermediate values
+  To preserve alignment, we use * to represent -1:
+  str:           a{aaa{a{aaa}aa}aaaa}
+  arr:           01000101000*00*0000*
+  prelim_out1:   01111223333222111110   full depth map incorrectly including open brackets inside bracket depth counts
+  prelim_out2:   *000011222211100000*   removes outermost brackets from depth map
+  prelim_out3:   00000112222111000000   replaces negative values with 0s
+  out:           00000011222111000000   correctly represents open brackets as being outside of bracket nesting
+  out: 0000001122 11 0000 0
+-/
 def bracketsDepthMap (input : List (F p)) : List (F p) :=
   (bracketsDepthMapRev₀ input).1.reverse.map minusOne
  where
@@ -58,8 +101,11 @@ def escalarProduct (i₁ i₂ : List (F p)) : F p :=
   let p := hadamardProduct i₁ i₂
   p.sum
 
-/-
-  `bracketsDepthMap` must be an output of `bracketsDepthMap`.
+/--
+  Given an input `brackets_depth_map`, which must be an output of `BracketsDepthMap` and
+  corresponds to the nested brackets depth of the original JWT, and a `start_index` and `field_len`
+  corresponding to the first index and length of a full field in the JWT, fails if the given field
+  contains any indices inside nested brackets in the original JWT, and succeeds otherwise
 -/
 def enforceNotNested (len : ℕ)
   (startIndex fieldLen : F p)
@@ -81,6 +127,9 @@ private def requiredEvValLen6 : List (F p) :=
   -- «"true"»
   [34, 116, 114, 117, 101, 34]
 
+/--
+  Enforce that if uid name is "email", the email verified field is either true or "true"
+-/
 def emailVerifiedCheck
   (uidNameLen : F p)
   (uidName : List (F p))
