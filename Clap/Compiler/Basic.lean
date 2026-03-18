@@ -194,7 +194,16 @@ def wg (p : Name) (argFvars : Array Expr) : TermElabM Expr := do
     mkLambdaFVars (#[fvar] ++ argFvars) body
 
 def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
-  let compiledF ← serialise p f >>= curry p >>= (reduceExpr ·) >>= toDeep p
+  let serialiseS ← serialise p f
+  trace[Clap.Compiler.serialise] m!"{serialiseS}"
+
+  let curryS ← curry p serialiseS
+  trace[Clap.Compiler.curry] m!"{curryS}"
+
+  let reduceExprS ← reduceExpr curryS
+  trace[Clap.Compiler.reduce] m!"{reduceExprS}"
+
+  let compiledF ← pure reduceExprS >>= toDeep p
   let compiledFname := serialisedUserName circuitName
   addAndCompile <| .defnDecl {
     name        := compiledFname
@@ -221,7 +230,9 @@ def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
 def instantiateLambdaHeadInst (e : Expr) : TermElabM (Option Expr) := do
   let .lam _ type _ bi := e | return .none
   if bi.isInstImplicit
-  then instantiateLambda e #[←Elab.Term.mkInstMVar type]
+  then let withInstanceS ← instantiateLambda e #[←Elab.Term.mkInstMVar type]
+       trace[Clap.Compiler.preprocess] m!"Resolved [{type}]:\n{withInstanceS}"
+       return withInstanceS
   else return .none
 
 partial def trySynthAll (e : Expr) : TermElabM Expr := do
@@ -231,12 +242,23 @@ partial def trySynthAll (e : Expr) : TermElabM Expr := do
   | .some e => trySynthAll e
 
 def fixPrime (e p : Expr) : TermElabM Expr := do
-  instantiateLambda e #[p] >>= trySynthAll >>= instantiateMVars
+  let withFixedPS ← instantiateLambda e #[p]
+  trace[Clap.Compiler.preprocess] m!"{withFixedPS}"
+  pure withFixedPS >>= trySynthAll >>= instantiateMVars
 
 elab "#compile" circuit:ident "using" p:ident : command => Command.liftTermElabM do
+  withTraceNode `Clap.Compiler (return m!"{exceptEmoji ·} Compiling {circuit} with {p}") do
   let [decl] ← realizeGlobalConst circuit | throwError m!"Ambiguous constant: {circuit}"
+  trace[Clap.Compiler.nameResolution] m!"Resolved {circuit} into {decl}"
   let .some decl := (←getEnv).find? decl | throwError m!"Undeclared constant: {circuit}"
-  compile p.getId circuit.getId (←fixPrime decl.value! (.const p.getId []))
+
+  let preprocessedS ←
+    withTraceNode `Clap.Compiler.preprocess
+                  (fun res ↦
+                    return m!"{exceptEmoji res} Fixed p = {p}, resolved typeclasses:\n\
+                              {match res with | .error _ => "<Failed>" | .ok res => res}") do
+                  fixPrime decl.value! (.const p.getId [])
+  compile p.getId circuit.getId preprocessedS
 
 end Compiler
 

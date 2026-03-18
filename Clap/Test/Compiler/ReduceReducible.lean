@@ -30,7 +30,7 @@ info: Wg for Reduce.ex₀ is Reduce.ex₀_ser_wg.
 #guard_msgs(info, whitespace := lax) in
 #compile Reduce.ex₀ using Primes.babybear
 
-def Reduce.ex₁ (x y : ZMod Primes.babybear) : Option Unit := do
+def Reduce.ex₁ {p} [Core p] (x y : ZMod p) : Option Unit := do
   eq0 x
   eq0 x
   eq0 y
@@ -44,7 +44,7 @@ info: Wg for Reduce.ex₁ is Reduce.ex₁_ser_wg.
 #guard_msgs(info, whitespace := lax) in
 #compile Reduce.ex₁ using Primes.babybear
 
-def Reduce.ex₂ (x y : ZMod Primes.babybear) : Option Unit := do
+def Reduce.ex₂ {p} [Core p] (x y : ZMod p) : Option Unit := do
   let z := [x, x, y].map id
   produceEq0 z (by simp [z])
   accept
