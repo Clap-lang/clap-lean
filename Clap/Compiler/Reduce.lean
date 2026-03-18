@@ -2,6 +2,7 @@ import Lean
 import Qq
 import Clap.Spec
 import Clap.Lang
+import Clap.Compiler.Wheels
 
 open Lean Qq Meta
 
@@ -151,7 +152,7 @@ def letSome (e : Expr) : MetaM Expr := do
 /--
 TODO: Think about the ordering here. Do we need unfold / zeta / unfold, do we repeat, etc.
 -/
-def reduceExpr (e : Expr) : MetaM Expr :=
+def reduceExpr' (e : Expr) : MetaM Expr :=
   let numIters := 128
   do pure e >>=
      unfold_mAny numIters false >>= (Core.betaReduce ·) >>=
@@ -159,6 +160,54 @@ def reduceExpr (e : Expr) : MetaM Expr :=
      unfold_mAny numIters false >>= (Core.betaReduce ·) >>= linearise >>=
      foldProjs                  >>= (Core.betaReduce ·) >>=
      unfold_mAny numIters false >>= (Core.betaReduce ·) >>= letSome
+
+def reduceStep (e : Expr) : MetaM Expr := do
+  let cfg : Simp.Config := default
+  let ctx ← mkSimpContext (simpOnly := true) (cfg := {cfg with zeta := false})
+  let dsimp := fun e ↦ (·.1) <$> dsimp e ctx
+
+  let unfoldAnyS ← unfoldAny e
+  trace[Clap.Compiler.reduce.unfoldAny] m!"[unfoldAny]:\n{skipIdentity e unfoldAnyS}"
+
+  let dsimpS ← dsimp unfoldAnyS
+  trace[Clap.Compiler.reduce.dsimp] m!"[dsimp]:\n{skipIdentity unfoldAnyS dsimpS}"
+
+  let betaS ← Core.betaReduce dsimpS
+  trace[Clap.Compiler.reduce.beta] m!"[beta]:\n{skipIdentity dsimpS betaS}"
+
+  let zetaS ← zeta betaS
+  trace[Clap.Compiler.reduce.zeta] m!"[zeta]:\n{skipIdentity betaS zetaS}"
+
+  let lineariseS ← linearise zetaS
+  trace[Clap.Compiler.reduce.linearise] m!"[linearise]:\n{skipIdentity zetaS lineariseS}"
+
+  let foldProjsS ← foldProjs lineariseS
+  trace[Clap.Compiler.reduce.foldProjs] m!"[foldProjs]:\n{skipIdentity lineariseS foldProjsS}"
+
+  let letSomeS ← letSome foldProjsS
+  trace[Clap.Compiler.reduce.letSome] m!"[letSome]:\n{skipIdentity foldProjsS letSomeS}"
+
+  return letSomeS
+  where 
+    _sansOuterBinders (e : Expr) : Expr :=
+      match e with
+      | .lam (body := body) .. | .forallE (body := body) .. =>
+        _sansOuterBinders body
+      | _ => e
+    skipIdentity (σ₁ σ₂ : Expr) := if σ₁ == σ₂ then m!"<Identity>" else m!"{σ₂}"
+
+def reduceExpr (e : Expr) : MetaM Expr := do
+  let numIters := 256
+  withTraceNode `Clap.Compiler.reduce
+    (return m!"{exceptEmoji ·} Reducing up to n = {numIters}") do
+  let mut res := e
+  for i in [0:numIters] do
+    let res' ← reduceStep res
+    if res == res' then
+      trace[Clap.Compiler.reduce.trace.numIters] m!"Reduction done after {i} iterations"
+      break
+    res := res'
+  return res
 
 open MVarId in
 def _root_.Lean.MVarId.reduceTarget (goal : MVarId) : MetaM MVarId :=
