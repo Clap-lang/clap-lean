@@ -9,7 +9,7 @@ variable {p : ℕ} [Core p]
 
 /-- Computes a candidate one-hot mask: position `i` is `isZero(idx - i)`. -/
 private def oneHotRaw (len : ℕ) (idx : F p) : Vector (FB p) len :=
-  Vector.ofFn (fun i : Fin len ↦ F.eq idx (const (i.1 : ZMod p)))
+  Vector.ofFn (fun i : Fin len ↦ F.eq idx i.1)
 
 /-- Returns a one-hot bit mask of length `len` with a 1 at index `idx` and 0s elsewhere. Only satisfiable when `0 ≤ idx < len`. -/
 def singleOneArray (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do

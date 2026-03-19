@@ -87,7 +87,7 @@ def asciiDigitsToScalar {maxLen : ℕ} (inp : FString p maxLen) : Option (F p) :
   let (_, ieq_sum, acc) := (List.finRange maxLen).drop 1 |>.foldl
     (fun (state : F p × F p × F p) (i : Fin maxLen) ↦
       let (s, ieq_sum, acc) := state
-      let ieq       : F p := share $ F.eq inp.len (const (i.1 : ZMod p))
+      let ieq       : F p := share $ F.eq inp.len i.1
       let s'        : F p := share $ s - ieq
       let acc_shift : F p := share $ 10 * acc + (inp.chars[i].toF - 48)
       let acc'      : F p := share $ (acc_shift - acc) * s' + acc

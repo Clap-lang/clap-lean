@@ -163,8 +163,8 @@ section Poseidon254
 
 open Primes
 
-def liftArr (xs : List (ZMod p)) : List (F p) := xs.map const
-def liftMat (xs : List (List (ZMod p))) : List (List (F p)) := xs.map (·.map const)
+def liftArr (xs : List (ZMod p)) : List (F p) := xs.map (·.val)
+def liftMat (xs : List (List (ZMod p))) : List (List (F p)) := xs.map (·.map  (·.val))
 
 def poseidonBN254 (inputs : List (F bn254)) : F bn254 :=
   let t := inputs.length + 1 -- element 2 is at list index 0 and so on
@@ -188,7 +188,7 @@ open Clap Poseidon
 
 /-- Run poseidon on `ZMod bn254` inputs, looking up constants by `t`. -/
 private def testPoseidon (inputs : List (ZMod p)) (expected : F p) : Option Unit := do
-  F.assert_eq (← poseidonBN254 (inputs.map const)) expected
+  F.assert_eq (← poseidonBN254 (inputs.map (·.val))) expected
 
 -- circomlib test vector: hash([1, 2]) with t=3
 -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L50

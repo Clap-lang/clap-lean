@@ -6,7 +6,6 @@ namespace Clap.Lang
 class Core (p : ℕ) : Type _ where
   F           : Type
   [instF      : Field F]
-  const       : ZMod p → F
   accept      : Unit
   eq0         : F → Option Unit
   share       : F → F
@@ -16,7 +15,7 @@ class Core (p : ℕ) : Type _ where
 
   [onlyForDebugF  : ToString F  ]
 
-attribute [reducible] Core.F Core.instF Core.const Core.accept Core.eq0 Core.share Core.isZero Core.num2bits Core.bits2num Core.onlyForDebugF
+attribute [reducible] Core.F Core.instF Core.accept Core.eq0 Core.share Core.isZero Core.num2bits Core.bits2num Core.onlyForDebugF
 attribute [instance] Core.instF Core.onlyForDebugF
 
 variable {p : ℕ} [Core p]
@@ -99,7 +98,7 @@ then a-b+2^w ∈ [2^w,2^(w+1)-1]
 which does not fit in w bits, so when converted to a (w+1)-bit number, its MSB is 1
 -/
 def lessThan (w : ℕ) (a b : F p) : Option (FB p) := do
-  let d := a - b + const (2^w)
+  let d := a - b + 2^w
   let d ← num2bits (w + 1) d
   return FB.not d[w]!
 
@@ -224,7 +223,6 @@ instance onlyForDebugF {p:ℕ} : ToString (ZMod p) where
 -/
 scoped instance instCoreZMod {p:ℕ} [Fact (Nat.Prime p)] : Core p where
   F := ZMod p
-  const := id
   accept := Compiler.accept
   eq0 := Compiler.eq0
   share := Compiler.share
