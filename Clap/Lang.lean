@@ -134,6 +134,9 @@ def or_spec (a b : FB p) :
   have hb := b.prop
   aesop (add simp [or])
 
+def not (a : FB p) : FB p :=
+  ⟨1 - a.val, by aesop⟩
+
 end FB
 
 namespace F
