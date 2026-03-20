@@ -6,6 +6,9 @@ open Clap.Lang Core
 
 variable {p : ℕ} [Core p]
 
+instance : Coe Char (F p) where
+  coe c := c.toNat
+
 def base64UrlDecodedLength (w : ℕ) (m : F p) : Option (F p) := do
   let _ ← num2bits w m                   -- range-check m < 2^w
   let three : F p := share (m + m + m)
@@ -14,33 +17,33 @@ def base64UrlDecodedLength (w : ℕ) (m : F p) : Option (F p) := do
 
 def base64UrlLookup (i : F p) : Option (F p) := do
   -- check if i ∈ ['A', 'Z']
-  let ge_A ← F.greaterEqThan 8 i 65
-  let le_Z ← F.lessEqThan 8 i 90
-  let range_AZ := FB.and ge_A le_Z
+  let ge_A ← F.greaterEqThan 8 i 'A'
+  let le_Z ← F.lessEqThan 8 i 'Z'
+  let range_AZ := ge_A &&& le_Z
   let sum_AZ := range_AZ * (i - 65)
 
   -- check if i ∈ ['a', 'z']
-  let ge_a ← F.greaterEqThan 8 i 97
-  let le_z ← F.lessEqThan 8 i 122
-  let range_az := FB.and ge_a le_z
+  let ge_a ← F.greaterEqThan 8 i 'a'
+  let le_z ← F.lessEqThan 8 i 'z'
+  let range_az := ge_a &&& le_z
   let sum_az := sum_AZ + range_az * (i - 71)
 
   -- check if i ∈ ['0', '9']
-  let ge_a ← F.greaterEqThan 8 i 48
-  let le_z ← F.lessEqThan 8 i 57
-  let range_09 := FB.and ge_a le_z
+  let ge_a ← F.greaterEqThan 8 i '0'
+  let le_z ← F.lessEqThan 8 i '9'
+  let range_09 := ge_a &&& le_z
   let sum_09 := sum_az + range_09 * (i + 4)
 
   -- check if i is '-'
-  let eq_minus := F.eq i 45
+  let eq_minus := F.eq i '-'
   let sum_minus := sum_09 + eq_minus * 62;
 
   -- check if i is '_'
-  let eq_underscore := F.eq i 95
+  let eq_underscore := F.eq i '_'
   let sum_underscore := sum_minus + eq_underscore * 63;
 
   -- check if i is '='
-  let eq_eqsign := F.eq i 61
+  let eq_eqsign := F.eq i '='
 
   -- check if i is zero
   let zero_padding := isZero i
@@ -91,18 +94,18 @@ example : testBase64UrlDecode  3 "YWJj" == "abc" := by
 example : testBase64UrlDecode  5 "YWJjZGU=" == "abcde" := by
   native_decide
 
-example : base64UrlLookup (p := p) 'A'.toNat == some 0 := by native_decide
-example : base64UrlLookup (p := p) 'T'.toNat == some 19 := by native_decide
-example : base64UrlLookup (p := p) 'Z'.toNat == some 25 := by native_decide
-example : base64UrlLookup (p := p) 'a'.toNat == some 26 := by native_decide
-example : base64UrlLookup (p := p) 'z'.toNat == some 51 := by native_decide
-example : base64UrlLookup (p := p) '0'.toNat == some 52 := by native_decide
-example : base64UrlLookup (p := p) '9'.toNat == some 61 := by native_decide
-example : base64UrlLookup (p := p) '-'.toNat == some 62 := by native_decide
-example : base64UrlLookup (p := p) '_'.toNat == some 63 := by native_decide
-example : base64UrlLookup (p := p) '='.toNat == some 0 := by native_decide
-example : base64UrlLookup (p := p) 0 == some 0 := by native_decide
-example : base64UrlLookup (p := p) 64 == none := by native_decide
+example : base64UrlLookup (p := p) 'A' == some 0 := by native_decide
+example : base64UrlLookup (p := p) 'T' == some 19 := by native_decide
+example : base64UrlLookup (p := p) 'Z' == some 25 := by native_decide
+example : base64UrlLookup (p := p) 'a' == some 26 := by native_decide
+example : base64UrlLookup (p := p) 'z' == some 51 := by native_decide
+example : base64UrlLookup (p := p) '0' == some 52 := by native_decide
+example : base64UrlLookup (p := p) '9' == some 61 := by native_decide
+example : base64UrlLookup (p := p) '-' == some 62 := by native_decide
+example : base64UrlLookup (p := p) '_' == some 63 := by native_decide
+example : base64UrlLookup (p := p) '=' == some 0 := by native_decide
+example : base64UrlLookup (p := p) 0   == some 0 := by native_decide
+example : base64UrlLookup (p := p) 64  == none := by native_decide
 
 example : base64UrlDecodedLength (p := p) 8 0  = some 0  := by native_decide
 example : base64UrlDecodedLength (p := p) 8 2  = some ((3 * 2 / 4) : Nat)  := by native_decide
