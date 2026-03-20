@@ -9,9 +9,7 @@ namespace Clap.Sha2.Circuit
 
 open Clap.Lang
 
-variable {p : ℕ} [Core p] [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)]
-
-open Core
+variable {p : ℕ} [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)]
 
 /-
 Ch(x, y, z) =
@@ -76,7 +74,7 @@ def shiftRight (n : ℕ) (x : F32 p) : F32 p :=
   let l := List.drop n x
   l ++ List.replicate n 0
 
-abbrev t p [Core p] [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)] : Clap.Sha2.T := {
+abbrev t p [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)] : Clap.Sha2.T := {
   N  := F   (p:=p),
   U8  := F8  (p:=p),
   U32 := F32 (p:=p)
@@ -104,7 +102,7 @@ def to_nat_be (bs:Array (F8 p)) : F32 p :=
 def toString (w:ℕ) (f : FBitVec p) : String :=
   assert! (f.length = w)
   let n : F p := ((f:List (FB p)).foldl (fun (pow,sum) i => (pow * 2, sum + (i * pow))) (1,0)).2
-  let s := Core.onlyForDebugF.toString n
+  let s := onlyForDebugF.toString n
   if f.length != w then "ER" else s
 
 instance (priority := high) i₇ : ToString (F32 p) where
@@ -133,8 +131,7 @@ namespace Tests
 
 abbrev p := Primes.goldilocks
 
-open Clap.Sha2.Circuit
-open Clap.Lang Core ZMod
+open Clap.Lang Clap.Sha2.Circuit
 
 instance : Coe ℕ (F p) where
   coe n := n
@@ -173,7 +170,7 @@ example :
 
 namespace TestCompilation
 
-def test₁ {p:ℕ} [Core p] [Fact (Primes.fits p 32)]
+def test₁ {p:ℕ} [Fact (Primes.fits p 32)]
   (x y z : Vector (FB p) 32) : Option Unit := do
   let x : F32 p := x.toList
   let y : F32 p := y.toList

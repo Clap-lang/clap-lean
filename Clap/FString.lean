@@ -4,13 +4,13 @@ import Clap.Array
 import Clap.HashToField
 import Clap.Poseidon.Poseidon
 
-open Clap.Lang Core
+open Clap.Lang
 
 abbrev FChar := F8
 
 namespace FChar
 
-variable {p : ℕ} [core : Core p] [Fact (Primes.fits p 8)]
+variable {p : ℕ} [Fact (Primes.fits p 8)]
 
 def isWhitespace (c : FChar p) : FB p :=
   -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
@@ -28,13 +28,13 @@ end FChar
 /--
   Zero-padded vector of bytes of length `len`. `len` can at most be `maxLen`.
 -/
-structure FString (p : ℕ) [Fact (Primes.fits p 8)] [Core p] (maxLen : ℕ) where
+structure FString (p : ℕ) [Fact (Primes.fits p 8)] (maxLen : ℕ) where
   chars : Vector (FChar p) maxLen
   len : F p
 
 namespace FString
 
-variable {p : ℕ} [core : Core p] [Fact (Primes.fits p 8)]
+variable {p : ℕ} [Fact (Primes.fits p 8)]
 
 private def countTrailingZeros {maxLen : ℕ} (fs : Vector (F p) maxLen) : F p :=
   Vector.foldl (fun (len,keepCounting) f ↦
@@ -133,8 +133,6 @@ def isSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (subs
 /-- Asserts that `substr` appears in `str` starting at `startIndex`. -/
 def assertIsSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (substr : FString p maxSubstrLen) (startIndex : F p) : Option Unit := do
   FB.assert (← isSubstring str substr startIndex)
-
-variable [Core Primes.bn254]
 
 open Primes HashToField in
 /--
@@ -241,8 +239,7 @@ end FString
 
 namespace TestString
 
-open Clap.Lang Core Clap.Spec ZMod
-open FChar FString
+open Clap.Lang FChar FString
 
 abbrev p := Primes.babybear
 
@@ -253,7 +250,7 @@ Even after we open ZMod we still don't have it
 #synth DecidableEq (FString p 2)
 So we define it by hand here.
 -/
-instance {p m :ℕ} [Fact (Primes.fits p 8)] [Core p] [DecidableEq (F p)] [DecidableEq (FChar p)]: DecidableEq (FString p m) := by
+instance {p m :ℕ} [Fact (Primes.fits p 8)] [DecidableEq (F p)] [DecidableEq (FChar p)]: DecidableEq (FString p m) := by
   intros a b
   rcases a
   rcases b

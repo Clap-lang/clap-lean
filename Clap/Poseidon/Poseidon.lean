@@ -5,13 +5,9 @@ import Clap.Poseidon.Constant
 
 namespace Clap.Poseidon
 
-open Clap Lang
+open Clap.Lang
 
 abbrev p := Primes.bn254
-
-variable [Core p] -- not a concrete instance
-
-open Core
 
 /-- **Sigma (S-box):** The sole source of nonlinearity in the Poseidon permutation
 
@@ -182,9 +178,7 @@ namespace Poseidon.Test
 
 abbrev p := Primes.bn254
 
-open Clap Lang Core
-open Clap Lang ZMod
-open Clap Poseidon
+open Clap Lang Poseidon
 
 /-- Run poseidon on `ZMod bn254` inputs, looking up constants by `t`. -/
 private def testPoseidon (inputs : List (ZMod p)) (expected : F p) : Option Unit := do

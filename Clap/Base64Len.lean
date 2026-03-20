@@ -2,9 +2,9 @@ import Clap.Lang
 
 namespace Base64Len
 
-open Clap.Lang Core
+open Clap.Lang
 
-variable {p : ℕ} [Core p]
+variable {p : ℕ}
 
 def base64UrlDecodedLength (w : ℕ) (m : F p) : Option (F p) := do
   let _ ← num2bits w m                   -- range-check m < 2^w
@@ -70,8 +70,7 @@ end Base64Len
 
 namespace TestBase64Len
 
-open Clap.Lang Core ZMod
-open Base64Len
+open Clap.Lang Base64Len
 
 abbrev p := Primes.goldilocks
 

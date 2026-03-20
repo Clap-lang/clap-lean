@@ -5,9 +5,9 @@ import Clap.HashToField
 
 namespace JWT
 
-open Clap.Lang Core Primes
+open Clap.Lang Primes
 
-variable {p : ℕ} [Core p] [Core bn254]
+variable {p : ℕ}
 
 instance : Coe Char (F p) where
   coe c := c.toNat
@@ -406,7 +406,7 @@ namespace TestJWT
 
 open JWT
 
-open Clap.Lang Core ZMod FString FArray HashToField Primes
+open Clap.Lang FString FArray HashToField Primes
 
 abbrev p := Primes.bn254
 

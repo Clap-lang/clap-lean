@@ -4,8 +4,7 @@ namespace Packing
 
 open Clap.Lang
 
-variable {p : ℕ} [Core p]
-open Core
+variable {p : ℕ}
 
 def assertIs64BitLimbs [Fact (Primes.fits p 64)] {numLimbs : ℕ}
   (a : Vector (F p) numLimbs) :
@@ -77,8 +76,7 @@ end Packing
 
 namespace TestPacking
 
-open Packing
-open Clap.Lang Core ZMod
+open Clap.Lang Packing
 
 abbrev p := Primes.bn254
 

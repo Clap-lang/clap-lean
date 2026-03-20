@@ -11,20 +11,14 @@ open Lang
 /- We assume the existance of a p, prime. -/
 variable {p : ℕ} [Fact (Nat.Prime p)]
 
-/- We assume that for p, we have an instance of our Core subset. -/
-variable [Core p]
-open Core
-
-structure MyCouple (p:ℕ) [Core p] where
+structure MyCouple (p:ℕ) where
   x : F (p:=p)
   y : F (p:=p)
 
 def test (c : MyCouple p) : Option Unit := do
   let o := share (c.x * 0)
   eq0 o
-  accept p
-
-open Clap.Lang.ZMod
+  accept
 
 /--
 info: Compiled test into test_circuit.
