@@ -10,7 +10,6 @@ export Clap.Spec.Compiler (accept eq0 share isZero num2bits bits2num)
 open Clap.Spec.Compiler
 
 abbrev F p := ZMod p
-abbrev FB p := ZMod p
 
 namespace F
 
@@ -23,7 +22,7 @@ def assert_range (w : ℕ) (e : F p) : Option Unit := do
 def assert_eq (a b : F p) : Option Unit := do
   eq0 (a - b)
 
-def eq (a b : F p) : FB p :=
+def eq (a b : F p) : F p :=
   isZero (a - b)
 
 def dotProduct {w : ℕ} (a b : Vector (F p) w) : F p :=
@@ -33,37 +32,37 @@ end F
 
 namespace FB
 
-def true : FB p := 1
+def true : F p := 1
 
-def false : FB p := 0
+def false : F p := 0
 
-instance : Inhabited (FB p) where
+instance : Inhabited (F p) where
   default := false
 
-def eq (a b : FB p) : FB p :=
+def eq (a b : F p) : F p :=
   F.eq a b
 
-def and (a b : FB p) : FB p := a * b
+def and (a b : F p) : F p := a * b
 
-instance : HAnd (FB p) (FB p) (FB p) where
+instance : HAnd (F p) (F p) (F p) where
   hAnd := and
 
-def or (a b : FB p) : FB p := a + b - a * b
+def or (a b : F p) : F p := a + b - a * b
 
-instance : HOr (FB p) (FB p) (FB p) where
+instance : HOr (F p) (F p) (F p) where
   hOr := or
 
-def not (a : FB p) : FB p := 1 - a
+def not (a : F p) : F p := 1 - a
 
-def xor (a b : FB p) : FB p := a + b - 2 * a * b
+def xor (a b : F p) : F p := a + b - 2 * a * b
 
-instance : HXor (FB p) (FB p) (FB p) where
+instance : HXor (F p) (F p) (F p) where
   hXor := xor
 
-def assert (a : FB p) : Option Unit := do
+def assert (a : F p) : Option Unit := do
   eq0 (not a)
 
-def assert_eq (a b : FB p) : Option Unit := do
+def assert_eq (a b : F p) : Option Unit := do
   F.assert_eq a b
 
 end FB
@@ -85,24 +84,24 @@ then a-b ∈ [0,2^w-1]
 then a-b+2^w ∈ [2^w,2^(w+1)-1]
 which does not fit in w bits, so when converted to a (w+1)-bit number, its MSB is 1
 -/
-def lessThan (w : ℕ) (a b : F p) : Option (FB p) := do
+def lessThan (w : ℕ) (a b : F p) : Option (F p) := do
   let d := a - b + 2^w
   let d ← num2bits (w + 1) d
   return FB.not d[w]!
 
-def lessEqThan (w : ℕ) (a b : F p) : Option (FB p) :=
+def lessEqThan (w : ℕ) (a b : F p) : Option (F p) :=
   lessThan w a (b + 1)
 
-def greaterThan (w : ℕ) (a b : F p) : Option (FB p) :=
+def greaterThan (w : ℕ) (a b : F p) : Option (F p) :=
   lessThan w b a
 
-def greaterEqThan (w : ℕ) (a b : F p) : Option (FB p) :=
+def greaterEqThan (w : ℕ) (a b : F p) : Option (F p) :=
   lessThan w b (a + 1)
 
 end F
 
 /-- LSB first, like the output of num2bits -/
-abbrev FBitVec (p:ℕ) := List (FB p)
+abbrev FBitVec (p:ℕ) := List (F p)
 
 namespace FBitVec
 
@@ -126,13 +125,13 @@ def assert_eq (a b : FBitVec p) : Option Unit :=
       assert_eq tla tlb
   | _,_ => none
 
-def lessThan (a b : FBitVec p) : FB p :=
+def lessThan (a b : FBitVec p) : F p :=
   (a.zip b).foldl (fun acc (aᵢ, bᵢ) ↦
     let eqᵢ := FB.eq aᵢ bᵢ
     (eqᵢ &&& acc) ||| ((FB.not eqᵢ) &&& (FB.not aᵢ))
   ) FB.false
 
-def greaterThan (a b : FBitVec p) : FB p :=
+def greaterThan (a b : FBitVec p) : F p :=
   lessThan b a
 
 end FBitVec
@@ -151,7 +150,7 @@ def ofUInt8 (u:UInt8) : Option (F8 p) :=
 
 def zero : F8 p := FBitVec.default 8
 
-def eq (a b : F8 p) : FB p :=
+def eq (a b : F8 p) : F p :=
   List.foldl (fun acc (a,b) => FB.and acc (FB.eq a b)) FB.true (a.zip b)
 
 def assert_eq (a b : F8 p) := FBitVec.assert_eq a b
@@ -174,7 +173,7 @@ def ofF (x:F p) : Option (F32 p) := do
   FBitVec.ofF 32 x
 
 def ofF8 [Fact (Primes.fits p 8)] (u8 : F8 p) : F32 p :=
-  u8 ++ (List.replicate 24 (0:FB p))
+  u8 ++ (List.replicate 24 (0:F p))
 
 def ofUInt32 (u:UInt32) : Option (F32 p) :=
   num2bits 32 (u.toNat)

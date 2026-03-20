@@ -101,7 +101,7 @@ def to_nat_be (bs:Array (F8 p)) : F32 p :=
 
 def toString (w:ℕ) (f : FBitVec p) : String :=
   assert! (f.length = w)
-  let n : F p := ((f:List (FB p)).foldl (fun (pow,sum) i => (pow * 2, sum + (i * pow))) (1,0)).2
+  let n : F p := ((f:List (F p)).foldl (fun (pow,sum) i => (pow * 2, sum + (i * pow))) (1,0)).2
   let s := onlyForDebugF.toString n
   if f.length != w then "ER" else s
 
@@ -171,7 +171,7 @@ example :
 namespace TestCompilation
 
 def test₁ {p:ℕ} [Fact (Primes.fits p 32)]
-  (x y z : Vector (FB p) 32) : Option Unit := do
+  (x y z : Vector (F p) 32) : Option Unit := do
   let x : F32 p := x.toList
   let y : F32 p := y.toList
   let z : F32 p := z.toList

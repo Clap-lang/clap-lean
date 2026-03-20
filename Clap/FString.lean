@@ -12,14 +12,14 @@ namespace FChar
 
 variable {p : ℕ} [Fact (Primes.fits p 8)]
 
-def isWhitespace (c : FChar p) : FB p :=
+def isWhitespace (c : FChar p) : F p :=
   -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
   let bv8  : F8 p := [0, 0, 0, 1, 0, 0, 0, 0]
   let bv14 : F8 p := [0, 1, 1, 1, 0, 0, 0, 0]
   let bv32 : F8 p := [0, 0, 0, 0, 0, 1, 0, 0]
   let gt8 := FBitVec.greaterThan c bv8
   let lt14 := FBitVec.lessThan c bv14
-  let isLineBreak : FB p := FB.and gt8 lt14
+  let isLineBreak : F p := FB.and gt8 lt14
   let isSpace := F8.eq c bv32 -- ASCII 32 is space
   FB.or isLineBreak isSpace
 
@@ -55,7 +55,7 @@ def ofFs {maxLen : ℕ} (fs : Vector (F p) maxLen) : Option (FString (p := p) ma
   let chars ← Vector.mapM F8.ofF fs
   some ⟨chars, len⟩
 
-open FB in
+open F in
 /-- Asserts that every value in `inp` is a valid ASCII digit (i.e., in the range [48, 57]). -/
 def assertIsAsciiDigits {maxDigits : ℕ} (inp : FString p maxDigits) : Option Unit := do
   let selector ← FArray.arraySelector maxDigits 0 inp.len
@@ -103,13 +103,13 @@ def asciiDigitsToScalar {maxLen : ℕ} (inp : FString p maxLen) : Option (F p) :
   Positions beyond `substr.len` are automatically true. Fails (returns `none`) when `startIndex ≥ maxStrLen` or `substr.len = 0`.
   O(maxSubstrLen × maxStrLen)
 -/
-def isSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (substr : FString p maxSubstrLen) (startIndex : F p) : Option (FB p) := do
+def isSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (substr : FString p maxSubstrLen) (startIndex : F p) : Option (F p) := do
   -- One-hot mask for startIndex; constrains 0 ≤ startIndex < maxStrLen
   let hot ← FArray.singleOneArray maxStrLen startIndex
   -- Selector for active substr positions [0, substr.len); constrains substr.len > 0
   let substrSel ← FArray.arraySelector maxSubstrLen 0 substr.len
   -- For each position j in the substring, extract and compare
-  let success ← (List.finRange maxSubstrLen).foldlM (fun (acc : FB p) (j : Fin maxSubstrLen) ↦ do
+  let success ← (List.finRange maxSubstrLen).foldlM (fun (acc : F p) (j : Fin maxSubstrLen) ↦ do
     -- Extract str[startIndex + j] via one-hot vector:
     -- Σ_k  hot[k] * str.chars[k + j] evaluates to:
     -- (1) 0 * str.chars[X] = 0             except  startIndex + j
@@ -148,7 +148,7 @@ def isSubstringFS {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLe
     (strHash    : F bn254)
     (substr     : FString bn254 maxSubstrLen)
     (startIndex : F bn254)
-    : Option (FB bn254) := do
+    : Option (F bn254) := do
   -- Step 1: hash substr and derive the random challenge α
   let substrHash ← hashBytesToFieldWithLen (substr.chars.map FBitVec.toF) substr.len
   -- random_challenge = H(str_hash, substr_hash, substr_len, start_index)
@@ -170,8 +170,8 @@ def isSubstringFS {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLe
   -- Step 6: α^startIndex = SelectArrayValue(powers, startIndex)
   let distinguishingValue ← FArray.selectArrayValue powers startIndex
   -- Step 7: success = NOT(isZero(ŝ(α))) AND isEqual(ŝ(α), α^startIndex · t(α))
-  let nonZero : FB bn254 := FB.not (isZero (share strPolyEval))
-  let polyEq  : FB bn254 := F.eq strPolyEval (distinguishingValue * substrPolyEval)
+  let nonZero : F bn254 := FB.not (isZero (share strPolyEval))
+  let polyEq  : F bn254 := F.eq strPolyEval (distinguishingValue * substrPolyEval)
   return FB.and nonZero polyEq
 
 open Primes in

@@ -12,7 +12,7 @@ variable {p : ℕ}
 instance : Coe Char (F p) where
   coe c := c.toNat
 
-private def stringBodiesRev₀ (input : List (F p)) : List (FB p) × FB p × FB p :=
+private def stringBodiesRev₀ (input : List (F p)) : List (F p) × F p × F p :=
   input.foldl
     ( fun (acc, openedQuotes, escaped) c ↦
         let isNonEscQuotationMark := F.eq c '\"' &&& FB.not escaped
@@ -30,7 +30,7 @@ private def stringBodiesRev₀ (input : List (F p)) : List (FB p) × FB p × FB 
   input =  { asdfsdf "as\"df" }
   output = 00000000000111111000
 -/
-def stringBodies (input : List (F p)) : List (FB p) :=
+def stringBodies (input : List (F p)) : List (F p) :=
   (stringBodiesRev₀ input).1.reverse
 
 /--
@@ -44,7 +44,7 @@ def stringBodies (input : List (F p)) : List (FB p) :=
   brackets:  10010001-1000000-1-1
   where `arr` is represented by its ASCII encoding, i.e. `{` = 123
 -/
-def bracketsMap (input : List (F p)) : List (FB p) :=
+def bracketsMap (input : List (F p)) : List (F p) :=
   input.map (fun c ↦ (F.eq c '{') - (F.eq c '}'))
 
 private def bracketsDepthMapRev₀ (input : List (F p)) : List (F p) × F p :=
@@ -122,7 +122,7 @@ private def requiredEvValLen6 : List (F p) :=
   -- «"true"»
   [34, 116, 114, 117, 101, 34]
 
-def FList.eq (a b : List (F p)) : FB p := a.zipWith F.eq b |>.foldl (· * ·) 1
+def FList.eq (a b : List (F p)) : F p := a.zipWith F.eq b |>.foldl (· * ·) 1
 
 /--
   Enforce that if uid name is "email", the email verified field is either true or "true"
@@ -133,7 +133,7 @@ def emailVerifiedCheck
   (evName : List (F p))
   (evValueLen : F p)
   (evValue : List (F p))
-  : Option (FB p)
+  : Option (F p)
 := do
   let uidIsEmail := F.eq uidNameLen 5 &&& FList.eq uidName email
   conditionallyAssert uidIsEmail (FList.eq evName requiredEvName)
@@ -149,7 +149,7 @@ def emailVerifiedCheck
   conditionallyAssert checkEvValString (FList.eq evValue requiredEvValLen6)
   return uidIsEmail
  where
-  conditionallyAssert (antecedent consequent : FB p) : Option Unit :=
+  conditionallyAssert (antecedent consequent : F p) : Option Unit :=
     -- a → c ≡ ¬(a ∧ ¬c)
     eq0 (antecedent * FB.not consequent)
 
@@ -294,7 +294,7 @@ def parseJWTFieldWithQuotedValue
     (field              : FString bn254 maxKVPairLen)
     (name               : FString bn254 maxNameLen)
     (value              : FString bn254 maxValueLen)
-    (field_string_bodies : Vector (FB bn254) maxKVPairLen)
+    (field_string_bodies : Vector (F bn254) maxKVPairLen)
     (colon_index        : F bn254)
     (value_index        : F bn254)
     : Option Unit := do
@@ -371,15 +371,15 @@ def parseEmailVerifiedField
   let fieldChars := field.chars.map FBitVec.toF
   -- Char before value
   let charBeforeValue ← selectArrayValue fieldChars (valueIndex - 1)
-  let beforeIsQuote      : FB bn254 := F.eq charBeforeValue '\"'
-  let beforeIsWhitespace : FB bn254 := FChar.isWhitespace (← F8.ofF charBeforeValue)
+  let beforeIsQuote      : F bn254 := F.eq charBeforeValue '\"'
+  let beforeIsWhitespace : F bn254 := FChar.isWhitespace (← F8.ofF charBeforeValue)
   let beforeIsWsOrQuote := FB.or beforeIsQuote beforeIsWhitespace
   -- Check: char before value is quote/whitespace, OR it is the colon (valueIndex - 1 == colonIndex)
   eq0 ((1 - beforeIsWsOrQuote) &&& (valueIndex - 1 - colonIndex))
   -- Char after value
   let charAfterValue ← selectArrayValue fieldChars (valueIndex + value.len)
-  let afterIsQuote      : FB bn254 := F.eq charAfterValue '\"'
-  let afterIsWhitespace : FB bn254 := FChar.isWhitespace (← F8.ofF charAfterValue)
+  let afterIsQuote      : F bn254 := F.eq charAfterValue '\"'
+  let afterIsWhitespace : F bn254 := FChar.isWhitespace (← F8.ofF charAfterValue)
   let afterIsWsOrQuote := FB.or afterIsQuote afterIsWhitespace
   -- Check: char after value is quote/whitespace, OR it is the field delimiter (fieldLen - 1 == valueIndex + valueLen)
   eq0 ((1 - afterIsWsOrQuote) &&& (field.len - 1 - valueIndex - value.len))
@@ -412,7 +412,7 @@ abbrev p := Primes.bn254
 
 private def parseCharsASCII (s : String) : List (F p) :=
   s.chars.map (fun n ↦ (n.toNat : ZMod p)) |>.toList
-private def parseBitString (s : String) : List (FB p) :=
+private def parseBitString (s : String) : List (F p) :=
   s.chars.filter (fun c ↦ c != ' ') |>.map (fun c ↦ if c = '0' then 0 else 1) |>.toList
 
 /- from the Circom docstring
