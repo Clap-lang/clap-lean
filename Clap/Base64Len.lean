@@ -9,12 +9,59 @@ variable {p : ℕ} [Core p]
 instance : Coe Char (F p) where
   coe c := c.toNat
 
+/-- From keyless
+  Returns the length of the decoded data, given a base64url (unpadded) encoded length `m`.
+  @param   MAX_ENCODED_LEN the maximum length of a base64url output, in bytes
+  @input   m               the length of the encoded base64url data, in bytes
+  @output  decoded_len     the length of the corresponding decoded data, in bytes
+  @notes
+  explanation why decoded length = \floor{3 * encoded length / 4}
+    encoding works as follows:
+  suppose plaintext is length \ell
+  every 24 bits chunk (3 bytes) is encoded into 32 bits (4 base64url characters)
+    specifically, each 6-bit subchunk is mapped to a base64url character
+  last chunk could be 1 or 2 bytes though
+    case 1: \ell mod 3 = 1
+    if it's 1 byte (8 bits), then pad it with 4 zero bits to get 12 bits
+    now, encode these 12 bits to 2 base64url characters
+      normally, would add another 2 padding characters (i.e., ==), but not for JWTs
+    case 2: \ell mod 3 = 2
+    if it's 2 bytes (16 bits), then pad it with 2 zero bits to get 18 bits
+    now, encode these 18 bits to 3 base64url characters
+      normally, would add another 1 padding characters (i.e., =), but not for JWTs
+    decoding works as follows:
+  suppose encoded length is m
+  suppose plaintext is length \ell
+  from the algorithm above,
+  if m mod 4 = 0, then the input was evenly divisible into 3 byte chunks
+    so \ell = 3 * m / 4
+  if m mod 4 = 2, then we are in case 1 above, where \ell mod 3 = 1
+    so \ell = \floor{3 * m / 4}
+      e.g., \ell = 1 => m = 2 => \floor{3 * 2 / 4} = \floor{6/4} = \floor{3/2} = 1
+      e.g., \ell = 3 + 1 => m = 4 + 2 => \floor{3 * 6 / 4} = \floor{9/2} = 4
+      e.g., \ell = k*3 + 1 => m = k*4 + 2 => \floor{3 * (k*4 + 2) / 4} =
+                                           = 3*k + \floor{6/4} = 3*k + 1
+  if m mod 4 = 3, then we are in case 2 above, where \ell mod 3 = 2
+     e.g., \ell = 2 => m = 3 => \floor{3 * 3 / 4} = \floor{9/4} = 2
+     e.g., \ell = 3 + 2 => m = 4 + 3 => \floor{3 * 7 / 4} = \floor{21/4} = 5
+     e.g., \ell = k*3 + 2 => m = k*4 + 3 => \floor{3 * (k*4 + 3) / 4} =
+                                          = 3*k + \floor{9/4} = 3*k + 2
+-/
 def base64UrlDecodedLength (w : ℕ) (m : F p) : Option (F p) := do
   let _ ← num2bits w m                   -- range-check m < 2^w
   let three : F p := share (m + m + m)
   let bits ← num2bits (w + 2) three      -- decompose 3m, proves < 2^(w+2)
   return bits2num (bits.drop 2)          -- drop 2 LSBs = floor(3m/4)\
 
+/-- From keyless
+  Given an 8-bit base64 character, returns its 6-bit decoding.
+  Handles the '=' base64 padding character, even though it is not needed for JWTs.
+  @input   in   the 8-bit base64 alphabet character
+  @output  out  the 6-bit decoded bits corresponding to `in`
+  @notes  From
+  http://0x80.pl/notesen/2016-01-17-sse-base64-decoding.html#vector-lookup-base
+  but modified to support base64url instead.
+-/
 def base64UrlLookup (i : F p) : Option (F p) := do
   -- check if i ∈ ['A', 'Z']
   let ge_A ← F.greaterEqThan 8 i 'A'
