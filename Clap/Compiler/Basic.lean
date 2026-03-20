@@ -55,7 +55,9 @@ def curriedUserNamesOfSize (name : Name) (n : Nat) : Array Name :=
 
 def curriedUserNamesAndElemTypeOfFVar (e : Expr) : MetaM (Option (Array Name × Expr)) := do
   let (``Vector, #[t, sz]) := (← inferType e).getAppFnArgs | return .none
-  return (curriedUserNamesOfSize (←e.fvarId!.getUserName) sz.nat?.get!, t)
+  match sz.nat? with
+  | .none => throwError "Cannot curry a Vector of an arbitrary size."
+  | .some sz => return (curriedUserNamesOfSize (←e.fvarId!.getUserName) sz, t)
 
 def vectorTypeOfSerialisable (prime : Name) (sz : Nat) : Expr :=
   mkApp2 (.const `Vector [.zero]) (.app (.const `ZMod []) (.const prime [])) (ToExpr.toExpr sz)
@@ -177,17 +179,37 @@ def wg (p : Name) (argFvars : Array Expr) : TermElabM Expr := do
     let body ← mkAppM ``Wg.run #[fvar, args']
     mkLambdaFVars (#[fvar] ++ argFvars) body
 
-def compile (p circuitName : Name) (f : Expr) (n : Nat) : TermElabM Unit := do
+/--
+TODO: Currently, we only do this processing at the very beginning.
+Naturally, one actually has to do this after unfolds and all that.
+-/
+def sansInterfaceVectors (e : Expr) : TermElabM Expr := do
+  Meta.transform e fun e ↦ do
+    let_expr Vector.toList _ _ vec := e   | return .continue
+    let_expr Vector.mk _ _ arr _   := vec | return .continue
+    let_expr Array.mk _ l          := arr | return .continue
+    trace[Clap.Compiler.sansInterfaceVectors] m!"{e}\n→\n{l}"
+    return .done l
+
+def compile (p circuitName : Name) (f : Expr) (iters : Nat) : TermElabM Unit := do
   let serialiseS ← serialise p f
   trace[Clap.Compiler.serialise] m!"{serialiseS}"
 
-  let curryS ← curry p serialiseS
-  trace[Clap.Compiler.curry] m!"{curryS}"
+  let curryS ← withTraceNode `Clap.Compiler.curry
+    Trace.formatExprWith do curry p serialiseS
 
-  let reduceExprS ← reduceExpr n curryS
-  trace[Clap.Compiler.reduce] m!"{reduceExprS}"
+  let sansInterfaceVectorsS ← withTraceNode `Clap.Compiler.sansInterfaceVectors
+    Trace.formatExprWith do sansInterfaceVectors curryS
 
-  let compiledF ← pure reduceExprS >>= toDeep p
+  let reduceExprS ← withTraceNode `Clap.Compiler.reduce
+    (fun e ↦
+      match e with
+      | .error _ => return crossEmoji
+      | .ok (e, i) => return m!"{checkEmoji} Iters[{i}/{iters}]:\n{e}"
+    ) do reduceExpr iters sansInterfaceVectorsS
+
+  let compiledF ← pure reduceExprS >>= fun (e, _) ↦ toDeep p e
+  
   let compiledFname := serialisedUserName circuitName
   addAndCompile <| .defnDecl {
     name        := compiledFname
@@ -198,17 +220,17 @@ def compile (p circuitName : Name) (f : Expr) (n : Nat) : TermElabM Unit := do
     safety      := .safe
   }
   logInfo m!"Compiled {circuitName} into {compiledFname}."
-  lambdaTelescope f fun args _ ↦ do
-  let wg ← wg p args
-  let wgName := circuitName.appendAfter "_wg_wrap"
-  addAndCompile <| .defnDecl {
-    name        := wgName
-    levelParams := []
-    type        := ←inferType wg
-    value       := wg
-    hints       := .regular 18
-    safety      := .safe
-  }
+  let wgName := circuitName.appendAfter "_wg_wrap" -- TODO: Suspended WG.
+  -- lambdaTelescope f fun args _ ↦ do
+  -- let wg ← wg p args
+  -- addAndCompile <| .defnDecl {
+  --   name        := wgName
+  --   levelParams := []
+  --   type        := ←inferType wg
+  --   value       := wg
+  --   hints       := .regular 18
+  --   safety      := .safe
+  -- }
   logInfo m!"Wg for {circuitName} is {wgName}."
 
 def instantiateLambdaHeadInst (e : Expr) : TermElabM (Option Expr) := do
@@ -226,9 +248,19 @@ partial def trySynthAll (e : Expr) : TermElabM Expr := do
   | .some e => trySynthAll e
 
 def fixPrime (e p : Expr) : TermElabM Expr := do
-  let withFixedPS ← instantiateLambda e #[p]
-  trace[Clap.Compiler.preprocess] m!"{withFixedPS}"
-  pure withFixedPS >>= trySynthAll >>= instantiateMVars
+  /-
+  TODO: Workaround. As we started fixing `p`, this would break some assumptions.
+  Needs a more robust approach.
+  -/
+  lambdaTelescope e fun args _ ↦ do
+    let .some arg := args[0]? | throwError "No arguments in:\n{e}\n(TODO: Maybe this should work.)"
+    let t ← inferType arg
+    if !t.isConstOf ``Nat
+    then trace[Clap.Compiler.preprocess] m!"Assuming fully applied function."
+         return e
+    let withFixedPS ← instantiateLambda e #[p]
+    trace[Clap.Compiler.preprocess] m!"{withFixedPS}"
+    pure withFixedPS >>= trySynthAll >>= instantiateMVars
 
 elab "#compile" circuit:ident "using" p:ident n:optional("iters" num) : command => Command.liftTermElabM do
   let defaultIters : ℕ := 2048
@@ -244,7 +276,7 @@ elab "#compile" circuit:ident "using" p:ident n:optional("iters" num) : command 
   let .some decl := (←getEnv).find? decl | throwError m!"Undeclared constant: {circuit}"
   let preprocessedS ←
     withTraceNode `Clap.Compiler.preprocess
-                  (Trace.formatExprWith s!"Fixed p = {p}, resolved typeclasses:") do
+                  Trace.formatExprWith do
                   fixPrime decl.value! (.const p.getId [])
   compile p.getId circuit.getId preprocessedS n
 

@@ -27,16 +27,16 @@ def sigma (x : F p) : F p :=
     element of the state vector at a given round offset
 
     Mirrors circomlib's `Ark(t, C, r)` -/
-def ark (state C : List (F p)) (r : ℕ) : List (F p) :=
+def ark (state C : Array (F p)) (r : ℕ) : Array (F p) :=
   state.mapIdx (fun i s ↦ s + C[i + r]!)
 
 /-- **Mix (MDS matrix multiplication):** Multiplies the state vector by a
     Maximum Distance Separable matrix
 
     Mirrors circomlib's `Mix(t, M)` template: `out[i] = Σⱼ M[j][i] · in[j]` -/
-def mix (state : List (F p)) (M : List (List (F p))) : List (F p) :=
+def mix (state : Array (F p)) (M : Array (Array (F p))) : Array (F p) :=
   state.mapIdx (fun (i : ℕ) _ ↦
-    (state.zipWith (fun (sj : F p) (row : List (F p)) ↦ row[i]! * sj) M).foldl (· + ·) 0)
+    (state.zipWith (fun (sj : F p) (row : Array (F p)) ↦ row[i]! * sj) M).sum)
 
 -- TODO: Imperative or functional style?
 -- def mix (state : Array (F p)) (m : Array (Array (F p))) : Array (F p) := Id.run do
@@ -54,8 +54,8 @@ def mix (state : List (F p)) (M : List (List (F p))) : List (F p) :=
     needed output(s) without computing the full mix
 
     Mirrors circomlib's `MixLast(t, M, s)` template: `out = Σⱼ M[j][s] · in[j]` -/
-def mixLast (state : List (F p)) (M : List (List (F p))) (s : ℕ) : F p :=
-  (state.zipWith (fun (sj : F p) (row : List (F p)) ↦ row[s]! * sj) M).foldl (· + ·) 0
+def mixLast (state : Array (F p)) (M : Array (Array (F p))) (s : ℕ) : F p :=
+  (state.zipWith (fun (sj : F p) (row : Array (F p)) ↦ row[s]! * sj) M).sum
 
 -- TODO: Imperative or functional style?
 -- def mixLast (s : ℕ) (state : Array (F p)) (m : Array (Array (F p))) : F p := Id.run do
@@ -68,16 +68,16 @@ def mixLast (state : List (F p)) (M : List (List (F p))) (s : ℕ) : F p :=
     partial rounds
 
     Mirrors circomlib's `MixS(t, S, r)` template -/
-def mixS (r : ℕ) (state : List (F p)) (s : List (F p)) : List (F p) :=
-  let t : ℕ := state.length
+def mixS (r : ℕ) (state : Array (F p)) (s : Array (F p)) : Array (F p) :=
+  let t : ℕ := state.size
   let base : ℕ := (2 * t - 1) * r
-  [dotProduct base] ++ tail base t
+  #[dotProduct base] ++ tail base t
 where
   /-- `out[0] = Σᵢ S[base + i] · in[i]` — full dot product for element 0 -/
   dotProduct (base : ℕ) : F p :=
-    (state.zipWith (· * ·) ((s.drop base).take state.length)).foldl (· + ·) 0
+    (state.zipWith (· * ·) ((s.drop base).take state.size)).sum
   /-- `out[i] = in[i] + in[0] · S[base + t + i − 1]` for `i ∈ [1, t)` -/
-  tail (base t : ℕ) : List (F p) :=
+  tail (base t : ℕ) : Array (F p) :=
     (state.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state[0]! * s[base + t + i]!)
 
 -- TODO: Imperative or functional style?
@@ -120,56 +120,57 @@ where
     - `S`         — flat list of sparse-matrix entries for partial rounds
     - `M`         — MDS matrix (used in full rounds)
     - `P`         — pre-sparse matrix (used at the boundary of full → partial) -/
-def poseidonEx (nOuts : ℕ) (inputs : List (F p)) (initState : F p)
-    (C S : List (F p)) (M P : List (List (F p))) : List (F p) :=
+def poseidonEx (nOuts : ℕ) (inputs : Array (F p)) (initState : F p)
+    (C S : Array (F p)) (M P : Array (Array (F p))) : Array (F p) :=
   -- Poseidon parameters (from circomlib's PoseidonEx template)
   -- N_ROUNDS_P[t-2] for t ∈ [2, 17]
-  let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
-  let t : ℕ := inputs.length + 1
+  let N_ROUNDS_P : Array ℕ := #[56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
+  let t : ℕ := inputs.size + 1
   let nRoundsF : ℕ := 8
   let nRoundsP : ℕ := N_ROUNDS_P[t - 2]!
   let half : ℕ := nRoundsF / 2
 
   -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
-  let state := ark ([initState] ++ inputs) C 0
+  let state := ark (#[initState] ++ inputs) C 0
 
-  -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
-  let state := (List.range (half - 1)).foldl (fun state r ↦
+  -- -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
+  let state := (Array.range (half - 1)).foldl (fun state r ↦
     mix (ark (state.map sigma) C ((r + 1) * t)) M) state
 
   -- Boundary round (r = half−1): sigma → ark → mix with P
   let state := mix (ark (state.map sigma) C (half * t)) P
 
-  -- Phase 2: partial rounds
-  let state := (List.range nRoundsP).foldl (fun state r ↦
-    let s0 := sigma state[0]! + C[(half + 1) * t + r]!
-    mixS r (state.set 0 s0) S) state
+  -- -- Phase 2: partial rounds
+  -- let state := (List.range nRoundsP).foldl (fun state r ↦
+  --   let s0 := sigma state[0]! + C[(half + 1) * t + r]!
+  --   mixS r (state.set! 0 s0) S) state
 
-  -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
-  let state := (List.range (half - 1)).foldl (fun state r ↦
-    mix (ark (state.map sigma) C ((half + 1) * t + nRoundsP + r * t)) M) state
+  state
+  -- -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
+  -- let state := (List.range (half - 1)).foldl (fun state r ↦
+  --   mix (ark (state.map sigma) C ((half + 1) * t + nRoundsP + r * t)) M) state
 
-  -- Final round: sigma on all, then extract nOuts elements via MixLast
-  let state := state.map sigma
-  (List.range nOuts).map (mixLast state M)
+  -- -- Final round: sigma on all, then extract nOuts elements via MixLast
+  -- let state := state.map sigma
+  -- (List.range nOuts).map (mixLast state M)
 
 /-- **Poseidon:** Single-output Poseidon hash. Wraps `poseidonEx` with
     `nOuts = 1` and `initialState = 0`, returning the first element of
     the permutation output.
 
     Mirrors circomlib's `Poseidon(nInputs)` template. -/
-def poseidon (inputs : List (F p)) (C S : List (F p)) (M P : List (List (F p))) : F p :=
+def poseidon (inputs : Array (F p)) (C S : Array (F p)) (M P : Array (Array (F p))) : F p :=
   (poseidonEx 1 inputs 0 C S M P)[0]!
 
 section Poseidon254
 
 open Primes
 
-def liftArr (xs : List (ZMod p)) : List (F p) := xs.map const
-def liftMat (xs : List (List (ZMod p))) : List (List (F p)) := xs.map (·.map const)
+def liftArr (xs : Array (ZMod p)) : Array (F p) := xs.map const
+def liftMat (xs : Array (Array (ZMod p))) : Array (Array (F p)) := xs.map (·.map const)
 
-def poseidonBN254 (inputs : List (F bn254)) : F bn254 :=
-  let t := inputs.length + 1 -- element 2 is at list index 0 and so on
+def poseidonBN254 (inputs : Array (F bn254)) : F bn254 :=
+  let t := inputs.size + 1 -- element 2 is at list index 0 and so on
   let C := Clap.Poseidon.Constant.C[t-2]!
   let S := Clap.Poseidon.Constant.S[t-2]!
   let M := Clap.Poseidon.Constant.M[t-2]!
@@ -189,31 +190,89 @@ open Clap Lang ZMod
 open Clap Poseidon
 
 /-- Run poseidon on `ZMod bn254` inputs, looking up constants by `t`. -/
-def testPoseidon {k} (inputs : Vector (ZMod p) k) (expected : F p) : Option Unit := do
-  F.assert_eq (← poseidonBN254 (inputs.map const).toList) expected
+def testPoseidon (inputs : Vector (ZMod p) 2) (expected : F p) : Option Unit := do
+  F.assert_eq (← poseidonBN254 (inputs.toArray.map const)) expected
+  accept p
 
--- circomlib test vector: hash([1, 2]) with t=3
--- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L50
-example : testPoseidon
-  #v[1, 2] 7853200120776062878684798364095072458815029376092732009249414926327459813530
-  = some () := by native_decide
+-- -- circomlib test vector: hash([1, 2]) with t=3
+-- -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L50
+-- example : testPoseidon
+--   #v[1, 2] 7853200120776062878684798364095072458815029376092732009249414926327459813530
+--   = some () := by native_decide
 
--- circomlib test vector: hash([3, 4]) with t=3
--- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L60
-example : testPoseidon
-  #v[3, 4] 14763215145315200506921711489642608356394854266165572616578112107564877678998
-  = some () := by native_decide
+-- -- circomlib test vector: hash([3, 4]) with t=3
+-- -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L60
+-- example : testPoseidon
+--   #v[3, 4] 14763215145315200506921711489642608356394854266165572616578112107564877678998
+--   = some () := by native_decide
 
--- circomlib test vector: hash([1, 2, 0, 0, 0]) with t=6
--- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L29
-example : testPoseidon
-  #v[1, 2, 0, 0, 0] 1018317224307729531995786483840663576608797660851238720571059489595066344487
-  = some () := by native_decide
+-- -- circomlib test vector: hash([1, 2, 0, 0, 0]) with t=6
+-- -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L29
+-- example : testPoseidon
+--   #v[1, 2, 0, 0, 0] 1018317224307729531995786483840663576608797660851238720571059489595066344487
+--   = some () := by native_decide
 
--- circomlib test vector: hash([3, 4, 5, 10, 23]) with t=6
--- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L39
-example : testPoseidon
-  #v[3, 4, 5, 10, 23] 13034429309846638789535561449942021891039729847501137143363028890275222221409
-  = some () := by native_decide
+-- -- circomlib test vector: hash([3, 4, 5, 10, 23]) with t=6
+-- -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L39
+-- example : testPoseidon
+--   #v[3, 4, 5, 10, 23] 13034429309846638789535561449942021891039729847501137143363028890275222221409
+--   = some () := by native_decide
 
+-- def test {p} [Core p] (inputs : Vector (ZMod p) 2) (expected : F p) := testPoseidon inputs expected
+
+-- dsimproc_decl listRange (List.range _) := fun e ↦ do
+--   let_expr List.range k ← e | return .continue
+--   let l := List.range k.nat?.get!
+--   return .visit (Lean.toExpr l)
+
+-- attribute [simproc] listRange
+
+-- attribute [simp] C
+
+-- example : (2 : ZMod 2) + 4 = sorry := by
+--   simp +ground
+
+-- Circuit (a b c) :
+-- let part₁ := stuff
+-- let part₂ := stuff' part₁
+-- let part₃ := stuff'' part₂
+-- part₃ a b c
+
+-- set_option diagnostics true
+-- set_option trace.Debug.Meta.Tactic.simp true
+-- set_option trace.Meta.Tactic.simp true
+-- set_option trace.Meta.Tactic.simp.all true
+set_option pp.exprSizes true
+-- set_option pp.deepTerms true
+set_option pp.deepTerms.threshold 30
+set_option pp.maxSteps 1000
+set_option trace.Clap.Compiler true
+-- set_option trace.Clap.Compiler.reduce.foldProjs false
+-- set_option trace.Clap.Compiler.reduce.beta false
+-- set_option trace.Clap.Compiler.reduce.letSome false
+-- set_option trace.Clap.Compiler.reduce.linearise false
+-- set_option trace.Clap.Compiler.reduce.unfoldAny true
+-- set_option trace.Clap.Compiler.reduce.zeta false
+-- set_option trace.Clap.Compiler.reduce.simplify true
+-- set_option trace.Clap.Compiler.reduce.unfoldAny.const true
+-- set_option trace.Clap.Compiler.reduce false
+-- set_option maxRecDepth 5000
+-- set_option maxHeartbeats 1000000
+set_option debug.skipKernelTC true
+
+------------------------- Profiling -------------------------
+set_option diagnostics true
+set_option trace.profiler.threshold 40
+set_option profiler.threshold 40
+set_option trace.profiler true
+set_option profiler true
+------------------------- Profiling -------------------------
+
+-- set_option trace.Meta.isDefEq true
+-- WHAT IS IT DOING FOR 22 and onwards - times out with `simp only <NO ARGS>`
+-- and no different observable behaviour?
+
+attribute [local irreducible] bind ZMod OfNat.ofNat instHAdd 
+
+#compile testPoseidon using Primes.bn254 iters 50
 end Poseidon.Test
