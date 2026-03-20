@@ -64,13 +64,13 @@ lemma and_spec (a b : F p)
   (FB.and a b = o) ∧ (FB.valid o) := by
   aesop (add simp [F.ofBool,F.toBool,valid,and])
 
--- lemma and_spec' (a b : F p)
---   (ha : FB.valid a)
---   (hb : FB.valid b) :
---   letI o := FB.and a b
---   (F.toBool a && F.toBool b = F.toBool o) -- ∧ (FB.valid o)
---   := by
---   aesop (add simp [sub_eq_zero,F.toBool,FB.valid,FB.and])
+lemma and_spec' (a b : F p)
+  (ha : FB.valid a)
+  (hb : FB.valid b) :
+  letI o := FB.and a b
+  ((F.toBool a && F.toBool b) = F.toBool o) ∧ (FB.valid o)
+  := by
+  aesop (add simp [F.toBool,FB.valid,FB.and])
 
 def or (a b : F p) : F p := a + b - a * b
 
@@ -102,22 +102,29 @@ end F.FB
 def FB (p:ℕ) : Type := { f : F p // F.FB.valid f }
 
 namespace FB
+attribute [local aesop safe cases] FB
 
-attribute [aesop simp] sub_eq_zero eq0 F.FB.F.ofBool F.FB.F.toBool F.FB.valid
-
-def ofBool (b:Bool) : FB p :=
-  if b then ⟨F.FB.true, by aesop⟩ else ⟨F.FB.false, by aesop⟩
+attribute [local aesop simp] sub_eq_zero eq0 F.FB.F.ofBool F.FB.F.toBool F.FB.valid
 
 -- returns true also for f non boolean
 def toBool (f:FB p) : Bool :=
   if f.val = 0 then false else true
 
-attribute [aesop safe cases] FB
+def true : FB p := ⟨1, by aesop⟩
+def false : FB p := ⟨0, by aesop⟩
+
+def ofBool (b:Bool) : FB p :=
+  if b then true else false
+
+def ofBool_toBool (a : FB p) : (ofBool $ toBool a) = a := sorry
+def toBool_ofBool (a : Bool) : (toBool $ ofBool (p:=p) a) = a := sorry
+
+attribute [local aesop simp] toBool ofBool
 
 def and (a b : FB p) : FB p :=
   ⟨a.val * b.val, by aesop⟩
 
-attribute [aesop simp] toBool ofBool
+instance : AndOp (FB p) where and
 
 def and_spec (a b : FB p) :
   and a b = (ofBool (toBool a && toBool b)) := by
@@ -125,8 +132,16 @@ def and_spec (a b : FB p) :
   have hb := b.prop
   aesop (add simp [and])
 
+def and_spec' (a b : FB p) :
+  toBool (and a b) = (toBool a && toBool b) := by
+  have ha := a.prop
+  have hb := b.prop
+  aesop (add simp [and])
+
 def or (a b : FB p) : FB p :=
   ⟨a.val + b.val - a.val * b.val, by aesop⟩
+
+instance : OrOp (FB p) where or
 
 def or_spec (a b : FB p) :
   or a b = (ofBool (toBool a || toBool b)) := by
@@ -137,7 +152,24 @@ def or_spec (a b : FB p) :
 def not (a : FB p) : FB p :=
   ⟨1 - a.val, by aesop⟩
 
+def not_spec (a : FB p) :
+  not a = ofBool (Bool.not (toBool a)) := by
+  aesop (add simp [not,F.FB.valid])
+  unfold F.FB.valid at *
+  aesop
+
 end FB
+
+def test_spec (a b : Bool) : Bool := a && (b || a)
+def test_exp (a b : FB p) : FB p := FB.and a (FB.or b a)
+
+def test_equiv (a b : FB p) :
+  test_exp a b = FB.ofBool (test_spec (FB.toBool a) (FB.toBool b)) := by
+  aesop (add simp [test_exp,test_spec,FB.and_spec,FB.or_spec,FB.not_spec,FB.toBool_ofBool,FB.ofBool_toBool])
+
+def test_equiv' (a b : Bool) :
+  FB.toBool (p:=p) (test_exp (FB.ofBool a) (FB.ofBool b)) = test_spec a b := by
+  aesop (add simp [test_exp,test_spec,FB.and_spec,FB.or_spec,FB.not_spec,FB.toBool_ofBool,FB.ofBool_toBool])
 
 namespace F
 
