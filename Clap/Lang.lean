@@ -30,11 +30,18 @@ def dotProduct {w : ℕ} (a b : Vector (F p) w) : F p :=
 
 end F
 
-namespace FB
+namespace F.FB
 
-def true : F p := 1
+def valid (a: F p) : Prop :=
+  a = 0 ∨ a = 1
 
-def false : F p := 0
+-- returns true also for f non boolean
+def F.toBool (f:F p) : Bool :=
+  if f.val = 0 then false else true
+
+abbrev true : F p := 1
+
+abbrev false : F p := 0
 
 instance : Inhabited (F p) where
   default := false
@@ -47,7 +54,32 @@ def and (a b : F p) : F p := a * b
 instance : HAnd (F p) (F p) (F p) where
   hAnd := and
 
+def F.ofBool (b:Bool) : F p :=
+  if b then true else false
+
+lemma and_spec (a b : F p)
+  (ha : FB.valid a)
+  (hb : FB.valid b) :
+  letI o := F.ofBool (F.toBool a && F.toBool b)
+  (FB.and a b = o) ∧ (FB.valid o) := by
+  aesop (add simp [F.ofBool,F.toBool,valid,and])
+
+-- lemma and_spec' (a b : F p)
+--   (ha : FB.valid a)
+--   (hb : FB.valid b) :
+--   letI o := FB.and a b
+--   (F.toBool a && F.toBool b = F.toBool o) -- ∧ (FB.valid o)
+--   := by
+--   aesop (add simp [sub_eq_zero,F.toBool,FB.valid,FB.and])
+
 def or (a b : F p) : F p := a + b - a * b
+
+lemma or_spec (a b : F p)
+  (ha : FB.valid a)
+  (hb : FB.valid b) :
+  letI o := F.ofBool (F.toBool a || F.toBool b)
+  (FB.or a b = o) ∧ (FB.valid o) := by
+  aesop (add simp [F.ofBool,F.toBool,FB.valid,or])
 
 instance : HOr (F p) (F p) (F p) where
   hOr := or
@@ -64,6 +96,43 @@ def assert (a : F p) : Option Unit := do
 
 def assert_eq (a b : F p) : Option Unit := do
   F.assert_eq a b
+
+end F.FB
+
+def FB (p:ℕ) : Type := { f : F p // F.FB.valid f }
+
+namespace FB
+
+attribute [aesop simp] sub_eq_zero eq0 F.FB.F.ofBool F.FB.F.toBool F.FB.valid
+
+def ofBool (b:Bool) : FB p :=
+  if b then ⟨F.FB.true, by aesop⟩ else ⟨F.FB.false, by aesop⟩
+
+-- returns true also for f non boolean
+def toBool (f:FB p) : Bool :=
+  if f.val = 0 then false else true
+
+attribute [aesop safe cases] FB
+
+def and (a b : FB p) : FB p :=
+  ⟨a.val * b.val, by aesop⟩
+
+attribute [aesop simp] toBool ofBool
+
+def and_spec (a b : FB p) :
+  and a b = (ofBool (toBool a && toBool b)) := by
+  have ha := a.prop
+  have hb := b.prop
+  aesop (add simp [and])
+
+def or (a b : FB p) : FB p :=
+  ⟨a.val + b.val - a.val * b.val, by aesop⟩
+
+def or_spec (a b : FB p) :
+  or a b = (ofBool (toBool a || toBool b)) := by
+  have ha := a.prop
+  have hb := b.prop
+  aesop (add simp [or])
 
 end FB
 
@@ -105,7 +174,7 @@ abbrev FBitVec (p:ℕ) := List (F p)
 
 namespace FBitVec
 
-def default (l:ℕ) : FBitVec p := List.replicate l FB.false
+def default (l:ℕ) : FBitVec p := List.replicate l F.FB.false
 
 def ofF (w:ℕ) (e:F p) : Option (FBitVec p) :=
   num2bits w e
@@ -121,15 +190,15 @@ def assert_eq (a b : FBitVec p) : Option Unit :=
   match a,b with
   | [],[] => some ()
   | ha::tla,hb::tlb => do
-      FB.assert_eq ha hb
+      F.FB.assert_eq ha hb
       assert_eq tla tlb
   | _,_ => none
 
 def lessThan (a b : FBitVec p) : F p :=
   (a.zip b).foldl (fun acc (aᵢ, bᵢ) ↦
-    let eqᵢ := FB.eq aᵢ bᵢ
-    (eqᵢ &&& acc) ||| ((FB.not eqᵢ) &&& (FB.not aᵢ))
-  ) FB.false
+    let eqᵢ := F.FB.eq aᵢ bᵢ
+    (eqᵢ &&& acc) ||| ((F.FB.not eqᵢ) &&& (F.FB.not aᵢ))
+  ) F.FB.false
 
 def greaterThan (a b : FBitVec p) : F p :=
   lessThan b a
@@ -151,7 +220,7 @@ def ofUInt8 (u:UInt8) : Option (F8 p) :=
 def zero : F8 p := FBitVec.default 8
 
 def eq (a b : F8 p) : F p :=
-  List.foldl (fun acc (a,b) => FB.and acc (FB.eq a b)) FB.true (a.zip b)
+  List.foldl (fun acc (a,b) => F.FB.and acc (F.FB.eq a b)) F.FB.true (a.zip b)
 
 def assert_eq (a b : F8 p) := FBitVec.assert_eq a b
 
