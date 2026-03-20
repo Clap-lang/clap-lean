@@ -21,6 +21,41 @@ def assertIsBytes [Fact (Primes.fits p 8)] {numBytes : ℕ}
   _ ← a.mapM F8.ofF
   pure ()
 
+-- #check Vector.cons
+
+open Classical in
+example [Fact (Primes.fits p 8)] {n : ℕ} {a : Vector (F p) n} : assertIsBytes a =
+    if (∀ i, ∃ n : ℕ, a.get i = n ∧ n < 256) then .some () else .none := by
+  unfold assertIsBytes  F8.ofF FBitVec.ofF
+  simp only [Option.pure_def, Option.bind_eq_bind]
+  split_ifs with h
+  · have {α : Type} {c : Option α} : c.isSome → (c.bind fun _ ↦ .some ()) = some () := by
+      intros h
+      refine Option.bind_eq_some_iff.mpr ?_
+      use c.get h
+      simp
+    rw [this]
+    have {n : ℕ} {α β : Type} {f : α → Option β} {a : Vector α n} : (∀ i, (f (a.get i)).isSome) → (Vector.mapM f a).isSome := by
+      intros h
+      induction n with
+      | zero =>
+        have : a = #v[] := by
+          simp
+        erw [this, Vector.mapM_mk_empty]
+        simp
+      | succ n ih =>
+
+        unfold Vector.mapM
+
+        sorry
+    apply this
+    intros i
+
+
+    sorry
+
+  · sorry
+
 def bigEndianBits2Num : FBitVec p → F p := bits2num ∘ .reverse
 
 def bytes2BigEndianBits [Fact (Primes.fits p 8)] {n : ℕ} (bytes : Vector (F p) n) : Option (FBitVec p) := do
