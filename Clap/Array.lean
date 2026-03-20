@@ -31,13 +31,13 @@ def singleEndArray (len : ℕ) (idx : F p) : Option (Vector (F p) len) := do
 def arraySelector (len : ℕ) (startIdx endIdx : F p) : Option (Vector (F p) len) := do
   let w := Clap.minBits len
   assert! w ≤ Clap.minBits p
-  FB.assert (← F.lessThan w startIdx endIdx)
+  F.FB.assert (← F.lessThan w startIdx endIdx)
   let startMask ← singleOneArray len startIdx
   let endMask ← singleEndArray len endIdx
   -- At each position, turn on at startIdx (OR with startMask) and turn off at endIdx (AND with NOT endMask).
-  let step (prev : F p) (i : Fin len) : F p := FB.and (FB.or prev startMask[i]) (FB.not endMask[i])
+  let step (prev : F p) (i : Fin len) : F p := F.FB.and (F.FB.or prev startMask[i]) (F.FB.not endMask[i])
   -- Build the output by scanning `step` left-to-right through indices 0..i for each position i.
-  return Vector.ofFn fun i ↦ (List.finRange len).take (i.1 + 1) |>.foldl step FB.false
+  return Vector.ofFn fun i ↦ (List.finRange len).take (i.1 + 1) |>.foldl step F.FB.false
 
 /-- Returns the element of `arr` at index `idx`. Fails when `idx ≥ len`. -/
 def selectArrayValue {len : ℕ} (arr : Vector (F p) len) (idx : F p) : Option (F p) := do
@@ -56,7 +56,7 @@ def rightArraySelector (len : ℕ) (idx : F p) : Option (Vector (F p) len) := do
 
 /-- Like `arraySelector`, but returns all zeros when `endIdx ≤ startIdx`. Does not work when `startIdx = 0`. -/
 def arraySelectorComplex (len : ℕ) (startIdx endIdx : F p) : Option (Vector (F p) len) := do
-  FB.assert (FB.not (isZero startIdx))
+  F.FB.assert (F.FB.not (isZero startIdx))
   let right ← rightArraySelector len (startIdx - 1)
   let left ← leftArraySelector len endIdx
   return right.zipWith (· * ·) left
