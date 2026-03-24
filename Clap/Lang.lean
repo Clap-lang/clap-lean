@@ -130,6 +130,9 @@ def binSum (a b : FBitVec p) : Option (FBitVec p) :=
   let sum : F p := a.toF + b.toF
   num2bits (a.length + 1) sum
 
+def xor (a b : FBitVec p) : FBitVec p :=
+  a.zipWith FB.xor b
+
 def assert_eq (a b : FBitVec p) : Option Unit :=
   match a,b with
   | [],[] => some ()
