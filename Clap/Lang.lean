@@ -125,6 +125,7 @@ def and (a b : FB p) : FB p :=
   ⟨a.val * b.val, by aesop⟩
 
 instance : AndOp (FB p) where and
+instance : HAnd (FB p) (FB p) (FB p) where hAnd := and
 
 def and_spec (a b : FB p) :
   and a b = (ofBool (toBool a && toBool b)) := by
@@ -142,6 +143,7 @@ def or (a b : FB p) : FB p :=
   ⟨a.val + b.val - a.val * b.val, by aesop⟩
 
 instance : OrOp (FB p) where or
+instance : HOr (FB p) (FB p) (FB p) where hOr := or
 
 def or_spec (a b : FB p) :
   or a b = (ofBool (toBool a || toBool b)) := by
@@ -159,6 +161,10 @@ def not_spec (a : FB p) :
   aesop
 
 end FB
+
+-- Aesop does not go through &&& ||| syntax
+-- def test_spec (a b : Bool) : Bool := a && b || (not (a || b))
+-- def test_exp (a b : FB p) : FB p := a &&& b ||| (FB.not (a ||| b))
 
 def test_spec (a b : Bool) : Bool := a && (b || a)
 def test_exp (a b : FB p) : FB p := FB.and a (FB.or b a)
