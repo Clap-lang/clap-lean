@@ -13,7 +13,7 @@ namespace Spec.Compiler
 def accept : Unit := ()
 
 @[irreducible]
-def eq0 (e : ZMod p) : Option Unit := if e = 0 then .some () else .none
+def eq0 (e : ZMod p) : Option (PLift (e = 0)) := if h : e = 0 then .some (.up h) else .none
 
 @[irreducible]
 def share (e : ZMod p) : ZMod p := e
@@ -42,7 +42,7 @@ lemma equiv_lam {α : Type} {f : ZMod p → α} {g : ZMod p → Circuitₑ p}
 lemma equiv_eq0 {cl : Option Unit} {cr : Circuitₑ p}
   (cont : cl ~ₛ cr.eval)
   (h : el = er.eval) :
-  (do eq0 el; cl) ~ₛ (Circuit.eq0 er cr).eval := by
+  (do bind (eq0 el) (fun _ => cl)) ~ₛ (Circuit.eq0 er cr).eval := by
   aesop (add simp eq0)
 
 @[aesop safe apply]
@@ -75,7 +75,7 @@ end
 end Compiler
 
 end Spec
-
+/-
 namespace Example_base
 
 open Spec.Compiler
@@ -188,5 +188,5 @@ theorem equiv [Fact (Nat.Prime p)] :
   rfl
 
 end Example_fold
-
+-/
 end Clap

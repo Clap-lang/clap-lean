@@ -19,8 +19,8 @@ instance : Inhabited (F p) where
 def assert_range (w : ℕ) (e : F p) : Option Unit := do
   let _ <- num2bits w e ; ()
 
-def assert_eq (a b : F p) : Option Unit := do
-  eq0 (a - b)
+-- def assert_eq (a b : F p) : Option Unit := do
+--   eq0 (a - b)
 
 def eq (a b : F p) : F p :=
   isZero (a - b)
@@ -91,11 +91,11 @@ def xor (a b : F p) : F p := a + b - 2 * a * b
 instance : HXor (F p) (F p) (F p) where
   hXor := xor
 
-def assert (a : F p) : Option Unit := do
-  eq0 (not a)
+-- def assert (a : F p) : Option Unit := do
+--   eq0 (not a)
 
-def assert_eq (a b : F p) : Option Unit := do
-  F.assert_eq a b
+-- def assert_eq (a b : F p) : Option Unit := do
+--   F.assert_eq a b
 
 end F.FB
 
@@ -126,6 +126,20 @@ def and (a b : FB p) : FB p :=
 
 instance : AndOp (FB p) where and
 instance : HAnd (FB p) (FB p) (FB p) where hAnd := and
+
+-- lemma assertFB_valid (a:F p) :
+--   assertFB a = some () ↔ F.FB.valid a := sorry
+
+variable [Fact (Nat.Prime p)]
+
+lemma bla (a:F p) : a * (1-a) = 0 ↔ F.FB.valid a := by
+  aesop (add simp [F.FB.valid,mul_eq_zero,sub_eq_zero])
+
+def ofF (a : F p) : Option (FB p) := do
+  let h ← eq0 (a * (1-a))
+  pure ⟨a, by
+    rw [bla] at h
+    apply PLift.down h⟩
 
 def and_spec (a b : FB p) :
   and a b = (ofBool (toBool a && toBool b)) := by
@@ -162,6 +176,8 @@ def not_spec (a : FB p) :
 
 end FB
 
+variable [Fact (Nat.Prime p)]
+
 -- Aesop does not go through &&& ||| syntax
 -- def test_spec (a b : Bool) : Bool := a && b || (not (a || b))
 -- def test_exp (a b : FB p) : FB p := a &&& b ||| (FB.not (a ||| b))
@@ -176,6 +192,11 @@ def test_equiv (a b : FB p) :
 def test_equiv' (a b : Bool) :
   FB.toBool (p:=p) (test_exp (FB.ofBool a) (FB.ofBool b)) = test_spec a b := by
   aesop (add simp [test_exp,test_spec,FB.and_spec,FB.or_spec,FB.not_spec,FB.toBool_ofBool,FB.ofBool_toBool])
+
+def test_exp_o (a b : F p) : Option (FB p) := do
+  let a ← FB.ofF a
+  let b ← FB.ofF b
+  FB.and a (FB.or b a)
 
 namespace F
 
