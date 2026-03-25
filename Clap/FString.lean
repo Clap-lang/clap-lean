@@ -237,6 +237,8 @@ def assertIsConcatenation
   -- Step 8: assert full_poly_eval = left_poly_eval + α^left_len · right_poly_eval
   F.assert_eq fullPolyEval (leftPolyEval + distinguishingValue * rightPolyEval)
 
+def toList {len : ℕ} (s : FString p len) : List (FChar p) := s.chars.toList
+
 end FString
 
 namespace TestString

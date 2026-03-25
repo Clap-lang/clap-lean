@@ -122,7 +122,8 @@ private def requiredEvValLen6 : List (F p) :=
   -- «"true"»
   [34, 116, 114, 117, 101, 34]
 
-def FList.eq (a b : List (F p)) : FB p := a.zipWith F.eq b |>.foldl (· * ·) 1
+def FList.eq (a b : List (F p)) : FB p :=
+  a.zipWith F.eq b |>.foldl FB.and FB.true
 
 /--
   Enforce that if uid name is "email", the email verified field is either true or "true"

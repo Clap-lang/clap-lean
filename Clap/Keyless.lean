@@ -13,7 +13,7 @@ abbrev p := Primes.bn254
 
 variable [Core p]
 
-/-- From keyless.circom.
+/-- From keyless.circom:
   The main Aptos Keyless circuit.
 
   Max lengths:
@@ -101,18 +101,31 @@ def keyless
   (b64u_jwt_no_sig_sha2_padded : FString p max_B64U_JWT_no_sig_len)
   (b64u_jwt_header_w_dot : FString p max_B64U_JWT_header_w_dot_len)
   -- (b64u_jwt_header_w_dot_len : F p)
-  (b64u_jwt_payload_sha2_padded : FString p max_B64U_JWT_payload_SHA2_padded_len)
-  (b64u_jwt_payload : FString p max_B64U_JWT_payload_SHA2_padded_len)
-  (aud_field : FString p max_AUD_KV_pair_len)
-  (aud_field_string_bodies : FString p max_AUD_KV_pair_len)
-  (aud_field_len aud_index use_aud_override : F p)
+  (b64u_jwt_payload_sha2_padded b64u_jwt_payload :
+    FString p max_B64U_JWT_payload_SHA2_padded_len
+  )
+  -- (b64u_jwt_payload : FString p max_B64U_JWT_payload_SHA2_padded_len)
+  (aud_field aud_field_string_bodies
+    : FString p max_AUD_KV_pair_len
+  )
+  -- (aud_field_string_bodies : FString p max_AUD_KV_pair_len)
+  (aud_index use_aud_override : F p)
   (aud_value private_aud_value override_aud_value : FString p max_AUD_value_len)
   (aud_name : FString p max_AUD_name_len)
   (private_aud_value_len override_aud_value_len skip_aud_checks aud_colon_index : F p)
-  -- (b64u_jwt_payload_sha2_padded_len : F p)
+  (uid_field uid_field_string_bodies : FString p max_UID_KV_pair_len)
+  (uid_index : F p)
+  (uid_name uid_value : FString p max_UID_name_len)
+  (uid_colon_index : F p)
+  (extra_field : FString p max_Extra_Field_KV_pair_len)
+  (extra_index use_extra_field extra_field_len : F p)
+  (ev_field : FString p max_Email_verified_KV_pair_len)
+  (ev_index ev_value_index ev_colon_index : F p)
+  (ev_name ev_value : List (F p))
+  (ev_name_len ev_value_len: F p)
  : Option Unit
 := do
-  /- From keyless.circom.
+  /- From keyless.circom:
     Several templates (e.g., Poseidon-BN254 templates, LessThan) assume the
     BN254 curve is used, whose scalar field can represent any 253-bit number
     (but not necessarily any 254-bit one). Here, we check that the scalar
@@ -127,7 +140,7 @@ def keyless
   --  1.2 The maximum length of a base64url-decoded JWT payload.
   let max_JWT_payload_Len := 3 * max_B64U_JWT_payload_SHA2_padded_len / 4;
 
-  /- From keyless.circom.
+  /- From keyless.circom:
     Checks that the base64url-encoded JWT payload & header are correctly concatenated:
     i.e., that `b64u_jwt_no_sig_sha2_padded` is the concatenation of
     `b64u_jwt_header_w_dot` with` b64u_jwt_payload_sha2_padded`
@@ -164,17 +177,17 @@ def keyless
     SHA2-256 hashing
   -/
 
-  -- SHA2_256_PaddingVerify
-  -- SHA2_256_Prepadded_Hash
+  -- TODO: SHA2_256_PaddingVerify
+  -- TODO: SHA2_256_Prepadded_Hash
 
 
   /-
     JWT RSA signature verification
   -/
 
-  -- RSA_2048_e_65537_PKCS1_V1_5_Verify
+  -- TODO: RSA_2048_e_65537_PKCS1_V1_5_Verify
 
-  /-
+  /- From keyless.circom:
     Decoding the base64url-encoded JWT
   -/
   let b64u_jwt_payload :=
@@ -189,30 +202,30 @@ def keyless
   let jwt_payload_hash ←
     hashBytesToFieldWithLen jwt_payload.toVector jwt_payload_len
 
-  /-
+  /- From keyless.circom:
     Computing hints for securing our JWT parsing
   -/
 
-  /- From keyless.circom.
+  /- From keyless.circom:
     Contains 1s between unescaped quotes, and 0s everywhere else. Used to
     prevent a fake field inside quotes from being accepted as valid
   -/
   let string_bodies := stringBodies jwt_payload.toList
 
 
-  /- From keyless.circom.
-  To prevent attacks involving fields inside nested brackets, we perform the
-    following steps:
-  1. Take the inverse of the string bodies array, turning each `1` into `0`,
-    and each `0` into `1`
-  2. Create an array marking open brackets (1) and closed brackets (-1) in
-    the ASCII JWT payload, with 0 elsewhere
-  3. Use the array from 1 to eliminate quoted brackets in 2 with element-wise
-    multiplication
-  4. Use the array from 3 to make an array with 1+ inside brackets and 0
-    everywhere else, not including the outermost brackets of the JWT payload
-  5. Use the array from 4 to check there are no characters of a given field
-    (such as aud) inside of nested brackets. This is done per field
+  /- From keyless.circom:
+    To prevent attacks involving fields inside nested brackets, we perform the
+      following steps:
+    1. Take the inverse of the string bodies array, turning each `1` into `0`,
+      and each `0` into `1`
+    2. Create an array marking open brackets (1) and closed brackets (-1) in
+      the ASCII JWT payload, with 0 elsewhere
+    3. Use the array from 1 to eliminate quoted brackets in 2 with element-wise
+      multiplication
+    4. Use the array from 3 to make an array with 1+ inside brackets and 0
+      everywhere else, not including the outermost brackets of the JWT payload
+    5. Use the array from 4 to check there are no characters of a given field
+      (such as aud) inside of nested brackets. This is done per field
   -/
   let inverted_string_bodies := string_bodies.map FB.not
   let brackets_map := bracketsMap jwt_payload.toList
@@ -238,16 +251,16 @@ def keyless
   -- `jwt_payload_hash` supposed to be used here, but probably not needed
   assertIsSubstring jwt_payloadStr aud_field aud_index
   assertIsSubstring jwt_payloadStr aud_field_string_bodies aud_index
-  enforceNotNested max_JWT_payload_Len aud_index aud_field_len
+  enforceNotNested max_JWT_payload_Len aud_index aud_field.len
     unquoted_brackets_depth_map
 
-  --  Perform necessary checks on aud field
+  -- From keyless.circom: Perform necessary checks on aud field
   let AUD_NAME_LEN := 3
   let aud_name := {aud_name with len := AUD_NAME_LEN}
 
   eq0 <| use_aud_override * (1 - use_aud_override)
 
-  /- From keyless.circom
+  /- From keyless.circom:
     We never want to skip aud checks in the JWT while using aud override -
     the aud override value should always be checked against the JWT when
     `use_aud_override` is equal to 1.
@@ -285,6 +298,9 @@ def keyless
       aud_colon_index skip_aud_checks
   else .none
 
+  /- From keyless.circom:
+    Check aud name is correct
+  -/
   let perform_aud_checks := FB.not skip_aud_checks;
   -- a * performCheck = b * performCheck;
   let conditionallyAssertEq (performCheck : FB p) (a b : F8 p) : Option Unit :=
@@ -300,7 +316,81 @@ def keyless
     conditionallyAssertEq perform_aud_checks aud_name.chars[2] [0, 0, 1, 0, 0, 1, 1, 0]
   else .none
 
+  /- From keyless.circom:
+    Check user id field is in the JWT
+  -/
+  assertIsSubstring jwt_payloadStr uid_field aud_index
+  assertIsSubstring jwt_payloadStr uid_field_string_bodies uid_index
+  enforceNotNested max_JWT_payload_Len uid_index uid_field.len
+    unquoted_brackets_depth_map
+
+  /- From keyless.circom:
+    Perform necessary checks on user id field. Some fields this might be in
+    practice are "sub" or "email"
+  -/
+  let uid_field_string_bodies := uid_field_string_bodies.chars.map FBitVec.toF
+  if
+    h_len :
+      max_UID_name_len ≤ max_UID_KV_pair_len ∧
+        max_UID_name_len ≤ max_UID_KV_pair_len
+  then
+    parseJWTFieldWithQuotedValue h_len.1 h_len.2 uid_field uid_name uid_value
+      uid_field_string_bodies
+      uid_colon_index 0
+  else .none
+
+  /- From keyless.circom:
+    Check extra field is in the JWT
+  -/
+  eq0 <| use_extra_field * (use_extra_field - 1)
+  let ef_passes ← isSubstring jwt_payloadStr extra_field extra_index
+  enforceNotNested max_JWT_payload_Len extra_index extra_field_len
+    unquoted_brackets_depth_map
+
+  /- From keyless.circom:
+    Fail if use_extra_field = 1 and ef_passes = 0
+  -/
+  let not_ef_passes :=  FB.not ef_passes
+  let ef_fail := FB.and use_extra_field not_ef_passes
+  eq0 ef_fail
+
+  /- From keyless.circom:
+    Check that ef is not inside a string body
+  -/
+  let ef_start_char ←
+    selectArrayValue string_bodies.toArray.toVector extra_index
+  eq0 ef_start_char
+
+  /- From keyless.circom:
+    Check email verified field
+  -/
+  let EV_NAME_LEN := 14
+
+  /- From keyless.circom:
+    Boolean truth table for checking whether we should fail on the results of
+    `emailVerifiedCheck` and `IsSubstring`. We must fail if the uid name is
+    'email', and the provided `ev_field` is not in the full JWT according to the
+    substring check
+
+    uid_is_email | ev_in_jwt | ev_fail
+        1        |     1     |   1
+        1        |     0     |   0
+        0        |     1     |   1
+        0        |     0     |   1
+
+  -/
+  let uid_name_len := uid_name.len
+  let uid_name :=
+    uid_name.chars.map FBitVec.toF
+
+  let uid_is_email ←
+    emailVerifiedCheck uid_name_len ev_name ev_name ev_value_len ev_value
+
+  -- let ev_in_jwt ← isSubstring jwt_payload ev_field ev_field.len ev_index
+
+
 end Keyless
+
 
 namespace TestKeyless
 
