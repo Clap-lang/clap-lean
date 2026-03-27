@@ -35,7 +35,16 @@ initialize Lean.registerTraceClass `Clap.Compiler.curry (inherited := true)
 
 initialize Lean.registerTraceClass `Clap.Compiler.sansInterfaceVectors (inherited := true)
 
-initialize Lean.registerTraceClass `Clap.Compiler.expressionSizeDelta
+register_option Clap.Compiler.Debug : Bool := {
+  defValue := false
+  descr := "Debug mode for the compiler"
+}
+
+initialize Lean.registerTraceClass `Clap.Compiler.Debug
+
+initialize Lean.registerTraceClass `Clap.Compiler.Debug.expressionSizeDelta (inherited := true)
+
+initialize Lean.registerTraceClass `Clap.Compiler.Debug.revertOnTimeout (inherited := true)
 
 namespace Clap.Compiler.Trace
 
@@ -59,13 +68,24 @@ def reportBigSizeDelta (e₁ e₂ : Expr)
     let δ := (e₂sz : Rat) / e₁sz
     if δ > maxδ then reportExceeded (.inr δ)
   where reportExceeded (esz : Nat ⊕ Rat) : m Unit := do
-    trace[Clap.Compiler.expressionSizeDelta] m!"{descr} (δ = {esz}) (maxδ := {maxδ})"
+    trace[Clap.Compiler.Debug.expressionSizeDelta] m!"{descr} (δ = {esz}) (maxδ := {maxδ})"
 
 def withReportSizeDelta (e : Expr) (f : Expr → m Expr)
                         (descr : String := "") (maxδ : Nat ⊕ Rat := .inr (3/2)) : m Expr := do
   let res ← f e
   reportBigSizeDelta e res (descr := descr) (maxδ := maxδ)
   return res
+
+def withReportTimeoutAndRevert [MonadRuntimeException m]
+                               (e : Expr) (context : String)
+                               (f : Expr → m Expr) : m Expr := do
+  let go := f e
+  let options ← getOptions
+  if options.getBool `Clap.Compiler.Debug.revertOnTimeout
+  then tryCatchRuntimeEx go fun _ ↦ do
+    trace[Clap.Compiler.Debug.revertOnTimeout] m!"{bombEmoji} Timeout[{context}]"
+    return e
+  else go
 
 end
 

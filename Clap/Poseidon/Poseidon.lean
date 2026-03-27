@@ -242,7 +242,7 @@ def testPoseidon (inputs : Vector (ZMod p) 2) (expected : F p) : Option Unit := 
 -- set_option trace.Debug.Meta.Tactic.simp true
 -- set_option trace.Meta.Tactic.simp true
 -- set_option trace.Meta.Tactic.simp.all true
-set_option pp.exprSizes true
+-- set_option pp.exprSizes true
 -- set_option pp.deepTerms true
 set_option pp.deepTerms.threshold 30
 set_option pp.maxSteps 1000
@@ -261,18 +261,17 @@ set_option trace.Clap.Compiler true
 set_option debug.skipKernelTC true
 
 ------------------------- Profiling -------------------------
-set_option diagnostics true
-set_option trace.profiler.threshold 40
-set_option profiler.threshold 40
-set_option trace.profiler true
-set_option profiler true
+-- set_option diagnostics true
+-- set_option trace.profiler.threshold 40
+-- set_option profiler.threshold 40
+-- set_option trace.profiler true
+-- set_option profiler true
 ------------------------- Profiling -------------------------
 
--- set_option trace.Meta.isDefEq true
--- WHAT IS IT DOING FOR 22 and onwards - times out with `simp only <NO ARGS>`
--- and no different observable behaviour?
-
 attribute [local irreducible] bind ZMod OfNat.ofNat instHAdd 
+
+-- set_option Clap.Compiler.Debug true
+set_option trace.Clap.Compiler.Debug.revertOnTimeout true
 
 #compile testPoseidon using Primes.bn254 iters 50
 end Poseidon.Test

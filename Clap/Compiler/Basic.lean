@@ -262,7 +262,21 @@ def fixPrime (e p : Expr) : TermElabM Expr := do
     trace[Clap.Compiler.preprocess] m!"{withFixedPS}"
     pure withFixedPS >>= trySynthAll >>= instantiateMVars
 
+def validateOptions : TermElabM Unit := do
+  let options ← getOptions
+  validateDebugTraceDebug options
+-- `trace.Clap.Compiler.Debug` has no effect when not in debug mode
+where validateDebugTraceDebug (opt : Options) : TermElabM Unit := do
+  let isDbg := opt.getBool `Clap.Compiler.Debug
+  if isDbg then return
+  let «prefix» := `trace.Clap.Compiler.Debug
+  let dbgTraceOptions := «prefix».append <$> [`expressionSizeDelta, `revertOnTimeout]
+  for option in dbgTraceOptions do
+    if opt.getBool option then
+      logWarning m!"{option} has no effect when Clap.Compiler.Debug = false"
+
 elab "#compile" circuit:ident "using" p:ident n:optional("iters" num) : command => Command.liftTermElabM do
+  validateOptions
   let defaultIters : ℕ := 2048
   /-
   This is just a debugging feature so I do not care to make it pretty.
