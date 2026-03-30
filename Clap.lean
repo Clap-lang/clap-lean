@@ -28,6 +28,7 @@ import Clap.Array
 import Clap.Compiler.Basic
 import Clap.Compiler.Deep
 import Clap.Quadratic
+import Clap.Parsing
 import Clap.Test.Wheels
 import Clap.Test.Compiler.Serialise
 import Clap.Test.Compiler.Curry
