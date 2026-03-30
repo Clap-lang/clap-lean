@@ -182,14 +182,15 @@ def wg (p : Name) (argFvars : Array Expr) : TermElabM Expr := do
 /--
 TODO: Currently, we only do this processing at the very beginning.
 Naturally, one actually has to do this after unfolds and all that.
+
+TODO: With simp, this is likely superfluous, but let's keep it around for a bit.
 -/
 def sansInterfaceVectors (e : Expr) : TermElabM Expr := do
   Meta.transform e fun e ↦ do
-    let_expr Vector.toList _ _ vec := e   | return .continue
-    let_expr Vector.mk _ _ arr _   := vec | return .continue
-    let_expr Array.mk _ l          := arr | return .continue
-    trace[Clap.Compiler.sansInterfaceVectors] m!"{e}\n→\n{l}"
-    return .done l
+    let_expr Vector.toArray _ _ vec := e   | return .continue
+    let_expr Vector.mk _ _ arr _    := vec | return .continue
+    trace[Clap.Compiler.sansInterfaceVectors] m!"{e}\n→\n{arr}"
+    return .done arr
 
 private def iterationsMessage (iters maxIters : ℕ) : MessageData :=
   m!"Reduction iterations[{iters}/{maxIters}]"

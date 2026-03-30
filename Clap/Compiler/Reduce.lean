@@ -176,15 +176,19 @@ def simplify (e : Expr) : TermElabM Expr := do
 
 def reduceStep (e : Expr) : TermElabM Expr := do
   let simplifyS ← Trace.withReportTimeoutAndRevert e "simplify" (
-    withTraceNode `Clap.Compiler.reduce.simplify Trace.formatExprWith ∘ simplify
+    withTraceNode `Clap.Compiler.reduce.simplify (skipIdentity e) ∘ simplify
   )
   let unfoldAnyS ← Trace.withReportTimeoutAndRevert simplifyS "unfoldAny" (
-    withTraceNode `Clap.Compiler.reduce.unfoldAny Trace.formatExprWith ∘ liftM ∘ unfoldAny
+    withTraceNode `Clap.Compiler.reduce.unfoldAny (skipIdentity simplifyS) ∘ liftM ∘ unfoldAny
   )
   let foldProjsS ← Trace.withReportTimeoutAndRevert unfoldAnyS "foldProjsS" (
-    withTraceNode `Clap.Compiler.reduce.foldProjs Trace.formatExprWith ∘ liftM ∘ foldProjs
+    withTraceNode `Clap.Compiler.reduce.foldProjs (skipIdentity unfoldAnyS) ∘ liftM ∘ foldProjs
   )
   return foldProjsS
+  where skipIdentity (e : Expr) (res : Except Exception Expr) : TermElabM MessageData :=
+    match res with
+    | .error err => return err.toMessageData
+    | .ok res => return if e == res then m!"Fixpoint" else m!"{res}"
 
 def reduceExpr (iters : ℕ) (e : Expr) : TermElabM (Expr × ℕ) := do
   let mut res := e
