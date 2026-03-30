@@ -168,41 +168,23 @@ def simplify (e : Expr) : TermElabM Expr := do
   lambdaTelescope e fun args body ↦ do
     let abc ← mkAppM ``ABC #[body]
     let mvar ← mkFreshExprMVar (.some abc) MetavarKind.syntheticOpaque
-    -- tryCatchRuntimeEx ( do
       let ([mvar], _) ←
         Elab.runTactic mvar.mvarId! (←simpClosed) (←read) (←get) |
           throwError "Simp generated more than a single goal on:\n{e}"
-      -- let x ← Core.getMessageLog
-      -- logWarning m!"What is this: {x.toArray.map (·.data)}"
       let_expr ABC _ x := ←instantiateMVars (←mvar.getType) | throwError "What"
       mkLambdaFVars args x
-    -- ) fun _ ↦ do trace[Clap.Compiler.reduce] "Timeout[simp]."
-    --              tryCatchRuntimeEx (do return (←Meta.dsimp e ctx).1) fun _ ↦ do
-    --                trace[Clap.Compiler.reduce] "Timeout[dsimp]."
-    --                return e
 
 def reduceStep (e : Expr) : TermElabM Expr := do
-  
-  let dsimpS ← Trace.withReportTimeoutAndRevert e "simplify" (
+  let simplifyS ← Trace.withReportTimeoutAndRevert e "simplify" (
     withTraceNode `Clap.Compiler.reduce.simplify Trace.formatExprWith ∘ simplify
   )
-  
-  let unfoldAnyS ← Trace.withReportTimeoutAndRevert e 
-
-  -- let unfoldAnyS ← withTraceNode `Clap.Compiler.reduce.unfoldAny Trace.formatExprWith do
-  --   unfoldAny dsimpS
-
-  -- let foldProjsS ← withTraceNode `Clap.Compiler.reduce.foldProjs Trace.formatExprWith do
-  --   foldProjs unfoldAnyS
-  
+  let unfoldAnyS ← Trace.withReportTimeoutAndRevert simplifyS "unfoldAny" (
+    withTraceNode `Clap.Compiler.reduce.unfoldAny Trace.formatExprWith ∘ liftM ∘ unfoldAny
+  )
+  let foldProjsS ← Trace.withReportTimeoutAndRevert unfoldAnyS "foldProjsS" (
+    withTraceNode `Clap.Compiler.reduce.foldProjs Trace.formatExprWith ∘ liftM ∘ foldProjs
+  )
   return foldProjsS
-  where 
-    _sansOuterBinders (e : Expr) : Expr :=
-      match e with
-      | .lam (body := body) .. | .forallE (body := body) .. =>
-        _sansOuterBinders body
-      | _ => e
-    skipIdentity (σ₁ σ₂ : Expr) := if σ₁ == σ₂ then m!"<Identity>" else m!"{σ₂}"
 
 def reduceExpr (iters : ℕ) (e : Expr) : TermElabM (Expr × ℕ) := do
   let mut res := e
