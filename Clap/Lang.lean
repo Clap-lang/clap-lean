@@ -41,6 +41,10 @@ def eq (a b : F p) : FB p :=
 def dotProduct {w : ℕ} (a b : Vector (F p) w) : F p :=
   (a.zipWith (· * ·) b).foldl (· + ·) 0
 
+/-- Constrains `x` to be 0 or 1: `x * (x - 1) == 0`. -/
+def assertBinary (x : F p) : Option Unit :=
+  eq0 (x * (x - 1))
+
 end F
 
 namespace FB

@@ -23,6 +23,7 @@ private def stringBodiesRev₀ (input : List (F p)) : List (FB p) × FB p × FB 
     )
     ([], default, default)
 
+omit [Core bn254] in
 /-- From keyless:
   Given an array of ask characters representing a JSON object, output a binary array demarquing
   the spaces in between quotes, so that the indices in between quotes in `in` are given the value
@@ -32,6 +33,24 @@ private def stringBodiesRev₀ (input : List (F p)) : List (FB p) × FB p × FB 
 -/
 def stringBodies (input : List (F p)) : List (FB p) :=
   (stringBodiesRev₀ input).1.reverse
+
+omit [Core bn254] in
+@[simp] theorem stringBodies_length (input : List (F p)) :
+    (stringBodies input).length = input.length := by
+  simp only [stringBodies, List.length_reverse]
+  show (stringBodiesRev₀ input).1.length = input.length
+  simp only [stringBodiesRev₀]
+  -- Generalize the accumulator
+  suffices h : ∀ (s : List (FB p) × FB p × FB p),
+      (input.foldl (fun x c ↦
+        let isNonEscQuotationMark := F.eq c '\"' &&& FB.not x.2.2
+        (x.2.1 * FB.not isNonEscQuotationMark :: x.1,
+         FB.xor x.2.1 isNonEscQuotationMark,
+         F.eq c '\\' &&& FB.not x.2.2)) s).1.length
+      = input.length + s.1.length by simpa using h ([], default, default)
+  induction input with
+  | nil => simp
+  | cons _ _ ih => intro s; simp only [List.foldl_cons, List.length_cons]; rw [ih]; simp; omega
 
 /--
   Given an array of ASCII characters `arr`, returns an array `brackets` with

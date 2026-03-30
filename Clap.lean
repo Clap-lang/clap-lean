@@ -25,6 +25,7 @@ import Clap.Poseidon.Poseidon
 import Clap.Packing
 import Clap.Base64Len
 import Clap.Array
+import Clap.Keyless
 import Clap.Compiler.Basic
 import Clap.Compiler.Deep
 import Clap.Quadratic
