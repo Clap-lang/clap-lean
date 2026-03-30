@@ -191,7 +191,13 @@ def sansInterfaceVectors (e : Expr) : TermElabM Expr := do
     trace[Clap.Compiler.sansInterfaceVectors] m!"{e}\n→\n{l}"
     return .done l
 
-def compile (p circuitName : Name) (f : Expr) (iters : Nat) : TermElabM Unit := do
+private def iterationsMessage (iters maxIters : ℕ) : MessageData :=
+  m!"Reduction iterations[{iters}/{maxIters}]"
+
+/--
+We return the number of iterations the compiler took for reporting purposes.
+-/
+def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) : TermElabM ℕ := do
   let serialiseS ← serialise p f
   trace[Clap.Compiler.serialise] m!"{serialiseS}"
 
@@ -201,37 +207,43 @@ def compile (p circuitName : Name) (f : Expr) (iters : Nat) : TermElabM Unit := 
   let sansInterfaceVectorsS ← withTraceNode `Clap.Compiler.sansInterfaceVectors
     Trace.formatExprWith do sansInterfaceVectors curryS
 
-  let reduceExprS ← withTraceNode `Clap.Compiler.reduce
+  let (reduceExprS, iters) ← withTraceNode `Clap.Compiler.reduce
     (fun e ↦
       match e with
       | .error _ => return crossEmoji
-      | .ok (e, i) => return m!"{checkEmoji} Iters[{i}/{iters}]:\n{e}"
-    ) do reduceExpr iters sansInterfaceVectorsS
+      | .ok (e, iters) => return m!"{checkEmoji}{iterationsMessage iters maxIters}:\n{e}"
+    ) do reduceExpr maxIters sansInterfaceVectorsS
 
-  let compiledF ← pure reduceExprS >>= fun (e, _) ↦ toDeep p e
-  
-  let compiledFname := serialisedUserName circuitName
-  addAndCompile <| .defnDecl {
-    name        := compiledFname
-    levelParams := []
-    type        := ←inferType compiledF
-    value       := compiledF
-    hints       := .regular 18
-    safety      := .safe
-  }
-  logInfo m!"Compiled {circuitName} into {compiledFname}."
-  let wgName := circuitName.appendAfter "_wg_wrap" -- TODO: Suspended WG.
-  -- lambdaTelescope f fun args _ ↦ do
-  -- let wg ← wg p args
-  -- addAndCompile <| .defnDecl {
-  --   name        := wgName
-  --   levelParams := []
-  --   type        := ←inferType wg
-  --   value       := wg
-  --   hints       := .regular 18
-  --   safety      := .safe
-  -- }
-  logInfo m!"Wg for {circuitName} is {wgName}."
+  try
+    let compiledF ← toDeep p reduceExprS
+    
+    let compiledFname := serialisedUserName circuitName
+    addAndCompile <| .defnDecl {
+      name        := compiledFname
+      levelParams := []
+      type        := ←inferType compiledF
+      value       := compiledF
+      hints       := .regular 18
+      safety      := .safe
+    }
+    logInfo m!"Compiled {circuitName} into {compiledFname}."
+    let wgName := circuitName.appendAfter "_wg_wrap" -- TODO: Suspended WG.
+    -- lambdaTelescope f fun args _ ↦ do
+    -- let wg ← wg p args
+    -- addAndCompile <| .defnDecl {
+    --   name        := wgName
+    --   levelParams := []
+    --   type        := ←inferType wg
+    --   value       := wg
+    --   hints       := .regular 18
+    --   safety      := .safe
+    -- }
+    logInfo m!"Wg for {circuitName} is {wgName}."
+
+  catch exc =>
+    throw <| Exception.error exc.getRef m!"{iterationsMessage iters maxIters}\n{exc.toMessageData}"
+
+  return iters
 
 def instantiateLambdaHeadInst (e : Expr) : TermElabM (Option Expr) := do
   let .lam _ type _ bi := e | return .none
@@ -284,15 +296,18 @@ elab "#compile" circuit:ident "using" p:ident n:optional("iters" num) : command 
   -/
   let n := n.raw[1]?.elim defaultIters (let num := ·.toNat; if num == 0 then defaultIters else num)
   
-  withTraceNode `Clap.Compiler (return m!"{exceptEmoji ·} Compiling {circuit} with {p} (iters = {n})") do
-  let [decl] ← realizeGlobalConst circuit | throwError m!"Ambiguous constant: {circuit}"
-  trace[Clap.Compiler.nameResolution] m!"Resolved {circuit} into {decl}"
-  let .some decl := (←getEnv).find? decl | throwError m!"Undeclared constant: {circuit}"
-  let preprocessedS ←
-    withTraceNode `Clap.Compiler.preprocess
-                  Trace.formatExprWith do
-                  fixPrime decl.value! (.const p.getId [])
-  compile p.getId circuit.getId preprocessedS n
+  discard <| withTraceNode `Clap.Compiler (fun e ↦
+    match e with
+    | .error err => return m!"{crossEmoji} Internal exception:\n{err.toMessageData}"
+    | .ok iters => return m!"{checkEmoji} Compiling {circuit} with {p} {iterationsMessage iters n}") do
+    let [decl] ← realizeGlobalConst circuit | throwError m!"Ambiguous constant: {circuit}"
+    trace[Clap.Compiler.nameResolution] m!"Resolved {circuit} into {decl}"
+    let .some decl := (←getEnv).find? decl | throwError m!"Undeclared constant: {circuit}"
+    let preprocessedS ←
+      withTraceNode `Clap.Compiler.preprocess
+                    Trace.formatExprWith do
+                    fixPrime decl.value! (.const p.getId [])
+    compile p.getId circuit.getId preprocessedS n
 
 end Compiler
 
