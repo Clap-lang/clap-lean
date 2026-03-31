@@ -128,6 +128,7 @@ def poseidonEx (nOuts : ℕ) (inputs : Array (F p)) (initState : F p)
   let t : ℕ := inputs.size + 1
   let nRoundsF : ℕ := 8
   let nRoundsP : ℕ := N_ROUNDS_P[t - 2]!
+  -- let nRoundsP : ℕ := N_ROUNDS_P[t - 2]!
   let half : ℕ := nRoundsF / 2
 
   -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
@@ -259,7 +260,7 @@ set_option pp.maxSteps 1000
 -- set_option trace.Clap.Compiler.reduce.unfoldAny true
 -- set_option trace.Clap.Compiler.reduce.zeta false
 -- set_option trace.Clap.Compiler.reduce.simplify true
--- set_option trace.Clap.Compiler.reduce.unfoldAny.const true
+set_option trace.Clap.Compiler.reduce.unfoldAny.const true
 set_option trace.Clap.Compiler.usedConstants true
 -- set_option trace.Clap.Compiler.reduce false
 -- set_option maxRecDepth 5000
@@ -277,10 +278,13 @@ set_option debug.skipKernelTC true
 
 attribute [local irreducible] bind ZMod OfNat.ofNat instHAdd 
 
+-- attribute [local irreducible] mixS mix ark
+
 -- set_option Clap.Compiler.Debug true
 -- set_option trace.Clap.Compiler.Debug true
 -- set_option trace.Clap.Compiler.Debug.revertOnTimeout true
 -- set_option trace.Clap.Compiler.Debug.revertOnTimeout true
 
 #compile testPoseidon using Primes.bn254 iters 50
--- end Poseidon.Test
+
+end Poseidon.Test

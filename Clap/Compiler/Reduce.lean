@@ -52,10 +52,10 @@ Let `simp` do its job.
 -/
 def isIterating (e : Expr) : Bool :=
   [
-    ``List.toArray, ``Array.size, ``Array.foldr,
+    ``Array.size, ``Array.foldr, ``List.toArray,
     ``Array.foldl, ``Array.map, ``Array.zipWith,
     ``Array.mapIdx, ``Array.take, ``Array.range,
-    ``Array.drop, ``Array.set, ``HAppend.hAppend,
+    ``Array.drop, ``Array.set, ``HAppend.hAppend, ``Array.set!,
     ``Option.getD, --``Array.tail,
     ``Min.min,
     ``GetElem.getElem, ``GetElem?.getElem?, ``GetElem?.getElem!
