@@ -4,7 +4,7 @@ import Clap.Sha2.Basic
 
 namespace TestCpu
 
-open Clap.Sha2
+open Clap.Sha2 Clap Lang
 
 def stringToU8s (s:String) : Array UInt8 := s.toUTF8.data
 

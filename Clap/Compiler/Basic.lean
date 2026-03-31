@@ -195,6 +195,14 @@ def sansInterfaceVectors (e : Expr) : TermElabM Expr := do
 private def iterationsMessage (iters maxIters : ℕ) : MessageData :=
   m!"Reduction iterations[{iters}/{maxIters}]"
 
+private def constantsSansInstances (e : Expr) : MetaM (Array Name) := do
+  let constants := e.getUsedConstants
+  let env ← getEnv
+  constants.filterM fun name ↦ do
+    let .some ci := env.find? name | throwError "Unknown constant: {name}"
+    forallTelescopeReducing ci.type fun _ conclusion ↦ do
+      return conclusion.getAppFn.const?.elim true fun (name, _) ↦ !isClass env name
+
 /--
 We return the number of iterations the compiler took for reporting purposes.
 -/
@@ -214,6 +222,9 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) : TermElabM ℕ :
       | .error _ => return crossEmoji
       | .ok (e, iters) => return m!"{checkEmoji}{iterationsMessage iters maxIters}:\n{e}"
     ) do reduceExpr maxIters sansInterfaceVectorsS
+
+  trace[Clap.Compiler.usedConstants]
+    m!"Constants (-instances):\n{←constantsSansInstances reduceExprS}"
 
   try
     let compiledF ← toDeep p reduceExprS

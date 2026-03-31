@@ -76,14 +76,13 @@ def unfoldAnyStep (e : Expr) : MetaM TransformStep := do
   if (←isInstance e.getAppFn.constName) then return .continue
   if (←e.isIrreducibleExpr) || (←isVerboten e) then return .continue
   match ← reduceMatcher? e with
-  | .reduced v =>
-         return .done v
+  | .reduced v => return .done v
   | _ => let some v ← unfoldDefinition? e | return .continue
          trace[Clap.Compiler.reduce.unfoldAny.const] m!"{e}"
          return .done v
 
 def unfoldAny (e : Expr) : MetaM Expr := do
-  Trace.withReportSizeDelta (descr := "unfoldAny") e <| fun e ↦ do
+  Trace.withReportSizeDelta (descr := "unfoldAny") e fun e ↦ do
     let transform := Meta.transform e (skipConstInApp := true) (pre := unfoldAnyStep)
     let options ← getOptions
     if options.getBool `Clap.Compiler.Debug.revertOnTimeout
@@ -124,18 +123,28 @@ dsimproc_decl _root_.Array.reduceRange (Array.range _) := fun e ↦ do
 
 attribute [simproc] _root_.Array.reduceRange
 
+dsimproc_decl _root_.List.reduceRange (List.range _) := fun e ↦ do
+  let_expr List.range k ← e | return .continue
+  let l := List.range k.nat?.get!
+  return .visit (Lean.toExpr l)
+
+attribute [simproc] _root_.List.reduceRange
+
 opaque ABC {α : Type} : α → Prop
 
 set_option hygiene false in
 def simpClosed : TermElabM (TSyntax `tactic) :=
   `(tactic|
-    simp -failIfUnchanged -singlePass -implicitDefEqProofs +zeta
-         -arith -ground +autoUnfold +unfoldPartialApp -locals only
+    simp -failIfUnchanged -singlePass -implicitDefEqProofs
+         -arith -ground
+         +zeta
+         +autoUnfold -unfoldPartialApp -locals only
          [-Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr, -List.length, -Bind.bind,
           -OfNat.ofNat, -Nat.rec,
           List.map_toArray, List.map_cons, id_eq, List.map_nil, List.size_toArray, List.length_cons,
           List.length_nil, zero_add, Nat.reduceAdd, Nat.reduceSub, Nat.reduceDiv, Nat.add_one_sub_one,
-          Array.reduceRange, List.append_toArray, List.cons_append, List.nil_append, List.foldl_toArray',
+          Array.reduceRange, List.reduceRange, List.append_toArray,
+          List.cons_append, List.nil_append, List.foldl_toArray',
           List.foldl_cons, mul_zero, mul_one, Nat.reduceMul, List.foldl_nil,
           Array.size_zipWith, Array.mapIdx_mapIdx, Array.map_id_fun,
           Array.map_id_fun', Array.size_mapIdx, Array.size_map, Array.reduceGetElem!,

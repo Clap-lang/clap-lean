@@ -35,6 +35,8 @@ initialize Lean.registerTraceClass `Clap.Compiler.curry (inherited := true)
 
 initialize Lean.registerTraceClass `Clap.Compiler.sansInterfaceVectors (inherited := true)
 
+initialize Lean.registerTraceClass `Clap.Compiler.usedConstants (inherited := true)
+
 register_option Clap.Compiler.Debug : Bool := {
   defValue := false
   descr := "Debug mode for the compiler"
@@ -81,7 +83,7 @@ def withReportTimeoutAndRevert [MonadRuntimeException m]
                                (f : Expr → m Expr) : m Expr := do
   let go := f e
   let options ← getOptions
-  if options.getBool `Clap.Compiler.Debug.revertOnTimeout
+  if options.getBool `trace.Clap.Compiler.Debug.revertOnTimeout
   then tryCatchRuntimeEx go fun _ ↦ do
     trace[Clap.Compiler.Debug.revertOnTimeout] m!"{bombEmoji} Timeout[{context}]"
     return e

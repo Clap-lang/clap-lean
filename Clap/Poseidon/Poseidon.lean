@@ -133,26 +133,29 @@ def poseidonEx (nOuts : ℕ) (inputs : Array (F p)) (initState : F p)
   -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
   let state := ark (#[initState] ++ inputs) C 0
 
-  -- -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
+  -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
   let state := (Array.range (half - 1)).foldl (fun state r ↦
     mix (ark (state.map sigma) C ((r + 1) * t)) M) state
 
   -- Boundary round (r = half−1): sigma → ark → mix with P
   let state := mix (ark (state.map sigma) C (half * t)) P
 
-  -- -- Phase 2: partial rounds
-  -- let state := (List.range nRoundsP).foldl (fun state r ↦
-  --   let s0 := sigma state[0]! + C[(half + 1) * t + r]!
-  --   mixS r (state.set! 0 s0) S) state
+  -- Phase 2: partial rounds
+  -- let state := (Array.range nRoundsP).foldl (
+  --   fun state r ↦
+  --     let s0 := sigma state[0]! + C[(half + 1) * t + r]!
+  --     mixS r (state.set! 0 s0) S
+  --   ) state
 
-  state
   -- -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
-  -- let state := (List.range (half - 1)).foldl (fun state r ↦
+  -- let state := (Array.range (half - 1)).foldl (fun state r ↦
   --   mix (ark (state.map sigma) C ((half + 1) * t + nRoundsP + r * t)) M) state
 
   -- -- Final round: sigma on all, then extract nOuts elements via MixLast
   -- let state := state.map sigma
   -- (List.range nOuts).map (mixLast state M)
+  state
+open Clap.Poseidon.Constant
 
 /-- **Poseidon:** Single-output Poseidon hash. Wraps `poseidonEx` with
     `nOuts = 1` and `initialState = 0`, returning the first element of
@@ -176,6 +179,8 @@ def poseidonBN254 (inputs : Array (F bn254)) : F bn254 :=
   let M := Clap.Poseidon.Constant.M[t-2]!
   let P := Clap.Poseidon.Constant.P[t-2]!
   poseidon inputs (liftArr C) (liftArr S) (liftMat M) (liftMat P)
+
+#eval! @poseidonBN254 ZMod.instCoreZMod #[1, 2]
 
 end Poseidon254
 
@@ -242,11 +247,11 @@ def testPoseidon (inputs : Vector (ZMod p) 2) (expected : F p) : Option Unit := 
 -- set_option trace.Debug.Meta.Tactic.simp true
 -- set_option trace.Meta.Tactic.simp true
 -- set_option trace.Meta.Tactic.simp.all true
--- set_option pp.exprSizes true
+set_option pp.exprSizes true
 -- set_option pp.deepTerms true
 set_option pp.deepTerms.threshold 30
 set_option pp.maxSteps 1000
-set_option trace.Clap.Compiler true
+-- set_option trace.Clap.Compiler true
 -- set_option trace.Clap.Compiler.reduce.foldProjs false
 -- set_option trace.Clap.Compiler.reduce.beta false
 -- set_option trace.Clap.Compiler.reduce.letSome false
@@ -255,6 +260,7 @@ set_option trace.Clap.Compiler true
 -- set_option trace.Clap.Compiler.reduce.zeta false
 -- set_option trace.Clap.Compiler.reduce.simplify true
 -- set_option trace.Clap.Compiler.reduce.unfoldAny.const true
+set_option trace.Clap.Compiler.usedConstants true
 -- set_option trace.Clap.Compiler.reduce false
 -- set_option maxRecDepth 5000
 -- set_option maxHeartbeats 1000000
@@ -267,11 +273,14 @@ set_option debug.skipKernelTC true
 -- set_option trace.profiler true
 -- set_option profiler true
 ------------------------- Profiling -------------------------
+#check Lean.Meta.transform
 
 attribute [local irreducible] bind ZMod OfNat.ofNat instHAdd 
 
 -- set_option Clap.Compiler.Debug true
-set_option trace.Clap.Compiler.Debug.revertOnTimeout true
+-- set_option trace.Clap.Compiler.Debug true
+-- set_option trace.Clap.Compiler.Debug.revertOnTimeout true
+-- set_option trace.Clap.Compiler.Debug.revertOnTimeout true
 
 #compile testPoseidon using Primes.bn254 iters 50
-end Poseidon.Test
+-- end Poseidon.Test
