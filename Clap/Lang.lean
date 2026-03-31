@@ -41,9 +41,17 @@ def eq (a b : F p) : FB p :=
 def dotProduct {w : ℕ} (a b : Vector (F p) w) : F p :=
   (a.zipWith (· * ·) b).foldl (· + ·) 0
 
-/-- Constrains `x` to be 0 or 1: `x * (x - 1) == 0`. -/
+/-- Constrains `x` to be 0 or 1: `x * (x - 1) == 0` -/
 def assertBinary (x : F p) : Option Unit :=
   eq0 (x * (x - 1))
+
+/-- Gated assertion: asserts `constraint == 0` only when `guard == 1` -/
+def guardedEq0 (guard : FB p) (constraint : F p) : Option Unit :=
+  eq0 (guard * constraint)
+
+/-- Gated equality: asserts `a == b` only when `guard == 1` -/
+def guardedAssertEq (guard : FB p) (a b : F p) : Option Unit :=
+  guardedEq0 guard (a - b)
 
 end F
 

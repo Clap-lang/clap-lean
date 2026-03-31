@@ -127,7 +127,7 @@ structure UnquotedFieldInput (maxPairLen maxNameLen maxValueLen : ℕ) where
   field      : FString bn254 maxPairLen
   name       : FString bn254 maxNameLen
   value      : FString bn254 maxValueLen
-  NameIndex  : F bn254
+  nameIndex  : F bn254
   colonIndex : F bn254
   valueIndex : F bn254
 
@@ -152,7 +152,7 @@ structure JWTRawInput where
 
 /-- RSA signature input: 32 × 64-bit limbs each. -/
 structure RSAInput where
-  signature      : Vector (F bn254) RSA_NUM_LIMBS
+  signature     : Vector (F bn254) RSA_NUM_LIMBS
   pubkeyModulus : Vector (F bn254) RSA_NUM_LIMBS
 
 /-- Audience override signals. -/
@@ -170,12 +170,12 @@ structure ExtraFieldInput where
 
 /-- Cryptographic commitment signals: EPK, expiration, pepper. -/
 structure CommitmentInput where
-  epk         : Vector (F bn254) EPK_NUM_FIELDS
-  epkLen      : F bn254
+  epk        : Vector (F bn254) EPK_NUM_FIELDS
+  epkLen     : F bn254
   epkBlinder : F bn254
   expDate    : F bn254
   expHorizon : F bn254
-  pepper      : F bn254
+  pepper     : F bn254
 
 /-- Top-level Keyless circuit input. -/
 structure KeylessInput where
@@ -196,10 +196,10 @@ structure KeylessInput where
 
 /-- Precomputed JSON structural data for the decoded JWT payload. -/
 structure JSONStructure where
-  payload            : FString bn254 MAX_JWT_PAYLOAD_LEN
-  payload_hash       : F bn254
-  string_bodies      : Vector (FB bn254) MAX_JWT_PAYLOAD_LEN
-  brackets_depth_map : List (F bn254)
+  payload          : FString bn254 MAX_JWT_PAYLOAD_LEN
+  payloadHash      : F bn254
+  stringBodies     : Vector (FB bn254) MAX_JWT_PAYLOAD_LEN
+  bracketsDepthMap : List (F bn254)
 
 /-- Multiplexer for FString: `if sel = 1 then a else b`. CIRCOM: `out[i] = (a[i] - b[i]) * sel + b[i]` -/
 def muxFString {maxLen : ℕ} (sel : F bn254) (a b : FString bn254 maxLen) : FString bn254 maxLen :=
@@ -246,8 +246,7 @@ def isStringBodiesSubstring {maxStrLen maxSubstrLen : ℕ} (h : maxSubstrLen ≤
 /-- Verify JWT structural integrity.
     Concatenation, SHA2 padding, SHA2 hash, RSA signature, and base64 decode.
     Returns the decoded JWT payload as an FString. -/
-def verifyJWTStructure (jwtRaw : JWTRawInput) (rsa : RSAInput)
-    : Option (FString bn254 MAX_JWT_PAYLOAD_LEN) := do
+def verifyJWTStructure (jwtRaw : JWTRawInput) (rsa : RSAInput) : Option (FString bn254 MAX_JWT_PAYLOAD_LEN) := do
   -- Step 1: Assert header_w_dot ++ payload_sha2_padded = jwt_no_sig_sha2_padded
   FString.assertIsConcatenation (by decide) (by decide)
     jwtRaw.b64u_jwt_no_sig_sha2_padded jwtRaw.b64u_jwt_header_w_dot jwtRaw.b64u_jwt_payload_sha2_padded
@@ -278,34 +277,119 @@ def verifyJWTStructure (jwtRaw : JWTRawInput) (rsa : RSAInput)
   let chars ← chars_f.mapM F8.ofF
   return ⟨chars, jwtPayloadLen⟩
 
-/-- Phase 2: Compute JSON structural analysis from the decoded JWT payload.
+/-- Compute JSON structural analysis from the decoded JWT payload.
     Returns the payload with its hash, string bodies, and brackets depth map. -/
-def computeJSONStructure
-    (payload : FString bn254 MAX_JWT_PAYLOAD_LEN)
-    : Option JSONStructure := do
+def computeJSONStructure (payload : FString bn254 MAX_JWT_PAYLOAD_LEN) : Option JSONStructure := do
   -- Compute payload hash
-  let payload_hash ← hashBytesToFieldWithLen (payload.chars.map FBitVec.toF) payload.len
+  let payloadHash ← hashBytesToFieldWithLen (payload.chars.map FBitVec.toF) payload.len
   -- JSON structural analysis on raw field elements
   let payload_list := (payload.chars.map FBitVec.toF).toList
-  let string_bodies := JWT.stringBodies payload_list
-  let inverted := string_bodies.map FB.not
+  let stringBodies := JWT.stringBodies payload_list
+  let inverted := stringBodies.map FB.not
   let brackets_map := JWT.bracketsMap payload_list
   let unquoted_brackets := inverted.zipWith (· * ·) brackets_map
-  let brackets_depth_map := JWT.bracketsDepthMap unquoted_brackets
+  let bracketsDepthMap := JWT.bracketsDepthMap unquoted_brackets
   let string_bodies_vec : Vector (FB bn254) MAX_JWT_PAYLOAD_LEN :=
-    ⟨string_bodies.toArray, by simp [string_bodies, payload_list]⟩
-  return { payload, payload_hash, string_bodies := string_bodies_vec, brackets_depth_map }
+    ⟨stringBodies.toArray, by simp [stringBodies, payload_list]⟩
+  return { payload, payloadHash, stringBodies := string_bodies_vec, bracketsDepthMap }
 
+/-- Verify a quoted JWT field: substring check, not-nested check, field parsing. -/
+def verifyQuotedField {maxPairLen maxNameLen maxValueLen : ℕ}
+    (h_name : maxNameLen ≤ maxPairLen) (h_value : maxValueLen ≤ maxPairLen) (h_pair : maxPairLen ≤ MAX_JWT_PAYLOAD_LEN)
+    (json : JSONStructure) (inp : QuotedFieldInput maxPairLen maxNameLen maxValueLen)
+    : Option Unit := do
+  -- Assert field is a substring of the decoded JWT payload
+  FString.assertIsSubstringFS h_pair json.payload json.payloadHash inp.field inp.nameIndex
+  -- Assert fieldStringBodies is a substring of stringBodies at the same index
+  -- CIRCOM: AssertIsSubstring(stringBodies, jwt_payload_hash, x_field_string_bodies, x_field_len, x_index)
+  assertStringBodiesSubstring h_pair json.stringBodies json.payload.len json.payloadHash inp.fieldStringBodies inp.field.len inp.nameIndex
+  -- Assert field is not inside nested brackets
+  JWT.enforceNotNested MAX_JWT_PAYLOAD_LEN inp.nameIndex inp.field.len json.bracketsDepthMap
+  -- Parse the field structure with quoted value
+  JWT.parseJWTFieldWithQuotedValue h_name h_value inp.field inp.name inp.value inp.fieldStringBodies inp.colonIndex inp.valueIndex
+
+/-- Verify an unquoted JWT field: substring check, not-nested check, field parsing.
+    Unlike `verifyQuotedField`, this does NOT perform a full string_bodies substring
+    check. Instead, CIRCOM does a point check that the field does not start inside a
+    string body (`SelectArrayValue(string_bodies, index) === 0`). -/
+def verifyUnquotedField {maxPairLen maxNameLen maxValueLen : ℕ}
+    (h_name : maxNameLen ≤ maxPairLen) (h_value : maxValueLen ≤ maxPairLen) (h_pair : maxPairLen ≤ MAX_JWT_PAYLOAD_LEN)
+    (json : JSONStructure) (inp : UnquotedFieldInput maxPairLen maxNameLen maxValueLen)
+    : Option Unit := do
+  FString.assertIsSubstringFS h_pair json.payload json.payloadHash inp.field inp.nameIndex
+  JWT.enforceNotNested MAX_JWT_PAYLOAD_LEN inp.nameIndex inp.field.len json.bracketsDepthMap
+  -- Assert field does not start inside a string body — CIRCOM: start_char === 0
+  eq0 (← selectArrayValue json.stringBodies inp.nameIndex)
+  JWT.parseJWTFieldWithUnquotedValue h_name h_value inp.field inp.name inp.value inp.colonIndex inp.valueIndex
+
+/-- Verify the audience (aud) field with override and skip support.
+    CIRCOM: the `ParseJWTFieldWithQuotedValue` takes a `skip_checks` flag;
+    in Lean we handle this by conditionally running the verification. -/
+def verifyAudField (json : JSONStructure)
+    (aud : QuotedFieldInput MAX_AUD_KV_PAIR_LEN MAX_AUD_NAME_LEN MAX_AUD_VALUE_LEN)
+    (audOverride : AudOverrideInput)
+    : Option Unit := do
+  -- Validate boolean flags
+  F.assertBinary audOverride.useAudOverride
+  F.assertBinary audOverride.skipAudChecks
+  -- Cannot skip aud checks while using override
+  eq0 (audOverride.skipAudChecks * audOverride.useAudOverride)
+  let performAudChecks : FB bn254 := FB.not audOverride.skipAudChecks
+  -- Mux the effective aud value: if useAudOverride then override else private
+  let audValue := muxFString audOverride.useAudOverride audOverride.overrideAudValue audOverride.privateAudValue
+  let audValueLen := share (audOverride.overrideAudValue.len - audOverride.privateAudValue.len) * audOverride.useAudOverride + audOverride.privateAudValue.len
+  -- Construct the effective field input with muxed value
+  let audEff : QuotedFieldInput _ _ _ := { aud with value := { audValue with len := audValueLen } }
+  -- Assert field is a substring of the decoded JWT payload (conditioned on performAudChecks)
+  let field_passes ← FString.isSubstringFS (by decide) json.payload json.payloadHash audEff.field audEff.nameIndex
+  eq0 (performAudChecks * FB.not field_passes)
+  -- Assert fieldStringBodies matches stringBodies (conditioned on performAudChecks)
+  -- CIRCOM: AssertIsSubstring(stringBodies, jwt_payload_hash, aud_field_string_bodies, aud_field_len, aud_index)
+  let sb_passes ← isStringBodiesSubstring (by decide) json.stringBodies json.payload.len json.payloadHash audEff.fieldStringBodies audEff.field.len audEff.nameIndex
+  eq0 (performAudChecks * FB.not sb_passes)
+  -- Assert field is not inside nested brackets
+  JWT.enforceNotNested MAX_JWT_PAYLOAD_LEN audEff.nameIndex audEff.field.len json.bracketsDepthMap
+  -- Parse the field structure, gated by skipAudChecks.
+  -- CIRCOM: `succeed = checks_pass OR skip_checks; succeed === 1`
+  -- We model this by passing skipChecks to the parser, which gates each constraint
+  -- with `perform * constraint === 0` where `perform = NOT(skipChecks)`.
+  JWT.parseJWTFieldWithQuotedValue (by decide) (by decide)
+    audEff.field audEff.name audEff.value audEff.fieldStringBodies
+    audEff.colonIndex audEff.valueIndex audOverride.skipAudChecks
+  -- Verify aud name is literally "aud" (conditioned on performAudChecks)
+  -- CIRCOM: aud_name[i] * performAudChecks === EXPECTED[i] * performAudChecks
+  let expectedAudName : List (F bn254) := [97, 117, 100] -- "aud"
+  (aud.name.chars.toList.map FBitVec.toF).zip expectedAudName |>.forM fun (actual, expected) ↦
+    F.guardedAssertEq performAudChecks actual expected
 
 -- Top-level circuit
 
-/-- The Aptos Keyless circuit. Verifies a JWT-based identity claim in zero knowledge. -/
+/-- The Aptos Keyless circuit. -/
 def keyless (input : KeylessInput) : Option Unit := do
   -- Phase 1: JWT structural verification (concatenation, base64, SHA2, RSA)
   let jwtPayload ← verifyJWTStructure input.jwtRaw input.rsa
 
   -- Phase 2: Compute JSON structure for field parsing
   let json ← computeJSONStructure jwtPayload
+
+  -- Phase 3: Verify JWT fields
+  verifyAudField json input.aud input.audOverride
+  verifyQuotedField (by decide) (by decide) (by decide) json input.uid
+  verifyQuotedField (by decide) (by decide) (by decide) json input.iss
+  -- Verify iss name is "iss" — CIRCOM: iss_name[i] === EXPECTED_ISS_NAME[i]
+  let expectedIss : List (F bn254) := [105, 115, 115] -- "iss"
+  (input.iss.name.chars.toList.map FBitVec.toF).zip expectedIss |>.forM fun (actual, expected) ↦
+    F.assert_eq actual expected
+  verifyUnquotedField (by decide) (by decide) (by decide) json input.iat
+  -- Verify iat name is "iat" — CIRCOM: iat_name[i] === EXPECTED_IAT_NAME[i]
+  let expectedIat : List (F bn254) := [105, 97, 116] -- "iat"
+  (input.iat.name.chars.toList.map FBitVec.toF).zip expectedIat |>.forM fun (actual, expected) ↦
+    F.assert_eq actual expected
+  verifyQuotedField (by decide) (by decide) (by decide) json input.nonce
+  -- Verify nonce name is "nonce" — CIRCOM: nonce_name[i] === EXPECTED_NONCE_NAME[i]
+  let expectedNonce : List (F bn254) := [110, 111, 110, 99, 101] -- "nonce"
+  (input.nonce.name.chars.toList.map FBitVec.toF).zip expectedNonce |>.forM fun (actual, expected) ↦
+    F.assert_eq actual expected
 
   pure ()
 
