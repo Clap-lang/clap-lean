@@ -5,6 +5,7 @@ import Qq
 
 import Clap.Compilation
 import Clap.Compiler.Deep
+import Clap.Compiler.AddLets
 import Clap.Lang
 import Clap.Compiler.Reduce
 
@@ -203,7 +204,9 @@ def compile (p circuitName : Name) (f : Expr) : TermElabM Unit := do
   let reduceExprS ← reduceExpr curryS
   trace[Clap.Compiler.reduce] m!"{reduceExprS}"
 
-  let compiledF ← pure reduceExprS >>= toDeep p
+  let withLets ← addLets reduceExprS
+  let compiledF ← toDeep p withLets
+
   let compiledFname := serialisedUserName circuitName
   addAndCompile <| .defnDecl {
     name        := compiledFname
