@@ -1,6 +1,49 @@
 import Lean
 open Lean.Json
 
+inductive StateEscaped where
+  | outsideQuotes
+  | insideQuotes
+  | escapeOutsideQuotes
+  | escapeInsideQuotes
+  | invalidJson
+
+-- TODO should also escape \n and \t
+def notEscaped (state : StateEscaped) (c : Char) : StateEscaped :=
+  match state with
+  | .outsideQuotes =>
+    if c = '"' then .invalidJson
+    else if c = '\\' then .escapeOutsideQuotes
+    else .outsideQuotes
+  | .insideQuotes =>
+    if c = '"' then .invalidJson
+    else if c = '\\' then .escapeInsideQuotes
+    else .insideQuotes
+  | .escapeOutsideQuotes =>
+    if c = '"' then .insideQuotes
+    else .invalidJson
+  | .escapeInsideQuotes =>
+    if c = '"' then .outsideQuotes
+    else if c = '\\' then .insideQuotes
+    else .invalidJson
+  | .invalidJson => .invalidJson
+
+-- context free, any state `some 1` is accepting
+def nested (c : Char) (stackSize : Nat) : Option Nat :=
+  match stackSize with
+  | 0 =>
+    if c = '{' then some 1
+    else if c = '}' then none -- invalid json
+    else some 0
+  | 1 =>
+    if c = '{' then some 2
+    else if c = '}' then some 0
+    else some 1
+  | n =>
+    if c = '{' then some (n+1)
+    else if c = '}' then some (n-1)
+    else some n
+
 namespace Examples
 
 /- In case of duplicate keys, the last one is kept -/
