@@ -195,14 +195,26 @@ def sansInterfaceVectors (e : Expr) : TermElabM Expr := do
 private def iterationsMessage (iters maxIters : ℕ) : MessageData :=
   m!"Reduction iterations[{iters}/{maxIters}]"
 
-private def constantsSansInstances (e : Expr) : MetaM (Array Name) := do
-  let constants := e.getUsedConstants
+private def constantsSans (e : Expr) («instances» types : Bool := true) : MetaM (Array Name) := do
   let env ← getEnv
-  constants.filterM fun name ↦ do
+  e.getUsedConstants.filterM fun name ↦ do
     let .some ci := env.find? name | throwError "Unknown constant: {name}"
-    forallTelescopeReducing ci.type fun _ conclusion ↦ do
-      return conclusion.getAppFn.const?.elim true fun (name, _) ↦ !isClass env name
+    let isPermitted (ci : ConstantInfo) : MetaM Bool :=
+      let neutral := fun _ ↦ return true
+      let null (f : ConstantInfo → MetaM Bool) (b : Bool) := if b then f else neutral
+      let f := #[null notIsInstance «instances», null notIsType types].foldl (init := neutral)
+                 fun f g ci ↦ return (←f ci) && (←g ci)
+      f ci
+    isPermitted ci
+  where
+    isFormerOf (ci : ConstantInfo) (f : Expr → Environment → Bool) : MetaM Bool := do
+      forallTelescopeReducing ci.type fun _ conclusion ↦ return f conclusion (←getEnv)
 
+    notIsInstance (ci : ConstantInfo) : MetaM Bool :=
+      isFormerOf ci fun e env ↦ e.getAppFn.const?.elim true fun (name, _) ↦ !isClass env name
+    
+    notIsType (ci : ConstantInfo) : MetaM Bool :=
+      isFormerOf ci fun e _ ↦ !e.isType
 /--
 We return the number of iterations the compiler took for reporting purposes.
 -/
@@ -224,7 +236,7 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) : TermElabM ℕ :
     ) do reduceExpr maxIters sansInterfaceVectorsS
 
   trace[Clap.Compiler.usedConstants]
-    m!"Constants (-instances):\n{←constantsSansInstances reduceExprS}"
+    m!"Constants (filtered):\n{←constantsSans reduceExprS}"
 
   try
     let compiledF ← toDeep p reduceExprS
