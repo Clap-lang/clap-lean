@@ -311,27 +311,51 @@ where validateDebugTraceDebug (opt : Options) : TermElabM Unit := do
     if opt.getBool option then
       logWarning m!"{option} has no effect when Clap.Compiler.Debug = false"
 
-elab "#compile" circuit:ident "using" p:ident n:optional("iters" num) : command => Command.liftTermElabM do
+def compileMeta (declName p : Name) (n : ℕ) : TermElabM Unit := do
   validateOptions
+  discard <| withTraceNode `Clap.Compiler (fun e ↦
+    match e with
+    | .error err => return m!"{crossEmoji} Internal exception:\n{err.toMessageData}"
+    | .ok iters => return m!"{checkEmoji} Compiling {declName} with {p} {iterationsMessage iters n}") do
+    trace[Clap.Compiler.nameResolution] m!"Resolved {declName}"
+    let .some decl := (←getEnv).find? declName | throwError m!"Undeclared constant: {declName}"
+    let preprocessedS ←
+      withTraceNode `Clap.Compiler.preprocess
+                    Trace.formatExprWith do
+                    fixPrime decl.value! (.const p [])
+    compile p declName preprocessedS n
+
+elab "#compile" circuit:ident "using" p:ident n:optional("iters" num) : command => Command.liftTermElabM do
+  let [decl] ← realizeGlobalConst circuit | throwError m!"Ambiguous constant: {circuit}"
   let defaultIters : ℕ := 2048
   /-
   This is just a debugging feature so I do not care to make it pretty.
   We sometimes get `.some <Nothing>` so we spoon to `defaultIters` one way or the other.
   -/
   let n := n.raw[1]?.elim defaultIters (let num := ·.toNat; if num == 0 then defaultIters else num)
+  compileMeta decl p.getId n
+
+-- elab "#compile" circuit:ident "using" p:ident n:optional("iters" num) : command => Command.liftTermElabM do
+--   validateOptions
+--   let defaultIters : ℕ := 2048
+--   /-
+--   This is just a debugging feature so I do not care to make it pretty.
+--   We sometimes get `.some <Nothing>` so we spoon to `defaultIters` one way or the other.
+--   -/
+--   let n := n.raw[1]?.elim defaultIters (let num := ·.toNat; if num == 0 then defaultIters else num)
   
-  discard <| withTraceNode `Clap.Compiler (fun e ↦
-    match e with
-    | .error err => return m!"{crossEmoji} Internal exception:\n{err.toMessageData}"
-    | .ok iters => return m!"{checkEmoji} Compiling {circuit} with {p} {iterationsMessage iters n}") do
-    let [decl] ← realizeGlobalConst circuit | throwError m!"Ambiguous constant: {circuit}"
-    trace[Clap.Compiler.nameResolution] m!"Resolved {circuit} into {decl}"
-    let .some decl := (←getEnv).find? decl | throwError m!"Undeclared constant: {circuit}"
-    let preprocessedS ←
-      withTraceNode `Clap.Compiler.preprocess
-                    Trace.formatExprWith do
-                    fixPrime decl.value! (.const p.getId [])
-    compile p.getId circuit.getId preprocessedS n
+--   discard <| withTraceNode `Clap.Compiler (fun e ↦
+--     match e with
+--     | .error err => return m!"{crossEmoji} Internal exception:\n{err.toMessageData}"
+--     | .ok iters => return m!"{checkEmoji} Compiling {circuit} with {p} {iterationsMessage iters n}") do
+--     let [decl] ← realizeGlobalConst circuit | throwError m!"Ambiguous constant: {circuit}"
+--     trace[Clap.Compiler.nameResolution] m!"Resolved {circuit} into {decl}"
+--     let .some decl := (←getEnv).find? decl | throwError m!"Undeclared constant: {circuit}"
+--     let preprocessedS ←
+--       withTraceNode `Clap.Compiler.preprocess
+--                     Trace.formatExprWith do
+--                     fixPrime decl.value! (.const p.getId [])
+--     compile p.getId circuit.getId preprocessedS n
 
 end Compiler
 

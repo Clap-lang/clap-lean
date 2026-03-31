@@ -78,7 +78,7 @@ def unfoldAnyStep (e : Expr) : MetaM TransformStep := do
   match ← reduceMatcher? e with
   | .reduced v => return .done v
   | _ => let some v ← unfoldDefinition? e | return .continue
-         trace[Clap.Compiler.reduce.unfoldAny.const] m!"{e}"
+         trace[Clap.Compiler.reduce.unfoldAny.const] m!"{e.getAppFn}"
          return .done v
 
 def unfoldAny (e : Expr) : MetaM Expr := do
@@ -171,17 +171,23 @@ def simpOpen : TermElabM (TSyntax `tactic) :=
 
 set_option hygiene false in
 def simplify (e : Expr) : TermElabM Expr := do
-  Trace.withReportSizeDelta e (descr := "simplify") fun e ↦ do
-  let isOption ← forallTelescopeReducing (←inferType e) fun _ body ↦ return body.isAppOf ``Option
-  if !isOption then return e
-  lambdaTelescope e fun args body ↦ do
-    let abc ← mkAppM ``ABC #[body]
-    let mvar ← mkFreshExprMVar (.some abc) MetavarKind.syntheticOpaque
-      let ([mvar], _) ←
-        Elab.runTactic mvar.mvarId! (←simpClosed) (←read) (←get) |
-          throwError "Simp generated more than a single goal on:\n{e}"
-      let_expr ABC _ x := ←instantiateMVars (←mvar.getType) | throwError "What"
-      mkLambdaFVars args x
+  trace[Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] m!"[size {e.sizeWithoutSharing}/{←e.numObjs}]"
+  let (e, Δheartbeats) ← withHeartbeats do
+    Trace.withReportSizeDelta e (descr := "simplify") fun e ↦ do
+    let isOption ← forallTelescopeReducing (←inferType e) fun _ body ↦ return body.isAppOf ``Option
+    if !isOption then return e
+    lambdaTelescope e fun args body ↦ do
+      let abc ← mkAppM ``ABC #[body]
+      let mvar ← mkFreshExprMVar (.some abc) MetavarKind.syntheticOpaque
+        let ([mvar], _) ←
+          Elab.runTactic mvar.mvarId! (←simpClosed) (←read) (←get) |
+            throwError "Simp generated more than a single goal on:\n{e}"
+        let_expr ABC _ x := ←instantiateMVars (←mvar.getType) | throwError "What"
+        mkLambdaFVars args x
+  trace[Clap.Compiler.reduce.simplify.countHeartbeats]
+    m!"[Δheartbeats {Δheartbeats / readDocsFor_withHeartbeats_constant}]"
+  return e
+  where readDocsFor_withHeartbeats_constant := 1000
 
 def reduceStep (e : Expr) : TermElabM Expr := do
   let simplifyS ← Trace.withReportTimeoutAndRevert e "simplify" (

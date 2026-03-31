@@ -80,6 +80,8 @@ where
   tail (base t : ℕ) : Array (F p) :=
     (state.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state[0]! * s[base + t + i]!)
 
+-- theorem mixS_nil {r s} : mixS r [] s = 
+
 -- TODO: Imperative or functional style?
 -- def mixS (r : ℕ) (state : Array (F p)) (s : Array (F p)) : Array (F p) := Id.run do
 --   let t := state.size
@@ -127,7 +129,7 @@ def poseidonEx (nOuts : ℕ) (inputs : Array (F p)) (initState : F p)
   let N_ROUNDS_P : Array ℕ := #[56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := inputs.size + 1
   let nRoundsF : ℕ := 8
-  let nRoundsP : ℕ := N_ROUNDS_P[t - 2]!
+  let nRoundsP : ℕ := 57
   -- let nRoundsP : ℕ := N_ROUNDS_P[t - 2]!
   let half : ℕ := nRoundsF / 2
 
@@ -144,8 +146,9 @@ def poseidonEx (nOuts : ℕ) (inputs : Array (F p)) (initState : F p)
   -- Phase 2: partial rounds
   -- let state := (Array.range nRoundsP).foldl (
   --   fun state r ↦
-  --     let s0 := sigma state[0]! + C[(half + 1) * t + r]!
-  --     mixS r (state.set! 0 s0) S
+  --     -- let s0 := sigma state[0]! + C[(half + 1) * t + r]!
+  --     -- mixS r (state.set! 0 s0) S
+  --     mixS r (state.set! 0 0) S
   --   ) state
 
   -- -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
@@ -248,7 +251,11 @@ def testPoseidon (inputs : Vector (ZMod p) 2) (expected : F p) : Option Unit := 
 -- set_option trace.Debug.Meta.Tactic.simp true
 -- set_option trace.Meta.Tactic.simp true
 -- set_option trace.Meta.Tactic.simp.all true
-set_option pp.exprSizes true
+
+set_option pp.exprSizes false
+set_option trace.Clap.Compiler.reduce.simplify.countHeartbeats true
+set_option trace.Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify true
+
 -- set_option pp.deepTerms true
 set_option pp.deepTerms.threshold 30
 set_option pp.maxSteps 1000
@@ -277,14 +284,22 @@ set_option debug.skipKernelTC true
 #check Lean.Meta.transform
 
 attribute [local irreducible] bind ZMod OfNat.ofNat instHAdd 
-
+#check Lean.withHeartbeats
 -- attribute [local irreducible] mixS mix ark
+
+-- attribute [local irreducible] ark
 
 -- set_option Clap.Compiler.Debug true
 -- set_option trace.Clap.Compiler.Debug true
 -- set_option trace.Clap.Compiler.Debug.revertOnTimeout true
 -- set_option trace.Clap.Compiler.Debug.revertOnTimeout true
+-- set_option maxRecDepth 5000
+-- set_option maxHeartbeats 0
 
-#compile testPoseidon using Primes.bn254 iters 50
+-- attribute [local irreducible] mixS
+-- def main : IO Unit := do
+--   Lean.withImportModules #[{module := `Clap.Poseidon.Poseidon}] _ _
+
+#compile testPoseidon using Primes.bn254 iters 35
 
 end Poseidon.Test

@@ -19,6 +19,10 @@ initialize Lean.registerTraceClass `Clap.Compiler.reduce.unfoldAny.const (inheri
 
 initialize Lean.registerTraceClass `Clap.Compiler.reduce.simplify (inherited := true)
 
+initialize Lean.registerTraceClass `Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify (inherited := true)
+
+initialize Lean.registerTraceClass `Clap.Compiler.reduce.simplify.countHeartbeats (inherited := true)
+
 initialize Lean.registerTraceClass `Clap.Compiler.reduce.beta (inherited := true)
 
 initialize Lean.registerTraceClass `Clap.Compiler.reduce.zeta (inherited := true)
