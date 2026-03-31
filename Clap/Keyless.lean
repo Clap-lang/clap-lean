@@ -26,6 +26,8 @@ namespace Keyless
 
 open Clap.Lang Core Primes
 
+-- Constants (from main.circom)
+
 -- JWT encoding lengths
 abbrev MAX_B64U_JWT_NO_SIG_LEN := 1536
 abbrev MAX_B64U_JWT_HEADER_W_DOT_LEN := 300
@@ -34,28 +36,28 @@ abbrev MAX_JWT_PAYLOAD_LEN := 3 * MAX_B64U_JWT_PAYLOAD_SHA2_PADDED_LEN / 4 -- 11
 
 -- JWT field max lengths: (kv_pair, name, value)
 abbrev MAX_AUD_KV_PAIR_LEN := 140
-abbrev MAX_AUD_NAME_LEN := 40
-abbrev MAX_AUD_VALUE_LEN := 120
+abbrev MAX_AUD_NAME_LEN    := 40
+abbrev MAX_AUD_VALUE_LEN   := 120
 
 abbrev MAX_ISS_KV_PAIR_LEN := 140
-abbrev MAX_ISS_NAME_LEN := 40
-abbrev MAX_ISS_VALUE_LEN := 120
+abbrev MAX_ISS_NAME_LEN    := 40
+abbrev MAX_ISS_VALUE_LEN   := 120
 
 abbrev MAX_IAT_KV_PAIR_LEN := 50
-abbrev MAX_IAT_NAME_LEN := 10
-abbrev MAX_IAT_VALUE_LEN := 45
+abbrev MAX_IAT_NAME_LEN    := 10
+abbrev MAX_IAT_VALUE_LEN   := 45
 
 abbrev MAX_NONCE_KV_PAIR_LEN := 105
-abbrev MAX_NONCE_NAME_LEN := 10
-abbrev MAX_NONCE_VALUE_LEN := 100
+abbrev MAX_NONCE_NAME_LEN    := 10
+abbrev MAX_NONCE_VALUE_LEN   := 100
 
 abbrev MAX_EV_KV_PAIR_LEN := 30
-abbrev MAX_EV_NAME_LEN := 20
-abbrev MAX_EV_VALUE_LEN := 10
+abbrev MAX_EV_NAME_LEN    := 20
+abbrev MAX_EV_VALUE_LEN   := 10
 
 abbrev MAX_UID_KV_PAIR_LEN := 350
-abbrev MAX_UID_NAME_LEN := 30
-abbrev MAX_UID_VALUE_LEN := 330
+abbrev MAX_UID_NAME_LEN    := 30
+abbrev MAX_UID_VALUE_LEN   := 330
 
 abbrev MAX_EXTRA_FIELD_KV_PAIR_LEN := 350
 
@@ -64,18 +66,22 @@ abbrev RSA_NUM_LIMBS := 32 -- 32 × 64-bit limbs = 2048 bits
 abbrev RSA_KEY_BYTES := RSA_NUM_LIMBS * 8  -- 256 bytes
 
 -- SHA2 constants
-abbrev SHA2_PADDING_LEN := 64
+abbrev SHA2_PADDING_LEN  := 64
 abbrev SHA2_NUM_BITS_LEN := 8
 
 -- EPK constants
 abbrev EPK_NUM_FIELDS := 3
 
 -- Known field name lengths
-abbrev AUD_NAME_LEN := 3   -- "aud"
-abbrev ISS_NAME_LEN := 3   -- "iss"
-abbrev IAT_NAME_LEN := 3   -- "iat"
+abbrev AUD_NAME_LEN   := 3   -- "aud"
+abbrev ISS_NAME_LEN   := 3   -- "iss"
+abbrev IAT_NAME_LEN   := 3   -- "iat"
 abbrev NONCE_NAME_LEN := 5 -- "nonce"
-abbrev EV_NAME_LEN := 14   -- "email_verified"
+abbrev EV_NAME_LEN    := 14   -- "email_verified"
+
+-- ============================================================================
+-- Stubs for WIP components
+-- ============================================================================
 
 variable [Core bn254]
 
@@ -104,33 +110,35 @@ def RSA_2048_e_65537_PKCS1_V1_5_Verify
     : Option Unit :=
   pure ()
 
+-- Input structures
+
 /-- JWT field with a quoted value (aud, uid, iss, nonce). -/
 structure QuotedFieldInput (maxPairLen maxNameLen maxValueLen : ℕ) where
-  field               : FString bn254 maxPairLen
-  name                : FString bn254 maxNameLen
-  value               : FString bn254 maxValueLen
-  field_string_bodies : Vector (FB bn254) maxPairLen
-  name_index          : F bn254
-  colon_index         : F bn254
-  value_index         : F bn254
+  field             : FString bn254 maxPairLen
+  name              : FString bn254 maxNameLen
+  value             : FString bn254 maxValueLen
+  fieldStringBodies : Vector (FB bn254) maxPairLen
+  nameIndex         : F bn254
+  colonIndex        : F bn254
+  valueIndex        : F bn254
 
 /-- JWT field with an unquoted value (iat). -/
 structure UnquotedFieldInput (maxPairLen maxNameLen maxValueLen : ℕ) where
-  field       : FString bn254 maxPairLen
-  name        : FString bn254 maxNameLen
-  value       : FString bn254 maxValueLen
-  name_index  : F bn254
-  colon_index : F bn254
-  value_index : F bn254
+  field      : FString bn254 maxPairLen
+  name       : FString bn254 maxNameLen
+  value      : FString bn254 maxValueLen
+  NameIndex  : F bn254
+  colonIndex : F bn254
+  valueIndex : F bn254
 
 /-- Email-verified field input (special parsing: value may be quoted or unquoted). -/
 structure EvFieldInput (maxPairLen maxNameLen maxValueLen : ℕ) where
-  field       : FString bn254 maxPairLen
-  name        : FString bn254 maxNameLen
-  value       : FString bn254 maxValueLen
-  name_index  : F bn254
-  colon_index : F bn254
-  value_index : F bn254
+  field      : FString bn254 maxPairLen
+  name       : FString bn254 maxNameLen
+  value      : FString bn254 maxValueLen
+  nameIndex  : F bn254
+  colonIndex : F bn254
+  valueIndex : F bn254
 
 /-- JWT raw data and SHA2 signals. -/
 structure JWTRawInput where
@@ -145,44 +153,46 @@ structure JWTRawInput where
 /-- RSA signature input: 32 × 64-bit limbs each. -/
 structure RSAInput where
   signature      : Vector (F bn254) RSA_NUM_LIMBS
-  pubkey_modulus : Vector (F bn254) RSA_NUM_LIMBS
+  pubkeyModulus : Vector (F bn254) RSA_NUM_LIMBS
 
 /-- Audience override signals. -/
 structure AudOverrideInput where
-  use_aud_override   : F bn254
-  skip_aud_checks    : F bn254
-  private_aud_value  : FString bn254 MAX_AUD_VALUE_LEN
-  override_aud_value : FString bn254 MAX_AUD_VALUE_LEN
+  useAudOverride   : F bn254
+  skipAudChecks    : F bn254
+  privateAudValue  : FString bn254 MAX_AUD_VALUE_LEN
+  overrideAudValue : FString bn254 MAX_AUD_VALUE_LEN
 
 /-- Extra field signals. -/
 structure ExtraFieldInput where
-  extra_field : FString bn254 MAX_EXTRA_FIELD_KV_PAIR_LEN
-  extra_field_index : F bn254
-  use_extra_field : F bn254
+  extraField      : FString bn254 MAX_EXTRA_FIELD_KV_PAIR_LEN
+  extraFieldIndex : F bn254
+  useExtraField   : F bn254
 
 /-- Cryptographic commitment signals: EPK, expiration, pepper. -/
 structure CommitmentInput where
   epk         : Vector (F bn254) EPK_NUM_FIELDS
-  epk_len     : F bn254
-  epk_blinder : F bn254
-  exp_date    : F bn254
-  exp_horizon : F bn254
+  epkLen      : F bn254
+  epkBlinder : F bn254
+  expDate    : F bn254
+  expHorizon : F bn254
   pepper      : F bn254
 
 /-- Top-level Keyless circuit input. -/
 structure KeylessInput where
-  jwt_raw            : JWTRawInput
-  rsa                : RSAInput
-  aud                : QuotedFieldInput MAX_AUD_KV_PAIR_LEN MAX_AUD_NAME_LEN MAX_AUD_VALUE_LEN
-  aud_override       : AudOverrideInput
-  uid                : QuotedFieldInput MAX_UID_KV_PAIR_LEN MAX_UID_NAME_LEN MAX_UID_VALUE_LEN
-  iss                : QuotedFieldInput MAX_ISS_KV_PAIR_LEN MAX_ISS_NAME_LEN MAX_ISS_VALUE_LEN
-  iat                : UnquotedFieldInput MAX_IAT_KV_PAIR_LEN MAX_IAT_NAME_LEN MAX_IAT_VALUE_LEN
-  nonce              : QuotedFieldInput MAX_NONCE_KV_PAIR_LEN MAX_NONCE_NAME_LEN MAX_NONCE_VALUE_LEN
-  ev                 : EvFieldInput MAX_EV_KV_PAIR_LEN MAX_EV_NAME_LEN MAX_EV_VALUE_LEN
-  extra              : ExtraFieldInput
-  commit             : CommitmentInput
-  public_inputs_hash : F bn254
+  jwtRaw           : JWTRawInput
+  rsa              : RSAInput
+  aud              : QuotedFieldInput MAX_AUD_KV_PAIR_LEN MAX_AUD_NAME_LEN MAX_AUD_VALUE_LEN
+  audOverride      : AudOverrideInput
+  uid              : QuotedFieldInput MAX_UID_KV_PAIR_LEN MAX_UID_NAME_LEN MAX_UID_VALUE_LEN
+  iss              : QuotedFieldInput MAX_ISS_KV_PAIR_LEN MAX_ISS_NAME_LEN MAX_ISS_VALUE_LEN
+  iat              : UnquotedFieldInput MAX_IAT_KV_PAIR_LEN MAX_IAT_NAME_LEN MAX_IAT_VALUE_LEN
+  nonce            : QuotedFieldInput MAX_NONCE_KV_PAIR_LEN MAX_NONCE_NAME_LEN MAX_NONCE_VALUE_LEN
+  ev               : EvFieldInput MAX_EV_KV_PAIR_LEN MAX_EV_NAME_LEN MAX_EV_VALUE_LEN
+  extra            : ExtraFieldInput
+  commit           : CommitmentInput
+  publicInputsHash : F bn254
+
+-- Intermediate structures and helpers
 
 /-- Precomputed JSON structural data for the decoded JWT payload. -/
 structure JSONStructure where
@@ -196,6 +206,8 @@ def muxFString {maxLen : ℕ} (sel : F bn254) (a b : FString bn254 maxLen) : FSt
   { chars := a.chars.zipWith
       (fun ai bi ↦ ai.zipWith (fun abit bbit ↦ (abit - bbit) * sel + bbit) bi) b.chars
     len := (a.len - b.len) * sel + b.len }
+
+-- Sub-circuits
 
 open FString FArray HashToField
 
@@ -249,7 +261,7 @@ def verifyJWTStructure (jwtRaw : JWTRawInput) (rsa : RSAInput)
   -- Step 3: SHA2-256 hash (STUB)
   let sha2Hash ← SHA2_256_Prepadded_Hash jwtRaw.b64u_jwt_no_sig_sha2_padded jwtRaw.sha2_num_blocks
   -- Step 4: RSA signature verification (STUB)
-  RSA_2048_e_65537_PKCS1_V1_5_Verify sha2Hash rsa.signature rsa.pubkey_modulus
+  RSA_2048_e_65537_PKCS1_V1_5_Verify sha2Hash rsa.signature rsa.pubkeyModulus
   -- Step 4b: Assert b64u_jwt_payload is a valid prefix of b64u_jwt_payload_sha2_padded
   -- This removes SHA2 padding and ensures consistency.
   -- CIRCOM: AssertIsSubstring(b64u_jwt_payload_sha2_padded, ..., b64u_jwt_payload, ..., 0)
