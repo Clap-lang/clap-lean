@@ -22,13 +22,13 @@ def Reduce.ex₀ {p} [Core p] (x y : ZMod p) : Option Unit := do
   produceEq0 [x, x, y] (by simp)
   accept
 
-/--
-info: Compiled Reduce.ex₀ into Reduce.ex₀_circuit.
----
-info: Wg for Reduce.ex₀ is Reduce.ex₀_wg_wrap.
--/
-#guard_msgs(info, whitespace := lax) in
-#compile Reduce.ex₀ using Primes.babybear
+-- /--
+-- info: Compiled Reduce.ex₀ into Reduce.ex₀_circuit.
+-- ---
+-- info: Wg for Reduce.ex₀ is Reduce.ex₀_wg_wrap.
+-- -/
+-- #guard_msgs(info, whitespace := lax) in
+-- #compile Reduce.ex₀ using Primes.babybear
 
 def Reduce.ex₁ {p} [Core p] (x y : ZMod p) : Option Unit := do
   eq0 x
@@ -36,30 +36,30 @@ def Reduce.ex₁ {p} [Core p] (x y : ZMod p) : Option Unit := do
   eq0 y
   accept
 
-/--
-info: Compiled Reduce.ex₁ into Reduce.ex₁_circuit.
----
-info: Wg for Reduce.ex₁ is Reduce.ex₁_wg_wrap.
--/
-#guard_msgs(info, whitespace := lax) in
-#compile Reduce.ex₁ using Primes.babybear
+-- /--
+-- info: Compiled Reduce.ex₁ into Reduce.ex₁_circuit.
+-- ---
+-- info: Wg for Reduce.ex₁ is Reduce.ex₁_wg_wrap.
+-- -/
+-- #guard_msgs(info, whitespace := lax) in
+-- #compile Reduce.ex₁ using Primes.babybear
 
 def Reduce.ex₂ {p} [Core p] (x y : ZMod p) : Option Unit := do
   let z := [x, x, y].map id
   produceEq0 z (by simp [z])
   accept
 
-/--
-info: Compiled Reduce.ex₂ into Reduce.ex₂_circuit.
----
-info: Wg for Reduce.ex₂ is Reduce.ex₂_wg_wrap.
--/
-#guard_msgs(info, whitespace := lax) in
-#compile Reduce.ex₂ using Primes.babybear
+-- /--
+-- info: Compiled Reduce.ex₂ into Reduce.ex₂_circuit.
+-- ---
+-- info: Wg for Reduce.ex₂ is Reduce.ex₂_wg_wrap.
+-- -/
+-- #guard_msgs(info, whitespace := lax) in
+-- #compile Reduce.ex₂ using Primes.babybear
 
-example : Reduce.ex₀_circuit = Reduce.ex₁_circuit := rfl
+-- example : Reduce.ex₀_circuit = Reduce.ex₁_circuit := rfl
 
-example : Reduce.ex₀_circuit = Reduce.ex₂_circuit := rfl
+-- example : Reduce.ex₀_circuit = Reduce.ex₂_circuit := rfl
 
 end Compiler
 

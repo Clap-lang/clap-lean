@@ -144,12 +144,12 @@ def poseidonEx (nOuts : ℕ) (inputs : Array (F p)) (initState : F p)
   let state := mix (ark (state.map sigma) C (half * t)) P
 
   -- Phase 2: partial rounds
-  -- let state := (Array.range nRoundsP).foldl (
-  --   fun state r ↦
-  --     -- let s0 := sigma state[0]! + C[(half + 1) * t + r]!
-  --     -- mixS r (state.set! 0 s0) S
-  --     mixS r (state.set! 0 0) S
-  --   ) state
+  let state := (Array.range nRoundsP).foldl (
+    fun state r ↦
+      -- let s0 := sigma state[0]! + C[(half + 1) * t + r]!
+      -- mixS r (state.set! 0 s0) S
+      mixS r (state.set! 0 0) S
+    ) state
 
   -- -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
   -- let state := (Array.range (half - 1)).foldl (fun state r ↦
@@ -300,6 +300,6 @@ attribute [local irreducible] bind ZMod OfNat.ofNat instHAdd
 -- def main : IO Unit := do
 --   Lean.withImportModules #[{module := `Clap.Poseidon.Poseidon}] _ _
 
-#compile testPoseidon using Primes.bn254 iters 35
+-- #compile testPoseidon using Primes.bn254 iters 35
 
 end Poseidon.Test

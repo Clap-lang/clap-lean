@@ -221,7 +221,7 @@ We return the number of iterations the compiler took for reporting purposes.
 def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) : TermElabM ℕ := do
   let serialiseS ← serialise p f
   trace[Clap.Compiler.serialise] m!"{serialiseS}"
-
+  
   let curryS ← withTraceNode `Clap.Compiler.curry
     Trace.formatExprWith do curry p serialiseS
 
@@ -235,39 +235,42 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) : TermElabM ℕ :
       | .ok (e, iters) => return m!"{checkEmoji}{iterationsMessage iters maxIters}:\n{e}"
     ) do reduceExpr maxIters sansInterfaceVectorsS
 
-  trace[Clap.Compiler.usedConstants]
-    m!"Constants (filtered):\n{←constantsSans reduceExprS}"
-
-  try
-    let compiledF ← toDeep p reduceExprS
-    
-    let compiledFname := serialisedUserName circuitName
-    addAndCompile <| .defnDecl {
-      name        := compiledFname
-      levelParams := []
-      type        := ←inferType compiledF
-      value       := compiledF
-      hints       := .regular 18
-      safety      := .safe
-    }
-    logInfo m!"Compiled {circuitName} into {compiledFname}."
-    let wgName := circuitName.appendAfter "_wg_wrap" -- TODO: Suspended WG.
-    -- lambdaTelescope f fun args _ ↦ do
-    -- let wg ← wg p args
-    -- addAndCompile <| .defnDecl {
-    --   name        := wgName
-    --   levelParams := []
-    --   type        := ←inferType wg
-    --   value       := wg
-    --   hints       := .regular 18
-    --   safety      := .safe
-    -- }
-    logInfo m!"Wg for {circuitName} is {wgName}."
-
-  catch exc =>
-    throw <| Exception.error exc.getRef m!"{iterationsMessage iters maxIters}\n{exc.toMessageData}"
-
+  IO.println s!"AST: {reduceExprS.sizeWithoutSharing}\nAST(shared): {←reduceExprS.numObjs}"
+  -- IO.println s!"result:\n{reduceExprS}"
   return iters
+  -- trace[Clap.Compiler.usedConstants]
+  --   m!"Constants (filtered):\n{←constantsSans reduceExprS}"
+
+  -- try
+  --   let compiledF ← toDeep p reduceExprS
+    
+  --   let compiledFname := serialisedUserName circuitName
+  --   addAndCompile <| .defnDecl {
+  --     name        := compiledFname
+  --     levelParams := []
+  --     type        := ←inferType compiledF
+  --     value       := compiledF
+  --     hints       := .regular 18
+  --     safety      := .safe
+  --   }
+  --   logInfo m!"Compiled {circuitName} into {compiledFname}."
+  --   let wgName := circuitName.appendAfter "_wg_wrap" -- TODO: Suspended WG.
+  --   -- lambdaTelescope f fun args _ ↦ do
+  --   -- let wg ← wg p args
+  --   -- addAndCompile <| .defnDecl {
+  --   --   name        := wgName
+  --   --   levelParams := []
+  --   --   type        := ←inferType wg
+  --   --   value       := wg
+  --   --   hints       := .regular 18
+  --   --   safety      := .safe
+  --   -- }
+  --   logInfo m!"Wg for {circuitName} is {wgName}."
+
+  -- catch exc =>
+  --   throw <| Exception.error exc.getRef m!"{iterationsMessage iters maxIters}\n{exc.toMessageData}"
+
+  -- return iters
 
 def instantiateLambdaHeadInst (e : Expr) : TermElabM (Option Expr) := do
   let .lam _ type _ bi := e | return .none

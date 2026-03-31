@@ -135,10 +135,18 @@ opaque ABC {α : Type} : α → Prop
 set_option hygiene false in
 def simpClosed : TermElabM (TSyntax `tactic) :=
   `(tactic|
-    simp -failIfUnchanged -singlePass -implicitDefEqProofs
-         -arith -ground
-         +zeta
-         +autoUnfold -unfoldPartialApp -locals only
+    simp (config := {
+            maxSteps := 10000000
+            failIfUnchanged := false
+            singlePass := false
+            implicitDefEqProofs := false
+            arith := false
+            ground := false
+            zeta := true
+            autoUnfold := true
+            unfoldPartialApp := true
+            locals := false
+          }) only
          [-Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr, -List.length, -Bind.bind,
           -OfNat.ofNat, -Nat.rec,
           List.map_toArray, List.map_cons, id_eq, List.map_nil, List.size_toArray, List.length_cons,
