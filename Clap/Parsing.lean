@@ -1,6 +1,19 @@
 import Lean
 open Lean.Json
 
+#check Lean.Json.getObj?
+#check Lean.Json.getObjValD
+#check Lean.Json.getObjValAs?
+
+def verify : String → String → String → Option Unit := sorry
+
+def parseKey (s k : String) : Except String String := do
+  let json ← Lean.Json.parse s
+  json.getObjValAs? String k
+
+def sound (s k v : String) : Prop :=
+  verify s k v = some () → parseKey s k = Except.ok v
+
 inductive StateEscaped where
   | outsideQuotes
   | insideQuotes
@@ -43,6 +56,25 @@ def nested (c : Char) (stackSize : Nat) : Option Nat :=
     if c = '{' then some (n+1)
     else if c = '}' then some (n-1)
     else some n
+
+
+-- https://jsonlint.com/json-stringify
+
+#eval Lean.Json.parse "\"a\\\\\""
+
+def test := json% {
+  nest : {mail : "bo\\b@mail.com"},
+  mail : "alice@mail.com"
+}
+
+#eval s!"{test}"
+
+-- #check Lean.Json.parse
+-- def valid (s:String) : Prop :=
+--    Except.isOk (Lean.Json.parse s)
+
+-- def membership (sub:String) (s:String) : Prop :=
+--   String.contains s sub
 
 namespace Examples
 
