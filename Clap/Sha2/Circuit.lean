@@ -87,18 +87,18 @@ abbrev t p [Core p] [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)] : Clap.Sh
   but are encoded with a different number of bits, 32 instead of 8.
 -/
 
--- instance i₁ : Coe (F p) (F32 p) where
---   coe := F32.ofF!
-
-instance i₂ : Coe (F8 p) (F32 p) where
-  coe := F32.ofF8
-
--- instance i₄ : Coe (F p) (F8 p) where
---   coe := F8.ofF!
-
 def to_nat_be (bs:Array (F8 p)) : F32 p :=
   let litteEndian := bs.toList.reverse
   List.flatten litteEndian
+
+instance i₁ : Coe ℕ (F8 p) where
+  coe n := Clap.nat2bitsLsb 8 n
+
+instance i₂ : Coe ℕ (F32 p) where
+  coe n := Clap.nat2bitsLsb 32 n
+
+instance i₃ : Coe (F8 p) (F32 p) where
+  coe := F32.ofF8
 
 def toString (w:ℕ) (f : FBitVec p) : String :=
   assert! (f.length = w)
@@ -106,24 +106,26 @@ def toString (w:ℕ) (f : FBitVec p) : String :=
   let s := Core.onlyForDebugF.toString n
   if f.length != w then "ER" else s
 
-instance (priority := high) i₇ : ToString (F32 p) where
-  toString f := toString 32 f
-
-instance (priority := high) i₈ : ToString (F8 p) where
+instance (priority := high) i₅ : ToString (F8 p) where
   toString f := toString 8 f
 
--- instance : Clap.Sha2.Sha (t p) where
---   xor3
---   rotR
---   shiftRight
---   ch
---   maj
---   to_nat_be
---   i₁
---   i₂
---   i₄
---   i₇
---   i₈
+instance (priority := high) i₆ : ToString (F32 p) where
+  toString f := toString 32 f
+
+instance : Sha Option (t p) where
+  xor3
+  rotR
+  shiftRight
+  ch
+  maj
+  to_nat_be
+  add32 := F32.add
+  -- important to name these instances otherwise the wrong ones are picked form the enviroment
+  i₁
+  i₂
+  i₃
+  i₅
+  i₆
 
 end Clap.Sha2.Circuit
 

@@ -41,17 +41,17 @@ def shiftRight (n : ℕ) (x : UInt32) : UInt32 :=
 
 abbrev t : Clap.Sha2.T := {U8:=UInt8, U32:=UInt32}
 
-instance (priority := high) i₇ : ToString UInt32 where
+instance (priority := high) i₆ : ToString UInt32 where
   toString f := Clap.natToHex f.toNat
 
-instance : Clap.Sha2.Sha t where
+instance : Clap.Sha2.Sha Id t where
   xor3
   rotR
   shiftRight
   to_nat_be
   ch
   maj
-  i₇
-  add32 := fun a b => some (UInt32.add a b)
+  i₆
+  add32 := UInt32.add
 
 end Clap.Sha2.Cpu
