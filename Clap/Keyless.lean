@@ -296,4 +296,17 @@ def computeJSONStructure
     ⟨string_bodies.toArray, by simp [string_bodies, payload_list]⟩
   return { payload, payload_hash, string_bodies := string_bodies_vec, brackets_depth_map }
 
+
+-- Top-level circuit
+
+/-- The Aptos Keyless circuit. Verifies a JWT-based identity claim in zero knowledge. -/
+def keyless (input : KeylessInput) : Option Unit := do
+  -- Phase 1: JWT structural verification (concatenation, base64, SHA2, RSA)
+  let jwtPayload ← verifyJWTStructure input.jwtRaw input.rsa
+
+  -- Phase 2: Compute JSON structure for field parsing
+  let json ← computeJSONStructure jwtPayload
+
+  pure ()
+
 end Keyless
