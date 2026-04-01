@@ -83,7 +83,8 @@ open Core
 def mixS (r : ℕ) (state : List (F p)) (s : List (F p)) : List (F p) :=
   let t : ℕ := state.length
   let base : ℕ := (2 * t - 1) * r
-  [dotProduct base] -- ++ tail base t
+  tail base t
+  -- [dotProduct base] -- ++ tail base t
 where
   /-- `out[0] = Σᵢ S[base + i] · in[i]` — full dot product for element 0 -/
   @[unfoldStuff]
@@ -183,7 +184,7 @@ where
   let state := (List.range nRoundsP).foldl (
     fun state r ↦
       -- let s0 := sigma state[0]! + C[(half + 1) * t + r]!
-      -- mixS r (state.set! 0 s0) S
+      -- mixS r (state.set 0 s0) S
       mixS r state S
     ) state
 
@@ -307,7 +308,7 @@ set_option trace.Clap.Compiler true
 -- set_option trace.Clap.Compiler.usedConstants true
 -- set_option trace.Clap.Compiler.reduce false
 set_option maxRecDepth 5000
--- set_option maxHeartbeats 40000
+set_option maxHeartbeats 400000
 set_option debug.skipKernelTC true
 
 ------------------------- Profiling -------------------------

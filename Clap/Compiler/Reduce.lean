@@ -284,15 +284,17 @@ def simpClosed : TermElabM (TSyntax `tactic) :=
 
 set_option hygiene false in
 def simpOpen : TermElabM (TSyntax `tactic) :=
-  `(tactic|simp? -failIfUnchanged
-                 -singlePass
-                 -implicitDefEqProofs
-                 +zeta
-                 -arith
-                 -ground
-                 +autoUnfold
-                 +unfoldPartialApp
-                 -locals
+  `(tactic|simp? (config := {
+                    maxSteps := 10000000
+                    failIfUnchanged := false
+                    singlePass := false
+                    implicitDefEqProofs := false
+                    zeta := true
+                    arith := false
+                    ground := false
+                    autoUnfold := true
+                    unfoldPartialApp := true
+                    locals := false})
                  [unfoldStuff, Function.comp, Array.append, -Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr])
 
 set_option hygiene false in
