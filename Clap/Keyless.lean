@@ -362,6 +362,29 @@ def verifyAudField (json : JSONStructure)
   (aud.name.chars.toList.map FBitVec.toF).zip expectedAudName |>.forM fun (actual, expected) ↦
     F.guardedAssertEq performAudChecks actual expected
 
+/-- Verify the email_verified field and cross-check with uid name.
+    CIRCOM truth table: fail only if uidIsEmail AND NOT evInJwt. -/
+def verifyEvField (json : JSONStructure)
+    (ev : EvFieldInput MAX_EV_KV_PAIR_LEN MAX_EV_NAME_LEN MAX_EV_VALUE_LEN)
+    (uidName : FString bn254 MAX_UID_NAME_LEN)
+    : Option Unit := do
+  -- Cross-check: get uidIsEmail from emailVerifiedCheck
+  let uidIsEmail ← JWT.emailVerifiedCheck uidName.len (uidName.chars.map FBitVec.toF).toList (ev.name.chars.map FBitVec.toF).toList ev.value.len (ev.value.chars.map FBitVec.toF).toList
+  -- Check if ev field is in JWT (non-asserting)
+  let evInJwt ← FString.isSubstringFS (by decide) json.payload json.payloadHash ev.field ev.nameIndex
+  -- Fail if uidIsEmail = 1 AND evInJwt = 0
+  -- CIRCOM truth table:
+  --   uidIsEmail | evInJwt | fail?
+  --        1       |     1     |  no
+  --        1       |     0     |  yes
+  --        0       |     1     |  no
+  --        0       |     0     |  no
+  eq0 (uidIsEmail * FB.not evInJwt)
+  -- Assert not inside nested brackets
+  JWT.enforceNotNested MAX_JWT_PAYLOAD_LEN ev.nameIndex ev.field.len json.bracketsDepthMap
+  -- Parse the email_verified field (allows both quoted and unquoted true/false)
+  JWT.parseEmailVerifiedField (by decide) (by decide) ev.field ev.name ev.value ev.colonIndex ev.valueIndex
+
 -- Top-level circuit
 
 /-- The Aptos Keyless circuit. -/
@@ -391,6 +414,7 @@ def keyless (input : KeylessInput) : Option Unit := do
   (input.nonce.name.chars.toList.map FBitVec.toF).zip expectedNonce |>.forM fun (actual, expected) ↦
     F.assert_eq actual expected
 
+  verifyEvField json input.ev input.uid.name
   pure ()
 
 end Keyless
