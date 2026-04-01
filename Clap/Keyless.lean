@@ -385,6 +385,20 @@ def verifyEvField (json : JSONStructure)
   -- Parse the email_verified field (allows both quoted and unquoted true/false)
   JWT.parseEmailVerifiedField (by decide) (by decide) ev.field ev.name ev.value ev.colonIndex ev.valueIndex
 
+/-- Verify the extra field (optional). -/
+def verifyExtraField (json : JSONStructure) (extra : ExtraFieldInput) : Option Unit := do
+  -- useExtraField must be boolean
+  F.assertBinary extra.useExtraField
+  -- Check substring
+  let efPasses ← FString.isSubstringFS (by decide) json.payload json.payloadHash extra.extraField extra.extraFieldIndex
+  -- Assert not inside nested brackets
+  JWT.enforceNotNested MAX_JWT_PAYLOAD_LEN extra.extraFieldIndex extra.extraField.len json.bracketsDepthMap
+  -- If useExtraField = 1 then efPasses must be 1
+  eq0 (extra.useExtraField * FB.not efPasses)
+  -- Assert extra field does not start inside a string body
+  -- CIRCOM: ef_start_char === 0
+  eq0 (← selectArrayValue json.stringBodies extra.extraFieldIndex)
+
 -- Top-level circuit
 
 /-- The Aptos Keyless circuit. -/
@@ -415,6 +429,7 @@ def keyless (input : KeylessInput) : Option Unit := do
     F.assert_eq actual expected
 
   verifyEvField json input.ev input.uid.name
+  verifyExtraField json input.extra
   pure ()
 
 end Keyless
