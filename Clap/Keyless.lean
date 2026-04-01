@@ -399,6 +399,30 @@ def verifyExtraField (json : JSONStructure) (extra : ExtraFieldInput) : Option U
   -- CIRCOM: ef_start_char === 0
   eq0 (← selectArrayValue json.stringBodies extra.extraFieldIndex)
 
+/-- Verify the nonce field matches the cryptographic commitment.
+    `nonceValue` (from JWT) must equal `Poseidon(epk[0..2], epkLen, expDate, epkBlinder)`. -/
+def verifyNonce (nonceValue : FString bn254 MAX_NONCE_VALUE_LEN) (commit : CommitmentInput) : Option Unit := do
+  -- Compute expected nonce: Poseidon(epk[0], epk[1], epk[2], epkLen, expDate, epkBlinder)
+  let expectedNonce := Clap.Poseidon.poseidonBN254 [ commit.epk[0], commit.epk[1], commit.epk[2], commit.epkLen, commit.expDate, commit.epkBlinder ]
+  -- Convert nonce value (ASCII digits) to scalar
+  let nonceScalar ← FString.asciiDigitsToScalar nonceValue
+  -- Assert equality
+  F.assert_eq nonceScalar expectedNonce
+
+/-- CIRCOM uses `LessThan(252)` for the comparison. We use 64-bit (`F.lessThan 64`)
+    instead because Unix timestamps are seconds since 1970-01-01 and fit comfortably
+    in 64 bits (`2^64 ≈ 5.8 × 10^{17}` seconds, i.e., ~18 billion years). Even with
+    a generous `expHorizon`, the sum `iat + expHorizon` cannot overflow 64 bits for
+    any realistic timestamp. Using 64 bits produces fewer constraints than 252.
+
+    NOTE: CIRCOM checks `expDate < iat + expHorizon`, meaning the expiration
+    date must fall before issued-at + horizon. AIP-061 describes this differently
+    as `iat < expDate + expHorizon`. We follow CIRCOM as source of truth. -/
+def verifyTimestamp (iatValue : FString bn254 MAX_IAT_VALUE_LEN) (expDate expHorizon : F bn254) : Option Unit := do
+  let iatScalar ← FString.asciiDigitsToScalar iatValue
+  -- 64-bit comparison suffices for timestamps (CIRCOM uses 252 bits)
+  FB.assert (← F.lessThan 64 expDate (iatScalar + expHorizon))
+
 -- Top-level circuit
 
 /-- The Aptos Keyless circuit. -/
@@ -430,6 +454,13 @@ def keyless (input : KeylessInput) : Option Unit := do
 
   verifyEvField json input.ev input.uid.name
   verifyExtraField json input.extra
+
+  -- Nonce verification
+  verifyNonce input.nonce.value input.commit
+
+  -- Timestamp check
+  verifyTimestamp input.iat.value input.commit.expDate input.commit.expHorizon
+
   pure ()
 
 end Keyless
