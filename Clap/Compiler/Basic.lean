@@ -235,11 +235,13 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) : TermElabM ℕ :
       | .ok (e, iters) => return m!"{checkEmoji}{iterationsMessage iters maxIters}:\n{e}"
     ) do reduceExpr maxIters sansInterfaceVectorsS
 
-  IO.println s!"AST: {reduceExprS.sizeWithoutSharing}\nAST(shared): {←reduceExprS.numObjs}"
+  -- IO.println s!"AST: {reduceExprS.sizeWithoutSharing}\nAST(shared): {←reduceExprS.numObjs}"
   -- IO.println s!"result:\n{reduceExprS}"
+  trace[Clap.Compiler.usedConstants]
+    m!"Constants (filtered):\n{←constantsSans reduceExprS}"
+  
   return iters
-  -- trace[Clap.Compiler.usedConstants]
-  --   m!"Constants (filtered):\n{←constantsSans reduceExprS}"
+  --   
 
   -- try
   --   let compiledF ← toDeep p reduceExprS

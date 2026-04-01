@@ -161,7 +161,13 @@ def simpClosed : TermElabM (TSyntax `tactic) :=
           List.getElem!_toArray, List.getElem!_eq_getElem?_getD, List.getElem?_cons_succ,
           getElem?_pos, Option.getD_some, List.zipWith_toArray, List.zipWith_cons_cons,
           List.zipWith_nil_right, min_self, List.foldr_toArray', List.foldr_cons, List.foldr_nil,
-          Nat.one_lt_ofNat, List.getElem_cons_succ, Nat.lt_add_one]
+          Nat.one_lt_ofNat, List.getElem_cons_succ, Nat.lt_add_one,
+          poseidonBN254, poseidon, poseidonEx, mix, ark, sigma, mixLast, liftArr, liftMat,
+          Constant.C.C02, Constant.C.C03, Constant.C.C04, Constant.C.C05, Constant.C.C06, Constant.C.C07, Constant.C.C08, Constant.C.C09, Constant.C.C10, Constant.C.C11, Constant.C.C12, Constant.C.C13, Constant.C.C14, Constant.C.C15, Constant.C.C16, Constant.C.C17,
+          Constant.C.M02, Constant.C.M03, Constant.C.M04, Constant.C.M05, Constant.C.M06, Constant.C.M07, Constant.C.M08, Constant.C.M09, Constant.C.M10, Constant.C.M11, Constant.C.M12, Constant.C.M13, Constant.C.M14, Constant.C.M15, Constant.C.M16, Constant.C.M17,
+          Constant.C.P02, Constant.C.P03, Constant.C.P04, Constant.C.P05, Constant.C.P06, Constant.C.P07, Constant.C.P08, Constant.C.P09, Constant.C.P10, Constant.C.P11, Constant.C.P12, Constant.C.P13, Constant.C.P14, Constant.C.P15, Constant.C.P16, Constant.C.P17,
+          Constant.C.S02, Constant.C.S03, Constant.C.S04, Constant.C.S05, Constant.C.S06, Constant.C.S07, Constant.C.S08, Constant.C.S09, Constant.C.S10, Constant.C.S11, Constant.C.S12, Constant.C.S13, Constant.C.S14, Constant.C.S15, Constant.C.S16, Constant.C.S17,
+          Constant.C, Constant.M, Constant.P, Constant.S, Function.comp, Array.sum, List.toArray]
   )
 
 set_option hygiene false in
@@ -176,6 +182,47 @@ def simpOpen : TermElabM (TSyntax `tactic) :=
                  -unfoldPartialApp
                  -locals
                  [-Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr])
+
+set_option hygiene false in
+def simpClosedOpen : TermElabM (TSyntax `tactic) :=
+  `(tactic| (simp (config := {
+            maxSteps := 10000000
+            failIfUnchanged := false
+            singlePass := false
+            implicitDefEqProofs := false
+            arith := false
+            ground := false
+            zeta := true
+            autoUnfold := true
+            unfoldPartialApp := true
+            locals := false
+          }) only
+            [-Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr, -List.length, -Bind.bind,
+              -OfNat.ofNat, -Nat.rec,
+              List.map_toArray, List.map_cons, id_eq, List.map_nil, List.size_toArray, List.length_cons,
+              List.length_nil, zero_add, Nat.reduceAdd, Nat.reduceSub, Nat.reduceDiv, Nat.add_one_sub_one,
+              Array.reduceRange, List.reduceRange, List.append_toArray,
+              List.cons_append, List.nil_append, List.foldl_toArray',
+              List.foldl_cons, mul_zero, mul_one, Nat.reduceMul, List.foldl_nil,
+              Array.size_zipWith, Array.mapIdx_mapIdx, Array.map_id_fun,
+              Array.map_id_fun', Array.size_mapIdx, Array.size_map, Array.reduceGetElem!,
+              add_zero, List.mapIdx_toArray, List.mapIdx_cons, List.mapIdx_nil,
+              Nat.ofNat_pos, getElem!_pos, List.getElem_toArray, List.getElem_cons_zero,
+              List.getElem!_toArray, List.getElem!_eq_getElem?_getD, List.getElem?_cons_succ,
+              getElem?_pos, Option.getD_some, List.zipWith_toArray, List.zipWith_cons_cons,
+              List.zipWith_nil_right, min_self, List.foldr_toArray', List.foldr_cons, List.foldr_nil,
+              Nat.one_lt_ofNat, List.getElem_cons_succ, Nat.lt_add_one];
+             simp? -failIfUnchanged
+                   -singlePass
+                   -implicitDefEqProofs
+                   +zeta
+                   -arith
+                   -ground
+                   +autoUnfold
+                   -unfoldPartialApp
+                   -locals
+                   [-Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr]
+            ))
 
 set_option hygiene false in
 def simplify (e : Expr) : TermElabM Expr := do
@@ -201,9 +248,11 @@ def reduceStep (e : Expr) : TermElabM Expr := do
   let simplifyS ← Trace.withReportTimeoutAndRevert e "simplify" (
     withTraceNode `Clap.Compiler.reduce.simplify (skipIdentity e) ∘ simplify
   )
-  let unfoldAnyS ← Trace.withReportTimeoutAndRevert simplifyS "unfoldAny" (
-    withTraceNode `Clap.Compiler.reduce.unfoldAny (skipIdentity simplifyS) ∘ liftM ∘ unfoldAny
-  )
+  -- let unfoldAnyS ← Trace.withReportTimeoutAndRevert simplifyS "unfoldAny" (
+  --   withTraceNode `Clap.Compiler.reduce.unfoldAny (skipIdentity simplifyS) ∘ liftM ∘ unfoldAny
+  -- )
+  let unfoldAnyS := simplifyS
+
   let foldProjsS ← Trace.withReportTimeoutAndRevert unfoldAnyS "foldProjsS" (
     withTraceNode `Clap.Compiler.reduce.foldProjs (skipIdentity unfoldAnyS) ∘ liftM ∘ foldProjs
   )

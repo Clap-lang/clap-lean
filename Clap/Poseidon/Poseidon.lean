@@ -143,7 +143,7 @@ def poseidonEx (nOuts : ℕ) (inputs : Array (F p)) (initState : F p)
   -- Boundary round (r = half−1): sigma → ark → mix with P
   let state := mix (ark (state.map sigma) C (half * t)) P
 
-  -- Phase 2: partial rounds
+  -- -- Phase 2: partial rounds
   let state := (Array.range nRoundsP).foldl (
     fun state r ↦
       -- let s0 := sigma state[0]! + C[(half + 1) * t + r]!
@@ -266,40 +266,50 @@ set_option pp.maxSteps 1000
 -- set_option trace.Clap.Compiler.reduce.linearise false
 -- set_option trace.Clap.Compiler.reduce.unfoldAny true
 -- set_option trace.Clap.Compiler.reduce.zeta false
--- set_option trace.Clap.Compiler.reduce.simplify true
-set_option trace.Clap.Compiler.reduce.unfoldAny.const true
+set_option trace.Clap.Compiler.reduce.simplify true
+set_option trace.Clap.Compiler.reduce.unfoldAny.const false
 set_option trace.Clap.Compiler.usedConstants true
 -- set_option trace.Clap.Compiler.reduce false
--- set_option maxRecDepth 5000
--- set_option maxHeartbeats 1000000
+set_option maxRecDepth 5000
+set_option maxHeartbeats 200000
 set_option debug.skipKernelTC true
 
 ------------------------- Profiling -------------------------
 -- set_option diagnostics true
 -- set_option trace.profiler.threshold 40
--- set_option profiler.threshold 40
+set_option profiler.threshold 15
 -- set_option trace.profiler true
--- set_option profiler true
+set_option profiler true
 ------------------------- Profiling -------------------------
-#check Lean.Meta.transform
 
 attribute [local irreducible] bind ZMod OfNat.ofNat instHAdd 
-#check Lean.withHeartbeats
+
 -- attribute [local irreducible] mixS mix ark
 
 -- attribute [local irreducible] ark
-
+#check Constant.C.C02
 -- set_option Clap.Compiler.Debug true
 -- set_option trace.Clap.Compiler.Debug true
 -- set_option trace.Clap.Compiler.Debug.revertOnTimeout true
 -- set_option trace.Clap.Compiler.Debug.revertOnTimeout true
 -- set_option maxRecDepth 5000
 -- set_option maxHeartbeats 0
+-- 8.2 (together)
+-- 9.7 (open)
+-- 5.1 (closed)
+#check Constant.C
+#compile testPoseidon using Primes.bn254 iters 35
+-- Clap.Poseidon.mixS [Core Poseidon.p] (r : ℕ) (state s : Array (F Poseidon.p)) : Array (F Poseidon.p)
+-- #check List.map_cons
+-- /-- Run poseidon on `ZMod bn254` inputs, looking up constants by `t`. -/
+-- def testMixS (inputs : Vector (ZMod p) 2) (expected : F p) : Option Unit := do
+  
+-- example : [sorry, 2, 3].map (·+2) = sorry := by
+--   simp? +singlePass
+--   simp +singlePass
+--   simp +singlePass
 
--- attribute [local irreducible] mixS
--- def main : IO Unit := do
---   Lean.withImportModules #[{module := `Clap.Poseidon.Poseidon}] _ _
-
--- #compile testPoseidon using Primes.bn254 iters 35
+-- #[dotProduct base] ++ tail base t (50 (mixS 49 (mixS 48 ...)))
+-- #[sum base] ++ fold base t (50 (mixS 49 (mixS 48)))
 
 end Poseidon.Test

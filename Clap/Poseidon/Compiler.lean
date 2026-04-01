@@ -21,10 +21,10 @@ unsafe def main : IO Unit := do
   let fileName := ""
   let options : Options := {}
   let ctx : Core.Context := {fileName, options, fileMap := default }
-  let state := {env}
-  let _ ← (Lean.Core.CoreM.toIO · ctx state) do
-    forcemaxRecDepth 5000 do forceHeartbeats 0 do
-      (Clap.Compiler.compileMeta `Poseidon.Test.testPoseidon `Primes.bn254 50).run'.run'
+  -- let state := {env}
+  -- discard <| (Lean.Core.CoreM.toIO · ctx state) do
+  --   forcemaxRecDepth 5000 do forceHeartbeats 0 do
+  --     (Clap.Compiler.compileMeta `Poseidon.Test.testPoseidon `Primes.bn254 50).run'.run'
   return 0
   -- CoreM.withImportModules #[] do
   --   (Clap.Compiler.compileMeta `Poseidon.Test.testPoseidon `Primes.bn254 50).run'.run'
