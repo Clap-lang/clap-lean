@@ -101,3 +101,5 @@ def formatExprWith {m : Type _ → Type _} [Monad m]
   return m!"{exceptEmoji res} {s}\n{match res with | .error _ => "<Failed>" | .ok res => res}"
 
 end Clap.Compiler.Trace
+
+register_simp_attr unfoldStuff

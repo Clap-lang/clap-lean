@@ -92,6 +92,43 @@ def unfoldAny (e : Expr) : MetaM Expr := do
         return e
     else transform
 
+-- #check Array.set
+
+-- -- def isReducingWithoutUnfolds (e : Expr) : MetaM Bool := do
+
+
+-- -- def unfoldAnyStep (e : Expr) : MetaM TransformStep := do
+-- --   if isIterating e then return .continue
+-- --   if isArith e then return .continue
+-- --   -- if isConstant e then return .continue
+-- --   if (←isInstance e.getAppFn.constName) then return .continue
+-- --   match ← reduceMatcher? e with
+-- --   | .reduced v => return .done v
+-- --   | _ => let (f, args) := e.getAppFnArgs
+-- --          if f.isAnonymous then return .continue
+-- --          for arg in args do
+-- --            let argT ← inferType arg
+-- --            let () -- F p | Array 
+-- --          _
+
+--   -- if (←e.isIrreducibleExpr) || (←isVerboten e) then return .continue
+--   -- match ← reduceMatcher? e with
+--   -- | .reduced v => return .done v
+--   -- | _ => let some v ← unfoldDefinition? e | return .continue
+--   --        trace[Clap.Compiler.reduce.unfoldAny.const] m!"{e.getAppFn}"
+--   --        return .done v
+
+-- def unfoldAny (e : Expr) : MetaM Expr := do
+--   Trace.withReportSizeDelta (descr := "unfoldAny") e fun e ↦ do
+--     let transform := Meta.transform e (skipConstInApp := true) (pre := unfoldAnyStep)
+--     let options ← getOptions
+--     if options.getBool `Clap.Compiler.Debug.revertOnTimeout
+--     then
+--       tryCatchRuntimeEx transform fun _ ↦ do
+--         trace[Clap.Compiler.Debug.revertOnTimeout] "unfoldAny - Revert + Continue."
+--         return e
+--     else transform
+
 def foldProjs (e : Expr) : MetaM Expr := do
   if (e.find? (·.isProj)).isNone then return e
   let post (e : Expr) := do
@@ -132,6 +169,71 @@ attribute [simproc] _root_.List.reduceRange
 
 opaque ABC {α : Type} : α → Prop
 
+def x := ["List.map_toArray", "List.map_cons", "id_eq", "List.map_nil", "poseidonBN254", "Constant.C.eq_1",
+    "List.size_toArray", "List.length_cons", "List.length_nil", "zero_add", "Nat.reduceAdd", "Nat.reduceSub", "Nat.one_lt_ofNat",
+    "getElem!_pos", "List.getElem_toArray", "List.getElem_cons_succ", "List.getElem_cons_zero", "liftArr", "Constant.S.eq_1",
+    "Constant.M.eq_1", "liftMat", "Array.map_id_fun", "Constant.P.eq_1", "poseidon", "poseidonEx", "Nat.reduceDiv",
+    "Nat.add_one_sub_one", "Array.reduceRange", "ark", "List.getElem!_toArray", "List.getElem!_eq_getElem?_getD", "mix", "Array.sum",
+    "Array.size_zipWith", "Array.size_mapIdx", "Array.size_map", "Array.mapIdx_mapIdx", "List.append_toArray", "List.cons_append",
+    "List.nil_append", "add_zero", "List.mapIdx_toArray", "List.mapIdx_cons", "Nat.ofNat_pos", "getElem?_pos", "Option.getD_some",
+    "List.getElem?_cons_succ", "List.mapIdx_nil", "List.foldl_toArray'", "List.foldl", "Nat.reduceMul", "sigma",
+    "List.zipWith_toArray", "List.zipWith_cons_cons", "List.zipWith_nil_right", "min_self", "List.foldr_toArray'",
+    "List.foldr_cons", "List.foldr_nil", "Function.comp", "Nat.lt_add_one", "F.assert_eq"]
+
+def y := ["unfoldStuff",
+          "-Option.bind_eq_bind", "-ZMod", "-List.map", "-List.zipWith", "-List.foldr", "-List.length", "-Bind.bind",
+          "-OfNat.ofNat", "-Nat.rec",
+          "List.map_toArray",
+          "List.map_cons", "List.map_nil",
+          "id_eq",
+          "List.size_toArray",
+          "List.length_cons",
+          "List.length_nil",
+          "zero_add",
+          "Nat.reduceAdd",
+          "Nat.reduceSub",
+          "Nat.reduceDiv",
+          "Nat.add_one_sub_one",
+          "Array.reduceRange", "List.reduceRange",
+          "List.append_toArray",
+          "List.cons_append", "List.nil_append",
+          "List.foldl_toArray'",
+          "List.foldl_cons", "List.foldl_nil",
+          "mul_zero", "mul_one", "Nat.reduceMul",
+          "Array.size_zipWith", "Array.mapIdx_mapIdx", "Array.map_id_fun",
+          "Array.map_id_fun'", "Array.size_mapIdx", "Array.size_map", "Array.reduceGetElem!",
+          "add_zero", "List.mapIdx_toArray", "List.mapIdx_cons", "List.mapIdx_nil",
+          "Nat.ofNat_pos", "getElem!_pos", "List.getElem_toArray", "List.getElem_cons_zero",
+          "List.getElem!_toArray", "List.getElem!_eq_getElem?_getD", "List.getElem?_cons_succ",
+          "getElem?_pos", "Option.getD_some", "List.zipWith_toArray", "List.zipWith_cons_cons",
+          "List.zipWith_nil_right", "min_self", "List.foldr_toArray'", "List.foldr_cons", "List.foldr_nil",
+          "Nat.one_lt_ofNat", "List.getElem_cons_succ", "Nat.lt_add_one",
+          "poseidonBN254", "poseidon", "poseidonEx", "mix", "ark", "sigma", "mixLast", "liftArr", "liftMat",
+          "Clap.Lang.F.assert_eq", "Function.comp", "Array.sum", "List.toArray"]
+
+#eval y.diff x
+
+-- simp (config :=
+--     { maxSteps := 10000000
+--       failIfUnchanged := false
+--       singlePass := false
+--       implicitDefEqProofs := false
+--       arith := false
+--       ground := false
+--       zeta := true
+--       autoUnfold := true
+--       unfoldPartialApp := true
+--       locals := false }) only [List.map_toArray, List.map_cons, id_eq, List.map_nil, poseidonBN254, Constant.C.eq_1,
+--     List.size_toArray, List.length_cons, List.length_nil, zero_add, Nat.reduceAdd, Nat.reduceSub, Nat.one_lt_ofNat,
+--     getElem!_pos, List.getElem_toArray, List.getElem_cons_succ, List.getElem_cons_zero, liftArr, Constant.S.eq_1,
+--     Constant.M.eq_1, liftMat, Array.map_id_fun, Constant.P.eq_1, poseidon, poseidonEx, Nat.reduceDiv,
+--     Nat.add_one_sub_one, Array.reduceRange, ark, List.getElem!_toArray, List.getElem!_eq_getElem?_getD, mix, Array.sum,
+--     Array.size_zipWith, Array.size_mapIdx, Array.size_map, Array.mapIdx_mapIdx, List.append_toArray, List.cons_append,
+--     List.nil_append, add_zero, List.mapIdx_toArray, List.mapIdx_cons, Nat.ofNat_pos, getElem?_pos, Option.getD_some,
+--     List.getElem?_cons_succ, List.mapIdx_nil, List.foldl_toArray', List.foldl, Nat.reduceMul, sigma,
+--     List.zipWith_toArray, List.zipWith_cons_cons, List.zipWith_nil_right, min_self, List.foldr_toArray',
+--     List.foldr_cons, List.foldr_nil, Function.comp, Nat.lt_add_one, F.assert_eq]
+
 set_option hygiene false in
 def simpClosed : TermElabM (TSyntax `tactic) :=
   `(tactic|
@@ -147,15 +249,28 @@ def simpClosed : TermElabM (TSyntax `tactic) :=
             unfoldPartialApp := true
             locals := false
           }) only
-         [-Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr, -List.length, -Bind.bind,
+         [unfoldStuff,
+          -Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr, -List.length, -Bind.bind,
           -OfNat.ofNat, -Nat.rec,
-          List.map_toArray, List.map_cons, id_eq, List.map_nil, List.size_toArray, List.length_cons,
-          List.length_nil, zero_add, Nat.reduceAdd, Nat.reduceSub, Nat.reduceDiv, Nat.add_one_sub_one,
-          Array.reduceRange, List.reduceRange, List.append_toArray,
-          List.cons_append, List.nil_append, List.foldl_toArray',
-          List.foldl_cons, mul_zero, mul_one, Nat.reduceMul, List.foldl_nil,
+          List.map_toArray,
+          List.map_cons, List.map_nil,
+          id_eq,
+          List.size_toArray,
+          List.length_cons,
+          List.length_nil,
+          zero_add,
+          Nat.reduceAdd,
+          Nat.reduceSub,
+          Nat.reduceDiv,
+          Nat.add_one_sub_one,
+          Array.reduceRange, List.reduceRange,
+          List.append_toArray,
+          List.cons_append, List.nil_append,
+          List.foldl_toArray',
+          List.foldl_cons, List.foldl_nil,
+          mul_zero, mul_one, Nat.reduceMul,
           Array.size_zipWith, Array.mapIdx_mapIdx, Array.map_id_fun,
-          Array.map_id_fun', Array.size_mapIdx, Array.size_map, Array.reduceGetElem!,
+          Array.map_id_fun', Array.size_mapIdx, Array.size_map, -- Array.reduceGetElem!,
           add_zero, List.mapIdx_toArray, List.mapIdx_cons, List.mapIdx_nil,
           Nat.ofNat_pos, getElem!_pos, List.getElem_toArray, List.getElem_cons_zero,
           List.getElem!_toArray, List.getElem!_eq_getElem?_getD, List.getElem?_cons_succ,
@@ -163,11 +278,8 @@ def simpClosed : TermElabM (TSyntax `tactic) :=
           List.zipWith_nil_right, min_self, List.foldr_toArray', List.foldr_cons, List.foldr_nil,
           Nat.one_lt_ofNat, List.getElem_cons_succ, Nat.lt_add_one,
           poseidonBN254, poseidon, poseidonEx, mix, ark, sigma, mixLast, liftArr, liftMat,
-          Constant.C.C02, Constant.C.C03, Constant.C.C04, Constant.C.C05, Constant.C.C06, Constant.C.C07, Constant.C.C08, Constant.C.C09, Constant.C.C10, Constant.C.C11, Constant.C.C12, Constant.C.C13, Constant.C.C14, Constant.C.C15, Constant.C.C16, Constant.C.C17,
-          Constant.C.M02, Constant.C.M03, Constant.C.M04, Constant.C.M05, Constant.C.M06, Constant.C.M07, Constant.C.M08, Constant.C.M09, Constant.C.M10, Constant.C.M11, Constant.C.M12, Constant.C.M13, Constant.C.M14, Constant.C.M15, Constant.C.M16, Constant.C.M17,
-          Constant.C.P02, Constant.C.P03, Constant.C.P04, Constant.C.P05, Constant.C.P06, Constant.C.P07, Constant.C.P08, Constant.C.P09, Constant.C.P10, Constant.C.P11, Constant.C.P12, Constant.C.P13, Constant.C.P14, Constant.C.P15, Constant.C.P16, Constant.C.P17,
-          Constant.C.S02, Constant.C.S03, Constant.C.S04, Constant.C.S05, Constant.C.S06, Constant.C.S07, Constant.C.S08, Constant.C.S09, Constant.C.S10, Constant.C.S11, Constant.C.S12, Constant.C.S13, Constant.C.S14, Constant.C.S15, Constant.C.S16, Constant.C.S17,
-          Constant.C, Constant.M, Constant.P, Constant.S, Function.comp, Array.sum, List.toArray]
+          Array.set!_eq_setIfInBounds, List.setIfInBounds_toArray, List.set_cons_succ, List.set_cons_zero,
+          Clap.Lang.F.assert_eq, Function.comp, Array.sum, List.toArray]
   )
 
 set_option hygiene false in
@@ -179,9 +291,9 @@ def simpOpen : TermElabM (TSyntax `tactic) :=
                  -arith
                  -ground
                  +autoUnfold
-                 -unfoldPartialApp
+                 +unfoldPartialApp
                  -locals
-                 [-Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr])
+                 [unfoldStuff, Function.comp, Array.append, -Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr])
 
 set_option hygiene false in
 def simpClosedOpen : TermElabM (TSyntax `tactic) :=
@@ -235,7 +347,7 @@ def simplify (e : Expr) : TermElabM Expr := do
       let abc ← mkAppM ``ABC #[body]
       let mvar ← mkFreshExprMVar (.some abc) MetavarKind.syntheticOpaque
         let ([mvar], _) ←
-          Elab.runTactic mvar.mvarId! (←simpClosed) (←read) (←get) |
+          Elab.runTactic mvar.mvarId! (←simpOpen) (←read) (←get) |
             throwError "Simp generated more than a single goal on:\n{e}"
         let_expr ABC _ x := ←instantiateMVars (←mvar.getType) | throwError "What"
         mkLambdaFVars args x
@@ -253,9 +365,10 @@ def reduceStep (e : Expr) : TermElabM Expr := do
   -- )
   let unfoldAnyS := simplifyS
 
-  let foldProjsS ← Trace.withReportTimeoutAndRevert unfoldAnyS "foldProjsS" (
-    withTraceNode `Clap.Compiler.reduce.foldProjs (skipIdentity unfoldAnyS) ∘ liftM ∘ foldProjs
-  )
+  -- let foldProjsS ← Trace.withReportTimeoutAndRevert unfoldAnyS "foldProjsS" (
+  --   withTraceNode `Clap.Compiler.reduce.foldProjs (skipIdentity unfoldAnyS) ∘ liftM ∘ foldProjs
+  -- )
+  let foldProjsS := unfoldAnyS
   return foldProjsS
   where skipIdentity (e : Expr) (res : Except Exception Expr) : TermElabM MessageData :=
     match res with
