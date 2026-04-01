@@ -36,6 +36,9 @@ namespace FString
 
 variable {p : ℕ} [core : Core p] [Fact (Primes.fits p 8)]
 
+def toVF {maxLen} (fs : FString p maxLen) : Vector (F p) maxLen :=
+  fs.chars.map FBitVec.toF
+
 private def countTrailingZeros {maxLen : ℕ} (fs : Vector (F p) maxLen) : F p :=
   Vector.foldl (fun (len,keepCounting) f ↦
     let b := F.eq f 0

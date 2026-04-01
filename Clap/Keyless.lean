@@ -253,7 +253,7 @@ def verifyJWTStructure (jwtRaw : JWTRawInput) (rsa : RSAInput) : Option (FString
   -- Assert the last character of header_w_dot is '.' (ASCII 46)
   -- This prevents the circuit from being tricked about where the payload starts.
   -- CIRCOM: dot === 46
-  let dot ← selectArrayValue (jwtRaw.b64u_jwt_no_sig_sha2_padded.chars.map FBitVec.toF) (jwtRaw.b64u_jwt_header_w_dot.len - 1)
+  let dot ← selectArrayValue jwtRaw.b64u_jwt_no_sig_sha2_padded.toVF (jwtRaw.b64u_jwt_header_w_dot.len - 1)
   F.assert_eq dot 46
   -- Step 2: SHA2-256 padding verification
   SHA2_256_PaddingVerify jwtRaw.b64u_jwt_no_sig_sha2_padded jwtRaw.sha2_num_blocks jwtRaw.sha2_num_bits jwtRaw.sha2_padding
@@ -264,34 +264,33 @@ def verifyJWTStructure (jwtRaw : JWTRawInput) (rsa : RSAInput) : Option (FString
   -- Step 4b: Assert b64u_jwt_payload is a valid prefix of b64u_jwt_payload_sha2_padded
   -- This removes SHA2 padding and ensures consistency.
   -- CIRCOM: AssertIsSubstring(b64u_jwt_payload_sha2_padded, ..., b64u_jwt_payload, ..., 0)
-  let paddedHash ← hashBytesToFieldWithLen (jwtRaw.b64u_jwt_payload_sha2_padded.chars.map FBitVec.toF) jwtRaw.b64u_jwt_payload_sha2_padded.len
+  let paddedHash ← hashBytesToFieldWithLen jwtRaw.b64u_jwt_payload_sha2_padded.toVF jwtRaw.b64u_jwt_payload_sha2_padded.len
   assertIsSubstringFS (by decide) jwtRaw.b64u_jwt_payload_sha2_padded paddedHash jwtRaw.b64u_jwt_payload 0
   -- Step 5: Base64-decode the payload
-  let b64uPayloadArr := (jwtRaw.b64u_jwt_payload.chars.map FBitVec.toF).toArray
-  let jwtPayload ← Base64Len.base64UrlDecode MAX_JWT_PAYLOAD_LEN b64uPayloadArr
+  let jwtPayload ← Base64Len.base64UrlDecode MAX_JWT_PAYLOAD_LEN jwtRaw.b64u_jwt_payload.toVF.toArray
   -- Compute decoded length: floor(3 * encoded_len / 4)
   let jwtPayloadLen ← Base64Len.base64UrlDecodedLength 20 jwtRaw.b64u_jwt_payload.len
   -- Build FString from decoded payload (may be shorter than MAX_JWT_PAYLOAD_LEN, pad with zeros)
   let padded := jwtPayload ++ Array.replicate (MAX_JWT_PAYLOAD_LEN - jwtPayload.size) 0
-  let chars_f : Vector (F bn254) MAX_JWT_PAYLOAD_LEN := ⟨padded.take MAX_JWT_PAYLOAD_LEN, by simp [padded]; omega⟩
-  let chars ← chars_f.mapM F8.ofF
+  let charsF : Vector (F bn254) MAX_JWT_PAYLOAD_LEN := ⟨padded.take MAX_JWT_PAYLOAD_LEN, by simp [padded]; omega⟩
+  let chars ← charsF.mapM F8.ofF
   return ⟨chars, jwtPayloadLen⟩
 
 /-- Compute JSON structural analysis from the decoded JWT payload.
     Returns the payload with its hash, string bodies, and brackets depth map. -/
 def computeJSONStructure (payload : FString bn254 MAX_JWT_PAYLOAD_LEN) : Option JSONStructure := do
   -- Compute payload hash
-  let payloadHash ← hashBytesToFieldWithLen (payload.chars.map FBitVec.toF) payload.len
+  let payloadHash ← hashBytesToFieldWithLen payload.toVF payload.len
   -- JSON structural analysis on raw field elements
-  let payload_list := (payload.chars.map FBitVec.toF).toList
-  let stringBodies := JWT.stringBodies payload_list
+  let payloadList := payload.toVF.toList
+  let stringBodies := JWT.stringBodies payloadList
   let inverted := stringBodies.map FB.not
-  let brackets_map := JWT.bracketsMap payload_list
+  let brackets_map := JWT.bracketsMap payloadList
   let unquoted_brackets := inverted.zipWith (· * ·) brackets_map
   let bracketsDepthMap := JWT.bracketsDepthMap unquoted_brackets
-  let string_bodies_vec : Vector (FB bn254) MAX_JWT_PAYLOAD_LEN :=
-    ⟨stringBodies.toArray, by simp [stringBodies, payload_list]⟩
-  return { payload, payloadHash, stringBodies := string_bodies_vec, bracketsDepthMap }
+  let stringBodiesVec : Vector (FB bn254) MAX_JWT_PAYLOAD_LEN :=
+    ⟨stringBodies.toArray, by simp [stringBodies, payloadList]⟩
+  return { payload, payloadHash, stringBodies := stringBodiesVec, bracketsDepthMap }
 
 /-- Verify a quoted JWT field: substring check, not-nested check, field parsing. -/
 def verifyQuotedField {maxPairLen maxNameLen maxValueLen : ℕ}
@@ -358,9 +357,8 @@ def verifyAudField (json : JSONStructure)
     audEff.colonIndex audEff.valueIndex audOverride.skipAudChecks
   -- Verify aud name is literally "aud" (conditioned on performAudChecks)
   -- CIRCOM: aud_name[i] * performAudChecks === EXPECTED[i] * performAudChecks
-  let expectedAudName : List (F bn254) := [97, 117, 100] -- "aud"
-  (aud.name.chars.toList.map FBitVec.toF).zip expectedAudName |>.forM fun (actual, expected) ↦
-    F.guardedAssertEq performAudChecks actual expected
+  let expectedAudName : Array (F bn254) := #[97, 117, 100] -- "aud"
+  aud.name.toVF.toArray.zip expectedAudName |>.forM fun (actual, expected) ↦ F.guardedAssertEq performAudChecks actual expected
 
 /-- Verify the email_verified field and cross-check with uid name.
     CIRCOM truth table: fail only if uidIsEmail AND NOT evInJwt. -/
@@ -369,7 +367,7 @@ def verifyEvField (json : JSONStructure)
     (uidName : FString bn254 MAX_UID_NAME_LEN)
     : Option Unit := do
   -- Cross-check: get uidIsEmail from emailVerifiedCheck
-  let uidIsEmail ← JWT.emailVerifiedCheck uidName.len (uidName.chars.map FBitVec.toF).toList (ev.name.chars.map FBitVec.toF).toList ev.value.len (ev.value.chars.map FBitVec.toF).toList
+  let uidIsEmail ← JWT.emailVerifiedCheck uidName.len uidName.toVF.toList ev.name.toVF.toList ev.value.len ev.value.toVF.toList
   -- Check if ev field is in JWT (non-asserting)
   let evInJwt ← FString.isSubstringFS (by decide) json.payload json.payloadHash ev.field ev.nameIndex
   -- Fail if uidIsEmail = 1 AND evInJwt = 0
@@ -438,19 +436,16 @@ def keyless (input : KeylessInput) : Option Unit := do
   verifyQuotedField (by decide) (by decide) (by decide) json input.uid
   verifyQuotedField (by decide) (by decide) (by decide) json input.iss
   -- Verify iss name is "iss" — CIRCOM: iss_name[i] === EXPECTED_ISS_NAME[i]
-  let expectedIss : List (F bn254) := [105, 115, 115] -- "iss"
-  (input.iss.name.chars.toList.map FBitVec.toF).zip expectedIss |>.forM fun (actual, expected) ↦
-    F.assert_eq actual expected
+  let expectedIss : Array (F bn254) := #[105, 115, 115] -- "iss"
+  (input.iss.name.toVF).toArray.zip expectedIss |>.forM fun (actual, expected) ↦ F.assert_eq actual expected
   verifyUnquotedField (by decide) (by decide) (by decide) json input.iat
   -- Verify iat name is "iat" — CIRCOM: iat_name[i] === EXPECTED_IAT_NAME[i]
-  let expectedIat : List (F bn254) := [105, 97, 116] -- "iat"
-  (input.iat.name.chars.toList.map FBitVec.toF).zip expectedIat |>.forM fun (actual, expected) ↦
-    F.assert_eq actual expected
+  let expectedIat : Array (F bn254) := #[105, 97, 116] -- "iat"
+  (input.iat.name.toVF).toArray.zip expectedIat |>.forM fun (actual, expected) ↦ F.assert_eq actual expected
   verifyQuotedField (by decide) (by decide) (by decide) json input.nonce
   -- Verify nonce name is "nonce" — CIRCOM: nonce_name[i] === EXPECTED_NONCE_NAME[i]
-  let expectedNonce : List (F bn254) := [110, 111, 110, 99, 101] -- "nonce"
-  (input.nonce.name.chars.toList.map FBitVec.toF).zip expectedNonce |>.forM fun (actual, expected) ↦
-    F.assert_eq actual expected
+  let expectedNonce : Array (F bn254) := #[110, 111, 110, 99, 101] -- "nonce"
+  (input.nonce.name.toVF).toArray.zip expectedNonce |>.forM fun (actual, expected) ↦ F.assert_eq actual expected
 
   verifyEvField json input.ev input.uid.name
   verifyExtraField json input.extra
