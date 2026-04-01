@@ -294,8 +294,7 @@ def computeJSONStructure (payload : FString bn254 MAX_JWT_PAYLOAD_LEN) : Option 
   let brackets_map := JWT.bracketsMap payloadList
   let unquoted_brackets := inverted.zipWith (· * ·) brackets_map
   let bracketsDepthMap := JWT.bracketsDepthMap unquoted_brackets
-  let stringBodiesVec : Vector (FB bn254) MAX_JWT_PAYLOAD_LEN :=
-    ⟨stringBodies.toArray, by simp [stringBodies, payloadList]⟩
+  let stringBodiesVec : Vector (FB bn254) MAX_JWT_PAYLOAD_LEN := ⟨stringBodies.toArray, by simp [stringBodies, payloadList]⟩
   return { payload, payloadHash, stringBodies := stringBodiesVec, bracketsDepthMap }
 
 /-- Verify a quoted JWT field: substring check, not-nested check, field parsing. -/
@@ -426,6 +425,55 @@ def verifyTimestamp (iatValue : FString bn254 MAX_IAT_VALUE_LEN) (expDate expHor
   -- 64-bit comparison suffices for timestamps (CIRCOM uses 252 bits)
   FB.assert (← F.lessThan 64 expDate (iatScalar + expHorizon))
 
+/-- Compute the identity commitment.
+    `idc = Poseidon(pepper, privateAudValHashed, uidValueHashed, uidNameHashed)`
+    When `skipAudChecks = 1`, `privateAudValue` is zeroed before hashing. -/
+def computeIdentityCommitment (pepper : F bn254) (privateAudValue : FString bn254 MAX_AUD_VALUE_LEN)
+    (performAudChecks : FB bn254) (uidValue : FString bn254 MAX_UID_VALUE_LEN) (uidName : FString bn254 MAX_UID_NAME_LEN)
+    : Option (F bn254) := do
+  -- Conditionally zero privateAudValue: hashable[i] = privateAudValue[i] * performAudChecks
+  let hashableAud : Vector (F bn254) MAX_AUD_VALUE_LEN := privateAudValue.chars.map (fun c ↦ FBitVec.toF c * performAudChecks)
+  let privateAudValHashed ← hashBytesToFieldWithLen hashableAud (privateAudValue.len * performAudChecks)
+  let uidValueHashed ← hashBytesToFieldWithLen uidValue.toVF uidValue.len
+  let uidNameHashed ← hashBytesToFieldWithLen uidName.toVF uidName.len
+  return Clap.Poseidon.poseidonBN254 [pepper, privateAudValHashed, uidValueHashed, uidNameHashed]
+
+/-- Phase 7: Compute and verify the public inputs hash.
+    Collects all verifier-facing data and checks it matches `declaredHash`. -/
+def verifyPublicInputsHash
+    (idc : F bn254)
+    (commit : CommitmentInput)
+    (rsa : RSAInput)
+    (issValue : FString bn254 MAX_ISS_VALUE_LEN)
+    (extra : ExtraFieldInput)
+    (audOverride : AudOverrideInput)
+    (jwtHeader : FString bn254 MAX_B64U_JWT_HEADER_W_DOT_LEN)
+    (declaredHash : F bn254)
+    : Option Unit := do
+  -- Hash components
+  let hashedIssValue ← hashBytesToFieldWithLen issValue.toVF issValue.len
+  let hashedExtraField ← hashBytesToFieldWithLen extra.extraField.toVF extra.extraField.len
+  let hashedJwtHeader ← hashBytesToFieldWithLen jwtHeader.toVF jwtHeader.len
+  -- CIRCOM: Hash64BitLimbsToFieldWithLen(32)(pubkey_modulus_tagged, 256)
+  -- 256 = RSA_KEY_BYTES = 32 limbs * 8 bytes/limb
+  let hashedPubkeyModulus := hash64BitLimbsToFieldWithLen rsa.pubkeyModulus 64 RSA_KEY_BYTES
+  let overrideAudValHashed ← hashBytesToFieldWithLen audOverride.overrideAudValue.toVF audOverride.overrideAudValue.len
+  -- Poseidon(14 inputs) in the exact order from CIRCOM
+  let computed := Clap.Poseidon.poseidonBN254
+    [ commit.epk[0], commit.epk[1], commit.epk[2], commit.epkLen
+    , idc
+    , commit.expDate
+    , commit.expHorizon
+    , hashedIssValue
+    , extra.useExtraField
+    , hashedExtraField
+    , hashedJwtHeader
+    , hashedPubkeyModulus
+    , overrideAudValHashed
+    , audOverride.useAudOverride
+    ]
+  F.assert_eq computed declaredHash
+
 -- Top-level circuit
 
 /-- The Aptos Keyless circuit. -/
@@ -458,6 +506,18 @@ def keyless (input : KeylessInput) : Option Unit := do
   -- Timestamp check
   verifyTimestamp input.iat.value input.commit.expDate input.commit.expHorizon
 
-  pure ()
+  -- Identity commitment
+  let performAudChecks : FB bn254 := FB.not input.audOverride.skipAudChecks
+  let idc ← computeIdentityCommitment
+    input.commit.pepper
+    input.audOverride.privateAudValue
+    performAudChecks
+    input.uid.value
+    input.uid.name
+
+  -- Public inputs hash verification
+  verifyPublicInputsHash idc input.commit input.rsa input.iss.value
+    input.extra input.audOverride input.jwtRaw.b64u_jwt_header_w_dot
+    input.publicInputsHash
 
 end Keyless
