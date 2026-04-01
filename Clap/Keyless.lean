@@ -243,6 +243,12 @@ def isStringBodiesSubstring {maxStrLen maxSubstrLen : ℕ} (h : maxSubstrLen ≤
   let fsb_fstr : FString bn254 maxSubstrLen := ⟨fsb_chars, substrLen⟩
   FString.isSubstringFS h sb_fstr strHash fsb_fstr startIndex
 
+/-- Assert that the first characters of a field name match `expected` ASCII values.
+    When `guard = 1` (default), checks are unconditional. When `guard = 0`, all
+    assertions are bypassed (used for conditionally-checked fields like `aud`). -/
+def assertFieldName {n : ℕ} (name : FString bn254 n) (expected : Array (F bn254)) (guard : FB bn254 := 1) : Option Unit :=
+  name.toVF.toArray.zip expected |>.forM fun (actual, exp) ↦ F.guardedAssertEq guard actual exp
+
 /-- Verify JWT structural integrity.
     Concatenation, SHA2 padding, SHA2 hash, RSA signature, and base64 decode.
     Returns the decoded JWT payload as an FString. -/
@@ -357,8 +363,7 @@ def verifyAudField (json : JSONStructure)
     audEff.colonIndex audEff.valueIndex audOverride.skipAudChecks
   -- Verify aud name is literally "aud" (conditioned on performAudChecks)
   -- CIRCOM: aud_name[i] * performAudChecks === EXPECTED[i] * performAudChecks
-  let expectedAudName : Array (F bn254) := #[97, 117, 100] -- "aud"
-  aud.name.toVF.toArray.zip expectedAudName |>.forM fun (actual, expected) ↦ F.guardedAssertEq performAudChecks actual expected
+  assertFieldName aud.name #[97, 117, 100] performAudChecks -- "aud"
 
 /-- Verify the email_verified field and cross-check with uid name.
     CIRCOM truth table: fail only if uidIsEmail AND NOT evInJwt. -/
@@ -436,16 +441,13 @@ def keyless (input : KeylessInput) : Option Unit := do
   verifyQuotedField (by decide) (by decide) (by decide) json input.uid
   verifyQuotedField (by decide) (by decide) (by decide) json input.iss
   -- Verify iss name is "iss" — CIRCOM: iss_name[i] === EXPECTED_ISS_NAME[i]
-  let expectedIss : Array (F bn254) := #[105, 115, 115] -- "iss"
-  (input.iss.name.toVF).toArray.zip expectedIss |>.forM fun (actual, expected) ↦ F.assert_eq actual expected
+  assertFieldName input.iss.name #[105, 115, 115] -- "iss"
   verifyUnquotedField (by decide) (by decide) (by decide) json input.iat
   -- Verify iat name is "iat" — CIRCOM: iat_name[i] === EXPECTED_IAT_NAME[i]
-  let expectedIat : Array (F bn254) := #[105, 97, 116] -- "iat"
-  (input.iat.name.toVF).toArray.zip expectedIat |>.forM fun (actual, expected) ↦ F.assert_eq actual expected
+  assertFieldName input.iat.name #[105, 97, 116] -- "iat"
   verifyQuotedField (by decide) (by decide) (by decide) json input.nonce
   -- Verify nonce name is "nonce" — CIRCOM: nonce_name[i] === EXPECTED_NONCE_NAME[i]
-  let expectedNonce : Array (F bn254) := #[110, 111, 110, 99, 101] -- "nonce"
-  (input.nonce.name.toVF).toArray.zip expectedNonce |>.forM fun (actual, expected) ↦ F.assert_eq actual expected
+  assertFieldName input.nonce.name #[110, 111, 110, 99, 101] -- "nonce"
 
   verifyEvField json input.ev input.uid.name
   verifyExtraField json input.extra
