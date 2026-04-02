@@ -151,26 +151,33 @@ def isSubstringFS {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLe
     (substr     : FString bn254 maxSubstrLen)
     (startIndex : F bn254)
     : Option (FB bn254) := do
+  let str := str.chars.toArray
+  let substr_len := substr.len
+  let substr := substr.chars.toArray
+
   -- Step 1: hash substr and derive the random challenge α
-  let substrHash ← hashBytesToFieldWithLen (substr.chars.map FBitVec.toF) substr.len
+  let substrHash ←
+    hashBytesToFieldWithLen' maxSubstrLen (substr.map FBitVec.toF) substr_len
   -- random_challenge = H(str_hash, substr_hash, substr_len, start_index)
-  let α ← Clap.Poseidon.poseidonBN254 [strHash, substrHash, substr.len, startIndex]
+  let α ← Clap.Poseidon.poseidonBN254 [strHash, substrHash, substr_len, startIndex]
   -- Step 2: build challenge powers α⁰, α¹, …, α^{maxStrLen-1}
   -- powers[0] = 1, powers[i] = α^i
-  let powers : Vector (F bn254) maxStrLen :=
-    Vector.ofFn (fun i ↦ (List.iterate (fun x ↦ share (x * α)) 1 (i.val + 1)).getLast!)
-  -- Step 3: selector bits for [startIndex, startIndex + substr.len)
-  let selector ← FArray.arraySelector maxStrLen startIndex (startIndex + substr.len)
+  let powers : Array (F bn254) :=
+    Array.ofFn (n := maxStrLen)
+      fun i ↦ (List.iterate (fun x ↦ share (x * α)) 1 (i.val + 1)).getLast!
+  -- Step 3: selector bits for [startIndex, startIndex + substr_len)
+  let selector : Array _ ←
+    FArray.arraySelector' maxStrLen startIndex (startIndex + substr_len)
   -- Step 4: selected_str[i] = selector[i] * str[i]; ŝ(α) = Σᵢ selected_str[i] · powers[i]
-  let mut strPolyEval : F bn254 := 0
-  for l : i in [0:maxStrLen] do
-    strPolyEval := strPolyEval + selector[i] * str.chars[i].toF * powers[i]
+  let strPolyEval :=
+    selector.zip (str.zip powers)
+      |>.foldl (init := 0) fun acc (s, c, p) ↦ acc + s * c.toF * p -- TODO: is this quadratic?
   -- Step 5: t(α) = Σⱼ substr[j] · powers[j]
-  let mut substrPolyEval : F bn254 := 0
-  for l : j in [0:maxSubstrLen] do
-    substrPolyEval := substrPolyEval + substr.chars[j].toF * powers[j]!
+  let substrPolyEval :=
+    substr.zip powers
+      |>.foldl (init := 0) fun acc (s, p) ↦ acc + s.toF * p
   -- Step 6: α^startIndex = SelectArrayValue(powers, startIndex)
-  let distinguishingValue ← FArray.selectArrayValue powers startIndex
+  let distinguishingValue ← FArray.selectArrayValue' maxStrLen powers startIndex
   -- Step 7: success = NOT(isZero(ŝ(α))) AND isEqual(ŝ(α), α^startIndex · t(α))
   let nonZero : FB bn254 := FB.not (isZero (share strPolyEval))
   let polyEq  : FB bn254 := F.eq strPolyEval (distinguishingValue * substrPolyEval)
