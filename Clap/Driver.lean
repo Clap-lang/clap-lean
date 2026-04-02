@@ -18,8 +18,9 @@ def forcemaxRecDepth {α : Type} {m : Type → Type} [MonadWithReaderOf Core.Con
 
 open Lean Meta in
 def driver (p : Name) (_decl : Expr) : Elab.Term.TermElabM Unit := do
-  let count    := 10000 -- quite fast
---  let count    := 100000 -- more than 8 min ?
+  let count    := 10000 -- 43 sec, 2721868 kbytes w/ toDeep, 10 sec w/o
+--  let count    := 100000 -- 1m30 w/o deep, more than 16 with toDeep min ?
+--  let count    := 1000000 -- 33m 9369204 kbytes w/o toDeep
   let zmodTy   := mkApp (mkConst ``ZMod) (mkConst p)
   let unitTy   := mkConst ``Unit
   let mut expr ← mkAppM ``Option.some #[mkConst ``Clap.Spec.Compiler.accept]
@@ -27,9 +28,10 @@ def driver (p : Name) (_decl : Expr) : Elab.Term.TermElabM Unit := do
     let zero   ← mkAppOptM ``OfNat.ofNat #[zmodTy, mkNatLit i, none]
     let eq0App ← mkAppOptM ``Clap.Spec.Compiler.eq0 #[(mkConst p), zero]
     expr ← mkAppM ``Bind.bind #[eq0App, mkLambda `_ .default unitTy expr]
-  let _deep ← Clap.toDeep p expr
+--  let _deep ← Clap.toDeep p expr
 --  dbg_trace s!"{← ppExpr deep}"
-  dbg_trace s!"deep"
+  dbg_trace s!"{←expr.numObjs}"
+  dbg_trace s!"{expr.sizeWithoutSharing}"
   return ()
 
 unsafe def main : IO Unit := do
