@@ -24,3 +24,11 @@ leanOptions = [
 name = "mathlib"
 git = "https://github.com/leanprover-community/mathlib4.git"
 rev = "v4.29.0-rc6"
+
+[[lean_exe]]
+name = "Driver"
+root = "Clap.Driver"
+supportInterpreter = true
+leanOptions = [
+  { name = "maxHeartbeats", value = 0 }
+]

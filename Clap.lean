@@ -35,3 +35,5 @@ import Clap.Test.Compiler.ToDeep
 import Clap.Test.Compiler.ToWg
 import Clap.Test.Compiler.Compile
 import Clap.Test.Integration
+
+import Clap.BenchCircuit
