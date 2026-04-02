@@ -166,8 +166,8 @@ where
   let t : ℕ := inputs.length + 1
   let nRoundsF : ℕ := 8
   -- let nRoundsP : ℕ := 57
-  -- let nRoundsP : ℕ := N_ROUNDS_P[t - 2]!
-  let nRoundsP : ℕ := 1
+  let nRoundsP : ℕ := N_ROUNDS_P[t - 2]!
+  -- let nRoundsP : ℕ := 10
   let half : ℕ := nRoundsF / 2
 
   -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
