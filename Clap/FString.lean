@@ -210,37 +210,41 @@ def assertIsConcatenation
     (left    : FString bn254 maxLeftLen)
     (right   : FString bn254 maxRightLen)
     : Option Unit := do
+  let fullStr := fullStr.chars.toArray
+  let left_len := left.len
+  let left := left.chars.toArray
+  let right_len := right.len
+  let right := right.chars.toArray
   -- Step 1: hash all three strings and derive the random challenge
-  let leftHash  ← hashBytesToFieldWithLen (left.chars.map FBitVec.toF) left.len
-  let rightHash ← hashBytesToFieldWithLen (right.chars.map FBitVec.toF) right.len
-  let fullHash  ← hashBytesToFieldWithLen (fullStr.chars.map FBitVec.toF) (left.len + right.len)
-  let α ← Clap.Poseidon.poseidonBN254 [leftHash, rightHash, fullHash, left.len]
-  -- Step 2: enforce that left is 0-padded after left.len
+  let leftHash ←
+    hashBytesToFieldWithLen' maxLeftLen (left.map FBitVec.toF) left_len
+  let rightHash ←
+    hashBytesToFieldWithLen' maxRightLen (right.map FBitVec.toF) right_len
+  let fullHash ←
+    hashBytesToFieldWithLen' maxFullLen (fullStr.map FBitVec.toF) (left_len + right_len)
+  let α ← Clap.Poseidon.poseidonBN254 [leftHash, rightHash, fullHash, left_len]
+  -- Step 2: enforce that left is 0-padded after left_len
   -- rightArraySelector(left_len - 1) gives 1s at positions > left_len - 1, i.e. at [left_len, maxLeftLen)
-  let leftSelector ← FArray.rightArraySelector maxLeftLen (left.len - 1)
-  for l : i in [0:maxLeftLen] do
-    eq0 (leftSelector[i] * left.chars[i].toF)
-  -- Step 2b: enforce that right is 0-padded after right.len
-  let rightSelector ← FArray.rightArraySelector maxRightLen (right.len - 1)
-  for l : i in [0:maxRightLen] do
-    eq0 (rightSelector[i] * right.chars[i].toF)
+  let leftSelector ← FArray.rightArraySelector' maxLeftLen (left_len - 1)
+  _ ← leftSelector.zipWithM (fun ls l ↦ eq0 (ls * l.toF)) left
+  -- Step 2b: enforce that right is 0-padded after right_len
+  let rightSelector ← FArray.rightArraySelector' maxRightLen (right_len - 1)
+  _ ← rightSelector.zipWithM (fun rs r ↦ eq0 (rs * r.toF)) right
   -- Step 3: build challenge powers α⁰, α¹, …, α^{maxFullLen-1}
-  let powers : Vector (F bn254) maxFullLen :=
-    Vector.ofFn (fun i ↦ (List.iterate (fun x ↦ share (x * α)) 1 (i.val + 1)).getLast!)
+  let powers : Array (F bn254) :=
+    Array.ofFn (n := maxFullLen)
+      fun i ↦ (List.iterate (fun x ↦ share (x * α)) 1 (i.val + 1)).getLast!
   -- Step 4: left_poly_eval = Σᵢ left[i] · powers[i]
-  let mut leftPolyEval : F bn254 := 0
-  for l : i in [0:maxLeftLen] do
-    leftPolyEval := leftPolyEval + left.chars[i].toF * powers[i]!
+  let leftPolyEval :=
+    left.zip powers |>.foldl (init := 0) fun acc (l, p) ↦ acc + l.toF * p
   -- Step 5: right_poly_eval = Σⱼ right[j] · powers[j]
-  let mut rightPolyEval : F bn254 := 0
-  for l : j in [0:maxRightLen] do
-    rightPolyEval := rightPolyEval + right.chars[j].toF * powers[j]!
+  let rightPolyEval :=
+    right.zip powers |>.foldl (init := 0) fun acc (r, p) ↦ acc + r.toF * p
   -- Step 6: full_poly_eval = Σₖ fullStr[k] · powers[k]
-  let mut fullPolyEval : F bn254 := 0
-  for l : k in [0:maxFullLen] do
-    fullPolyEval := fullPolyEval + fullStr.chars[k].toF * powers[k]
+  let fullPolyEval :=
+    fullStr.zip powers |>.foldl (init := 0) fun acc (f, p) ↦ acc + f.toF * p
   -- Step 7: distinguishing_value = α^left_len = SelectArrayValue(powers, left_len)
-  let distinguishingValue ← FArray.selectArrayValue powers left.len
+  let distinguishingValue ← FArray.selectArrayValue' maxFullLen powers left_len
   -- Step 8: assert full_poly_eval = left_poly_eval + α^left_len · right_poly_eval
   F.assert_eq fullPolyEval (leftPolyEval + distinguishingValue * rightPolyEval)
 

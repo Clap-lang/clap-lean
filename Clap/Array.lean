@@ -78,6 +78,10 @@ def rightArraySelector (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := d
   let bits ← singleOneArray len idx
   return bits.scanl (· + ·) 0
 
+def rightArraySelector' (len : ℕ) (idx : F p) : Option (Array (FB p)) := do
+  let bits ← singleOneArray' len idx
+  return bits.scanl (· + ·) 0
+
 /-- Like `arraySelector`, but returns all zeros when `endIdx ≤ startIdx`. Does not work when `startIdx = 0`. -/
 def arraySelectorComplex (len : ℕ) (startIdx endIdx : F p) : Option (Vector (FB p) len) := do
   FB.assert (FB.not (isZero startIdx))
