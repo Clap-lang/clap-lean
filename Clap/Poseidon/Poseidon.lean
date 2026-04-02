@@ -329,7 +329,7 @@ attribute [local irreducible] bind ZMod OfNat.ofNat instHAdd List.append
 -- set_option trace.Clap.Compiler.Debug true
 -- set_option trace.Clap.Compiler.Debug.revertOnTimeout true
 -- set_option trace.Clap.Compiler.Debug.revertOnTimeout true
-set_option maxRecDepth 8192
+set_option maxRecDepth 1500
 -- set_option maxHeartbeats 0
 -- 8.2 (together)
 -- 9.7 (open)
