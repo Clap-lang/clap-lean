@@ -83,7 +83,7 @@ open Core
 def mixS (r : ℕ) (state : List (F p)) (s : List (F p)) : List (F p) :=
   let t : ℕ := state.length
   let base : ℕ := (2 * t - 1) * r
-  tail base t
+  dotProduct base :: tail base t
   -- [dotProduct base] -- ++ tail base t
 where
   /-- `out[0] = Σᵢ S[base + i] · in[i]` — full dot product for element 0 -/
@@ -221,7 +221,7 @@ open Primes
   let P := Clap.Poseidon.Constant.P[t-2]!
   poseidon inputs (liftArr C) (liftArr S) (liftMat M) (liftMat P)
 
-#eval! @poseidonBN254 ZMod.instCoreZMod [1, 2]
+-- #eval! @poseidonBN254 ZMod.instCoreZMod [1, 2]
 
 end Poseidon254
 
@@ -289,14 +289,14 @@ open Clap Poseidon
 -- set_option trace.Meta.Tactic.simp true
 -- set_option trace.Meta.Tactic.simp.all true
 
-set_option pp.exprSizes false
-set_option trace.Clap.Compiler.reduce.simplify.countHeartbeats true
-set_option trace.Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify true
+-- set_option pp.exprSizes false
+-- set_option trace.Clap.Compiler.reduce.simplify.countHeartbeats true
+-- set_option trace.Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify true
 
 -- set_option pp.deepTerms true
 set_option pp.deepTerms.threshold 30
 set_option pp.maxSteps 1000
-set_option trace.Clap.Compiler true
+-- set_option trace.Clap.Compiler true
 -- set_option trace.Clap.Compiler.reduce.foldProjs false
 -- set_option trace.Clap.Compiler.reduce.beta false
 -- set_option trace.Clap.Compiler.reduce.letSome false
@@ -315,7 +315,7 @@ set_option debug.skipKernelTC true
 -- set_option diagnostics true
 -- set_option trace.profiler.threshold 40
 -- set_option profiler.threshold 15
-set_option trace.profiler true
+-- set_option trace.profiler true
 -- set_option profiler true
 ------------------------- Profiling -------------------------
 
@@ -324,7 +324,7 @@ attribute [local irreducible] bind ZMod OfNat.ofNat instHAdd
 -- attribute [local irreducible] mixS mix ark
 
 -- attribute [local irreducible] ark
-#check Constant.C.C02
+
 -- set_option Clap.Compiler.Debug true
 -- set_option trace.Clap.Compiler.Debug true
 -- set_option trace.Clap.Compiler.Debug.revertOnTimeout true
@@ -335,8 +335,10 @@ attribute [local irreducible] bind ZMod OfNat.ofNat instHAdd
 -- 9.7 (open)
 -- 5.1 (closed)
 -- 4.515127 (pure simp)
+set_option trace.Meta.Tactic.simp true
+-- set_option trace.Meta.Tactic.simp.all true
 
-#compile testPoseidon using Primes.bn254 iters 35
+-- #compile testPoseidon using Primes.bn254 iters 35
 -- Clap.Poseidon.mixS [Core Poseidon.p] (r : ℕ) (state s : Array (F Poseidon.p)) : Array (F Poseidon.p)
 -- #check List.map_cons
 -- /-- Run poseidon on `ZMod bn254` inputs, looking up constants by `t`. -/

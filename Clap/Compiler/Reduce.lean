@@ -283,6 +283,30 @@ def simpClosed : TermElabM (TSyntax `tactic) :=
   )
 
 set_option hygiene false in
+def simpClosedPoseidon : TermElabM (TSyntax `tactic) :=
+  `(tactic|
+simp (config :=
+    { maxSteps := 10000000
+      failIfUnchanged := false
+      singlePass := false
+      implicitDefEqProofs := false
+      zeta := true
+      arith := false
+      ground := false
+      autoUnfold := true
+      unfoldPartialApp := true
+      locals := false }) only [List.map_cons, id_eq, List.map_nil, poseidonBN254, Constant.C.eq_1, List.length,
+    zero_add, Nat.reduceAdd, Nat.reduceSub, Nat.one_lt_ofNat, getElem!_pos, List.getElem_cons_succ,
+    List.getElem_cons_zero, liftArr, Constant.S.eq_1, Constant.M.eq_1, liftMat, List.map_id_fun, Constant.P.eq_1,
+    poseidon, poseidonEx, mixS, mixS.tail, List.getElem!_eq_getElem?_getD, List.drop_one, ark, mix, List.mapIdx_mapIdx,
+    List.cons_append, List.nil_append, add_zero, List.mapIdx_cons, Nat.ofNat_pos, getElem?_pos, Option.getD_some,
+    List.getElem?_cons_succ, List.mapIdx_nil, Nat.reduceDiv, Nat.add_one_sub_one, List.reduceRange, List.foldl_cons,
+    List.foldl, Nat.reduceMul, one_mul, sigma, List.zipWith_cons_cons, List.zipWith_nil_right, List.sum_cons,
+    List.sum_nil, Function.comp_apply, zero_lt_one, add_lt_iff_neg_right, not_lt_zero, not_false_eq_true, getElem?_neg,
+    Option.getD_none, mul_zero, List.tail, Nat.reduceLT, List.length_cons, mul_one, List.tail_cons, lt_self_iff_false,
+    List.length_nil, zero_tsub, zero_mul, List.tail_nil, getElem!_neg])
+
+set_option hygiene false in
 def simpOpen : TermElabM (TSyntax `tactic) :=
   `(tactic|simp? (config := {
                     maxSteps := 10000000
@@ -349,7 +373,7 @@ def simplify (e : Expr) : TermElabM Expr := do
       let abc ← mkAppM ``ABC #[body]
       let mvar ← mkFreshExprMVar (.some abc) MetavarKind.syntheticOpaque
         let ([mvar], _) ←
-          Elab.runTactic mvar.mvarId! (←simpOpen) (←read) (←get) |
+          Elab.runTactic mvar.mvarId! (←simpClosedPoseidon) (←read) (←get) |
             throwError "Simp generated more than a single goal on:\n{e}"
         let_expr ABC _ x := ←instantiateMVars (←mvar.getType) | throwError "What"
         mkLambdaFVars args x
