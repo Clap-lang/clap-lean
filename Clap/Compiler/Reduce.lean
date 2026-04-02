@@ -295,7 +295,7 @@ simp (config :=
       ground := false
       autoUnfold := true
       unfoldPartialApp := true
-      locals := false }) only [List.map_cons, id_eq, List.map_nil, poseidonBN254, Constant.C.eq_1, List.length,
+      locals := false }) only [unfoldStuff, List.map_cons, id_eq, List.map_nil, poseidonBN254, Constant.C.eq_1, List.length,
     zero_add, Nat.reduceAdd, Nat.reduceSub, Nat.one_lt_ofNat, getElem!_pos, List.getElem_cons_succ,
     List.getElem_cons_zero, liftArr, Constant.S.eq_1, Constant.M.eq_1, liftMat, List.map_id_fun, Constant.P.eq_1,
     poseidon, poseidonEx, mixS, mixS.tail, List.getElem!_eq_getElem?_getD, List.drop_one, ark, mix, List.mapIdx_mapIdx,
@@ -304,7 +304,8 @@ simp (config :=
     List.foldl, Nat.reduceMul, one_mul, sigma, List.zipWith_cons_cons, List.zipWith_nil_right, List.sum_cons,
     List.sum_nil, Function.comp_apply, zero_lt_one, add_lt_iff_neg_right, not_lt_zero, not_false_eq_true, getElem?_neg,
     Option.getD_none, mul_zero, List.tail, Nat.reduceLT, List.length_cons, mul_one, List.tail_cons, lt_self_iff_false,
-    List.length_nil, zero_tsub, zero_mul, List.tail_nil, getElem!_neg])
+    List.length_nil, zero_tsub, zero_mul, List.tail_nil, getElem!_neg, List.set_cons_succ, List.set_cons_zero,
+    List.sum_cons, List.sum_nil, List.take_succ_cons, List.take_zero, List.drop_succ_cons, List.drop_zero])
 
 set_option hygiene false in
 def simpOpen : TermElabM (TSyntax `tactic) :=
@@ -319,7 +320,8 @@ def simpOpen : TermElabM (TSyntax `tactic) :=
                     autoUnfold := true
                     unfoldPartialApp := true
                     locals := false})
-                 [unfoldStuff, Function.comp, Array.append, -Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr])
+                --  [unfoldStuff, Function.comp, Array.append, -Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr])
+                 [unfoldStuff, Function.comp, -Option.bind_eq_bind])
 
 set_option hygiene false in
 def simpClosedOpen : TermElabM (TSyntax `tactic) :=

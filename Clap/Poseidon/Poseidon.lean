@@ -83,8 +83,7 @@ open Core
 def mixS (r : ℕ) (state : List (F p)) (s : List (F p)) : List (F p) :=
   let t : ℕ := state.length
   let base : ℕ := (2 * t - 1) * r
-  dotProduct base :: tail base t
-  -- [dotProduct base] -- ++ tail base t
+  [dotProduct base] ++ tail base t
 where
   /-- `out[0] = Σᵢ S[base + i] · in[i]` — full dot product for element 0 -/
   @[unfoldStuff]
@@ -166,8 +165,9 @@ where
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := inputs.length + 1
   let nRoundsF : ℕ := 8
-  let nRoundsP : ℕ := 57
+  -- let nRoundsP : ℕ := 57
   -- let nRoundsP : ℕ := N_ROUNDS_P[t - 2]!
+  let nRoundsP : ℕ := 1
   let half : ℕ := nRoundsF / 2
 
   -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
@@ -183,19 +183,19 @@ where
   -- Phase 2: partial rounds
   let state := (List.range nRoundsP).foldl (
     fun state r ↦
-      -- let s0 := sigma state[0]! + C[(half + 1) * t + r]!
-      -- mixS r (state.set 0 s0) S
-      mixS r state S
+      -- state.append state
+      let s0 := sigma state[0]! + C[(half + 1) * t + r]!
+      mixS r (state.set 0 s0) S
+      -- state.append state
     ) state
 
-  -- -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
-  -- let state := (Array.range (half - 1)).foldl (fun state r ↦
-  --   mix (ark (state.map sigma) C ((half + 1) * t + nRoundsP + r * t)) M) state
+  -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
+  let state := (List.range (half - 1)).foldl (fun state r ↦
+    mix (ark (state.map sigma) C ((half + 1) * t + nRoundsP + r * t)) M) state
 
-  -- -- Final round: sigma on all, then extract nOuts elements via MixLast
-  -- let state := state.map sigma
-  -- (List.range nOuts).map (mixLast state M)
-  state
+  -- -- -- Final round: sigma on all, then extract nOuts elements via MixLast
+  let state := state.map sigma
+  (List.range nOuts).map (mixLast state M)
 open Clap.Poseidon.Constant
 
 /-- **Poseidon:** Single-output Poseidon hash. Wraps `poseidonEx` with
@@ -305,22 +305,22 @@ set_option pp.maxSteps 1000
 -- set_option trace.Clap.Compiler.reduce.zeta false
 -- set_option trace.Clap.Compiler.reduce.simplify true
 -- set_option trace.Clap.Compiler.reduce.unfoldAny.const true
--- set_option trace.Clap.Compiler.usedConstants true
+set_option trace.Clap.Compiler.usedConstants true
 -- set_option trace.Clap.Compiler.reduce false
-set_option maxRecDepth 5000
-set_option maxHeartbeats 400000
+-- set_option maxRecDepth 5500
+set_option maxHeartbeats 800000
 set_option debug.skipKernelTC true
 
 ------------------------- Profiling -------------------------
 -- set_option diagnostics true
 -- set_option trace.profiler.threshold 40
 -- set_option profiler.threshold 15
--- set_option trace.profiler true
+set_option trace.profiler true
 -- set_option profiler true
 ------------------------- Profiling -------------------------
 
-attribute [local irreducible] bind ZMod OfNat.ofNat instHAdd 
-
+attribute [local irreducible] bind ZMod OfNat.ofNat instHAdd List.append
+#check Lean.Meta.Simp.Config
 -- attribute [local irreducible] mixS mix ark
 
 -- attribute [local irreducible] ark
@@ -329,16 +329,21 @@ attribute [local irreducible] bind ZMod OfNat.ofNat instHAdd
 -- set_option trace.Clap.Compiler.Debug true
 -- set_option trace.Clap.Compiler.Debug.revertOnTimeout true
 -- set_option trace.Clap.Compiler.Debug.revertOnTimeout true
--- set_option maxRecDepth 5000
+set_option maxRecDepth 8192
 -- set_option maxHeartbeats 0
 -- 8.2 (together)
 -- 9.7 (open)
 -- 5.1 (closed)
 -- 4.515127 (pure simp)
-set_option trace.Meta.Tactic.simp true
+-- set_option trace.Meta.Tactic.simp true
 -- set_option trace.Meta.Tactic.simp.all true
+-- set_option trace.Meta.isDefEq true
+-- set_option trace.Meta.isDefEq.stuck true
+-- set_option diagnostics true
 
--- #compile testPoseidon using Primes.bn254 iters 35
+attribute [instance high] List.instAppend
+
+#compile testPoseidon using Primes.bn254 iters 35
 -- Clap.Poseidon.mixS [Core Poseidon.p] (r : ℕ) (state s : Array (F Poseidon.p)) : Array (F Poseidon.p)
 -- #check List.map_cons
 -- /-- Run poseidon on `ZMod bn254` inputs, looking up constants by `t`. -/
