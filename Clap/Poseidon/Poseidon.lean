@@ -240,11 +240,11 @@ open Clap Poseidon
   F.assert_eq (← poseidonBN254 (inputs.toList.map const)) expected
   accept p
 
--- -- circomlib test vector: hash([1, 2]) with t=3
--- -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L50
--- example : testPoseidon
---   #v[1, 2] 7853200120776062878684798364095072458815029376092732009249414926327459813530
---   = some () := by native_decide
+-- circomlib test vector: hash([1, 2]) with t=3
+-- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L50
+example : testPoseidon
+  #v[1, 2] 7853200120776062878684798364095072458815029376092732009249414926327459813530
+  = some () := by native_decide
 
 -- -- circomlib test vector: hash([3, 4]) with t=3
 -- -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L60
