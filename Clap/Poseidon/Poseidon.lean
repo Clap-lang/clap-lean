@@ -343,7 +343,7 @@ set_option maxRecDepth 1500
 
 attribute [instance high] List.instAppend
 
-attribute [local unfoldStuff] F.assert_eq Clap.Lang.Core.eq0 Clap.Lang.Core.share Clap.Lang.Core.accept bind pure Poseidon.Test.p
+attribute [local unfoldStuff] F.assert_eq Clap.Lang.Core.eq0 Clap.Lang.Core.share Clap.Lang.Core.accept bind pure Poseidon.Test.p instCoreZMod
 
 #compile testPoseidon using Primes.bn254 iters 35
 -- Clap.Poseidon.mixS [Core Poseidon.p] (r : ℕ) (state s : Array (F Poseidon.p)) : Array (F Poseidon.p)
