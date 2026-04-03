@@ -319,7 +319,7 @@ set_option trace.profiler true
 -- set_option profiler true
 ------------------------- Profiling -------------------------
 
-attribute [local irreducible] bind ZMod OfNat.ofNat instHAdd List.append
+attribute [local irreducible] Option.bind ZMod OfNat.ofNat instHAdd List.append
 #check Lean.Meta.Simp.Config
 -- attribute [local irreducible] mixS mix ark
 
@@ -342,6 +342,8 @@ set_option maxRecDepth 1500
 -- set_option diagnostics true
 
 attribute [instance high] List.instAppend
+
+attribute [local unfoldStuff] F.assert_eq Clap.Lang.Core.eq0 Clap.Lang.Core.share Clap.Lang.Core.accept bind pure Poseidon.Test.p
 
 #compile testPoseidon using Primes.bn254 iters 35
 -- Clap.Poseidon.mixS [Core Poseidon.p] (r : ℕ) (state s : Array (F Poseidon.p)) : Array (F Poseidon.p)
