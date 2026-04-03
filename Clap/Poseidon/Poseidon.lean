@@ -34,7 +34,7 @@ def ark (state C : List (F p)) (r : ℕ) : List (F p) :=
     Mirrors circomlib's `Mix(t, M)` template: `out[i] = Σⱼ M[j][i] · in[j]` -/
 def mix (state : List (F p)) (M : List (List (F p))) : List (F p) :=
   state.mapIdx (fun (i : ℕ) _ ↦
-    (state.zipWith (fun (sj : F p) (row : List (F p)) ↦ row[i]! * sj) M).foldl (· + ·) 0)
+    (state.zipWith (fun (sj : F p) (row : List (F p)) ↦ row[i]! * sj) M).sum)
 
 -- TODO: Imperative or functional style?
 -- def mix (state : Array (F p)) (m : Array (Array (F p))) : Array (F p) := Id.run do
@@ -53,7 +53,7 @@ def mix (state : List (F p)) (M : List (List (F p))) : List (F p) :=
 
     Mirrors circomlib's `MixLast(t, M, s)` template: `out = Σⱼ M[j][s] · in[j]` -/
 def mixLast (state : List (F p)) (M : List (List (F p))) (s : ℕ) : F p :=
-  (state.zipWith (fun (sj : F p) (row : List (F p)) ↦ row[s]! * sj) M).foldl (· + ·) 0
+  (state.zipWith (fun (sj : F p) (row : List (F p)) ↦ row[s]! * sj) M).sum
 
 -- TODO: Imperative or functional style?
 -- def mixLast (s : ℕ) (state : Array (F p)) (m : Array (Array (F p))) : F p := Id.run do
@@ -73,7 +73,7 @@ def mixS (r : ℕ) (state : List (F p)) (s : List (F p)) : List (F p) :=
 where
   /-- `out[0] = Σᵢ S[base + i] · in[i]` — full dot product for element 0 -/
   dotProduct (base : ℕ) : F p :=
-    (state.zipWith (· * ·) ((s.drop base).take state.length)).foldl (· + ·) 0
+    (state.zipWith (· * ·) ((s.drop base).take state.length)).sum
   /-- `out[i] = in[i] + in[0] · S[base + t + i − 1]` for `i ∈ [1, t)` -/
   tail (base t : ℕ) : List (F p) :=
     (state.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state[0]! * s[base + t + i]!)
