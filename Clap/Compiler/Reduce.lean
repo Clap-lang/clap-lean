@@ -393,10 +393,10 @@ def reduceStep (e : Expr) : TermElabM Expr := do
   -- )
   let unfoldAnyS := simplifyS
 
-  -- let foldProjsS ← Trace.withReportTimeoutAndRevert unfoldAnyS "foldProjsS" (
-  --   withTraceNode `Clap.Compiler.reduce.foldProjs (skipIdentity unfoldAnyS) ∘ liftM ∘ foldProjs
-  -- )
-  let foldProjsS := unfoldAnyS
+  let foldProjsS ← Trace.withReportTimeoutAndRevert unfoldAnyS "foldProjsS" (
+    withTraceNode `Clap.Compiler.reduce.foldProjs (skipIdentity unfoldAnyS) ∘ liftM ∘ foldProjs
+  )
+  -- let foldProjsS := unfoldAnyS
   return foldProjsS
   where skipIdentity (e : Expr) (res : Except Exception Expr) : TermElabM MessageData :=
     match res with
