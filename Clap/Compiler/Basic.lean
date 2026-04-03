@@ -255,7 +255,14 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) : TermElabM ℕ :
       hints       := .regular 18
       safety      := .safe
     }
-    logInfo m!"Compiled {circuitName} into {compiledFname}."
+
+    let sanitisedName (name : Name) : TermElabM Name := do
+      let redundantPrefix := `Clap.Test.Compiler
+      let [«prefix», suffix] := name.components.drop redundantPrefix.getNumParts |
+        throwError "Malformed name."
+      return Name.mkStr2 «prefix».toString suffix.toString
+
+    logInfo m!"Compiled {←sanitisedName circuitName} into {←sanitisedName compiledFname}."
     let wgName := circuitName.appendAfter "_wg_wrap" -- TODO: Suspended WG.
     lambdaTelescope f fun args _ ↦ do
     let wg ← wg p args
@@ -267,7 +274,7 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) : TermElabM ℕ :
       hints       := .regular 18
       safety      := .safe
     }
-    logInfo m!"Wg for {circuitName} is {wgName}."
+    logInfo m!"Wg for {← sanitisedName circuitName} is {←sanitisedName wgName}."
 
   catch exc =>
     throw <| Exception.error exc.getRef m!"{iterationsMessage iters maxIters}\n{exc.toMessageData}"
