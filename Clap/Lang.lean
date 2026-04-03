@@ -12,10 +12,11 @@ class Core (p : ℕ) : Type _ where
   isZero      : F → F
   num2bits    : ℕ → F → Option (List F)
   bits2num    : List F → F
+  const       : ZMod p → F
 
   [onlyForDebugF  : ToString F  ]
 
-attribute [reducible] Core.F Core.instF Core.accept Core.eq0 Core.share Core.isZero Core.num2bits Core.bits2num Core.onlyForDebugF
+attribute [reducible] Core.F Core.instF Core.accept Core.eq0 Core.share Core.isZero Core.num2bits Core.bits2num Core.onlyForDebugF Core.const
 attribute [instance] Core.instF Core.onlyForDebugF
 
 variable {p : ℕ} [Core p]
@@ -230,6 +231,7 @@ scoped instance instCoreZMod {p:ℕ} [Fact (Nat.Prime p)] : Core p where
   num2bits := Compiler.num2bits
   bits2num := Compiler.bits2num
   onlyForDebugF
+  const := id
 
 def F8.ofF! {p:ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] : F p → F8 p := Clap.num2bitsLsbPure 8
 
