@@ -29,7 +29,7 @@ def findFirstExp (e : Expr) : Option Expr := do
   else none
 
 def step (eBind : Expr) : MetaM TransformStep := do
-  if let (``Bind.bind, ⟨_ :: _ :: _ :: _ :: e :: _ :: _⟩) := eBind.getAppFnArgs then
+  if let (``Option.bind, ⟨_ :: _ :: e :: _ :: _⟩) := eBind.getAppFnArgs then
     if let some (toReplace : Expr) := findFirstExp e <&> findInnermost then
       let type ← inferType toReplace
       let k ← withLetDecl `x type toReplace fun x => do
