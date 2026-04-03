@@ -26,6 +26,10 @@ def test (c : MyCouple p) : Option Unit := do
 
 open Clap.Lang.ZMod
 
+attribute [local irreducible] Option.bind ZMod OfNat.ofNat instHAdd
+
+attribute [local unfoldStuff] Clap.Lang.Core.eq0 Clap.Lang.Core.share Clap.Lang.Core.accept instCoreZMod F.assert_eq
+
 /--
 info: Compiled test into test_circuit.
 ---
@@ -45,7 +49,7 @@ info: Wg for test is test_wg_wrap.
 /- We can optimize the circuit. -/
 def test_circuit_opt := Clap.cfold' test_circuit
 
-/-- info: "λ0 λ1 share (v0 * 0) eq0 v2 nil" -/
+/-- info: "λ0 λ1 share 0 eq0 v2 nil" -/
 #guard_msgs in
 #eval! s!"{test_circuit ℕ}"
 
