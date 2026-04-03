@@ -181,6 +181,18 @@ def test₁ {p:ℕ} [Core p] [Fact (Primes.fits p 32)]
   F32.assert_eq (Clap.Sha2.Circuit.ch x y z) F32.default
   -- accept p
 
+open Clap.Lang F FB F FBitVec F8 F32 F64 ZMod in
+attribute [local unfoldStuff] FB assert_range F.assert_eq F.eq F.dotProduct FB.true FB.false FB.eq FB.and FB.or FB.not FB.xor assert FB.assert_eq F.lessThan lessEqThan F.greaterThan greaterEqThan FBitVec FBitVec.default FBitVec.ofF FBitVec.toF binSum FBitVec.assert_eq FBitVec.lessThan FBitVec.greaterThan F8 F8.ofF ofUInt8 zero F8.eq F8.assert_eq F32 F32.default F32.ofF ofF8 ofUInt32 add F32.assert_eq F64 F64.ofF F8.ofF
+
+attribute [local unfoldStuff] Clap.Sha2.Circuit.ch
+
+set_option pp.deepTerms.threshold 30
+set_option pp.maxSteps 1000
+set_option trace.Clap.Compiler.usedConstants true
+set_option maxRecDepth 5000
+set_option maxHeartbeats 800000
+set_option trace.profiler true
+
 /--
 info: Compiled test₁ into test₁_circuit.
 ---
