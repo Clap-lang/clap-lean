@@ -230,7 +230,7 @@ simp (config :=
       ground := false
       autoUnfold := true
       unfoldPartialApp := true
-      locals := false }) only [unfoldStuff, bind, pure, List.map_cons, id_eq, List.map_nil, List.length,
+      locals := false }) only [unfoldStuff, bind, pure, Option.bind_assoc, bind_assoc, List.map_cons, id_eq, List.map_nil, List.length,
     zero_add, Nat.reduceAdd, Nat.reduceSub, Nat.one_lt_ofNat, getElem!_pos, getElem!_neg, List.getElem_cons_succ,
     List.getElem_cons_zero, List.map_id_fun, List.getElem!_eq_getElem?_getD, List.drop_one, List.mapIdx_mapIdx,
     List.cons_append, List.nil_append, add_zero, List.mapIdx_cons, Nat.ofNat_pos, getElem?_pos, Option.getD_some, Option.getD_none,
