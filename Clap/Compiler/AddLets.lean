@@ -28,8 +28,14 @@ def findFirstExp (e : Expr) : Option Expr := do
   else if let (``Clap.Spec.Compiler.num2bits, ⟨_ :: _ :: e :: _⟩) := e.getAppFnArgs then some e
   else none
 
+def matchBinds (e:Expr) : Option (Expr × Expr) :=
+  if let (``Bind.bind, ⟨_ :: _ :: _ :: _ :: e :: k :: _⟩) := e.getAppFnArgs then some (e,k)
+  -- -- TODO this appeared after simp, can we keep only one of them?
+  else if let (``Option.bind, ⟨_ :: _ :: e :: k :: _⟩) := e.getAppFnArgs then some (e,k)
+  else none
+
 def step (eBind : Expr) : MetaM TransformStep := do
-  if let (``Bind.bind, ⟨_ :: _ :: _ :: _ :: e :: _ :: _⟩) := eBind.getAppFnArgs then
+  if let some (e,_k) := matchBinds eBind then
     if let some (toReplace : Expr) := findFirstExp e <&> findInnermost then
       let type ← inferType toReplace
       let k ← withLetDecl `x type toReplace fun x => do

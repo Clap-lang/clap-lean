@@ -1,6 +1,7 @@
 import Lean
 
 import Clap.Spec
+import Clap.Compiler.AddLets
 
 open Lean Meta Elab
 
@@ -38,12 +39,6 @@ partial def compileExp (p : Expr) (var : Expr) (e : Expr) : MetaM Expr := do
 def typeZModp (p:Expr) : Expr := .app (mkConst ``ZMod) p
 def typeCircuit (p var : Expr) : Expr := .app (.app (mkConst ``Clap.Circuit) p) var
 def typeCircuit' (p : Expr) : Expr := .app (mkConst ``Clap.Circuit') p
-
-def matchBinds (e:Expr) : Option (Expr × Expr) :=
-  if let (``Bind.bind, ⟨_ :: _ :: _ :: _ :: e :: k :: _⟩) := e.getAppFnArgs then some (e,k)
-  -- -- TODO this appeared after simp, can we keep only one of them?
-  -- else if let (``Option.bind, ⟨_ :: _ :: e :: k :: _⟩) := e.getAppFnArgs then some (e,k)
-  else none
 
 partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
   -- logInfo m!"compile\n{e}"
