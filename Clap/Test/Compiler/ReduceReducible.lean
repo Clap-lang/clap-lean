@@ -23,9 +23,9 @@ def Reduce.ex₀ {p} [Core p] (x y : ZMod p) : Option Unit := do
   accept
 
 /--
-info: Compiled Reduce.ex₀ into Reduce.ex₀_circuit.
+info: Compiled Clap.Test.Compiler.Reduce.ex₀ into Clap.Test.Compiler.Reduce.ex₀_circuit.
 ---
-info: Wg for Reduce.ex₀ is Reduce.ex₀_wg_wrap.
+info: Wg for Clap.Test.Compiler.Reduce.ex₀ is Clap.Test.Compiler.Reduce.ex₀_wg_wrap.
 -/
 #guard_msgs(info, whitespace := lax) in
 #compile Reduce.ex₀ using Primes.babybear
@@ -37,9 +37,9 @@ def Reduce.ex₁ {p} [Core p] (x y : ZMod p) : Option Unit := do
   accept
 
 /--
-info: Compiled Reduce.ex₁ into Reduce.ex₁_circuit.
+info: Compiled Clap.Test.Compiler.Reduce.ex₁ into Clap.Test.Compiler.Reduce.ex₁_circuit.
 ---
-info: Wg for Reduce.ex₁ is Reduce.ex₁_wg_wrap.
+info: Wg for Clap.Test.Compiler.Reduce.ex₁ is Clap.Test.Compiler.Reduce.ex₁_wg_wrap.
 -/
 #guard_msgs(info, whitespace := lax) in
 #compile Reduce.ex₁ using Primes.babybear
@@ -50,9 +50,9 @@ def Reduce.ex₂ {p} [Core p] (x y : ZMod p) : Option Unit := do
   accept
 
 /--
-info: Compiled Reduce.ex₂ into Reduce.ex₂_circuit.
+info: Compiled Clap.Test.Compiler.Reduce.ex₂ into Clap.Test.Compiler.Reduce.ex₂_circuit.
 ---
-info: Wg for Reduce.ex₂ is Reduce.ex₂_wg_wrap.
+info: Wg for Clap.Test.Compiler.Reduce.ex₂ is Clap.Test.Compiler.Reduce.ex₂_wg_wrap.
 -/
 #guard_msgs(info, whitespace := lax) in
 #compile Reduce.ex₂ using Primes.babybear

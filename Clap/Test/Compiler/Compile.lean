@@ -29,7 +29,7 @@ def Compile.ex₀ {p : ℕ} [Core p] (point₁ point₂ : Point p) (point₃ : P
 /--
 info: Compiled Compile.ex₀ into Compile.ex₀_circuit.
 ---
-info: Wg for Compile.ex₀ is Compile.ex₀_wg_wrap.
+info: Wg for Clap.Test.Compiler.Compile.ex₀ is Clap.Test.Compiler.Compile.ex₀_wg_wrap.
 -/
 #guard_msgs(info, whitespace := lax) in
 #compile Compile.ex₀ using Primes.babybear
@@ -96,7 +96,7 @@ open Clap.Lang.ZMod
 /--
 info: Compiled Compile.ex₁ into Compile.ex₁_circuit.
 ---
-info: Wg for Compile.ex₁ is Compile.ex₁_wg_wrap.
+info: Wg for Clap.Test.Compiler.Compile.ex₁ is Clap.Test.Compiler.Compile.ex₁_wg_wrap.
 -/
 #guard_msgs(info, whitespace := lax) in
 #compile Compile.ex₁ using Primes.babybear
@@ -130,7 +130,7 @@ def Compile.test {p : ℕ} [Fact (Nat.Prime p)] [Core p] (x y z : F p) : Option 
 /--
 info: Compiled Compile.test into Compile.test_circuit.
 ---
-info: Wg for Compile.test is Compile.test_wg_wrap.
+info: Wg for Clap.Test.Compiler.Compile.test is Clap.Test.Compiler.Compile.test_wg_wrap.
 -/
 #guard_msgs in
 #compile Compile.test using Primes.babybear

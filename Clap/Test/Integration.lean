@@ -77,16 +77,16 @@ fun (var : Type) =>
               Circuit.lam fun (curried1_p₂_circuit : var) =>
                 Circuit.lam fun (curried2_p₂_circuit : var) =>
                   Circuit.eq0 (Exp.v x)
-                    ((fun (x_1 : Unit) =>
+                    ((fun (a : Unit) =>
                         Circuit.eq0 (Exp.v x)
-                          ((fun (x_2 : Unit) =>
+                          ((fun (y_1 : Unit) =>
                               Circuit.eq0 (Exp.v y)
-                                ((fun (x_3 : PUnit.{1}) =>
+                                ((fun (a : Unit) =>
                                     Circuit.eq0
                                       (((((Exp.v x).mul ((Exp.v y).sub (Exp.v z))).add (Exp.v z)).add
                                             (Exp.v curried0_p₁_circuit)).add
                                         (Exp.v curried0_p₂_circuit))
-                                      ((fun (x : PUnit.{1}) => Circuit.nil) ()))
+                                      ((fun (a : Unit) => Circuit.nil) ()))
                                   ()))
                             ()))
                       ())
