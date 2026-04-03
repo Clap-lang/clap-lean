@@ -242,40 +242,37 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) : TermElabM ℕ :
   trace[Clap.Compiler.usedConstants]
     m!"Constants (filtered):\n{←constantsSans reduceExprS}"
 
+  try
+    let withLets ← addLets reduceExprS
+    let compiledF ← toDeep p withLets
+
+    let compiledFname := serialisedUserName circuitName
+    addAndCompile <| .defnDecl {
+      name        := compiledFname
+      levelParams := []
+      type        := ←inferType compiledF
+      value       := compiledF
+      hints       := .regular 18
+      safety      := .safe
+    }
+    logInfo m!"Compiled {circuitName} into {compiledFname}."
+    let wgName := circuitName.appendAfter "_wg_wrap" -- TODO: Suspended WG.
+    lambdaTelescope f fun args _ ↦ do
+    let wg ← wg p args
+    addAndCompile <| .defnDecl {
+      name        := wgName
+      levelParams := []
+      type        := ←inferType wg
+      value       := wg
+      hints       := .regular 18
+      safety      := .safe
+    }
+    logInfo m!"Wg for {circuitName} is {wgName}."
+
+  catch exc =>
+    throw <| Exception.error exc.getRef m!"{iterationsMessage iters maxIters}\n{exc.toMessageData}"
+
   return iters
-  --
-
-  -- try
-  --   let withLets ← addLets reduceExprS
-  --   let compiledF ← toDeep p withLets
-
-  --   let compiledFname := serialisedUserName circuitName
-  --   addAndCompile <| .defnDecl {
-  --     name        := compiledFname
-  --     levelParams := []
-  --     type        := ←inferType compiledF
-  --     value       := compiledF
-  --     hints       := .regular 18
-  --     safety      := .safe
-  --   }
-  --   logInfo m!"Compiled {circuitName} into {compiledFname}."
-  --   let wgName := circuitName.appendAfter "_wg_wrap" -- TODO: Suspended WG.
-  --   -- lambdaTelescope f fun args _ ↦ do
-  --   -- let wg ← wg p args
-  --   -- addAndCompile <| .defnDecl {
-  --   --   name        := wgName
-  --   --   levelParams := []
-  --   --   type        := ←inferType wg
-  --   --   value       := wg
-  --   --   hints       := .regular 18
-  --   --   safety      := .safe
-  --   -- }
-  --   logInfo m!"Wg for {circuitName} is {wgName}."
-
-  -- catch exc =>
-  --   throw <| Exception.error exc.getRef m!"{iterationsMessage iters maxIters}\n{exc.toMessageData}"
-
-  -- return iters
 
 def instantiateLambdaHeadInst (e : Expr) : TermElabM (Option Expr) := do
   let .lam _ type _ bi := e | return .none
