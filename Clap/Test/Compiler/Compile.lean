@@ -27,7 +27,7 @@ def Compile.ex₀ {p : ℕ} [Core p] (point₁ point₂ : Point p) (point₃ : P
   accept
 
 /--
-info: Compiled Compile.ex₀ into Compile.ex₀_circuit.
+info: Compiled Clap.Test.Compiler.Compile.ex₀ into Clap.Test.Compiler.Compile.ex₀_circuit.
 ---
 info: Wg for Clap.Test.Compiler.Compile.ex₀ is Clap.Test.Compiler.Compile.ex₀_wg_wrap.
 -/
@@ -35,7 +35,7 @@ info: Wg for Clap.Test.Compiler.Compile.ex₀ is Clap.Test.Compiler.Compile.ex�
 #compile Compile.ex₀ using Primes.babybear
 
 /--
-info: def Compile.ex₀_circuit : (var : Type) → Circuit Primes.babybear var :=
+info: def Clap.Test.Compiler.Compile.ex₀_circuit : (var : Type) → Circuit Primes.babybear var :=
 fun (var : Type) =>
   Circuit.lam fun (curried0_point₁_circuit : var) =>
     Circuit.lam fun (curried1_point₁_circuit : var) =>
@@ -48,7 +48,7 @@ fun (var : Type) =>
                   Circuit.lam fun (curried2_point₃_circuit : var) =>
                     Circuit.lam fun (curried3_point₃_circuit : var) =>
                       Circuit.eq0 ((Exp.v curried0_point₁_circuit).add (Exp.v curried3_point₃_circuit))
-                        ((fun (x : PUnit.{1}) =>
+                        ((fun (a : Unit) =>
                             Circuit.eq0 ((Exp.v curried0_point₂_circuit).add (Exp.v curried2_point₁_circuit))
                               ((fun (x : PUnit.{1}) => Circuit.nil) ()))
                           ())
@@ -58,7 +58,7 @@ set_option pp.funBinderTypes true in
 #print Compile.ex₀_circuit
 
 /--
-info: def Compile.ex₀_wg_wrap : Wg Primes.babybear →
+info: def Clap.Test.Compiler.Compile.ex₀_wg_wrap : Wg Primes.babybear →
   Compile.Point Primes.babybear →
     Compile.Point Primes.babybear → Compile.Point' Primes.babybear → Array (ZMod Primes.babybear) :=
 fun (wg : Wg Primes.babybear) (point₁ point₂ : Compile.Point Primes.babybear)
@@ -94,7 +94,7 @@ def Compile.ex₁ {p : ℕ} (x : ZMod p) : Option Unit := do
 open Clap.Lang.ZMod
 
 /--
-info: Compiled Compile.ex₁ into Compile.ex₁_circuit.
+info: Compiled Clap.Test.Compiler.Compile.ex₁ into Clap.Test.Compiler.Compile.ex₁_circuit.
 ---
 info: Wg for Clap.Test.Compiler.Compile.ex₁ is Clap.Test.Compiler.Compile.ex₁_wg_wrap.
 -/
@@ -102,12 +102,12 @@ info: Wg for Clap.Test.Compiler.Compile.ex₁ is Clap.Test.Compiler.Compile.ex�
 #compile Compile.ex₁ using Primes.babybear
 
 /--
-info: def Compile.ex₁_circuit : (var : Type) → Circuit Primes.babybear var :=
+info: def Clap.Test.Compiler.Compile.ex₁_circuit : (var : Type) → Circuit Primes.babybear var :=
 fun (var : Type) =>
   Circuit.lam fun (x : var) =>
     Circuit.share (Exp.v x) fun (x : var) =>
-      Circuit.isZero (Exp.c 1) fun (z : var) =>
-        Circuit.num2bits 2 ((Exp.v x).add (Exp.v z)) fun (vars : List var) => Circuit.nil
+      Circuit.isZero (Exp.c 1) fun (x_1 : var) =>
+        Circuit.num2bits 2 ((Exp.v x).add (Exp.v x_1)) fun (vars : List var) => Circuit.nil
 -/
 #guard_msgs(info, whitespace := lax) in
 set_option pp.funBinderTypes true in
@@ -127,8 +127,14 @@ def Compile.test {p : ℕ} [Fact (Nat.Prime p)] [Core p] (x y z : F p) : Option 
   eq0 (a - b)
   accept p
 
+attribute [local irreducible] Option.bind ZMod OfNat.ofNat instHAdd
+
+attribute [local unfoldStuff] Clap.Lang.Core.eq0 Clap.Lang.Core.share Clap.Lang.Core.accept instCoreZMod F.assert_eq Option.bind_some
+
+attribute [local unfoldStuff] Clap.Test.Compiler.Compile.adder
+
 /--
-info: Compiled Compile.test into Compile.test_circuit.
+info: Compiled Clap.Test.Compiler.Compile.test into Clap.Test.Compiler.Compile.test_circuit.
 ---
 info: Wg for Clap.Test.Compiler.Compile.test is Clap.Test.Compiler.Compile.test_wg_wrap.
 -/
