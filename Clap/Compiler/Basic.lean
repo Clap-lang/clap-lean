@@ -247,7 +247,7 @@ def fixPrime (e p : Expr) : TermElabM Expr := do
   pure withFixedPS >>= trySynthAll >>= instantiateMVars
 
 elab "#compile" circuit:ident "using" p:ident : command => Command.liftTermElabM do
-  withTraceNode `Clap.Compiler (return m!"{exceptEmoji ·} Compiling {circuit} with {p}") do
+  withTraceNode `Clap.Compiler (return m!"{Except.emoji ·} Compiling {circuit} with {p}") do
   let [decl] ← realizeGlobalConst circuit | throwError m!"Ambiguous constant: {circuit}"
   trace[Clap.Compiler.nameResolution] m!"Resolved {circuit} into {decl}"
   let .some decl := (←getEnv).find? decl | throwError m!"Undeclared constant: {circuit}"
@@ -255,7 +255,7 @@ elab "#compile" circuit:ident "using" p:ident : command => Command.liftTermElabM
   let preprocessedS ←
     withTraceNode `Clap.Compiler.preprocess
                   (fun res ↦
-                    return m!"{exceptEmoji res} Fixed p = {p}, resolved typeclasses:\n\
+                    return m!"{Except.emoji res} Fixed p = {p}, resolved typeclasses:\n\
                               {match res with | .error _ => "<Failed>" | .ok res => res}") do
                   fixPrime decl.value! (.const p.getId [])
   compile p.getId circuit.getId preprocessedS

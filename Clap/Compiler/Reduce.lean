@@ -199,7 +199,7 @@ def reduceStep (e : Expr) : MetaM Expr := do
 def reduceExpr (e : Expr) : MetaM Expr := do
   let numIters := 256
   withTraceNode `Clap.Compiler.reduce
-    (return m!"{exceptEmoji ·} Reducing up to n = {numIters}") do
+    (return m!"{Except.emoji ·} Reducing up to n = {numIters}") do
   let mut res := e
   for i in [0:numIters] do
     let res' ← reduceStep res
