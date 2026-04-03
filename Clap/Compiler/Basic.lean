@@ -5,6 +5,7 @@ import Qq
 
 import Clap.Compilation
 import Clap.Compiler.Deep
+import Clap.Compiler.AddLets
 import Clap.Lang
 import Clap.Compiler.Reduce
 
@@ -245,7 +246,9 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) : TermElabM ℕ :
   -- --
 
   try
-    let compiledF ← toDeep p reduceExprS
+    let withLets ← addLets reduceExprS
+    logInfo m!"withLets\n{withLets}"
+    let compiledF ← toDeep p withLets
 
     let compiledFname := serialisedUserName circuitName
     addAndCompile <| .defnDecl {
