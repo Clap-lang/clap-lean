@@ -46,6 +46,11 @@ register_option Clap.Compiler.Debug : Bool := {
   descr := "Debug mode for the compiler"
 }
 
+register_option Clap.Compiler.Debug.warnReductionConstants : Bool := {
+  defValue := true
+  descr := "Warn if reduction produces unknown constants"
+}
+
 initialize Lean.registerTraceClass `Clap.Compiler.Debug
 
 initialize Lean.registerTraceClass `Clap.Compiler.Debug.expressionSizeDelta (inherited := true)

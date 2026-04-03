@@ -10,6 +10,7 @@ namespace Clap.Poseidon
 
 open Clap Lang
 
+@[unfoldStuff]
 abbrev p := Primes.bn254
 
 variable [Core p] -- not a concrete instance
@@ -33,7 +34,6 @@ open Core
          -- eq0 0; eq0 1; eq0 2; eq0 3; eq0 4; eq0 0; eq0 1; eq0 2; eq0 3; eq0 4 -- prog₁ : original_inputs → Unit
          -- f (sigma') → eq0 0; eq0 1; eq0 2; eq0 3; eq0 4 -- prog₂ : some_state → original_inputs → Unit
   
-
 /-- **Ark (Add Round Constants):** Adds pre-computed round constants to every
     element of the state vector at a given round offset
 
@@ -345,7 +345,7 @@ attribute [instance high] List.instAppend
 
 attribute [local unfoldStuff] F.assert_eq Clap.Lang.Core.eq0 Clap.Lang.Core.share Clap.Lang.Core.accept bind pure Poseidon.Test.p instCoreZMod
 
-#compile testPoseidon using Primes.bn254 iters 35
+-- -- #compile testPoseidon using Primes.bn254 iters 35
 -- Clap.Poseidon.mixS [Core Poseidon.p] (r : ℕ) (state s : Array (F Poseidon.p)) : Array (F Poseidon.p)
 -- #check List.map_cons
 -- /-- Run poseidon on `ZMod bn254` inputs, looking up constants by `t`. -/

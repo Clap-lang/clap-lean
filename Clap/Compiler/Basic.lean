@@ -24,7 +24,6 @@ def _root_.Lean.Expr.projecteeOfType (e : Expr) (type : Name) : MetaM Name := do
 
 namespace Compiler
 
-
 structure FVar where
   userName   : Name
   bi         : BinderInfo
@@ -197,6 +196,39 @@ def sansInterfaceVectors (e : Expr) : TermElabM Expr := do
 private def iterationsMessage (iters maxIters : ℕ) : MessageData :=
   m!"Reduction iterations[{iters}/{maxIters}]"
 
+namespace PrivilegedTerms
+
+def arith : Array Name :=
+  #[
+    `HAdd.hAdd,
+    `HMul.hMul,
+    `HSub.hSub,
+    `OfNat.ofNat
+  ]
+
+def structural : Array Name :=
+  #[
+    `Option.bind,
+    `Option.some
+  ]
+
+def circuit : Array Name :=
+  #[
+    `Clap.Spec.Compiler.share,
+    `Clap.Spec.Compiler.eq0,
+    `Clap.Spec.Compiler.accept
+  ]
+
+/--
+Base surface-level terms, i.e. terms _EXLCUDING_ types / classes / instances.
+-/
+def reductionBase : Array Name :=
+  arith ++
+  structural ++
+  circuit
+
+end PrivilegedTerms
+  
 private def constantsSans (e : Expr) («instances» types : Bool := true) : MetaM (Array Name) := do
   let env ← getEnv
   e.getUsedConstants.filterM fun name ↦ do
@@ -217,6 +249,7 @@ private def constantsSans (e : Expr) («instances» types : Bool := true) : Meta
     
     notIsType (ci : ConstantInfo) : MetaM Bool :=
       isFormerOf ci fun e _ ↦ !e.isType
+
 /--
 We return the number of iterations the compiler took for reporting purposes.
 -/
@@ -237,13 +270,14 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) : TermElabM ℕ :
       | .ok (e, iters) => return m!"{checkEmoji}{iterationsMessage iters maxIters}:\n{e}"
     ) do reduceExpr maxIters sansInterfaceVectorsS
 
-  -- IO.println s!"AST: {reduceExprS.sizeWithoutSharing}\nAST(shared): {←reduceExprS.numObjs}"
-  -- IO.println s!"result:\n{reduceExprS}"
   trace[Clap.Compiler.usedConstants]
     m!"Constants (filtered):\n{←constantsSans reduceExprS}"
 
-  -- return iters
-  -- --
+  if (←getOptions).getBool `Clap.Compiler.Debug.warnReductionConstants
+  then
+    let δ := (←constantsSans reduceExprS).toList.diff PrivilegedTerms.reductionBase.toList
+    if δ != []
+    then logWarning m!"Unrecognised ground constants after reduction: {δ}"
 
   try
     let withLets ← addLets reduceExprS
@@ -310,7 +344,7 @@ def fixPrime (e p : Expr) : TermElabM Expr := do
 def validateOptions : TermElabM Unit := do
   let options ← getOptions
   validateDebugTraceDebug options
--- `trace.Clap.Compiler.Debug` has no effect when not in debug mode
+
 where validateDebugTraceDebug (opt : Options) : TermElabM Unit := do
   let isDbg := opt.getBool `Clap.Compiler.Debug
   if isDbg then return
