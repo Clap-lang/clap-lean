@@ -47,6 +47,14 @@ def test' (x y z : ZMod 🐻) (p₁ : Point2 🐻) (p₂ : Point3 🐻) : Option
   Spec.Compiler.eq0 (x * (y - z) + z + p₁.x + p₂.x)
   Spec.Compiler.accept
 
+attribute [local irreducible] Option.bind ZMod OfNat.ofNat instHAdd
+
+attribute [local unfoldStuff] Clap.Lang.Core.eq0 Clap.Lang.Core.share Clap.Lang.Core.accept instCoreZMod F.assert_eq
+
+attribute [local unfoldStuff] List.get_eq_getElem
+
+attribute [local unfoldStuff] produceEq0 test test'
+
 /--
 info: Compiled Circuit.test into Circuit.test_circuit.
 ---
