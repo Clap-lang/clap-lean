@@ -241,6 +241,10 @@ simp (config :=
     List.length_nil, zero_tsub, zero_mul, List.tail_nil, List.set_cons_succ, List.set_cons_zero,
     List.sum_cons, List.sum_nil, List.take_succ_cons, List.take_zero, List.drop_succ_cons, List.drop_zero])
 
+--#check Option.some_bind
+--#check Option.bind_some -- (some a).bind f = f a
+
+
 set_option hygiene false in
 def simpOpen : TermElabM (TSyntax `tactic) :=
   `(tactic|simp? (config := {
