@@ -66,6 +66,7 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
 
   else if let some (e,k) := matchBinds e then
     let .lam name type body _bi := k | throwError m!"compile.bind: not a lam"
+
     if let (`Clap.Spec.Compiler.eq0, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
       let e : Expr <- compileExp p var e
       let k <- withLocalDecl name .default type fun u => do
@@ -82,11 +83,8 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
           let body <- compile p var body
           mkLambdaFVars #[fvar] body
         mkAppM ``Clap.Circuit.num2bits #[w, e, k]
-    else throwError m!"compile.bind: unknown bind\n{e.getAppFnArgs}"
 
-  else if let .letE name _ e body _ := e then
-
-    if let (`Clap.Spec.Compiler.isZero, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
+    else if let (`Clap.Spec.Compiler.isZero, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
 --      dbg_trace s!"isZero"
       let k <- withLocalDecl name .default var fun fvar => do
         let body := body.instantiate1 fvar
@@ -103,8 +101,7 @@ partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Expr := do
         mkLambdaFVars #[fvar] body
       let e : Expr <- compileExp p var e
       mkAppOptM ``Clap.Circuit.share #[p,var,e,k]
-
-    else throwError m!"compile.let: not supported\n{e}"
+    else throwError m!"compile.bind: unknown bind\n{e.getAppFnArgs}"
 
   else throwError m!"compile: not supported\n{(←toMessageData e |>.toString).take 50}...<omitted> (missing accept?)"
 

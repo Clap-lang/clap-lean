@@ -8,7 +8,7 @@ class Core (p : ℕ) : Type _ where
   [instF      : Field F]
   accept      : Unit
   eq0         : F → Option Unit
-  share       : F → F
+  share       : F → Option F
   isZero      : F → F
   num2bits    : ℕ → F → Option (List F)
   bits2num    : List F → F

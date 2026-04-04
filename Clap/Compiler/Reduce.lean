@@ -228,8 +228,8 @@ simp (config :=
       zeta := true
       arith := false
       ground := false
-      autoUnfold := true
-      unfoldPartialApp := true
+      autoUnfold := false
+      unfoldPartialApp := false
       locals := false }) only [unfoldStuff, bind, pure, Option.bind_some, Option.bind_assoc, bind_assoc, List.map_cons, id_eq, List.map_nil, List.length,
     zero_add, Nat.reduceAdd, Nat.reduceSub, Nat.one_lt_ofNat, getElem!_pos, getElem!_neg, List.getElem_cons_succ,
     List.getElem_cons_zero, List.map_id_fun, List.getElem!_eq_getElem?_getD, List.drop_one, List.mapIdx_mapIdx,
@@ -239,7 +239,8 @@ simp (config :=
     List.sum_nil, Function.comp_apply, zero_lt_one, add_lt_iff_neg_right, not_lt_zero, not_false_eq_true, getElem?_neg,
     mul_zero, List.tail, Nat.reduceLT, List.length_cons, mul_one, List.tail_cons, lt_self_iff_false,
     List.length_nil, zero_tsub, zero_mul, List.tail_nil, List.set_cons_succ, List.set_cons_zero,
-    List.sum_cons, List.sum_nil, List.take_succ_cons, List.take_zero, List.drop_succ_cons, List.drop_zero])
+    List.sum_cons, List.sum_nil, List.take_succ_cons, List.take_zero, List.drop_succ_cons, List.drop_zero,
+    List.mapM_nil, List.mapM_cons, List.foldlM_nil, List.foldlM_cons])
 
 --#check Option.some_bind
 --#check Option.bind_some -- (some a).bind f = f a

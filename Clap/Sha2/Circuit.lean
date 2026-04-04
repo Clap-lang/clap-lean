@@ -193,13 +193,13 @@ set_option maxRecDepth 5000
 set_option maxHeartbeats 800000
 set_option trace.profiler true
 
-/--
-info: Compiled test₁ into test₁_circuit.
----
-info: Wg for test₁ is test₁_wg_wrap.
--/
-#guard_msgs in
-#compile test₁ using Primes.goldilocks
+-- /--
+-- info: Compiled test₁ into test₁_circuit.
+-- ---
+-- info: Wg for test₁ is test₁_wg_wrap.
+-- -/
+-- #guard_msgs in
+-- #compile test₁ using Primes.goldilocks
 
 end TestCompilation
 

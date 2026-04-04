@@ -16,7 +16,7 @@ def accept : Unit := ()
 def eq0 (e : ZMod p) : Option Unit := if e = 0 then .some () else .none
 
 @[irreducible]
-def share (e : ZMod p) : ZMod p := e
+def share (e : ZMod p) : Option (ZMod p) := some e
 
 @[irreducible]
 def isZero (e : ZMod p) : ZMod p := if e = 0 then 1 else 0

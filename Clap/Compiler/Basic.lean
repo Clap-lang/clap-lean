@@ -244,11 +244,11 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) : TermElabM ℕ :
 
   try
     logInfo m!"DONE reduction"
-    let withLets ← addLets reduceExprS
-    logInfo m!"DONE withLets"
-    -- let compiledF ← toDeep p withLets
-    -- logInfo m!"DONE toDeep"
-    let compiledF := withLets
+    -- let withLets ← addLets reduceExprS
+    -- logInfo m!"DONE withLets"
+    let compiledF ← toDeep p reduceExprS
+    logInfo m!"DONE toDeep"
+    -- let compiledF := withLets
 
     let compiledFname := serialisedUserName circuitName
     addAndCompile <| .defnDecl {
