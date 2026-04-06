@@ -3,6 +3,7 @@ import Qq
 import Clap.Spec
 import Clap.Lang
 import Clap.Compiler.Wheels
+import Clap.Compiler.Subexpression
 
 open Lean Qq Meta Elab
 
@@ -220,31 +221,50 @@ def simpClosed : TermElabM (TSyntax `tactic) :=
 set_option hygiene false in
 def simpClosedPoseidon : TermElabM (TSyntax `tactic) :=
   `(tactic|
-simp (config :=
-    { maxSteps := 10000000
-      failIfUnchanged := false
-      singlePass := false
-      implicitDefEqProofs := false
-      zeta := true
-      arith := false
-      ground := false
-      autoUnfold := false
-      unfoldPartialApp := false
-      locals := false }) only [unfoldStuff, bind, pure, Option.bind_some, Option.bind_assoc, bind_assoc, List.map_cons, id_eq, List.map_nil, List.length,
-    zero_add, Nat.reduceAdd, Nat.reduceSub, Nat.one_lt_ofNat, getElem!_pos, getElem!_neg, List.getElem_cons_succ,
-    List.getElem_cons_zero, List.map_id_fun, List.getElem!_eq_getElem?_getD, List.drop_one, List.mapIdx_mapIdx,
-    List.cons_append, List.nil_append, add_zero, List.mapIdx_cons, Nat.ofNat_pos, getElem?_pos, Option.getD_some, Option.getD_none,
-    List.getElem?_cons_succ, List.mapIdx_nil, Nat.reduceDiv, Nat.add_one_sub_one, List.reduceRange, List.foldl_cons,
-    List.foldl, Nat.reduceMul, one_mul, List.zipWith_cons_cons, List.zipWith_nil_right, List.sum_cons,
-    List.sum_nil, Function.comp_apply, zero_lt_one, add_lt_iff_neg_right, not_lt_zero, not_false_eq_true, getElem?_neg,
-    mul_zero, List.tail, Nat.reduceLT, List.length_cons, mul_one, List.tail_cons, lt_self_iff_false,
-    List.length_nil, zero_tsub, zero_mul, List.tail_nil, List.set_cons_succ, List.set_cons_zero,
-    List.sum_cons, List.sum_nil, List.take_succ_cons, List.take_zero, List.drop_succ_cons, List.drop_zero,
-    List.mapM_nil, List.mapM_cons, List.foldlM_nil, List.foldlM_cons])
+  simp (config :=
+  { 
+    maxSteps            := 10000000
+    failIfUnchanged     := false
+    singlePass          := false
+    implicitDefEqProofs := true
+    zeta                := true
+    arith               := false
+    ground              := false
+    autoUnfold          := false
+    unfoldPartialApp    := false
+    locals              := false
+  }) only
+  [
+    unfoldStuff,
+    bind, pure, bind_assoc,
+    Option.bind_some, Option.bind_assoc, Option.getD_some, Option.getD_none,
+    id_eq, getElem!_pos, getElem!_neg, getElem?_pos, getElem?_neg,
 
---#check Option.some_bind
---#check Option.bind_some -- (some a).bind f = f a
+    List.getElem_cons_succ, List.getElem_cons_zero, List.getElem!_eq_getElem?_getD, List.getElem?_cons_succ,
+    List.length_cons, List.length_nil,
+    List.map_cons, List.map_nil, List.map_id_fun,
+    List.mapIdx_nil, List.mapIdx_mapIdx, List.mapIdx_cons,
+    List.mapM_nil, List.mapM_cons,
+    List.foldl_cons, List.foldl_nil,
+    List.foldlM_nil, List.foldlM_cons,
+    List.drop_one, List.drop_succ_cons, List.drop_zero,
+    List.cons_append, List.nil_append,
+    List.reduceRange,
+    List.zipWith_cons_cons, List.zipWith_nil_right,
+    List.tail_cons, List.tail_nil,
+    List.sum_cons, List.sum_nil,
+    List.take_succ_cons, List.take_zero,
+    List.set_cons_succ, List.set_cons_zero,
 
+    Nat.ofNat_pos, Nat.add_one_sub_one, Nat.one_lt_ofNat,
+    Nat.reduceDiv, Nat.reduceMul, Nat.reduceLT, Nat.reduceAdd, Nat.reduceSub,
+
+    one_mul, add_zero, zero_lt_one, add_lt_iff_neg_right,
+    not_lt_zero, not_false_eq_true, mul_zero, mul_one, lt_self_iff_false,
+    zero_tsub, zero_mul, zero_add,
+
+    Function.comp_apply
+  ])
 
 set_option hygiene false in
 def simpOpen : TermElabM (TSyntax `tactic) :=
@@ -261,47 +281,6 @@ def simpOpen : TermElabM (TSyntax `tactic) :=
                     locals := false})
                 --  [unfoldStuff, Function.comp, Array.append, -Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr])
                  [unfoldStuff, Function.comp, -Option.bind_eq_bind])
-
-set_option hygiene false in
-def simpClosedOpen : TermElabM (TSyntax `tactic) :=
-  `(tactic| (simp (config := {
-            maxSteps := 10000000
-            failIfUnchanged := false
-            singlePass := false
-            implicitDefEqProofs := false
-            arith := false
-            ground := false
-            zeta := true
-            autoUnfold := true
-            unfoldPartialApp := true
-            locals := false
-          }) only
-            [-Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr, -List.length, -Bind.bind,
-              -OfNat.ofNat, -Nat.rec,
-              List.map_toArray, List.map_cons, id_eq, List.map_nil, List.size_toArray, List.length_cons,
-              List.length_nil, zero_add, Nat.reduceAdd, Nat.reduceSub, Nat.reduceDiv, Nat.add_one_sub_one,
-              Array.reduceRange, List.reduceRange, List.append_toArray,
-              List.cons_append, List.nil_append, List.foldl_toArray',
-              List.foldl_cons, mul_zero, mul_one, Nat.reduceMul, List.foldl_nil,
-              Array.size_zipWith, Array.mapIdx_mapIdx, Array.map_id_fun,
-              Array.map_id_fun', Array.size_mapIdx, Array.size_map, Array.reduceGetElem!,
-              add_zero, List.mapIdx_toArray, List.mapIdx_cons, List.mapIdx_nil,
-              Nat.ofNat_pos, getElem!_pos, List.getElem_toArray, List.getElem_cons_zero,
-              List.getElem!_toArray, List.getElem!_eq_getElem?_getD, List.getElem?_cons_succ,
-              getElem?_pos, Option.getD_some, List.zipWith_toArray, List.zipWith_cons_cons,
-              List.zipWith_nil_right, min_self, List.foldr_toArray', List.foldr_cons, List.foldr_nil,
-              Nat.one_lt_ofNat, List.getElem_cons_succ, Nat.lt_add_one];
-             simp? -failIfUnchanged
-                   -singlePass
-                   -implicitDefEqProofs
-                   +zeta
-                   -arith
-                   -ground
-                   +autoUnfold
-                   -unfoldPartialApp
-                   -locals
-                   [-Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr]
-            ))
 
 set_option hygiene false in
 def simplify (e : Expr) : TermElabM Expr := do
@@ -342,7 +321,7 @@ def reduceStep (e : Expr) : TermElabM Expr := do
     | .error err => return err.toMessageData
     | .ok res => return if e == res then m!"Fixpoint" else m!"{res}"
 
-def reduceExpr (iters : ℕ) (e : Expr) : TermElabM (Expr × ℕ) := do
+def reduceExpr (iters : ℕ) (e : Expr) (σ : CompileMap) : TermElabM (Expr × ℕ) := do
   let mut res := e
   let mut i := 0
   while i < iters do
@@ -354,17 +333,20 @@ def reduceExpr (iters : ℕ) (e : Expr) : TermElabM (Expr × ℕ) := do
     res := res'
   return (res, i)
 
-open MVarId in
-def _root_.Lean.MVarId.reduceTarget (iters : ℕ) (goal : MVarId) : TermElabM MVarId := do
-  let tag ← goal.getTag
-  let type ← goal.getType
-  let (typeNew, _) ← reduceExpr iters type
-  let mvarNew ← mkFreshExprSyntheticOpaqueMVar typeNew tag
-  goal.assign mvarNew
-  return mvarNew.mvarId!
+/-
+TODO: Maybe fix the interactive version one day.
+-/
+-- open MVarId in
+-- def _root_.Lean.MVarId.reduceTarget (iters : ℕ) (goal : MVarId) : TermElabM MVarId := do
+--   let tag ← goal.getTag
+--   let type ← goal.getType
+--   let (typeNew, _) ← reduceExpr iters type
+--   let mvarNew ← mkFreshExprSyntheticOpaqueMVar typeNew tag
+--   goal.assign mvarNew
+--   return mvarNew.mvarId!
 
-open Elab Tactic in
-elab "test_reduce" n:num : tactic => do
-  replaceMainGoal [←MVarId.reduceTarget n.getNat (←getMainGoal)]
+-- open Elab Tactic in
+-- elab "test_reduce" n:num : tactic => do
+--   replaceMainGoal [←MVarId.reduceTarget n.getNat (←getMainGoal)]
 
 end Clap.Compiler

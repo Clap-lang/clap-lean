@@ -8,10 +8,12 @@ import Clap.Compiler.Deep
 import Clap.Compiler.AddLets
 import Clap.Lang
 import Clap.Compiler.Reduce
+import Clap.Compiler.Subexpression    
 
 namespace Clap
 
 open Lean Qq Elab Meta
+
 
 /--
 TODO: Can a projection here have more than 1 arg of the appropriate type?
@@ -23,7 +25,6 @@ def _root_.Lean.Expr.projecteeOfType (e : Expr) (type : Name) : MetaM Name := do
   arg.fvarId!.getUserName
 
 namespace Compiler
-
 
 structure FVar where
   userName   : Name
@@ -220,7 +221,7 @@ private def constantsSans (e : Expr) («instances» types : Bool := true) : Meta
 /--
 We return the number of iterations the compiler took for reporting purposes.
 -/
-def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) : TermElabM ℕ := do
+def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) (σ : CompileMap) : TermElabM ℕ := do
   let serialiseS ← serialise p f
   trace[Clap.Compiler.serialise] m!"{serialiseS}"
 
@@ -235,7 +236,7 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) : TermElabM ℕ :
       match e with
       | .error _ => return crossEmoji
       | .ok (e, iters) => return m!"{checkEmoji}{iterationsMessage iters maxIters}:\n{e}"
-    ) do reduceExpr maxIters sansInterfaceVectorsS
+    ) do reduceExpr maxIters sansInterfaceVectorsS σ
 
   -- IO.println s!"AST: {reduceExprS.sizeWithoutSharing}\nAST(shared): {←reduceExprS.numObjs}"
   -- IO.println s!"result:\n{reduceExprS}"
@@ -327,7 +328,7 @@ where validateDebugTraceDebug (opt : Options) : TermElabM Unit := do
     if opt.getBool option then
       logWarning m!"{option} has no effect when Clap.Compiler.Debug = false"
 
-def compileMeta (declName p : Name) (n : ℕ) : TermElabM Unit := do
+def compileMeta (declName p : Name) (n : ℕ) (σ : CompileMap) : TermElabM Unit := do
   validateOptions
   discard <| withTraceNode `Clap.Compiler (fun e ↦
     match e with
@@ -339,7 +340,7 @@ def compileMeta (declName p : Name) (n : ℕ) : TermElabM Unit := do
       withTraceNode `Clap.Compiler.preprocess
                     Trace.formatExprWith do
                     fixPrime decl.value! (.const p [])
-    compile p declName preprocessedS n
+    compile p declName preprocessedS n σ
 
 elab "#compile" circuit:ident "using" p:ident n:optional("iters" num) : command => Command.liftTermElabM do
   let [decl] ← realizeGlobalConst circuit | throwError m!"Ambiguous constant: {circuit}"
@@ -349,7 +350,7 @@ elab "#compile" circuit:ident "using" p:ident n:optional("iters" num) : command 
   We sometimes get `.some <Nothing>` so we spoon to `defaultIters` one way or the other.
   -/
   let n := n.raw[1]?.elim defaultIters (let num := ·.toNat; if num == 0 then defaultIters else num)
-  compileMeta decl p.getId n
+  compileMeta decl p.getId n {}
 
 end Compiler
 
