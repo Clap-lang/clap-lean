@@ -243,8 +243,12 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) : TermElabM ℕ :
     m!"Constants (filtered):\n{←constantsSans reduceExprS}"
 
   try
+    logInfo m!"DONE reduction"
     let withLets ← addLets reduceExprS
-    let compiledF ← toDeep p withLets
+    logInfo m!"DONE withLets"
+    -- let compiledF ← toDeep p withLets
+    -- logInfo m!"DONE toDeep"
+    let compiledF := withLets
 
     let compiledFname := serialisedUserName circuitName
     addAndCompile <| .defnDecl {
