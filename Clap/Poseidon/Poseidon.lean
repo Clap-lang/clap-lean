@@ -124,7 +124,7 @@ def poseidonEx (nOuts : ℕ) (inputs : List (F p)) (initState : F p)
   -- N_ROUNDS_P[t-2] for t ∈ [2, 17]
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := inputs.length + 1
-  let nRoundsF : ℕ := 8 -- 8
+  let nRoundsF : ℕ := 4 -- 8
   let nRoundsP : ℕ := 4 -- N_ROUNDS_P[t - 2]!
   let half : ℕ := nRoundsF / 2
 

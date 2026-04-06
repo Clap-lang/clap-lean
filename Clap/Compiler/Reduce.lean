@@ -93,6 +93,30 @@ def unfoldAny (e : Expr) : MetaM Expr := do
         return e
     else transform
 
+#check Expr.forEachWhere
+#check Expr.findExt?
+#check Expr.getUsedConstants
+-- def nextConstantCbv (e : Expr) : MetaM (Option Name) := do
+--   return e.findExt? fun e ↦ if e.isConst then _ else _
+
+
+  -- logInfo m!"Visiting:\n{e}"
+  -- match e with
+  -- | .app fn arg =>
+  --   nextConstantCbv arg <|> nextConstantCbv fn
+  -- | .lam _ _ body _ =>
+  --   nextConstantCbv body
+  -- | .const declName _ => return .some declName
+  -- | .forallE .. -- Does not occur in our context, I hope anyway.
+  -- | .letE .. -- Handled by `simp +zeta`, I hope anyway.
+  -- | .fvar _
+  -- | .mvar _
+  -- | .sort _
+  -- | .lit _
+  -- | .mdata ..
+  -- | .proj ..
+  | .bvar _ => return .none
+
 -- #check Array.set
 
 -- -- def isReducingWithoutUnfolds (e : Expr) : MetaM Bool := do
@@ -236,6 +260,7 @@ def simpClosedPoseidon : TermElabM (TSyntax `tactic) :=
   }) only
   [
     unfoldStuff,
+
     bind, pure, bind_assoc,
     Option.bind_some, Option.bind_assoc, Option.getD_some, Option.getD_none,
     id_eq, getElem!_pos, getElem!_neg, getElem?_pos, getElem?_neg,
@@ -306,10 +331,13 @@ def reduceStep (e : Expr) : TermElabM Expr := do
   let simplifyS ← Trace.withReportTimeoutAndRevert e "simplify" (
     withTraceNode `Clap.Compiler.reduce.simplify (skipIdentity e) ∘ simplify
   )
-  -- let unfoldAnyS ← Trace.withReportTimeoutAndRevert simplifyS "unfoldAny" (
-  --   withTraceNode `Clap.Compiler.reduce.unfoldAny (skipIdentity simplifyS) ∘ liftM ∘ unfoldAny
-  -- )
-  let unfoldAnyS := simplifyS
+
+  discard (nextConstantCbv simplifyS)
+
+  let unfoldAnyS ← Trace.withReportTimeoutAndRevert simplifyS "unfoldAny" (
+    withTraceNode `Clap.Compiler.reduce.unfoldAny (skipIdentity simplifyS) ∘ liftM ∘ unfoldAny
+  )
+  -- let unfoldAnyS := simplifyS
 
   -- let foldProjsS ← Trace.withReportTimeoutAndRevert unfoldAnyS "foldProjsS" (
   --   withTraceNode `Clap.Compiler.reduce.foldProjs (skipIdentity unfoldAnyS) ∘ liftM ∘ foldProjs
