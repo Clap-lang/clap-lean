@@ -317,7 +317,7 @@ def fixPrime (e p : Expr) : TermElabM Expr := do
 def validateOptions : TermElabM Unit := do
   let options ← getOptions
   validateDebugTraceDebug options
--- `trace.Clap.Compiler.Debug` has no effect when not in debug mode
+
 where validateDebugTraceDebug (opt : Options) : TermElabM Unit := do
   let isDbg := opt.getBool `Clap.Compiler.Debug
   if isDbg then return
@@ -350,28 +350,6 @@ elab "#compile" circuit:ident "using" p:ident n:optional("iters" num) : command 
   -/
   let n := n.raw[1]?.elim defaultIters (let num := ·.toNat; if num == 0 then defaultIters else num)
   compileMeta decl p.getId n
-
--- elab "#compile" circuit:ident "using" p:ident n:optional("iters" num) : command => Command.liftTermElabM do
---   validateOptions
---   let defaultIters : ℕ := 2048
---   /-
---   This is just a debugging feature so I do not care to make it pretty.
---   We sometimes get `.some <Nothing>` so we spoon to `defaultIters` one way or the other.
---   -/
---   let n := n.raw[1]?.elim defaultIters (let num := ·.toNat; if num == 0 then defaultIters else num)
-
---   discard <| withTraceNode `Clap.Compiler (fun e ↦
---     match e with
---     | .error err => return m!"{crossEmoji} Internal exception:\n{err.toMessageData}"
---     | .ok iters => return m!"{checkEmoji} Compiling {circuit} with {p} {iterationsMessage iters n}") do
---     let [decl] ← realizeGlobalConst circuit | throwError m!"Ambiguous constant: {circuit}"
---     trace[Clap.Compiler.nameResolution] m!"Resolved {circuit} into {decl}"
---     let .some decl := (←getEnv).find? decl | throwError m!"Undeclared constant: {circuit}"
---     let preprocessedS ←
---       withTraceNode `Clap.Compiler.preprocess
---                     Trace.formatExprWith do
---                     fixPrime decl.value! (.const p.getId [])
---     compile p.getId circuit.getId preprocessedS n
 
 end Compiler
 
