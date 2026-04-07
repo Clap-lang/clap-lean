@@ -91,6 +91,6 @@ attribute [instance high] List.instAppend
 
 -- attribute [local unfoldStuff] F.assert_eq Clap.Lang.Core.eq0 Clap.Lang.Core.share Clap.Lang.Core.accept bind pure Poseidon.Test.p instCoreZMod
 
-#compile testPoseidon using Primes.bn254 iters 1
+-- #compile testPoseidon using Primes.bn254 iters 1
 
 --#compile testPoseidon using Primes.bn254 iters 35

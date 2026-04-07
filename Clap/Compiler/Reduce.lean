@@ -115,7 +115,7 @@ def unfoldAny (e : Expr) : MetaM Expr := do
   -- | .lit _
   -- | .mdata ..
   -- | .proj ..
-  | .bvar _ => return .none
+  -- | .bvar _ => return .none
 
 -- #check Array.set
 
@@ -332,12 +332,12 @@ def reduceStep (e : Expr) : TermElabM Expr := do
     withTraceNode `Clap.Compiler.reduce.simplify (skipIdentity e) ∘ simplify
   )
 
-  discard (nextConstantCbv simplifyS)
+  -- discard (nextConstantCbv simplifyS)
 
-  let unfoldAnyS ← Trace.withReportTimeoutAndRevert simplifyS "unfoldAny" (
-    withTraceNode `Clap.Compiler.reduce.unfoldAny (skipIdentity simplifyS) ∘ liftM ∘ unfoldAny
-  )
-  -- let unfoldAnyS := simplifyS
+  -- let unfoldAnyS ← Trace.withReportTimeoutAndRevert simplifyS "unfoldAny" (
+  --   withTraceNode `Clap.Compiler.reduce.unfoldAny (skipIdentity simplifyS) ∘ liftM ∘ unfoldAny
+  -- )
+  let unfoldAnyS := simplifyS
 
   -- let foldProjsS ← Trace.withReportTimeoutAndRevert unfoldAnyS "foldProjsS" (
   --   withTraceNode `Clap.Compiler.reduce.foldProjs (skipIdentity unfoldAnyS) ∘ liftM ∘ foldProjs
