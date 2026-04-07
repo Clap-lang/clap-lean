@@ -218,6 +218,7 @@ private def constantsSans (e : Expr) («instances» types : Bool := true) : Meta
 
     notIsType (ci : ConstantInfo) : MetaM Bool :=
       isFormerOf ci fun e _ ↦ !e.isType
+
 /--
 We return the number of iterations the compiler took for reporting purposes.
 -/
@@ -240,11 +241,10 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) (σ : CompileMap)
 
   let stuff ← getTraces
 
-  -- IO.FS.writeFile "abc.txt" s!"[size {reduceExprS.sizeWithoutSharing}/{←reduceExprS.numObjs}]"
   IO.FS.writeFile "abc.txt" s!"{←stuff.toArray.mapM (·.msg.toString)}\n[size {reduceExprS.sizeWithoutSharing}/{←reduceExprS.numObjs}] {←PrettyPrinter.ppExpr reduceExprS}"
+  IO.println s!"Reduction finished. Results in: {←IO.currentDir}/abc.txt"
+  IO.println s!"Enjoy."
 
-  -- IO.println s!"AST: {reduceExprS.sizeWithoutSharing}\nAST(shared): {←reduceExprS.numObjs}"
-  -- IO.println s!"result:\n{reduceExprS}"
   trace[Clap.Compiler.usedConstants]
     m!"Constants (filtered):\n{←constantsSans reduceExprS}"
 

@@ -64,29 +64,17 @@ def forcemaxRecDepth {α : Type} {m : Type → Type} [MonadWithReaderOf Core.Con
                      (maxRecDepth : ℕ) : m α → m α :=
   withTheReader Core.Context ({· with maxRecDepth := maxRecDepth})
 
--- open Lean Meta in
--- def driver (p : Name) (_decl : Expr) : Elab.Term.TermElabM Unit := do
---   let count    := 10000 -- 43 sec, 2721868 kbytes w/ toDeep, 10 sec w/o
--- --  let count    := 100000 -- 1m30 w/o deep, more than 16 with toDeep min ?
--- --  let count    := 1000000 -- 33m 9369204 kbytes w/o toDeep
---   let zmodTy   := mkApp (mkConst ``ZMod) (mkConst p)
---   let unitTy   := mkConst ``Unit
---   let mut expr ← mkAppM ``Option.some #[mkConst ``Clap.Spec.Compiler.accept]
---   for i in List.range count do
---     let zero   ← mkAppOptM ``OfNat.ofNat #[zmodTy, mkNatLit i, none]
---     let eq0App ← mkAppOptM ``Clap.Spec.Compiler.eq0 #[(mkConst p), zero]
---     expr ← mkAppM ``Bind.bind #[eq0App, mkLambda `_ .default unitTy expr]
--- --  let _deep ← Clap.toDeep p expr
--- --  dbg_trace s!"{← ppExpr deep}"
---   dbg_trace s!"{←expr.numObjs}"
---   dbg_trace s!"{expr.sizeWithoutSharing}"
---   return ()
-
--- attribute [unfoldStuff] List.reduceRange List.foldlM_cons List.foldlM Option.pure_def
-
 set_option trace.Clap.Compiler true
 
 unsafe def main (args : List String) : IO UInt32 := do
+  IO.println "Rebuilding *.olean files, hold tight..."
+  discard <|
+    try
+      IO.Process.run {cmd := "lake", args := #["build"]}
+    catch _ =>
+      IO.println s!"The project does not `lake build` fully, please make sure the files you need _do_ compile."
+      return default
+  IO.println "*.olean files built."
   let [file, function, simpset] := args | IO.println s!"usage: main <file> <function> <simpset>;\nargs={args}"; return 1
   let fileComponents := file.splitOn (sep := "/") |>.map Name.mkSimple
   let functionComponents := function.splitOn (sep := ".") |>.map Name.mkSimple
