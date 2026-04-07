@@ -308,6 +308,22 @@ def simpOpen : TermElabM (TSyntax `tactic) :=
                  [unfoldStuff, Function.comp, -Option.bind_eq_bind])
 
 set_option hygiene false in
+def simpONLY : TermElabM (TSyntax `tactic) :=
+  `(tactic|simp  (config := {
+                    maxSteps := 10000000
+                    failIfUnchanged := false
+                    singlePass := false
+                    implicitDefEqProofs := true
+                    zeta := true
+                    arith := false
+                    ground := false
+                    autoUnfold := false
+                    unfoldPartialApp := false
+                    locals := false}) only
+                --  [unfoldStuff, Function.comp, Array.append, -Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr])
+                 [unfoldStuff])
+
+set_option hygiene false in
 def simplify (e : Expr) : TermElabM Expr := do
   trace[Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] m!"[size {e.sizeWithoutSharing}/{←e.numObjs}]"
   let (e, Δheartbeats) ← withHeartbeats do
@@ -318,7 +334,7 @@ def simplify (e : Expr) : TermElabM Expr := do
       let abc ← mkAppM ``ABC #[body]
       let mvar ← mkFreshExprMVar (.some abc) MetavarKind.syntheticOpaque
         let ([mvar], _) ←
-          Elab.runTactic mvar.mvarId! (←simpOpen) (←read) (←get) |
+          Elab.runTactic mvar.mvarId! (←simpONLY) (←read) (←get) |
             throwError "Simp generated more than a single goal on:\n{e}"
         let_expr ABC _ x := ←instantiateMVars (←mvar.getType) | throwError "What"
         mkLambdaFVars args x

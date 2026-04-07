@@ -247,12 +247,13 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) (σ : CompileMap)
     logInfo m!"DONE reduction"
     -- let withLets ← addLets reduceExprS
     -- logInfo m!"DONE withLets"
-    let compiledF ← toDeep p reduceExprS
+    -- let compiledF ← toDeep p reduceExprS
     logInfo m!"DONE toDeep"
     -- let compiledF := withLets
+    let compiledF := reduceExprS
 
     let compiledFname := serialisedUserName circuitName
-    addAndCompile <| .defnDecl {
+    addDecl <| .defnDecl {
       name        := compiledFname
       levelParams := []
       type        := ←inferType compiledF
@@ -261,25 +262,27 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) (σ : CompileMap)
       safety      := .safe
     }
 
-    let sanitisedName (name : Name) : TermElabM Name := do
-      let redundantPrefix := `Clap.Test.Compiler
-      let [«prefix», suffix] := name.components.drop redundantPrefix.getNumParts |
-        throwError "Malformed name."
-      return Name.mkStr2 «prefix».toString suffix.toString
+    enableRealizationsForConst compiledFname
 
-    logInfo m!"Compiled {circuitName} into {compiledFname}."
-    let wgName := circuitName.appendAfter "_wg_wrap" -- TODO: Suspended WG.
-    lambdaTelescope f fun args _ ↦ do
-    let wg ← wg p args
-    addAndCompile <| .defnDecl {
-      name        := wgName
-      levelParams := []
-      type        := ←inferType wg
-      value       := wg
-      hints       := .regular 18
-      safety      := .safe
-    }
-    logInfo m!"Wg for {circuitName} is {wgName}."
+    -- let sanitisedName (name : Name) : TermElabM Name := do
+    --   let redundantPrefix := `Clap.Test.Compiler
+    --   let [«prefix», suffix] := name.components.drop redundantPrefix.getNumParts |
+    --     throwError "Malformed name."
+    --   return Name.mkStr2 «prefix».toString suffix.toString
+
+    -- logInfo m!"Compiled {circuitName} into {compiledFname}."
+    -- let wgName := circuitName.appendAfter "_wg_wrap" -- TODO: Suspended WG.
+    -- lambdaTelescope f fun args _ ↦ do
+    -- let wg ← wg p args
+    -- addAndCompile <| .defnDecl {
+    --   name        := wgName
+    --   levelParams := []
+    --   type        := ←inferType wg
+    --   value       := wg
+    --   hints       := .regular 18
+    --   safety      := .safe
+    -- }
+    -- logInfo m!"Wg for {circuitName} is {wgName}."
 
   catch exc =>
     throw <| Exception.error exc.getRef m!"{iterationsMessage iters maxIters}\n{exc.toMessageData}"
