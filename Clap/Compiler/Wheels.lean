@@ -103,4 +103,10 @@ def formatExprWith {m : Type _ → Type _} [Monad m]
 
 end Clap.Compiler.Trace
 
-register_simp_attr unfoldStuff
+-- register_simp_attr unfoldStuff
+
+register_simp_attr simpPoseidon
+
+register_simp_attr simpMixS
+
+register_simp_attr simpSynthetic

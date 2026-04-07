@@ -221,7 +221,7 @@ private def constantsSans (e : Expr) («instances» types : Bool := true) : Meta
 /--
 We return the number of iterations the compiler took for reporting purposes.
 -/
-def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) (σ : CompileMap) : TermElabM ℕ := do
+def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) (σ : CompileMap) (arg : Name) : TermElabM ℕ := do
   let serialiseS ← serialise p f
   trace[Clap.Compiler.serialise] m!"{serialiseS}"
 
@@ -236,7 +236,7 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) (σ : CompileMap)
       match e with
       | .error _ => return crossEmoji
       | .ok (e, iters) => return m!"{checkEmoji}{iterationsMessage iters maxIters}:\n{e}"
-    ) do reduceExpr maxIters sansInterfaceVectorsS σ
+    ) do reduceExpr maxIters sansInterfaceVectorsS σ arg
 
   -- IO.FS.writeFile "abc.txt" s!"[size {reduceExprS.sizeWithoutSharing}/{←reduceExprS.numObjs}]"
   IO.FS.writeFile "abc.txt" s!"[size {reduceExprS.sizeWithoutSharing}/{←reduceExprS.numObjs}] {←PrettyPrinter.ppExpr reduceExprS}"
@@ -334,7 +334,7 @@ where validateDebugTraceDebug (opt : Options) : TermElabM Unit := do
     if opt.getBool option then
       logWarning m!"{option} has no effect when Clap.Compiler.Debug = false"
 
-def compileMeta (declName p : Name) (n : ℕ) (σ : CompileMap) : TermElabM Unit := do
+def compileMeta (declName p : Name) (n : ℕ) (σ : CompileMap) (arg : Name) : TermElabM Unit := do
   IO.println "Compiling."
   validateOptions
   discard <| withTraceNode `Clap.Compiler (fun e ↦
@@ -347,7 +347,7 @@ def compileMeta (declName p : Name) (n : ℕ) (σ : CompileMap) : TermElabM Unit
       withTraceNode `Clap.Compiler.preprocess
                     Trace.formatExprWith do
                     fixPrime decl.value! (.const p [])
-    compile p declName preprocessedS n σ
+    compile p declName preprocessedS n σ arg
 
 elab "#compile" circuit:ident "using" p:ident n:optional("iters" num) : command => Command.liftTermElabM do
   let [decl] ← realizeGlobalConst circuit | throwError m!"Ambiguous constant: {circuit}"
@@ -357,7 +357,7 @@ elab "#compile" circuit:ident "using" p:ident n:optional("iters" num) : command 
   We sometimes get `.some <Nothing>` so we spoon to `defaultIters` one way or the other.
   -/
   let n := n.raw[1]?.elim defaultIters (let num := ·.toNat; if num == 0 then defaultIters else num)
-  compileMeta decl p.getId n {}
+  compileMeta decl p.getId n {} `Fred
 
 end Compiler
 

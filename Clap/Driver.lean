@@ -10,47 +10,47 @@ import Clap.Compiler.Basic
 
 namespace Clap
 
-@[irreducible]
-def eq0 (n : ℕ) : Option Unit :=
-  if n == 0 then some () else none
+-- @[irreducible]
+-- def eq0 (n : ℕ) : Option Unit :=
+--   if n == 0 then some () else none
 
--- set_option maxRecDepth 1000000
--- set_option debug.skipKernelTC true
+-- -- set_option maxRecDepth 1000000
+-- -- set_option debug.skipKernelTC true
 
--- #check List.range_succ
+-- -- #check List.range_succ
 
--- attribute [local unfoldStuff] Option.some_bind List.foldlM_append List.foldlM_cons List.foldlM_nil List.range_zero List.range_succ -- pure_bind bind_pure bind_assoc Option.bind_assoc 
+-- -- attribute [local unfoldStuff] Option.some_bind List.foldlM_append List.foldlM_cons List.foldlM_nil List.range_zero List.range_succ -- pure_bind bind_pure bind_assoc Option.bind_assoc 
 
--- attribute [local unfoldStuff] List.reduceRange List.foldlM_cons List.foldlM Option.pure_def
+-- -- List.reduceRange, List.foldlM_cons, List.foldlM, Option.pure_def
+-- -- set_option profiler true
 
--- set_option profiler true
+-- -- 10 : 7s
+-- -- 100 : 7.5s
+-- -- 1000 : 8.1s
+-- -- 2000 : 8.4s [size 56005/30014]
+-- -- 3000 : 10s [size 84005/45014]
+-- -- 4000 : 12s [size 112005/60014]
+-- -- 5000 : 14s [size 140005/75014]
+-- -- 10000 : 32s [size 280005/150014]
+-- -- 20000 : 144s [size 560005/300014]
+-- -- 100000 : 
 
--- 10 : 7s
--- 100 : 7.5s
--- 1000 : 8.1s
--- 2000 : 8.4s [size 56005/30014]
--- 3000 : 10s [size 84005/45014]
--- 4000 : 12s [size 112005/60014]
--- 5000 : 14s [size 140005/75014]
--- 10000 : 32s [size 280005/150014]
--- 20000 : 144s [size 560005/300014]
--- 100000 : 
+-- -- do a; b; c
+-- -- bind a fun _ ↦ bind b fun _ ↦ bind c (return ())
 
--- do a; b; c
--- bind a fun _ ↦ bind b fun _ ↦ bind c (return ())
+-- -- keyless (a b : F p)
+-- -- check₁ (a : F p) → Unit | do let check₁_c := share a; eq0 check₁_c 
+-- -- check₂ (b : F p) → Unit | do let check₂_d := share b; eq0 check₂_d
 
--- keyless (a b : F p)
--- check₁ (a : F p) → Unit | do let check₁_c := share a; eq0 check₁_c 
--- check₂ (b : F p) → Unit | do let check₂_d := share b; eq0 check₂_d
+-- def _root_.repeatN_inner (p : ℕ) : Option Unit := do
+--   (List.range 100).foldlM (init := ()) fun _ n ↦ do
+--     eq0 n
 
-def repeatN_inner (p : ℕ) : Option Unit := do
-  (List.range 1000).foldlM (init := ()) fun _ n ↦ do
-    eq0 n
 
-def repeatN_inner' (p : ℕ) : Option Unit := do
-  letI n := 30000
-  let x := (List.range n)
-  eq0 x[n - 1]!
+-- def repeatN_inner' (p : ℕ) : Option Unit := do
+--   letI n := 30000
+--   let x := (List.range n)
+--   eq0 x[n - 1]!
 
 end Clap
 
@@ -82,13 +82,16 @@ def forcemaxRecDepth {α : Type} {m : Type → Type} [MonadWithReaderOf Core.Con
 --   dbg_trace s!"{expr.sizeWithoutSharing}"
 --   return ()
 
-unsafe def main : IO Unit := do
+-- attribute [unfoldStuff] List.reduceRange List.foldlM_cons List.foldlM Option.pure_def
+
+unsafe def main (args : List String) : IO UInt32 := do
+  let [file, function, simpset] := args | IO.println s!"usage: main <file> <function> <simpset>;\nargs={args}"; return 1
+  let [c₁, c₂, c₃, c₄] := file.splitOn (sep := "/") | IO.println s!"Invalid path:\n{file}"; return 1
   Lean.initSearchPath (← Lean.findSysroot)
   Lean.enableInitializersExecution
-  let declModule := `Clap.BenchCircuit
-  let declName := `Clap.BenchCircuit.mainCircuit
   let env ← importModules (loadExts := true)
-              #[`Init, `Init.Prelude, `Lean, `Clap.Lang, `Clap.Driver] {}
+              #[`Init, `Init.Prelude, `Lean, `Clap.Lang, `Clap.Driver, `Clap.Test.Compilation.SimpSets,
+                Name.mkStr4 c₁ c₂ c₃ c₄] {}
   let fileName := ""
   let options : Options := {}
   let ctx : Core.Context := {fileName, options, fileMap := default }
@@ -96,7 +99,5 @@ unsafe def main : IO Unit := do
   discard <| (Lean.Core.CoreM.toIO · ctx state) do
     forcemaxRecDepth 1000000 do
     forceHeartbeats 0 do
-      -- let .some decl := (←getEnv).find? declName | throwError m!"Undeclared constant: {declName}"
-      -- let decl := decl.value!
-      (Clap.Compiler.compileMeta `Clap.repeatN_inner' `Primes.bn254 2 {}).run'.run'
+      (Clap.Compiler.compileMeta (.mkSimple function) `Primes.bn254 2 {} (Name.mkSimple simpset)).run'.run'
   return 0

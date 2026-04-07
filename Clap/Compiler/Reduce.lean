@@ -185,12 +185,12 @@ dsimproc_decl _root_.Array.reduceRange (Array.range _) := fun e ↦ do
 
 attribute [simproc] _root_.Array.reduceRange
 
-dsimproc_decl _root_.List.reduceRange (List.range _) := fun e ↦ do
-  let_expr List.range k ← e | return .continue
-  let l := List.range k.nat?.get!
-  return .visit (Lean.toExpr l)
+-- dsimproc_decl _root_.List.reduceRange (List.range _) := fun e ↦ do
+--   let_expr List.range k ← e | return .continue
+--   let l := List.range k.nat?.get!
+--   return .visit (Lean.toExpr l)
 
-attribute [simproc] _root_.List.reduceRange
+-- attribute [simproc] _root_.List.reduceRange
 
 opaque ABC {α : Type} : α → Prop
 
@@ -308,23 +308,25 @@ def simpOpen : TermElabM (TSyntax `tactic) :=
                  [unfoldStuff, Function.comp, -Option.bind_eq_bind])
 
 set_option hygiene false in
-def simpONLY : TermElabM (TSyntax `tactic) :=
-  `(tactic|simp  (config := {
-                    maxSteps := 10000000
-                    failIfUnchanged := false
-                    singlePass := false
-                    implicitDefEqProofs := true
-                    zeta := true
-                    arith := false
-                    ground := false
-                    autoUnfold := false
-                    unfoldPartialApp := false
-                    locals := false}) only
+def simpONLY (simpset : Name) : TermElabM (TSyntax `tactic) :=
+  let simpset : Ident := mkIdent simpset
+  `(tactic|simp (config := {
+                   maxSteps := 10000000
+                   failIfUnchanged := false
+                   singlePass := false
+                   implicitDefEqProofs := true
+                   zeta := true
+                   arith := false
+                   ground := false
+                   autoUnfold := false
+                   unfoldPartialApp := false
+                   locals := false}) only
                 --  [unfoldStuff, Function.comp, Array.append, -Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr])
-                 [unfoldStuff, List.reduceRange, List.foldlM_cons, List.foldlM, Option.pure_def])
+                 [$simpset:ident])
+                --  [unfoldStuff, List.reduceRange, List.foldlM_cons, List.foldlM, Option.pure_def])
 
 set_option hygiene false in
-def simplify (e : Expr) : TermElabM Expr := do
+def simplify (arg : Name) (e : Expr) : TermElabM Expr := do
   trace[Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] m!"[size {e.sizeWithoutSharing}/{←e.numObjs}]"
   let (e, Δheartbeats) ← withHeartbeats do
     Trace.withReportSizeDelta e (descr := "simplify") fun e ↦ do
@@ -334,7 +336,7 @@ def simplify (e : Expr) : TermElabM Expr := do
       let abc ← mkAppM ``ABC #[body]
       let mvar ← mkFreshExprMVar (.some abc) MetavarKind.syntheticOpaque
         let ([mvar], _) ←
-          Elab.runTactic mvar.mvarId! (←simpONLY) (←read) (←get) |
+          Elab.runTactic mvar.mvarId! (←simpONLY arg) (←read) (←get) |
             throwError "Simp generated more than a single goal on:\n{e}"
         let_expr ABC _ x := ←instantiateMVars (←mvar.getType) | throwError "What"
         mkLambdaFVars args x
@@ -343,9 +345,9 @@ def simplify (e : Expr) : TermElabM Expr := do
   return e
   where readDocsFor_withHeartbeats_constant := 1000
 
-def reduceStep (e : Expr) : TermElabM Expr := do
+def reduceStep (e : Expr) (arg : Name) : TermElabM Expr := do
   let simplifyS ← Trace.withReportTimeoutAndRevert e "simplify" (
-    withTraceNode `Clap.Compiler.reduce.simplify (skipIdentity e) ∘ simplify
+    withTraceNode `Clap.Compiler.reduce.simplify (skipIdentity e) ∘ simplify arg
   )
 
   -- discard (nextConstantCbv simplifyS)
@@ -365,11 +367,11 @@ def reduceStep (e : Expr) : TermElabM Expr := do
     | .error err => return err.toMessageData
     | .ok res => return if e == res then m!"Fixpoint" else m!"{res}"
 
-def reduceExpr (iters : ℕ) (e : Expr) (σ : CompileMap) : TermElabM (Expr × ℕ) := do
+def reduceExpr (iters : ℕ) (e : Expr) (σ : CompileMap) (arg : Name) : TermElabM (Expr × ℕ) := do
   let mut res := e
   let mut i := 0
   while i < iters do
-    let res' ← reduceStep res
+    let res' ← reduceStep res arg
     i := i + 1
     if res == res' then
       trace[Clap.Compiler.reduce.numIters] m!"Reduction done after {i} iterations"
