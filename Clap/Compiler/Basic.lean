@@ -238,6 +238,9 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) (σ : CompileMap)
       | .ok (e, iters) => return m!"{checkEmoji}{iterationsMessage iters maxIters}:\n{e}"
     ) do reduceExpr maxIters sansInterfaceVectorsS σ
 
+  -- IO.FS.writeFile "abc.txt" s!"[size {reduceExprS.sizeWithoutSharing}/{←reduceExprS.numObjs}]"
+  IO.FS.writeFile "abc.txt" s!"[size {reduceExprS.sizeWithoutSharing}/{←reduceExprS.numObjs}] {←PrettyPrinter.ppExpr reduceExprS}"
+
   -- IO.println s!"AST: {reduceExprS.sizeWithoutSharing}\nAST(shared): {←reduceExprS.numObjs}"
   -- IO.println s!"result:\n{reduceExprS}"
   trace[Clap.Compiler.usedConstants]
@@ -332,6 +335,7 @@ where validateDebugTraceDebug (opt : Options) : TermElabM Unit := do
       logWarning m!"{option} has no effect when Clap.Compiler.Debug = false"
 
 def compileMeta (declName p : Name) (n : ℕ) (σ : CompileMap) : TermElabM Unit := do
+  IO.println "Compiling."
   validateOptions
   discard <| withTraceNode `Clap.Compiler (fun e ↦
     match e with

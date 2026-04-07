@@ -33,7 +33,6 @@ import Clap.Test.Compiler.Compile
 import Clap.Test.Compiler.Curry
 import Clap.Test.Compiler.ReduceReducible
 import Clap.Test.Compiler.Serialise
-import Clap.Test.Compiler.Subexpression
 import Clap.Test.Compiler.ToDeep
 import Clap.Test.Compiler.ToWg
 import Clap.Test.Compilation.Poseidon

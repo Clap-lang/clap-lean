@@ -321,7 +321,7 @@ def simpONLY : TermElabM (TSyntax `tactic) :=
                     unfoldPartialApp := false
                     locals := false}) only
                 --  [unfoldStuff, Function.comp, Array.append, -Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr])
-                 [unfoldStuff])
+                 [unfoldStuff, List.reduceRange, List.foldlM_cons, List.foldlM, Option.pure_def])
 
 set_option hygiene false in
 def simplify (e : Expr) : TermElabM Expr := do

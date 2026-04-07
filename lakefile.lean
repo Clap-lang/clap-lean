@@ -1,0 +1,26 @@
+import Lake
+
+open System Lake DSL
+
+package clap where
+  version := v!"0.1.0"
+  moreLeanArgs := #["--tstack=1000000"]
+
+require mathlib from git "https://github.com/leanprover-community/mathlib4.git"@"v4.29.0"
+
+@[default_target] lean_lib Clap where leanOptions := #[⟨`linter.unusedVariables, true⟩, ⟨`autoImplicit, false⟩]
+
+lean_lib R1Serialize where leanOptions := #[
+  ⟨`linter.unusedVariables, true⟩,
+  ⟨`autoImplicit, false⟩
+]
+
+lean_exe Milestone where root := `Clap.Milestone
+
+lean_exe Driver where
+  root := `Clap.Driver
+  supportInterpreter := true
+  leanOptions := #[
+    ⟨`debug.skipKernelTC, true⟩,
+    ⟨`maxRecDepth, 1000000⟩
+  ]

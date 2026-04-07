@@ -14,23 +14,45 @@ namespace Clap
 def eq0 (n : ℕ) : Option Unit :=
   if n == 0 then some () else none
 
-set_option maxRecDepth 1000000
-set_option debug.skipKernelTC true
+-- set_option maxRecDepth 1000000
+-- set_option debug.skipKernelTC true
 
-#check List.range_succ
+-- #check List.range_succ
 
 -- attribute [local unfoldStuff] Option.some_bind List.foldlM_append List.foldlM_cons List.foldlM_nil List.range_zero List.range_succ -- pure_bind bind_pure bind_assoc Option.bind_assoc 
 
-attribute [local unfoldStuff] List.reduceRange List.foldlM_cons List.foldlM Option.pure_def
+-- attribute [local unfoldStuff] List.reduceRange List.foldlM_cons List.foldlM Option.pure_def
 
-set_option profiler true
+-- set_option profiler true
+
+-- 10 : 7s
+-- 100 : 7.5s
+-- 1000 : 8.1s
+-- 2000 : 8.4s [size 56005/30014]
+-- 3000 : 10s [size 84005/45014]
+-- 4000 : 12s [size 112005/60014]
+-- 5000 : 14s [size 140005/75014]
+-- 10000 : 32s [size 280005/150014]
+-- 20000 : 144s [size 560005/300014]
+-- 100000 : 
+
+-- do a; b; c
+-- bind a fun _ ↦ bind b fun _ ↦ bind c (return ())
+
+-- keyless (a b : F p)
+-- check₁ (a : F p) → Unit | do let check₁_c := share a; eq0 check₁_c 
+-- check₂ (b : F p) → Unit | do let check₂_d := share b; eq0 check₂_d
 
 def repeatN_inner (p : ℕ) : Option Unit := do
-  (List.range 10000).foldlM (init := ()) fun _ n ↦ do
+  (List.range 1000).foldlM (init := ()) fun _ n ↦ do
     eq0 n
 
-end Clap
+def repeatN_inner' (p : ℕ) : Option Unit := do
+  letI n := 30000
+  let x := (List.range n)
+  eq0 x[n - 1]!
 
+end Clap
 
 open Lean
 
@@ -42,23 +64,23 @@ def forcemaxRecDepth {α : Type} {m : Type → Type} [MonadWithReaderOf Core.Con
                      (maxRecDepth : ℕ) : m α → m α :=
   withTheReader Core.Context ({· with maxRecDepth := maxRecDepth})
 
-open Lean Meta in
-def driver (p : Name) (_decl : Expr) : Elab.Term.TermElabM Unit := do
-  let count    := 10000 -- 43 sec, 2721868 kbytes w/ toDeep, 10 sec w/o
---  let count    := 100000 -- 1m30 w/o deep, more than 16 with toDeep min ?
---  let count    := 1000000 -- 33m 9369204 kbytes w/o toDeep
-  let zmodTy   := mkApp (mkConst ``ZMod) (mkConst p)
-  let unitTy   := mkConst ``Unit
-  let mut expr ← mkAppM ``Option.some #[mkConst ``Clap.Spec.Compiler.accept]
-  for i in List.range count do
-    let zero   ← mkAppOptM ``OfNat.ofNat #[zmodTy, mkNatLit i, none]
-    let eq0App ← mkAppOptM ``Clap.Spec.Compiler.eq0 #[(mkConst p), zero]
-    expr ← mkAppM ``Bind.bind #[eq0App, mkLambda `_ .default unitTy expr]
---  let _deep ← Clap.toDeep p expr
---  dbg_trace s!"{← ppExpr deep}"
-  dbg_trace s!"{←expr.numObjs}"
-  dbg_trace s!"{expr.sizeWithoutSharing}"
-  return ()
+-- open Lean Meta in
+-- def driver (p : Name) (_decl : Expr) : Elab.Term.TermElabM Unit := do
+--   let count    := 10000 -- 43 sec, 2721868 kbytes w/ toDeep, 10 sec w/o
+-- --  let count    := 100000 -- 1m30 w/o deep, more than 16 with toDeep min ?
+-- --  let count    := 1000000 -- 33m 9369204 kbytes w/o toDeep
+--   let zmodTy   := mkApp (mkConst ``ZMod) (mkConst p)
+--   let unitTy   := mkConst ``Unit
+--   let mut expr ← mkAppM ``Option.some #[mkConst ``Clap.Spec.Compiler.accept]
+--   for i in List.range count do
+--     let zero   ← mkAppOptM ``OfNat.ofNat #[zmodTy, mkNatLit i, none]
+--     let eq0App ← mkAppOptM ``Clap.Spec.Compiler.eq0 #[(mkConst p), zero]
+--     expr ← mkAppM ``Bind.bind #[eq0App, mkLambda `_ .default unitTy expr]
+-- --  let _deep ← Clap.toDeep p expr
+-- --  dbg_trace s!"{← ppExpr deep}"
+--   dbg_trace s!"{←expr.numObjs}"
+--   dbg_trace s!"{expr.sizeWithoutSharing}"
+--   return ()
 
 unsafe def main : IO Unit := do
   Lean.initSearchPath (← Lean.findSysroot)
@@ -66,15 +88,15 @@ unsafe def main : IO Unit := do
   let declModule := `Clap.BenchCircuit
   let declName := `Clap.BenchCircuit.mainCircuit
   let env ← importModules (loadExts := true)
-              #[`Init, `Init.Prelude, `Lean, `Clap.Lang, declModule] {}
+              #[`Init, `Init.Prelude, `Lean, `Clap.Lang, `Clap.Driver] {}
   let fileName := ""
   let options : Options := {}
   let ctx : Core.Context := {fileName, options, fileMap := default }
   let state := {env}
   discard <| (Lean.Core.CoreM.toIO · ctx state) do
-    forcemaxRecDepth 5000 do
+    forcemaxRecDepth 1000000 do
     forceHeartbeats 0 do
-      let .some decl := (←getEnv).find? declName | throwError m!"Undeclared constant: {declName}"
-      let decl := decl.value!
-      (driver `Primes.babybear decl).run'.run'
+      -- let .some decl := (←getEnv).find? declName | throwError m!"Undeclared constant: {declName}"
+      -- let decl := decl.value!
+      (Clap.Compiler.compileMeta `Clap.repeatN_inner' `Primes.bn254 2 {}).run'.run'
   return 0
