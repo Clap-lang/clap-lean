@@ -318,7 +318,7 @@ def simplify (e : Expr) : TermElabM Expr := do
       let abc ← mkAppM ``ABC #[body]
       let mvar ← mkFreshExprMVar (.some abc) MetavarKind.syntheticOpaque
         let ([mvar], _) ←
-          Elab.runTactic mvar.mvarId! (←simpClosedPoseidon) (←read) (←get) |
+          Elab.runTactic mvar.mvarId! (←simpOpen) (←read) (←get) |
             throwError "Simp generated more than a single goal on:\n{e}"
         let_expr ABC _ x := ←instantiateMVars (←mvar.getType) | throwError "What"
         mkLambdaFVars args x
