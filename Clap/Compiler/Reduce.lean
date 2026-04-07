@@ -93,9 +93,9 @@ def unfoldAny (e : Expr) : MetaM Expr := do
         return e
     else transform
 
-#check Expr.forEachWhere
-#check Expr.findExt?
-#check Expr.getUsedConstants
+-- #check Expr.forEachWhere
+-- #check Expr.findExt?
+-- #check Expr.getUsedConstants
 -- def nextConstantCbv (e : Expr) : MetaM (Option Name) := do
 --   return e.findExt? fun e ↦ if e.isConst then _ else _
 
@@ -327,11 +327,12 @@ def simpONLY (simpset : Name) : TermElabM (TSyntax `tactic) :=
 
 set_option hygiene false in
 def simplify (arg : Name) (e : Expr) : TermElabM Expr := do
+  -- IO.println s!"Simplifying: {←PrettyPrinter.ppExpr e}\nArg: {arg}"
   trace[Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] m!"[size {e.sizeWithoutSharing}/{←e.numObjs}]"
   let (e, Δheartbeats) ← withHeartbeats do
     Trace.withReportSizeDelta e (descr := "simplify") fun e ↦ do
-    let isOption ← forallTelescopeReducing (←inferType e) fun _ body ↦ return body.isAppOf ``Option
-    if !isOption then return e
+    -- let isOption ← forallTelescopeReducing (←inferType e) fun _ body ↦ return body.isAppOf ``Option
+    -- if !isOption then return e
     lambdaTelescope e fun args body ↦ do
       let abc ← mkAppM ``ABC #[body]
       let mvar ← mkFreshExprMVar (.some abc) MetavarKind.syntheticOpaque
@@ -342,6 +343,7 @@ def simplify (arg : Name) (e : Expr) : TermElabM Expr := do
         mkLambdaFVars args x
   trace[Clap.Compiler.reduce.simplify.countHeartbeats]
     m!"[Δheartbeats {Δheartbeats / readDocsFor_withHeartbeats_constant}]"
+  -- IO.println s!"Finished simp:\n{←PrettyPrinter.ppExpr e}\nheartbeats eaten:{Δheartbeats}"
   return e
   where readDocsFor_withHeartbeats_constant := 1000
 
@@ -367,7 +369,7 @@ def reduceStep (e : Expr) (arg : Name) : TermElabM Expr := do
     | .error err => return err.toMessageData
     | .ok res => return if e == res then m!"Fixpoint" else m!"{res}"
 
-def reduceExpr (iters : ℕ) (e : Expr) (σ : CompileMap) (arg : Name) : TermElabM (Expr × ℕ) := do
+def reduceExpr (iters : ℕ) (e : Expr) (_ : CompileMap) (arg : Name) : TermElabM (Expr × ℕ) := do
   let mut res := e
   let mut i := 0
   while i < iters do

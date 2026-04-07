@@ -25,9 +25,23 @@ import Clap.Poseidon.Poseidon
 import Clap.Packing
 import Clap.Base64Len
 import Clap.Array
+
+import Clap.Compiler.AddLets
 import Clap.Compiler.Basic
 import Clap.Compiler.Deep
+import Clap.Compiler.Reduce
+import Clap.Compiler.Subexpression
+import Clap.Compiler.Wheels
+
 import Clap.Quadratic
+
+import Clap.Poseidon.Constant
+import Clap.Poseidon.ConstantC
+import Clap.Poseidon.ConstantM
+import Clap.Poseidon.ConstantP
+import Clap.Poseidon.ConstantS
+import Clap.Poseidon.Poseidon
+
 import Clap.Test.Wheels
 import Clap.Test.Compiler.Compile
 import Clap.Test.Compiler.Curry
@@ -37,3 +51,8 @@ import Clap.Test.Compiler.ToDeep
 import Clap.Test.Compiler.ToWg
 import Clap.Test.Compilation.Poseidon
 import Clap.Test.Integration
+
+import Clap.Test.Compilation.ExperTiment
+import Clap.Test.Compilation.Poseidon
+import Clap.Test.Compilation.SimpSets
+import Clap.Test.Compilation.Synthetic

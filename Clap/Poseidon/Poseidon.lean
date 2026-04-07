@@ -78,6 +78,7 @@ where
   tail (base t : ℕ) : List (F p) :=
     (state.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state[0]! * s[base + t + i]!)
 
+
 -- TODO: Imperative or functional style?
 -- def mixS (r : ℕ) (state : Array (F p)) (s : Array (F p)) : Array (F p) := Id.run do
 --   let t := state.size

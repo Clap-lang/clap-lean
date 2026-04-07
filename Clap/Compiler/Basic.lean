@@ -238,8 +238,10 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) (σ : CompileMap)
       | .ok (e, iters) => return m!"{checkEmoji}{iterationsMessage iters maxIters}:\n{e}"
     ) do reduceExpr maxIters sansInterfaceVectorsS σ arg
 
+  let stuff ← getTraces
+
   -- IO.FS.writeFile "abc.txt" s!"[size {reduceExprS.sizeWithoutSharing}/{←reduceExprS.numObjs}]"
-  IO.FS.writeFile "abc.txt" s!"[size {reduceExprS.sizeWithoutSharing}/{←reduceExprS.numObjs}] {←PrettyPrinter.ppExpr reduceExprS}"
+  IO.FS.writeFile "abc.txt" s!"{←stuff.toArray.mapM (·.msg.toString)}\n[size {reduceExprS.sizeWithoutSharing}/{←reduceExprS.numObjs}] {←PrettyPrinter.ppExpr reduceExprS}"
 
   -- IO.println s!"AST: {reduceExprS.sizeWithoutSharing}\nAST(shared): {←reduceExprS.numObjs}"
   -- IO.println s!"result:\n{reduceExprS}"

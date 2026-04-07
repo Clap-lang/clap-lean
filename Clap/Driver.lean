@@ -84,14 +84,17 @@ def forcemaxRecDepth {α : Type} {m : Type → Type} [MonadWithReaderOf Core.Con
 
 -- attribute [unfoldStuff] List.reduceRange List.foldlM_cons List.foldlM Option.pure_def
 
+set_option trace.Clap.Compiler true
+
 unsafe def main (args : List String) : IO UInt32 := do
   let [file, function, simpset] := args | IO.println s!"usage: main <file> <function> <simpset>;\nargs={args}"; return 1
-  let [c₁, c₂, c₃, c₄] := file.splitOn (sep := "/") | IO.println s!"Invalid path:\n{file}"; return 1
+  let fileComponents := file.splitOn (sep := "/") |>.map Name.mkSimple
+  let functionComponents := function.splitOn (sep := ".") |>.map Name.mkSimple
   Lean.initSearchPath (← Lean.findSysroot)
   Lean.enableInitializersExecution
   let env ← importModules (loadExts := true)
               #[`Init, `Init.Prelude, `Lean, `Clap.Lang, `Clap.Driver, `Clap.Test.Compilation.SimpSets,
-                Name.mkStr4 c₁ c₂ c₃ c₄] {}
+                Name.fromComponents fileComponents] {}
   let fileName := ""
   let options : Options := {}
   let ctx : Core.Context := {fileName, options, fileMap := default }
@@ -99,5 +102,5 @@ unsafe def main (args : List String) : IO UInt32 := do
   discard <| (Lean.Core.CoreM.toIO · ctx state) do
     forcemaxRecDepth 1000000 do
     forceHeartbeats 0 do
-      (Clap.Compiler.compileMeta (.mkSimple function) `Primes.bn254 2 {} (Name.mkSimple simpset)).run'.run'
+      (Clap.Compiler.compileMeta (Name.fromComponents functionComponents) `Primes.bn254 2 {} (Name.mkSimple simpset)).run'.run'
   return 0

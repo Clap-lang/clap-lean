@@ -23,7 +23,13 @@ attribute [simpPoseidon]
   P04 P05 P06 P07 P08 P09 P10 P11 P12 P13 P14 P15 P16 P17 S02 S03 S04 S05
   S06 S07 S08 S09 S10 S11 S12 S13 S14 S15 S16 S17
 
-  sigma ark mix mixLast mixS poseidonEx poseidon liftArr liftMat poseidonBN254
+  sigma ark mix mixLast poseidonEx poseidon liftArr liftMat poseidonBN254 p mixS
+
+/-
+Poseidon.mixS.
+-/
+
+attribute [simpMixS]
   p mixS.dotProduct mixS.tail
 
 /-
