@@ -11,6 +11,7 @@ set_option trace.Clap.Compiler true
 set_option trace.Clap.Compiler.preprocess true
 set_option Clap.Compiler.cimplolIdentity false
 
+@[simpSynthetic]
 def repeatN_inner :=
   cimplol(repeatN_inner_raw, Primes.babybear, simpSynthetic)
 
@@ -18,6 +19,15 @@ variable {p : ℕ}
 
 #print repeatN_inner
 
-def repeatN (x : ZMod p) : Option Unit := do
+def repeatN_raw (x : ZMod p) : Option Unit := do
   eq0 x
   repeatN_inner p
+  repeatN_inner p
+  repeatN_inner p
+  repeatN_inner p
+  repeatN_inner p
+
+def repeatN :=
+  cimplol(repeatN_raw, Primes.babybear, simpSynthetic)
+
+#print repeatN

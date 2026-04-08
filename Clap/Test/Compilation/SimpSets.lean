@@ -40,3 +40,4 @@ attribute [simpSynthetic]
   List.reduceRange List.pure_def List.bind_eq_flatMap List.flatMap_cons Nat.cast_zero
   Nat.cast_one Nat.cast_ofNat List.flatMap_nil List.append_nil List.cons_append List.nil_append
   List.foldlM_cons List.foldlM Option.pure_def Option.bind_eq_bind Option.bind_fun_some
+  repeatN_inner
