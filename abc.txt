@@ -24,7 +24,7 @@
         pure ↑a
   [Clap.Compiler.reduce.simplify] ✅️ Fixpoint
     [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 111/78]
-    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 67]
+    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 68]
   [Clap.Compiler.reduce.numIters] Reduction done after 1 iterations]
 [size 111/78] fun p =>
   List.foldlM (fun x n => eq0 n) () do
