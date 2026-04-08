@@ -1,183 +1,50 @@
 #[[Clap.Compiler.nameResolution] Resolved repeatN_raw, [Clap.Compiler.preprocess] ✅️ ✅️ 
     fun {p} x => do
       Clap.Spec.Compiler.eq0 x
-      repeatN_inner p
-      repeatN_inner p
-      repeatN_inner p
-      repeatN_inner p
-      repeatN_inner p
+      repeatN_inner p 0
+      repeatN_inner p 1
+      repeatN_inner p 2
+      repeatN_inner p 3
   [Clap.Compiler.preprocess] fun {p} x => do
         Clap.Spec.Compiler.eq0 x
-        repeatN_inner p
-        repeatN_inner p
-        repeatN_inner p
-        repeatN_inner p
-        repeatN_inner p, [Clap.Compiler.serialise] fun {p} x => do
+        repeatN_inner p 0
+        repeatN_inner p 1
+        repeatN_inner p 2
+        repeatN_inner p 3, [Clap.Compiler.serialise] fun {p} x => do
       Clap.Spec.Compiler.eq0 x
-      repeatN_inner p
-      repeatN_inner p
-      repeatN_inner p
-      repeatN_inner p
-      repeatN_inner p, [Clap.Compiler.curry] ✅️ ✅️ 
+      repeatN_inner p 0
+      repeatN_inner p 1
+      repeatN_inner p 2
+      repeatN_inner p 3, [Clap.Compiler.curry] ✅️ ✅️ 
     fun {p p_1} x => do
       Clap.Spec.Compiler.eq0 x
-      repeatN_inner p_1
-      repeatN_inner p_1
-      repeatN_inner p_1
-      repeatN_inner p_1
-      repeatN_inner p_1, [Clap.Compiler.sansInterfaceVectors] ✅️ ✅️ 
+      repeatN_inner p_1 0
+      repeatN_inner p_1 1
+      repeatN_inner p_1 2
+      repeatN_inner p_1 3, [Clap.Compiler.sansInterfaceVectors] ✅️ ✅️ 
     fun {p p_1} x => do
       Clap.Spec.Compiler.eq0 x
-      repeatN_inner p_1
-      repeatN_inner p_1
-      repeatN_inner p_1
-      repeatN_inner p_1
-      repeatN_inner p_1, [Clap.Compiler.reduce] ✅️ ✅️Reduction iterations[2/2048]:
+      repeatN_inner p_1 0
+      repeatN_inner p_1 1
+      repeatN_inner p_1 2
+      repeatN_inner p_1 3, [Clap.Compiler.reduce] ✅️ ✅️Reduction iterations[2/2048]:
     fun {p p_1} x =>
       (Clap.Spec.Compiler.eq0 x).bind fun x =>
-        ((Clap.Spec.Compiler.eq0 0).bind fun init =>
-              (Clap.Spec.Compiler.eq0 1).bind fun s' =>
-                (Clap.Spec.Compiler.eq0 2).bind fun s' =>
-                  (Clap.Spec.Compiler.eq0 3).bind fun s' =>
-                    (Clap.Spec.Compiler.eq0 4).bind fun s' =>
-                      (Clap.Spec.Compiler.eq0 5).bind fun s' =>
-                        (Clap.Spec.Compiler.eq0 6).bind fun s' =>
-                          (Clap.Spec.Compiler.eq0 7).bind fun s' =>
-                            (Clap.Spec.Compiler.eq0 8).bind fun s' => Clap.Spec.Compiler.eq0 9).bind
-          fun x =>
-          ((Clap.Spec.Compiler.eq0 0).bind fun init =>
-                (Clap.Spec.Compiler.eq0 1).bind fun s' =>
-                  (Clap.Spec.Compiler.eq0 2).bind fun s' =>
-                    (Clap.Spec.Compiler.eq0 3).bind fun s' =>
-                      (Clap.Spec.Compiler.eq0 4).bind fun s' =>
-                        (Clap.Spec.Compiler.eq0 5).bind fun s' =>
-                          (Clap.Spec.Compiler.eq0 6).bind fun s' =>
-                            (Clap.Spec.Compiler.eq0 7).bind fun s' =>
-                              (Clap.Spec.Compiler.eq0 8).bind fun s' => Clap.Spec.Compiler.eq0 9).bind
-            fun x =>
-            ((Clap.Spec.Compiler.eq0 0).bind fun init =>
-                  (Clap.Spec.Compiler.eq0 1).bind fun s' =>
-                    (Clap.Spec.Compiler.eq0 2).bind fun s' =>
-                      (Clap.Spec.Compiler.eq0 3).bind fun s' =>
-                        (Clap.Spec.Compiler.eq0 4).bind fun s' =>
-                          (Clap.Spec.Compiler.eq0 5).bind fun s' =>
-                            (Clap.Spec.Compiler.eq0 6).bind fun s' =>
-                              (Clap.Spec.Compiler.eq0 7).bind fun s' =>
-                                (Clap.Spec.Compiler.eq0 8).bind fun s' => Clap.Spec.Compiler.eq0 9).bind
-              fun x =>
-              ((Clap.Spec.Compiler.eq0 0).bind fun init =>
-                    (Clap.Spec.Compiler.eq0 1).bind fun s' =>
-                      (Clap.Spec.Compiler.eq0 2).bind fun s' =>
-                        (Clap.Spec.Compiler.eq0 3).bind fun s' =>
-                          (Clap.Spec.Compiler.eq0 4).bind fun s' =>
-                            (Clap.Spec.Compiler.eq0 5).bind fun s' =>
-                              (Clap.Spec.Compiler.eq0 6).bind fun s' =>
-                                (Clap.Spec.Compiler.eq0 7).bind fun s' =>
-                                  (Clap.Spec.Compiler.eq0 8).bind fun s' => Clap.Spec.Compiler.eq0 9).bind
-                fun x =>
-                (Clap.Spec.Compiler.eq0 0).bind fun init =>
-                  (Clap.Spec.Compiler.eq0 1).bind fun s' =>
-                    (Clap.Spec.Compiler.eq0 2).bind fun s' =>
-                      (Clap.Spec.Compiler.eq0 3).bind fun s' =>
-                        (Clap.Spec.Compiler.eq0 4).bind fun s' =>
-                          (Clap.Spec.Compiler.eq0 5).bind fun s' =>
-                            (Clap.Spec.Compiler.eq0 6).bind fun s' =>
-                              (Clap.Spec.Compiler.eq0 7).bind fun s' =>
-                                (Clap.Spec.Compiler.eq0 8).bind fun s' => Clap.Spec.Compiler.eq0 9
+        (Clap.Spec.Compiler.eq0 (0 + 319600)).bind fun x =>
+          (Clap.Spec.Compiler.eq0 (1 + 959600)).bind fun x =>
+            (Clap.Spec.Compiler.eq0 (2 + 1599600)).bind fun x => Clap.Spec.Compiler.eq0 (3 + 2239600)
   [Clap.Compiler.reduce.simplify] ✅️ fun {p p_1} x =>
         (Clap.Spec.Compiler.eq0 x).bind fun x =>
-          ((Clap.Spec.Compiler.eq0 0).bind fun init =>
-                (Clap.Spec.Compiler.eq0 1).bind fun s' =>
-                  (Clap.Spec.Compiler.eq0 2).bind fun s' =>
-                    (Clap.Spec.Compiler.eq0 3).bind fun s' =>
-                      (Clap.Spec.Compiler.eq0 4).bind fun s' =>
-                        (Clap.Spec.Compiler.eq0 5).bind fun s' =>
-                          (Clap.Spec.Compiler.eq0 6).bind fun s' =>
-                            (Clap.Spec.Compiler.eq0 7).bind fun s' =>
-                              (Clap.Spec.Compiler.eq0 8).bind fun s' => Clap.Spec.Compiler.eq0 9).bind
-            fun x =>
-            ((Clap.Spec.Compiler.eq0 0).bind fun init =>
-                  (Clap.Spec.Compiler.eq0 1).bind fun s' =>
-                    (Clap.Spec.Compiler.eq0 2).bind fun s' =>
-                      (Clap.Spec.Compiler.eq0 3).bind fun s' =>
-                        (Clap.Spec.Compiler.eq0 4).bind fun s' =>
-                          (Clap.Spec.Compiler.eq0 5).bind fun s' =>
-                            (Clap.Spec.Compiler.eq0 6).bind fun s' =>
-                              (Clap.Spec.Compiler.eq0 7).bind fun s' =>
-                                (Clap.Spec.Compiler.eq0 8).bind fun s' => Clap.Spec.Compiler.eq0 9).bind
-              fun x =>
-              ((Clap.Spec.Compiler.eq0 0).bind fun init =>
-                    (Clap.Spec.Compiler.eq0 1).bind fun s' =>
-                      (Clap.Spec.Compiler.eq0 2).bind fun s' =>
-                        (Clap.Spec.Compiler.eq0 3).bind fun s' =>
-                          (Clap.Spec.Compiler.eq0 4).bind fun s' =>
-                            (Clap.Spec.Compiler.eq0 5).bind fun s' =>
-                              (Clap.Spec.Compiler.eq0 6).bind fun s' =>
-                                (Clap.Spec.Compiler.eq0 7).bind fun s' =>
-                                  (Clap.Spec.Compiler.eq0 8).bind fun s' => Clap.Spec.Compiler.eq0 9).bind
-                fun x =>
-                ((Clap.Spec.Compiler.eq0 0).bind fun init =>
-                      (Clap.Spec.Compiler.eq0 1).bind fun s' =>
-                        (Clap.Spec.Compiler.eq0 2).bind fun s' =>
-                          (Clap.Spec.Compiler.eq0 3).bind fun s' =>
-                            (Clap.Spec.Compiler.eq0 4).bind fun s' =>
-                              (Clap.Spec.Compiler.eq0 5).bind fun s' =>
-                                (Clap.Spec.Compiler.eq0 6).bind fun s' =>
-                                  (Clap.Spec.Compiler.eq0 7).bind fun s' =>
-                                    (Clap.Spec.Compiler.eq0 8).bind fun s' => Clap.Spec.Compiler.eq0 9).bind
-                  fun x =>
-                  (Clap.Spec.Compiler.eq0 0).bind fun init =>
-                    (Clap.Spec.Compiler.eq0 1).bind fun s' =>
-                      (Clap.Spec.Compiler.eq0 2).bind fun s' =>
-                        (Clap.Spec.Compiler.eq0 3).bind fun s' =>
-                          (Clap.Spec.Compiler.eq0 4).bind fun s' =>
-                            (Clap.Spec.Compiler.eq0 5).bind fun s' =>
-                              (Clap.Spec.Compiler.eq0 6).bind fun s' =>
-                                (Clap.Spec.Compiler.eq0 7).bind fun s' =>
-                                  (Clap.Spec.Compiler.eq0 8).bind fun s' => Clap.Spec.Compiler.eq0 9
-    [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 113/66]
-    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 184]
+          (Clap.Spec.Compiler.eq0 (0 + 319600)).bind fun x =>
+            (Clap.Spec.Compiler.eq0 (1 + 959600)).bind fun x =>
+              (Clap.Spec.Compiler.eq0 (2 + 1599600)).bind fun x => Clap.Spec.Compiler.eq0 (3 + 2239600)
+    [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 133/83]
+    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 775543]
   [Clap.Compiler.reduce.simplify] ✅️ Fixpoint
-    [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 3003/1240]
-    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 153]
+    [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 817/383]
+    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 92]
   [Clap.Compiler.reduce.numIters] Reduction done after 2 iterations]
-[size 3003/1240] fun {p p_1} x =>
+[size 817/383] fun {p p_1} x =>
   (eq0 x).bind fun x =>
-    ((eq0 0).bind fun init =>
-          (eq0 1).bind fun s' =>
-            (eq0 2).bind fun s' =>
-              (eq0 3).bind fun s' =>
-                (eq0 4).bind fun s' =>
-                  (eq0 5).bind fun s' =>
-                    (eq0 6).bind fun s' => (eq0 7).bind fun s' => (eq0 8).bind fun s' => eq0 9).bind
-      fun x =>
-      ((eq0 0).bind fun init =>
-            (eq0 1).bind fun s' =>
-              (eq0 2).bind fun s' =>
-                (eq0 3).bind fun s' =>
-                  (eq0 4).bind fun s' =>
-                    (eq0 5).bind fun s' =>
-                      (eq0 6).bind fun s' => (eq0 7).bind fun s' => (eq0 8).bind fun s' => eq0 9).bind
-        fun x =>
-        ((eq0 0).bind fun init =>
-              (eq0 1).bind fun s' =>
-                (eq0 2).bind fun s' =>
-                  (eq0 3).bind fun s' =>
-                    (eq0 4).bind fun s' =>
-                      (eq0 5).bind fun s' =>
-                        (eq0 6).bind fun s' => (eq0 7).bind fun s' => (eq0 8).bind fun s' => eq0 9).bind
-          fun x =>
-          ((eq0 0).bind fun init =>
-                (eq0 1).bind fun s' =>
-                  (eq0 2).bind fun s' =>
-                    (eq0 3).bind fun s' =>
-                      (eq0 4).bind fun s' =>
-                        (eq0 5).bind fun s' =>
-                          (eq0 6).bind fun s' => (eq0 7).bind fun s' => (eq0 8).bind fun s' => eq0 9).bind
-            fun x =>
-            (eq0 0).bind fun init =>
-              (eq0 1).bind fun s' =>
-                (eq0 2).bind fun s' =>
-                  (eq0 3).bind fun s' =>
-                    (eq0 4).bind fun s' =>
-                      (eq0 5).bind fun s' => (eq0 6).bind fun s' => (eq0 7).bind fun s' => (eq0 8).bind fun s' => eq0 9
+    (eq0 (0 + 319600)).bind fun x =>
+      (eq0 (1 + 959600)).bind fun x => (eq0 (2 + 1599600)).bind fun x => eq0 (3 + 2239600)
