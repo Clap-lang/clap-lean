@@ -4,6 +4,7 @@ import Clap.Spec
 import Clap.Lang
 import Clap.Compiler.Wheels
 import Clap.Compiler.Subexpression
+import Clap.Test.Compilation.SimpSets
 
 open Lean Qq Meta Elab
 
@@ -370,6 +371,7 @@ def reduceStep (e : Expr) (arg : Name) : TermElabM Expr := do
     | .ok res => return if e == res then m!"Fixpoint" else m!"{res}"
 
 def reduceExpr (iters : ℕ) (e : Expr) (_ : CompileMap) (arg : Name) : TermElabM (Expr × ℕ) := do
+  logWarning m!"reduceExpr called with: {e}"
   let mut res := e
   let mut i := 0
   while i < iters do

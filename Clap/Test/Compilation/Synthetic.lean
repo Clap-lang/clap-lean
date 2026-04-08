@@ -4,7 +4,7 @@ import Clap.Compiler.Cimplol
 open Clap Spec Compiler
 
 def repeatN_inner_raw (p : ℕ) : Option Unit := do
-  (List.range 100).foldlM (init := ()) fun _ n ↦ do
+  (List.range 10).foldlM (init := ()) fun _ n ↦ do
     eq0 (n : ZMod p)
 
 set_option trace.Clap.Compiler true
@@ -15,6 +15,8 @@ def repeatN_inner :=
   cimplol(repeatN_inner_raw, Primes.babybear, simpSynthetic)
 
 variable {p : ℕ}
+
+#print repeatN_inner
 
 def repeatN (x : ZMod p) : Option Unit := do
   eq0 x

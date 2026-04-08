@@ -86,9 +86,9 @@ elab "cimplol" "(" f:ident ")" : term => do
     return ((←getEnv).find? f.getId).get!.value!
   return Expr.lit (.natVal 42)
 
-def mixS := cimplol(Clap.Poseidon.mixS_raw)
+-- def mixS := cimplol(Clap.Poseidon.mixS_raw)
 
-#print mixS
+-- #print mixS
 
 -- TODO: Imperative or functional style?
 -- def mixS (r : ℕ) (state : Array (F p)) (s : Array (F p)) : Array (F p) := Id.run do
