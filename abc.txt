@@ -1,5 +1,2 @@
 #[]
-[size 955/302] fun [Clap.Lang.Core Clap.Poseidon.p] r state s =>
-  [(List.zipWith (fun x1 x2 => x1 * x2) state
-          (List.take state.length (List.drop ((2 * state.length - 1) * r) s))).sum] ++
-    List.mapIdx (fun i sᵢ => sᵢ + state[0]! * s[(2 * state.length - 1) * r + state.length + i]!) (List.drop 1 state)
+[size 31/27] List.foldlM (fun x n => eq0 n) () (List.range 10000)

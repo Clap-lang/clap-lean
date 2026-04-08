@@ -222,7 +222,7 @@ private def constantsSans (e : Expr) («instances» types : Bool := true) : Meta
 /--
 We return the number of iterations the compiler took for reporting purposes.
 -/
-def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) (σ : CompileMap) (arg : Name) : TermElabM ℕ := do
+def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) (σ : CompileMap) (arg : Name) : TermElabM (Expr × ℕ) := do
   let serialiseS ← serialise p f
   trace[Clap.Compiler.serialise] m!"{serialiseS}"
 
@@ -288,11 +288,10 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) (σ : CompileMap)
     --   safety      := .safe
     -- }
     -- logInfo m!"Wg for {circuitName} is {wgName}."
-
+    return (compiledF, iters)
+  
   catch exc =>
     throw <| Exception.error exc.getRef m!"{iterationsMessage iters maxIters}\n{exc.toMessageData}"
-
-  return iters
 
 def instantiateLambdaHeadInst (e : Expr) : TermElabM (Option Expr) := do
   let .lam _ type _ bi := e | return .none
@@ -336,13 +335,13 @@ where validateDebugTraceDebug (opt : Options) : TermElabM Unit := do
     if opt.getBool option then
       logWarning m!"{option} has no effect when Clap.Compiler.Debug = false"
 
-def compileMeta (declName p : Name) (n : ℕ) (σ : CompileMap) (arg : Name) : TermElabM Unit := do
+def compileMeta (declName p : Name) (n : ℕ) (σ : CompileMap) (arg : Name) : TermElabM (Expr × ℕ) := do
   IO.println "Compiling."
   validateOptions
-  discard <| withTraceNode `Clap.Compiler (fun e ↦
+  withTraceNode `Clap.Compiler (fun e ↦
     match e with
     | .error err => return m!"{crossEmoji} Internal exception:\n{err.toMessageData}"
-    | .ok iters => return m!"{checkEmoji} Compiling {declName} with {p} {iterationsMessage iters n}") do
+    | .ok (_, iters) => return m!"{checkEmoji} Compiling {declName} with {p} {iterationsMessage iters n}") do
     trace[Clap.Compiler.nameResolution] m!"Resolved {declName}"
     let .some decl := (←getEnv).find? declName | throwError m!"Undeclared constant: {declName}"
     let preprocessedS ←
@@ -350,6 +349,29 @@ def compileMeta (declName p : Name) (n : ℕ) (σ : CompileMap) (arg : Name) : T
                     Trace.formatExprWith do
                     fixPrime decl.value! (.const p [])
     compile p declName preprocessedS n σ arg
+
+-- def replaceDef (src : Name) (tgt : Expr) : MetaM Unit := do
+--   let env ← getEnv
+--   let .some ci := env.find? src | throwError m!"Undeclared constant: {src}"
+--   addAndCompile (.defnDecl {
+--     name := ci.name.appendAfter "_reduced"
+--     levelParams := ci.levelParams
+--     type := ci.type
+--     value := tgt
+--     hints := ci.hints
+--     safety := .safe
+--     }
+--   )
+
+-- def f : Nat := 42
+
+-- def g : Nat :=
+--   let f' := f
+--   f'
+
+-- #eval replaceDef `Clap.Compiler.f q(433)
+
+-- #print f_reduced
 
 elab "#compile" circuit:ident "using" p:ident n:optional("iters" num) : command => Command.liftTermElabM do
   let [decl] ← realizeGlobalConst circuit | throwError m!"Ambiguous constant: {circuit}"
@@ -359,7 +381,7 @@ elab "#compile" circuit:ident "using" p:ident n:optional("iters" num) : command 
   We sometimes get `.some <Nothing>` so we spoon to `defaultIters` one way or the other.
   -/
   let n := n.raw[1]?.elim defaultIters (let num := ·.toNat; if num == 0 then defaultIters else num)
-  compileMeta decl p.getId n {} `Fred
+  discard <| compileMeta decl p.getId n {} `Fred
 
 end Compiler
 

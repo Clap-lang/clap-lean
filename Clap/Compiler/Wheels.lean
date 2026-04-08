@@ -47,6 +47,11 @@ register_option Clap.Compiler.Debug : Bool := {
   descr := "Debug mode for the compiler"
 }
 
+register_option Clap.Compiler.cimplolIdentity : Bool := {
+  defValue := true
+  descr := "If false, then reduce underlying definition"
+}
+
 initialize Lean.registerTraceClass `Clap.Compiler.Debug
 
 initialize Lean.registerTraceClass `Clap.Compiler.Debug.expressionSizeDelta (inherited := true)
