@@ -318,7 +318,8 @@ def fixPrime (e p : Expr) : TermElabM Expr := do
     -- if !t.isConstOf ``Nat
     -- then trace[Clap.Compiler.preprocess] m!"Assuming fully applied function."
     --      return e
-    let withFixedPS ← instantiateLambda e #[p]
+    -- let withFixedPS ← instantiateLambda e #[p]
+    let withFixedPS := e
     trace[Clap.Compiler.preprocess] m!"{withFixedPS}"
     pure withFixedPS >>= trySynthAll >>= instantiateMVars
 

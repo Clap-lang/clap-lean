@@ -25,12 +25,12 @@ attribute [simpPoseidon]
 
   sigma ark mix mixLast poseidonEx poseidon liftArr liftMat poseidonBN254 p mixS
 
-/-
-Poseidon.mixS.
--/
+-- /-
+-- Poseidon.mixS.
+-- -/
 
-attribute [simpMixS]
-  p mixS.dotProduct mixS.tail
+-- attribute [simpMixS]
+--   p mixS.dotProduct mixS.tail
 
 /-
 Synthetic.

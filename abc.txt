@@ -1,2 +1,32 @@
-#[]
-[size 31/27] List.foldlM (fun x n => eq0 n) () (List.range 10000)
+#[[Clap.Compiler.nameResolution] Resolved repeatN_inner_raw, [Clap.Compiler.preprocess] ✅️ ✅️ 
+    fun p =>
+      List.foldlM (fun x n => Clap.Spec.Compiler.eq0 n) () do
+        let a ← List.range 100
+        pure ↑a
+  [Clap.Compiler.preprocess] fun p =>
+        List.foldlM (fun x n => Clap.Spec.Compiler.eq0 n) () do
+          let a ← List.range 100
+          pure ↑a, [Clap.Compiler.serialise] fun p =>
+      List.foldlM (fun x n => Clap.Spec.Compiler.eq0 n) () do
+        let a ← List.range 100
+        pure ↑a, [Clap.Compiler.curry] ✅️ ✅️ 
+    fun p =>
+      List.foldlM (fun x n => Clap.Spec.Compiler.eq0 n) () do
+        let a ← List.range 100
+        pure ↑a, [Clap.Compiler.sansInterfaceVectors] ✅️ ✅️ 
+    fun p =>
+      List.foldlM (fun x n => Clap.Spec.Compiler.eq0 n) () do
+        let a ← List.range 100
+        pure ↑a, [Clap.Compiler.reduce] ✅️ ✅️Reduction iterations[1/2048]:
+    fun p =>
+      List.foldlM (fun x n => Clap.Spec.Compiler.eq0 n) () do
+        let a ← List.range 100
+        pure ↑a
+  [Clap.Compiler.reduce.simplify] ✅️ Fixpoint
+    [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 111/78]
+    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 67]
+  [Clap.Compiler.reduce.numIters] Reduction done after 1 iterations]
+[size 111/78] fun p =>
+  List.foldlM (fun x n => eq0 n) () do
+    let a ← List.range 100
+    pure ↑a
