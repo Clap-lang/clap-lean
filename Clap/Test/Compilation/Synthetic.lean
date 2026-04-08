@@ -1,9 +1,13 @@
-import Mathlib.Data.Nat.Basic
+import Clap.Spec
 
-@[irreducible]
-def eq0 (n : ℕ) : Option Unit :=
-  if n == 0 then some () else none
+open Clap Spec Compiler
 
 def repeatN_inner (p : ℕ) : Option Unit := do
   (List.range 100).foldlM (init := ()) fun _ n ↦ do
-    eq0 n
+    eq0 (n : ZMod p)
+
+variable {p : ℕ}
+
+def repeatN (x : ZMod p) : Option Unit := do
+  eq0 x
+  repeatN_inner p

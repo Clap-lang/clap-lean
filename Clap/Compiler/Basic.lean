@@ -312,12 +312,12 @@ def fixPrime (e p : Expr) : TermElabM Expr := do
   TODO: Workaround. As we started fixing `p`, this would break some assumptions.
   Needs a more robust approach.
   -/
-  lambdaTelescope e fun args _ ↦ do
-    let .some arg := args[0]? | throwError "No arguments in:\n{e}\n(TODO: Maybe this should work.)"
-    let t ← inferType arg
-    if !t.isConstOf ``Nat
-    then trace[Clap.Compiler.preprocess] m!"Assuming fully applied function."
-         return e
+  lambdaTelescope e fun _ _ ↦ do
+    -- let .some arg := args[0]? | throwError "No arguments in:\n{e}\n(TODO: Maybe this should work.)"
+    -- let t ← inferType arg -- def f (p : Nat) [Core p] (x : F p) : Option Unit := sorry
+    -- if !t.isConstOf ``Nat
+    -- then trace[Clap.Compiler.preprocess] m!"Assuming fully applied function."
+    --      return e
     let withFixedPS ← instantiateLambda e #[p]
     trace[Clap.Compiler.preprocess] m!"{withFixedPS}"
     pure withFixedPS >>= trySynthAll >>= instantiateMVars
