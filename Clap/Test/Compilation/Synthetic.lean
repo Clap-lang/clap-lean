@@ -13,7 +13,7 @@ def repeatN_inner_raw (p : ℕ) (x : ℕ) : Option Unit := do
 
 set_option trace.Clap.Compiler true
 set_option trace.Clap.Compiler.preprocess true
-set_option Clap.Compiler.cimplolIdentity true
+set_option Clap.Compiler.cimplolIdentity false
 
 attribute [simpSynthetic]
   List.sum List.foldr_nil List.foldr_cons List.range'_succ List.range'_zero
