@@ -11,9 +11,18 @@ variable {p : ℕ} [Core p]
 private def oneHotRaw (len : ℕ) (idx : F p) : Vector (FB p) len :=
   Vector.ofFn (fun i : Fin len ↦ F.eq idx i.1)
 
+private def oneHotRaw' (len : ℕ) (idx : F p) : Array (FB p) :=
+  Array.ofFn (fun i : Fin len ↦ F.eq idx i.1)
+
 /-- Returns a one-hot bit mask of length `len` with a 1 at index `idx` and 0s elsewhere. Only satisfiable when `0 ≤ idx < len`. -/
 def singleOneArray (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
   let out := oneHotRaw len idx
+  let s : F p := out.foldl (fun acc b ↦ acc + b) 0
+  F.assert_eq s 1
+  return out
+
+def singleOneArray' (len : ℕ) (idx : F p) : Option (Array (FB p)) := do
+  let out := oneHotRaw' len idx
   let s : F p := out.foldl (fun acc b ↦ acc + b) 0
   F.assert_eq s 1
   return out
@@ -39,10 +48,25 @@ def arraySelector (len : ℕ) (startIdx endIdx : F p) : Option (Vector (FB p) le
   -- Build the output by scanning `step` left-to-right through indices 0..i for each position i.
   return Vector.ofFn fun i ↦ (List.finRange len).take (i.1 + 1) |>.foldl step FB.false
 
+def arraySelector' (len : ℕ) (startIdx endIdx : F p) : Option (Array (FB p)) := do
+  let w := Clap.minBits len
+  assert! w ≤ Clap.minBits p
+  FB.assert (← F.lessThan w startIdx endIdx)
+  let startMask ← singleOneArray len startIdx
+  let endMask ← singleEndArray len endIdx
+  -- At each position, turn on at startIdx (OR with startMask) and turn off at endIdx (AND with NOT endMask).
+  let step (prev : FB p) (i : Fin len) : FB p := FB.and (FB.or prev startMask[i]) (FB.not endMask[i])
+  -- Build the output by scanning `step` left-to-right through indices 0..i for each position i.
+  return Array.ofFn (n := len) fun i ↦ (List.finRange len).take (i.1 + 1) |>.foldl step FB.false
+
 /-- Returns the element of `arr` at index `idx`. Fails when `idx ≥ len`. -/
 def selectArrayValue {len : ℕ} (arr : Vector (F p) len) (idx : F p) : Option (F p) := do
   let hot ← singleOneArray len idx
   return F.dotProduct hot arr
+
+def selectArrayValue' (len : ℕ) (arr : Array (F p)) (idx : F p) : Option (F p) := do
+  let hot ← singleOneArray' len idx
+  return F.dotProduct' hot arr
 
 /-- Outputs a bit array with 1s at `[0, idx)` and 0s at `[idx, len)`. Only satisfiable when `0 ≤ idx < len`. Requires `len > 0`. -/
 def leftArraySelector (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
@@ -52,6 +76,10 @@ def leftArraySelector (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
 /-- Outputs a bit array with 0s at `[0, idx]` and 1s at `(idx, len)`. Only satisfiable when `0 ≤ idx < len`. -/
 def rightArraySelector (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
   let bits ← singleOneArray len idx
+  return bits.scanl (· + ·) 0
+
+def rightArraySelector' (len : ℕ) (idx : F p) : Option (Array (FB p)) := do
+  let bits ← singleOneArray' len idx
   return bits.scanl (· + ·) 0
 
 /-- Like `arraySelector`, but returns all zeros when `endIdx ≤ startIdx`. Does not work when `startIdx = 0`. -/

@@ -48,6 +48,18 @@ def hashBytesToFieldWithLen {numBytes : ℕ}
   let elems := elems.push len
   hashElemsToField elems
 
+def hashBytesToFieldWithLen'
+  (numBytes : ℕ)
+  (input : Array (F p))
+  (len : F p) :
+  Option (F p)
+:= do
+  assert! numBytes != 0
+  Packing.assertIsBytes' input
+  let elems := Packing.chunksToFieldElems' numBytes (p := p) 31 8 input
+  let elems := elems.push len
+  hashElemsToField elems
+
 end HashToField
 
 namespace TestHashToField

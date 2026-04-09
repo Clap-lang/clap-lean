@@ -21,6 +21,13 @@ def assertIsBytes [Fact (Primes.fits p 8)] {numBytes : ℕ}
   _ ← a.mapM F8.ofF
   pure ()
 
+def assertIsBytes' [Fact (Primes.fits p 8)]
+  (a : Array (F p)) :
+  Option Unit
+:= do
+  _ ← a.mapM F8.ofF
+  pure ()
+
 def bigEndianBits2Num : FBitVec p → F p := bits2num ∘ .reverse
 
 def bytes2BigEndianBits [Fact (Primes.fits p 8)] {n : ℕ} (bytes : Vector (F p) n) : Option (FBitVec p) := do
@@ -60,6 +67,28 @@ def chunksToFieldElems {numChuncks : ℕ}
   assert! numChuncks != 0
   assert! 0 < chunksPerScalar
   step chunks.toArray.toList 0 [] .empty
+ where
+  step (chunks : List (F p)) (cnt:ℕ) (tmp:List (F p)) (res : Array (F p)) : (Array (F p)) :=
+    match chunks with
+    | [] =>
+        let x := chunksToFieldElem chunksPerScalar bitsPerChunk tmp.reverse
+        res.push x
+    | c::chunks =>
+      if cnt = chunksPerScalar then
+        let x := chunksToFieldElem chunksPerScalar bitsPerChunk tmp.reverse
+        step chunks 1 [c] (res.push x)
+      else
+        step chunks (cnt+1) (c::tmp) res
+
+def chunksToFieldElems'
+  (numChuncks : ℕ)
+  (chunksPerScalar bitsPerChunk : ℕ)
+  (chunks : Array (F p)) :
+  (Array (F p))
+:=
+  assert! numChuncks != 0
+  assert! 0 < chunksPerScalar
+  step chunks.toList 0 [] .empty
  where
   step (chunks : List (F p)) (cnt:ℕ) (tmp:List (F p)) (res : Array (F p)) : (Array (F p)) :=
     match chunks with

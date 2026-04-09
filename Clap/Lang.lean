@@ -41,6 +41,9 @@ def eq (a b : F p) : FB p :=
 def dotProduct {w : ℕ} (a b : Vector (F p) w) : F p :=
   (a.zipWith (· * ·) b).foldl (· + ·) 0
 
+def dotProduct' (a b : Array (F p)) : F p :=
+  (a.zipWith (· * ·) b).foldl (· + ·) 0
+
 end F
 
 namespace FB
