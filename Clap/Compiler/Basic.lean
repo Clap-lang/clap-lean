@@ -122,9 +122,41 @@ def curryArg (prime : Name) (arg : Expr) : MetaM (Option (Array (Name × Expr)))
   return .some (names.zip (Array.replicate names.size type))
 
 def sequenceAsList (name : Name) (t : Expr) (len : ℕ) : MetaM Expr := do
-  let elems : List Expr ← List.range len |>.mapM fun i ↦
-    mkAppM ``GetElem?.getElem! #[.const name [], Expr.lit (.natVal i)]
+  let elems : List Expr ← List.range len |>.mapM fun i ↦ do
+    mkAppM ``GetElem?.getElem! #[
+      .fvar ((←getLCtx).findFromUserName? name).get!.fvarId,
+      Expr.lit (.natVal i)
+    ]
   mkListLit t elems
+
+def collectionType (e : Expr) : TermElabM Expr := do
+  let_expr List t := ←inferType e | throwError m!"Not a collection:\n{e}"
+  return t
+
+def needsExploding (e : Expr) : TermElabM Bool := do
+  let t ← inferType e
+  return t.isAppOf ``List
+
+/--
+We currently assume that `coll_<k>` is `k` elements long.
+This may or may not need changing, as it is quite silly.
+-/
+def sizeOfName (name : Name) : ℕ :=
+  let name := name.toString
+  name.splitOn "_" |>.getLast!.toNat!
+
+def explodeSequences (e : Expr) : TermElabM Expr := do
+  Meta.transform (skipConstInApp := true) e fun e ↦ do
+    if e.isFVar && (←needsExploding e)
+    then trace[Clap.Compiler.preprocess] m!"Exploding: {e}"
+         logWarning m!"name: {←e.fvarId!.getUserName} type: {←collectionType e} size: {sizeOfName (←e.fvarId!.getUserName)}"
+         logWarning m!"Exploded into: {←sequenceAsList (←e.fvarId!.getUserName)
+                                         (←collectionType e)
+                                         (sizeOfName (←e.fvarId!.getUserName))}"
+         return .done <| ←sequenceAsList (←e.fvarId!.getUserName)
+                                         (←collectionType e)
+                                         (sizeOfName (←e.fvarId!.getUserName))
+    else return .continue
 
 def curriedBody (body : Expr) : TermElabM Expr := do
   let lctx ← getLCtx
@@ -229,8 +261,6 @@ private def constantsSans (e : Expr) («instances» types : Bool := true) : Meta
 We return the number of iterations the compiler took for reporting purposes.
 -/
 def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) (σ : CompileMap) (arg : Name) : TermElabM (Expr × ℕ) := do
-  logWarning m!"f: {f} (after preprocess)"
-  
   let serialiseS := f
   -- let serialiseS ← serialise p f
   -- trace[Clap.Compiler.serialise] m!"{serialiseS}"
@@ -242,8 +272,6 @@ def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) (σ : CompileMap)
 
   let sansInterfaceVectorsS ← withTraceNode `Clap.Compiler.sansInterfaceVectors
     Trace.formatExprWith do sansInterfaceVectors curryS
-
-  logWarning m!"sansInterfaceVectorsS: {sansInterfaceVectorsS}"
 
   let (reduceExprS, iters) ← withTraceNode `Clap.Compiler.reduce
     (fun e ↦
@@ -332,7 +360,7 @@ def fixPrime (e p : Expr) : TermElabM Expr := do
          trace[Clap.Compiler.preprocess] m!"Fixed prime:\n{withFixedPS}"
          pure withFixedPS
     else pure e
-  trySynthAll withP >>= instantiateMVars
+  trySynthAll withP >>= instantiateMVars >>= explodeSequences
 
     -- if !t.isConstOf ``Nat
     -- then trace[Clap.Compiler.preprocess] m!"Assuming fully applied function."

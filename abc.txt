@@ -1,35 +1,46 @@
 #[[Clap.Compiler.nameResolution] Resolved Clap.Poseidon.mixS_raw_5, [Clap.Compiler.preprocess] ✅️ ✅️ 
     fun r state_5 s_5 =>
-      have t := state_5.length;
+      have t := [state_5[0]!, state_5[1]!, state_5[2]!, state_5[3]!, state_5[4]!].length;
       have base := (2 * t - 1) * r;
-      [Clap.Poseidon.mixS_raw_5.dotProduct state_5 s_5 base] ++ Clap.Poseidon.mixS_raw_5.tail state_5 s_5 base t
+      [Clap.Poseidon.mixS_raw_5.dotProduct [state_5[0]!, state_5[1]!, state_5[2]!, state_5[3]!, state_5[4]!]
+            [s_5[0]!, s_5[1]!, s_5[2]!, s_5[3]!, s_5[4]!] base] ++
+        Clap.Poseidon.mixS_raw_5.tail [state_5[0]!, state_5[1]!, state_5[2]!, state_5[3]!, state_5[4]!]
+          [s_5[0]!, s_5[1]!, s_5[2]!, s_5[3]!, s_5[4]!] base t
   [Clap.Compiler.preprocess] Resolved [Clap.Lang.Core Clap.Poseidon.p]:
       fun r state_5 s_5 =>
         have t := state_5.length;
         have base := (2 * t - 1) * r;
-        [Clap.Poseidon.mixS_raw_5.dotProduct state_5 s_5 base] ++ Clap.Poseidon.mixS_raw_5.tail state_5 s_5 base t, [Clap.Compiler.sansInterfaceVectors] ✅️ ✅️ 
+        [Clap.Poseidon.mixS_raw_5.dotProduct state_5 s_5 base] ++ Clap.Poseidon.mixS_raw_5.tail state_5 s_5 base t
+  [Clap.Compiler.preprocess] Exploding: state_5
+  [Clap.Compiler.preprocess] Exploding: s_5, [Clap.Compiler.sansInterfaceVectors] ✅️ ✅️ 
     fun r state_5 s_5 =>
-      have t := state_5.length;
+      have t := [state_5[0]!, state_5[1]!, state_5[2]!, state_5[3]!, state_5[4]!].length;
       have base := (2 * t - 1) * r;
-      [Clap.Poseidon.mixS_raw_5.dotProduct state_5 s_5 base] ++ Clap.Poseidon.mixS_raw_5.tail state_5 s_5 base t, [Clap.Compiler.reduce] ✅️ ✅️Reduction iterations[2/2048]:
+      [Clap.Poseidon.mixS_raw_5.dotProduct [state_5[0]!, state_5[1]!, state_5[2]!, state_5[3]!, state_5[4]!]
+            [s_5[0]!, s_5[1]!, s_5[2]!, s_5[3]!, s_5[4]!] base] ++
+        Clap.Poseidon.mixS_raw_5.tail [state_5[0]!, state_5[1]!, state_5[2]!, state_5[3]!, state_5[4]!]
+          [s_5[0]!, s_5[1]!, s_5[2]!, s_5[3]!, s_5[4]!] base t, [Clap.Compiler.reduce] ✅️ ✅️Reduction iterations[2/2048]:
     fun r state_5 s_5 =>
-      [(List.zipWith (fun x1 x2 => x1 * x2) state_5
-              (List.take state_5.length (List.drop ((2 * state_5.length - 1) * r) s_5))).sum] ++
-        List.mapIdx (fun i sᵢ => sᵢ + state_5[0]! * s_5[i + state_5.length + (2 * state_5.length - 1) * r]!)
-          (List.drop 1 state_5)
+      [List.foldr (fun x1 x2 => x1 + x2) 0
+          (List.zipWith (fun x1 x2 => x1 * x2) [state_5[0]!, state_5[1]!, state_5[2]!, state_5[3]!, state_5[4]!]
+            (List.take 5 (List.drop (9 * r) [s_5[0]!, s_5[1]!, s_5[2]!, s_5[3]!, s_5[4]!]))),
+        state_5[1]! + state_5[0]! * default, state_5[2]! + state_5[0]! * default, state_5[3]! + state_5[0]! * default,
+        state_5[4]! + state_5[0]! * default]
   [Clap.Compiler.reduce.simplify] ✅️ fun r state_5 s_5 =>
-        [(List.zipWith (fun x1 x2 => x1 * x2) state_5
-                (List.take state_5.length (List.drop ((2 * state_5.length - 1) * r) s_5))).sum] ++
-          List.mapIdx (fun i sᵢ => sᵢ + state_5[0]! * s_5[i + state_5.length + (2 * state_5.length - 1) * r]!)
-            (List.drop 1 state_5)
-    [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 177/92]
-    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 108]
+        [List.foldr (fun x1 x2 => x1 + x2) 0
+            (List.zipWith (fun x1 x2 => x1 * x2) [state_5[0]!, state_5[1]!, state_5[2]!, state_5[3]!, state_5[4]!]
+              (List.take 5 (List.drop (9 * r) [s_5[0]!, s_5[1]!, s_5[2]!, s_5[3]!, s_5[4]!]))),
+          state_5[1]! + state_5[0]! * default, state_5[2]! + state_5[0]! * default, state_5[3]! + state_5[0]! * default,
+          state_5[4]! + state_5[0]! * default]
+    [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 2007/243]
+    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 1181]
   [Clap.Compiler.reduce.simplify] ✅️ Fixpoint
-    [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 951/291]
-    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 92]
+    [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 2699/381]
+    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 445]
   [Clap.Compiler.reduce.numIters] Reduction done after 2 iterations]
-[size 951/291] fun r state_5 s_5 =>
-  [(List.zipWith (fun x1 x2 => x1 * x2) state_5
-          (List.take state_5.length (List.drop ((2 * state_5.length - 1) * r) s_5))).sum] ++
-    List.mapIdx (fun i sᵢ => sᵢ + state_5[0]! * s_5[i + state_5.length + (2 * state_5.length - 1) * r]!)
-      (List.drop 1 state_5)
+[size 2699/381] fun r state_5 s_5 =>
+  [List.foldr (fun x1 x2 => x1 + x2) 0
+      (List.zipWith (fun x1 x2 => x1 * x2) [state_5[0]!, state_5[1]!, state_5[2]!, state_5[3]!, state_5[4]!]
+        (List.take 5 (List.drop (9 * r) [s_5[0]!, s_5[1]!, s_5[2]!, s_5[3]!, s_5[4]!]))),
+    state_5[1]! + state_5[0]! * default, state_5[2]! + state_5[0]! * default, state_5[3]! + state_5[0]! * default,
+    state_5[4]! + state_5[0]! * default]

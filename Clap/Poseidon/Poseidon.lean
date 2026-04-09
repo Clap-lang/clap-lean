@@ -82,7 +82,48 @@ where
   tail (base t : ℕ) : List (F p) :=
     (state_5.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state_5[0]! * s_5[base + t + i]!)
 
+/-
+mixS (m n : ℕ) (v : Vector α m) : Vector α n := _
+
+poseidon {m n} ... := do
+  let res := mixS m n 
+  _
+-/
+
 set_option trace.Clap.Compiler true
+
+open Clap.Poseidon.Constant.C Clap.Poseidon.Constant Clap.Poseidon.Constant.M Clap.Poseidon.Constant.P Clap.Poseidon.Constant.S Clap.Poseidon
+attribute [simpPoseidon] 
+  bind pure bind_assoc
+    Option.bind_some Option.bind_assoc Option.getD_some Option.getD_none
+    id_eq getElem!_pos getElem!_neg getElem?_pos getElem?_neg
+
+    List.getElem_cons_succ List.getElem_cons_zero List.getElem?_cons_succ
+    List.length_cons List.length_nil
+    List.map_cons List.map_nil List.map_id_fun
+    List.mapIdx_nil List.mapIdx_mapIdx List.mapIdx_cons
+    List.mapM_nil List.mapM_cons
+    List.foldl_cons List.foldl_nil
+    List.foldlM_nil List.foldlM_cons
+    List.drop_one List.drop_succ_cons List.drop_zero
+    List.cons_append List.nil_append
+    List.reduceRange
+    List.zipWith_cons_cons List.zipWith_nil_right
+    List.tail_cons List.tail_nil
+    List.sum_cons List.sum_nil
+    List.take_succ_cons List.take_zero
+    List.set_cons_succ List.set_cons_zero
+
+    Nat.ofNat_pos Nat.add_one_sub_one Nat.one_lt_ofNat
+    Nat.reduceDiv Nat.reduceMul Nat.reduceLT Nat.reduceAdd Nat.reduceSub
+
+    one_mul add_zero zero_lt_one add_lt_iff_neg_right
+    not_lt_zero not_false_eq_true mul_zero mul_one lt_self_iff_false
+    zero_tsub zero_mul zero_add
+
+    List.sum
+
+    Function.comp_apply
 
 set_option Clap.Compiler.cimplolIdentity false in
 def mixS :=
