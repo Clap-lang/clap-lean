@@ -77,7 +77,6 @@ def shiftRight (n : ℕ) (x : F32 p) : F32 p :=
   l ++ List.replicate n 0
 
 abbrev t p [Core p] [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)] : Clap.Sha2.T := {
-  N  := F   (p:=p),
   U8  := F8  (p:=p),
   U32 := F32 (p:=p)
 }

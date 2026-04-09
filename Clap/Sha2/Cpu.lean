@@ -39,7 +39,7 @@ def rotR (n : ℕ) (x : UInt32) : UInt32 :=
 def shiftRight (n : ℕ) (x : UInt32) : UInt32 :=
   x >>> (n:UInt32)
 
-abbrev t : Clap.Sha2.T := {N:=ℕ, U8:=UInt8, U32:=UInt32}
+abbrev t : Clap.Sha2.T := {U8:=UInt8, U32:=UInt32}
 
 instance (priority := high) i₇ : ToString UInt32 where
   toString f := Clap.natToHex f.toNat
