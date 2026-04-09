@@ -25,9 +25,9 @@ class Sha (t : T) where
   [i₄ : Coe Nat t.U8]
   [i₂ : Coe t.U8 t.U32]
   [i₃ : Inhabited t.U32]
-  [i₅ : HAdd t.U32 t.U32 t.U32]
   [i₇ : ToString t.U32]
   [i₈ : ToString t.U8]
+  add32 : t.U32 → t.U32 → Option t.U32
   to_nat_be : Array t.U8 -> t.U32
   rotR       : Nat -> t.U32 -> t.U32
   shiftRight : Nat -> t.U32 -> t.U32
@@ -35,8 +35,8 @@ class Sha (t : T) where
   ch   : (x y z : t.U32) -> t.U32
   maj  : (x y z : t.U32) -> t.U32
 
-attribute [reducible] Sha.i₁ Sha.i₂ Sha.i₃ Sha.i₄ Sha.i₅ Sha.i₇ Sha.i₈
-attribute [instance] Sha.i₁ Sha.i₂ Sha.i₃ Sha.i₄ Sha.i₅ Sha.i₇ Sha.i₈
+attribute [reducible] Sha.i₁ Sha.i₂ Sha.i₃ Sha.i₄ Sha.i₇ Sha.i₈
+attribute [instance] Sha.i₁ Sha.i₂ Sha.i₃ Sha.i₄ Sha.i₇ Sha.i₈
 
 variable {t : T} [Sha t]
 
@@ -157,21 +157,23 @@ where
     else aux (start+64) acc
 
 -- Section 6.2.2 step 1
-def schedule (block : Block t.U32) : RoundConstantsTable t.U32 :=
+def schedule (block : Block t.U32) : Option (RoundConstantsTable t.U32) := do
   aux block 16
 where
-  aux (acc : Array t.U32) (i:Nat) : Array t.U32 :=
+  aux (acc : Array t.U32) (i:Nat) : Option (Array t.U32) := do
     if i >= K_SIZE then acc else
     let t16 := acc[i - 16]!
     let t15 := acc[i - 15]!
     let t7 := acc[i - 7]!
     let t2 := acc[i - 2]!
-    let acc := acc.push ((sigma_1 t2) +  t7 +
-                         (sigma_0 t15) + t16)
+
+    let sum ← [sigma_1 t2, t7, sigma_0 t15, t16].foldlM add32 default
+    let acc := acc.push sum
+
     aux acc (i+1)
 
 -- Section 6.2.2 step 3
-def shuffle_i (ws:RoundConstantsTable t.U32) (hash: Hash t.U32) (i:Nat) : Hash t.U32 :=
+def shuffle_i (ws:RoundConstantsTable t.U32) (hash: Hash t.U32) (i:Nat) : Option (Hash t.U32) := do
 
   let a := hash[0]!
   let b := hash[1]!
@@ -182,44 +184,43 @@ def shuffle_i (ws:RoundConstantsTable t.U32) (hash: Hash t.U32) (i:Nat) : Hash t
   let g := hash[6]!
   let h := hash[7]!
 
-  let t1 := h + (sum_1 e) + (Sha.ch e f g) + round_constants_224_256[i]! +
-            ws[i]!
-  let t2 := sum_0 a + Sha.maj a b c
+  let t1 ← [h, sum_1 e, Sha.ch e f g, round_constants_224_256[i]!, ws[i]!].foldlM add32 default
+  let t2 ← [sum_0 a, Sha.maj a b c].foldlM add32 default
 
   let h := g
   let g := f
   let f := e
-  let e := d + t1
+  let e ← add32 d t1
   let d := c
   let c := b
   let b := a
-  let a := t1 + t2
+  let a ← add32 t1 t2
 
   #[a, b, c, d, e, f, g, h]
 
-def shuffle (ws:RoundConstantsTable t.U32) (hash: Hash t.U32) : Hash t.U32 :=
+def shuffle (ws:RoundConstantsTable t.U32) (hash: Hash t.U32) : Option (Hash t.U32) :=
   aux hash 0
 where
-  aux hash (i:Nat) :=
-    if i>=64 then hash else
-    let hash := shuffle_i ws hash i
+  aux hash (i:Nat) : Option (Hash t.U32) := do
+    if i>=64 then pure hash else
+    let hash ← shuffle_i ws hash i
     aux hash (i+1)
 
-def compress (block : Block t.U32) (hash : Hash t.U32) : Hash t.U32 :=
-  let ws := schedule block
-  let hash' := shuffle ws hash
+def compress (block : Block t.U32) (hash : Hash t.U32) : Option (Hash t.U32) := do
+  let ws ← schedule block
+  let hash' ← shuffle ws hash
   -- Section 6.2.2 step 4
-  Array.zipWith (· + ·) hash' hash
+  Array.zipWithM add32 hash' hash
 
 -- TODO this should return Sha256digest
-def digest (msg : Array t.U8) : Hash t.U32 :=
+def digest (msg : Array t.U8) : Option (Hash t.U32) :=
   let blocks := padding msg
   let blocks := parse_blocks blocks
   process_blocks blocks initial_hash 0
 where
-  process_blocks (blocks : Array (Block t.U32)) (acc : Hash t.U32) i :=
+  process_blocks (blocks : Array (Block t.U32)) (acc : Hash t.U32) i := do
     if i >= blocks.size then acc else
-    let acc := compress blocks[i]! acc
+    let acc ← compress blocks[i]! acc
     process_blocks blocks acc (i+1)
 
 end Clap.Sha2
