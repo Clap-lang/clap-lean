@@ -9,8 +9,7 @@ open Clap.Lang Core Primes
 
 variable {p : ℕ} [Core p] [Core bn254]
 
-instance : Coe Char (F p) where
-  coe c := c.toNat
+instance : Coe Char (F p) := charToFp
 
 private def stringBodiesRev₀ (input : List (F p)) : Option (List (FB p) × FB p × FB p) :=
   input.foldlM
@@ -134,40 +133,31 @@ def enforceNotNested (len : ℕ)
   let o := escalarProduct bracketsDepthMap bracketsSelector
   eq0 o
 
-private def email : List (F p) := [101, 109, 97, 105, 108] -- «email»
-private def requiredEvName : List (F p) :=
-    -- «email_verified»
-    [101, 109, 97, 105, 108, 95, 118, 101, 114, 105, 102, 105, 101, 100]
-private def requiredEvValLen4 : List (F p) := [116, 114, 117, 101] -- «true»
-private def requiredEvValLen6 : List (F p) :=
-  -- «"true"»
-  [34, 116, 114, 117, 101, 34]
+def FList.eq : List (F p) → List (F p) → Option (FB p)
+| x :: xs, y :: ys => return (←F.eq x y) * (←FList.eq xs ys)
+| [], [] => return 1
+| _, _ => return 0
 
-def FList.eq (a b : List (F p)) : Option (FB p) := (a.zip b).foldlM (fun acc (a,b) ↦ do  acc * (←F.eq a b)) 1
+-- def FList.eq (a b : List (F p)) : Option (FB p) :=
+--   (a.zip b).foldlM (fun acc (a,b) ↦ do  acc * (←F.eq a b)) 1
+private def email : List (F p) := "email".toList -- «email»
+private def requiredEvName : List (F p) := "email_verified".toList -- «email_verified»
+private def requiredEvValLen4 : List (F p) := "true".toList -- «true»
+private def requiredEvValLen6 : List (F p) := "\"true\"".toList -- «"true"»
 
 /--
   Enforce that if uid name is "email", the email verified field is either true or "true"
 -/
 def emailVerifiedCheck
-  (uidNameLen : F p)
   (uidName : List (F p))
   (evName : List (F p))
-  (evValueLen : F p)
   (evValue : List (F p))
   : Option (FB p)
 := do
-  let uidIsEmail := (←F.eq uidNameLen 5) &&& (←FList.eq uidName email)
+  let uidIsEmail ← FList.eq uidName email
   conditionallyAssert uidIsEmail (←FList.eq evName requiredEvName)
-  let evValLenIs4 ← F.eq evValueLen 4
-  let evValLenIs6 ← F.eq evValueLen 6
-  let evValLenOk := evValLenIs4 ||| evValLenIs6
-  conditionallyAssert uidIsEmail evValLenOk
-
-  let checkEvValBool := evValLenIs4 &&& uidIsEmail
-  conditionallyAssert checkEvValBool (←FList.eq evValue requiredEvValLen4)
-
-  let checkEvValString := evValLenIs6 &&& uidIsEmail
-  conditionallyAssert checkEvValString (←FList.eq evValue requiredEvValLen6)
+  conditionallyAssert uidIsEmail
+    ((←FList.eq evValue requiredEvValLen4) ||| (←FList.eq evValue requiredEvValLen6))
   return uidIsEmail
  where
   conditionallyAssert (antecedent consequent : FB p) : Option Unit :=
@@ -446,6 +436,170 @@ open Clap.Lang Core ZMod FString FArray HashToField Primes
 
 abbrev p := Primes.bn254
 
+instance : Coe Char (F p) := charToFp
+
+attribute [local simp] Clap.Spec.Compiler.isZero F.eq
+
+lemma isZero_isSome {a : F p} : (isZero a).isSome := by
+  simp [Clap.Spec.Compiler.isZero]
+  split <;> trivial
+
+def isZeroPure (a : F p) : F p := (isZero a).get isZero_isSome
+
+lemma isZero_pure : ∀ (a : F p), isZero a = some (isZeroPure a) := by
+  simp [Clap.Spec.Compiler.isZero, isZeroPure]
+
+def F.eqPure (a b : F p) : FB p := isZeroPure (a - b)
+
+
+def bracketsMap' (input : List (F p)) : List (FB p) := do
+  input.map (fun c ↦ F.eqPure c '{' - F.eqPure c '}')
+
+lemma bracketsMap_isSome {l : List (F p)} : (bracketsMap l).isSome := by
+  induction l with
+  | nil => simp [bracketsMap]
+  | cons h t ih =>
+    simp [Option.isSome_iff_exists] at ih ⊢
+    rcases ih with ⟨a, ih'⟩
+    by_cases h₁ : h = '{'
+    · subst h₁
+      use 1 :: a
+      unfold bracketsMap at ih' ⊢
+      rw [List.mapM_cons, ih']
+      simp
+      trivial
+    · by_cases h₂ : h = '}'
+      · subst h₂
+        use (-1) :: a
+        unfold bracketsMap at ih' ⊢
+        rw [List.mapM_cons, ih']
+        simp
+        trivial
+      · use 0 :: a
+        unfold bracketsMap at ih' ⊢
+        rw [List.mapM_cons, ih']
+        simp at h₁ h₂ ⊢
+        split; case _ contra => simp [sub_eq_zero] at contra; contradiction
+        simp
+        split; case _ contra => simp [sub_eq_zero] at contra; contradiction
+        simp
+
+def bracketsMapPure (l : List (F p)) : List (F p) :=
+  (bracketsMap l).get bracketsMap_isSome
+
+lemma bracketsMap_pure {l : List (F p)} : bracketsMap' l = bracketsMapPure l := by
+  induction l
+  case nil => simp [bracketsMap', bracketsMapPure, bracketsMap]
+  case cons h t ih =>
+    simp [bracketsMap', bracketsMapPure, bracketsMap] at ⊢ ih
+    simp [ih]
+    by_cases h₁ : h = '{'
+    · subst h₁
+      simp [F.eqPure, isZeroPure]
+      norm_num
+    · by_cases h₂ : h = '}'
+      · subst h₂
+        simp [F.eqPure, isZeroPure]
+        norm_num
+      · split; case _ contra => simp [sub_eq_zero] at contra; contradiction
+        simp [F.eqPure, isZeroPure]
+        split; case _ contra => simp [sub_eq_zero] at contra; contradiction
+        simp
+
+lemma bracketsMapPure_pure :
+  ∀ (l : List (F p)), bracketsMap l = some (bracketsMapPure l)
+:= by
+  simp [bracketsMapPure]
+
+lemma bracketsMapPure_len (l : List (F p)) :
+  (bracketsMapPure l).length = l.length
+:= by
+  rw [←bracketsMap_pure]
+  simp [bracketsMap']
+
+example {l : List (F p)} :
+  ∀ i : Fin l.length,
+    l[i] = '{' ↔ (bracketsMapPure l)[i]'(by simp [bracketsMapPure_len]) = 1
+:= by
+  intro i
+  conv => right; left; arg 1; rw [←bracketsMap_pure]
+  simp [bracketsMap', F.eqPure, isZeroPure]
+  constructor <;> intro h
+  · simp [h]
+    trivial
+  · grind
+
+example {l : List (F p)} :
+  ∀ i : Fin l.length,
+    l[i] = '}' ↔ (bracketsMapPure l)[i]'(by simp [bracketsMapPure_len]) = -1
+:= by
+  intro i
+  conv => right; left; arg 1; rw [←bracketsMap_pure]
+  simp [bracketsMap', F.eqPure, isZeroPure]
+  constructor <;> intro h
+  · simp [h]
+    trivial
+  · grind
+
+example {l : List (F p)} :
+  ∀ i : Fin l.length,
+    (∃ val : F p, l[i] = val ∧ val ≠ '{' ∧ val ≠ '}')
+      ↔ (bracketsMapPure l)[i]'(by simp [bracketsMapPure_len]) = 0
+:= by
+  intro i
+  conv => right; left; arg 1; rw [←bracketsMap_pure]
+  simp [bracketsMap', F.eqPure, isZeroPure]
+  constructor
+  · grind
+  · intro h_zero
+    constructor <;>
+      intro <;>
+      simp_all <;>
+      split at h_zero <;>
+      simp_all [Option.get] <;>
+      contradiction
+
+-- lemma F.eq_iff : ∀ (a b : F p), F.eq a b ≠ 0 ↔ a = b := by
+--   intro a b
+--   simp [F.eq, Clap.Spec.Compiler.isZero]
+--   exact sub_eq_zero
+
+-- example {a b : List (F p)} : a = b ↔ FList.eq a b ≠ 0 := by
+--   constructor
+--   · intro a_eq_b
+--     subst a_eq_b
+--     induction a with
+--     | nil => simp [FList.eq]
+--     | cons _ _ ih => simp [FList.eq, F.eq, ih, Clap.Spec.Compiler.isZero]
+--   · revert b
+--     induction a with
+--     | nil =>
+--       intro b h
+--       unfold FList.eq at h
+--       grind
+--     | cons x xs ih =>
+--       intro b h
+--       rcases b with (_ | ⟨y, ys⟩)
+--       · simp [FList.eq] at h
+--       · simp [FList.eq] at h
+--         have h_ne_zero : F.eq x y * FList.eq xs ys ≠ 0 := by simp [h]
+--         rw [mul_ne_zero_iff] at h_ne_zero
+--         rcases h_ne_zero with ⟨x_ne_y, xs_ne_ys⟩
+--         simp
+--         constructor
+--         · exact (F.eq_iff x y).1 x_ne_y
+--         · exact ih xs_ne_ys
+
+example {uidNameLen evValueLen : F p} {uidName evName evValue : List (F p)} :
+  uidName = email →
+  evName = requiredEvName →
+  evValue = requiredEvValLen4 ∨ evValue = requiredEvValLen4 →
+  emailVerifiedCheck uidName evName evValue = .some 1
+:= by
+  intros
+  -- simp [emailVerifiedCheck, emailVerifiedCheck.conditionallyAssert]
+  sorry
+
 private def parseCharsASCII (s : String) : List (F p) :=
   s.chars.map (fun n ↦ (n.toNat : ZMod p)) |>.toList
 private def parseBitString (s : String) : List (FB p) :=
@@ -550,31 +704,31 @@ example :
   by native_decide
 
 example : -- uid is «email»; «email_verified» is «true»
-  emailVerifiedCheck (p := p) 5 email requiredEvName 4 requiredEvValLen4  == .some 1
+  emailVerifiedCheck (p := p) email requiredEvName requiredEvValLen4  == .some 1
 := by
   native_decide
 
 example : -- uid is «email»; «email_verified» is «"true"»
-  emailVerifiedCheck (p := p) 5 email requiredEvName 6 requiredEvValLen6 == .some 1
+  emailVerifiedCheck (p := p) email requiredEvName requiredEvValLen6 == .some 1
 := by
   native_decide
 
 example : -- uid is «email», but there is no «email_verified»
-  emailVerifiedCheck (p := p) 5 email [1,2,3] 6 requiredEvValLen6 == .none
+  emailVerifiedCheck (p := p) email [1,2,3] requiredEvValLen6 == .none
 := by
   native_decide
 
 example : -- uid is «email», but «email_verified» is neither «true» nor «"true"»
-  emailVerifiedCheck (p := p) 5 email requiredEvName 3 [4, 5, 6] == .none
+  emailVerifiedCheck (p := p) email requiredEvName [4, 5, 6] == .none
 := by
   native_decide
 
 example : -- uid is not «email»
-  emailVerifiedCheck (p := p) 0 [] requiredEvName 6 requiredEvValLen6 == .some 0
+  emailVerifiedCheck (p := p) [] requiredEvName requiredEvValLen6 == .some 0
 := by native_decide
 
 example : -- uid is not «email», the rest doesn't matter
-  emailVerifiedCheck (p := p) 0 [] [1, 2, 3] 3 [4, 5, 6] == .some 0
+  emailVerifiedCheck (p := p) [] [1, 2, 3] [4, 5, 6] == .some 0
 := by native_decide
 
 -- parseJWTFieldSharedLogic tests

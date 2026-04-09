@@ -24,6 +24,9 @@ variable {p : ℕ} [Core p]
 
 open Core
 
+instance charToFp : Coe Char (F p) where
+  coe c := c.toNat
+
 abbrev FB := F
 
 namespace F

@@ -6,8 +6,7 @@ open Clap.Lang Core
 
 variable {p : ℕ} [Core p]
 
-instance : Coe Char (F p) where
-  coe c := c.toNat
+instance : Coe Char (F p) := charToFp
 
 /-- From keyless
   Returns the length of the decoded data, given a base64url (unpadded) encoded length `m`.
