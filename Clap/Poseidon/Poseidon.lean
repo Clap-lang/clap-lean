@@ -3,6 +3,7 @@ import Clap.Spec
 import Clap.Lang
 import Clap.Poseidon.Constant
 import Clap.Compiler.Wheels
+import Clap.Compiler.Cimplol
 
 namespace Clap.Poseidon
 
@@ -67,7 +68,7 @@ def mixLast (state : List (F p)) (M : List (List (F p))) (s : ℕ) : F p :=
     partial rounds
 
     Mirrors circomlib's `MixS(t, S, r)` template -/
-def mixS (r : ℕ) (state : List (F p)) (s : List (F p)) : List (F p) :=
+def mixS_raw (r : ℕ) (state : List (F p)) (s : List (F p)) : List (F p) :=
   let t : ℕ := state.length
   let base : ℕ := (2 * t - 1) * r
   [dotProduct base] ++ tail base t
@@ -78,6 +79,15 @@ where
   /-- `out[i] = in[i] + in[0] · S[base + t + i − 1]` for `i ∈ [1, t)` -/
   tail (base t : ℕ) : List (F p) :=
     (state.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state[0]! * s[base + t + i]!)
+
+set_option trace.Clap.Compiler true
+
+set_option Clap.Compiler.cimplolIdentity false in
+def mixS :=
+  cimplol(mixS_raw, Primes.bn254, simpPoseidon)
+
+-- #print mixS
+
 
 -- TODO: Imperative or functional style?
 -- def mixS (r : ℕ) (state : Array (F p)) (s : Array (F p)) : Array (F p) := Id.run do
