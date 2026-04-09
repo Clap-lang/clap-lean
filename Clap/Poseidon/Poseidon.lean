@@ -2,7 +2,8 @@ import Clap.Primes
 import Clap.Spec
 import Clap.Lang
 import Clap.Poseidon.Constant
-import Clap.Compiler.Wheels
+import Clap.Compiler.Cimplol
+--import Clap.Compiler.Wheels
 
 namespace Clap.Poseidon
 
@@ -67,7 +68,7 @@ def mixLast (state : List (F p)) (M : List (List (F p))) (s : ℕ) : F p :=
     partial rounds
 
     Mirrors circomlib's `MixS(t, S, r)` template -/
-def mixS (r : ℕ) {t m : ℕ} (state : Vector (F p) t) (S : Vector (F p) m) : Vector (F p) t :=
+def mixS_raw (r : ℕ) {t m : ℕ} (state : Vector (F p) t) (S : Vector (F p) m) : Vector (F p) t :=
   let base : ℕ := (2 * t - 1) * r
   Vector.ofFn fun i ↦
     if i.val = 0 then dotProduct base
@@ -79,6 +80,23 @@ where
   /-- `out[i] = in[i] + in[0] · S[base + t + i − 1]` for `i ∈ [1, t)` -/
   tail (base i : ℕ) : F p :=
     state.toList[i]! + state.toList[0]! * S[base + t + i - 1]!
+
+-- open Clap.Poseidon.Constant.C Clap.Poseidon.Constant Clap.Poseidon.Constant.M Clap.Poseidon.Constant.P Clap.Poseidon.Constant.S Clap.Poseidon
+-- attribute [simpPoseidon]
+  -- C02 C03 C04 C05 C06 C07 C08 C09 C10 C11 C12 C13 C14 C15 C16 C17 C M P S
+  -- M02 M03 M04 M05 M06 M07 M08 M09 M10 M11 M12 M13 M14 M15 M16 M17 P02 P03
+  -- P04 P05 P06 P07 P08 P09 P10 P11 P12 P13 P14 P15 P16 P17 S02 S03 S04 S05
+  -- S06 S07 S08 S09 S10 S11 S12 S13 S14 S15 S16 S17
+  -- sigma ark mix mixLast p
+  -- p mixS_raw.dotProduct mixS_raw.tail
+
+set_option trace.Clap.Compiler true
+
+set_option Clap.Compiler.cimplolIdentity false in
+def mixS :=
+  cimplol(mixS_raw, Primes.bn254, simpPoseidon)
+
+#print mixS
 
 -- TODO: Imperative or functional style?
 -- def mixS (r : ℕ) (state : Array (F p)) (s : Array (F p)) : Array (F p) := Id.run do
@@ -193,6 +211,7 @@ open Clap Lang Core
 open Clap Lang ZMod
 open Clap Poseidon
 
+/-
 /-- Run poseidon on `ZMod bn254` inputs, looking up constants by `t`. -/
 private def testPoseidon {n : ℕ} (inputs : Vector (ZMod p) n) (expected : F p) : Option Unit := do
   F.assert_eq (← poseidonBN254 (inputs.map (·.val))) expected
@@ -220,5 +239,6 @@ example : testPoseidon
 example : testPoseidon
   ⟨#[3, 4, 5, 10, 23], rfl⟩ 13034429309846638789535561449942021891039729847501137143363028890275222221409
   = some () := by native_decide
+-/
 
 end Poseidon.Test
