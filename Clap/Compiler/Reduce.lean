@@ -298,15 +298,14 @@ def simpOpen : TermElabM (TSyntax `tactic) :=
                     maxSteps := 10000000
                     failIfUnchanged := false
                     singlePass := false
-                    implicitDefEqProofs := false
+                    implicitDefEqProofs := true
                     zeta := true
-                    arith := false
+                    arith := true
                     ground := false
-                    autoUnfold := true
-                    unfoldPartialApp := true
-                    locals := false})
-                --  [unfoldStuff, Function.comp, Array.append, -Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr])
-                 [unfoldStuff, Function.comp, -Option.bind_eq_bind])
+                    autoUnfold := false
+                    unfoldPartialApp := false
+                    locals := false
+                  }) [Function.comp])
 
 set_option hygiene false in
 def simpONLY (simpset : Name) : TermElabM (TSyntax `tactic) :=
@@ -322,9 +321,7 @@ def simpONLY (simpset : Name) : TermElabM (TSyntax `tactic) :=
                    autoUnfold := false
                    unfoldPartialApp := false
                    locals := false}) only
-                --  [unfoldStuff, Function.comp, Array.append, -Option.bind_eq_bind, -ZMod, -List.map, -List.zipWith, -List.foldr])
                  [$simpset:ident])
-                --  [unfoldStuff, List.reduceRange, List.foldlM_cons, List.foldlM, Option.pure_def])
 
 set_option hygiene false in
 def simplify (arg : Name) (e : Expr) : TermElabM Expr := do
@@ -337,16 +334,18 @@ def simplify (arg : Name) (e : Expr) : TermElabM Expr := do
     lambdaTelescope e fun args body ↦ do
       let abc ← mkAppM ``ABC #[body]
       let mvar ← mkFreshExprMVar (.some abc) MetavarKind.syntheticOpaque
-        let ([mvar], _) ←
-          Elab.runTactic mvar.mvarId! (←simpONLY arg) (←read) (←get) |
-            throwError "Simp generated more than a single goal on:\n{e}"
-        let_expr ABC _ x := ←instantiateMVars (←mvar.getType) | throwError "What"
-        mkLambdaFVars args x
+      let simp := if arg == simpAll then simpOpen else simpONLY arg
+      let ([mvar], _) ←
+        Elab.runTactic mvar.mvarId! (←simp) (←read) (←get) |
+          throwError "Simp generated more than a single goal on:\n{e}"
+      let_expr ABC _ x := ←instantiateMVars (←mvar.getType) | throwError "What"
+      mkLambdaFVars args x
   trace[Clap.Compiler.reduce.simplify.countHeartbeats]
     m!"[Δheartbeats {Δheartbeats / readDocsFor_withHeartbeats_constant}]"
   -- IO.println s!"Finished simp:\n{←PrettyPrinter.ppExpr e}\nheartbeats eaten:{Δheartbeats}"
   return e
   where readDocsFor_withHeartbeats_constant := 1000
+        simpAll := `simpAll
 
 def reduceStep (e : Expr) (arg : Name) : TermElabM Expr := do
   let simplifyS ← Trace.withReportTimeoutAndRevert e "simplify" (

@@ -223,11 +223,14 @@ private def constantsSans (e : Expr) («instances» types : Bool := true) : Meta
 We return the number of iterations the compiler took for reporting purposes.
 -/
 def compile (p circuitName : Name) (f : Expr) (maxIters : ℕ) (σ : CompileMap) (arg : Name) : TermElabM (Expr × ℕ) := do
-  let serialiseS ← serialise p f
-  trace[Clap.Compiler.serialise] m!"{serialiseS}"
+  let serialiseS := f
+  -- let serialiseS ← serialise p f
+  -- trace[Clap.Compiler.serialise] m!"{serialiseS}"
 
-  let curryS ← withTraceNode `Clap.Compiler.curry
-    Trace.formatExprWith do curry p serialiseS
+  -- let curryS ← withTraceNode `Clap.Compiler.curry
+  --   Trace.formatExprWith do curry p serialiseS
+
+  let curryS := serialiseS
 
   let sansInterfaceVectorsS ← withTraceNode `Clap.Compiler.sansInterfaceVectors
     Trace.formatExprWith do sansInterfaceVectors curryS

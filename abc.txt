@@ -1,50 +1,448 @@
-#[[Clap.Compiler.nameResolution] Resolved repeatN_raw, [Clap.Compiler.preprocess] ✅️ ✅️ 
-    fun {p} x => do
-      Clap.Spec.Compiler.eq0 x
-      repeatN_inner p 0
-      repeatN_inner p 1
-      repeatN_inner p 2
-      repeatN_inner p 3
-  [Clap.Compiler.preprocess] fun {p} x => do
-        Clap.Spec.Compiler.eq0 x
-        repeatN_inner p 0
-        repeatN_inner p 1
-        repeatN_inner p 2
-        repeatN_inner p 3, [Clap.Compiler.serialise] fun {p} x => do
-      Clap.Spec.Compiler.eq0 x
-      repeatN_inner p 0
-      repeatN_inner p 1
-      repeatN_inner p 2
-      repeatN_inner p 3, [Clap.Compiler.curry] ✅️ ✅️ 
-    fun {p p_1} x => do
-      Clap.Spec.Compiler.eq0 x
-      repeatN_inner p_1 0
-      repeatN_inner p_1 1
-      repeatN_inner p_1 2
-      repeatN_inner p_1 3, [Clap.Compiler.sansInterfaceVectors] ✅️ ✅️ 
-    fun {p p_1} x => do
-      Clap.Spec.Compiler.eq0 x
-      repeatN_inner p_1 0
-      repeatN_inner p_1 1
-      repeatN_inner p_1 2
-      repeatN_inner p_1 3, [Clap.Compiler.reduce] ✅️ ✅️Reduction iterations[2/2048]:
-    fun {p p_1} x =>
-      (Clap.Spec.Compiler.eq0 x).bind fun x =>
-        (Clap.Spec.Compiler.eq0 (0 + 319600)).bind fun x =>
-          (Clap.Spec.Compiler.eq0 (1 + 959600)).bind fun x =>
-            (Clap.Spec.Compiler.eq0 (2 + 1599600)).bind fun x => Clap.Spec.Compiler.eq0 (3 + 2239600)
-  [Clap.Compiler.reduce.simplify] ✅️ fun {p p_1} x =>
-        (Clap.Spec.Compiler.eq0 x).bind fun x =>
-          (Clap.Spec.Compiler.eq0 (0 + 319600)).bind fun x =>
-            (Clap.Spec.Compiler.eq0 (1 + 959600)).bind fun x =>
-              (Clap.Spec.Compiler.eq0 (2 + 1599600)).bind fun x => Clap.Spec.Compiler.eq0 (3 + 2239600)
-    [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 133/83]
-    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 775543]
+#[[Clap.Compiler.nameResolution] Resolved vectorInput_outer_raw, [Clap.Compiler.preprocess] ✅️ ✅️ 
+    fun p x =>
+      have prog := do
+        let y ← vectorInput p (Vector.map (fun x => x + 2) x)
+        pure (Vector.map (fun x => x + 3) y);
+      Vector.casesOn x fun x h =>
+        have prog := do
+          let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk x h))
+          pure (Vector.map (fun x => x + 3) y);
+        Array.casesOn (motive := fun x =>
+          (h : x.size = 4) →
+            have prog := do
+              let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk x h))
+              pure (Vector.map (fun x => x + 3) y);
+            Option (Vector ℕ 4))
+          x
+          (fun toList h =>
+            have prog := do
+              let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := toList } h))
+              pure (Vector.map (fun x => x + 3) y);
+            List.casesOn (motive := fun x =>
+              (h : { toList := x }.size = 4) →
+                have prog := do
+                  let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := x } h))
+                  pure (Vector.map (fun x => x + 3) y);
+                Option (Vector ℕ 4))
+              toList
+              (fun h =>
+                have prog := do
+                  let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := [] } h))
+                  pure (Vector.map (fun x => x + 3) y);
+                ⋯.elim)
+              (fun hd tail h =>
+                have prog := do
+                  let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := hd :: tail } h))
+                  pure (Vector.map (fun x => x + 3) y);
+                List.casesOn (motive := fun x =>
+                  (h : { toList := hd :: x }.size = 4) →
+                    have prog := do
+                      let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := hd :: x } h))
+                      pure (Vector.map (fun x => x + 3) y);
+                    Option (Vector ℕ 4))
+                  tail
+                  (fun h =>
+                    have prog := do
+                      let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := [hd] } h))
+                      pure (Vector.map (fun x => x + 3) y);
+                    ⋯.elim)
+                  (fun hd' tail h =>
+                    have prog := do
+                      let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := hd :: hd' :: tail } h))
+                      pure (Vector.map (fun x => x + 3) y);
+                    List.casesOn (motive := fun x =>
+                      (h : { toList := hd :: hd' :: x }.size = 4) →
+                        have prog := do
+                          let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := hd :: hd' :: x } h))
+                          pure (Vector.map (fun x => x + 3) y);
+                        Option (Vector ℕ 4))
+                      tail
+                      (fun h =>
+                        have prog := do
+                          let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := [hd, hd'] } h))
+                          pure (Vector.map (fun x => x + 3) y);
+                        ⋯.elim)
+                      (fun hd'' tail h =>
+                        have prog := do
+                          let y ←
+                            vectorInput p
+                                (Vector.map (fun x => x + 2) (Vector.mk { toList := hd :: hd' :: hd'' :: tail } h))
+                          pure (Vector.map (fun x => x + 3) y);
+                        List.casesOn (motive := fun x =>
+                          (h : { toList := hd :: hd' :: hd'' :: x }.size = 4) →
+                            have prog := do
+                              let y ←
+                                vectorInput p
+                                    (Vector.map (fun x => x + 2) (Vector.mk { toList := hd :: hd' :: hd'' :: x } h))
+                              pure (Vector.map (fun x => x + 3) y);
+                            Option (Vector ℕ 4))
+                          tail
+                          (fun h =>
+                            have prog := do
+                              let y ←
+                                vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := [hd, hd', hd''] } h))
+                              pure (Vector.map (fun x => x + 3) y);
+                            ⋯.elim)
+                          (fun hd''' tail h =>
+                            have prog := do
+                              let y ←
+                                vectorInput p
+                                    (Vector.map (fun x => x + 2)
+                                      (Vector.mk { toList := hd :: hd' :: hd'' :: hd''' :: tail } h))
+                              pure (Vector.map (fun x => x + 3) y);
+                            List.casesOn (motive := fun x =>
+                              (h : { toList := hd :: hd' :: hd'' :: hd''' :: x }.size = 4) →
+                                have prog := do
+                                  let y ←
+                                    vectorInput p
+                                        (Vector.map (fun x => x + 2)
+                                          (Vector.mk { toList := hd :: hd' :: hd'' :: hd''' :: x } h))
+                                  pure (Vector.map (fun x => x + 3) y);
+                                Option (Vector ℕ 4))
+                              tail
+                              (fun h =>
+                                have prog := do
+                                  let y ←
+                                    vectorInput p
+                                        (Vector.map (fun x => x + 2) (Vector.mk { toList := [hd, hd', hd'', hd'''] } h))
+                                  pure (Vector.map (fun x => x + 3) y);
+                                prog)
+                              (fun head tail h =>
+                                have prog := do
+                                  let y ←
+                                    vectorInput p
+                                        (Vector.map (fun x => x + 2)
+                                          (Vector.mk { toList := hd :: hd' :: hd'' :: hd''' :: head :: tail } h))
+                                  pure (Vector.map (fun x => x + 3) y);
+                                ⋯.elim)
+                              h)
+                          h)
+                      h)
+                  h)
+              h)
+          h
+  [Clap.Compiler.preprocess] fun p x =>
+        have prog := do
+          let y ← vectorInput p (Vector.map (fun x => x + 2) x)
+          pure (Vector.map (fun x => x + 3) y);
+        Vector.casesOn x fun x h =>
+          have prog := do
+            let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk x h))
+            pure (Vector.map (fun x => x + 3) y);
+          Array.casesOn (motive := fun x =>
+            (h : x.size = 4) →
+              have prog := do
+                let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk x h))
+                pure (Vector.map (fun x => x + 3) y);
+              Option (Vector ℕ 4))
+            x
+            (fun toList h =>
+              have prog := do
+                let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := toList } h))
+                pure (Vector.map (fun x => x + 3) y);
+              List.casesOn (motive := fun x =>
+                (h : { toList := x }.size = 4) →
+                  have prog := do
+                    let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := x } h))
+                    pure (Vector.map (fun x => x + 3) y);
+                  Option (Vector ℕ 4))
+                toList
+                (fun h =>
+                  have prog := do
+                    let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := [] } h))
+                    pure (Vector.map (fun x => x + 3) y);
+                  ⋯.elim)
+                (fun hd tail h =>
+                  have prog := do
+                    let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := hd :: tail } h))
+                    pure (Vector.map (fun x => x + 3) y);
+                  List.casesOn (motive := fun x =>
+                    (h : { toList := hd :: x }.size = 4) →
+                      have prog := do
+                        let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := hd :: x } h))
+                        pure (Vector.map (fun x => x + 3) y);
+                      Option (Vector ℕ 4))
+                    tail
+                    (fun h =>
+                      have prog := do
+                        let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := [hd] } h))
+                        pure (Vector.map (fun x => x + 3) y);
+                      ⋯.elim)
+                    (fun hd' tail h =>
+                      have prog := do
+                        let y ←
+                          vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := hd :: hd' :: tail } h))
+                        pure (Vector.map (fun x => x + 3) y);
+                      List.casesOn (motive := fun x =>
+                        (h : { toList := hd :: hd' :: x }.size = 4) →
+                          have prog := do
+                            let y ←
+                              vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := hd :: hd' :: x } h))
+                            pure (Vector.map (fun x => x + 3) y);
+                          Option (Vector ℕ 4))
+                        tail
+                        (fun h =>
+                          have prog := do
+                            let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := [hd, hd'] } h))
+                            pure (Vector.map (fun x => x + 3) y);
+                          ⋯.elim)
+                        (fun hd'' tail h =>
+                          have prog := do
+                            let y ←
+                              vectorInput p
+                                  (Vector.map (fun x => x + 2) (Vector.mk { toList := hd :: hd' :: hd'' :: tail } h))
+                            pure (Vector.map (fun x => x + 3) y);
+                          List.casesOn (motive := fun x =>
+                            (h : { toList := hd :: hd' :: hd'' :: x }.size = 4) →
+                              have prog := do
+                                let y ←
+                                  vectorInput p
+                                      (Vector.map (fun x => x + 2) (Vector.mk { toList := hd :: hd' :: hd'' :: x } h))
+                                pure (Vector.map (fun x => x + 3) y);
+                              Option (Vector ℕ 4))
+                            tail
+                            (fun h =>
+                              have prog := do
+                                let y ←
+                                  vectorInput p
+                                      (Vector.map (fun x => x + 2) (Vector.mk { toList := [hd, hd', hd''] } h))
+                                pure (Vector.map (fun x => x + 3) y);
+                              ⋯.elim)
+                            (fun hd''' tail h =>
+                              have prog := do
+                                let y ←
+                                  vectorInput p
+                                      (Vector.map (fun x => x + 2)
+                                        (Vector.mk { toList := hd :: hd' :: hd'' :: hd''' :: tail } h))
+                                pure (Vector.map (fun x => x + 3) y);
+                              List.casesOn (motive := fun x =>
+                                (h : { toList := hd :: hd' :: hd'' :: hd''' :: x }.size = 4) →
+                                  have prog := do
+                                    let y ←
+                                      vectorInput p
+                                          (Vector.map (fun x => x + 2)
+                                            (Vector.mk { toList := hd :: hd' :: hd'' :: hd''' :: x } h))
+                                    pure (Vector.map (fun x => x + 3) y);
+                                  Option (Vector ℕ 4))
+                                tail
+                                (fun h =>
+                                  have prog := do
+                                    let y ←
+                                      vectorInput p
+                                          (Vector.map (fun x => x + 2)
+                                            (Vector.mk { toList := [hd, hd', hd'', hd'''] } h))
+                                    pure (Vector.map (fun x => x + 3) y);
+                                  prog)
+                                (fun head tail h =>
+                                  have prog := do
+                                    let y ←
+                                      vectorInput p
+                                          (Vector.map (fun x => x + 2)
+                                            (Vector.mk { toList := hd :: hd' :: hd'' :: hd''' :: head :: tail } h))
+                                    pure (Vector.map (fun x => x + 3) y);
+                                  ⋯.elim)
+                                h)
+                            h)
+                        h)
+                    h)
+                h)
+            h, [Clap.Compiler.sansInterfaceVectors] ✅️ ✅️ 
+    fun p x =>
+      have prog := do
+        let y ← vectorInput p (Vector.map (fun x => x + 2) x)
+        pure (Vector.map (fun x => x + 3) y);
+      Vector.casesOn x fun x h =>
+        have prog := do
+          let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk x h))
+          pure (Vector.map (fun x => x + 3) y);
+        Array.casesOn (motive := fun x =>
+          (h : x.size = 4) →
+            have prog := do
+              let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk x h))
+              pure (Vector.map (fun x => x + 3) y);
+            Option (Vector ℕ 4))
+          x
+          (fun toList h =>
+            have prog := do
+              let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := toList } h))
+              pure (Vector.map (fun x => x + 3) y);
+            List.casesOn (motive := fun x =>
+              (h : { toList := x }.size = 4) →
+                have prog := do
+                  let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := x } h))
+                  pure (Vector.map (fun x => x + 3) y);
+                Option (Vector ℕ 4))
+              toList
+              (fun h =>
+                have prog := do
+                  let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := [] } h))
+                  pure (Vector.map (fun x => x + 3) y);
+                ⋯.elim)
+              (fun hd tail h =>
+                have prog := do
+                  let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := hd :: tail } h))
+                  pure (Vector.map (fun x => x + 3) y);
+                List.casesOn (motive := fun x =>
+                  (h : { toList := hd :: x }.size = 4) →
+                    have prog := do
+                      let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := hd :: x } h))
+                      pure (Vector.map (fun x => x + 3) y);
+                    Option (Vector ℕ 4))
+                  tail
+                  (fun h =>
+                    have prog := do
+                      let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := [hd] } h))
+                      pure (Vector.map (fun x => x + 3) y);
+                    ⋯.elim)
+                  (fun hd' tail h =>
+                    have prog := do
+                      let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := hd :: hd' :: tail } h))
+                      pure (Vector.map (fun x => x + 3) y);
+                    List.casesOn (motive := fun x =>
+                      (h : { toList := hd :: hd' :: x }.size = 4) →
+                        have prog := do
+                          let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := hd :: hd' :: x } h))
+                          pure (Vector.map (fun x => x + 3) y);
+                        Option (Vector ℕ 4))
+                      tail
+                      (fun h =>
+                        have prog := do
+                          let y ← vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := [hd, hd'] } h))
+                          pure (Vector.map (fun x => x + 3) y);
+                        ⋯.elim)
+                      (fun hd'' tail h =>
+                        have prog := do
+                          let y ←
+                            vectorInput p
+                                (Vector.map (fun x => x + 2) (Vector.mk { toList := hd :: hd' :: hd'' :: tail } h))
+                          pure (Vector.map (fun x => x + 3) y);
+                        List.casesOn (motive := fun x =>
+                          (h : { toList := hd :: hd' :: hd'' :: x }.size = 4) →
+                            have prog := do
+                              let y ←
+                                vectorInput p
+                                    (Vector.map (fun x => x + 2) (Vector.mk { toList := hd :: hd' :: hd'' :: x } h))
+                              pure (Vector.map (fun x => x + 3) y);
+                            Option (Vector ℕ 4))
+                          tail
+                          (fun h =>
+                            have prog := do
+                              let y ←
+                                vectorInput p (Vector.map (fun x => x + 2) (Vector.mk { toList := [hd, hd', hd''] } h))
+                              pure (Vector.map (fun x => x + 3) y);
+                            ⋯.elim)
+                          (fun hd''' tail h =>
+                            have prog := do
+                              let y ←
+                                vectorInput p
+                                    (Vector.map (fun x => x + 2)
+                                      (Vector.mk { toList := hd :: hd' :: hd'' :: hd''' :: tail } h))
+                              pure (Vector.map (fun x => x + 3) y);
+                            List.casesOn (motive := fun x =>
+                              (h : { toList := hd :: hd' :: hd'' :: hd''' :: x }.size = 4) →
+                                have prog := do
+                                  let y ←
+                                    vectorInput p
+                                        (Vector.map (fun x => x + 2)
+                                          (Vector.mk { toList := hd :: hd' :: hd'' :: hd''' :: x } h))
+                                  pure (Vector.map (fun x => x + 3) y);
+                                Option (Vector ℕ 4))
+                              tail
+                              (fun h =>
+                                have prog := do
+                                  let y ←
+                                    vectorInput p
+                                        (Vector.map (fun x => x + 2) (Vector.mk { toList := [hd, hd', hd'', hd'''] } h))
+                                  pure (Vector.map (fun x => x + 3) y);
+                                prog)
+                              (fun head tail h =>
+                                have prog := do
+                                  let y ←
+                                    vectorInput p
+                                        (Vector.map (fun x => x + 2)
+                                          (Vector.mk { toList := hd :: hd' :: hd'' :: hd''' :: head :: tail } h))
+                                  pure (Vector.map (fun x => x + 3) y);
+                                ⋯.elim)
+                              h)
+                          h)
+                      h)
+                  h)
+              h)
+          h, [Clap.Compiler.reduce] ✅️ ✅️Reduction iterations[2/2048]:
+    fun p x =>
+      List.rec (motive := fun x => { toList := x }.size = 4 → Option (Vector ℕ 4)) (fun h => ⋯.elim)
+        (fun head tail tail_ih h =>
+          List.rec (motive := fun x => { toList := head :: x }.size = 4 → Option (Vector ℕ 4)) (fun h => ⋯.elim)
+            (fun head_1 tail tail_ih h =>
+              List.rec (motive := fun x => { toList := head :: head_1 :: x }.size = 4 → Option (Vector ℕ 4))
+                (fun h => ⋯.elim)
+                (fun head_2 tail tail_ih h =>
+                  List.rec (motive := fun x =>
+                    { toList := head :: head_1 :: head_2 :: x }.size = 4 → Option (Vector ℕ 4)) (fun h => ⋯.elim)
+                    (fun head_3 tail tail_ih h =>
+                      List.rec (motive := fun x =>
+                        { toList := head :: head_1 :: head_2 :: head_3 :: x }.size = 4 → Option (Vector ℕ 4))
+                        (fun h =>
+                          (Clap.Spec.Compiler.eq0 (↑head + 2)).bind fun a =>
+                            (Clap.Spec.Compiler.eq0 (↑head_1 + 2)).bind fun a =>
+                              (Clap.Spec.Compiler.eq0 (↑head_2 + 2)).bind fun a =>
+                                (Clap.Spec.Compiler.eq0 (↑head_3 + 2)).bind fun a =>
+                                  some #v[head + 47, head_1 + 47, head_2 + 47, head_3 + 47])
+                        (fun head_4 tail tail_ih h => ⋯.elim) tail h)
+                    tail h)
+                tail h)
+            tail h)
+        x.1.toList ⋯
+  [Clap.Compiler.reduce.simplify] ✅️ fun p x =>
+        List.rec (motive := fun x => { toList := x }.size = 4 → Option (Vector ℕ 4)) (fun h => ⋯.elim)
+          (fun head tail tail_ih h =>
+            List.rec (motive := fun x => { toList := head :: x }.size = 4 → Option (Vector ℕ 4)) (fun h => ⋯.elim)
+              (fun head_1 tail tail_ih h =>
+                List.rec (motive := fun x => { toList := head :: head_1 :: x }.size = 4 → Option (Vector ℕ 4))
+                  (fun h => ⋯.elim)
+                  (fun head_2 tail tail_ih h =>
+                    List.rec (motive := fun x =>
+                      { toList := head :: head_1 :: head_2 :: x }.size = 4 → Option (Vector ℕ 4)) (fun h => ⋯.elim)
+                      (fun head_3 tail tail_ih h =>
+                        List.rec (motive := fun x =>
+                          { toList := head :: head_1 :: head_2 :: head_3 :: x }.size = 4 → Option (Vector ℕ 4))
+                          (fun h =>
+                            (Clap.Spec.Compiler.eq0 (↑head + 2)).bind fun a =>
+                              (Clap.Spec.Compiler.eq0 (↑head_1 + 2)).bind fun a =>
+                                (Clap.Spec.Compiler.eq0 (↑head_2 + 2)).bind fun a =>
+                                  (Clap.Spec.Compiler.eq0 (↑head_3 + 2)).bind fun a =>
+                                    some #v[head + 47, head_1 + 47, head_2 + 47, head_3 + 47])
+                          (fun head_4 tail tail_ih h => ⋯.elim) tail h)
+                      tail h)
+                  tail h)
+              tail h)
+          x.1.toList ⋯
+    [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 5439/1000]
+    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 1843]
   [Clap.Compiler.reduce.simplify] ✅️ Fixpoint
-    [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 817/383]
-    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 92]
+    [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 9108/1884]
+    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 284]
   [Clap.Compiler.reduce.numIters] Reduction done after 2 iterations]
-[size 817/383] fun {p p_1} x =>
-  (eq0 x).bind fun x =>
-    (eq0 (0 + 319600)).bind fun x =>
-      (eq0 (1 + 959600)).bind fun x => (eq0 (2 + 1599600)).bind fun x => eq0 (3 + 2239600)
+[size 9108/1884] fun p x =>
+  List.rec (motive := fun x => { toList := x }.size = 4 → Option (Vector ℕ 4)) (fun h => ⋯.elim)
+    (fun head tail tail_ih h =>
+      List.rec (motive := fun x => { toList := head :: x }.size = 4 → Option (Vector ℕ 4)) (fun h => ⋯.elim)
+        (fun head_1 tail tail_ih h =>
+          List.rec (motive := fun x => { toList := head :: head_1 :: x }.size = 4 → Option (Vector ℕ 4))
+            (fun h => ⋯.elim)
+            (fun head_2 tail tail_ih h =>
+              List.rec (motive := fun x => { toList := head :: head_1 :: head_2 :: x }.size = 4 → Option (Vector ℕ 4))
+                (fun h => ⋯.elim)
+                (fun head_3 tail tail_ih h =>
+                  List.rec (motive := fun x =>
+                    { toList := head :: head_1 :: head_2 :: head_3 :: x }.size = 4 → Option (Vector ℕ 4))
+                    (fun h =>
+                      (eq0 (↑head + 2)).bind fun a =>
+                        (eq0 (↑head_1 + 2)).bind fun a =>
+                          (eq0 (↑head_2 + 2)).bind fun a =>
+                            (eq0 (↑head_3 + 2)).bind fun a => some #v[head + 47, head_1 + 47, head_2 + 47, head_3 + 47])
+                    (fun head_4 tail tail_ih h => ⋯.elim) tail h)
+                tail h)
+            tail h)
+        tail h)
+    x.1.toList ⋯
