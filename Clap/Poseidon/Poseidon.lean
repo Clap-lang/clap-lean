@@ -68,23 +68,25 @@ def mixLast (state : List (F p)) (M : List (List (F p))) (s : ℕ) : F p :=
     partial rounds
 
     Mirrors circomlib's `MixS(t, S, r)` template -/
-def mixS_raw (r : ℕ) (state : List (F p)) (s : List (F p)) : List (F p) :=
-  let t : ℕ := state.length
+def mixS_raw_5 [Core p] (r : ℕ) (state_5 : List (F p)) (s_5 : List (F p)) : List (F p) :=
+  let t : ℕ := state_5.length
   let base : ℕ := (2 * t - 1) * r
   [dotProduct base] ++ tail base t
 where
   /-- `out[0] = Σᵢ S[base + i] · in[i]` — full dot product for element 0 -/
+  @[simpPoseidon]
   dotProduct (base : ℕ) : F p :=
-    (state.zipWith (· * ·) ((s.drop base).take state.length)).sum
+    (state_5.zipWith (· * ·) ((s_5.drop base).take state_5.length)).sum
   /-- `out[i] = in[i] + in[0] · S[base + t + i − 1]` for `i ∈ [1, t)` -/
+  @[simpPoseidon]
   tail (base t : ℕ) : List (F p) :=
-    (state.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state[0]! * s[base + t + i]!)
+    (state_5.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state_5[0]! * s_5[base + t + i]!)
 
 set_option trace.Clap.Compiler true
 
 set_option Clap.Compiler.cimplolIdentity false in
 def mixS :=
-  cimplol(mixS_raw, Primes.bn254, simpPoseidon)
+  cimplol(mixS_raw_5, Primes.bn254, simpPoseidon)
 
 -- #print mixS
 

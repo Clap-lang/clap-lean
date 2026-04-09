@@ -315,24 +315,26 @@ partial def trySynthAll (e : Expr) : TermElabM Expr := do
   | .some e => trySynthAll e
 
 def fixPrime (e p : Expr) : TermElabM Expr := do
-  logWarning m!"e: {e}"
   /-
   TODO: Workaround. As we started fixing `p`, this would break some assumptions.
   Needs a more robust approach.
   -/
-  let res ← lambdaTelescope e fun _ _ ↦ do
-    -- let .some arg := args[0]? | throwError "No arguments in:\n{e}\n(TODO: Maybe this should work.)"
-    -- let t ← inferType arg -- def f (p : Nat) [Core p] (x : F p) : Option Unit := sorry
+  let withP ← lambdaTelescope e fun args _ ↦ do
+    let .some arg := args[0]? | throwError "No arguments in:\n{e}\n(TODO: Maybe this should work.)"
+    if (←arg.fvarId!.getUserName) == `p
+    then let withFixedPS ← instantiateLambda e #[p]
+         trace[Clap.Compiler.preprocess] m!"Fixed prime:\n{withFixedPS}"
+         pure withFixedPS
+    else pure e
+  trySynthAll withP >>= instantiateMVars
+
     -- if !t.isConstOf ``Nat
     -- then trace[Clap.Compiler.preprocess] m!"Assuming fully applied function."
     --      return e
-    let withFixedPS ← instantiateLambda e #[p]
+    -- let withFixedPS ← instantiateLambda e #[p]
     -- let withFixedPS := e
 
-    trace[Clap.Compiler.preprocess] m!"{withFixedPS}"
-    pure withFixedPS >>= trySynthAll >>= instantiateMVars
-  logWarning m!"res: {res}"
-  return res
+    
 
 def validateOptions : TermElabM Unit := do
   let options ← getOptions

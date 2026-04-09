@@ -1,30 +1,35 @@
-#[[Clap.Compiler.nameResolution] Resolved Clap.Poseidon.mixS_raw, [Clap.Compiler.preprocess] ✅️ ✅️ 
-    fun r {t m} state S =>
+#[[Clap.Compiler.nameResolution] Resolved Clap.Poseidon.mixS_raw_5, [Clap.Compiler.preprocess] ✅️ ✅️ 
+    fun r state_5 s_5 =>
+      have t := state_5.length;
       have base := (2 * t - 1) * r;
-      Vector.ofFn fun i =>
-        if ↑i = 0 then Clap.Poseidon.mixS_raw.dotProduct state S base else Clap.Poseidon.mixS_raw.tail state S base ↑i
-  [Clap.Compiler.preprocess] fun r {t m} state S =>
+      [Clap.Poseidon.mixS_raw_5.dotProduct state_5 s_5 base] ++ Clap.Poseidon.mixS_raw_5.tail state_5 s_5 base t
+  [Clap.Compiler.preprocess] Resolved [Clap.Lang.Core Clap.Poseidon.p]:
+      fun r state_5 s_5 =>
+        have t := state_5.length;
         have base := (2 * t - 1) * r;
-        Vector.ofFn fun i =>
-          if ↑i = 0 then Clap.Poseidon.mixS_raw.dotProduct state S base else Clap.Poseidon.mixS_raw.tail state S base ↑i, [Clap.Compiler.sansInterfaceVectors] ✅️ ✅️ 
-    fun r {t m} state S =>
+        [Clap.Poseidon.mixS_raw_5.dotProduct state_5 s_5 base] ++ Clap.Poseidon.mixS_raw_5.tail state_5 s_5 base t, [Clap.Compiler.sansInterfaceVectors] ✅️ ✅️ 
+    fun r state_5 s_5 =>
+      have t := state_5.length;
       have base := (2 * t - 1) * r;
-      Vector.ofFn fun i =>
-        if ↑i = 0 then Clap.Poseidon.mixS_raw.dotProduct state S base else Clap.Poseidon.mixS_raw.tail state S base ↑i, [Clap.Compiler.reduce] ✅️ ✅️Reduction iterations[2/2048]:
-    fun r {t m} state S =>
-      Vector.ofFn fun i =>
-        if ↑i = 0 then Clap.Poseidon.mixS_raw.dotProduct state S ((2 * t - 1) * r)
-        else Clap.Poseidon.mixS_raw.tail state S ((2 * t - 1) * r) ↑i
-  [Clap.Compiler.reduce.simplify] ✅️ fun r {t m} state S =>
-        Vector.ofFn fun i =>
-          if ↑i = 0 then Clap.Poseidon.mixS_raw.dotProduct state S ((2 * t - 1) * r)
-          else Clap.Poseidon.mixS_raw.tail state S ((2 * t - 1) * r) ↑i
-    [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 186/111]
-    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 85]
+      [Clap.Poseidon.mixS_raw_5.dotProduct state_5 s_5 base] ++ Clap.Poseidon.mixS_raw_5.tail state_5 s_5 base t, [Clap.Compiler.reduce] ✅️ ✅️Reduction iterations[2/2048]:
+    fun r state_5 s_5 =>
+      [(List.zipWith (fun x1 x2 => x1 * x2) state_5
+              (List.take state_5.length (List.drop ((2 * state_5.length - 1) * r) s_5))).sum] ++
+        List.mapIdx (fun i sᵢ => sᵢ + state_5[0]! * s_5[i + state_5.length + (2 * state_5.length - 1) * r]!)
+          (List.drop 1 state_5)
+  [Clap.Compiler.reduce.simplify] ✅️ fun r state_5 s_5 =>
+        [(List.zipWith (fun x1 x2 => x1 * x2) state_5
+                (List.take state_5.length (List.drop ((2 * state_5.length - 1) * r) s_5))).sum] ++
+          List.mapIdx (fun i sᵢ => sᵢ + state_5[0]! * s_5[i + state_5.length + (2 * state_5.length - 1) * r]!)
+            (List.drop 1 state_5)
+    [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 177/92]
+    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 109]
   [Clap.Compiler.reduce.simplify] ✅️ Fixpoint
-    [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 247/110]
-    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 83]
+    [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 951/291]
+    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 92]
   [Clap.Compiler.reduce.numIters] Reduction done after 2 iterations]
-[size 247/110] fun r {t m} state S =>
-  Vector.ofFn fun i =>
-    if ↑i = 0 then mixS_raw.dotProduct state S ((2 * t - 1) * r) else mixS_raw.tail state S ((2 * t - 1) * r) ↑i
+[size 951/291] fun r state_5 s_5 =>
+  [(List.zipWith (fun x1 x2 => x1 * x2) state_5
+          (List.take state_5.length (List.drop ((2 * state_5.length - 1) * r) s_5))).sum] ++
+    List.mapIdx (fun i sᵢ => sᵢ + state_5[0]! * s_5[i + state_5.length + (2 * state_5.length - 1) * r]!)
+      (List.drop 1 state_5)
