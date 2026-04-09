@@ -6,6 +6,14 @@ import Clap.Wheels
 
 namespace Clap
 
+def nat2bitsLsb (n : ℕ) (f : ℕ) : List ℕ :=
+  match n with
+  | 0 => []
+  | n+1 =>
+    let bit := f % 2
+    let rem := f / 2
+    bit::(nat2bitsLsb n rem)
+
 variable {p : ℕ}
 
 /-- Computes the `n` bit binary representation of `f`.
