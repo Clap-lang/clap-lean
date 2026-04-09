@@ -20,14 +20,16 @@ structure T.{u} : Type (u+1) where
   U8  : Type u
   U32 : Type u
 
-class Sha (m : Type → Type) [Monad m] (t : T) where
+class Add32 (m : Type → Type) [Monad m] (t : Type) where
+  add32 : t → t → m t
+
+class Sha (t : T) where
   [i₁ : Coe Nat t.U8]
   [i₂ : Coe Nat t.U32]
   [i₃ : Coe t.U8 t.U32]
   [i₄ : Inhabited t.U32]
   [i₅ : ToString t.U8]
   [i₆ : ToString t.U32]
-  add32 : t.U32 → t.U32 → m t.U32
   to_nat_be : Array t.U8 -> t.U32
   rotR       : Nat -> t.U32 -> t.U32
   shiftRight : Nat -> t.U32 -> t.U32
@@ -39,9 +41,9 @@ attribute [reducible] Sha.i₁ Sha.i₂ Sha.i₃ Sha.i₄ Sha.i₅ Sha.i₆
 attribute [instance] Sha.i₁ Sha.i₂ Sha.i₃ Sha.i₄ Sha.i₅ Sha.i₆
 
 variable (m : Type → Type) [Monad m]
-variable {t : T} [Sha m t]
+variable {t : T} [Sha t] [Add32 m t.U32]
 
-open Sha
+open Sha Add32
 
 def of_nat_be (x:Nat) (len:Nat) : Array t.U8 :=
   (List.reverse (aux x len)).toArray
@@ -56,14 +58,14 @@ def of_nat_be (x:Nat) (len:Nat) : Array t.U8 :=
 def sigma_constants : Array Nat := #[7, 18, 3, 17, 19, 10]
 
 def sigma (c0 c1 c2 : Nat) (x : t.U32) : t.U32 :=
-  Sha.xor3 m
-    (Sha.rotR m c0 x)
-    (Sha.rotR m c1 x)
-    (Sha.shiftRight m c2 x)
+  Sha.xor3
+    (Sha.rotR c0 x)
+    (Sha.rotR c1 x)
+    (Sha.shiftRight c2 x)
 
 -- Sigma_0(x) = ROTR^{d0}(x) XOR ROTR^{d1}(x) XOR SHR^{d2}(x)
 def sigma_0 (x : t.U32) : t.U32 :=
-  sigma m
+  sigma
     sigma_constants[0]!
     sigma_constants[1]!
     sigma_constants[2]!
@@ -71,7 +73,7 @@ def sigma_0 (x : t.U32) : t.U32 :=
 
 -- Sigma_1(x) = ROTR^{d3}(x) XOR ROTR^{d4}(x) XOR SHR^{d5}(x)
 def sigma_1 (x : t.U32) : t.U32 :=
-  sigma m
+  sigma
     sigma_constants[3]!
     sigma_constants[4]!
     sigma_constants[5]!
@@ -80,14 +82,14 @@ def sigma_1 (x : t.U32) : t.U32 :=
 def sum_constants : Array Nat := #[2, 13, 22, 6, 11, 25]
 
 def sum (c0 c1 c2 : Nat) (x : t.U32) : t.U32 :=
-  Sha.xor3 m
-    (Sha.rotR m c0 x)
-    (Sha.rotR m c1 x)
-    (Sha.rotR m c2 x)
+  Sha.xor3
+    (Sha.rotR c0 x)
+    (Sha.rotR c1 x)
+    (Sha.rotR c2 x)
 
 -- Sum_0(x) = ROTR^{c0}(x) XOR ROTR^{c1}(x) XOR ROTR^{c2}(x)
 def sum_0 (x : t.U32) : t.U32 :=
-  sum m
+  sum
     sum_constants[0]!
     sum_constants[1]!
     sum_constants[2]!
@@ -95,7 +97,7 @@ def sum_0 (x : t.U32) : t.U32 :=
 
 -- Sum_1(x) = ROTR^{c3}(x) XOR ROTR^{c4}(x) XOR ROTR^{c5}(x)
 def sum_1 (x : t.U32) : t.U32 :=
-  sum m
+  sum
     sum_constants[3]!
     sum_constants[4]!
     sum_constants[5]!
@@ -141,7 +143,7 @@ def padding (msg : Array t.U8) : Array t.U8 :=
     let n_zero_bytes := 64 - l
     Array.replicate n_zero_bytes (Coe.coe 0)
   let k_one_byte : t.U8 := Coe.coe 128 -- one byte with a single 1 as msb
-  let l := of_nat_be m (msg.size*8) 8
+  let l := of_nat_be (msg.size*8) 8
   msg ++ #[k_one_byte] ++ k_zero_bytes ++ l
 
 -- result size 16
@@ -150,7 +152,7 @@ def parse_u32 (msg : Array t.U8) : Array t.U32 :=
   aux 0 #[]
 where
   aux (start:Nat) (acc : Array t.U32) : Array t.U32 :=
-    let u32 : t.U32 := Sha.to_nat_be m (Array.extract msg start (stop:=start+4))
+    let u32 : t.U32 := Sha.to_nat_be (Array.extract msg start (stop:=start+4))
     let acc := acc.push u32
     if start >= msg.size-4
     then assert! (acc.size = 16) ; acc
@@ -163,7 +165,7 @@ def parse_blocks (msg : Array t.U8) : Array (Block t.U32) :=
 where
   aux (start : Nat) (acc : Array (Block t.U32)) : Array (Block t.U32) :=
     let block : Array t.U8 := Array.extract msg start (stop:=start+64)
-    let acc := acc.push (parse_u32 m block)
+    let acc := acc.push (parse_u32 block)
     if start >= msg.size-64
     then acc
     else aux (start+64) acc
@@ -179,7 +181,7 @@ where
     let t7 := acc[i - 7]!
     let t2 := acc[i - 2]!
 
-    let sum ← [sigma_1 m t2, t7, sigma_0 m t15, t16].foldlM add32 default
+    let sum ← [sigma_1 t2, t7, sigma_0 t15, t16].foldlM add32 default
     let acc := acc.push sum
 
     aux acc (i+1)
@@ -196,8 +198,8 @@ def shuffle_i (ws:RoundConstantsTable t.U32) (hash: Hash t.U32) (i:Nat) : m (Has
   let g := hash[6]!
   let h := hash[7]!
 
-  let t1 ← [h, sum_1 m e, Sha.ch m e f g, (round_constants_224_256 m)[i]!, ws[i]!].foldlM add32 default
-  let t2 ← [sum_0 m a, Sha.maj m a b c].foldlM add32 default
+  let t1 ← [h, sum_1 e, Sha.ch e f g, round_constants_224_256[i]!, ws[i]!].foldlM add32 default
+  let t2 ← [sum_0 a, Sha.maj a b c].foldlM add32 default
 
   let h := g
   let g := f
@@ -226,9 +228,9 @@ def compress (block : Block t.U32) (hash : Hash t.U32) : m (Hash t.U32) := do
 
 -- TODO this should return Sha256digest
 def digest (msg : Array t.U8) : m (Hash t.U32) :=
-  let blocks := padding m msg
-  let blocks := parse_blocks m blocks
-  process_blocks blocks (initial_hash m) 0
+  let blocks := padding msg
+  let blocks := parse_blocks blocks
+  process_blocks blocks initial_hash 0
 where
   process_blocks (blocks : Array (Block t.U32)) (acc : Hash t.U32) i := do
     if i >= blocks.size then pure acc else

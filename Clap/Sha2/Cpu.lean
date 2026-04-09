@@ -44,7 +44,7 @@ abbrev t : Clap.Sha2.T := {U8:=UInt8, U32:=UInt32}
 instance (priority := high) i₆ : ToString UInt32 where
   toString f := Clap.natToHex f.toNat
 
-instance : Clap.Sha2.Sha Id t where
+instance : Clap.Sha2.Sha t where
   xor3
   rotR
   shiftRight
@@ -52,6 +52,8 @@ instance : Clap.Sha2.Sha Id t where
   ch
   maj
   i₆
+
+instance : Clap.Sha2.Add32 Id UInt32 where
   add32 := UInt32.add
 
 end Clap.Sha2.Cpu

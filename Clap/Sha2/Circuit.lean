@@ -112,20 +112,24 @@ instance (priority := high) i₅ : ToString (F8 p) where
 instance (priority := high) i₆ : ToString (F32 p) where
   toString f := toString 32 f
 
-instance : Sha Option (t p) where
+instance instSha : Sha (t p) where
   xor3
   rotR
   shiftRight
   ch
   maj
   to_nat_be
-  add32 := F32.add
   -- important to name these instances otherwise the wrong ones are picked form the enviroment
   i₁
   i₂
   i₃
   i₅
   i₆
+
+instance instAdd32 : Clap.Sha2.Add32 Option (F32 p) where
+  add32 := F32.add
+
+attribute [instance] instSha instAdd32
 
 end Clap.Sha2.Circuit
 

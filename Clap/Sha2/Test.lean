@@ -31,7 +31,8 @@ def stringToU8s (s:String) : Array (F8 p) :=
     let b : F p := (b.toNat : F p)
     F8.ofF! b
 
-private instance : Sha Option (t p) := Clap.Sha2.Circuit.instShaOptionT
+private instance : Sha (t p) := Clap.Sha2.Circuit.instSha
+private instance : Add32 Option (F32 p) := Clap.Sha2.Circuit.instAdd32
 
 example : digest Option (t := Clap.Sha2.Circuit.t p) (stringToU8s "abc") =
   some #[0xba7816bf, 0x8f01cfea, 0x414140de, 0x5dae2223, 0xb00361a3, 0x96177a9c, 0xb410ff61, 0xf20015ad] := by
