@@ -23,7 +23,7 @@
           List.mapIdx (fun i sᵢ => sᵢ + state_5[0]! * s_5[i + state_5.length + (2 * state_5.length - 1) * r]!)
             (List.drop 1 state_5)
     [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 177/92]
-    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 109]
+    [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 108]
   [Clap.Compiler.reduce.simplify] ✅️ Fixpoint
     [Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] [size 951/291]
     [Clap.Compiler.reduce.simplify.countHeartbeats] [Δheartbeats 92]

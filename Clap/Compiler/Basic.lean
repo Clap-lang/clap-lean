@@ -121,11 +121,17 @@ def curryArg (prime : Name) (arg : Expr) : MetaM (Option (Array (Name × Expr)))
   let type ← mkAppM ``ZMod #[.const prime []]
   return .some (names.zip (Array.replicate names.size type))
 
+def sequenceAsList (name : Name) (t : Expr) (len : ℕ) : MetaM Expr := do
+  let elems : List Expr ← List.range len |>.mapM fun i ↦
+    mkAppM ``GetElem?.getElem! #[.const name [], Expr.lit (.natVal i)]
+  mkListLit t elems
+
 def curriedBody (body : Expr) : TermElabM Expr := do
   let lctx ← getLCtx
   let res ← Meta.transform (skipConstInApp := true) body
     -- Replace every `x` with `#[x_0, ...]`.
     (pre := fun e ↦ do
+      -- TODO: Reuse `sequenceAsList`
       if e.isFVar
       then
         let .some (names, t) ← curriedUserNamesAndElemTypeOfFVar e | return .continue
