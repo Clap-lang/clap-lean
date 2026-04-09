@@ -52,5 +52,6 @@ instance : Clap.Sha2.Sha t where
   ch
   maj
   i₇
+  add32 := fun a b => some (UInt32.add a b)
 
 end Clap.Sha2.Cpu
