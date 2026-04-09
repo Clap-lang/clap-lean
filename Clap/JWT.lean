@@ -193,15 +193,16 @@ open Primes HashToField FString FArray in
   WARNING: this function is NOT secure on its own; it must be called from
   `parseJWTFieldWithQuotedValue` or `parseJWTFieldWithUnquotedValue`.
 
-  The `skipChecks` parameter models CIRCOM's `skip_checks` signal: when `1`, all
-  checks are bypassed (the template is a no-op). CIRCOM implements this by collecting
-  all checks into booleans and asserting `checks_pass OR skip_checks === 1`. We model
-  this equivalently by gating each constraint with `perform = NOT(skipChecks)`:
-  `perform * constraint === 0`. Since `skipChecks` is a field element (not a
-  compile-time Bool), we cannot branch on it. Instead, intermediate computations that
-  might return `none` use `.getD 0` to return a neutral value. The guard ensures those
-  neutral values never cause a spurious constraint failure when `skipChecks = 1`,
-  guaranteeing `some ()` for any input. Default is `0` (checks enabled).
+  The `skipChecks` parameter models CIRCOM's `skip_checks` signal: when `1`, semantic
+  assertions (name matching, character equality, etc.) are bypassed. CIRCOM implements
+  this by collecting all checks into booleans and asserting `checks_pass OR skip_checks === 1`.
+  We model this equivalently by gating each semantic constraint with `perform = NOT(skipChecks)`:
+  `perform * constraint === 0`.
+
+  Sub-template constraints (Num2Bits, one-hot encoding, byte validation) are enforced
+  unconditionally via monadic `←` binds, matching CIRCOM where sub-templates always
+  apply their internal constraints. With `skipChecks = 1`, the prover must still provide
+  well-formed inputs (valid byte values, in-range indices). Default is `0` (checks enabled).
 -/
 private def parseJWTFieldSharedLogic
     {maxKVPairLen maxNameLen maxValueLen : ℕ}
@@ -219,32 +220,30 @@ private def parseJWTFieldSharedLogic
   -- w = 20 bits suffices for comparisons: 2^20 = 1_048_576 > any realistic JWT field length.
   -- Hardcoded in https://github.com/aptos-labs/keyless-zk-proofs/blob/main/circuit/templates/helpers/jwt/ParseJWTFieldSharedLogic.circom
   let w := 20
-  F.guardedEq0 perform (FB.not ((F.lessThan w name.len colon_index).getD 0))
+  F.guardedEq0 perform (FB.not (← F.lessThan w name.len colon_index))
   -- Check 1: colon_index < value_index
-  F.guardedEq0 perform (FB.not ((F.lessThan w colon_index value_index).getD 0))
+  F.guardedEq0 perform (FB.not (← F.lessThan w colon_index value_index))
   -- Check 2: field_len > name_len + value_len
-  F.guardedEq0 perform (FB.not ((F.greaterThan w field.len (name.len + value.len)).getD 0))
-  -- Pre-compute hash of field for Fiat-Shamir substring checks.
-  -- On malformed inputs (non-byte values), .getD 0 gives a neutral hash; the guard ensures
-  -- this does not cause a spurious constraint failure when skipChecks = 1.
-  let fieldHash := (hashBytesToFieldWithLen (field.chars.map FBitVec.toF) field.len).getD 0
+  F.guardedEq0 perform (FB.not (← F.greaterThan w field.len (name.len + value.len)))
+  -- Pre-compute hash of field for Fiat-Shamir substring checks
+  let fieldHash ← hashBytesToFieldWithLen (field.chars.map FBitVec.toF) field.len
   -- Check 3: field[0] == '"' (ASCII 34)
-  let firstChar := (selectArrayValue (field.chars.map FBitVec.toF) 0).getD 0
+  let firstChar ← selectArrayValue (field.chars.map FBitVec.toF) 0
   F.guardedAssertEq perform firstChar '\"'
   -- Check 4: name is a substring of field starting at index 1
-  let nameOk := (isSubstringFS h_name field fieldHash name 1).getD 0
+  let nameOk ← isSubstringFS h_name field fieldHash name 1
   F.guardedEq0 perform (FB.not nameOk)
   -- Check 5: field[name_len + 1] == '"' (ASCII 34)
-  let nameClosingQuote := (selectArrayValue (field.chars.map FBitVec.toF) (name.len + 1)).getD 0
+  let nameClosingQuote ← selectArrayValue (field.chars.map FBitVec.toF) (name.len + 1)
   F.guardedAssertEq perform nameClosingQuote '\"'
   -- Check 6: field[colon_index] == ':' (ASCII 58)
-  let colonChar := (selectArrayValue (field.chars.map FBitVec.toF) colon_index).getD 0
+  let colonChar ← selectArrayValue (field.chars.map FBitVec.toF) colon_index
   F.guardedAssertEq perform colonChar ':'
   -- Check 7: value is a substring of field starting at value_index
-  let valueOk := (isSubstringFS h_value field fieldHash value value_index).getD 0
+  let valueOk ← isSubstringFS h_value field fieldHash value value_index
   F.guardedEq0 perform (FB.not valueOk)
   -- Check 8: field[field_len - 1] == ',' (44) or '}' (125)
-  let lastChar := (selectArrayValue (field.chars.map FBitVec.toF) (field.len - 1)).getD 0
+  let lastChar ← selectArrayValue (field.chars.map FBitVec.toF) (field.len - 1)
   -- Enforce (lastChar - 44) * (lastChar - 125) == 0
   F.guardedEq0 perform ((lastChar - (',' : F _)) &&& (lastChar - ('}' : F _)))
 
@@ -284,9 +283,9 @@ def parseJWTFieldWithUnquotedValue
   -- Zone A: [name_len + 2, colon_index)  — between closing name-quote and colon
   -- Zone B: [colon_index + 1, value_index)  — between colon and value (no quote around value)
   -- Zone C: [value_index + value_len, field_len - 1)  — after value, before terminator
-  let zoneA := (arraySelectorComplex maxKVPairLen (name.len + 2) colon_index).getD (Vector.replicate _ 0)
-  let zoneB := (arraySelectorComplex maxKVPairLen (colon_index + 1) value_index).getD (Vector.replicate _ 0)
-  let zoneC := (arraySelectorComplex maxKVPairLen (value_index + value.len) (field.len - 1)).getD (Vector.replicate _ 0)
+  let zoneA ← arraySelectorComplex maxKVPairLen (name.len + 2) colon_index
+  let zoneB ← arraySelectorComplex maxKVPairLen (colon_index + 1) value_index
+  let zoneC ← arraySelectorComplex maxKVPairLen (value_index + value.len) (field.len - 1)
   -- Merge zones: inZone[i] = zoneA[i] ∨ zoneB[i] ∨ zoneC[i]
   let inZone := (zoneA.zipWith FB.or zoneB).zipWith FB.or zoneC
   -- For each position in a whitespace zone, the character must be whitespace
@@ -295,7 +294,7 @@ def parseJWTFieldWithUnquotedValue
     F.guardedEq0 perform (z &&& FB.not ws)
   -- Check 2: value must not contain ',', '}', or '"'
   -- valueSelector: 1s at [value_index, value_index + value_len)
-  let valueSel := (arraySelector maxKVPairLen value_index (value_index + value.len)).getD (Vector.replicate _ 0)
+  let valueSel ← arraySelector maxKVPairLen value_index (value_index + value.len)
   (valueSel.zip fieldChars).toList.forM fun (sel, c) ↦
     let isForbidden := F.eq c ',' ||| F.eq c '}' ||| F.eq c '\"'
     -- If in value range, character must not be forbidden
@@ -338,23 +337,23 @@ def parseJWTFieldWithQuotedValue
   let perform : FB bn254 := FB.not skipChecks
   let fieldChars := field.chars.map FBitVec.toF
   -- Check 0: field[value_index - 1] == '"' (opening quote around value)
-  let valueFirstQuote := (selectArrayValue fieldChars (value_index - 1)).getD 0
+  let valueFirstQuote ← selectArrayValue fieldChars (value_index - 1)
   F.guardedAssertEq perform valueFirstQuote 34
   -- Check 1: field[value_index + value_len] == '"' (closing quote around value)
-  let valueSecondQuote := (selectArrayValue fieldChars (value_index + value.len)).getD 0
+  let valueSecondQuote ← selectArrayValue fieldChars (value_index + value.len)
   F.guardedAssertEq perform valueSecondQuote 34
   -- Check 2: whitespace zones + string bodies
   -- Zone A: [name_len + 2, colon_index)  — between closing name-quote and colon
   -- Zone B: [colon_index + 1, value_index - 1)  — between colon and opening value-quote
   -- Zone C: [value_index + value_len + 1, field_len - 1)  — after closing value-quote, before terminator
-  let zoneA := (arraySelectorComplex maxKVPairLen (name.len + 2) colon_index).getD (Vector.replicate _ 0)
-  let zoneB := (arraySelectorComplex maxKVPairLen (colon_index + 1) (value_index - 1)).getD (Vector.replicate _ 0)
-  let zoneC := (arraySelectorComplex maxKVPairLen (value_index + value.len + 1) (field.len - 1)).getD (Vector.replicate _ 0)
+  let zoneA ← arraySelectorComplex maxKVPairLen (name.len + 2) colon_index
+  let zoneB ← arraySelectorComplex maxKVPairLen (colon_index + 1) (value_index - 1)
+  let zoneC ← arraySelectorComplex maxKVPairLen (value_index + value.len + 1) (field.len - 1)
   let inZone := (zoneA.zipWith FB.or zoneB).zipWith FB.or zoneC
   -- Name selector: [1, name_len + 1) — name content inside its quotes
-  let nameSel := (arraySelector maxKVPairLen 1 (name.len + 1)).getD (Vector.replicate _ 0)
+  let nameSel ← arraySelector maxKVPairLen 1 (name.len + 1)
   -- Value selector: [value_index, value_index + value_len) — value content inside its quotes
-  let valueSel := (arraySelector maxKVPairLen value_index (value_index + value.len)).getD (Vector.replicate _ 0)
+  let valueSel ← arraySelector maxKVPairLen value_index (value_index + value.len)
   let nameOrValue := nameSel.zipWith FB.or valueSel
   -- For each position: whitespace zone chars must be whitespace,
   -- and string bodies must match name/value selectors exactly
@@ -690,12 +689,13 @@ example : (do
   parseJWTFieldSharedLogic (by omega) (by omega) field name value 3 4
   ) = none := by native_decide
 
--- skipChecks = 1 with out-of-range indices returns some () (not none).
+-- skipChecks = 1 bypasses semantic checks (name mismatch) but sub-template constraints
+-- (one-hot encoding, byte validation) still apply. Well-formed inputs succeed.
 example : (do
   let field := strToFS 6 "\"a\":b,"
-  let name  := strToFS 1 "a"
+  let name  := strToFS 1 "b"   -- 'b' doesn't match 'a' at index 1
   let value := strToFS 1 "b"
-  parseJWTFieldSharedLogic (by omega) (by omega) field name value 100 200 (skipChecks := 1)
+  parseJWTFieldSharedLogic (by omega) (by omega) field name value 3 4 (skipChecks := 1)
   ) = some () := by native_decide
 
 -- parseJWTFieldSharedLogic accepts inputs that the wrapper templates
@@ -892,13 +892,14 @@ example : (do
   parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 5 6 (skipChecks := 1)
   ) = some () := by native_decide
 
--- skipChecks = 1 with out-of-range indices returns some () (not none).
+-- skipChecks = 1 does NOT bypass sub-template constraints: out-of-range indices still fail,
+-- matching CIRCOM where sub-template constraints (one-hot encoding) always apply.
 example : (do
   let field := strToFS 6 "\"a\":b,"
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
   parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 100 200 (skipChecks := 1)
-  ) = some () := by native_decide
+  ) = none := by native_decide
 
 -- parseJWTFieldWithQuotedValue tests
 
@@ -1056,15 +1057,15 @@ example : (do
   parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5 (skipChecks := 1)
   ) = some () := by native_decide
 
--- skipChecks = 1 with out-of-range indices returns some () (not none).
--- Without .getD, selectArrayValue would fail for colon_index=100 on a 6-char field.
+-- skipChecks = 1 does NOT bypass sub-template constraints: out-of-range indices still fail,
+-- matching CIRCOM where sub-template constraints (one-hot encoding) always apply.
 example : (do
   let field := strToFS 6 "\"a\":b,"
   let bodies : Vector (ZMod p) 6 := #v[0,0,0,0,0,0]
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
   parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 100 200 (skipChecks := 1)
-  ) = some () := by native_decide
+  ) = none := by native_decide
 
 -- valid: "k":"ab cd",  (whitespace inside quoted value)
 -- field = "k":"ab cd",  →  0=" 1=k 2=" 3=: 4=" 5=a 6=b 7=SP 8=c 9=d 10=" 11=,
