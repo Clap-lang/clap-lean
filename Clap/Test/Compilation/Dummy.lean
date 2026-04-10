@@ -30,7 +30,7 @@ def keyless (x : Vector (ZMod p) 2) (y : Vector (ZMod p) 4) : Option Unit := do
 
 open Lean Meta in
 partial def unjustTraverse (name : Name) (args : Array Expr) (e : Expr) (σ : Std.HashMap UInt64 Expr := {}): MetaM Unit := do
-  logInfo m!"Simplifying[{name} {String.intercalate " " (←args.mapM (fun x ↦ (PrettyPrinter.ppExpr x) <&> Format.pretty)).toList}]:\n{e}"
+  -- logInfo m!"Simplifying[{name} {String.intercalate " " (←args.mapM (fun x ↦ (PrettyPrinter.ppExpr x) <&> Format.pretty)).toList}]:\n{e}"
   let list := [`keyless, `poseidon, `mixS]
   discard <| Meta.transform (skipConstInApp := true) e
     -- (pre := fun e ↦ do
@@ -67,7 +67,7 @@ partial def unjustTraverse (name : Name) (args : Array Expr) (e : Expr) (σ : St
             logInfo m!"Collected fvars[{arg}]: {←fvars.toList.mapM (·.getUserName)}"
           logInfo m!"all fvars: {←res.toList.mapM (·.getUserName)}"
           return res
-        
+
         -- logInfo m!"in like Flynn: {name}"
         -- Analyse the call site of `f`
         let isAllValid ← args.allM fun e ↦ do
@@ -77,7 +77,7 @@ partial def unjustTraverse (name : Name) (args : Array Expr) (e : Expr) (σ : St
           let_expr Vector _ n := ←inferType e |
             -- logInfo m!"NOT VECTOR"
             return true
-          
+
           let reducedN ← Meta.reduce n
           -- if n != reducedN then
           --   logInfo m!"Reduction did something.\n{n}→{reducedN}"
@@ -85,8 +85,9 @@ partial def unjustTraverse (name : Name) (args : Array Expr) (e : Expr) (σ : St
           return reducedN.isRawNatLit
 
         if isAllValid then
-          
-          logInfo m!"Adding to map:\n{e} [hash={e.hash}]"
+          -- assuming vector lengths are the first arguments
+          let key := s!"{name} {args.take vecLenIds.size}"
+          logInfo m!"Adding to map:\n{e} [hash={key.hash}]"
 
         let appliedFunc := func.instantiateLambdasOrApps args
         unjustTraverse name args appliedFunc
