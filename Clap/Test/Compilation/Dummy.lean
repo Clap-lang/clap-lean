@@ -28,17 +28,11 @@ def poseidon {n:ℕ} (x : Vector (ZMod p) n) : Option (ZMod p) := do
   let state ← (List.range 4).foldlM (fun state r ↦ mixS r state) (init:=x)
   state.sum
 
--- attribute [simpSynthetic] bind_assoc Option.bind_assoc
--- set_option Clap.Compiler.cimplolIdentity true in
--- def repeatN :=
---   cimplol(repeatN_raw, Primes.babybear, simpSynthetic)
+-- #compile poseidon -- fails
+-- #toBeReduced poseidon -- ok
 
 def keyless (x : Vector (ZMod p) 2) (y : Vector (ZMod p) 4) : Option Unit := do
-  let x ← poseidon x
-  let y ← poseidon y
+  let x ← @poseidon 2 x
+  let y ← @poseidon 4 y
   eq0 (x+y)
-
--- set_option Clap.Compiler.cimplolIdentity false in
--- @[simp]
--- def vectorInput :=
---   cimplol(vectorInput_raw, Primes.babybear, simpAll)
+  eq0 [(1 : ZMod p),2,3].sum

@@ -1,0 +1,78 @@
+-- #compile keyless -- ok
+
+/-
+#reduce (mixS,simpSet)
+#reduce (poseidon,simpSet)
+#reduce (keyless,simpSet)
+#compile keyless
+
+-- order irrelevant?
+let toBeReduced := [(mixS, simp1), (poseidon, 1, simp2), (keyless, simp3, simp3b)]
+
+-- how to identify functions? name and arguments?
+let (fn,args) := e.getAppfnargs -- do we get the implicits?
+
+cache := (poseidon 2, poseidon 4, mixS 2, mixS 4)
+
+
+app (app f a) b
+
+Meta.tranform (post:= fun e ↦
+  let (fn,args) := e.getAppfnargs
+  if toBeReduced.contains fn then
+    let reduced :=
+      if cache.contains e then
+        cache.get e
+      else
+        let e := expandVectors e
+        let e := simp e simp
+        -- if we have a second simpset then we simp again
+        cache.add e
+        return e
+    .done reduced
+)
+-/
+
+-- set_option Clap.Compiler.cimplolIdentity false in
+-- @[simp]
+-- def vectorInput :=
+--   cimplol(vectorInput_raw, Primes.babybear, simpAll)
+
+/-
+-- improvements
+
+1. simp keyless, while keeping poseidon folded
+
+2. large subcircuits that still need to be simped because of bind_assoc, bind_some etc
+   simp can't go through it
+   if it's simple enough we can do it by hand.
+
+3. large subcircuits that return unit but simp can't go through it
+
+
+def keyless_check1 {n} x
+
+def keyless_check1 (x : Vector (ZMod p) 2) (y : Vector (ZMod p) 4) : Option Unit := do
+  check1 2 x
+
+def keyless_check2 (x : Vector (ZMod p) 2) (y : Vector (ZMod p) 4) : Option Unit := do
+  check2 4 y
+  eq0 (x+y)
+  eq0 [(1 : ZMod p),2,3].sum
+
+-- #compile keyless -- ok
+
+   keyless struct1 struct2
+    - check1 struct1
+    - check2 struct2
+
+Clap.Circuit   map (c1 | c2 | c3) = cs1 | cs2 | cs3
+
+toWg
+toCs -> toR1CS
+
+[eq0 v0 + 1, eq0 v1 + 2  ]
+
+[eq0 v2 + 1, eq0 v3 + 2  ]
+
+-/
