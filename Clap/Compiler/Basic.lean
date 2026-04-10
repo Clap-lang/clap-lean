@@ -368,8 +368,6 @@ def fixPrime (e p : Expr) : TermElabM Expr := do
     -- let withFixedPS ← instantiateLambda e #[p]
     -- let withFixedPS := e
 
-    
-
 def validateOptions : TermElabM Unit := do
   let options ← getOptions
   validateDebugTraceDebug options
