@@ -347,9 +347,9 @@ def simplify (simpSet : Name) (e : Expr) : TermElabM Expr := do
   where readDocsFor_withHeartbeats_constant := 1000
         simpAll := `simpAll
 
-def reduceStep (e : Expr) (arg : Name) : TermElabM Expr := do
+def reduceStep (e : Expr) (simpSet : Name) : TermElabM Expr := do
   let simplifyS ← Trace.withReportTimeoutAndRevert e "simplify" (
-    withTraceNode `Clap.Compiler.reduce.simplify (skipIdentity e) ∘ simplify arg
+    withTraceNode `Clap.Compiler.reduce.simplify (skipIdentity e) ∘ simplify simpSet
   )
 
   -- discard (nextConstantCbv simplifyS)

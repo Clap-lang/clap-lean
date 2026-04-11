@@ -45,6 +45,19 @@ partial def unfoldSimplified (name : Name) (args : Array Expr) (e : Expr) (σ : 
       if Lean.isClass (←getEnv) (←inferType e).getAppFnArgs.1 then return .done e
       if e.isRawNatLit then return .continue
 
+      match_expr ←inferType e with
+      | Vector t n => -- check that t is ZMod p?
+        let some n ← Lean.Meta.getNatValue? n | throwError ""
+        let list ← (List.range n).mapM fun i ↦
+          mkAppM ``getElem! #[e, toExpr i]
+
+        let array ← mkAppM ``Array.mk #[ ←mkListLit t list]
+        let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, toExpr n, array]
+
+        let Expr.forallE _ t _ _ ← inferType vecSansProof | throwError "Expected function type."
+        let vec := Expr.app vecSansProof (←mkEqRefl t)
+        return .done vec
+      | _ =>
       let (name, args) := e.getAppFnArgs
       if name == .anonymous then return .continue
 
@@ -98,6 +111,7 @@ partial def unfoldSimplified (name : Name) (args : Array Expr) (e : Expr) (σ : 
           let simplified ← simplify `simpAll recurse
           logInfo m!"[{name}]simplified: {simplified}"
           logInfo m!"[{name}]cache {key} [hash={key.hash}]\n: {simplified}"
+
           let appliedRest := simplified.instantiateLambdasOrApps (args.drop vecLenIds.size)
           logInfo m!"[{name}]appliedRest to {args.drop vecLenIds.size}: {appliedRest}"
           -- TODO if σ.insert key.hash then logInfo m!"In cache:\n{e}"; return .done σ[e.hash]!
