@@ -247,7 +247,7 @@ set_option hygiene false in
 def simpClosedPoseidon : TermElabM (TSyntax `tactic) :=
   `(tactic|
   simp (config :=
-  { 
+  {
     maxSteps            := 10000000
     failIfUnchanged     := false
     singlePass          := false
@@ -294,7 +294,7 @@ def simpClosedPoseidon : TermElabM (TSyntax `tactic) :=
 
 set_option hygiene false in
 def simpOpen : TermElabM (TSyntax `tactic) :=
-  `(tactic|simp? (config := {
+  `(tactic|simp (config := {
                     maxSteps := 10000000
                     failIfUnchanged := false
                     singlePass := false
@@ -305,7 +305,7 @@ def simpOpen : TermElabM (TSyntax `tactic) :=
                     autoUnfold := false
                     unfoldPartialApp := false
                     locals := false
-                  }) [Function.comp])
+                  }) [Function.comp, Option.bind_assoc, Option.bind_some, Option.some_bind])
 
 set_option hygiene false in
 def simpONLY (simpset : Name) : TermElabM (TSyntax `tactic) :=
@@ -324,7 +324,7 @@ def simpONLY (simpset : Name) : TermElabM (TSyntax `tactic) :=
                  [$simpset:ident])
 
 set_option hygiene false in
-def simplify (arg : Name) (e : Expr) : TermElabM Expr := do
+def simplify (simpSet : Name) (e : Expr) : TermElabM Expr := do
   -- IO.println s!"Simplifying: {←PrettyPrinter.ppExpr e}\nArg: {arg}"
   trace[Clap.Compiler.reduce.simplify.exprSizesBeforeSimplify] m!"[size {e.sizeWithoutSharing}/{←e.numObjs}]"
   let (e, Δheartbeats) ← withHeartbeats do
@@ -334,7 +334,7 @@ def simplify (arg : Name) (e : Expr) : TermElabM Expr := do
     lambdaTelescope e fun args body ↦ do
       let abc ← mkAppM ``ABC #[body]
       let mvar ← mkFreshExprMVar (.some abc) MetavarKind.syntheticOpaque
-      let simp := if arg == simpAll then simpOpen else simpONLY arg
+      let simp := if simpSet == simpAll then simpOpen else simpONLY simpSet
       let ([mvar], _) ←
         Elab.runTactic mvar.mvarId! (←simp) (←read) (←get) |
           throwError "Simp generated more than a single goal on:\n{e}"
