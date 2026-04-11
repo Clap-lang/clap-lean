@@ -29,9 +29,9 @@ def keyless (x : Vector (ZMod p) 2) (y : Vector (ZMod p) 4) : Option Unit := do
   eq0 [(1 : ZMod p),2,3].sum
 
 open Lean Meta in
-partial def unfoldSimplified (name : Name) (args : Array Expr) (e : Expr) (σ : Std.HashMap UInt64 Expr := {}): Elab.Term.TermElabM Expr := do
+partial def unfoldSimplified (name : Name) (args : Array Expr) (e : Expr) : Elab.Term.TermElabM Expr := do
   -- logInfo m!"Simplifying[{name} {String.intercalate " " (←args.mapM (fun x ↦ (PrettyPrinter.ppExpr x) <&> Format.pretty)).toList}]:\n{e}"
-  let list := [`keyless, `poseidon, `mixS]
+  let toBeReduced := [`keyless, `poseidon, `mixS]
   Meta.transform (skipConstInApp := true) e
     -- (pre := fun e ↦ do
     --   if ←isTypeFormer e then return .done e
@@ -48,9 +48,7 @@ partial def unfoldSimplified (name : Name) (args : Array Expr) (e : Expr) (σ : 
       match_expr ←inferType e with
       | Vector t n => -- check that t is ZMod p?
         let some n ← Lean.Meta.getNatValue? n | throwError ""
-        let list ← (List.range n).mapM fun i ↦
-          mkAppM ``getElem! #[e, toExpr i]
-
+        let list ← (List.range n).mapM fun i ↦ mkAppM ``getElem! #[e, toExpr i]
         let array ← mkAppM ``Array.mk #[ ←mkListLit t list]
         let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, toExpr n, array]
 
@@ -63,7 +61,7 @@ partial def unfoldSimplified (name : Name) (args : Array Expr) (e : Expr) (σ : 
 
       -- logInfo m!"name: {name}"
 
-      if list.contains name then
+      if toBeReduced.contains name then
 
         -- logInfo m!"Args: {args}"
         let funcT := ((←getEnv).find? name).get!.type
