@@ -264,7 +264,13 @@ attribute [simpPoseidon]
   sigma ark mix mixLast poseidonEx poseidon liftArr liftMat poseidonBN254 p mixS
   p mixS.dotProduct mixS.tail
 
-  const instCoreZMod id_def Vector.length_toList
+  Function.comp
+  const instCoreZMod Core.F
+  Vector.length_toList
+  bind pure bind_assoc
+  Option.bind_some Option.some_bind Option.bind_assoc Option.getD_some Option.getD_none
+  id_eq getElem!_pos getElem!_neg getElem?_pos getElem?_neg
+  Nat.reduceAdd Nat.reduceMul Nat.reduceSub
 
 set_option maxRecDepth 10000
 

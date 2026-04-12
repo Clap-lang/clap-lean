@@ -114,24 +114,6 @@ def mytransform {m} [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m]
   return e
 
 open Lean Meta in
-partial def unfoldSimplified' (name : Name) (args : Array Expr) (e : Expr) : Elab.Term.TermElabM Expr := do
-  let toBeReduced := [`keyless, `poseidon, `mixS]
-  let nArgs := [0, 1, 1]
-  mytransform e
-    (pre := fun e ↦ do
-      let (name,args) := e.getAppFnArgs
-      if name == .anonymous then return .continue
---      logInfo m!"{name} {args}"
-      let isMatch := (toBeReduced.zip nArgs).any fun (toBeReducedName,nArgs) ↦
-          (toBeReducedName = name && nArgs = args.size)
-
-      if isMatch then
-        logInfo m!"{e}"
-        return .continue
-      return .continue
-    )
-
-open Lean Meta in
 partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Expr) : Elab.Term.TermElabM Expr := do
   -- logInfo m!"Simplifying[{name} {String.intercalate " " (←args.mapM (fun x ↦ (PrettyPrinter.ppExpr x) <&> Format.pretty)).toList}]:\n{e}"
   mytransform e
@@ -155,7 +137,7 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
         let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, toExpr n, array]
 
         let Expr.forallE _ t _ _ ← inferType vecSansProof | throwError "Expected function type."
-        let vec := Expr.app vecSansProof (←mkEqRefl t)
+        let vec := Expr.app vecSansProof (←mkEqRefl t) --TODO
         return .done vec
       | _ =>
 
