@@ -240,7 +240,7 @@ end Poseidon254
 
 end Clap.Poseidon
 
-namespace Poseidon.Test
+namespace Clap.Poseidon.Test
 
 abbrev p := Primes.bn254
 
@@ -254,14 +254,28 @@ def testPoseidon (inputs : Vector (ZMod p) 2) (expected : F p) : Option Unit := 
 
 --#eval! (poseidonBN254 [1,2]).get!
 
+open Clap.Poseidon.Constant.C Clap.Poseidon.Constant Clap.Poseidon.Constant.M Clap.Poseidon.Constant.P Clap.Poseidon.Constant.S Clap.Poseidon Clap.Poseidon
+attribute [simpPoseidon]
+  C02 C03 C04 C05 C06 C07 C08 C09 C10 C11 C12 C13 C14 C15 C16 C17 C M P S
+  M02 M03 M04 M05 M06 M07 M08 M09 M10 M11 M12 M13 M14 M15 M16 M17 P02 P03
+  P04 P05 P06 P07 P08 P09 P10 P11 P12 P13 P14 P15 P16 P17 S02 S03 S04 S05
+  S06 S07 S08 S09 S10 S11 S12 S13 S14 S15 S16 S17
+
+  sigma ark mix mixLast poseidonEx poseidon liftArr liftMat poseidonBN254 p mixS
+  p mixS.dotProduct mixS.tail
+
+  const instCoreZMod id_def Vector.length_toList
+
+set_option maxRecDepth 10000
+
 open Lean Meta Lean.Elab in
 open Clap Compiler in
 #eval show TermElabM _ from do
-  let target := `Poseidon.Test.testPoseidon
-  let toBeReduced := [(`testPoseidon,0,`simpAll), (`mixS,2,`simpAll)]
+  let target := ``Poseidon.Test.testPoseidon
+  let toBeReduced := [(``testPoseidon,0,`simpPoseidon), (``mixS,2,`simpPoseidon)]
   let e := ((←getEnv).find? target).get!.value!
-  let e ← unfoldSimplified toBeReduced target #[Expr.const `x [], .const `y []] e
-  let e ← simplify `simpAll e
+  let e ← unfoldSimplified toBeReduced e
+  let e ← simplify `simpPoseidon e
   logInfo m!"{e}"
 
 -- -- circomlib test vector: hash([1, 2]) with t=3
@@ -288,4 +302,4 @@ open Clap Compiler in
 --   [3, 4, 5, 10, 23] 13034429309846638789535561449942021891039729847501137143363028890275222221409
 --   = some () := by native_decide
 
-end Poseidon.Test
+end Clap.Poseidon.Test

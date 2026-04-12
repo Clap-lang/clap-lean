@@ -132,7 +132,7 @@ partial def unfoldSimplified' (name : Name) (args : Array Expr) (e : Expr) : Ela
     )
 
 open Lean Meta in
-partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (name : Name) (args : Array Expr) (e : Expr) : Elab.Term.TermElabM Expr := do
+partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Expr) : Elab.Term.TermElabM Expr := do
   -- logInfo m!"Simplifying[{name} {String.intercalate " " (←args.mapM (fun x ↦ (PrettyPrinter.ppExpr x) <&> Format.pretty)).toList}]:\n{e}"
   mytransform e
     -- (pre := fun e ↦ do
@@ -219,6 +219,6 @@ open Lean Meta Lean.Elab in
   let target := `keyless
   let toBeReduced := [(`keyless,0,`simpAll), (`poseidon,1,`simpAll), (`mixS,1,`simpAll)]
   let e := ((←getEnv).find? target).get!.value!
-  let e ← unfoldSimplified toBeReduced target #[.const `x [], .const `y []] e
+  let e ← unfoldSimplified toBeReduced e
   let e ← simplify `simpAll e
   logInfo m!"{e}"
