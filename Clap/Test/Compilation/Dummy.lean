@@ -28,18 +28,122 @@ def keyless (x : Vector (ZMod p) 2) (y : Vector (ZMod p) 4) : Option Unit := do
   eq0 (x+y+z)
   eq0 [(1 : ZMod p),2,3].sum
 
+
+#check Lean.Meta.transform
+open Lean Meta in
+@[inline]
+partial def mytransformWithCache {m} [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m]
+    (input : Expr)
+    (cache : Std.HashMap ExprStructEq Expr)
+    (pre   : Expr → m TransformStep := fun _ => return .continue)
+    (post  : Expr → m TransformStep := fun e => return .done e)
+    (usedLetOnly := false)
+    (skipConstInApp := false)
+    (skipInstances := false)
+    : m (Expr × Std.HashMap ExprStructEq Expr) :=
+  let _ : STWorld IO.RealWorld m := ⟨⟩
+  let _ : MonadLiftT (ST IO.RealWorld) m := { monadLift := fun x => liftM (m := MetaM) (liftM (m := ST IO.RealWorld) x) }
+  let rec visit (e : Expr) : MonadCacheT ExprStructEq Expr m Expr :=
+    checkCache { val := e : ExprStructEq } fun _ => Meta.withIncRecDepth do
+      let rec visitPost (e : Expr) : MonadCacheT ExprStructEq Expr m Expr := do
+        match (← post e) with
+        | .done e      => pure e
+        | .visit e     => visit e
+        | .continue e? => pure (e?.getD e)
+      let rec visitLambda (fvars : Array Expr) (e : Expr) : MonadCacheT ExprStructEq Expr m Expr := do
+        match e with
+        | .lam n d b c =>
+          withLocalDecl n c (← visit (d.instantiateRev fvars)) fun x =>
+            visitLambda (fvars.push x) b
+        | e => visitPost (← mkLambdaFVars (usedLetOnly := usedLetOnly) fvars (← visit (e.instantiateRev fvars)))
+      let rec visitForall (fvars : Array Expr) (e : Expr) : MonadCacheT ExprStructEq Expr m Expr := do
+        match e with
+        | .forallE n d b c =>
+          withLocalDecl n c (← visit (d.instantiateRev fvars)) fun x =>
+            visitForall (fvars.push x) b
+        | e => visitPost (← mkForallFVars (usedLetOnly := usedLetOnly) fvars (← visit (e.instantiateRev fvars)))
+      let rec visitLet (fvars : Array Expr) (e : Expr) : MonadCacheT ExprStructEq Expr m Expr := do
+        match e with
+        | .letE n t v b nondep =>
+          withLetDecl n (← visit (t.instantiateRev fvars)) (← visit (v.instantiateRev fvars)) (nondep := nondep) fun x =>
+            visitLet (fvars.push x) b
+        | e => visitPost (← mkLetFVars (usedLetOnly := usedLetOnly) (generalizeNondepLet := false) fvars (← visit (e.instantiateRev fvars)))
+      let visitApp (f : Expr) (arg : Expr) : MonadCacheT ExprStructEq Expr m Expr := do
+        -- TODO we could use this
+        -- if skipInstances then
+        --   let infos := (← getFunInfoNArgs f args.size).paramInfo
+        --   let mut args := args.toVector
+        --   for h : i in *...args.size do
+        --     let arg := args[i]
+        --     if h : i < infos.size then
+        --       let info := infos[i]
+        --       if skipInstances && info.isInstance then
+        --         continue
+        --       args := args.set i (← visit arg)
+        --     else
+        --       args := args.set i (← visit arg)
+        --   visitPost (mkAppN f args.toArray)
+        -- else
+          let f ← visit f
+          let arg ← visit arg
+          visitPost (mkApp f arg)
+      match (← pre e) with
+      | .done e  => pure e
+      | .visit e => visit e
+      | .continue e? =>
+        let e := e?.getD e
+        match e with
+        | .forallE ..    => visitForall #[] e
+        | .lam ..        => visitLambda #[] e
+        | .letE ..       => visitLet #[] e
+        | .app f arg     => visitApp f arg
+        | .mdata _ b     => visitPost (e.updateMData! (← visit b))
+        | .proj _ _ b    => visitPost (e.updateProj! (← visit b))
+        | _              => visitPost e
+  StateRefT'.run (visit input) cache
+
+open Lean Meta in
+def mytransform {m} [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m]
+    (input : Expr)
+    (pre   : Expr → m TransformStep := fun _ => return .continue)
+    (post  : Expr → m TransformStep := fun e => return .done e)
+    (usedLetOnly := false)
+    (skipConstInApp := false)
+    : m Expr := do
+  let (e, _) ← mytransformWithCache input {} pre post usedLetOnly skipConstInApp
+  return e
+
+open Lean Meta in
+partial def unfoldSimplified' (name : Name) (args : Array Expr) (e : Expr) : Elab.Term.TermElabM Expr := do
+  let toBeReduced := [`keyless, `poseidon, `mixS]
+  let nArgs := [0, 1, 1]
+  mytransform e
+    (pre := fun e ↦ do
+      let (name,args) := e.getAppFnArgs
+      if name == .anonymous then return .continue
+--      logInfo m!"{name} {args}"
+      let isMatch := (toBeReduced.zip nArgs).any fun (toBeReducedName,nArgs) ↦
+          (toBeReducedName = name && nArgs = args.size)
+
+      if isMatch then
+        logInfo m!"{e}"
+        return .continue
+      return .continue
+    )
+
 open Lean Meta in
 partial def unfoldSimplified (name : Name) (args : Array Expr) (e : Expr) : Elab.Term.TermElabM Expr := do
   -- logInfo m!"Simplifying[{name} {String.intercalate " " (←args.mapM (fun x ↦ (PrettyPrinter.ppExpr x) <&> Format.pretty)).toList}]:\n{e}"
   let toBeReduced := [`keyless, `poseidon, `mixS]
-  Meta.transform (skipConstInApp := true) e
+  let nArgs := [0, 1, 1]
+  mytransform e
     -- (pre := fun e ↦ do
     --   if ←isTypeFormer e then return .done e
     --   if Lean.isClass (←getEnv) (←inferType e).getAppFnArgs.1 then return .done e
     --   if e.isRawNatLit then return .continue
     --   logInfo m!"Pre: {e}"
     --   return .continue)
-    (pre := fun e ↦ do
+    (post := fun e ↦ do
 
       if ←isTypeFormer e then return .done e
       if Lean.isClass (←getEnv) (←inferType e).getAppFnArgs.1 then return .done e
@@ -56,14 +160,16 @@ partial def unfoldSimplified (name : Name) (args : Array Expr) (e : Expr) : Elab
         let vec := Expr.app vecSansProof (←mkEqRefl t)
         return .done vec
       | _ =>
-      let (name, args) := e.getAppFnArgs
+
+      let (name,args) := e.getAppFnArgs
       if name == .anonymous then return .continue
+--      logInfo m!"name: {name} args {args.size}"
+      let isMatch := (toBeReduced.zip nArgs).any fun (toBeReducedName,nArgs) ↦
+          (toBeReducedName = name && nArgs = args.size)
 
-      -- logInfo m!"name: {name}"
+      if isMatch then
+        logInfo m!"{e}"
 
-      if toBeReduced.contains name then
-
-        -- logInfo m!"Args: {args}"
         let funcT := ((←getEnv).find? name).get!.type
 
         -- Analyse the signature of `f`
@@ -77,15 +183,9 @@ partial def unfoldSimplified (name : Name) (args : Array Expr) (e : Expr) : Elab
 --          logInfo m!"all fvars: {←res.toList.mapM (·.getUserName)}"
           return res
 
-        -- logInfo m!"in like Flynn: {name}"
         -- Analyse the call site of `f`
         let isAllValid ← args.allM fun e ↦ do
-          -- TODO(monaday): Here, go over all args, ensure they are ground _AND_
-          -- accumulate based on `vecLenIds` the key to insert into the cache.
-          -- logInfo m!"arg: {e}"
-          let_expr Vector _ n := ←inferType e |
-            -- logInfo m!"NOT VECTOR"
-            return true
+          let_expr Vector _ n := ←inferType e | return true
 
           let reducedN ← Meta.reduce n
           -- if n != reducedN then
@@ -95,27 +195,15 @@ partial def unfoldSimplified (name : Name) (args : Array Expr) (e : Expr) : Elab
 
         if isAllValid then
           -- assuming vector lengths are the first arguments
-          let key := s!"{name} {args.take vecLenIds.size}"
---          logInfo m!"Adding to map:\n{e} [hash={key.hash}]"
---          return .done (←simplify `simpAll e)
 
-          -- if σ.contains key.hash then logInfo m!"In cache:\n{e}"; return .done σ[e.hash]!
           let funcBody := ((←getEnv).find? name).get!.value!
-          logInfo m!"[{name}]funcbody: {funcBody}"
-          let appliedVecLens := funcBody.instantiateLambdasOrApps (args.take vecLenIds.size)
-          logInfo m!"[{name}]appliedVecLens: {appliedVecLens}"
-          let recurse ← unfoldSimplified name args appliedVecLens
-          logInfo m!"[{name}]recurse: {recurse}"
-          let simplified ← simplify `simpAll recurse
-          logInfo m!"[{name}]simplified: {simplified}"
-          logInfo m!"[{name}]cache {key} [hash={key.hash}]\n: {simplified}"
+--          logInfo m!"[{name}]funcbody: {funcBody}"
+          let appliedVecLens := funcBody.instantiateLambdasOrApps args
+--          logInfo m!"[{name}]appliedVecLens: {appliedVecLens}"
+          let simplified ← simplify `simpAll appliedVecLens
+--          logInfo m!"[{name}]simplified: {simplified}"
 
-          let appliedRest := simplified.instantiateLambdasOrApps (args.drop vecLenIds.size)
-          logInfo m!"[{name}]appliedRest to {args.drop vecLenIds.size}: {appliedRest}"
-          -- TODO if σ.insert key.hash then logInfo m!"In cache:\n{e}"; return .done σ[e.hash]!
-
-          return .done appliedRest
-      -- logInfo m!"Post: {e}"
+          return .visit simplified
       return .continue)
 
 -- open Lean in
