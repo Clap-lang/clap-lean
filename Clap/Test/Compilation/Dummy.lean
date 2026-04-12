@@ -113,6 +113,8 @@ def mytransform {m} [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m]
   let (e, _) ← mytransformWithCache input {} pre post usedLetOnly skipConstInApp
   return e
 
+--example : Vector ℕ 2 := Vector.mk #[0,1] (by apply List.size_toArray)
+
 open Lean Meta in
 partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Expr) : Elab.Term.TermElabM Expr := do
   -- logInfo m!"Simplifying[{name} {String.intercalate " " (←args.mapM (fun x ↦ (PrettyPrinter.ppExpr x) <&> Format.pretty)).toList}]:\n{e}"
@@ -137,7 +139,7 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
         let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, toExpr n, array]
 
         let Expr.forallE _ t _ _ ← inferType vecSansProof | throwError "Expected function type."
-        let vec := Expr.app vecSansProof (←mkEqRefl t) --TODO
+        let vec := Expr.app vecSansProof (← mkSorry t false) --(←mkEqRefl t) --TODO
         return .done vec
       | _ =>
 
@@ -187,6 +189,7 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
       -- logInfo m!"[{name}]funcbody: {funcBody}"
       let appliedVecLens := funcBody.instantiateLambdasOrApps args
       -- logInfo m!"[{name}]appliedVecLens: {appliedVecLens}"
+      logInfo m!"[{name} {args}]simplifying: {appliedVecLens}"
       let simplified ← simplify simpSet appliedVecLens
       logInfo m!"[{name} {args}]simplified: {simplified}"
       return .visit simplified
