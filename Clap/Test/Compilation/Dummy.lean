@@ -143,7 +143,7 @@ partial def unfoldSimplified (name : Name) (args : Array Expr) (e : Expr) : Elab
     --   if e.isRawNatLit then return .continue
     --   logInfo m!"Pre: {e}"
     --   return .continue)
-    (post := fun e ↦ do
+    (pre := fun e ↦ do
 
       if ←isTypeFormer e then return .done e
       if Lean.isClass (←getEnv) (←inferType e).getAppFnArgs.1 then return .done e
@@ -164,47 +164,53 @@ partial def unfoldSimplified (name : Name) (args : Array Expr) (e : Expr) : Elab
       let (name,args) := e.getAppFnArgs
       if name == .anonymous then return .continue
 --      logInfo m!"name: {name} args {args.size}"
+
+      -- TODO this works but needs manual insight
       let isMatch := (toBeReduced.zip nArgs).any fun (toBeReducedName,nArgs) ↦
           (toBeReducedName = name && nArgs = args.size)
+      if !isMatch then return .continue
 
-      if isMatch then
-        logInfo m!"{e}"
+      -- TODO not really working
+      -- let funcT := ((←getEnv).find? name).get!.type
+      -- -- Analyse the signature of `f`
+      -- let vecLenIds ← forallTelescopeReducing funcT fun args _ ↦ do
+      --   let mut res : FVarIdSet := {}
+      --   for arg in args do
+      --     let_expr Vector _ n := ←inferType arg | continue
+      --     let fvars := collectFVars {} n |>.fvarSet
+      --     res := res.union fvars
+      --   --   logInfo m!"Collected fvars[{arg}]: {←fvars.toList.mapM (·.getUserName)}"
+      --   -- logInfo m!"all fvars: {←res.toList.mapM (·.getUserName)}"
+      --   return res
+      -- -- Analyse the call site of `f`
+      -- let isRightNumArgs := args.size = vecLenIds.size
+      -- -- let isAllReduced ← args.allM fun e ↦ do
+      -- --   let_expr Vector _ n := ←inferType e | return true
+      -- --   let reducedN ← Meta.reduce n
+      -- --   -- if n != reducedN then
+      -- --   --   logInfo m!"Reduction did something.\n{n}→{reducedN}"
+      -- --   -- logInfo m!"reduced: {reducedN} -- isRawNatLit: {reducedN.isRawNatLit}"
+      -- --   return reducedN.isRawNatLit
+      -- if !(isRightNumArgs) then return .continue
 
-        let funcT := ((←getEnv).find? name).get!.type
+      -- TODO this matches too much stuff, r in mixS and v![1,2,3,4]
+      -- if args.size = 0 then return .continue
+      -- if !toBeReduced.contains name then return .continue
+      -- let mut res : FVarIdSet := {}
+      -- for arg in args do
+      --   let fvars := collectFVars {} arg |>.fvarSet
+      --   res := res.union fvars
+      -- if !res.isEmpty then return .continue
 
-        -- Analyse the signature of `f`
-        let vecLenIds ← forallTelescopeReducing funcT fun args _ ↦ do
-          let mut res : FVarIdSet := {}
-          for arg in args do
-            let_expr Vector _ n := ←inferType arg | continue
-            let fvars := collectFVars {} n |>.fvarSet
-            res := res.union fvars
---            logInfo m!"Collected fvars[{arg}]: {←fvars.toList.mapM (·.getUserName)}"
---          logInfo m!"all fvars: {←res.toList.mapM (·.getUserName)}"
-          return res
-
-        -- Analyse the call site of `f`
-        let isAllValid ← args.allM fun e ↦ do
-          let_expr Vector _ n := ←inferType e | return true
-
-          let reducedN ← Meta.reduce n
-          -- if n != reducedN then
-          --   logInfo m!"Reduction did something.\n{n}→{reducedN}"
-          -- logInfo m!"reduced: {reducedN} -- isRawNatLit: {reducedN.isRawNatLit}"
-          return reducedN.isRawNatLit
-
-        if isAllValid then
-          -- assuming vector lengths are the first arguments
-
-          let funcBody := ((←getEnv).find? name).get!.value!
---          logInfo m!"[{name}]funcbody: {funcBody}"
-          let appliedVecLens := funcBody.instantiateLambdasOrApps args
---          logInfo m!"[{name}]appliedVecLens: {appliedVecLens}"
-          let simplified ← simplify `simpAll appliedVecLens
---          logInfo m!"[{name}]simplified: {simplified}"
-
-          return .visit simplified
-      return .continue)
+      -- assuming vector lengths are the first arguments
+      let funcBody := ((←getEnv).find? name).get!.value!
+      -- logInfo m!"[{name}]funcbody: {funcBody}"
+      let appliedVecLens := funcBody.instantiateLambdasOrApps args
+      -- logInfo m!"[{name}]appliedVecLens: {appliedVecLens}"
+      let simplified ← simplify `simpAll appliedVecLens
+      logInfo m!"[{name} {args}]simplified: {simplified}"
+      return .visit simplified
+      )
 
 -- open Lean in
 -- run_meta do
