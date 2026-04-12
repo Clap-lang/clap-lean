@@ -134,8 +134,7 @@ partial def unfoldSimplified' (name : Name) (args : Array Expr) (e : Expr) : Ela
 open Lean Meta in
 partial def unfoldSimplified (name : Name) (args : Array Expr) (e : Expr) : Elab.Term.TermElabM Expr := do
   -- logInfo m!"Simplifying[{name} {String.intercalate " " (←args.mapM (fun x ↦ (PrettyPrinter.ppExpr x) <&> Format.pretty)).toList}]:\n{e}"
-  let toBeReduced := [`keyless, `poseidon, `mixS]
-  let nArgs := [0, 1, 1]
+  let toBeReduced := [(`keyless,0,`simpAll), (`poseidon,1,`simpAll), (`mixS,1,`simpAll)]
   mytransform e
     -- (pre := fun e ↦ do
     --   if ←isTypeFormer e then return .done e
@@ -166,9 +165,9 @@ partial def unfoldSimplified (name : Name) (args : Array Expr) (e : Expr) : Elab
 --      logInfo m!"name: {name} args {args.size}"
 
       -- TODO this works but needs manual insight
-      let isMatch := (toBeReduced.zip nArgs).any fun (toBeReducedName,nArgs) ↦
+      let some (_,_,simpSet) := toBeReduced.find? fun (toBeReducedName,nArgs,_) ↦
           (toBeReducedName = name && nArgs = args.size)
-      if !isMatch then return .continue
+        | return .continue
 
       -- TODO not really working
       -- let funcT := ((←getEnv).find? name).get!.type
@@ -207,7 +206,7 @@ partial def unfoldSimplified (name : Name) (args : Array Expr) (e : Expr) : Elab
       -- logInfo m!"[{name}]funcbody: {funcBody}"
       let appliedVecLens := funcBody.instantiateLambdasOrApps args
       -- logInfo m!"[{name}]appliedVecLens: {appliedVecLens}"
-      let simplified ← simplify `simpAll appliedVecLens
+      let simplified ← simplify simpSet appliedVecLens
       logInfo m!"[{name} {args}]simplified: {simplified}"
       return .visit simplified
       )
