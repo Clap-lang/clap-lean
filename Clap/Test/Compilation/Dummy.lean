@@ -29,7 +29,7 @@ def keyless (x : Vector (ZMod p) 2) (y : Vector (ZMod p) 4) : Option Unit := do
   eq0 [(1 : ZMod p),2,3].sum
 
 
-#check Lean.Meta.transform
+--#check Lean.Meta.transform
 open Lean Meta in
 @[inline]
 partial def mytransformWithCache {m} [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m]
@@ -151,6 +151,8 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
       let some (_,_,simpSet) := toBeReduced.find? fun (toBeReducedName,nArgs,_) ↦
           (toBeReducedName = name && nArgs = args.size)
         | return .continue
+
+      logInfo m!"found candidate{name}"
 
       -- TODO not really working
       -- let funcT := ((←getEnv).find? name).get!.type

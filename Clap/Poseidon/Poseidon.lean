@@ -263,27 +263,60 @@ attribute [simpPoseidon]
   P04 P05 P06 P07 P08 P09 P10 P11 P12 P13 P14 P15 P16 P17 S02 S03 S04 S05
   S06 S07 S08 S09 S10 S11 S12 S13 S14 S15 S16 S17
 
-  sigma ark mix mixLast poseidonEx poseidon liftArr liftMat poseidonBN254 p mixS
-  p mixS.dotProduct mixS.tail
+  poseidonBN254 liftArr liftMat poseidon poseidonEx sigma ark mixLast -- mix mixS.dotProduct mixS.tail
 
-  Function.comp
-  const instCoreZMod Core.F
-  Vector.length_toList
+  F.assert_eq Clap.Lang.Core.eq0 Clap.Lang.Core.share Clap.Lang.Core.accept Poseidon.Test.p instCoreZMod const Core.F
+
+  -- Function.comp Function.comp_apply
+  Vector.length_toList Vector.getElem_mk Vector.getElem?_mk
+
   bind pure bind_assoc
   Option.bind_some Option.some_bind Option.bind_assoc Option.getD_some Option.getD_none
-  id_eq getElem!_pos getElem!_neg getElem?_pos getElem?_neg
-  Nat.reduceAdd Nat.reduceMul Nat.reduceSub
+  id_eq List.map_id List.map_id_fun
+  getElem!_pos getElem!_neg getElem?_pos getElem?_neg
+  Nat.reduceAdd Nat.reduceMul Nat.reduceSub Nat.reduceDiv
+
+  List.reduceRange
+  List.getElem_cons_succ List.getElem_cons_zero List.getElem!_eq_getElem?_getD List.getElem?_cons_succ List.getElem_toArray
+  List.length_cons List.length_nil
+  List.map_cons List.map_nil
+  -- List.mapIdx_nil List.mapIdx_mapIdx List.mapIdx_cons
+  -- List.mapM_nil List.mapM_cons
+  -- List.foldl_cons List.foldl_nil
+  -- List.foldlM_nil List.foldlM_cons
+  -- List.drop_one List.drop_succ_cons List.drop_zero
+  -- List.cons_append List.nil_append
+  -- List.zipWith_cons_cons List.zipWith_nil_right
+  -- List.tail_cons List.tail_nil
+  -- List.sum_cons List.sum_nil
+  -- List.take_succ_cons List.take_zero
+  -- List.set_cons_succ List.set_cons_zero
+  -- Nat.ofNat_pos Nat.add_one_sub_one Nat.one_lt_ofNat
+  -- Nat.reduceDiv Nat.reduceMul Nat.reduceLT Nat.reduceAdd Nat.reduceSub
+
+  -- one_mul add_zero zero_lt_one add_lt_iff_neg_right
+  -- not_lt_zero not_false_eq_true mul_zero mul_one lt_self_iff_false
+  -- zero_tsub zero_mul zero_add
+
+
+attribute [local irreducible] Option.bind ZMod OfNat.ofNat
 
 set_option maxRecDepth 10000
+set_option maxHeartbeats 200000
+set_option debug.skipKernelTC true
 
 open Lean Meta Lean.Elab in
 open Clap Compiler in
 #eval show TermElabM _ from do
   let target := ``Poseidon.Test.testPoseidon
-  let toBeReduced := [(``testPoseidon,0,`simpPoseidon), (``mixS,2,`simpPoseidon)]
+  let toBeReduced := [-- (``mix,1,`simpPoseidon),
+  (``mixS,2,`simpPoseidon)]
   let e := ((←getEnv).find? target).get!.value!
-  let e ← unfoldSimplified toBeReduced e
   let e ← simplify `simpPoseidon e
+--  logInfo m!"First Simplify\n{e}"
+  let e ← unfoldSimplified toBeReduced e
+  logInfo m!"LAST SIMPLIFY\n{e}"
+--  let e ← simplify `simpPoseidon e
   logInfo m!"{e}"
 
 -- -- circomlib test vector: hash([1, 2]) with t=3
