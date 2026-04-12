@@ -29,14 +29,14 @@ def sigma (x : F p) : Option (F p) := do
     element of the state vector at a given round offset
 
     Mirrors circomlib's `Ark(t, C, r)` -/
-def ark (state C : List (F p)) (r : ℕ) : List (F p) :=
+def ark {t c : ℕ} (state : Vector (F p) t) (C : Vector (F p) c) (r : ℕ) : Vector (F p) t :=
   state.mapIdx (fun i s ↦ s + C[i + r]!)
 
 /-- **Mix (MDS matrix multiplication):** Multiplies the state vector by a
     Maximum Distance Separable matrix
 
     Mirrors circomlib's `Mix(t, M)` template: `out[i] = Σⱼ M[j][i] · in[j]` -/
-def mix (state : List (F p)) (M : List (List (F p))) : List (F p) :=
+def mix {t : ℕ} (state : Vector (F p) t) (M : Vector (List (F p)) t) : Vector (F p) t :=
   state.mapIdx (fun (i : ℕ) _ ↦
     (state.zipWith (fun (sj : F p) (row : List (F p)) ↦ row[i]! * sj) M).sum)
 
@@ -56,7 +56,7 @@ def mix (state : List (F p)) (M : List (List (F p))) : List (F p) :=
     needed output(s) without computing the full mix
 
     Mirrors circomlib's `MixLast(t, M, s)` template: `out = Σⱼ M[j][s] · in[j]` -/
-def mixLast (state : List (F p)) (M : List (List (F p))) (s : ℕ) : F p :=
+def mixLast {t : ℕ} (state : Vector (F p) t) (M : Vector (List (F p)) t) (s : ℕ) : F p :=
   (state.zipWith (fun (sj : F p) (row : List (F p)) ↦ row[s]! * sj) M).sum
 
 -- TODO: Imperative or functional style?
@@ -185,24 +185,26 @@ def poseidonEx (nOuts : ℕ) (inputs : List (F p)) (initState : F p)
   let nRoundsP : ℕ := N_ROUNDS_P[t - 2]!
   let half : ℕ := nRoundsF / 2
 
+  let state : Vector (F p) t := Vector.mk ([initState] ++ inputs).toArray (by sorry)
+  let C : Vector (F p) 81 := Vector.mk C.toArray (by sorry)
   -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
-  let state := ark ([initState] ++ inputs) C 0
+  let state := ark state C 0
 
+  let M : Vector (List (F p)) t := Vector.mk M.toArray (by sorry)
   -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
   let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
     let l ← state.mapM sigma
     mix (ark l C ((r + 1) * t)) M) state
 
+  let P : Vector (List (F p)) t := Vector.mk P.toArray (by sorry)
   -- Boundary round (r = half−1): sigma → ark → mix with P
   let state := mix (ark (← state.mapM sigma) C (half * t)) P
 
-  let S : Vector (F p) 285 := Vector.mk (List.toArray S) (by sorry)
-  let state : Vector (F p) t := Vector.mk (List.toArray state) (by sorry)
+  let S : Vector (F p) 285 := Vector.mk S.toArray (by sorry)
   -- Phase 2: partial rounds
   let state ← (List.range nRoundsP).foldlM (fun state r ↦ do
     let s0 := (← sigma state[0]!) + C[(half + 1) * t + r]!
     mixS r (state.set 0 s0) S) state
-  let state : List (F p) := state.toArray.toList
 
   -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
   let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
