@@ -2,8 +2,10 @@ import Clap.Primes
 import Clap.Spec
 import Clap.Lang
 import Clap.Poseidon.Constant
-import Clap.Compiler.Wheels
-import Clap.Compiler.Cimplol
+--import Clap.Compiler.Wheels
+import Clap.Compiler.Reduce
+import Clap.Test.Compilation.Dummy
+--import Clap.Compiler.Cimplol
 
 namespace Clap.Poseidon
 
@@ -68,66 +70,67 @@ def mixLast (state : List (F p)) (M : List (List (F p))) (s : ℕ) : F p :=
     partial rounds
 
     Mirrors circomlib's `MixS(t, S, r)` template -/
-def mixS_raw_5 [Core p] (r : ℕ) (state_5 : List (F p)) (s_5 : List (F p)) : List (F p) :=
-  let t : ℕ := state_5.length
+def mixS {t s : ℕ} (r : ℕ) (state : Vector (F p) t) (S : Vector (F p) s) : Vector (F p) t :=
+--  let t : ℕ := state.length
   let base : ℕ := (2 * t - 1) * r
-  [dotProduct base] ++ tail base t
+  (sorry : (1 + (t - 1) = t)) ▸ (#v[dotProduct base] ++ tail base)
 where
   /-- `out[0] = Σᵢ S[base + i] · in[i]` — full dot product for element 0 -/
   @[simpPoseidon]
   dotProduct (base : ℕ) : F p :=
-    (state_5.zipWith (· * ·) ((s_5.drop base).take state_5.length)).sum
+    let s' : Vector _ t := (sorry : min (base + t) s - base = t) ▸ S.extract base (base+t)
+    (state.zipWith (· * ·) s').sum
   /-- `out[i] = in[i] + in[0] · S[base + t + i − 1]` for `i ∈ [1, t)` -/
   @[simpPoseidon]
-  tail (base t : ℕ) : List (F p) :=
-    (state_5.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state_5[0]! * s_5[base + t + i]!)
+  tail (base : ℕ) : Vector (F p) (t-1) :=
+    (state.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state[0]! * S[base + t + i]!)
 
 /-
 mixS (m n : ℕ) (v : Vector α m) : Vector α n := _
 
 poseidon {m n} ... := do
-  let res := mixS m n 
+  let res := mixS m n
   _
 -/
 
 set_option trace.Clap.Compiler true
 
-open Clap.Poseidon.Constant.C Clap.Poseidon.Constant Clap.Poseidon.Constant.M Clap.Poseidon.Constant.P Clap.Poseidon.Constant.S Clap.Poseidon
-attribute [simpPoseidon] 
-  bind pure bind_assoc
-    Option.bind_some Option.bind_assoc Option.getD_some Option.getD_none
-    id_eq getElem!_pos getElem!_neg getElem?_pos getElem?_neg
+-- open Clap.Poseidon.Constant.C Clap.Poseidon.Constant Clap.Poseidon.Constant.M Clap.Poseidon.Constant.P Clap.Poseidon.Constant.S Clap.Poseidon
+-- attribute [simpPoseidon]
+--   bind pure bind_assoc
+--     Option.bind_some Option.bind_assoc Option.getD_some Option.getD_none
+--     id_eq getElem!_pos getElem!_neg getElem?_pos getElem?_neg
 
-    List.getElem_cons_succ List.getElem_cons_zero List.getElem?_cons_succ
-    List.length_cons List.length_nil
-    List.map_cons List.map_nil List.map_id_fun
-    List.mapIdx_nil List.mapIdx_mapIdx List.mapIdx_cons
-    List.mapM_nil List.mapM_cons
-    List.foldl_cons List.foldl_nil
-    List.foldlM_nil List.foldlM_cons
-    List.drop_one List.drop_succ_cons List.drop_zero
-    List.cons_append List.nil_append
-    List.reduceRange
-    List.zipWith_cons_cons List.zipWith_nil_right
-    List.tail_cons List.tail_nil
-    List.sum_cons List.sum_nil
-    List.take_succ_cons List.take_zero
-    List.set_cons_succ List.set_cons_zero
+--     List.getElem_cons_succ List.getElem_cons_zero List.getElem?_cons_succ
+--     List.length_cons List.length_nil
+--     List.map_cons List.map_nil List.map_id_fun
+--     List.mapIdx_nil List.mapIdx_mapIdx List.mapIdx_cons
+--     List.mapM_nil List.mapM_cons
+--     List.foldl_cons List.foldl_nil
+--     List.foldlM_nil List.foldlM_cons
+--     List.drop_one List.drop_succ_cons List.drop_zero
+--     List.cons_append List.nil_append
+--     List.reduceRange
+--     List.zipWith_cons_cons List.zipWith_nil_right
+--     List.tail_cons List.tail_nil
+--     List.sum_cons List.sum_nil
+--     List.take_succ_cons List.take_zero
+--     List.set_cons_succ List.set_cons_zero
 
-    Nat.ofNat_pos Nat.add_one_sub_one Nat.one_lt_ofNat
-    Nat.reduceDiv Nat.reduceMul Nat.reduceLT Nat.reduceAdd Nat.reduceSub
+--     Nat.ofNat_pos Nat.add_one_sub_one Nat.one_lt_ofNat
+--     Nat.reduceDiv Nat.reduceMul Nat.reduceLT Nat.reduceAdd Nat.reduceSub
 
-    one_mul add_zero zero_lt_one add_lt_iff_neg_right
-    not_lt_zero not_false_eq_true mul_zero mul_one lt_self_iff_false
-    zero_tsub zero_mul zero_add
+--     one_mul add_zero zero_lt_one add_lt_iff_neg_right
+--     not_lt_zero not_false_eq_true mul_zero mul_one lt_self_iff_false
+--     zero_tsub zero_mul zero_add
 
-    List.sum
+--     List.sum
 
-    Function.comp_apply
+--     Function.comp_apply
 
-set_option Clap.Compiler.cimplolIdentity false in
-def mixS :=
-  cimplol(mixS_raw_5, Primes.bn254, simpPoseidon)
+-- set_option Clap.Compiler.cimplolIdentity false in
+-- def mixS :=
+--   cimplol(mixS_raw_5, Primes.bn254, simpPoseidon)
 
 -- #print mixS
 
@@ -193,10 +196,13 @@ def poseidonEx (nOuts : ℕ) (inputs : List (F p)) (initState : F p)
   -- Boundary round (r = half−1): sigma → ark → mix with P
   let state := mix (ark (← state.mapM sigma) C (half * t)) P
 
+  let S : Vector (F p) 285 := Vector.mk (List.toArray S) (by sorry)
+  let state : Vector (F p) t := Vector.mk (List.toArray state) (by sorry)
   -- Phase 2: partial rounds
   let state ← (List.range nRoundsP).foldlM (fun state r ↦ do
     let s0 := (← sigma state[0]!) + C[(half + 1) * t + r]!
     mixS r (state.set 0 s0) S) state
+  let state : List (F p) := state.toArray.toList
 
   -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
   let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
@@ -243,8 +249,20 @@ open Clap Lang ZMod
 open Clap Poseidon
 
 /-- Run poseidon on `ZMod bn254` inputs, looking up constants by `t`. -/
-private def testPoseidon (inputs : List (ZMod p)) (expected : F p) : Option Unit := do
-  F.assert_eq (← poseidonBN254 (inputs.map const)) expected
+def testPoseidon (inputs : Vector (ZMod p) 2) (expected : F p) : Option Unit := do
+  F.assert_eq (← poseidonBN254 inputs.toList) expected
+
+--#eval! (poseidonBN254 [1,2]).get!
+
+open Lean Meta Lean.Elab in
+open Clap Compiler in
+#eval show TermElabM _ from do
+  let target := `Poseidon.Test.testPoseidon
+  let toBeReduced := [(`testPoseidon,0,`simpAll), (`mixS,2,`simpAll)]
+  let e := ((←getEnv).find? target).get!.value!
+  let e ← unfoldSimplified toBeReduced target #[Expr.const `x [], .const `y []] e
+  let e ← simplify `simpAll e
+  logInfo m!"{e}"
 
 -- -- circomlib test vector: hash([1, 2]) with t=3
 -- -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L50

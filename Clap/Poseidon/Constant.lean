@@ -17,7 +17,7 @@ def M : List (List (List (ZMod bn254))) :=
 def P : List (List (List (ZMod bn254))) :=
   [P02, P03, P04, P05, P06, P07, P08, P09, P10, P11, P12, P13, P14, P15, P16, P17]
 
-def S : List (List (ZMod bn254)) :=
-  [S02, S03, S04, S05, S06, S07, S08, S09, S10, S11, S12, S13, S14, S15, S16, S17]
+def S : Vector (List (ZMod bn254)) 16 :=
+  #v[S02, S03, S04, S05, S06, S07, S08, S09, S10, S11, S12, S13, S14, S15, S16, S17]
 
 end Clap.Poseidon.Constant
