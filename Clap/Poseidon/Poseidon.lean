@@ -256,6 +256,9 @@ def testPoseidon (inputs : Vector (ZMod p) 2) (expected : F p) : Option Unit := 
 
 --#eval! (poseidonBN254 [1,2]).get!
 
+-- example : #v[0,1][0] = 0 := by
+--   simp?
+
 open Clap.Poseidon.Constant.C Clap.Poseidon.Constant Clap.Poseidon.Constant.M Clap.Poseidon.Constant.P Clap.Poseidon.Constant.S Clap.Poseidon Clap.Poseidon
 attribute [simpPoseidon]
   C02 C03 C04 C05 C06 C07 C08 C09 C10 C11 C12 C13 C14 C15 C16 C17 C M P S

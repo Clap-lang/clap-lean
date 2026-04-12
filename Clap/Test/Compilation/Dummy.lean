@@ -131,17 +131,17 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
       if Lean.isClass (←getEnv) (←inferType e).getAppFnArgs.1 then return .done e
       if e.isRawNatLit then return .continue
 
-      match_expr ←inferType e with
-      | Vector t n => -- check that t is ZMod p?
-        let some n ← Lean.Meta.getNatValue? n | throwError ""
-        let list ← (List.range n).mapM fun i ↦ mkAppM ``getElem! #[e, toExpr i]
-        let array ← mkAppM ``Array.mk #[ ←mkListLit t list]
-        let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, toExpr n, array]
+      -- match_expr ←inferType e with
+      -- | Vector t n => -- check that t is ZMod p?
+      --   let some n ← Lean.Meta.getNatValue? n | throwError ""
+      --   let list ← (List.range n).mapM fun i ↦ mkAppM ``getElem! #[e, toExpr i]
+      --   let array ← mkAppM ``Array.mk #[ ←mkListLit t list]
+      --   let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, toExpr n, array]
 
-        let Expr.forallE _ t _ _ ← inferType vecSansProof | throwError "Expected function type."
-        let vec := Expr.app vecSansProof (← mkSorry t false) --(←mkEqRefl t) --TODO
-        return .done vec
-      | _ =>
+      --   let Expr.forallE _ t _ _ ← inferType vecSansProof | throwError "Expected function type."
+      --   let vec := Expr.app vecSansProof (← mkSorry t false) --(←mkEqRefl t) --TODO
+      --   return .done vec
+      -- | _ =>
 
       let (name,args) := e.getAppFnArgs
       if name == .anonymous then return .continue
