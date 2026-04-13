@@ -121,14 +121,10 @@ def mytransform {m} [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m]
 
 open Lean Meta Elab
 
--- let .some (names, t) ← curriedUserNamesAndElemTypeOfFVar e | return .continue
---         let array ← mkAppM ``Array.mk #[
---           ←mkListLit t (←names.mapM (return lctx.findFromUserName? · |>.get!.toExpr)).toList
---         ]
---         let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, toExpr names.size, array]
---         let Expr.forallE _ t _ _ ← inferType vecSansProof | throwError "Expected function type."
---         let vec := Expr.app vecSansProof (←mkEqRefl t)
---         return .done vec
+-- array.size = 2
+-- @Eq.refl _ _
+
+example : Vector.mk #[1, 2] (show #[1, 2].size = 2 from Eq.refl #[1, 2].size) = sorry := sorry
 
 def sequenceAsVec (name : Name) (t : Expr) (len : ℕ) : MetaM Expr := do
   let array ← mkAppM ``Array.mk #[
@@ -138,9 +134,7 @@ def sequenceAsVec (name : Name) (t : Expr) (len : ℕ) : MetaM Expr := do
     ])
   ]
   let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, toExpr len, array]
-  let Expr.forallE _ t _ _ ← inferType vecSansProof | throwError "Expected function type."
-  let vec := Expr.app vecSansProof t
-  return vec
+  return Expr.app vecSansProof (←mkAppM ``Eq.refl #[←mkAppM ``Array.size #[array]])
 
 -- def vec : Vector Nat 2 → Vector Nat 2 := fun v ↦ v
 
@@ -151,10 +145,9 @@ def sequenceAsVec (name : Name) (t : Expr) (len : ℕ) : MetaM Expr := do
 --     let #[arg] := args | throwError m!"Impossible."
 --     logWarning m!"{←sequenceAsVec (←arg.fvarId!.getUserName) q(Nat) 2}"
 
-
 def collectionTypeAndSize (e : Expr) : TermElabM (Expr × Expr) := do
   let_expr Vector t n := ←inferType e | throwError m!"Not a collection:\n{e}"
-  return (t, n)
+  return (t, ←simplify `simpAll n)
 
 def needsExploding (e : Expr) : TermElabM Bool := do
   let t ← inferType e
@@ -165,6 +158,7 @@ def explodeSequences (e : Expr) : TermElabM Expr := do
     if e.isFVar && (←needsExploding e)
     then logInfo m!"Exploding: {e}"
          let (t, sz) ← collectionTypeAndSize e
+         logInfo m!"t: {t} sz: {sz}"
          return .done <| ←sequenceAsVec (←e.fvarId!.getUserName)
                                         t
                                         sz.nat?.get!
@@ -186,7 +180,7 @@ open Lean Meta Lean.Elab in
   logInfo m!"{e}"
 
 open Lean Meta in
-partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Expr) (topArgs : List Expr) : Elab.Term.TermElabM Expr := do
+partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Expr) : Elab.Term.TermElabM Expr := do
   -- logInfo m!"Simplifying[{name} {String.intercalate " " (←args.mapM (fun x ↦ (PrettyPrinter.ppExpr x) <&> Format.pretty)).toList}]:\n{e}"
   mytransform e
     -- (pre := fun e ↦ do
@@ -221,7 +215,7 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
           (toBeReducedName = name && nArgs = args.size)
         | return .continue
 
-      -- logInfo m!"found candidate{name}"
+      logInfo m!"found candidate{name} args: {args}"
 
       -- TODO not really working
       -- let funcT := ((←getEnv).find? name).get!.type
@@ -277,7 +271,7 @@ open Lean Meta Lean.Elab in
 #eval show TermElabM _ from do
   let target := ``keyless
   let toBeReduced := [(target,0,`simpAll), (``Dummy.poseidon,1,`simpAll), (``Dummy.mixS,1,`simpAll)]
-  let e ← unfoldSimplified toBeReduced (.const target []) [.const `x [], .const `y []]
+  let e ← unfoldSimplified toBeReduced (.const target [])
   let e ← simplify `simpAll e
   logInfo m!"{e}"
 

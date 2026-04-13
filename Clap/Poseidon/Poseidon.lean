@@ -70,15 +70,15 @@ def mixLast {t : ℕ} (state : Vector (F p) t) (M : Vector (List (F p)) t) (s : 
     partial rounds
 
     Mirrors circomlib's `MixS(t, S, r)` template -/
-def mixS {t s : ℕ} (r : ℕ) (state : Vector (F p) t) (S : Vector (F p) s) : Vector (F p) t :=
+def mixS {t s : ℕ} [Core p] (r : ℕ) (state : Vector (F p) t) (S : Vector (F p) s) : Vector (F p) t :=
 --  let t : ℕ := state.length
   let base : ℕ := (2 * t - 1) * r
-  (sorry : (1 + (t - 1) = t)) ▸ (#v[dotProduct base] ++ tail base)
+  ⟨#[dotProduct base] ++ (tail base).toArray, sorry⟩
 where
   /-- `out[0] = Σᵢ S[base + i] · in[i]` — full dot product for element 0 -/
   @[simpPoseidon]
   dotProduct (base : ℕ) : F p :=
-    let s' : Vector _ t := (sorry : min (base + t) s - base = t) ▸ S.extract base (base+t)
+    let s' : Vector _ t := ⟨S.extract base (base+t) |>.toArray, sorry⟩
     (state.zipWith (· * ·) s').sum
   /-- `out[i] = in[i] + in[0] · S[base + t + i − 1]` for `i ∈ [1, t)` -/
   @[simpPoseidon]
@@ -302,13 +302,12 @@ attribute [simpPoseidon]
   not_lt_zero not_false_eq_true mul_zero mul_one lt_self_iff_false
   zero_tsub zero_mul zero_add
 
-
 attribute [local irreducible] Option.bind ZMod OfNat.ofNat
 
 set_option maxRecDepth 10000
 set_option maxHeartbeats 200000
 set_option debug.skipKernelTC true
-
+#check Vector.append_assoc
 open Lean Meta Lean.Elab in
 open Clap Compiler in
 #eval show TermElabM _ from do
@@ -318,7 +317,7 @@ open Clap Compiler in
   -- (``mix,1,`simpPoseidon),
   (``mixS,2,`simpPoseidon)]
 --  logInfo m!"First Simplify\n{e}"
-  let e ← unfoldSimplified toBeReduced (.const target [])
+  let e ← Dummy.unfoldSimplified toBeReduced (.const target [])
   logInfo m!"LAST SIMPLIFY\n{e}"
 --  let e ← simplify `simpPoseidon e
 --  logInfo m!"{e}"
