@@ -313,15 +313,15 @@ open Lean Meta Lean.Elab in
 open Clap Compiler in
 #eval show TermElabM _ from do
   let target := ``Poseidon.Test.testPoseidon
-  let toBeReduced := [-- (``mix,1,`simpPoseidon),
+  let toBeReduced := [
+  (target,0,`simpPoseidon),
+  -- (``mix,1,`simpPoseidon),
   (``mixS,2,`simpPoseidon)]
-  let e := ((←getEnv).find? target).get!.value!
-  let e ← simplify `simpPoseidon e
 --  logInfo m!"First Simplify\n{e}"
-  let e ← unfoldSimplified toBeReduced e
+  let e ← unfoldSimplified toBeReduced (.const target [])
   logInfo m!"LAST SIMPLIFY\n{e}"
 --  let e ← simplify `simpPoseidon e
-  logInfo m!"{e}"
+--  logInfo m!"{e}"
 
 -- -- circomlib test vector: hash([1, 2]) with t=3
 -- -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L50

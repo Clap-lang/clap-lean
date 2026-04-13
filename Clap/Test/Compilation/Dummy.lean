@@ -128,7 +128,7 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
     (pre := fun e ↦ do
 
       if ←isTypeFormer e then return .done e
-      if Lean.isClass (←getEnv) (←inferType e).getAppFnArgs.1 then return .done e
+      if Lean.isClass (←getEnv) (←inferType e).getAppFnArgs.1 then return .done e -- TODO can be done with skipInstances?
       if e.isRawNatLit then return .continue
 
       -- match_expr ←inferType e with
@@ -204,8 +204,7 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
 open Lean Meta Lean.Elab in
 #eval show TermElabM _ from do
   let target := `keyless
-  let toBeReduced := [(`keyless,0,`simpAll), (`poseidon,1,`simpAll), (`mixS,1,`simpAll)]
-  let e := ((←getEnv).find? target).get!.value!
-  let e ← unfoldSimplified toBeReduced e
+  let toBeReduced := [(target,0,`simpAll), (`poseidon,1,`simpAll), (`mixS,1,`simpAll)]
+  let e ← unfoldSimplified toBeReduced (.const target [])
   let e ← simplify `simpAll e
   logInfo m!"{e}"
