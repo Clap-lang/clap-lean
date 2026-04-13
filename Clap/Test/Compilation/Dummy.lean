@@ -136,6 +136,16 @@ def sequenceAsVec (name : Name) (t : Expr) (len : ℕ) : MetaM Expr := do
   let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, toExpr len, array]
   return Expr.app vecSansProof (←mkAppM ``Eq.refl #[←mkAppM ``Array.size #[array]])
 
+def sequenceAsVecExpr (name : Expr) (t : Expr) (len : ℕ) : MetaM Expr := do
+  let array ← mkAppM ``Array.mk #[
+    ←mkListLit t (←List.range len |>.mapM fun i ↦ do mkAppM ``GetElem?.getElem! #[
+      name,
+      Expr.lit (.natVal i)
+    ])
+  ]
+  let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, toExpr len, array]
+  return Expr.app vecSansProof (←mkAppM ``Eq.refl #[←mkAppM ``Array.size #[array]])
+
 -- def vec : Vector Nat 2 → Vector Nat 2 := fun v ↦ v
 
 -- run_meta
@@ -170,9 +180,7 @@ def explodeSequencesBvar (e : Expr) : TermElabM Expr := do
     then logInfo m!"Exploding: {e}"
          let (t, sz) ← collectionTypeAndSize e
          logInfo m!"t: {t} sz: {sz}"
-         return .done <| ←sequenceAsVec (←e.fvarId!.getUserName)
-                                        t
-                                        sz.nat?.get!
+         return .done <| ←sequenceAsVecExpr e t sz.nat?.get!
     else return .continue
 
 open Lean Meta Clap Compiler in
