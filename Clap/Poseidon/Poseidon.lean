@@ -322,10 +322,17 @@ attribute [local irreducible] Option.bind ZMod OfNat.ofNat
 example : Array.mapIdx (fun _ _ ↦ 42) #[1, 2] = sorry := by
   simp?
 
+lemma mySimpLemma {x : Vector Nat 2} : x = Vector.mk (Array.mk [x[0], x[1]]) sorry := sorry
+
+example (v : Vector Nat 2) : Vector.mk (n := 2) (Array.mk [v[0], v[1]]) sorry = v := by
+  symm
+  simp
+  
+
 set_option maxRecDepth 10000
 set_option maxHeartbeats 200000
 set_option debug.skipKernelTC true
-#check Vector.append_assoc
+
 open Lean Meta Lean.Elab in
 open Clap Compiler in
 #eval show TermElabM _ from do
@@ -336,6 +343,7 @@ open Clap Compiler in
   (``mixS,2,`simpPoseidon)]
 --  logInfo m!"First Simplify\n{e}"
   let e ← Dummy.unfoldSimplified toBeReduced (.const target [])
+
   logInfo m!"LAST SIMPLIFY\n{e}"
 --  let e ← simplify `simpPoseidon e
 --  logInfo m!"{e}"

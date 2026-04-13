@@ -18,8 +18,8 @@ namespace Dummy
 abbrev p := Primes.bn254
 
 def mixS (n : ℕ) (r:ℕ) (x : Vector (ZMod p) n) : Option (Vector (ZMod p) n) := do
-  eq0 (x[0]! + (x.sum : ZMod p))
-  x
+  eq0 (x[0]! + (x.sum : ZMod p) + (r : ZMod p))
+  x.mapM (return ·+1)
 
 def poseidon (n:ℕ) (x : Vector (ZMod p) n) : Option (ZMod p) := do
   let state ← (List.range 4).foldlM (fun state r ↦ mixS (n := n) r state) (init:=x)
@@ -209,31 +209,9 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
     --   logInfo m!"Pre: {e}"
     --   return .continue)
     (pre := fun e ↦ do
-
       if ←isTypeFormer e then return .done e
       if Lean.isClass (←getEnv) (←inferType e).getAppFnArgs.1 then return .done e -- TODO can be done with skipInstances?
       if e.isRawNatLit then return .continue
-
-      -- match_expr ←inferType e with
-      -- | Vector t n => -- check that t is ZMod p?
-      --   let some n ← Lean.Meta.getNatValue? n | throwError ""
-      --   let list ← (List.range n).mapM fun i ↦ mkAppM ``getElem! #[e, toExpr i]
-      --   let array ← mkAppM ``Array.mk #[ ←mkListLit t list]
-      --   let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, toExpr n, array]
-
-      --   let Expr.forallE _ t _ _ ← inferType vecSansProof | throwError "Expected function type."
-      --   let vec := Expr.app vecSansProof (← mkSorry t false) --(←mkEqRefl t) --TODO
-      --   return .done vec
-      -- | _ =>
-
-
-
-
-      -- if e.isLambda then
-      --   lambdaTelescope e fun fvarArgs body ↦ do
-      --     let body ← explodeSequences body
-      --     return .visit body
-
       let (name,args) := e.getAppFnArgs
       if name == .anonymous then return .continue
       -- logInfo m!"name: {name} args {args.size}"
@@ -241,53 +219,23 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
       let some (_,_,simpSet) := toBeReduced.find? fun (toBeReducedName,nArgs,_) ↦
           (toBeReducedName = name && nArgs = args.size)
         | return .continue
-
-      logInfo m!"found candidate{name} args: {args}"
-
-      -- TODO not really working
-      -- let funcT := ((←getEnv).find? name).get!.type
-      -- -- Analyse the signature of `f`
-      -- let vecLenIds ← forallTelescopeReducing funcT fun args _ ↦ do
-      --   let mut res : FVarIdSet := {}
-      --   for arg in args do
-      --     let_expr Vector _ n := ←inferType arg | continue
-      --     let fvars := collectFVars {} n |>.fvarSet
-      --     res := res.union fvars
-      --   --   logInfo m!"Collected fvars[{arg}]: {←fvars.toList.mapM (·.getUserName)}"
-      --   -- logInfo m!"all fvars: {←res.toList.mapM (·.getUserName)}"
-      --   return res
-      -- -- Analyse the call site of `f`
-      -- let isRightNumArgs := args.size = vecLenIds.size
-      -- -- let isAllReduced ← args.allM fun e ↦ do
-      -- --   let_expr Vector _ n := ←inferType e | return true
-      -- --   let reducedN ← Meta.reduce n
-      -- --   -- if n != reducedN then
-      -- --   --   logInfo m!"Reduction did something.\n{n}→{reducedN}"
-      -- --   -- logInfo m!"reduced: {reducedN} -- isRawNatLit: {reducedN.isRawNatLit}"
-      -- --   return reducedN.isRawNatLit
-      -- if !(isRightNumArgs) then return .continue
-
-      -- TODO this matches too much stuff, r in mixS and v![1,2,3,4]
-      -- if args.size = 0 then return .continue
-      -- if !toBeReduced.contains name then return .continue
-      -- let mut res : FVarIdSet := {}
-      -- for arg in args do
-      --   let fvars := collectFVars {} arg |>.fvarSet
-      --   res := res.union fvars
-      -- if !res.isEmpty then return .continue
-
+      -- logInfo m!"found candidate{name} args: {args}"
       -- assuming vector lengths are the first arguments
       let funcBody := ((←getEnv).find? name).get!.value!
       -- logInfo m!"[{name}]funcbody: {funcBody}"
       let appliedVecLens := funcBody.instantiateLambdasOrApps args
-      let appliedVecLens ← lambdaWithExpandedVecs appliedVecLens -- TODO: Maybe do this in intermediate lambdas as well. (MUY IMPORTANTE)
+      let appliedVecLens ← explodeSequences appliedVecLens
+      -- let appliedVecLens ← lambdaWithExpandedVecs appliedVecLens -- TODO: Maybe do this in intermediate lambdas as well. (MUY IMPORTANTE)
       -- logInfo m!"[{name}]appliedVecLens: {appliedVecLens}"
       logInfo m!"[{name} {args}]simplifying: {appliedVecLens}"
       let simplified ← simplify simpSet appliedVecLens
+      let simplified ← explodeSequences simplified
+      let simplified ← simplify simpSet simplified
       logInfo m!"[{name} {args}]simplified: {simplified}"
       return .visit simplified
       )
-
+#check Meta.transform
+#check Core.transform
 -- open Lean in
 -- run_meta do
 --   unjustTraverse `keyless #[.const `x [], .const `y []] ((←getEnv).find? `keyless).get!.value!
@@ -297,6 +245,7 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
 open Lean Meta Lean.Elab in
 #eval show TermElabM _ from do
   let target := ``keyless
+  -- logWarning m!"{repr ((←getEnv).find? target).get!.value!}"
   let toBeReduced := [(target,0,`simpAll), (``Dummy.poseidon,1,`simpAll), (``Dummy.mixS,1,`simpAll)]
   let e ← unfoldSimplified toBeReduced (.const target [])
   let e ← simplify `simpAll e
