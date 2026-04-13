@@ -116,7 +116,21 @@ def mytransform {m} [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m]
 --example : Vector ℕ 2 := Vector.mk #[0,1] (by apply List.size_toArray)
 
 open Lean Meta in
-partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Expr) : Elab.Term.TermElabM Expr := do
+partial def expandVec (e : Expr) (topArgs : List Expr) : Elab.Term.TermElabM Expr := do
+  Meta.transform e
+    (pre := fun e ↦ do
+     return .continue
+   )
+
+open Lean Meta Lean.Elab in
+#eval show TermElabM _ from do
+  let name := ``keyless
+  let e := ((←getEnv).find? name).get!.value!
+  let e ← expandVec e [.const `x [], .const `y []]
+  logInfo m!"{e}"
+
+open Lean Meta in
+partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Expr) (topArgs : List Expr) : Elab.Term.TermElabM Expr := do
   -- logInfo m!"Simplifying[{name} {String.intercalate " " (←args.mapM (fun x ↦ (PrettyPrinter.ppExpr x) <&> Format.pretty)).toList}]:\n{e}"
   mytransform e
     -- (pre := fun e ↦ do
@@ -152,7 +166,7 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
           (toBeReducedName = name && nArgs = args.size)
         | return .continue
 
-      logInfo m!"found candidate{name}"
+--      logInfo m!"found candidate{name}"
 
       -- TODO not really working
       -- let funcT := ((←getEnv).find? name).get!.type
@@ -203,8 +217,8 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
 
 open Lean Meta Lean.Elab in
 #eval show TermElabM _ from do
-  let target := `keyless
+  let target := ``keyless
   let toBeReduced := [(target,0,`simpAll), (`poseidon,1,`simpAll), (`mixS,1,`simpAll)]
-  let e ← unfoldSimplified toBeReduced (.const target [])
+  let e ← unfoldSimplified toBeReduced (.const target []) [.const `x [], .const `y []]
   let e ← simplify `simpAll e
   logInfo m!"{e}"
