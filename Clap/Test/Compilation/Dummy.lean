@@ -164,6 +164,17 @@ def explodeSequences (e : Expr) : TermElabM Expr := do
                                         sz.nat?.get!
     else return .continue
 
+def explodeSequencesBvar (e : Expr) : TermElabM Expr := do
+  Meta.transform (skipConstInApp := true) e fun e ↦ do
+    if e.isBVar && (←needsExploding e)
+    then logInfo m!"Exploding: {e}"
+         let (t, sz) ← collectionTypeAndSize e
+         logInfo m!"t: {t} sz: {sz}"
+         return .done <| ←sequenceAsVec (←e.fvarId!.getUserName)
+                                        t
+                                        sz.nat?.get!
+    else return .continue
+
 open Lean Meta Clap Compiler in
 partial def lambdaWithExpandedVecs (e : Expr) : TermElabM Expr :=
   lambdaTelescope e fun args body ↦ do
@@ -206,6 +217,14 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
       --   let vec := Expr.app vecSansProof (← mkSorry t false) --(←mkEqRefl t) --TODO
       --   return .done vec
       -- | _ =>
+
+
+
+
+      -- if e.isLambda then
+      --   lambdaTelescope e fun fvarArgs body ↦ do
+      --     let body ← explodeSequences body
+      --     return .visit body
 
       let (name,args) := e.getAppFnArgs
       if name == .anonymous then return .continue

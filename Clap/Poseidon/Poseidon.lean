@@ -332,7 +332,7 @@ open Clap Compiler in
   let target := ``Poseidon.Test.testPoseidon
   let toBeReduced := [
   (target,0,`simpPoseidon),
-  -- (``mix,1,`simpPoseidon),
+  (``mix,1,`simpPoseidon),
   (``mixS,2,`simpPoseidon)]
 --  logInfo m!"First Simplify\n{e}"
   let e ← Dummy.unfoldSimplified toBeReduced (.const target [])
