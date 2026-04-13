@@ -259,6 +259,17 @@ def testPoseidon (inputs : Vector (ZMod p) 2) (expected : F p) : Option Unit := 
 -- example : #v[0,1][0] = 0 := by
 --   simp?
 
+#check Array.map_const
+
+example : (Vector.mk (n := 2) { toList := [1, 2] } sorry).toList.toArray = sorry := by
+  simp?
+  
+
+theorem _root_.Array.mapIdx_cons {α} {f} {l : Array α} {a : α} :
+    Array.mapIdx f ⟨a :: l.toList⟩ =
+    ⟨f 0 a :: (Array.mapIdx (fun i => f (i + 1)) l).toList⟩ := by
+  simp [mapIdx_eq_zipIdx_map, List.zipIdx_succ]
+
 open Clap.Poseidon.Constant.C Clap.Poseidon.Constant Clap.Poseidon.Constant.M Clap.Poseidon.Constant.P Clap.Poseidon.Constant.S Clap.Poseidon Clap.Poseidon
 attribute [simpPoseidon]
   C02 C03 C04 C05 C06 C07 C08 C09 C10 C11 C12 C13 C14 C15 C16 C17 C M P S
@@ -272,6 +283,10 @@ attribute [simpPoseidon]
 
   Function.comp Function.comp_apply
   Vector.length_toList Vector.getElem_mk Vector.getElem?_mk
+  Vector.toList_mk
+
+  Vector.mapIdx Array.mapIdx_mapIdx List.mapIdx_toArray
+
 
   bind pure bind_assoc
   Option.bind_some Option.some_bind Option.bind_assoc Option.getD_some Option.getD_none
@@ -303,6 +318,9 @@ attribute [simpPoseidon]
   zero_tsub zero_mul zero_add
 
 attribute [local irreducible] Option.bind ZMod OfNat.ofNat
+
+example : Array.mapIdx (fun _ _ ↦ 42) #[1, 2] = sorry := by
+  simp?
 
 set_option maxRecDepth 10000
 set_option maxHeartbeats 200000

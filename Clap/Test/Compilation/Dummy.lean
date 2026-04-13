@@ -253,7 +253,7 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
       let funcBody := ((←getEnv).find? name).get!.value!
       -- logInfo m!"[{name}]funcbody: {funcBody}"
       let appliedVecLens := funcBody.instantiateLambdasOrApps args
-      let appliedVecLens ← lambdaWithExpandedVecs appliedVecLens
+      let appliedVecLens ← lambdaWithExpandedVecs appliedVecLens -- TODO: Maybe do this in intermediate lambdas as well. (MUY IMPORTANTE)
       -- logInfo m!"[{name}]appliedVecLens: {appliedVecLens}"
       logInfo m!"[{name} {args}]simplifying: {appliedVecLens}"
       let simplified ← simplify simpSet appliedVecLens
