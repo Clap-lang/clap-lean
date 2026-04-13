@@ -1,7 +1,11 @@
 import Clap.Spec
 import Clap.Compiler.Reduce
+import Clap.Compiler.Basic
+import Qq
 
-open Clap Spec Compiler
+open Clap Spec Compiler Qq
+
+namespace Dummy
 
 -- set_option debug.skipKernelTC true
 -- set_option maxRecDepth 1000000
@@ -14,7 +18,7 @@ open Clap Spec Compiler
 abbrev p := Primes.bn254
 
 def mixS (n : ℕ) (r:ℕ) (x : Vector (ZMod p) n) : Option (Vector (ZMod p) n) := do
-  eq0 (x[0]! + (List.range' (800 * r) 800).sum : ZMod p)
+  eq0 (x[0]! + (x.sum : ZMod p))
   x
 
 def poseidon (n:ℕ) (x : Vector (ZMod p) n) : Option (ZMod p) := do
@@ -115,18 +119,70 @@ def mytransform {m} [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m]
 
 --example : Vector ℕ 2 := Vector.mk #[0,1] (by apply List.size_toArray)
 
-open Lean Meta in
-partial def expandVec (e : Expr) (topArgs : List Expr) : Elab.Term.TermElabM Expr := do
-  Meta.transform e
-    (pre := fun e ↦ do
-     return .continue
-   )
+open Lean Meta Elab
+
+-- let .some (names, t) ← curriedUserNamesAndElemTypeOfFVar e | return .continue
+--         let array ← mkAppM ``Array.mk #[
+--           ←mkListLit t (←names.mapM (return lctx.findFromUserName? · |>.get!.toExpr)).toList
+--         ]
+--         let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, toExpr names.size, array]
+--         let Expr.forallE _ t _ _ ← inferType vecSansProof | throwError "Expected function type."
+--         let vec := Expr.app vecSansProof (←mkEqRefl t)
+--         return .done vec
+
+def sequenceAsVec (name : Name) (t : Expr) (len : ℕ) : MetaM Expr := do
+  let array ← mkAppM ``Array.mk #[
+    ←mkListLit t (←List.range len |>.mapM fun i ↦ do mkAppM ``GetElem?.getElem! #[
+      .fvar ((←getLCtx).findFromUserName? name).get!.fvarId,
+      Expr.lit (.natVal i)
+    ])
+  ]
+  let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, toExpr len, array]
+  let Expr.forallE _ t _ _ ← inferType vecSansProof | throwError "Expected function type."
+  let vec := Expr.app vecSansProof t
+  return vec
+
+-- def vec : Vector Nat 2 → Vector Nat 2 := fun v ↦ v
+
+-- run_meta
+--   let x := (←getEnv).find? `vec |>.get!
+--   let xval := x.value!
+--   lambdaTelescope xval fun args _ ↦ do
+--     let #[arg] := args | throwError m!"Impossible."
+--     logWarning m!"{←sequenceAsVec (←arg.fvarId!.getUserName) q(Nat) 2}"
+
+
+def collectionTypeAndSize (e : Expr) : TermElabM (Expr × Expr) := do
+  let_expr Vector t n := ←inferType e | throwError m!"Not a collection:\n{e}"
+  return (t, n)
+
+def needsExploding (e : Expr) : TermElabM Bool := do
+  let t ← inferType e
+  return t.isAppOf ``Vector
+
+def explodeSequences (e : Expr) : TermElabM Expr := do
+  Meta.transform (skipConstInApp := true) e fun e ↦ do
+    if e.isFVar && (←needsExploding e)
+    then logInfo m!"Exploding: {e}"
+         let (t, sz) ← collectionTypeAndSize e
+         return .done <| ←sequenceAsVec (←e.fvarId!.getUserName)
+                                        t
+                                        sz.nat?.get!
+    else return .continue
+
+open Lean Meta Clap Compiler in
+partial def lambdaWithExpandedVecs (e : Expr) : TermElabM Expr :=
+  lambdaTelescope e fun args body ↦ do
+    let body ← explodeSequences body
+    mkLambdaFVars args body
+
+def vec : Vector Nat 2 := #v[1, 2]
 
 open Lean Meta Lean.Elab in
 #eval show TermElabM _ from do
   let name := ``keyless
   let e := ((←getEnv).find? name).get!.value!
-  let e ← expandVec e [.const `x [], .const `y []]
+  let e ← lambdaWithExpandedVecs e
   logInfo m!"{e}"
 
 open Lean Meta in
@@ -159,14 +215,13 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
 
       let (name,args) := e.getAppFnArgs
       if name == .anonymous then return .continue
---      logInfo m!"name: {name} args {args.size}"
-
+      -- logInfo m!"name: {name} args {args.size}"
       -- TODO this works but needs manual insight
       let some (_,_,simpSet) := toBeReduced.find? fun (toBeReducedName,nArgs,_) ↦
           (toBeReducedName = name && nArgs = args.size)
         | return .continue
 
---      logInfo m!"found candidate{name}"
+      -- logInfo m!"found candidate{name}"
 
       -- TODO not really working
       -- let funcT := ((←getEnv).find? name).get!.type
@@ -204,6 +259,7 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
       let funcBody := ((←getEnv).find? name).get!.value!
       -- logInfo m!"[{name}]funcbody: {funcBody}"
       let appliedVecLens := funcBody.instantiateLambdasOrApps args
+      let appliedVecLens ← lambdaWithExpandedVecs appliedVecLens
       -- logInfo m!"[{name}]appliedVecLens: {appliedVecLens}"
       logInfo m!"[{name} {args}]simplifying: {appliedVecLens}"
       let simplified ← simplify simpSet appliedVecLens
@@ -215,10 +271,14 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
 -- run_meta do
 --   unjustTraverse `keyless #[.const `x [], .const `y []] ((←getEnv).find? `keyless).get!.value!
 
+-- #synth NeZero Primes.bn254
+
 open Lean Meta Lean.Elab in
 #eval show TermElabM _ from do
   let target := ``keyless
-  let toBeReduced := [(target,0,`simpAll), (`poseidon,1,`simpAll), (`mixS,1,`simpAll)]
+  let toBeReduced := [(target,0,`simpAll), (``Dummy.poseidon,1,`simpAll), (``Dummy.mixS,1,`simpAll)]
   let e ← unfoldSimplified toBeReduced (.const target []) [.const `x [], .const `y []]
   let e ← simplify `simpAll e
   logInfo m!"{e}"
+
+end Dummy
