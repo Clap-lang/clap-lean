@@ -22,6 +22,7 @@ import Clap.Sha2.Cpu
 import Clap.Sha2.Circuit
 import Clap.Sha2.Test
 import Clap.Poseidon.Poseidon
+import Clap.PoseidonVec.Poseidon
 import Clap.Packing
 import Clap.Base64Len
 import Clap.Array
