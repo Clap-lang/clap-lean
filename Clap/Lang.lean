@@ -6,6 +6,7 @@ namespace Clap.Lang
 class Core (p : ℕ) : Type _ where
   F           : Type
   [instF      : Field F]
+  const       : ZMod p → F
   accept      : Unit
   eq0         : F → Option Unit
   share       : F → F
@@ -223,6 +224,7 @@ instance onlyForDebugF {p:ℕ} : ToString (ZMod p) where
 -/
 scoped instance instCoreZMod {p:ℕ} [Fact (Nat.Prime p)] : Core p where
   F := ZMod p
+  const := id
   accept := Compiler.accept
   eq0 := Compiler.eq0
   share := Compiler.share
