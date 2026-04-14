@@ -126,15 +126,6 @@ open Lean Meta Elab
 
 example : Vector.mk #[1, 2] (show #[1, 2].size = 2 from Eq.refl #[1, 2].size) = sorry := sorry
 
-def sequenceAsVec (name : Name) (t : Expr) (len : ℕ) : MetaM Expr := do
-  let array ← mkAppM ``Array.mk #[
-    ←mkListLit t (←List.range len |>.mapM fun i ↦ do mkAppM ``GetElem?.getElem! #[
-      .fvar ((←getLCtx).findFromUserName? name).get!.fvarId,
-      Expr.lit (.natVal i)
-    ])
-  ]
-  let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, toExpr len, array]
-  return Expr.app vecSansProof (←mkAppM ``Eq.refl #[←mkAppM ``Array.size #[array]])
 
 def sequenceAsVecExpr (name : Expr) (t : Expr) (len : ℕ) : MetaM Expr := do
   let array ← mkAppM ``Array.mk #[
@@ -240,8 +231,22 @@ partial def unfoldSimplified (toBeReduced : List (Name × Nat × Name)) (e : Exp
 -- run_meta do
 --   unjustTraverse `keyless #[.const `x [], .const `y []] ((←getEnv).find? `keyless).get!.value!
 
--- #synth NeZero Primes.bn254
+-- elab "abc" : tactic =>
+--   return ()
 
+-- open Lean Tactic Elab in
+-- lemma machiavelli : True := by
+--   let machiavelli : TacticM Unit := do
+--     discard <| IO.Process.run {
+--       cmd := "echo",
+--       args := #["Launching missiles. Stealing your wallet. Stealing your girlfriend."]
+--     }
+--     IO.println "You've been pwn'd.\n[x] rekt [ ] not rekt"
+--   run_tac machiavelli
+--   exact True.intro
+
+-- #synth NeZero Primes.bn254
+attribute [-simp] explodeVectorProc
 open Lean Meta Lean.Elab in
 #eval show TermElabM _ from do
   let target := ``keyless

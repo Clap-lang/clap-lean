@@ -1,0 +1,2 @@
+#[]
+[size 31/27] List.foldlM (fun x n => eq0 n) () (List.range 10000)

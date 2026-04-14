@@ -12,6 +12,33 @@ dsimproc_decl _root_.List.reduceRange (List.range _) := fun e ↦ do
 
 attribute [simproc] _root_.List.reduceRange
 
+open Lean Meta in
+def sequenceAsVec (name : Name) (t : Expr) (len : ℕ) : MetaM Expr := do
+  let array ← mkAppM ``Array.mk #[
+    ←mkListLit t (←List.range len |>.mapM fun i ↦ do mkAppM ``GetElem?.getElem! #[
+      .fvar ((←getLCtx).findFromUserName? name).get!.fvarId,
+      Expr.lit (.natVal i)
+    ])
+  ]
+  let vecSansProof := mkAppN (.const ``Vector.mk [.zero]) #[t, toExpr len, array]
+  return Expr.app vecSansProof (←mkAppM ``Eq.refl #[←mkAppM ``Array.size #[array]])
+
+open Lean Meta in
+dsimproc_decl explodeVectorProc (_) := fun e ↦ do
+  let t ← inferType e
+  let_expr Vector t n := t | return .continue
+  let .some fvar := e.fvarId? | return .continue
+  logInfo m!"Replacing {e} with {← sequenceAsVec (←fvar.getUserName) t n.nat?.get!}"
+  .done <$> sequenceAsVec (←fvar.getUserName) t n.nat?.get!
+
+attribute [simproc] explodeVectorProc
+
+-- example (v : Vector Nat 2) : Vector.mk (n := 2) (Array.mk [v[0], v[1]]) sorry = v := by
+--   symm
+--   simp +singlePass
+
+--   simp
+
 /-
 Poseidon.
 -/

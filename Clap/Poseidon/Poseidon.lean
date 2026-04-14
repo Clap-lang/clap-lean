@@ -319,13 +319,20 @@ attribute [simpPoseidon]
 
 attribute [local irreducible] Option.bind ZMod OfNat.ofNat
 
-example : Array.mapIdx (fun _ _ ↦ 42) #[1, 2] = sorry := by
-  simp?
+open Lean Meta in
+simproc_decl explodeVectorProc (_) := fun e ↦ do
+  let t ← inferType e
+  let_expr Vector t n := t | return .continue
+  
+  return .continue
+
+attribute [simproc] explodeVectorProc
 
 lemma mySimpLemma {x : Vector Nat 2} : x = Vector.mk (Array.mk [x[0], x[1]]) sorry := sorry
 
 example (v : Vector Nat 2) : Vector.mk (n := 2) (Array.mk [v[0], v[1]]) sorry = v := by
   symm
+  simp
   simp
   
 
