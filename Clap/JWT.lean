@@ -438,7 +438,7 @@ abbrev p := Primes.bn254
 
 instance : Coe Char (F p) := charToFp
 
-attribute [local simp] Clap.Spec.Compiler.isZero F.eq
+attribute [local simp] Clap.Spec.Compiler.isZero F.eq FB.not FB.or
 
 lemma isZero_isSome {a : F p} : (isZero a).isSome := by
   simp [Clap.Spec.Compiler.isZero]
@@ -451,6 +451,8 @@ lemma isZero_pure : ∀ (a : F p), isZero a = some (isZeroPure a) := by
 
 def F.eqPure (a b : F p) : FB p := isZeroPure (a - b)
 
+lemma F.eqPure_pure (a b : F p) : F.eq a b = some (F.eqPure a b) := by
+  simp [eqPure, isZeroPure]
 
 def bracketsMap' (input : List (F p)) : List (FB p) := do
   input.map (fun c ↦ F.eqPure c '{' - F.eqPure c '}')
@@ -484,14 +486,14 @@ lemma bracketsMap_isSome {l : List (F p)} : (bracketsMap l).isSome := by
         split; case _ contra => simp [sub_eq_zero] at contra; contradiction
         simp
 
-def bracketsMapPure (l : List (F p)) : List (F p) :=
+def bracketsMapGet (l : List (F p)) : List (F p) :=
   (bracketsMap l).get bracketsMap_isSome
 
-lemma bracketsMap_pure {l : List (F p)} : bracketsMap' l = bracketsMapPure l := by
+lemma bracketsMap_pure {l : List (F p)} : bracketsMap' l = bracketsMapGet l := by
   induction l
-  case nil => simp [bracketsMap', bracketsMapPure, bracketsMap]
+  case nil => simp [bracketsMap', bracketsMapGet, bracketsMap]
   case cons h t ih =>
-    simp [bracketsMap', bracketsMapPure, bracketsMap] at ⊢ ih
+    simp [bracketsMap', bracketsMapGet, bracketsMap] at ⊢ ih
     simp [ih]
     by_cases h₁ : h = '{'
     · subst h₁
@@ -507,19 +509,19 @@ lemma bracketsMap_pure {l : List (F p)} : bracketsMap' l = bracketsMapPure l := 
         simp
 
 lemma bracketsMapPure_pure :
-  ∀ (l : List (F p)), bracketsMap l = some (bracketsMapPure l)
+  ∀ (l : List (F p)), bracketsMap l = some (bracketsMapGet l)
 := by
-  simp [bracketsMapPure]
+  simp [bracketsMapGet]
 
-lemma bracketsMapPure_len (l : List (F p)) :
-  (bracketsMapPure l).length = l.length
+lemma bracketsMapGet_len (l : List (F p)) :
+  (bracketsMapGet l).length = l.length
 := by
   rw [←bracketsMap_pure]
   simp [bracketsMap']
 
 example {l : List (F p)} :
   ∀ i : Fin l.length,
-    l[i] = '{' ↔ (bracketsMapPure l)[i]'(by simp [bracketsMapPure_len]) = 1
+    l[i] = '{' ↔ (bracketsMapGet l)[i]'(by simp [bracketsMapGet_len]) = 1
 := by
   intro i
   conv => right; left; arg 1; rw [←bracketsMap_pure]
@@ -531,7 +533,7 @@ example {l : List (F p)} :
 
 example {l : List (F p)} :
   ∀ i : Fin l.length,
-    l[i] = '}' ↔ (bracketsMapPure l)[i]'(by simp [bracketsMapPure_len]) = -1
+    l[i] = '}' ↔ (bracketsMapGet l)[i]'(by simp [bracketsMapGet_len]) = -1
 := by
   intro i
   conv => right; left; arg 1; rw [←bracketsMap_pure]
@@ -544,7 +546,7 @@ example {l : List (F p)} :
 example {l : List (F p)} :
   ∀ i : Fin l.length,
     (∃ val : F p, l[i] = val ∧ val ≠ '{' ∧ val ≠ '}')
-      ↔ (bracketsMapPure l)[i]'(by simp [bracketsMapPure_len]) = 0
+      ↔ (bracketsMapGet l)[i]'(by simp [bracketsMapGet_len]) = 0
 := by
   intro i
   conv => right; left; arg 1; rw [←bracketsMap_pure]
@@ -559,46 +561,198 @@ example {l : List (F p)} :
       simp_all [Option.get] <;>
       contradiction
 
--- lemma F.eq_iff : ∀ (a b : F p), F.eq a b ≠ 0 ↔ a = b := by
---   intro a b
---   simp [F.eq, Clap.Spec.Compiler.isZero]
---   exact sub_eq_zero
+-- def bracketsMapGet (l : List (F p)) : List (F p) :=
+--   (bracketsMap l).get bracketsMap_isSome
 
--- example {a b : List (F p)} : a = b ↔ FList.eq a b ≠ 0 := by
---   constructor
---   · intro a_eq_b
---     subst a_eq_b
---     induction a with
---     | nil => simp [FList.eq]
---     | cons _ _ ih => simp [FList.eq, F.eq, ih, Clap.Spec.Compiler.isZero]
---   · revert b
---     induction a with
---     | nil =>
---       intro b h
---       unfold FList.eq at h
---       grind
---     | cons x xs ih =>
---       intro b h
---       rcases b with (_ | ⟨y, ys⟩)
---       · simp [FList.eq] at h
---       · simp [FList.eq] at h
---         have h_ne_zero : F.eq x y * FList.eq xs ys ≠ 0 := by simp [h]
---         rw [mul_ne_zero_iff] at h_ne_zero
---         rcases h_ne_zero with ⟨x_ne_y, xs_ne_ys⟩
---         simp
---         constructor
---         · exact (F.eq_iff x y).1 x_ne_y
---         · exact ih xs_ne_ys
 
-example {uidNameLen evValueLen : F p} {uidName evName evValue : List (F p)} :
+lemma F.eqPure_iff : ∀ (a b : F p), F.eqPure a b ≠ 0 ↔ a = b := by
+  intro a b
+  simp [F.eqPure, isZeroPure, sub_eq_zero]
+  grind
+
+def FList.eqPure : List (F p) → List (F p) → FB p
+| x :: xs, y :: ys => F.eqPure x y * FList.eqPure xs ys
+| [], [] => 1
+| _, _ => 0
+
+lemma FList.eq_pure (a b : List (F p)) : FList.eq a b = some (FList.eqPure a b) := by
+  revert b
+  induction a with
+  | nil =>
+    intro b
+    unfold FList.eq eqPure
+    simp
+    split <;> try trivial
+    split <;> trivial
+  | cons h₁ t₁ ih =>
+    intro b
+    unfold FList.eq eqPure
+    rcases b with (_ | ⟨h₂, t₂⟩)
+    · trivial
+    · split <;> try trivial
+      case h_1 _ _ _ eq₁ eq₂ =>
+        cases eq₁; cases eq₂
+        rw [F.eqPure_pure, ih]
+        simp
+      case _ contra _ =>
+        specialize contra h₁ t₁ h₂ t₂ rfl rfl
+        contradiction
+
+example {a b : List (F p)} : a = b ↔ FList.eqPure a b ≠ 0 := by
+  constructor
+  · intro a_eq_b
+    subst a_eq_b
+    induction a with
+    | nil => simp [FList.eqPure]
+    | cons _ _ ih => simp [FList.eqPure, F.eqPure, ih, isZeroPure]
+  · revert b
+    induction a with
+    | nil =>
+      intro b h
+      unfold FList.eqPure at h
+      grind
+    | cons x xs ih =>
+      intro b h
+      rcases b with (_ | ⟨y, ys⟩)
+      · simp [FList.eqPure] at h
+      · simp [FList.eqPure] at h
+        have h_ne_zero : F.eqPure x y * FList.eqPure xs ys ≠ 0 := by simp [h]
+        rw [mul_ne_zero_iff] at h_ne_zero
+        rcases h_ne_zero with ⟨x_ne_y, xs_ne_ys⟩
+        simp
+        constructor
+        · exact (F.eqPure_iff x y).1 x_ne_y
+        · exact ih xs_ne_ys
+
+lemma FList.eqPure_reflexive : ∀ l : List (F p), FList.eqPure l l = 1 := by
+  intro l
+  induction l with
+  | nil => simp [FList.eqPure]
+  | cons h t ih =>
+    simp [FList.eqPure, F.eqPure, ih, isZeroPure]
+
+lemma FList.neq : ∀ l₁ l₂ : List (F p), l₁ ≠ l₂ → FList.eqPure l₁ l₂ = 0 := by
+  intro l₁
+  induction l₁ with
+  | nil =>
+    intro l₂ neq
+    cases l₂ <;> trivial
+  | cons h t ih =>
+    intro l₂ neq
+    unfold FList.eqPure
+    rcases l₂ with (_ | ⟨h', t'⟩)
+    · simp
+    · simp
+      simp at neq
+      by_cases heq : h = h'
+      · right; exact ih t' (neq heq)
+      · left; simp [F.eqPure, isZeroPure, sub_eq_zero, *]
+
+lemma FList.eqPure_iff {a b : List (F p)} : a = b ↔ FList.eqPure a b ≠ 0 := by
+  constructor
+  · rintro rfl
+    simp [FList.eqPure_reflexive a]
+  · by_cases a_eq_b : a = b
+    · intro _; exact a_eq_b
+    · simp [FList.neq a b a_eq_b]
+
+def emailVerifiedCheck'
+  (uidName : List (F p))
+  (evName : List (F p))
+  (evValue : List (F p))
+  : Option (FB p)
+:= do
+  let uidIsEmail := FList.eqPure uidName email
+  conditionallyAssert uidIsEmail (FList.eqPure evName requiredEvName)
+  let c : FB p :=
+    FB.or
+      (FList.eqPure evValue requiredEvValLen4)
+      (FList.eqPure evValue requiredEvValLen6)
+  conditionallyAssert uidIsEmail c
+  return uidIsEmail
+ where
+  conditionallyAssert (antecedent consequent : FB p) : Option Unit :=
+    -- a → c ≡ ¬(a ∧ ¬c)
+    eq0 (antecedent * FB.not consequent)
+
+lemma emailVerifiedCheck_eq {uidName evName evValue : List (F p)} :
+  emailVerifiedCheck uidName evName evValue =
+    emailVerifiedCheck' uidName evName evValue
+:= by
+    simp
+      [ emailVerifiedCheck,
+        emailVerifiedCheck.conditionallyAssert,
+        Clap.Spec.Compiler.eq0,
+        HOr.hOr
+      ]
+    simp [FList.eq_pure]
+    unfold emailVerifiedCheck' emailVerifiedCheck'.conditionallyAssert
+    simp [Clap.Spec.Compiler.eq0]
+
+example {uidName evName evValue : List (F p)} :
   uidName = email →
   evName = requiredEvName →
   evValue = requiredEvValLen4 ∨ evValue = requiredEvValLen6 →
   emailVerifiedCheck uidName evName evValue = .some 1
 := by
-  intros h₁ h₂ h₃
-  simp [emailVerifiedCheck, emailVerifiedCheck.conditionallyAssert]
-  sorry
+  rw [emailVerifiedCheck_eq]
+  rintro rfl rfl (rfl | rfl) <;>
+    simp
+      [ emailVerifiedCheck',
+        emailVerifiedCheck'.conditionallyAssert,
+        FList.eqPure_reflexive,
+        FB.not,
+        Clap.Spec.Compiler.eq0,
+      ]
+
+example {uidName evName evValue : List (F p)} :
+  uidName ≠ email →
+  emailVerifiedCheck uidName evName evValue = .some 0
+:= by
+  rw [emailVerifiedCheck_eq]
+  intro neq
+  simp
+    [ emailVerifiedCheck',
+      emailVerifiedCheck'.conditionallyAssert,
+      Clap.Spec.Compiler.eq0,
+    ]
+  rw [FList.neq _ _ neq]
+  simp
+
+example {uidName evName evValue : List (F p)} :
+  uidName = email →
+  evName ≠ requiredEvName →
+  emailVerifiedCheck uidName evName evValue = .none
+:= by
+  rw [emailVerifiedCheck_eq]
+  rintro rfl neq
+  simp
+    [ emailVerifiedCheck',
+      emailVerifiedCheck'.conditionallyAssert,
+      FList.eqPure_reflexive,
+      Clap.Spec.Compiler.eq0,
+    ]
+  intro contra
+  rw [FList.neq _ _ neq] at contra
+  contradiction
+
+example {uidName evName evValue : List (F p)} :
+  uidName = email →
+  evValue ≠ requiredEvValLen4 ∧ evValue ≠ requiredEvValLen6 →
+  emailVerifiedCheck uidName evName evValue = .none
+:= by
+  rw [emailVerifiedCheck_eq]
+  rintro rfl ⟨ne₁, ne₂⟩
+  simp
+    [ emailVerifiedCheck',
+      emailVerifiedCheck'.conditionallyAssert,
+      Clap.Spec.Compiler.eq0,
+      FList.eqPure_reflexive,
+      FB.not
+    ]
+  rw [FList.neq _ _ ne₁, FList.neq _ _ ne₂]
+  intro _ _
+  contradiction
 
 private def parseCharsASCII (s : String) : List (F p) :=
   s.chars.map (fun n ↦ (n.toNat : ZMod p)) |>.toList
