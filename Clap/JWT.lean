@@ -593,11 +593,11 @@ example {l : List (F p)} :
 example {uidNameLen evValueLen : F p} {uidName evName evValue : List (F p)} :
   uidName = email →
   evName = requiredEvName →
-  evValue = requiredEvValLen4 ∨ evValue = requiredEvValLen4 →
+  evValue = requiredEvValLen4 ∨ evValue = requiredEvValLen6 →
   emailVerifiedCheck uidName evName evValue = .some 1
 := by
-  intros
-  -- simp [emailVerifiedCheck, emailVerifiedCheck.conditionallyAssert]
+  intros h₁ h₂ h₃
+  simp [emailVerifiedCheck, emailVerifiedCheck.conditionallyAssert]
   sorry
 
 private def parseCharsASCII (s : String) : List (F p) :=
