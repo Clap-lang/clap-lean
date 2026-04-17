@@ -16,9 +16,9 @@ open Core
 /-- **Sigma (S-box):** The sole source of nonlinearity in the Poseidon permutation
 
     Mirrors circomlib's `Sigma` template -/
-def sigma (x : F p) : F p :=
-  let x2 := share (x * x)
-  let x4 := share (x2 * x2)
+def sigma (x : F p) : Option (F p) := do
+  let x2 ← share (x * x)
+  let x4 ← share (x2 * x2)
   x4 * x
 
 /-- **Ark (Add Round Constants):** Adds pre-computed round constants to every
@@ -119,7 +119,7 @@ where
     - `M`         — MDS matrix (used in full rounds)
     - `P`         — pre-sparse matrix (used at the boundary of full → partial) -/
 def poseidonEx (nOuts : ℕ) (inputs : List (F p)) (initState : F p)
-    (C S : List (F p)) (M P : List (List (F p))) : List (F p) :=
+    (C S : List (F p)) (M P : List (List (F p))) : Option (List (F p)) := do
   -- Poseidon parameters (from circomlib's PoseidonEx template)
   -- N_ROUNDS_P[t-2] for t ∈ [2, 17]
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
@@ -132,23 +132,29 @@ def poseidonEx (nOuts : ℕ) (inputs : List (F p)) (initState : F p)
   let state := ark ([initState] ++ inputs) C 0
 
   -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
-  let state := (List.range (half - 1)).foldl (fun state r ↦
-    mix (ark (state.map sigma) C ((r + 1) * t)) M) state
+  let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
+      let state ← state.mapM sigma
+      return mix (ark state C ((r + 1) * t)) M)
+    state
 
   -- Boundary round (r = half−1): sigma → ark → mix with P
-  let state := mix (ark (state.map sigma) C (half * t)) P
+  let state ← state.mapM sigma
+  let state := mix (ark state C (half * t)) P
 
   -- Phase 2: partial rounds
-  let state := (List.range nRoundsP).foldl (fun state r ↦
-    let s0 := sigma state[0]! + C[(half + 1) * t + r]!
-    mixS r (state.set 0 s0) S) state
+  let state ← (List.range nRoundsP).foldlM (fun state r ↦ do
+      let s0 := (←sigma state[0]!) + C[(half + 1) * t + r]!
+      return mixS r (state.set 0 s0) S)
+    state
 
   -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
-  let state := (List.range (half - 1)).foldl (fun state r ↦
-    mix (ark (state.map sigma) C ((half + 1) * t + nRoundsP + r * t)) M) state
+  let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
+      let state ← state.mapM sigma
+      return mix (ark state C ((half + 1) * t + nRoundsP + r * t)) M)
+    state
 
   -- Final round: sigma on all, then extract nOuts elements via MixLast
-  let state := state.map sigma
+  let state : List (F p) ← state.mapM sigma
   (List.range nOuts).map (mixLast state M)
 
 /-- **Poseidon:** Single-output Poseidon hash. Wraps `poseidonEx` with
@@ -156,8 +162,8 @@ def poseidonEx (nOuts : ℕ) (inputs : List (F p)) (initState : F p)
     the permutation output.
 
     Mirrors circomlib's `Poseidon(nInputs)` template. -/
-def poseidon (inputs : List (F p)) (C S : List (F p)) (M P : List (List (F p))) : F p :=
-  (poseidonEx 1 inputs 0 C S M P)[0]!
+def poseidon (inputs : List (F p)) (C S : List (F p)) (M P : List (List (F p))) : Option (F p) := do
+  (←poseidonEx 1 inputs 0 C S M P)[0]!
 
 section Poseidon254
 
@@ -166,7 +172,7 @@ open Primes
 def liftArr (xs : List (ZMod p)) : List (F p) := xs.map (·.val)
 def liftMat (xs : List (List (ZMod p))) : List (List (F p)) := xs.map (·.map  (·.val))
 
-def poseidonBN254 (inputs : List (F bn254)) : F bn254 :=
+def poseidonBN254 (inputs : List (F bn254)) : Option (F bn254) :=
   let t := inputs.length + 1 -- element 2 is at list index 0 and so on
   let C := Clap.Poseidon.Constant.C[t-2]!
   let S := Clap.Poseidon.Constant.S[t-2]!

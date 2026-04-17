@@ -20,7 +20,7 @@ structure MyCouple (p:ℕ) [Core p] where
   y : F (p:=p)
 
 def test (c : MyCouple p) : Option Unit := do
-  let o := share (c.x * 0)
+  let o ← share (c.x * 0)
   eq0 o
   accept p
 

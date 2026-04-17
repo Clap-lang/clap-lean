@@ -17,8 +17,8 @@ open Core
 
     Mirrors circomlib's `Sigma` template -/
 def sigma (x : F p) : Option (F p) := do
-  let x2 ← some (share (x * x))
-  let x4 ← some (share (x2 * x2))
+  let x2 ← share (x * x)
+  let x4 ← share (x2 * x2)
   some (x4 * x)
 
 /-- **Ark (Add Round Constants):** Adds pre-computed round constants to every

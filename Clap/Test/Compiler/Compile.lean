@@ -84,10 +84,10 @@ set_option pp.funBinderTypes true in
 open Spec.Compiler
 
 def Compile.ex₁ {p : ℕ} (x : ZMod p) : Option Unit := do
-  let x := share x
+  let x ← share x
   let y := (1:ZMod p)
-  let z := isZero y
-  let _ <- num2bits 2 (x + z)
+  let z ← isZero y
+  let _ ← num2bits 2 (x + z)
 --  eq0 k[0]!
   accept
 

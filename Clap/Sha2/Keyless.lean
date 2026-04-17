@@ -67,7 +67,7 @@ private def processAllBlocks
     (blocks : Array (Block (F32 bn254))) (acc : Hash (F32 bn254))
     (i : Nat) (states : Array (Hash (F32 bn254))) : Option (Array (Hash (F32 bn254))) := do
   if i >= blocks.size then pure states else
-  let acc ← @compress Option _ (Circuit.t bn254) Circuit.instSha Circuit.instAdd32 blocks[i]! acc
+  let acc ← @compress Option _ (Circuit.t bn254) Circuit.instSha Circuit.instU32Monadic blocks[i]! acc
   processAllBlocks blocks acc (i + 1) (states.push acc)
 
 open FString FArray HashToField
@@ -268,10 +268,10 @@ open Clap.Lang Core Primes ZMod
 --   limb[3] = 0xba7816bf_8f01cfea
 
 private instance : Clap.Sha2.Sha (Clap.Sha2.Circuit.t bn254) := Clap.Sha2.Circuit.instSha
-private instance : Clap.Sha2.Add32 Option (F32 bn254) := Clap.Sha2.Circuit.instAdd32
+private instance : Clap.Sha2.U32Monadic Option (F32 bn254) := Clap.Sha2.Circuit.instU32Monadic
 
 private def abcHash : Option (Array (F32 bn254)) :=
-  Clap.Sha2.digest Option (t := Clap.Sha2.Circuit.t bn254) (#[97, 98, 99].map fun (n : Nat) => (Clap.nat2bitsLsb 8 n : F8 bn254))
+  Clap.Sha2.digest (t := Clap.Sha2.Circuit.t bn254) (#[97, 98, 99].map fun (n : Nat) => (Clap.nat2bitsLsb 8 n : F8 bn254))
 
 example : (do
   let hash ← abcHash
@@ -379,14 +379,14 @@ The output conversion chain (F32 → big-endian bits → 64-bit limbs → LE ord
 -/
 
 private instance : Sha (Circuit.t bn254) := Circuit.instSha
-private instance : Add32 Option (F32 bn254) := Circuit.instAdd32
+private instance : U32Monadic Option (F32 bn254) := Circuit.instU32Monadic
 
 private def natToF8 (n : Nat) : F8 bn254 := Clap.nat2bitsLsb 8 n
 
 -- Helper: run digest on raw bytes and convert to RSA limbs (Path A)
 private def digestToLimbs (msg : Array Nat) : Option (Vector (F bn254) 4) := do
   let f8Msg : Array (F8 bn254) := msg.map natToF8
-  let hash ← Clap.Sha2.digest Option (t := Circuit.t bn254) f8Msg
+  let hash ← Clap.Sha2.digest (t := Circuit.t bn254) f8Msg
   pure (hashToRSALimbs hash)
 
 -- (1) "abc" (3 bytes, 1 block)

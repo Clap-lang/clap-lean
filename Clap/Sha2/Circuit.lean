@@ -44,9 +44,9 @@ which can be split into Circom format
 yz = y*z
 out = x*(y + z - 2*yz) + yz
 -/
-def maj (x y z : F32 p) : F32 p :=
-  List.map (fun ((x,y),z) =>
-    let yz := share (y * z)
+def maj (x y z : F32 p) : Option (F32 p) :=
+  List.mapM (fun ((x,y),z) => do
+    let yz ← share (y * z)
     x * (y + z - 2 * yz) + yz)
   ((x.zip y).zip z)
 
@@ -59,9 +59,9 @@ which can be split into Circom format
 yz = y*z
 out = x * (1 - 2*y - 2*z + 4*yz) + y + z - 2 * yz
 -/
-def xor3 (x y z : F32 p) : F32 p :=
-  List.map (fun ((x,y),z) =>
-    let yz := share (y * z)
+def xor3 (x y z : F32 p) : Option (F32 p) :=
+  List.mapM (fun ((x,y),z) => do
+    let yz ← share (y * z)
     x * (1 - 2 * y - 2 * z + 4 * yz) + y + z - 2 * yz)
   ((x.zip y).zip z)
 
@@ -113,11 +113,9 @@ instance (priority := high) i₆ : ToString (F32 p) where
   toString f := toString 32 f
 
 instance instSha : Sha (t p) where
-  xor3
   rotR
   shiftRight
   ch
-  maj
   to_nat_be
   -- important to name these instances otherwise the wrong ones are picked form the enviroment
   i₁
@@ -126,10 +124,12 @@ instance instSha : Sha (t p) where
   i₅
   i₆
 
-instance instAdd32 : Clap.Sha2.Add32 Option (F32 p) where
+instance instU32Monadic : Clap.Sha2.U32Monadic Option (F32 p) where
   add32 := F32.add
+  xor3
+  maj
 
-attribute [instance] instSha instAdd32
+attribute [instance] instSha instU32Monadic
 
 end Clap.Sha2.Circuit
 

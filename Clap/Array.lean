@@ -8,12 +8,12 @@ open Clap.Lang Core
 variable {p : ℕ} [Core p]
 
 /-- Computes a candidate one-hot mask: position `i` is `isZero(idx - i)`. -/
-private def oneHotRaw (len : ℕ) (idx : F p) : Vector (FB p) len :=
-  Vector.ofFn (fun i : Fin len ↦ F.eq idx i.1)
+private def oneHotRaw (len : ℕ) (idx : F p) : Option (Vector (FB p) len) :=
+  (Vector.range len).mapM (fun (i:ℕ) ↦ F.eq idx i)
 
 /-- Returns a one-hot bit mask of length `len` with a 1 at index `idx` and 0s elsewhere. Only satisfiable when `0 ≤ idx < len`. -/
 def singleOneArray (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
-  let out := oneHotRaw len idx
+  let out ← oneHotRaw len idx
   let s : F p := out.foldl (fun acc b ↦ acc + b) 0
   F.assert_eq s 1
   return out
@@ -21,7 +21,7 @@ def singleOneArray (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
 /-- (SingleNegOneArray) Returns a one-hot bit mask of length `len` with a 1 at index `idx` and 0s elsewhere.
     Returns all zeros when `idx ≥ len`. -/
 def singleEndArray (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
-  let out := oneHotRaw len idx
+  let out ← oneHotRaw len idx
   let s : F p := out.foldl (fun acc b ↦ acc + b) 0
   F.assert_eq s (s * s) -- s² = s (at most one-hot)
   return out
@@ -56,7 +56,7 @@ def rightArraySelector (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := d
 
 /-- Like `arraySelector`, but returns all zeros when `endIdx ≤ startIdx`. Does not work when `startIdx = 0`. -/
 def arraySelectorComplex (len : ℕ) (startIdx endIdx : F p) : Option (Vector (FB p) len) := do
-  FB.assert (FB.not (isZero startIdx))
+  FB.assert (FB.not (←isZero startIdx))
   let right ← rightArraySelector len (startIdx - 1)
   let left ← leftArraySelector len endIdx
   return right.zipWith (· * ·) left

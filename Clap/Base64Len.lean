@@ -49,7 +49,7 @@ instance : Coe Char (F p) where
 -/
 def base64UrlDecodedLength (w : ℕ) (m : F p) : Option (F p) := do
   let _ ← num2bits w m                   -- range-check m < 2^w
-  let three : F p := share (m + m + m)
+  let three : F p ← share (m + m + m)
   let bits ← num2bits (w + 2) three      -- decompose 3m, proves < 2^(w+2)
   return bits2num (bits.drop 2)          -- drop 2 LSBs = floor(3m/4)\
 
@@ -82,18 +82,18 @@ def base64UrlLookup (i : F p) : Option (F p) := do
   let sum_09 := sum_az + range_09 * (i + 4)
 
   -- check if i is '-'
-  let eq_minus := F.eq i '-'
+  let eq_minus ← F.eq i '-'
   let sum_minus := sum_09 + eq_minus * 62;
 
   -- check if i is '_'
-  let eq_underscore := F.eq i '_'
+  let eq_underscore ← F.eq i '_'
   let sum_underscore := sum_minus + eq_underscore * 63;
 
   -- check if i is '='
-  let eq_eqsign := F.eq i '='
+  let eq_eqsign ← F.eq i '='
 
   -- check if i is zero
-  let zero_padding := isZero i
+  let zero_padding ← isZero i
 
   -- exactly one case has to be true
   [range_AZ, range_az, range_09, eq_minus, eq_underscore, eq_eqsign, zero_padding]

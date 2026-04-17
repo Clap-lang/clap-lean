@@ -12,14 +12,14 @@ variable {p : ℕ} [Core p] [Core bn254]
 instance : Coe Char (F p) where
   coe c := c.toNat
 
-private def stringBodiesRev₀ (input : List (F p)) : List (FB p) × FB p × FB p :=
-  input.foldl
-    ( fun (acc, openedQuotes, escaped) c ↦
-        let isNonEscQuotationMark := F.eq c '\"' &&& FB.not escaped
+private def stringBodiesRev₀ (input : List (F p)) : Option (List (FB p) × FB p × FB p) :=
+  input.foldlM
+    ( fun (acc, openedQuotes, escaped) c ↦ do
+        let isNonEscQuotationMark := (←F.eq c '\"') &&& FB.not escaped
         let acc' := openedQuotes * FB.not isNonEscQuotationMark :: acc
         let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
-        let escaped' := F.eq c '\\' &&& FB.not escaped
-        (acc', openedQuotes', escaped')
+        let escaped' := (←F.eq c '\\') &&& FB.not escaped
+        some (acc', openedQuotes', escaped')
     )
     ([], default, default)
 
@@ -31,9 +31,10 @@ omit [Core bn254] in
   input =  { asdfsdf "as\"df" }
   output = 00000000000111111000
 -/
-def stringBodies (input : List (F p)) : List (FB p) :=
-  (stringBodiesRev₀ input).1.reverse
+def stringBodies (input : List (F p)) : Option (List (FB p)) := do
+  (←stringBodiesRev₀ input).1.reverse
 
+/-
 omit [Core bn254] in
 @[simp] theorem stringBodies_length (input : List (F p)) :
     (stringBodies input).length = input.length := by
@@ -51,6 +52,7 @@ omit [Core bn254] in
   induction input with
   | nil => simp
   | cons _ _ ih => intro s; simp only [List.foldl_cons, List.length_cons]; rw [ih]; simp; omega
+-/
 
 /--
   Given an array of ASCII characters `arr`, returns an array `brackets` with
@@ -63,14 +65,14 @@ omit [Core bn254] in
   brackets:  10010001-1000000-1-1
   where `arr` is represented by its ASCII encoding, i.e. `{` = 123
 -/
-def bracketsMap (input : List (F p)) : List (FB p) :=
-  input.map (fun c ↦ (F.eq c '{') - (F.eq c '}'))
+def bracketsMap (input : List (F p)) : Option (List (FB p)) := do
+  input.mapM (fun c ↦ do (←F.eq c '{') - (←F.eq c '}'))
 
-private def bracketsDepthMapRev₀ (input : List (F p)) : List (F p) × F p :=
-  input.foldl
-    ( fun (acc, depth) i ↦
+private def bracketsDepthMapRev₀ (input : List (F p)) : Option (List (F p) × F p) := do
+  input.foldlM
+    ( fun (acc, depth) i ↦ do
         -- The value is the depth from the previous position, except when i = (-1)
-        let i' := depth - F.eq i (-1)
+        let i' := depth - (←F.eq i (-1))
         -- Update the depth
         let depth' := depth + i
         (i' :: acc, depth')
@@ -102,11 +104,11 @@ private def bracketsDepthMapRev₀ (input : List (F p)) : List (F p) × F p :=
   out:           00000011222111000000   correctly represents open brackets as being outside of bracket nesting
   out: 0000001122 11 0000 0
 -/
-def bracketsDepthMap (input : List (F p)) : List (F p) :=
-  (bracketsDepthMapRev₀ input).1.reverse.map minusOne
+def bracketsDepthMap (input : List (F p)) : Option (List (F p)) := do
+  (←bracketsDepthMapRev₀ input).1.reverse.mapM minusOne
  where
   --  The outermost open and closed bracket are both ignored.
-  minusOne (a : F p) : F p := a - 1 + isZero a
+  minusOne (a : F p) : Option (F p) := do a - 1 + (←isZero a)
 
 def hadamardProduct (lhs rhs : List (F p)) : List (F p) :=
   lhs.zipWith (· * ·) rhs
@@ -141,7 +143,7 @@ private def requiredEvValLen6 : List (F p) :=
   -- «"true"»
   [34, 116, 114, 117, 101, 34]
 
-def FList.eq (a b : List (F p)) : FB p := a.zipWith F.eq b |>.foldl (· * ·) 1
+def FList.eq (a b : List (F p)) : Option (FB p) := (a.zip b).foldlM (fun acc (a,b) ↦ do  acc * (←F.eq a b)) 1
 
 /--
   Enforce that if uid name is "email", the email verified field is either true or "true"
@@ -154,18 +156,18 @@ def emailVerifiedCheck
   (evValue : List (F p))
   : Option (FB p)
 := do
-  let uidIsEmail := F.eq uidNameLen 5 &&& FList.eq uidName email
-  conditionallyAssert uidIsEmail (FList.eq evName requiredEvName)
-  let evValLenIs4 := F.eq evValueLen 4
-  let evValLenIs6 := F.eq evValueLen 6
+  let uidIsEmail := (←F.eq uidNameLen 5) &&& (←FList.eq uidName email)
+  conditionallyAssert uidIsEmail (←FList.eq evName requiredEvName)
+  let evValLenIs4 ← F.eq evValueLen 4
+  let evValLenIs6 ← F.eq evValueLen 6
   let evValLenOk := evValLenIs4 ||| evValLenIs6
   conditionallyAssert uidIsEmail evValLenOk
 
   let checkEvValBool := evValLenIs4 &&& uidIsEmail
-  conditionallyAssert checkEvValBool (FList.eq evValue requiredEvValLen4)
+  conditionallyAssert checkEvValBool (←FList.eq evValue requiredEvValLen4)
 
   let checkEvValString := evValLenIs6 &&& uidIsEmail
-  conditionallyAssert checkEvValString (FList.eq evValue requiredEvValLen6)
+  conditionallyAssert checkEvValString (←FList.eq evValue requiredEvValLen6)
   return uidIsEmail
  where
   conditionallyAssert (antecedent consequent : FB p) : Option Unit :=
@@ -290,13 +292,13 @@ def parseJWTFieldWithUnquotedValue
   let inZone := (zoneA.zipWith FB.or zoneB).zipWith FB.or zoneC
   -- For each position in a whitespace zone, the character must be whitespace
   (inZone.zip field.chars).toList.forM fun (z, c) ↦ do
-    let ws := FChar.isWhitespace c
+    let ws ← FChar.isWhitespace c
     F.guardedEq0 perform (z &&& FB.not ws)
   -- Check 2: value must not contain ',', '}', or '"'
   -- valueSelector: 1s at [value_index, value_index + value_len)
   let valueSel ← arraySelector maxKVPairLen value_index (value_index + value.len)
-  (valueSel.zip fieldChars).toList.forM fun (sel, c) ↦
-    let isForbidden := F.eq c ',' ||| F.eq c '}' ||| F.eq c '\"'
+  (valueSel.zip fieldChars).toList.forM fun (sel, c) ↦ do
+    let isForbidden := (←F.eq c ',') ||| (←F.eq c '}') ||| (←F.eq c '\"')
     -- If in value range, character must not be forbidden
     F.guardedEq0 perform (sel &&& isForbidden)
 
@@ -359,7 +361,7 @@ def parseJWTFieldWithQuotedValue
   -- and string bodies must match name/value selectors exactly
   (inZone.zip (nameOrValue.zip (field_string_bodies.zip field.chars))).toList.forM fun (z, nv, sb, c) ↦ do
     -- Whitespace check: if in a whitespace zone, the character must be whitespace
-    let ws := FChar.isWhitespace c
+    let ws ← FChar.isWhitespace c
     F.guardedEq0 perform (z &&& FB.not ws)
     -- String bodies forward: name/value positions must be inside string bodies
     F.guardedEq0 perform (nv &&& FB.not sb)
@@ -405,15 +407,15 @@ def parseEmailVerifiedField
   let fieldChars := field.chars.map FBitVec.toF
   -- Char before value
   let charBeforeValue ← selectArrayValue fieldChars (valueIndex - 1)
-  let beforeIsQuote      : FB bn254 := F.eq charBeforeValue '\"'
-  let beforeIsWhitespace : FB bn254 := FChar.isWhitespace (← F8.ofF charBeforeValue)
+  let beforeIsQuote      : FB bn254 ← F.eq charBeforeValue '\"'
+  let beforeIsWhitespace : FB bn254 ← FChar.isWhitespace (← F8.ofF charBeforeValue)
   let beforeIsWsOrQuote := FB.or beforeIsQuote beforeIsWhitespace
   -- Check: char before value is quote/whitespace, OR it is the colon (valueIndex - 1 == colonIndex)
   eq0 ((1 - beforeIsWsOrQuote) &&& (valueIndex - 1 - colonIndex))
   -- Char after value
   let charAfterValue ← selectArrayValue fieldChars (valueIndex + value.len)
-  let afterIsQuote      : FB bn254 := F.eq charAfterValue '\"'
-  let afterIsWhitespace : FB bn254 := FChar.isWhitespace (← F8.ofF charAfterValue)
+  let afterIsQuote      : FB bn254 ← F.eq charAfterValue '\"'
+  let afterIsWhitespace : FB bn254 ← FChar.isWhitespace (← F8.ofF charAfterValue)
   let afterIsWsOrQuote := FB.or afterIsQuote afterIsWhitespace
   -- Check: char after value is quote/whitespace, OR it is the field delimiter (fieldLen - 1 == valueIndex + valueLen)
   eq0 ((1 - afterIsWsOrQuote) &&& (field.len - 1 - valueIndex - value.len))
@@ -431,7 +433,7 @@ def parseEmailVerifiedField
   let inZone := (zoneA.zipWith FB.or zoneB).zipWith FB.or zoneC
   -- For each position in a whitespace zone, the character must be whitespace
   (inZone.zip field.chars).toList.forM fun (z, c) ↦ do
-    let ws := FChar.isWhitespace c
+    let ws ← FChar.isWhitespace c
     eq0 (z &&& FB.not ws)
 
 end JWT
@@ -514,14 +516,14 @@ example :
 private def br :=
   parseCharsASCII "{he{llo{}world!}}"
 example :
-  bracketsMap (p := p) br == [1, 0, 0, 1, 0, 0, 0, 1, -1, 0, 0, 0, 0, 0, 0, -1, -1]
+  bracketsMap (p := p) br == some [1, 0, 0, 1, 0, 0, 0, 1, -1, 0, 0, 0, 0, 0, 0, -1, -1]
 := by
   native_decide
 
 private def plusMinusOneBr₁ : List (F p) :=
   [0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, -1, 0, 0, -1, 0, 0, 0, 0, -1]
 example :
-  bracketsDepthMap plusMinusOneBr₁ ==
+  bracketsDepthMap plusMinusOneBr₁ == some
     [0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0, 0]
 := by
   native_decide
@@ -529,7 +531,7 @@ example :
 private def plusMinusOneBr₂ : List (F p) :=
   [1,1,1,1,1,-1,-1,-1,-1,-1]
 
-example : bracketsDepthMap plusMinusOneBr₂ == [0, 0, 1, 2, 3, 3, 2, 1, 0, 0] := by
+example : bracketsDepthMap plusMinusOneBr₂ == some [0, 0, 1, 2, 3, 3, 2, 1, 0, 0] := by
   native_decide
 
 example :

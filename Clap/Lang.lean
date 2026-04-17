@@ -9,8 +9,8 @@ class Core (p : ℕ) : Type _ where
   const       : ZMod p → F
   accept      : Unit
   eq0         : F → Option Unit
-  share       : F → F
-  isZero      : F → F
+  share       : F → Option F
+  isZero      : F → Option F
   num2bits    : ℕ → F → Option (List F)
   bits2num    : List F → F
 
@@ -36,7 +36,7 @@ def assert_range (w : ℕ) (e : F p) : Option Unit := do
 def assert_eq (a b : F p) : Option Unit := do
   eq0 (a - b)
 
-def eq (a b : F p) : FB p :=
+def eq (a b : F p) : Option (FB p) :=
   isZero (a - b)
 
 def dotProduct {w : ℕ} (a b : Vector (F p) w) : F p :=
@@ -65,7 +65,7 @@ def false : FB p := 0
 instance : Inhabited (FB p) where
   default := false
 
-def eq (a b : FB p) : FB p :=
+def eq (a b : FB p) : Option (FB p) :=
   F.eq a b
 
 def and (a b : FB p) : FB p := a * b
@@ -151,13 +151,13 @@ def assert_eq (a b : FBitVec p) : Option Unit :=
       assert_eq tla tlb
   | _,_ => none
 
-def lessThan (a b : FBitVec p) : FB p :=
-  (a.zip b).foldl (fun acc (aᵢ, bᵢ) ↦
-    let eqᵢ := FB.eq aᵢ bᵢ
+def lessThan (a b : FBitVec p) : Option (FB p) :=
+  (a.zip b).foldlM (fun acc (aᵢ, bᵢ) ↦ do
+    let eqᵢ ← FB.eq aᵢ bᵢ
     (eqᵢ &&& acc) ||| ((FB.not eqᵢ) &&& (FB.not aᵢ))
   ) FB.false
 
-def greaterThan (a b : FBitVec p) : FB p :=
+def greaterThan (a b : FBitVec p) : Option (FB p) :=
   lessThan b a
 
 end FBitVec
@@ -176,8 +176,8 @@ def ofUInt8 (u:UInt8) : Option (F8 p) :=
 
 def zero : F8 p := FBitVec.default 8
 
-def eq (a b : F8 p) : FB p :=
-  List.foldl (fun acc (a,b) => FB.and acc (FB.eq a b)) FB.true (a.zip b)
+def eq (a b : F8 p) : Option (FB p) :=
+  List.foldlM (fun acc (a,b) => do FB.and acc (←FB.eq a b)) FB.true (a.zip b)
 
 def assert_eq (a b : F8 p) := FBitVec.assert_eq a b
 
@@ -293,13 +293,13 @@ example :
   letI a : UInt32 := 2^32 - 1
   (F32.add (a : F32 p) (1 : F32 p)) = ((UInt32.add a 1) : F32 p) := by native_decide
 
-example : FBitVec.lessThan (p := p) (F8.ofF! 0) (F8.ofF! 1) == 1 := by native_decide
-example : FBitVec.lessThan (p := p) (F8.ofF! 1) (F8.ofF! 0) == 0 := by native_decide
-example : FBitVec.lessThan (p := p) (F8.ofF! 5) (F8.ofF! 5) == 0 := by native_decide
-example : FBitVec.lessThan (p := p) (F8.ofF! 42) (F8.ofF! 255) == 1 := by native_decide
-example : FBitVec.lessThan (p := p) (F8.ofF! 255) (F8.ofF! 42) == 0 := by native_decide
-example : FBitVec.greaterThan (p := p) (F8.ofF! 1) (F8.ofF! 0) == 1 := by native_decide
-example : FBitVec.greaterThan (p := p) (F8.ofF! 0) (F8.ofF! 1) == 0 := by native_decide
-example : FBitVec.greaterThan (p := p) (F8.ofF! 5) (F8.ofF! 5) == 0 := by native_decide
+example : FBitVec.lessThan (p := p) (F8.ofF! 0) (F8.ofF! 1) == some 1 := by native_decide
+example : FBitVec.lessThan (p := p) (F8.ofF! 1) (F8.ofF! 0) == some 0 := by native_decide
+example : FBitVec.lessThan (p := p) (F8.ofF! 5) (F8.ofF! 5) == some 0 := by native_decide
+example : FBitVec.lessThan (p := p) (F8.ofF! 42) (F8.ofF! 255) == some 1 := by native_decide
+example : FBitVec.lessThan (p := p) (F8.ofF! 255) (F8.ofF! 42) == some 0 := by native_decide
+example : FBitVec.greaterThan (p := p) (F8.ofF! 1) (F8.ofF! 0) == some 1 := by native_decide
+example : FBitVec.greaterThan (p := p) (F8.ofF! 0) (F8.ofF! 1) == some 0 := by native_decide
+example : FBitVec.greaterThan (p := p) (F8.ofF! 5) (F8.ofF! 5) == some 0 := by native_decide
 
 end Test

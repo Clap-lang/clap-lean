@@ -45,15 +45,15 @@ instance (priority := high) i₆ : ToString UInt32 where
   toString f := Clap.natToHex f.toNat
 
 instance : Clap.Sha2.Sha t where
-  xor3
   rotR
   shiftRight
   to_nat_be
   ch
-  maj
   i₆
 
-instance : Clap.Sha2.Add32 Id UInt32 where
+instance : Clap.Sha2.U32Monadic Id UInt32 where
   add32 := UInt32.add
+  xor3
+  maj
 
 end Clap.Sha2.Cpu

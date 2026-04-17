@@ -12,15 +12,15 @@ namespace FChar
 
 variable {p : ℕ} [core : Core p] [Fact (Primes.fits p 8)]
 
-def isWhitespace (c : FChar p) : FB p :=
+def isWhitespace (c : FChar p) : Option (FB p) := do
   -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
   let bv8  : F8 p := [0, 0, 0, 1, 0, 0, 0, 0]
   let bv14 : F8 p := [0, 1, 1, 1, 0, 0, 0, 0]
   let bv32 : F8 p := [0, 0, 0, 0, 0, 1, 0, 0]
-  let gt8 := FBitVec.greaterThan c bv8
-  let lt14 := FBitVec.lessThan c bv14
+  let gt8 ← FBitVec.greaterThan c bv8
+  let lt14 ← FBitVec.lessThan c bv14
   let isLineBreak : FB p := FB.and gt8 lt14
-  let isSpace := F8.eq c bv32 -- ASCII 32 is space
+  let isSpace ← F8.eq c bv32 -- ASCII 32 is space
   FB.or isLineBreak isSpace
 
 end FChar
@@ -39,21 +39,21 @@ variable {p : ℕ} [core : Core p] [Fact (Primes.fits p 8)]
 def toVF {maxLen} (fs : FString p maxLen) : Vector (F p) maxLen :=
   fs.chars.map FBitVec.toF
 
-private def countTrailingZeros {maxLen : ℕ} (fs : Vector (F p) maxLen) : F p :=
-  Vector.foldl (fun (len,keepCounting) f ↦
-    let b := F.eq f 0
+private def countTrailingZeros {maxLen : ℕ} (fs : Vector (F p) maxLen) : Option (F p) := do
+  let res : F p × F p ← Vector.foldlM (fun (len,keepCounting) f ↦ do
+    let b ← F.eq f 0
     let len := len + (b * keepCounting)
     let keepCounting := FB.and keepCounting b
-    (len, keepCounting)
+    return (len, keepCounting)
   ) (0, FB.true) fs.reverse
-  |>.1
+  res.1
 
 /--
   Takes an arbitrary vector of field elements and returns a MyString.
   Fails if the input contains an element that is not a byte.
 -/
-def ofFs {maxLen : ℕ} (fs : Vector (F p) maxLen) : Option (FString (p := p) maxLen) := do
-  let zeros := countTrailingZeros fs
+def ofFs {maxLen : ℕ} (fs : Vector (F p) maxLen) : Option (FString p maxLen) := do
+  let zeros ← countTrailingZeros fs
   let len := maxLen - zeros
   let chars ← Vector.mapM F8.ofF fs
   some ⟨chars, len⟩
@@ -66,8 +66,8 @@ def assertIsAsciiDigits {maxDigits : ℕ} (inp : FString p maxDigits) : Option U
   let bv58 : F8 p := [0, 1, 0, 1, 1, 1, 0, 0]
   for i in List.finRange maxDigits do
     let c := inp.chars[i]
-    let gt := FBitVec.greaterThan c bv47
-    let lt := FBitVec.lessThan c bv58
+    let gt ← FBitVec.greaterThan c bv47
+    let lt ← FBitVec.lessThan c bv58
     let isAsciiDigit := FB.and gt lt
     eq0 ((1 - isAsciiDigit) * (selector[i]))
 
@@ -87,14 +87,14 @@ def asciiDigitsToScalar {maxLen : ℕ} (inp : FString p maxLen) : Option (F p) :
   --   s       : starts at 1, decremented to 0 at position `inp.len`
   --   ieq_sum : running sum of index_eq[i]; must equal 1 at the end
   --   acc     : accumulated digit value, frozen once s = 0
-  let (_, ieq_sum, acc) := (List.finRange maxLen).drop 1 |>.foldl
-    (fun (state : F p × F p × F p) (i : Fin maxLen) ↦
+  let (_, ieq_sum, acc) ← (List.finRange maxLen).drop 1 |>.foldlM
+    (fun (state : F p × F p × F p) (i : Fin maxLen) ↦ do
       let (s, ieq_sum, acc) := state
-      let ieq       : F p := share $ F.eq inp.len i.1
-      let s'        : F p := share $ s - ieq
-      let acc_shift : F p := share $ 10 * acc + (inp.chars[i].toF - 48)
-      let acc'      : F p := share $ (acc_shift - acc) * s' + acc
-      (s', ieq_sum + ieq, acc'))
+      let ieq       : F p ← share (← F.eq inp.len i.1)
+      let s'        : F p ← share (← s - ieq)
+      let acc_shift : F p ← share (10 * acc + (inp.chars[i].toF - 48))
+      let acc'      : F p ← share ((acc_shift - acc) * s' + acc)
+      return (s', ieq_sum + ieq, acc'))
     (1, 0, acc₀)
   -- Exactly one index_eq must have been 1, i.e. len ∈ {1, ..., maxLen-1}
   F.assert_eq ieq_sum 1
@@ -139,6 +139,11 @@ def assertIsSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen)
 
 variable [Core Primes.bn254]
 
+def powers (α : F p) (len : ℕ) : Option (Vector (F p) len) := do
+  let l : List (F p) ← (List.range len).foldlM (fun pows _ ↦ do let last := List.head! pows ; let p ← share (last * α) ; p::pows) [1]
+  some ⟨l.reverse.toArray, by sorry⟩
+
+
 open Primes HashToField in
 /--
   Fiat-Shamir variant of `isSubstring`.
@@ -160,8 +165,8 @@ def isSubstringFS {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLe
   let α ← Clap.Poseidon.poseidonBN254 [strHash, substrHash, substr.len, startIndex]
   -- Step 2: build challenge powers α⁰, α¹, …, α^{maxStrLen-1}
   -- powers[0] = 1, powers[i] = α^i
-  let powers : Vector (F bn254) maxStrLen :=
-    Vector.ofFn (fun i ↦ (List.iterate (fun x ↦ share (x * α)) 1 (i.val + 1)).getLast!)
+  let powers : Vector (F bn254) maxStrLen ← powers α maxStrLen
+--    Vector.ofFn (fun i ↦ (List.iterate (fun x ↦ share (x * α)) 1 (i.val + 1)).getLast!)
   -- Step 3: selector bits for [startIndex, startIndex + substr.len)
   let selector ← FArray.arraySelector maxStrLen startIndex (startIndex + substr.len)
   -- Step 4: selected_str[i] = selector[i] * str[i]; ŝ(α) = Σᵢ selected_str[i] · powers[i]
@@ -175,8 +180,8 @@ def isSubstringFS {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLe
   -- Step 6: α^startIndex = SelectArrayValue(powers, startIndex)
   let distinguishingValue ← FArray.selectArrayValue powers startIndex
   -- Step 7: success = NOT(isZero(ŝ(α))) AND isEqual(ŝ(α), α^startIndex · t(α))
-  let nonZero : FB bn254 := FB.not (isZero (share strPolyEval))
-  let polyEq  : FB bn254 := F.eq strPolyEval (distinguishingValue * substrPolyEval)
+  let nonZero : FB bn254 := FB.not (←isZero (←share strPolyEval))
+  let polyEq  : FB bn254 ← F.eq strPolyEval (distinguishingValue * substrPolyEval)
   return FB.and nonZero polyEq
 
 open Primes in
@@ -221,8 +226,7 @@ def assertIsConcatenation
   for l : i in [0:maxRightLen] do
     eq0 (rightSelector[i] * right.chars[i].toF)
   -- Step 3: build challenge powers α⁰, α¹, …, α^{maxFullLen-1}
-  let powers : Vector (F bn254) maxFullLen :=
-    Vector.ofFn (fun i ↦ (List.iterate (fun x ↦ share (x * α)) 1 (i.val + 1)).getLast!)
+  let powers : Vector (F bn254) maxFullLen ← powers α maxFullLen
   -- Step 4: left_poly_eval = Σᵢ left[i] · powers[i]
   let mut leftPolyEval : F bn254 := 0
   for l : i in [0:maxLeftLen] do
@@ -263,23 +267,23 @@ instance {p m :ℕ} [Fact (Primes.fits p 8)] [Core p] [DecidableEq (F p)] [Decid
   simp
   infer_instance
 
-example : countTrailingZeros #v[0,0] = (2: F p) := by native_decide
-example : countTrailingZeros #v[1,0] = (1: F p) := by native_decide
-example : countTrailingZeros #v[0,1,0,0] = (2: F p) := by native_decide
-example : countTrailingZeros #v[0,0,1,0] = (1: F p) := by native_decide
+example : countTrailingZeros #v[0,0] = some (2: F p) := by native_decide
+example : countTrailingZeros #v[1,0] = some (1: F p) := by native_decide
+example : countTrailingZeros #v[0,1,0,0] = some (2: F p) := by native_decide
+example : countTrailingZeros #v[0,0,1,0] = some (1: F p) := by native_decide
 
 example : (do FString.ofFs #v[]) = some {chars := #v[], len:= (0:F p)} := by native_decide
 example : (do FString.ofFs #v[(0:F p),1,0,0]) = some { chars := #v[[0,0,0,0,0,0,0,0],[1,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0]],len := 2 } := by native_decide
 
 -- isWhitespace tests
-example : FChar.isWhitespace (F8.ofF! ( 9 : F p)) = FB.true := by native_decide -- TAB
-example : FChar.isWhitespace (F8.ofF! (10 : F p)) = FB.true := by native_decide -- LF
-example : FChar.isWhitespace (F8.ofF! (11 : F p)) = FB.true := by native_decide -- VT
-example : FChar.isWhitespace (F8.ofF! (12 : F p)) = FB.true := by native_decide -- FF
-example : FChar.isWhitespace (F8.ofF! (13 : F p)) = FB.true := by native_decide -- CR
-example : FChar.isWhitespace (F8.ofF! (32 : F p)) = FB.true := by native_decide -- SPACE
-example : FChar.isWhitespace (F8.ofF! (65 : F p)) = FB.false := by native_decide -- 'A'
-example : FChar.isWhitespace (F8.ofF! ( 0 : F p)) = FB.false := by native_decide -- NUL
+example : FChar.isWhitespace (F8.ofF! ( 9 : F p)) = some FB.true := by native_decide -- TAB
+example : FChar.isWhitespace (F8.ofF! (10 : F p)) = some FB.true := by native_decide -- LF
+example : FChar.isWhitespace (F8.ofF! (11 : F p)) = some FB.true := by native_decide -- VT
+example : FChar.isWhitespace (F8.ofF! (12 : F p)) = some FB.true := by native_decide -- FF
+example : FChar.isWhitespace (F8.ofF! (13 : F p)) = some FB.true := by native_decide -- CR
+example : FChar.isWhitespace (F8.ofF! (32 : F p)) = some FB.true := by native_decide -- SPACE
+example : FChar.isWhitespace (F8.ofF! (65 : F p)) = some FB.false := by native_decide -- 'A'
+example : FChar.isWhitespace (F8.ofF! ( 0 : F p)) = some FB.false := by native_decide -- NUL
 
 /-- Construct an `FString` from a char vector and a length for use in tests.
     Notably this allows to construct a "wrong" FString that FString.ofFs would not return. -/

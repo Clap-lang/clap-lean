@@ -20,7 +20,7 @@ def hash64BitLimbsToFieldWithLen {numLimbs : ℕ}
   (input : Vector (F p) numLimbs)
   (inputMaxbits : ℕ)
   (len : F p) :
-  F p
+  Option (F p)
 :=
   assert! inputMaxbits <= 64 && numLimbs != 0
   let elems := Packing.chunksToFieldElems (p := p) 3 64 input
@@ -93,14 +93,14 @@ example :
 
 example :
   -- poseidon [1, 2, 48]
-  hash64BitLimbsToFieldWithLen #v[1,0,0, 2,0,0] 64 48 ==
+  hash64BitLimbsToFieldWithLen #v[1,0,0, 2,0,0] 64 48 == some
     9279947276585799077805428108942311632594603656807751900699542466687045499453
 := by
   native_decide
 
 example :
   -- poseidon [2^64, 24]
-  hash64BitLimbsToFieldWithLen #v[0,1,0] 64 24 ==
+  hash64BitLimbsToFieldWithLen #v[0,1,0] 64 24 == some
     7782062960914706371652872958958905637393708115140004884697710811622618759288
 := by
   native_decide
