@@ -27,12 +27,14 @@ import Clap.Packing
 import Clap.Base64Len
 import Clap.Array
 import Clap.Compiler.Basic
+import Clap.Compiler.Simp
+import Clap.Compiler.Traverse
 import Clap.Compiler.Deep
 import Clap.Quadratic
 import Clap.Test.Wheels
+import Clap.Test.Compiler.Compile
 import Clap.Test.Compiler.Serialise
 import Clap.Test.Compiler.Curry
 import Clap.Test.Compiler.ToDeep
 import Clap.Test.Compiler.ToWg
-import Clap.Test.Compiler.Compile
 import Clap.Test.Integration

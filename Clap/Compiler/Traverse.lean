@@ -1,6 +1,7 @@
 import Lean
 import Qq
 
+import Clap.Compiler.Simp
 import Clap.Compiler.Wheels
 
 namespace Clap.Compiler
