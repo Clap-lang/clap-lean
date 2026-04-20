@@ -6,6 +6,7 @@ import Clap.HashToField
 import Clap.JWT
 import Clap.Poseidon.Poseidon
 import Clap.Base64Len
+import Clap.Sha2.Keyless
 
 /-!
 # Aptos Keyless Circuit
@@ -84,23 +85,6 @@ abbrev EV_NAME_LEN    := 14   -- "email_verified"
 -- ============================================================================
 
 variable [Core bn254]
-
-/-- Stub for SHA2-256 padding verification. WIP. -/
-def SHA2_256_PaddingVerify
-    (_data : FString bn254 MAX_B64U_JWT_NO_SIG_LEN)
-    (_sha2_num_blocks : F bn254)
-    (_sha2_num_bits : Vector (F bn254) SHA2_NUM_BITS_LEN)
-    (_sha2_padding : Vector (F bn254) SHA2_PADDING_LEN)
-    : Option Unit :=
-  pure ()
-
-/-- Stub for SHA2-256 hash of pre-padded data. WIP.
-    Returns the SHA2-256 hash as 4 × 64-bit limbs. -/
-def SHA2_256_Prepadded_Hash
-    (_data : FString bn254 MAX_B64U_JWT_NO_SIG_LEN)
-    (_sha2_num_blocks : F bn254)
-    : Option (Vector (F bn254) 4) :=
-  pure (Vector.replicate 4 0)
 
 /-- Stub for RSA-2048 PKCS#1 v1.5 signature verification. WIP. -/
 def RSA_2048_e_65537_PKCS1_V1_5_Verify
@@ -261,10 +245,19 @@ def verifyJWTStructure (jwtRaw : JWTRawInput) (rsa : RSAInput) : Option (FString
   -- CIRCOM: dot === 46
   let dot ← selectArrayValue jwtRaw.b64u_jwt_no_sig_sha2_padded.toVF (jwtRaw.b64u_jwt_header_w_dot.len - 1)
   F.assert_eq dot 46
-  -- Step 2: SHA2-256 padding verification
-  SHA2_256_PaddingVerify jwtRaw.b64u_jwt_no_sig_sha2_padded jwtRaw.sha2_num_blocks jwtRaw.sha2_num_bits jwtRaw.sha2_padding
-  -- Step 3: SHA2-256 hash (STUB)
-  let sha2Hash ← SHA2_256_Prepadded_Hash jwtRaw.b64u_jwt_no_sig_sha2_padded jwtRaw.sha2_num_blocks
+  -- Steps 2–3: SHA2-256 padding verification + hash computation
+  -- Unified into a single call that verifies RFC 4634 padding and computes
+  -- the SHA2-256 hash, returning 4 × 64-bit limbs for RSA.
+  -- CIRCOM: SHA2_256_PaddingVerify(...) + SHA2_256_Prepadded_Hash(...)
+  -- paddingStart = where real data ends = header_w_dot_len + payload_sha2_padded_len
+  -- CIRCOM: b64u_jwt_header_w_dot_len + b64u_jwt_payload_sha2_padded_len
+  let paddingStart := jwtRaw.b64u_jwt_header_w_dot.len + jwtRaw.b64u_jwt_payload_sha2_padded.len
+  let sha2Hash ← Clap.Sha2.Keyless.sha256VerifiedDigest
+    jwtRaw.b64u_jwt_no_sig_sha2_padded
+    paddingStart
+    jwtRaw.sha2_num_blocks
+    jwtRaw.sha2_num_bits
+    jwtRaw.sha2_padding
   -- Step 4: RSA signature verification (STUB)
   RSA_2048_e_65537_PKCS1_V1_5_Verify sha2Hash rsa.signature rsa.pubkeyModulus
   -- Step 4b: Assert b64u_jwt_payload is a valid prefix of b64u_jwt_payload_sha2_padded
