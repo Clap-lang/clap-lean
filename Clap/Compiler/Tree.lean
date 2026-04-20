@@ -1,6 +1,8 @@
 import Lean
 import Qq
 
+import Clap.Compiler.Wheels
+
 namespace Clap.Compiler
 
 open Lean Meta Qq
@@ -27,27 +29,42 @@ def _root_.Lean.Expr.getBindArgs? (e : Expr) : MetaM (Option (Expr × Expr)) := 
 def _root_.Lean.Expr.mkBind (l r : Expr) (m? : Name := ``Bind.bind) : MetaM Expr :=
   mkAppM m? #[l, r]
 
+private def treeEmoji : String := "🌲"
+
 mutual
 
 private partial def down (todo : Expr) (stack : List ExprS) : MetaM Expr := do
   if let .some (l, r) ← todo.getBindArgs?
   then
+    trace[Clap.Compile.down] "\npush [→]:\n{r}\ngo [↓]:\n{l}"
     down l (.inr r :: stack)
   else
     let simped := id todo
     if simped != todo
-    then down simped stack
-    else up todo stack
+    then
+      trace[Clap.Compile.down] "\n{checkEmoji} go [↓]:\n{simped}"
+      down simped stack
+    else
+      trace[Clap.Compile.down] "\n{crossEmoji} go [↑]:\n{todo}"
+      up todo stack
 
-private partial def up (done : Expr) (stack : List ExprS) : MetaM Expr :=
+private partial def up (done : Expr) (stack : List ExprS) : MetaM Expr := do
   match stack with
-  | [] => return done
-  | .inr r :: rest => down r (.inl done :: rest)
-  | .inl l :: rest => do up (←Expr.mkBind l done) rest
+  | [] =>
+    trace[Clap.Compile.up] "Done"
+    return done
+  | .inr r :: stack =>
+    trace[Clap.Compile.up] "\npush [←]:\n{done}\ngo [↓]:\n{r}"
+    down r (.inl done :: stack)
+  | .inl l :: stack => do
+    trace[Clap.Compile.up] "\ngo [↑]:\n{l}\n>>=\n{done}"
+    up (←Expr.mkBind l done) stack
 
 end
 
-def compile (e : Expr) : MetaM Expr := down e []
+def compile (e : Expr) : MetaM Expr := do
+  withTraceNode `Clap.Compile formatExprWith do
+  down e []
 
 namespace Exampru
 
