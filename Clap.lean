@@ -29,12 +29,14 @@ import Clap.Array
 import Clap.Keyless
 import Clap.RSA
 import Clap.Compiler.Basic
+import Clap.Compiler.Simp
+import Clap.Compiler.Traverse
 import Clap.Compiler.Deep
 import Clap.Quadratic
 import Clap.Test.Wheels
+import Clap.Test.Compiler.Compile
 import Clap.Test.Compiler.Serialise
 import Clap.Test.Compiler.Curry
 import Clap.Test.Compiler.ToDeep
 import Clap.Test.Compiler.ToWg
-import Clap.Test.Compiler.Compile
 import Clap.Test.Integration
