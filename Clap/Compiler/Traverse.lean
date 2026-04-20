@@ -6,7 +6,7 @@ import Clap.Compiler.Wheels
 
 namespace Clap.Compiler
 
-open Lean Meta Qq
+open Lean Meta Qq Elab
 
 abbrev ExprS := Sum Expr Expr
 
@@ -34,13 +34,13 @@ private def treeEmoji : String := "🌲"
 
 mutual
 
-private partial def down (todo : Expr) (stack : List ExprS) : MetaM Expr := do
+private partial def down (todo : Expr) (stack : List ExprS) : TermElabM Expr := do
   if let .some (l, r) ← todo.getBindArgs?
   then
     trace[Clap.Compile.down] "\npush [→]:\n{r}\ngo [↓]:\n{l}"
     down l (.inr r :: stack)
   else
-    let simped := id todo
+    let simped ← Simp.simplify `dbgSimp todo
     if simped != todo
     then
       trace[Clap.Compile.down] "\n{checkEmoji} go [↓]:\n{simped}"
@@ -49,7 +49,7 @@ private partial def down (todo : Expr) (stack : List ExprS) : MetaM Expr := do
       trace[Clap.Compile.down] "\n{crossEmoji} go [↑]:\n{todo}"
       up todo stack
 
-private partial def up (done : Expr) (stack : List ExprS) : MetaM Expr := do
+private partial def up (done : Expr) (stack : List ExprS) : TermElabM Expr := do
   match stack with
   | [] =>
     trace[Clap.Compile.up] "Done"
@@ -63,7 +63,7 @@ private partial def up (done : Expr) (stack : List ExprS) : MetaM Expr := do
 
 end
 
-def compile (e : Expr) : MetaM Expr := do
+def compile (e : Expr) : TermElabM Expr := do
   withTraceNode `Clap.Compile formatExprWith do
   down e []
 
@@ -79,19 +79,15 @@ def ex₀ : Expr := q(
      return ()
 )
 
+attribute [dbgSimp] Option.bind_eq_bind
+
 /--
 info: do
   eq0 ()
-  eq0 ()
-  let res ←
-    do
-      eq0 ()
-      eq0 ()
-  eq0 res
-  pure ()
+  (eq0 ()).bind fun x => ((eq0 ()).bind fun x => eq0 ()).bind fun res => (eq0 res).bind fun x => pure ()
 -/
 #guard_msgs in
-#eval compile ex₀ >>= PrettyPrinter.ppExpr
+#eval compile ex₀ >>= (liftM ∘ PrettyPrinter.ppExpr)
 
 end Exampru
 
