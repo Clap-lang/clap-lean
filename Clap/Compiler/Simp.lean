@@ -15,7 +15,7 @@ def simpOpen : TermElabM (TSyntax `tactic) :=
       config := {
         failIfUnchanged     := false
         arith               := true
-        singlePass          := false
+        singlePass          := true
 
         autoUnfold          := false
         unfoldPartialApp    := false
@@ -31,7 +31,7 @@ def mkSimpSet (simpset : Name) : TermElabM (TSyntax `tactic) :=
       config := {
         failIfUnchanged     := false
         arith               := true
-        singlePass          := false
+        singlePass          := true
 
         autoUnfold          := false
         unfoldPartialApp    := false
