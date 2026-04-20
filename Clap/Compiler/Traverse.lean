@@ -41,6 +41,7 @@ private partial def down (todo : Expr) (stack : List ExprS) : TermElabM Expr := 
     down l (.inr r :: stack)
   else
     let simped ← Simp.simplify `dbgSimp todo
+    trace[Clap.Compile.simp] "\n{todo}\n--->\n{simped}"
     if simped != todo
     then
       trace[Clap.Compile.down] "\n{checkEmoji} go [↓]:\n{simped}"
@@ -80,6 +81,8 @@ def ex₀ : Expr := q(
 )
 
 attribute [dbgSimp] Option.bind_eq_bind
+
+-- set_option trace.Clap.Compile true
 
 /--
 info: do
