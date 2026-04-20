@@ -12,15 +12,46 @@ variable {p : ℕ} [Core p] [Core bn254]
 instance : Coe Char (F p) := charToFp
 
 private def stringBodiesRev₀ (input : List (F p)) : Option (List (FB p) × FB p × FB p) :=
-  input.foldlM
-    ( fun (acc, openedQuotes, escaped) c ↦ do
-        let isNonEscQuotationMark := (←F.eq c '\"') &&& FB.not escaped
-        let acc' := openedQuotes * FB.not isNonEscQuotationMark :: acc
-        let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
-        let escaped' := (←F.eq c '\\') &&& FB.not escaped
-        some (acc', openedQuotes', escaped')
-    )
-    ([], default, default)
+  input.foldlM go ([], default, default)
+ where
+  go : List (FB p) × FB p × FB p → F p → Option (List (FB p) × FB p × FB p) :=
+    fun (acc, openedQuotes, escaped) c ↦ do
+      let isNonEscQuotationMark := (←F.eq c '\"') &&& FB.not escaped
+      let acc' := openedQuotes * FB.not isNonEscQuotationMark :: acc
+      let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
+      let escaped' := (←F.eq c '\\') &&& FB.not escaped
+      some (acc', openedQuotes', escaped')
+
+-- private def stringBodiesRev₀ (input : List (F p)) : List (FB p) × FB p × FB p :=
+--   input.foldl go
+--     -- ( fun (acc, openedQuotes, escaped) c ↦
+--     --     let isNonEscQuotationMark := F.eq c '\"' &&& FB.not escaped
+--     --     let acc' := openedQuotes * FB.not isNonEscQuotationMark :: acc
+--     --     let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
+--     --     let escaped' := F.eq c '\\' &&& FB.not escaped
+--     --     (acc', openedQuotes', escaped')
+--     -- )
+--     ([], default, default)
+--  where
+--   go : List (FB p) × FB p × FB p → F p → List (FB p) × FB p × FB p :=
+--     fun (acc, openedQuotes, escaped) c ↦
+--       let isNonEscQuotationMark := F.eq c '\"' &&& FB.not escaped
+--       let acc' := openedQuotes * FB.not isNonEscQuotationMark :: acc
+--       let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
+--       let escaped' := F.eq c '\\' &&& FB.not escaped
+--       (acc', openedQuotes', escaped')
+
+-- private def stringBodiesRev₁ (input : List (F p)) : List (FB p) × FB p × FB p :=
+--   input.foldl go
+--     ([], default, default)
+--  where
+--   go : List (FB p) × FB p × FB p → F p → List (FB p) × FB p × FB p :=
+--     fun (acc, openedQuotes, escaped) c ↦
+--       let isNonEscQuotationMark := F.eq c '\"' &&& FB.not escaped
+--       let acc' := acc ++ [openedQuotes * FB.not isNonEscQuotationMark]
+--       let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
+--       let escaped' := F.eq c '\\' &&& FB.not escaped
+--       (acc', openedQuotes', escaped')
 
 omit [Core bn254] in
 /-- From keyless:
@@ -52,6 +83,10 @@ omit [Core bn254] in
   | nil => simp
   | cons _ _ ih => intro s; simp only [List.foldl_cons, List.length_cons]; rw [ih]; simp; omega
 -/
+-- def stringBodies (input : List (F p)) : List (FB p) :=
+--   (stringBodiesRev₁ input).1
+
+  -- (stringBodiesRev₀ input).1.reverse
 
 /--
   Given an array of ASCII characters `arr`, returns an array `brackets` with
@@ -518,6 +553,256 @@ lemma bracketsMapGet_len (l : List (F p)) :
 := by
   rw [←bracketsMap_pure]
   simp [bracketsMap']
+-- stringBodies
+
+def isEscape (l : List (F p)) (i : Fin l.length) : Bool :=
+-- def isEscape (l : List (F p)) (i : Fin l.length) : Prop :=
+  match _ : i.val with
+  | 0 =>
+    match l[i] with
+    | '\\' => True
+    | _ => False
+  | i' + 1 =>
+    match l[i] with
+    | '\\' => ¬ isEscape l ⟨i', by lia⟩
+    | _ => False
+
+def isQuotation (l : List (F p)) (i : Fin l.length) : Bool :=
+-- def isQuotation (l : List (F p)) (i : Fin l.length) : Prop :=
+  match _ : i.val with
+  | 0 =>
+    match l[i] with
+    | '"' => True
+    | _ => False
+  | i' + 1 =>
+    match l[i] with
+    | '"' => ¬ isEscape l ⟨i', by lia⟩
+    | _ => False
+
+def isInQuotes (l : List (F p)) (i : Fin l.length) : Bool :=
+  ¬isQuotation l i ∧ Odd {j | j < i ∧ isQuotation l j}.toFinset.card
+  -- (List.range i).map (fun j ↦ isQuotation l ⟨j, by lia⟩) = []
+  -- sorry
+  -- have _ : Std.Commutative (· ^^ ·) := ⟨Bool.xor_comm⟩
+
+  -- (Finset.range i).fold fun (a b : Fin _) ↦ isQuotation l a ^^ isQuotation l b
+  -- (Multiset.range i).map (fun j ↦ isQuotation l ⟨j, sorry⟩) = sorry
+  -- .fold xor false = sorry
+  -- Xor
+
+#eval! isInQuotes ['"', '_', '"'] 0
+
+private def stringBodiesGo : List (FB p) × FB p × FB p → F p → List (FB p) × FB p × FB p :=
+  fun (acc, openedQuotes, escaped) c ↦
+    let isNonEscQuotationMark := FB.and (F.eqPure c '\"') (FB.not escaped)
+    let acc' := openedQuotes * FB.not isNonEscQuotationMark :: acc
+    let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
+    let escaped' := FB.and (F.eqPure c '\\') (FB.not escaped)
+    (acc', openedQuotes', escaped')
+
+private def stringBodiesRev' (input : List (F p)) : List (FB p) × FB p × FB p :=
+  input.foldl stringBodiesGo ([], default, default)
+
+private def stringBodies' (input : List (F p)) : List (FB p) := do
+  (stringBodiesRev' input).1.reverse
+
+private lemma foldr_stringBodies₀_length : ∀ (l acc : List (F p)) (x y : F p),
+  (List.foldr (fun y x => stringBodiesGo x y) (acc, x, y) l).1.length =
+    (List.foldr (fun y x => stringBodiesGo x y) ([], default, default) l).1.length
+      + acc.length
+:= by
+  intro l acc x y
+  revert acc
+  induction l with
+  | nil => simp
+  | cons h t ih =>
+    intro acc
+    simp [List.foldr, stringBodiesGo]
+    simp [stringBodiesGo] at ih
+    rw [ih]
+    lia
+
+private lemma foldr_stringBodies₁_length : ∀ (l acc : List (F p)) (x y : F p),
+  (List.foldr (fun y x => stringBodiesGo x y) (acc, x, y) l).1.length =
+    (List.foldr (fun y x => stringBodiesGo x y) ([], default, default) l).1.length
+      + acc.length
+:= by
+  intro l acc x y
+  revert acc
+  induction l with
+  | nil => simp
+  | cons h t ih =>
+    intro acc
+    simp [List.foldr, stringBodiesGo]
+    simp [stringBodiesGo] at ih
+    rw [ih]
+    lia
+
+#check List.getLast_reverse
+private lemma foldl_stringBodies₀_acc : ∀ (l : List (F p)) init,
+  (List.foldl stringBodiesGo init l).1.take init.1.length = init.1
+:= by
+  intro l
+  induction l with
+  | nil => simp
+  | cons h t ih =>
+    intro acc
+    unfold List.foldl
+    simp [stringBodiesGo]
+    sorry
+
+private lemma stringBodies₀_length (l : List (F p)) :
+  (stringBodiesRev' l).1.length = l.length
+:= by
+  induction l with
+  | nil => simp [stringBodiesRev']
+  | cons h t ih =>
+    simp_all [stringBodiesRev']
+    rw [←List.foldr_reverse] at ih ⊢
+    rw [stringBodiesGo]
+    simp [FB.not, default, FB.and, FB.xor]
+    rw [←List.foldr_reverse, ←ih, foldr_stringBodies₀_length]
+    simp
+
+private lemma stringBodies₁_length (l : List (F p)) :
+  (stringBodiesRev' l).1.length = l.length
+:= by
+  induction l with
+  | nil => simp [stringBodiesRev']
+  | cons h t ih =>
+    simp_all [stringBodiesRev']
+    rw [←List.foldr_reverse] at ih ⊢
+    rw [stringBodiesGo]
+    simp [FB.not, default, FB.and, FB.xor]
+    rw [←List.foldr_reverse, ←ih, foldr_stringBodies₁_length]
+    simp
+
+lemma stringBodies_length (l : List (F p)) : (stringBodies' l).length = l.length := by
+  simp [stringBodies', stringBodies₀_length, stringBodies₁_length]
+
+example : ∀ (h : F p) (t : List (F p)) (i : Fin t.length),
+  (stringBodies' (h :: t))[i]'(by simp [stringBodies_length]) = 1 ↔
+    (h = '\"' ∧ (stringBodies' t)[i]'(by simp [stringBodies_length]) = 0
+      ∨
+      h ≠ '\"' ∧ (stringBodies' t)[i]'(by simp [stringBodies_length]) = 1
+    )
+:= by sorry
+
+lemma quotes₂ : ∀ (t : List (F p)) (i : Fin (t.length + 1)) (i_pos : i.val > 0),
+  (stringBodies' ('\"' :: t))[i]'(by simp [stringBodies_length]; lia) = 1 ↔
+    (stringBodies' t)[i.val - 1]'(by simp [stringBodies_length]; lia) ≠ 1
+:= by sorry
+
+lemma quotes₁ (l : List (F p)) (i : Fin (l.length + 1)) (i_pos : i.val > 0) :
+  isInQuotes ('\"' :: l) i = ¬ isInQuotes l ⟨i-1, by lia⟩
+:= by
+  induction l with
+  | nil =>
+    simp [isInQuotes]
+    grind
+  | cons h t ih =>
+    simp only [isInQuotes]
+    -- aesop
+    -- simp [Set.ncard_def, Set.encard, ENat.card]
+    sorry
+
+example (l : List (F p)) (_ : ¬l.isEmpty): isInQuotes l ⟨0, by grind⟩ = false := by
+  simp [isInQuotes, isQuotation]
+  unfold_projs
+  simp
+
+-- example (l acc : List (F p)) (_ : ¬l.isEmpty) :
+--   (List.foldl stringBodiesRev₁.go (acc, default, default) l).1[0] = 0
+-- := by sorry
+
+example (l : List (F p)) (_ : ¬l.isEmpty) :
+  (stringBodies' l)[0]'(by grind [stringBodies_length]) = 0
+:= by
+  unfold stringBodies' stringBodiesRev'
+  -- conv => left; arg 1; arg 1; arg 1; rw [←List.foldr_reverse]
+  induction l with
+  | nil => grind
+  | cons h t ih =>
+    simp only [List.foldl_cons]
+    conv => left; arg 1; rw [stringBodiesGo]
+    simp
+    simp only
+      [ default,
+        FB.and, FB.xor,
+        zero_mul, zero_add, sub_zero, mul_zero, mul_one
+        ]
+    unfold List.foldl
+  --   unfold List.foldl
+    -- cases t
+    -- · simp
+    -- · dsimp
+    --   conv => left; arg 1; arg 1; arg 1; rw [←List.foldr_reverse]
+
+
+    -- unfold stringBodiesRev₀.go
+    -- unfold List.foldl
+
+    -- simp only [List.reverse_cons]
+    -- simp only [List.foldr_append]
+  -- unfold List.foldr
+  -- cases l
+  -- · grind
+  -- · simp
+  -- induction l with
+  -- | nil => grind
+  -- | cons h t ih =>
+  --   unfold stringBodiesRev₀
+  --   -- rw [←List.foldr_reverse t]
+  --   have a {b} : List.foldr stringBodiesRev₀.go b t.reverse =
+  --     List.foldl (fun x y => stringBodiesRev₀.go y x) b t := List.foldr_reverse
+
+    -- rw [←List.foldr_reverse]
+    -- simp only [FB.not, default, FB.false, HAnd.hAnd, FB.and, FB.xor,
+    --   F.eq, Clap.Spec.Compiler.isZero, sub_eq_zero]
+    sorry
+
+
+example (l : List (F p)) :
+  ∀ i : Fin l.length,
+    isInQuotes l i ↔ (stringBodies' l)[i]'(by simp[stringBodies_length]) == 1
+:= by
+  intro i
+  induction l with
+  | nil =>
+    simp at i
+    cases i
+    contradiction
+  | cons h t ih =>
+    simp at i
+    -- simp [stringBodies, stringBodies₀_length]
+    by_cases h_quotes : h = '"'
+    · subst h_quotes
+      by_cases i_pos : i > 0
+      · rw [quotes₁ t i i_pos]
+        simp only [ih, Fin.getElem_fin, beq_iff_eq, List.length_cons]
+        have := quotes₂ t i i_pos
+        simp at this
+        rw [←this]
+        simp
+      · simp at i_pos
+        subst i_pos
+        -- simp [isInQuotes, isQuotation] --, stringBodies, stringBodiesRev₀, stringBodiesRev₀.go]
+
+        -- unfold_projs
+        -- unfold OfNat.ofNat instOfNatAtLeastTwo
+        -- simp [stringBodies, stringBodiesRev₀]
+        -- simp only [stringBodiesRev₀.go]
+        -- simp
+        --   [FB.not, default, FB.false, HAnd.hAnd, FB.and, FB.xor, F.eq, Clap.Spec.Compiler.isZero]
+        -- norm_num
+        -- constructor
+        -- · intro _;
+        --   sorry
+        -- · sorry
+        sorry
+    · by_cases i_pos : i > 0
+      · sorry
+      · sorry
 
 example {l : List (F p)} :
   ∀ i : Fin l.length,
