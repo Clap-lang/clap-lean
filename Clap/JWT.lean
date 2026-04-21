@@ -86,6 +86,9 @@ omit [Core bn254] in
 -- def stringBodies (input : List (F p)) : List (FB p) :=
 --   (stringBodiesRev₁ input).1
 
+
+-- def stringBodies' (input : List (F p)) : List (FB p) :=
+  -- (stringBodiesRev₁ input.reverse).1.reverse
   -- (stringBodiesRev₀ input).1.reverse
 
 /--
@@ -590,6 +593,29 @@ def isInQuotes (l : List (F p)) (i : Fin l.length) : Bool :=
   -- .fold xor false = sorry
   -- Xor
 
+private def stringBodiesRev₁ (input : List (F p)) : List (FB p) × FB p × FB p :=
+  input.foldr go
+    -- ( fun (acc, openedQuotes, escaped) c ↦
+    --     let isNonEscQuotationMark := F.eq c '\"' &&& FB.not escaped
+    --     let acc' := openedQuotes * FB.not isNonEscQuotationMark :: acc
+    --     let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
+    --     let escaped' := F.eq c '\\' &&& FB.not escaped
+    --     (acc', openedQuotes', escaped')
+    -- )
+    ([], default, default)
+ where
+  go : F p → List (FB p) × FB p × FB p → List (FB p) × FB p × FB p :=
+    fun c (acc, openedQuotes, escaped) ↦
+      let isNonEscQuotationMark := FB.and (F.eqPure c '\"') (FB.not escaped)
+      let acc' := openedQuotes * FB.not isNonEscQuotationMark :: acc
+      let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
+      let escaped' := FB.and (F.eqPure c '\\') (FB.not escaped)
+      (acc', openedQuotes', escaped')
+
+def stringBodiesR (input : List (F p)) : List (FB p) :=
+  (stringBodiesRev₁ input.reverse).1.reverse
+  -- (stringBodiesRev₀ input).1.reverse
+
 #eval! isInQuotes ['"', '_', '"'] 0
 
 private def stringBodiesGo : List (FB p) × FB p × FB p → F p → List (FB p) × FB p × FB p :=
@@ -623,9 +649,8 @@ private lemma foldr_stringBodies₀_length : ∀ (l acc : List (F p)) (x y : F p
     lia
 
 private lemma foldr_stringBodies₁_length : ∀ (l acc : List (F p)) (x y : F p),
-  (List.foldr (fun y x => stringBodiesGo x y) (acc, x, y) l).1.length =
-    (List.foldr (fun y x => stringBodiesGo x y) ([], default, default) l).1.length
-      + acc.length
+  (List.foldr stringBodiesRev₁.go (acc, x, y) l).1.length =
+    (List.foldr stringBodiesRev₁.go ([], default, default) l).1.length + acc.length
 := by
   intro l acc x y
   revert acc
@@ -633,23 +658,24 @@ private lemma foldr_stringBodies₁_length : ∀ (l acc : List (F p)) (x y : F p
   | nil => simp
   | cons h t ih =>
     intro acc
-    simp [List.foldr, stringBodiesGo]
-    simp [stringBodiesGo] at ih
+    simp [List.foldr, stringBodiesRev₁.go]
     rw [ih]
     lia
 
-#check List.getLast_reverse
-private lemma foldl_stringBodies₀_acc : ∀ (l : List (F p)) init,
-  (List.foldl stringBodiesGo init l).1.take init.1.length = init.1
-:= by
-  intro l
-  induction l with
-  | nil => simp
-  | cons h t ih =>
-    intro acc
-    unfold List.foldl
-    simp [stringBodiesGo]
-    sorry
+-- private lemma foldl_stringBodies₀_acc : ∀ (l : List (F p)) init,
+--   (List.foldl stringBodiesRev₀.go init l).1.take init.1.length = init.1
+-- := by
+--   intro l
+--   induction l with
+--   | nil => simp
+--   | cons h t ih =>
+--     intro acc
+--     unfold List.foldl
+--     simp [stringBodiesRev₀.go]
+
+--     -- specialize ih (stringBodiesRev₀.go acc h)
+--     -- rw [ih]
+--     sorry
 
 private lemma stringBodies₀_length (l : List (F p)) :
   (stringBodiesRev' l).1.length = l.length
@@ -665,20 +691,23 @@ private lemma stringBodies₀_length (l : List (F p)) :
     simp
 
 private lemma stringBodies₁_length (l : List (F p)) :
-  (stringBodiesRev' l).1.length = l.length
+  (stringBodiesRev₁ l).1.length = l.length
 := by
   induction l with
-  | nil => simp [stringBodiesRev']
+  | nil => simp [stringBodiesRev₁]
   | cons h t ih =>
-    simp_all [stringBodiesRev']
-    rw [←List.foldr_reverse] at ih ⊢
-    rw [stringBodiesGo]
-    simp [FB.not, default, FB.and, FB.xor]
-    rw [←List.foldr_reverse, ←ih, foldr_stringBodies₁_length]
+    simp_all [stringBodiesRev₁]
+    -- rw [←List.foldr_reverse] at ih ⊢
+    rw [stringBodiesRev₁.go]
+    simp [FB.not, default, FB.and]
+    rw [←ih, foldr_stringBodies₁_length]
     simp
 
 lemma stringBodies_length (l : List (F p)) : (stringBodies' l).length = l.length := by
   simp [stringBodies', stringBodies₀_length, stringBodies₁_length]
+
+lemma stringBodiesR_length (l : List (F p)) : (stringBodiesR l).length = l.length := by
+  simp [stringBodiesR, stringBodies₁_length]
 
 example : ∀ (h : F p) (t : List (F p)) (i : Fin t.length),
   (stringBodies' (h :: t))[i]'(by simp [stringBodies_length]) = 1 ↔
@@ -689,8 +718,13 @@ example : ∀ (h : F p) (t : List (F p)) (i : Fin t.length),
 := by sorry
 
 lemma quotes₂ : ∀ (t : List (F p)) (i : Fin (t.length + 1)) (i_pos : i.val > 0),
-  (stringBodies' ('\"' :: t))[i]'(by simp [stringBodies_length]; lia) = 1 ↔
-    (stringBodies' t)[i.val - 1]'(by simp [stringBodies_length]; lia) ≠ 1
+  (stringBodiesR ('\"' :: t))[i]'(by simp [stringBodiesR_length]; lia) = 1 ↔
+    (stringBodiesR t)[i.val - 1]'(by simp [stringBodiesR_length]; lia) ≠ 1
+:= by sorry
+
+lemma quotes₃ : ∀ (h : F p) (t : List (F p)) (i : Fin (t.length + 1)) (i_pos : i.val > 0) (ne_q : h ≠ '\"'),
+  (stringBodiesR (h :: t))[i]'(by simp [stringBodiesR_length]; lia) = 1 ↔
+    (stringBodiesR t)[i.val - 1]'(by simp [stringBodiesR_length]; lia) = 1
 := by sorry
 
 lemma quotes₁ (l : List (F p)) (i : Fin (l.length + 1)) (i_pos : i.val > 0) :
@@ -701,70 +735,55 @@ lemma quotes₁ (l : List (F p)) (i : Fin (l.length + 1)) (i_pos : i.val > 0) :
     simp [isInQuotes]
     grind
   | cons h t ih =>
-    simp only [isInQuotes]
+    simp [isInQuotes]
     -- aesop
     -- simp [Set.ncard_def, Set.encard, ENat.card]
     sorry
+
+lemma quotes₀ (h : F p) (t : List (F p)) (i : Fin (t.length + 1)) (i_pos : i.val > 0) (ne_q : h ≠ '\"') :
+  isInQuotes (h :: t) i = isInQuotes t ⟨i-1, by lia⟩
+:= by
+  sorry
 
 example (l : List (F p)) (_ : ¬l.isEmpty): isInQuotes l ⟨0, by grind⟩ = false := by
   simp [isInQuotes, isQuotation]
   unfold_projs
   simp
 
--- example (l acc : List (F p)) (_ : ¬l.isEmpty) :
---   (List.foldl stringBodiesRev₁.go (acc, default, default) l).1[0] = 0
--- := by sorry
-
-example (l : List (F p)) (_ : ¬l.isEmpty) :
-  (stringBodies' l)[0]'(by grind [stringBodies_length]) = 0
+lemma drop_len init (l : List (F p)) :
+  (List.foldr stringBodiesRev₁.go init l).1.drop l.length = init.1
 := by
-  unfold stringBodies' stringBodiesRev'
-  -- conv => left; arg 1; arg 1; arg 1; rw [←List.foldr_reverse]
   induction l with
-  | nil => grind
+  | nil => simp
   | cons h t ih =>
-    simp only [List.foldl_cons]
-    conv => left; arg 1; rw [stringBodiesGo]
-    simp
+    simp [stringBodiesRev₁.go, ih]
+
+lemma stringBodies_zero (l : List (F p)) (nonempty : ¬l.isEmpty) :
+  (stringBodiesR l)[0]'(by grind [stringBodiesR_length]) = 0
+:= by
+  unfold stringBodiesR
+  rw [List.getElem_reverse]
+  simp only [stringBodies₁_length, List.length_reverse, tsub_zero, getElem]
+  have length_pred_add_zero : l.length - 1 = l.length - 1 + 0 := by rw [add_zero]
+  conv => left; arg 2; arg 1; rw [length_pred_add_zero]
+  simp only [List.get_eq_getElem]
+  rw [←List.getElem_drop (h := by simp [stringBodies₁_length]; grind)]
+  unfold stringBodiesRev₁
+  rcases l with (_ | ⟨h, t⟩)
+  · grind
+  · simp only [List.length, Nat.add_sub_cancel_right]
     simp only
-      [ default,
-        FB.and, FB.xor,
-        zero_mul, zero_add, sub_zero, mul_zero, mul_one
-        ]
-    unfold List.foldl
-  --   unfold List.foldl
-    -- cases t
-    -- · simp
-    -- · dsimp
-    --   conv => left; arg 1; arg 1; arg 1; rw [←List.foldr_reverse]
+      [List.reverse_cons, List.foldr_append, List.foldr_cons, List.foldr_nil]
+    conv => left; arg 1; rw [←List.length_reverse]
+    conv => left; arg 1; rw [drop_len]
+    unfold stringBodiesRev₁.go
+    simp only [List.getElem_cons_zero, mul_eq_zero]
+    left
+    simp only [default]
 
-
-    -- unfold stringBodiesRev₀.go
-    -- unfold List.foldl
-
-    -- simp only [List.reverse_cons]
-    -- simp only [List.foldr_append]
-  -- unfold List.foldr
-  -- cases l
-  -- · grind
-  -- · simp
-  -- induction l with
-  -- | nil => grind
-  -- | cons h t ih =>
-  --   unfold stringBodiesRev₀
-  --   -- rw [←List.foldr_reverse t]
-  --   have a {b} : List.foldr stringBodiesRev₀.go b t.reverse =
-  --     List.foldl (fun x y => stringBodiesRev₀.go y x) b t := List.foldr_reverse
-
-    -- rw [←List.foldr_reverse]
-    -- simp only [FB.not, default, FB.false, HAnd.hAnd, FB.and, FB.xor,
-    --   F.eq, Clap.Spec.Compiler.isZero, sub_eq_zero]
-    sorry
-
-
-example (l : List (F p)) :
+theorem isInQuotes_iff (l : List (F p)) :
   ∀ i : Fin l.length,
-    isInQuotes l i ↔ (stringBodies' l)[i]'(by simp[stringBodies_length]) == 1
+    isInQuotes l i ↔ (stringBodiesR l)[i]'(by simp[stringBodiesR_length]) = 1
 := by
   intro i
   induction l with
@@ -774,35 +793,29 @@ example (l : List (F p)) :
     contradiction
   | cons h t ih =>
     simp at i
-    -- simp [stringBodies, stringBodies₀_length]
     by_cases h_quotes : h = '"'
-    · subst h_quotes
-      by_cases i_pos : i > 0
-      · rw [quotes₁ t i i_pos]
-        simp only [ih, Fin.getElem_fin, beq_iff_eq, List.length_cons]
+    · by_cases i_pos : i > 0
+      · subst h_quotes
+        rw [quotes₁ t i i_pos]
+        simp only [ih, Fin.getElem_fin, List.length_cons]
         have := quotes₂ t i i_pos
         simp at this
         rw [←this]
         simp
       · simp at i_pos
         subst i_pos
-        -- simp [isInQuotes, isQuotation] --, stringBodies, stringBodiesRev₀, stringBodiesRev₀.go]
-
-        -- unfold_projs
-        -- unfold OfNat.ofNat instOfNatAtLeastTwo
-        -- simp [stringBodies, stringBodiesRev₀]
-        -- simp only [stringBodiesRev₀.go]
-        -- simp
-        --   [FB.not, default, FB.false, HAnd.hAnd, FB.and, FB.xor, F.eq, Clap.Spec.Compiler.isZero]
-        -- norm_num
-        -- constructor
-        -- · intro _;
-        --   sorry
-        -- · sorry
-        sorry
+        simp [stringBodies_zero, isInQuotes]
+        intro; use 0; simp; grind
     · by_cases i_pos : i > 0
-      · sorry
-      · sorry
+      · rw [quotes₀ h t i i_pos h_quotes]
+        simp only [ih, Fin.getElem_fin, List.length_cons]
+        have := quotes₃ h t i i_pos h_quotes
+        simp at this
+        rw [←this]
+      · simp at i_pos
+        subst i_pos
+        simp [stringBodies_zero, isInQuotes]
+        intro; use 0; simp; grind
 
 example {l : List (F p)} :
   ∀ i : Fin l.length,
