@@ -40,6 +40,17 @@ def _root_.Lean.Expr.getBindArgs? (e : Expr) : MetaM (Option (Expr × Expr)) := 
 def _root_.Lean.Expr.mkBind (l r : Expr) (m? : Name := ``Bind.bind) : MetaM Expr := do
   mkAppM m? #[l, r]
 
+def _root_.Lean.Meta.lambdaTelescopeOne!.{u}
+  {n : Type → Type u} [MonadControlT MetaM n] [Monad n]
+  {α : Type} [Inhabited (n α)]
+  (e : Expr) (k : Expr → Expr → n α) (cleanupAnnotations : Bool := false) : n α :=
+  lambdaTelescope (cleanupAnnotations := cleanupAnnotations) e fun args body ↦ do
+    let #[arg] := args | panic! "Expected a single argument. Got: {args.size}"
+    k arg body
+
+def mkBindWith (stackEntry : Expr × Expr) (cont : Expr) (m? : Name := ``Bind.bind) : MetaM Expr := do
+  mkLambdaFVars #[stackEntry.2] cont >>= stackEntry.1.mkBind (m? := m?)
+
 private def treeEmoji : String := "🌲"
 
 mutual
@@ -68,14 +79,13 @@ private partial def up (reduce : Expr → TermElabM Expr)
     trace[Clap.Compile.up] "Done"
     return done
   | .inr r :: stack =>
-    lambdaTelescope r fun args body ↦ do
-      let #[arg] := args | unreachable!
-      trace[Clap.Compile.up] "\npush [←]:\n{done}\ngo [↓]:\n{r}"
+    lambdaTelescopeOne! r fun arg body ↦ do
+      trace[Clap.Compile.up] "\npush [←]:\n{(done, arg)}\ngo [↓]:\n{body}"
       down reduce body (.inl (done, arg) :: stack)
   | .inl l :: stack => do
-    let lam ← mkLambdaFVars #[l.2] done
-    trace[Clap.Compile.up] "\ngo [↑]:\n{l}\n>>=\n{lam}"
-    up reduce (←Expr.mkBind l.1 lam) stack
+    let bind ← mkBindWith l done
+    trace[Clap.Compile.up] "\ngo [↑]:\n{l}\n>>=\n{bind}"
+    up reduce bind stack
 
 end
 
