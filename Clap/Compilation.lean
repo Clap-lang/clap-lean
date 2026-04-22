@@ -366,20 +366,26 @@ def Circuit.toCs (c : Circuit p var) : Cs p var :=
                   (Cs.curry k
                     (fun q ↦
                       let q : Vector (Exp p var) k := q.map (.v)
-                      Cs.curry k
-                        (fun r ↦
-                          let r' : Vector (Exp p var) k := r.map (.v)
-                          Cs.curry (2*k - 1)
-                            (fun t ↦
-                              let t : Vector (Exp p var) (2*k - 1) := t.map (.v)
-                              List.foldr
-                                (fun i ↦ Cs.eq0 (eval_poly t i - (eval_poly ab i - ((eval_poly p' i) * (eval_poly q i) + eval_poly r' i))))
-                                (
-                                  check_carry_zero_circuit t
-                                    (Circuit.toCs (cont r))
+                      range_check_vec_circuit w q
+                        (
+                          Cs.curry k
+                          (fun r ↦
+                            let r' : Vector (Exp p var) k := r.map (.v)
+                            range_check_vec_circuit w r'
+                              (
+                                Cs.curry (2*k - 1)
+                                (fun t ↦
+                                  let t : Vector (Exp p var) (2*k - 1) := t.map (.v)
+                                  List.foldr
+                                    (fun i ↦ Cs.eq0 (eval_poly t i - (eval_poly ab i - ((eval_poly p' i) * (eval_poly q i) + eval_poly r' i))))
+                                    (
+                                      check_carry_zero_circuit t
+                                        (Circuit.toCs (cont r))
+                                    )
+                                    (List.range (2*k - 1))
                                 )
-                                (List.range (2*k - 1))
-                            )
+                              )
+                          )
                         )
                     )
                   )
@@ -455,9 +461,10 @@ def Circuit.toWg (c : Circuitₑ p) : Wg p :=
                 (fun i ↦ Wg.cons (ab.coeff i.1))
                 (
                   q_vec.foldr Wg.cons
-                    (
+                    (range_check_vec_wg w (q_vec.map .v) $
                       r_vec.foldr Wg.cons
                         (
+                          range_check_vec_wg w (r_vec.map .v) $
                           let t := ab - (toCompPoly (p'.map (Exp.eval))) * (toCompPoly q_vec) - (toCompPoly r_vec)
                           List.foldr
                             (fun i ↦ Wg.cons (t.coeff i.1))
