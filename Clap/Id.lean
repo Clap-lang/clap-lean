@@ -109,6 +109,8 @@ def id {var} : Circuit p (Exp p var) → Circuit p var
   | .isZero e k => .isZero e.unwrap fun x ↦ id (k (.v x))
   | .share e k => .share e.unwrap fun x ↦ id (k (.v x))
   | .num2bits w e k => .num2bits w e.unwrap fun x ↦ id (k (x.map .v))
+  | .fpmul w k a b p' c =>
+    .fpmul w k (a.map Exp.unwrap) (b.map Exp.unwrap) (p'.map Exp.unwrap) (fun x ↦ id (c (x.map .v)))
 
 section
 

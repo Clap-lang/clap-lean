@@ -172,6 +172,7 @@ inductive Circuit (p : ℕ) (var : Type) : Type where
   | share (e : Exp p var) (cont : var → Circuit p var)
   | isZero (e : Exp p var) (cont : var → Circuit p var)
   | num2bits (w : ℕ) (e : Exp p var) (cont : List var → Circuit p var)
+  | fpmul (w k : ℕ) (a b p' : Vector (Exp p var) k) (cont : Vector var k → Circuit p var)
 
 abbrev Circuitₑ (p : ℕ) := Circuit p (ZMod p)
 -- TODO remove all ' definitions
@@ -218,6 +219,8 @@ def repr [Repr var] [Index var]
   | .share e k => s!"share {_root_.repr e} {go l k}"
   | .isZero e k => s!"isZero {_root_.repr e} {go l k}"
   | .num2bits w e k => s!"num2bits {w} {_root_.repr e} {gos w l k}"
+  | .fpmul w k a b p' cont => s!"num2bits {w} {k} {_root_.repr  a} {_root_.repr  b} {_root_.repr  p'}"
+    -- TODO figure out what to do with continuation `cont`.
 
 instance [Repr var] [Index var] : Repr (Circuit p var) where
   reprPrec c _ := c.repr 0
@@ -235,6 +238,25 @@ end Test
 
 variable [Fact (Nat.Prime p)]
 
+def nat2words_list (w k n : ℕ) : List (ZMod p) :=
+  match k with
+  | 0 => []
+  | k + 1 =>
+    let val := n % (2 ^ w)
+    let rem := n / (2 ^ w)
+    OfNat.ofNat val :: nat2words_list w k rem
+
+lemma nat2words_list_len {w k n : ℕ} : (Array.mk (nat2words_list (p := p) w k n)).size = k := by
+  rw [List.size_toArray]
+  revert w n
+  induction k with
+  | zero => intros; rfl
+  | succ k ih =>
+    simp [nat2words_list, ih]
+
+def nat2words (p : ℕ) [Fact (Nat.Prime p)] (w k n : ℕ) : Vector (ZMod p) k :=
+  ⟨Array.mk (nat2words_list w k n), nat2words_list_len⟩
+
 def eval : Circuitₑ p → denotation (ZMod p)
   | .nil =>
       .u
@@ -248,6 +270,18 @@ def eval : Circuitₑ p → denotation (ZMod p)
       if e.eval = 0 then (k 1).eval else (k 0).eval
   | .num2bits w e k =>
       if e.eval.val < 2^w then (k (num2bitsLsbPure w e.eval)).eval else .n
+  | .fpmul w k a b p' cont =>
+    if
+      (∀ i : Fin k, a[i].eval.val < 2 ^ w) ∧
+      (∀ i : Fin k, b[i].eval.val < 2 ^ w) ∧
+      (∀ i : Fin k, p'[i].eval.val < 2 ^ w)
+    then
+      let a_val : ℕ := ∑ i : Fin k, a[i].eval.val * (2 ^ w) ^ i.1
+      let b_val : ℕ := ∑ i : Fin k, b[i].eval.val * (2 ^ w) ^ i.1
+      let p_val : ℕ := ∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1
+      let res_val : ℕ := (a_val * b_val) % p
+      (cont (nat2words p w k res_val)).eval
+    else .n
 
 def eval' (c : Circuit' p) : denotation (ZMod p) := eval (c (ZMod p))
 
@@ -310,6 +344,21 @@ theorem isZero_congr (he : el ≈ er) (h: ∀ x, kl x ≈ kr x) :
 theorem num2bits_congr {w : ℕ} {kl kr : List (ZMod p) -> Circuitₑ p} (he: el ≈ er) (hk: ∀ x, kl x ≈ kr x) :
   num2bits w el kl ≈ num2bits w er kr := by
   aesop
+
+@[gcongr]
+theorem fpmul_congr {w k : ℕ} {al ar bl br pl' pr' : Vector (Expₑ p) k} {contl contr : Vector (ZMod p) k → Circuitₑ p}
+    (ha_equiv : ∀ i : Fin _, al[i] ≈ ar[i])
+    (hb_equiv : ∀ i : Fin _, bl[i] ≈ br[i])
+    (hp_equiv : ∀ i : Fin _, pl'[i] ≈ pr'[i])
+    (cont_equiv : ∀ ls, contl ls ≈ contr ls) : -- {w : ℕ} {kl kr : List (ZMod p) -> Circuitₑ p} (he: el ≈ er) (hk: ∀ x, kl x ≈ kr x) :
+  fpmul w k al bl pl' contl ≈ fpmul w k ar br pr' contr := by
+  rw [@equiv_iff_eval_eq_eval]
+  unfold eval
+  simp only [Exp.equiv_iff_eval_eq_eval] at ha_equiv hb_equiv hp_equiv cont_equiv
+  simp only [ha_equiv, hb_equiv, hp_equiv]
+  split_ifs with h
+  · rw [cont_equiv]
+  · rfl
 
 end
 

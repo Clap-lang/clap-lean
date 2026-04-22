@@ -3,6 +3,7 @@ import Mathlib.FieldTheory.Finite.Basic -- field operations
 import Clap.Wheels
 import Clap.Circuit
 import Clap.Simulation
+import CompPoly.Univariate.Basic
 
 namespace Clap
 
@@ -293,7 +294,7 @@ lemma fail₂ :
   · exfalso
     apply h
     rw [sub_eq_zero, eq_comm] at h'
-    rw [h']
+    exact h'
   · rfl
 
 omit inst' in
@@ -304,6 +305,33 @@ lemma fail : ∀ {args : List (ZMod p)} {e : Expₑ p} {cs : Cs p (ZMod p)},
   by_cases h' : assert_bits args
   · rw [reduce₁ h', fail₂ (by tauto)]
   · rw [fail₁ h']
+
+def num2bits_circuit (w : ℕ) (e : Exp p var) (c : Vector var w → Cs p var) :=
+  Cs.curry w (fun bits =>
+      let ls := bits.toList
+      letI rest := Cs.eq0 (bits2num_e ls - e) (c bits)
+      assert_bits_e ls rest)
+
+def range_check_vec_circuit {k : ℕ} (w : ℕ) (vec : Vector (Exp p var) k) (rest : Cs p var) : Cs p var :=
+  List.foldr (fun i r => num2bits_circuit w vec[i] (fun _ ↦ r)) rest (List.finRange k)
+
+def eval_poly {k : ℕ} (coeffs : Vector (Exp p var) k) (x : ZMod p) : Exp p var :=
+  (List.finRange k).foldr
+    (fun ind acc => acc + coeffs[ind] * .c (x ^ ind.1)) (.c 0)
+
+def assert_poly_eq_prod {k : ℕ}
+    (a : Vector (Exp p var) k)
+    (b : Vector (Exp p var) k)
+    (c : Vector (Exp p var) (2*k - 1))
+    (rest : Cs p var) : Cs p var :=
+  List.foldr
+    (fun k rest =>
+      Cs.eq0 ((eval_poly a k) * (eval_poly b k) - (eval_poly c k)) rest
+    )
+    rest
+    (List.range (2*k - 1))
+
+def check_carry_zero_circuit {k : ℕ} (t : Vector (Exp p var) k) (rest : Cs p var) : Cs p var := rest
 
 def Circuit.toCs (c : Circuit p var) : Cs p var :=
   match c with
@@ -323,11 +351,42 @@ def Circuit.toCs (c : Circuit p var) : Cs p var :=
      -- e=0          o=1
      -- e≠0 inv=e^-1 o=0
   | .num2bits w e c =>
-    Cs.curry w (fun bits =>
-      let ls := bits.toList
-      letI rest := (c bits.toList).toCs
-      letI rest := Cs.eq0 (bits2num_e ls - e) rest
-      assert_bits_e ls rest)
+    num2bits_circuit w e (fun bits => (c bits.toList).toCs)
+  | .fpmul w k a b p' cont =>
+    range_check_vec_circuit w a
+      (
+        range_check_vec_circuit w b
+        (
+          range_check_vec_circuit w p'
+          (
+            Cs.curry (2 * k - 1)
+              (fun ab ↦
+                let ab : Vector (Exp p var) (2 * k - 1) := ab.map (.v)
+                assert_poly_eq_prod a b ab
+                  (Cs.curry k
+                    (fun q ↦
+                      let q : Vector (Exp p var) k := q.map (.v)
+                      Cs.curry k
+                        (fun r ↦
+                          let r' : Vector (Exp p var) k := r.map (.v)
+                          Cs.curry (2*k - 1)
+                            (fun t ↦
+                              let t : Vector (Exp p var) (2*k - 1) := t.map (.v)
+                              List.foldr
+                                (fun i ↦ Cs.eq0 (eval_poly t i - (eval_poly ab i - ((eval_poly p' i) * (eval_poly q i) + eval_poly r' i))))
+                                (
+                                  check_carry_zero_circuit t
+                                    (Circuit.toCs (cont r))
+                                )
+                                (List.range (2*k - 1))
+                            )
+                        )
+                    )
+                  )
+              )
+          )
+        )
+      )
 
 def toCs' (c : Circuit' p) : Cs' p := fun var => (c var).toCs
 
@@ -349,6 +408,20 @@ instance : Repr (Wg p) where
 instance : ToString (Wg p) :=
   ⟨Std.Format.pretty ∘ Wg.repr 0⟩
 
+def num2bits_wg (w : ℕ) (e : Exp p (ZMod p)) (c : List (ZMod p) → Wg p) : Wg p :=
+  letI bits := num2bitsLsbPure w (Exp.eval e)
+  List.foldr (fun b acc => .cons b acc) (c bits) bits
+
+def range_check_vec_wg {k : ℕ} (w : ℕ) (vec : Vector (Exp p (ZMod p)) k) (rest : Wg p) : Wg p :=
+  Vector.foldr (fun e wg ↦ num2bits_wg w e (fun _ ↦ wg) ) rest vec
+
+open CompPoly
+
+def toCompPoly {k : ℕ} (vec : Vector (ZMod p) k) : CPolynomial (ZMod p) :=
+  List.foldr (fun i p ↦ p + CPolynomial.C (vec[i]) * CPolynomial.X ^ i.1) 0 (List.finRange k)
+
+def check_carry_zero_wg {k : ℕ} (t : Vector (Exp p (ZMod p)) k) (rest : Wg p) : Wg p := rest
+
 def Circuit.toWg (c : Circuitₑ p) : Wg p :=
   match c with
   | .nil => Wg.nil
@@ -362,8 +435,46 @@ def Circuit.toWg (c : Circuitₑ p) : Wg p :=
     let o : ZMod p := if e = 0 then 1 else 0
     .cons e⁻¹ (.cons o (k o).toWg)
   | .num2bits w e c =>
-    letI bits := num2bitsLsbPure w (Exp.eval e)
-    List.foldr (fun b acc => .cons b acc) (c bits).toWg bits
+    num2bits_wg w e (fun ls => (c ls).toWg)
+  | .fpmul w k a b p' cont =>
+    let ab := (toCompPoly (a.map (Exp.eval)))
+    range_check_vec_wg w a
+      (
+        range_check_vec_wg w b
+          (
+            range_check_vec_wg w p'
+            (
+              let a_val : ℕ := ∑ i : Fin k, a[i].eval.val * (2 ^ w) ^ i.1
+              let b_val : ℕ := ∑ i : Fin k, b[i].eval.val * (2 ^ w) ^ i.1
+              let p_val : ℕ := ∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1
+              let q_val : ℕ := (a_val * b_val) / p
+              let r_val : ℕ := (a_val * b_val) % p
+              let q_vec := nat2words p w k q_val
+              let r_vec := nat2words p w k r_val
+              List.foldr
+                (fun i ↦ Wg.cons (ab.coeff i.1))
+                (
+                  q_vec.foldr Wg.cons
+                    (
+                      r_vec.foldr Wg.cons
+                        (
+                          let t := ab - (toCompPoly (p'.map (Exp.eval))) * (toCompPoly q_vec) - (toCompPoly r_vec)
+                          List.foldr
+                            (fun i ↦ Wg.cons (t.coeff i.1))
+                            (
+                              check_carry_zero_wg (Vector.ofFn (fun i : Fin (2 * k - 1) ↦ .v (t.coeff i.1)))
+                                (cont r_vec).toWg
+                            )
+                            (List.finRange (2 * k - 1)
+                          )
+                        )
+                    )
+                )
+                (List.finRange (2 * k - 1))
+            )
+          )
+      )
+
 
 def toWg' (c:Circuit' p) : Wg p := (c (ZMod p)).toWg
 
@@ -393,6 +504,7 @@ def circuitWF : Circuitₑ p → Prop
 | .share _ c => ∀ i, circuitWF (c i)
 | .isZero _ c => ∀ i, circuitWF (c i)
 | .num2bits w _ c => 2 ^ w < p ∧ ∀ i, circuitWF (c i)
+| .fpmul w k _ _ _ c => 2 * w + k + 2 < p ∧ ∀ i, circuitWF (c i)
 
 
 theorem soundness {c : Circuitₑ p} : circuitWF c → wrBisim c.eval c.toCs.eval := by
@@ -477,6 +589,7 @@ theorem soundness {c : Circuitₑ p} : circuitWF c → wrBisim c.eval c.toCs.eva
         exact wrBisim.none
       · rw [fail₁ cond₁]
         exact wrBisim.none
+  | fpmul w k a b p' c ih => sorry
 
 
 theorem soundness' {c : Circuit' p} :
@@ -551,15 +664,14 @@ def completeness [Fact (Nat.Prime p)] {c : Circuitₑ p} :
     intros cWF
     unfold circuitWF at cWF
     rcases cWF with ⟨w_bound, cWF⟩
-    unfold Circuit.eval Circuit.toWg Circuit.toCs
+    unfold Circuit.eval Circuit.toWg Circuit.toCs num2bits_wg num2bits_circuit
     rw [foldr_curry num2bitsLsbPure_length]
     rw [Vector.toList, assert_bits_e_wrap]
     unfold wrap
     simp only
     rw [reduce₁ assert_bits_of_num2bits]
     split_ifs with h
-    · rw [ih _ (cWF _)]
-      rw [reduce₂ (bits2num_of_num2bitsLsbPure_eq h).symm]
+    · simp [ih _ (cWF _), reduce₂ (bits2num_of_num2bitsLsbPure_eq h).symm]
     · rw [not_lt] at h
       unfold Cs.eval
       split_ifs with h'
@@ -573,3 +685,5 @@ def completeness [Fact (Nat.Prime p)] {c : Circuitₑ p} :
           exact this
         linarith
       · rfl
+  | fpmul w k a b p' c ih =>
+    sorry

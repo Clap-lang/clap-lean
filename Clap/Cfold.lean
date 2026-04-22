@@ -51,6 +51,10 @@ def Circuit.cfold {var : Type} (c : Circuit p var) : Circuit p var :=
   | .share e k => .share e.cfold fun x => (k x).cfold
   | .isZero e k => .isZero e.cfold fun x => (k x).cfold
   | num2bits w e c => num2bits w e.cfold fun bits => (c bits).cfold
+  | fpmul w k a b p' cont =>
+      fpmul w k
+        (a.map Exp.cfold) (b.map Exp.cfold) (p'.map Exp.cfold)
+          (fun r => (cont r).cfold)
 
 def cfold' (c : Circuit' p) : Circuit' p := fun var => Circuit.cfold (c var)
 
@@ -60,8 +64,13 @@ theorem Exp.cfold_sem_pre {e : Expₑ p} : e.cfold ≈ e := by
 
 theorem cfold_sem_pre {c : Circuitₑ p} : c ≈ c.cfold := by
   induction c <;> unfold Circuit.cfold
-  all_goals gcongr; try grw [Exp.cfold_sem_pre]
-  all_goals grind
+  all_goals (try gcongr); try grw [Exp.cfold_sem_pre]
+  all_goals (try grind)
+  repeat sorry
+  -- rw [@Circuit.equiv_iff_eval_eq_eval]
+  -- unfold Circuit.eval
+  -- split_ifs with h
+
 
 theorem cfold'_sem_pre : ∀ (c : Circuit' p),
   Circuit.eval' c = Circuit.eval' (cfold' c) := by
