@@ -2,6 +2,7 @@ import Lean
 import Qq
 
 import Clap.Compiler.Simp
+import Clap.Compiler.Vectors
 import Clap.Compiler.Wheels
 
 namespace Clap.Compiler
@@ -32,14 +33,6 @@ def _root_.Lean.Expr.getBindArgs? (e : Expr) : MetaM (Option (Expr × Expr)) := 
 def _root_.Lean.Expr.mkBind (l r : Expr) (m? : Name := ``Bind.bind) : MetaM Expr := do
   mkAppM m? #[l, r]
 
-def _root_.Lean.Meta.lambdaTelescopeOne!.{u}
-  {n : Type → Type u} [MonadControlT MetaM n] [Monad n]
-  {α : Type} [Inhabited (n α)]
-  (e : Expr) (k : Expr → Expr → n α) (cleanupAnnotations : Bool := false) : n α :=
-  lambdaTelescope (cleanupAnnotations := cleanupAnnotations) e fun args body ↦ do
-    let #[arg] := args | panic! "Expected a single argument. Got: {args.size}"
-    k arg body
-
 private def treeEmoji : String := "🌲"
 
 mutual
@@ -55,7 +48,7 @@ private partial def down (reduce : Expr → TermElabM Expr)
     let simped ← reduce todo
     if simped != todo
     then
-      trace[Clap.Compile.simp] "[↓] {checkEmoji}\n{todo}\n--->\n{simped}"
+      trace[Clap.Compile.simp] "[↓] {checkEmoji}\n{todo}\n==>\n{simped}"
       trace[Clap.Compile.down] "\ngo [↓]:\n{simped}"
       down reduce reduceOuter stack simped
     else
@@ -84,7 +77,7 @@ private partial def up (reduce : Expr → TermElabM Expr)
 
          let simped ← reduceOuter bind
          if simped != bind
-         then trace[Clap.Compile.simp] "[↑] {checkEmoji}\n{bind}\n--->\n{simped}"
+         then trace[Clap.Compile.simp] "[↑] {checkEmoji}\n{bind}\n==>\n{simped}"
          else trace[Clap.Compile.simp] "[↑] {crossEmoji}\n{bind}"
 
          trace[Clap.Compile.up] "\ngo [↑]:\n{simped}"
@@ -103,21 +96,53 @@ def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : TermElabM Exp
     m!"Reducer: [only := {only}, singlePass := {true}, set := {repr simpset}"
   trace[Clap.Compile.simp.config]
     m!"Compiler: [only := {false}, singlePass := {false}, set := {repr compilerSet} ∪ {repr simpset}"
-    
-  down (Simp.simplify (only := only) (singlePass := true) simpset)
-       (Simp.simplify (only := false) (singlePass := false) (compilerSet.union simpset)) [] e
+  
+  lambdaTelescope e fun args e ↦ do
+    let compiled ←
+      down (simplify (only := only) (singlePass := true) simpset)
+           (simplify (compilerSet.union simpset)) [] e
+    mkLambdaFVars args compiled
   where
     compilerSet : SimpSet :=
-      SimpSet.withAllPost #[``Option.bind_assoc, ``bind_assoc] #[``Option.bind_eq_bind]
+      SimpSet.withAllPost #[``Option.bind_assoc, ``bind_assoc] -- #[``Option.bind_eq_bind]
+
+namespace CompileSets
+
+namespace Vector
+
+def foldlM : SimpSet :=
+  SimpSet.withAllPost #[
+    ``Vector.foldlM_mk, ``List.foldlM_toArray,
+
+    ``List.foldlM_cons, ``List.foldlM_nil
+  ]
+
+def getElem : SimpSet :=
+  SimpSet.withAllPost #[
+    ``Vector.getElem_mk, ``List.getElem_toArray,
+
+    ``List.getElem_cons_zero, ``List.getElem_cons_succ,
+  ]
+
+def map : SimpSet :=
+  SimpSet.withAllPost #[
+    ``Vector.map_mk, ``List.map_toArray,
+    
+    ``List.map_cons, ``List.map_nil
+  ]
+
+end Vector
+
+end CompileSets
 
 namespace Exampru
 
-opaque eq0 (e : Nat) : Option Unit
+def eq0 (e : Nat) : Option Unit := .some ()
 
 def ex₀ : Expr := q(
   do eq0 0
      eq0 1
-     let res ← ([0, 1].foldlM (init := ()) fun _ _ ↦ eq0 2)
+     let _res ← ([0, 1].foldlM (init := ()) fun _ _ ↦ eq0 2)
      eq0 3
      return ()
 )                    
@@ -137,6 +162,27 @@ info: do
 #eval compile ex₀
   (SimpSet.withAllPost #[``List.foldlM_cons, ``List.foldlM_nil]) >>=
   (liftM ∘ PrettyPrinter.ppExpr)
+
+def ex₁ (n : Nat) : Option Unit := do
+  eq0 0
+  let res ← (#v[0, 1].foldlM (fun acc _ ↦ return acc) (#v[n, 6]))
+  let res' := res.map (·+1)
+  eq0 (res'[0])
+  eq0 (res'[1])
+  return ()
+
+open CompileSets Vector
+
+/--
+info: fun n => do
+  eq0 0
+  (eq0 (n + 1)).bind fun x => (eq0 7).bind fun x => some ()
+-/
+#guard_msgs in
+#eval show TermElabM _ from do
+  let name := ``ex₁
+  let e := ((←getEnv).find? name).get!.value!
+  compile e (foldlM ∪ getElem ∪ map) >>= (liftM ∘ PrettyPrinter.ppExpr)
 
 end Exampru
 

@@ -14,17 +14,22 @@ As such, we simply interface with it via a `runTactic` and construct the 'approp
 -/
 namespace API
 
+inductive Order where | Pre | Post
+
+instance : Repr Order where
+  reprPrec x _ := match x with | .Pre => f!"Pre" | .Post => f!"Post"
+
 inductive Lemma where
-  | pos (name : Name) (isPre : Bool)
+  | pos (name : Name) (order : Order)
   | neg (name : Name)
 
 structure SimpSet where
-  pos : Array (Name × Bool) := #[]
+  pos : Array (Name × Order) := #[]
   neg : Array Name := #[]
 deriving Repr
 
 def SimpSet.withAllPost (pos neg : Array Name := #[]) : SimpSet
-  where pos := pos.map (·, true)
+  where pos := pos.map (·, .Post)
         neg := neg
 
 def SimpSet.toSimpSet (s : SimpSet) : Array Lemma :=
@@ -34,6 +39,8 @@ def SimpSet.toSimpSet (s : SimpSet) : Array Lemma :=
 def SimpSet.union (s₁ s₂ : SimpSet) : SimpSet where
   pos := s₁.pos ++ s₂.pos
   neg := s₁.neg ++ s₂.neg
+
+instance : Union SimpSet := ⟨SimpSet.union⟩
 
 section
 
@@ -56,8 +63,8 @@ def simpSetStx (sets : Array Lemma) :
   let arrStx ← sets.mapM fun lemma ↦
     match lemma with
     | .neg name => `(simpErase|-$(mkIdent name):term)
-    | .pos name true => `(simpLemma|$(mkIdent name):term)
-    | .pos name false => `(simpLemma|↓$(mkIdent name):term)
+    | .pos name .Post => `(simpLemma|$(mkIdent name):term)
+    | .pos name .Pre => `(simpLemma|↓$(mkIdent name):term)
   return Syntax.TSepArray.ofElems arrStx
 
 end
