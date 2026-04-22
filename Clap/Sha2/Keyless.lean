@@ -46,7 +46,6 @@ abbrev SHA2_NUM_BITS_LEN := 8
 -/
 def hashToRSALimbs (hash : Array (F32 bn254)) : Vector (F bn254) 4 :=
   -- Convert each F32 (LSB-first bits) directly to its scalar value.
-  -- FBitVec.toF on LSB-first bits gives the correct integer — no bit reversal needed.
   let w := hash.map FBitVec.toF
   -- Combine adjacent 32-bit words into 64-bit limbs via field arithmetic.
   -- SHA output: word[0] is the MSB 32 bits of the hash, word[7] is the LSB 32 bits.
@@ -79,12 +78,11 @@ open FString FArray HashToField
     This function enforces two constraints and returns the derived byte count:
 
     1. **Range check:** K < 512 (fits in 9 bits, per RFC 4634). This ensures
-       the padding fits within one block boundary. Matches CIRCOM:
-         `_ <== Num2Bits(9)(K);`
+       the padding fits within one block boundary. Matches CIRCOM: `_ <== Num2Bits(9)(K);`
 
     2. **Byte-alignment check:** K mod 8 = 7. This is an invariant that always
        holds for byte-aligned messages: `K ≡ 447 - 8B (mod 512) ⇒ K mod 8 = 7`.
-       CIRCOM does not assert this explicitly — it writes `(1+K)/8` as field
+       CIRCOM does not assert this explicitly, it writes `(1+K)/8` as field
        division, which silently fails in downstream substring checks when the
        invariant is violated.
 
@@ -108,8 +106,8 @@ def kPlus1Div8 (K : F bn254) : Option (F bn254) := do
 /-- SHA2-256 verified digest: verifies RFC 4634 padding and computes the hash.
 
     Replaces both CIRCOM stubs:
-    - `SHA2_256_PaddingVerify(MAX_INPUT_LEN)` — padding verification
-    - `SHA2_256_Prepadded_Hash(MAX_NUM_BLOCKS)` — hash computation
+    - `SHA2_256_PaddingVerify(MAX_INPUT_LEN)`: padding verification
+    - `SHA2_256_Prepadded_Hash(MAX_NUM_BLOCKS)`: hash computation
 
     The prover provides the padded message and metadata as witnesses. This function
     verifies the padding is RFC 4634 §4.1 compliant, then hashes the padded data
@@ -117,13 +115,10 @@ def kPlus1Div8 (K : F bn254) : Option (F bn254) := do
 
     Arguments:
     - `data`: The full SHA2-padded JWT byte array (FString)
-    - `paddingStart`: Byte offset where real data ends / SHA2 padding begins.
-                      In keyless.circom this is `b64u_jwt_header_w_dot_len + b64u_jwt_payload_sha2_padded_len`.
+    - `paddingStart`: Byte offset where real data ends / SHA2 padding begins. In keyless.circom this is `b64u_jwt_header_w_dot_len + b64u_jwt_payload_sha2_padded_len`.
     - `sha2NumBlocks`: Number of 512-bit (64-byte) SHA2 blocks in the padded data.
-    - `sha2NumBits`: 8-byte big-endian encoding of L (message length in bits = 8 * paddingStart).
-                     CIRCOM signal: `sha2_num_bits[8]`.
-    - `sha2Padding`: 64-byte padding witness: sha2Padding[0] = 0x80, rest zeros.
-                     CIRCOM signal: `sha2_padding[64]`.
+    - `sha2NumBits`: 8-byte big-endian encoding of L (message length in bits = 8 * paddingStart). CIRCOM signal: `sha2_num_bits[8]`.
+    - `sha2Padding`: 64-byte padding witness: sha2Padding[0] = 0x80, rest zeros. CIRCOM signal: `sha2_padding[64]`.
 
     Returns:
     SHA2-256 hash as 4 × 64-bit limbs in little-endian limb order (ready for RSA).
@@ -216,10 +211,6 @@ def sha256VerifiedDigest
   let blocks := @parse_blocks (Circuit.t bn254) Circuit.instSha dataBytes
   -- Process all blocks and collect intermediate hash states.
   let allStates ← processAllBlocks blocks (@initial_hash (Circuit.t bn254) Circuit.instSha) 0 #[]
-  -- Select the hash state at the terminating block (sha2NumBlocks - 1, zero-indexed).
-  -- CIRCOM uses SingleOneArray(MAX_NUM_BLOCKS)(tBlock) as a one-hot selector.
-  -- We use selectArrayValue on each of the 8 hash words independently.
-  -- tBlock = sha2NumBlocks - 1 (CIRCOM: tBlock <== sha2_num_blocks - 1)
   let tBlock := sha2NumBlocks - 1
   let mut hash : Array (F32 bn254) := #[]
   for wordIdx in [:8] do
@@ -236,7 +227,6 @@ def sha256VerifiedDigest
 end Clap.Sha2.Keyless
 
 -- Tests
-
 namespace TestKPlus1Div8
 
 open Clap.Sha2.Keyless
@@ -245,10 +235,8 @@ open Clap.Lang Core Primes ZMod
 -- Expected behavior:
 --   K ∈ [0, 512) with K mod 8 = 7  →  some ((K+1)/8)   (valid byte-aligned K)
 --   K ∈ [0, 512) with K mod 8 ≠ 7  →  none             (byte-alignment fails)
---   K ≥ 512                         →  none             (range check fails)
+--   K ≥ 512                        →  none             (range check fails)
 -- Valid K values for byte-aligned SHA2 padding: {7, 15, 23, ..., 511} (64 values).
-
--- Exhaustive test: all K in [0, 512) — covers every reachable K after the range check.
 example : (List.range 512).all (fun k ↦
     kPlus1Div8 k = (if k % 8 = 7 then some (((k + 1) / 8) : F bn254) else none))
   := by native_decide
@@ -380,9 +368,9 @@ open Clap.Lang Core Primes ZMod
 /-!
 `digest` vs `sha256VerifiedDigest`
 
-These tests verify that our new `sha256VerifiedDigest` (padding verification + hash via
+These tests verify the new `sha256VerifiedDigest` (padding verification + hash via
 `processAllBlocks` + state selection + limb conversion) produces the same result as
-`hashToRSALimbs (digest msg)` — the original `digest` function followed by limb packing.
+`hashToRSALimbs (digest msg)`, the original `digest` function followed by limb packing.
 
 This confirms that:
 The padding verification does not corrupt or alter the hash computation.
@@ -403,11 +391,10 @@ private def digestToLimbs (msg : Array Nat) : Option (Vector (F bn254) 4) := do
 
 -- (1) "abc" (3 bytes, 1 block)
 
--- Path A: digest on raw "abc"
+-- digest on raw "abc"
 private def pathA_abc := digestToLimbs #[97, 98, 99]
 
--- Path B: sha256VerifiedDigest on padded "abc"
--- (reusing the test data from TestSha256VerifiedDigest)
+-- sha256VerifiedDigest on padded "abc" (reusing the test data from TestSha256VerifiedDigest)
 private def mkPaddedAbc : FString bn254 MAX_B64U_JWT_NO_SIG_LEN :=
   let padded := #[97, 98, 99, 128] ++ Array.replicate 52 0 ++ #[0, 0, 0, 0, 0, 0, 0, 24]
   let fullPadded := padded ++ Array.replicate (MAX_B64U_JWT_NO_SIG_LEN - padded.size) 0
@@ -417,7 +404,7 @@ private def pathB_abc :=
   sha256VerifiedDigest mkPaddedAbc 3 1 #v[0, 0, 0, 0, 0, 0, 0, 24]
     ⟨#[128] ++ Array.replicate 63 0, by native_decide⟩
 
--- Both paths produce the same result
+-- Both produce the same result
 example : pathA_abc = pathB_abc := by native_decide
 
 -- (2): 56-byte message (2 blocks)
@@ -425,10 +412,10 @@ example : pathA_abc = pathB_abc := by native_decide
 private def msg56Bytes : Array Nat :=
   "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".toUTF8.data.map (·.toNat)
 
--- Path A: digest on raw 56-byte message
+-- digest on raw 56-byte message
 private def pathA_56 := digestToLimbs msg56Bytes
 
--- Path B: sha256VerifiedDigest on padded 56-byte message
+-- sha256VerifiedDigest on padded 56-byte message
 private def mkPadded56 : FString bn254 MAX_B64U_JWT_NO_SIG_LEN :=
   let padded := msg56Bytes ++ #[128] ++ Array.replicate 63 0 ++ #[0, 0, 0, 0, 0, 0, 1, 0xC0]
   let fullPadded := padded ++ Array.replicate (MAX_B64U_JWT_NO_SIG_LEN - padded.size) 0
@@ -438,7 +425,7 @@ private def pathB_56 :=
   sha256VerifiedDigest mkPadded56 56 2 #v[0, 0, 0, 0, 0, 0, 1, 0xC0]
     ⟨#[128] ++ Array.replicate 63 0, by native_decide⟩
 
--- Both paths produce the same result
+-- Both produce the same result
 example : pathA_56 = pathB_56 := by native_decide
 
 end TestCrossCheck
