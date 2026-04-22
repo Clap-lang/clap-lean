@@ -2,6 +2,7 @@ import Lean
 import Qq
 
 import Clap.Compiler.Simp
+import Clap.Compiler.Vectors
 import Clap.Compiler.Wheels
 
 namespace Clap.Compiler
@@ -103,16 +104,19 @@ def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : TermElabM Exp
     m!"Reducer: [only := {only}, singlePass := {true}, set := {repr simpset}"
   trace[Clap.Compile.simp.config]
     m!"Compiler: [only := {false}, singlePass := {false}, set := {repr compilerSet} ∪ {repr simpset}"
-    
-  down (Simp.simplify (only := only) (singlePass := true) simpset)
-       (Simp.simplify (only := false) (singlePass := false) (compilerSet.union simpset)) [] e
+  
+  lambdaTelescope e fun args e ↦ do
+    let compiled ←
+      down (simplify (only := only) (singlePass := true) simpset)
+           (simplify (compilerSet.union simpset)) [] e
+    mkLambdaFVars args compiled
   where
     compilerSet : SimpSet :=
       SimpSet.withAllPost #[``Option.bind_assoc, ``bind_assoc] #[``Option.bind_eq_bind]
 
 namespace Exampru
 
-opaque eq0 (e : Nat) : Option Unit
+def eq0 (e : Nat) : Option Unit := .some ()
 
 def ex₀ : Expr := q(
   do eq0 0
@@ -137,6 +141,38 @@ info: do
 #eval compile ex₀
   (SimpSet.withAllPost #[``List.foldlM_cons, ``List.foldlM_nil]) >>=
   (liftM ∘ PrettyPrinter.ppExpr)
+
+def ex₁ (n : Nat) : Option Unit := do
+  eq0 0
+  let res ← (#v[0, 1].foldlM (fun acc _ ↦ return acc) (#v[n, 6]))
+  let res' := res.map (·+1)
+  eq0 (res'[0]!)
+  return ()
+
+-- example : #v[0, 1].foldlM (fun acc _ ↦ (return acc : Option (Vector Nat 2))) (#v[5, 6]) = sorry := by
+--   simp?
+--   sorry
+
+-- example : (fun n : Nat ↦ do
+--   do eq0 0
+--      let res ← (#v[0, 1].foldlM (fun acc _ ↦ return acc) (#v[n, 6]))
+--      let res' := res.map (·+1)
+--      eq0 (res'[0]!)
+--      return ()) = sorry := by
+--   simp?
+  -- done
+  
+set_option trace.Clap.Compile true
+#eval show TermElabM _ from do
+  let name := ``ex₁
+  let e := ((←getEnv).find? name).get!.value!
+  compile e
+    (SimpSet.withAllPost #[
+      ``Option.bind_eq_bind, ``Option.bind_fun_some,
+      ``Vector.foldlM_mk, ``List.size_toArray, ``List.length_cons, ``List.length_nil,
+      ``List.foldlM_toArray',
+      ``List.foldlM_cons, ``List.foldlM_nil]) >>=
+    (liftM ∘ PrettyPrinter.ppExpr)
 
 end Exampru
 
