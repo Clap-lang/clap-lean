@@ -23,6 +23,7 @@ private def stringBodiesRev₀ (input : List (F p)) : List (FB p) × FB p × FB 
     )
     ([], default, default)
 
+omit [Core bn254] in
 /-- From keyless:
   Given an array of ask characters representing a JSON object, output a binary array demarquing
   the spaces in between quotes, so that the indices in between quotes in `in` are given the value
@@ -32,6 +33,24 @@ private def stringBodiesRev₀ (input : List (F p)) : List (FB p) × FB p × FB 
 -/
 def stringBodies (input : List (F p)) : List (FB p) :=
   (stringBodiesRev₀ input).1.reverse
+
+omit [Core bn254] in
+@[simp] theorem stringBodies_length (input : List (F p)) :
+    (stringBodies input).length = input.length := by
+  simp only [stringBodies, List.length_reverse]
+  show (stringBodiesRev₀ input).1.length = input.length
+  simp only [stringBodiesRev₀]
+  -- Generalize the accumulator
+  suffices h : ∀ (s : List (FB p) × FB p × FB p),
+      (input.foldl (fun x c ↦
+        let isNonEscQuotationMark := F.eq c '\"' &&& FB.not x.2.2
+        (x.2.1 * FB.not isNonEscQuotationMark :: x.1,
+         FB.xor x.2.1 isNonEscQuotationMark,
+         F.eq c '\\' &&& FB.not x.2.2)) s).1.length
+      = input.length + s.1.length by simpa using h ([], default, default)
+  induction input with
+  | nil => simp
+  | cons _ _ ih => intro s; simp only [List.foldl_cons, List.length_cons]; rw [ih]; simp; omega
 
 /--
   Given an array of ASCII characters `arr`, returns an array `brackets` with
@@ -174,10 +193,16 @@ open Primes HashToField FString FArray in
   WARNING: this function is NOT secure on its own; it must be called from
   `parseJWTFieldWithQuotedValue` or `parseJWTFieldWithUnquotedValue`.
 
-  Note: the Circom original takes a `skip_checks` signal that, when 1, turns
-  the template into a no-op.  We omit it here because `Option Unit` already
-  encodes success/failure: callers that want to skip a field simply don't
-  call this function, rather than passing a flag that bypasses every constraint.
+  The `skipChecks` parameter models CIRCOM's `skip_checks` signal: when `1`, semantic
+  assertions (name matching, character equality, etc.) are bypassed. CIRCOM implements
+  this by collecting all checks into booleans and asserting `checks_pass OR skip_checks === 1`.
+  We model this equivalently by gating each semantic constraint with `perform = NOT(skipChecks)`:
+  `perform * constraint === 0`.
+
+  Sub-template constraints (Num2Bits, one-hot encoding, byte validation) are enforced
+  unconditionally via monadic `←` binds, matching CIRCOM where sub-templates always
+  apply their internal constraints. With `skipChecks = 1`, the prover must still provide
+  well-formed inputs (valid byte values, in-range indices). Default is `0` (checks enabled).
 -/
 private def parseJWTFieldSharedLogic
     {maxKVPairLen maxNameLen maxValueLen : ℕ}
@@ -188,35 +213,39 @@ private def parseJWTFieldSharedLogic
     (value       : FString bn254 maxValueLen)
     (colon_index : F bn254)
     (value_index : F bn254)
+    (skipChecks  : FB bn254 := 0)
     : Option Unit := do
+  let perform : FB bn254 := FB.not skipChecks
   -- Check 0: name_len < colon_index
   -- w = 20 bits suffices for comparisons: 2^20 = 1_048_576 > any realistic JWT field length.
   -- Hardcoded in https://github.com/aptos-labs/keyless-zk-proofs/blob/main/circuit/templates/helpers/jwt/ParseJWTFieldSharedLogic.circom
   let w := 20
-  FB.assert (← F.lessThan w name.len colon_index)
+  F.guardedEq0 perform (FB.not (← F.lessThan w name.len colon_index))
   -- Check 1: colon_index < value_index
-  FB.assert (← F.lessThan w colon_index value_index)
+  F.guardedEq0 perform (FB.not (← F.lessThan w colon_index value_index))
   -- Check 2: field_len > name_len + value_len
-  FB.assert (← F.greaterThan w field.len (name.len + value.len))
+  F.guardedEq0 perform (FB.not (← F.greaterThan w field.len (name.len + value.len)))
   -- Pre-compute hash of field for Fiat-Shamir substring checks
   let fieldHash ← hashBytesToFieldWithLen (field.chars.map FBitVec.toF) field.len
   -- Check 3: field[0] == '"' (ASCII 34)
   let firstChar ← selectArrayValue (field.chars.map FBitVec.toF) 0
-  F.assert_eq firstChar '\"'
+  F.guardedAssertEq perform firstChar '\"'
   -- Check 4: name is a substring of field starting at index 1
-  assertIsSubstringFS h_name field fieldHash name 1
+  let nameOk ← isSubstringFS h_name field fieldHash name 1
+  F.guardedEq0 perform (FB.not nameOk)
   -- Check 5: field[name_len + 1] == '"' (ASCII 34)
   let nameClosingQuote ← selectArrayValue (field.chars.map FBitVec.toF) (name.len + 1)
-  F.assert_eq nameClosingQuote '\"'
+  F.guardedAssertEq perform nameClosingQuote '\"'
   -- Check 6: field[colon_index] == ':' (ASCII 58)
   let colonChar ← selectArrayValue (field.chars.map FBitVec.toF) colon_index
-  F.assert_eq colonChar ':'
+  F.guardedAssertEq perform colonChar ':'
   -- Check 7: value is a substring of field starting at value_index
-  assertIsSubstringFS h_value field fieldHash value value_index
+  let valueOk ← isSubstringFS h_value field fieldHash value value_index
+  F.guardedEq0 perform (FB.not valueOk)
   -- Check 8: field[field_len - 1] == ',' (44) or '}' (125)
   let lastChar ← selectArrayValue (field.chars.map FBitVec.toF) (field.len - 1)
   -- Enforce (lastChar - 44) * (lastChar - 125) == 0
-  eq0 ((lastChar - (',' : F _)) &&& (lastChar - ('}' : F _)))
+  F.guardedEq0 perform ((lastChar - (',' : F _)) &&& (lastChar - ('}' : F _)))
 
 open Primes HashToField FString FArray in
 /--
@@ -233,6 +262,7 @@ open Primes HashToField FString FArray in
      `,` (44), `}` (125), or `"` (34).
 
   Specialised to `Primes.bn254` because `assertIsSubstringFS` uses Poseidon.
+  See `skipChecks` note of `parseJWTFieldSharedLogic`.
 -/
 def parseJWTFieldWithUnquotedValue
     {maxKVPairLen maxNameLen maxValueLen : ℕ}
@@ -243,9 +273,11 @@ def parseJWTFieldWithUnquotedValue
     (value       : FString bn254 maxValueLen)
     (colon_index : F bn254)
     (value_index : F bn254)
+    (skipChecks  : FB bn254 := 0)
     : Option Unit := do
   -- Delegate shared structural checks
-  parseJWTFieldSharedLogic h_name h_value field name value colon_index value_index
+  parseJWTFieldSharedLogic h_name h_value field name value colon_index value_index skipChecks
+  let perform : FB bn254 := FB.not skipChecks
   let fieldChars := field.chars.map FBitVec.toF
   -- Check 1: whitespace in three zones
   -- Zone A: [name_len + 2, colon_index)  — between closing name-quote and colon
@@ -259,14 +291,14 @@ def parseJWTFieldWithUnquotedValue
   -- For each position in a whitespace zone, the character must be whitespace
   (inZone.zip field.chars).toList.forM fun (z, c) ↦ do
     let ws := FChar.isWhitespace c
-    eq0 (z &&& FB.not ws)
+    F.guardedEq0 perform (z &&& FB.not ws)
   -- Check 2: value must not contain ',', '}', or '"'
   -- valueSelector: 1s at [value_index, value_index + value_len)
   let valueSel ← arraySelector maxKVPairLen value_index (value_index + value.len)
   (valueSel.zip fieldChars).toList.forM fun (sel, c) ↦
     let isForbidden := F.eq c ',' ||| F.eq c '}' ||| F.eq c '\"'
     -- If in value range, character must not be forbidden
-    eq0 (sel &&& isForbidden)
+    F.guardedEq0 perform (sel &&& isForbidden)
 
 open Primes HashToField FString FArray in
 /--
@@ -286,6 +318,7 @@ open Primes HashToField FString FArray in
      parts of the field that lie inside JSON string bodies.
 
   Specialised to `Primes.bn254` because `assertIsSubstringFS` uses Poseidon.
+  See `skipChecks` note of `parseJWTFieldSharedLogic`.
 -/
 def parseJWTFieldWithQuotedValue
     {maxKVPairLen maxNameLen maxValueLen : ℕ}
@@ -297,16 +330,18 @@ def parseJWTFieldWithQuotedValue
     (field_string_bodies : Vector (FB bn254) maxKVPairLen)
     (colon_index        : F bn254)
     (value_index        : F bn254)
+    (skipChecks         : FB bn254 := 0)
     : Option Unit := do
   -- Delegate shared structural checks
-  parseJWTFieldSharedLogic h_name h_value field name value colon_index value_index
+  parseJWTFieldSharedLogic h_name h_value field name value colon_index value_index skipChecks
+  let perform : FB bn254 := FB.not skipChecks
   let fieldChars := field.chars.map FBitVec.toF
   -- Check 0: field[value_index - 1] == '"' (opening quote around value)
   let valueFirstQuote ← selectArrayValue fieldChars (value_index - 1)
-  F.assert_eq valueFirstQuote 34
+  F.guardedAssertEq perform valueFirstQuote 34
   -- Check 1: field[value_index + value_len] == '"' (closing quote around value)
   let valueSecondQuote ← selectArrayValue fieldChars (value_index + value.len)
-  F.assert_eq valueSecondQuote 34
+  F.guardedAssertEq perform valueSecondQuote 34
   -- Check 2: whitespace zones + string bodies
   -- Zone A: [name_len + 2, colon_index)  — between closing name-quote and colon
   -- Zone B: [colon_index + 1, value_index - 1)  — between colon and opening value-quote
@@ -322,15 +357,14 @@ def parseJWTFieldWithQuotedValue
   let nameOrValue := nameSel.zipWith FB.or valueSel
   -- For each position: whitespace zone chars must be whitespace,
   -- and string bodies must match name/value selectors exactly
-  -- TODO: ugly zip, zip, zip. Better way todo it?
   (inZone.zip (nameOrValue.zip (field_string_bodies.zip field.chars))).toList.forM fun (z, nv, sb, c) ↦ do
     -- Whitespace check: if in a whitespace zone, the character must be whitespace
     let ws := FChar.isWhitespace c
-    eq0 (z &&& FB.not ws)
+    F.guardedEq0 perform (z &&& FB.not ws)
     -- String bodies forward: name/value positions must be inside string bodies
-    eq0 (nv &&& FB.not sb)
+    F.guardedEq0 perform (nv &&& FB.not sb)
     -- String bodies reverse: non-name/value positions must NOT be inside string bodies
-    eq0 (FB.not nv &&& sb)
+    F.guardedEq0 perform (FB.not nv &&& sb)
 
 open Primes HashToField FString FArray in
 /--
@@ -655,6 +689,15 @@ example : (do
   parseJWTFieldSharedLogic (by omega) (by omega) field name value 3 4
   ) = none := by native_decide
 
+-- skipChecks = 1 bypasses semantic checks (name mismatch) but sub-template constraints
+-- (one-hot encoding, byte validation) still apply. Well-formed inputs succeed.
+example : (do
+  let field := strToFS 6 "\"a\":b,"
+  let name  := strToFS 1 "b"   -- 'b' doesn't match 'a' at index 1
+  let value := strToFS 1 "b"
+  parseJWTFieldSharedLogic (by omega) (by omega) field name value 3 4 (skipChecks := 1)
+  ) = some () := by native_decide
+
 -- parseJWTFieldSharedLogic accepts inputs that the wrapper templates
 -- (ParseJWTFieldWithUnquotedValue / ParseJWTFieldWithQuotedValue) would reject.
 
@@ -826,6 +869,13 @@ example : (do
   parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 5 6
   ) = none := by native_decide
 
+example : (do
+  let field := strToFS 18 "\"exp\":1999999999,"
+  let name  := strToFS 3 "exp"
+  let value := strToFS 1 "1"
+  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 5 6 (skipChecks := 1)
+  ) = some () := by native_decide
+
 -- Reject: partial value with trailing non-whitespace — "nbf":16000 ,
 -- value="160"; characters "00 " end with a space (whitespace) but "00" are digits, not whitespace.
 example : (do
@@ -833,6 +883,22 @@ example : (do
   let name  := strToFS 3 "nbf"
   let value := strToFS 3 "160"
   parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 5 6
+  ) = none := by native_decide
+
+example : (do
+  let field := strToFS 13 "\"nbf\":16000 ,"
+  let name  := strToFS 3 "nbf"
+  let value := strToFS 3 "160"
+  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 5 6 (skipChecks := 1)
+  ) = some () := by native_decide
+
+-- skipChecks = 1 does NOT bypass sub-template constraints: out-of-range indices still fail,
+-- matching CIRCOM where sub-template constraints (one-hot encoding) always apply.
+example : (do
+  let field := strToFS 6 "\"a\":b,"
+  let name  := strToFS 1 "a"
+  let value := strToFS 1 "b"
+  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 100 200 (skipChecks := 1)
   ) = none := by native_decide
 
 -- parseJWTFieldWithQuotedValue tests
@@ -957,6 +1023,14 @@ example : (do
   parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5
   ) = none := by native_decide
 
+example : (do
+  let field := strToFS 8 "\"a\":\"b\","
+  let bodies : Vector (ZMod p) 8 := #v[1,1,1,1,1,1,1,1]
+  let name  := strToFS 1 "a"
+  let value := strToFS 1 "b"
+  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5 (skipChecks := 1)
+  ) = some () := by native_decide
+
 -- Reject: non-whitespace after closing value quote — "a":"b"X,
 -- string_bodies: 0 1 0 0 0 1 0 0 0
 example : (do
@@ -965,6 +1039,32 @@ example : (do
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
   parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5
+  ) = none := by native_decide
+
+example : (do
+  let field := strToFS 9 "\"a\":\"b\"X,"
+  let bodies : Vector (ZMod p) 9 := #v[0,1,0,0,0,1,0,0,0]
+  let name  := strToFS 1 "a"
+  let value := strToFS 1 "b"
+  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5 (skipChecks := 1)
+  ) = some () := by native_decide
+
+example : (do
+  let field := strToFS 9 "\"a\":\"b\"X,"
+  let bodies : Vector (ZMod p) 9 := #v[0,1,0,0,0,1,0,0,0]
+  let name  := strToFS 1 "a"
+  let value := strToFS 1 "b"
+  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5 (skipChecks := 1)
+  ) = some () := by native_decide
+
+-- skipChecks = 1 does NOT bypass sub-template constraints: out-of-range indices still fail,
+-- matching CIRCOM where sub-template constraints (one-hot encoding) always apply.
+example : (do
+  let field := strToFS 6 "\"a\":b,"
+  let bodies : Vector (ZMod p) 6 := #v[0,0,0,0,0,0]
+  let name  := strToFS 1 "a"
+  let value := strToFS 1 "b"
+  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 100 200 (skipChecks := 1)
   ) = none := by native_decide
 
 -- valid: "k":"ab cd",  (whitespace inside quoted value)
