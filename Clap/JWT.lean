@@ -561,29 +561,23 @@ lemma bracketsMapGet_len (l : List (F p)) :
 def isEscape (l : List (F p)) (i : Fin l.length) : Bool :=
 -- def isEscape (l : List (F p)) (i : Fin l.length) : Prop :=
   match _ : i.val with
-  | 0 =>
-    match l[i] with
-    | '\\' => True
-    | _ => False
-  | i' + 1 =>
-    match l[i] with
-    | '\\' => ¬ isEscape l ⟨i', by lia⟩
-    | _ => False
+  | 0 => l[i] = '\\'
+  | i' + 1 => l[i] = '\\' ∧ ¬ isEscape l ⟨i', by lia⟩
 
 def isQuotation (l : List (F p)) (i : Fin l.length) : Bool :=
 -- def isQuotation (l : List (F p)) (i : Fin l.length) : Prop :=
   match _ : i.val with
-  | 0 =>
-    match l[i] with
-    | '"' => True
-    | _ => False
-  | i' + 1 =>
-    match l[i] with
-    | '"' => ¬ isEscape l ⟨i', by lia⟩
-    | _ => False
+  | 0 => l[i] = '"'
+  | i' + 1 => l[i] = '"' ∧ ¬ isEscape l ⟨i', by lia⟩
 
 def isInQuotes (l : List (F p)) (i : Fin l.length) : Bool :=
   ¬isQuotation l i ∧ Odd {j | j < i ∧ isQuotation l j}.toFinset.card
+
+def isInQuotes' (l : List (F p)) (i : Fin l.length) : Bool :=
+  ¬isQuotation l i ∧ Odd {j | j < i ∧ isQuotation l j}.toFinset.card
+
+#check Finset.card_eq_of_equiv
+
   -- (List.range i).map (fun j ↦ isQuotation l ⟨j, by lia⟩) = []
   -- sorry
   -- have _ : Std.Commutative (· ^^ ·) := ⟨Bool.xor_comm⟩
@@ -722,7 +716,10 @@ lemma quotes₂ : ∀ (t : List (F p)) (i : Fin (t.length + 1)) (i_pos : i.val >
     (stringBodiesR t)[i.val - 1]'(by simp [stringBodiesR_length]; lia) ≠ 1
 := by sorry
 
-lemma quotes₃ : ∀ (h : F p) (t : List (F p)) (i : Fin (t.length + 1)) (i_pos : i.val > 0) (ne_q : h ≠ '\"'),
+lemma quotes₃ : ∀ (h : F p) (t : List (F p)) (i : Fin (t.length + 1))
+  (i_pos : i.val > 0)
+  (ne_q : h ≠ '\\')
+  (ne_q : h ≠ '\"'),
   (stringBodiesR (h :: t))[i]'(by simp [stringBodiesR_length]; lia) = 1 ↔
     (stringBodiesR t)[i.val - 1]'(by simp [stringBodiesR_length]; lia) = 1
 := by sorry
@@ -740,12 +737,54 @@ lemma quotes₁ (l : List (F p)) (i : Fin (l.length + 1)) (i_pos : i.val > 0) :
     -- simp [Set.ncard_def, Set.encard, ENat.card]
     sorry
 
-lemma quotes₀ (h : F p) (t : List (F p)) (i : Fin (t.length + 1)) (i_pos : i.val > 0) (ne_q : h ≠ '\"') :
-  isInQuotes (h :: t) i = isInQuotes t ⟨i-1, by lia⟩
+lemma isE_eq (h : F p) (t : List (F p)) (i : Fin (t.length + 1))
+  (i_pos : i.val > 0)
+  (ne_q : h ≠ '\\') :
+  isEscape (h :: t) i = isEscape t ⟨i - 1, by lia⟩
 := by
-  sorry
+  rcases i with ⟨ival, i_lt⟩
+  induction ival with
+  | zero => grind
+  | succ i' ih =>
+    unfold isEscape
+    simp_all
+    split <;> simp_all
+    · intro
+      unfold isEscape
+      simp [ne_q]
+    · grind
 
-example (l : List (F p)) (_ : ¬l.isEmpty): isInQuotes l ⟨0, by grind⟩ = false := by
+lemma isQ_eq (h : F p) (t : List (F p)) (i : Fin (t.length + 1))
+  (i_pos : i.val > 0)
+  (ne_q : h ≠ '\\') :
+  isQuotation (h :: t) i = isQuotation t ⟨i - 1, by lia⟩
+:= by
+  rcases i with ⟨ival, i_lt⟩
+  cases ival with
+  | zero => grind
+  | succ i' =>
+    unfold isQuotation isEscape
+    simp_all
+    split <;> simp_all
+    split
+    · congr
+      unfold isEscape
+      simp
+      intro; contradiction
+    · grind [isE_eq, Fin.succ_ne_zero]
+
+-- lemma quotes₀ (h : F p) (t : List (F p)) (i : Fin (t.length + 1))
+--   (i_pos : i.val > 0)
+--   (ne_q : h ≠ '"') :
+--   isInQuotes (h :: t) i = isInQuotes t ⟨i-1, by lia⟩
+-- := by
+--   unfold isInQuotes
+--   simp
+--   sorry
+
+lemma isInQuotes_zero (l : List (F p)) (_ : ¬l.isEmpty) :
+  isInQuotes l ⟨0, by grind⟩ = false
+:= by
   simp [isInQuotes, isQuotation]
   unfold_projs
   simp
@@ -781,6 +820,14 @@ lemma stringBodies_zero (l : List (F p)) (nonempty : ¬l.isEmpty) :
     left
     simp only [default]
 
+#check (∅ : Set ℕ)
+#check Finset.card_eq_of_equiv_fin
+-- #check Finset.map_pred
+
+-- #check Finset.card_bi
+#check Nat.twoStepInduction
+#check List.twoStepInduction
+
 theorem isInQuotes_iff (l : List (F p)) :
   ∀ i : Fin l.length,
     isInQuotes l i ↔ (stringBodiesR l)[i]'(by simp[stringBodiesR_length]) = 1
@@ -807,15 +854,62 @@ theorem isInQuotes_iff (l : List (F p)) :
         simp [stringBodies_zero, isInQuotes]
         intro; use 0; simp; grind
     · by_cases i_pos : i > 0
-      · rw [quotes₀ h t i i_pos h_quotes]
-        simp only [ih, Fin.getElem_fin, List.length_cons]
-        have := quotes₃ h t i i_pos h_quotes
-        simp at this
-        rw [←this]
+      · by_cases h_esc : h = '\\'
+        · -- h is esc, only t's tail matters
+
+          sorry
+        · unfold isInQuotes
+          rw [isQ_eq h t i i_pos h_esc]
+          have quotes₃:= quotes₃ h t i i_pos h_esc h_quotes
+          simp at quotes₃
+          simp only [List.length_cons, Fin.getElem_fin]
+          rw [quotes₃]
+          specialize ih ⟨i - 1, by grind⟩
+          simp at ih
+          simp only [Bool.not_eq_true, Bool.decide_and, Bool.decide_eq_false,
+            Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_true_eq]
+          rw [←ih]
+          unfold isInQuotes
+          simp only [Bool.not_eq_true, Bool.decide_and, Bool.decide_eq_false,
+            Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_true_eq,
+            and_congr_right_iff]
+          intro isq
+          have h_odd (a b : ℕ) : a = b → (Odd a ↔ Odd b) := by
+            rintro rfl; trivial
+          apply h_odd
+          simp
+          have equiv :
+            { x // x < i ∧ isQuotation (h :: t) x = true } ≃
+              { x // x < ⟨i - 1, by lia⟩ ∧ isQuotation t x = true }
+          := {
+            toFun := fun ⟨⟨x₁, x₁_lt⟩, hx₁, hx₂⟩ ↦
+              { val := ⟨x₁ - 1, by lia⟩
+                property := by grind [isQuotation, isQ_eq]
+              }
+            invFun := fun ⟨⟨x₂, x₂_lt⟩, hx₁, hx₂⟩ ↦
+              { val := ⟨x₂ + 1, by lia⟩
+                property := by grind [isQ_eq]
+              }
+            left_inv := by
+              rintro ⟨⟨x₁, x₁_lt⟩, hx₁, hx₂⟩
+              simp
+              split; next => grind [isQuotation]
+            right_inv := by
+              rintro ⟨⟨x₂, x₂_lt⟩, hx₂, hx₂⟩
+              simp
+              split; next => grind [isQuotation]
+          }
+          apply Finset.card_eq_of_equiv
+          simp
+          exact equiv
       · simp at i_pos
         subst i_pos
-        simp [stringBodies_zero, isInQuotes]
-        intro; use 0; simp; grind
+        have := isInQuotes_zero (h :: t)
+        simp at this
+        conv => left; simp; rw [this]
+        simp
+        conv => arg 1; rw [stringBodies_zero (h :: t) (by grind)]
+        simp
 
 example {l : List (F p)} :
   ∀ i : Fin l.length,
