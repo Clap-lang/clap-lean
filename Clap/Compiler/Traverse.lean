@@ -138,7 +138,7 @@ def ex₁ (n : Nat) : Option Unit := do
   eq0 0
   let res ← (#v[0, 1].foldlM (fun acc _ ↦ return acc) (#v[n, 6]))
   let res' := res.map (·+1)
-  eq0 (res'[0]!)
+  eq0 (res'[0])
   return ()
 
 -- example : #v[0, 1].foldlM (fun acc _ ↦ (return acc : Option (Vector Nat 2))) (#v[5, 6]) = sorry := by
@@ -162,15 +162,35 @@ example : #v[1, 2, 3].foldlM (fun acc x ↦ (return acc + x : Id Nat)) 0 = sorry
   rw [Vector.foldlM_mk]
   rw [List.foldlM_toArray]
 
+set_option pp.parens true
 set_option trace.Clap.Compile true
+
+example {res : Vector Nat 2} :
+  (Vector.map (fun x => (x + 1)) (Vector.mk (n := 2) { toList := [res[0], res[1]] } sorry))[0]! = sorry := by
+  simp only [Vector.map_mk, List.map_toArray, List.map_cons, List.map_nil, Nat.zero_lt_succ,
+    getElem!_pos, Vector.getElem_mk, List.getElem_toArray, List.getElem_cons_zero]
+  done
+
+-- example {x : Vector Nat 2} :
+--   @Vector.mk Nat
+--   { toList := [(Vector.mk { toList := [x[0], x[1]] } sorry)[0], (Vector.mk { toList := [x[0], x[1]] } sorry)[1]] }.size
+--   { toList := [(Vector.mk { toList := [x[0], x[1]] } sorry)[0], (Vector.mk { toList := [x[0], x[1]] } sorry)[1]] } sorry = sorry := by
+set_option trace.Meta.Tactic.simp true
+example {res : Vector Nat 2} :
+  (Vector.mk (n := 2) { toList := [res[0], res[1]] } sorry)[0] = sorry := by
+  simp? [↓dontExplodeVector, explodeVectorProc]
+
 #eval show TermElabM _ from do
   let name := ``ex₁
   let e := ((←getEnv).find? name).get!.value!
-  compile e
+  compile e (only := false)
     (SimpSet.withAllPost #[
       ``Vector.foldlM_mk, ``List.foldlM_toArray,
-      ``List.foldlM_cons, ``List.foldlM_nil] |>.union {
-          pos := #[(``explodeVectorProc, true), (``dontExplodeVector, false), (``dontExplodeVector!, false)]
+      ``List.foldlM_cons, ``List.foldlM_nil, ``Vector.getElem_mk,
+      ``Vector.map_mk, ``List.map_toArray, ``List.map_cons, ``List.map_nil, ``Nat.zero_lt_succ,
+      ``getElem!_pos, ``Vector.getElem_mk, ``List.getElem_toArray, ``List.getElem_cons_zero,
+      ``Vector.getElem_mk, ``List.getElem_toArray, ``List.getElem_cons_zero] |>.union {
+          pos := #[(``explodeVectorProc, .Post), (``dontExplodeVector, .Pre)]
         }) >>=
     (liftM ∘ PrettyPrinter.ppExpr)
 
