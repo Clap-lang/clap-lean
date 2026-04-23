@@ -511,8 +511,7 @@ def circuitWF : Circuitₑ p → Prop
 | .share _ c => ∀ i, circuitWF (c i)
 | .isZero _ c => ∀ i, circuitWF (c i)
 | .num2bits w _ c => 2 ^ w < p ∧ ∀ i, circuitWF (c i)
-| .fpmul w k _ _ _ c => 2 * w + k + 2 < p ∧ ∀ i, circuitWF (c i)
-
+| .fpmul w k _ _ _ c => 4 * 2 ^ (2 * w + (Nat.clog 2 k)) < p ∧ ∀ i, circuitWF (c i)
 
 theorem soundness {c : Circuitₑ p} : circuitWF c → wrBisim c.eval c.toCs.eval := by
   induction c with
