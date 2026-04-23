@@ -33,14 +33,6 @@ def _root_.Lean.Expr.getBindArgs? (e : Expr) : MetaM (Option (Expr × Expr)) := 
 def _root_.Lean.Expr.mkBind (l r : Expr) (m? : Name := ``Bind.bind) : MetaM Expr := do
   mkAppM m? #[l, r]
 
-def _root_.Lean.Meta.lambdaTelescopeOne!.{u}
-  {n : Type → Type u} [MonadControlT MetaM n] [Monad n]
-  {α : Type} [Inhabited (n α)]
-  (e : Expr) (k : Expr → Expr → n α) (cleanupAnnotations : Bool := false) : n α :=
-  lambdaTelescope (cleanupAnnotations := cleanupAnnotations) e fun args body ↦ do
-    let #[arg] := args | panic! "Expected a single argument. Got: {args.size}"
-    k arg body
-
 private def treeEmoji : String := "🌲"
 
 mutual
@@ -162,16 +154,24 @@ def ex₁ (n : Nat) : Option Unit := do
 --   simp?
   -- done
   
+-- attribute [simproc] explodeVectorProc
+-- attribute [simproc↓] dontExplodeVector
+-- attribute [simproc↓] dontExplodeVector!
+
+example : #v[1, 2, 3].foldlM (fun acc x ↦ (return acc + x : Id Nat)) 0 = sorry := by
+  rw [Vector.foldlM_mk]
+  rw [List.foldlM_toArray]
+
 set_option trace.Clap.Compile true
 #eval show TermElabM _ from do
   let name := ``ex₁
   let e := ((←getEnv).find? name).get!.value!
   compile e
     (SimpSet.withAllPost #[
-      ``Option.bind_eq_bind, ``Option.bind_fun_some,
-      ``Vector.foldlM_mk, ``List.size_toArray, ``List.length_cons, ``List.length_nil,
-      ``List.foldlM_toArray',
-      ``List.foldlM_cons, ``List.foldlM_nil]) >>=
+      ``Vector.foldlM_mk, ``List.foldlM_toArray,
+      ``List.foldlM_cons, ``List.foldlM_nil] |>.union {
+          pos := #[(``explodeVectorProc, true), (``dontExplodeVector, false), (``dontExplodeVector!, false)]
+        }) >>=
     (liftM ∘ PrettyPrinter.ppExpr)
 
 end Exampru
