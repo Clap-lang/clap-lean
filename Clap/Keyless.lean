@@ -7,6 +7,7 @@ import Clap.JWT
 import Clap.Poseidon.Poseidon
 import Clap.Base64Len
 import Clap.Sha2.Keyless
+import Clap.RSA
 
 /-!
 # Aptos Keyless Circuit
@@ -25,7 +26,7 @@ commitment, identity commitment, and produces a public inputs hash.
 
 namespace Keyless
 
-open Clap.Lang Core Primes
+open Clap.Lang Core Primes Clap.RSA
 
 -- Constants (from main.circom)
 
@@ -85,14 +86,6 @@ abbrev EV_NAME_LEN    := 14   -- "email_verified"
 -- ============================================================================
 
 variable [Core bn254]
-
-/-- Stub for RSA-2048 PKCS#1 v1.5 signature verification. WIP. -/
-def RSA_2048_e_65537_PKCS1_V1_5_Verify
-    (_sha2_hash : Vector (F bn254) 4)
-    (_signature : Vector (F bn254) RSA_NUM_LIMBS)
-    (_pubkey_modulus : Vector (F bn254) RSA_NUM_LIMBS)
-    : Option Unit :=
-  pure ()
 
 -- Input structures
 
