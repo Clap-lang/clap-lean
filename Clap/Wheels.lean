@@ -147,3 +147,14 @@ lemma ZMod.val_sum {n : ℕ} [NeZero n] {α : Type} [Fintype α] {f : α → ZMo
     exact (Equiv.apply_eq_iff_eq_symm_apply exists_bij).mp rfl
   rw [h₁, h₁]
   exact val_sum'
+
+-- LSB decoding of a bignum limb list into `ℕ`, using base `2^w`
+def limbsToNat {p : ℕ} (w : ℕ) : List (ZMod p) → ℕ
+    | []      => 0
+    | x :: xs => x.val + 2^w * limbsToNat w xs
+
+/- LSB encoding of a `ℕ` into `k` limbs of `w` bits as `ZMod p`. The result always
+   has length `k`; higher bits of `n` beyond `k·w` are truncated. -/
+def natToLimbs {p : ℕ} (w : ℕ) : ℕ → ℕ → List (ZMod p)
+    | 0,     _ => []
+    | k + 1, n => ((n % 2^w : ℕ) : ZMod p) :: natToLimbs w k (n / 2^w)
