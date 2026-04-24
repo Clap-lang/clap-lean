@@ -25,6 +25,19 @@ def isZero (e : ZMod p) : Option (ZMod p) := if e = 0 then some 1 else some 0
 def num2bits (w : ℕ) (e : ZMod p) : Option (List (ZMod p)) :=
   if e.val < 2^w then .some (num2bitsLsbPure w e) else .none
 
+/-- Bignum modular multiplication `(a · b) mod c`. Limbs are little-endian, each holding `w` bits, with `k` limbs per operand.
+Returns `none` when any list has length `≠ k`, any limb does not fit in `w` bits, or the bignum value of `c` is 0. -/
+@[irreducible]
+def fpMul (w k : ℕ) (a b c : List (ZMod p)) : Option (List (ZMod p)) :=
+  if a.length = k ∧ b.length = k ∧ c.length = k ∧ (∀ x ∈ a, x.val < 2^w) ∧ (∀ x ∈ b, x.val < 2^w) ∧ (∀ x ∈ c, x.val < 2^w)
+  then
+    let A : Nat := limbsToNat w a
+    let B : Nat := limbsToNat w b
+    let C : Nat := limbsToNat w c
+    if C = 0 then none
+    else some (natToLimbs w k ((A * B) % C))
+  else none
+
 export Clap (bits2num)
 
 section
@@ -190,3 +203,37 @@ theorem equiv [Fact (Nat.Prime p)] :
 end Example_fold
 
 end Clap
+
+namespace TestFpMul
+
+open Clap.Spec.Compiler
+
+-- base 2^4 = 16, k = 2; 3 * 5 = 15, 15 mod 7 = 1, encoded LSB-first as [1, 0].
+#guard fpMul (p := 17) 4 2 [3, 0] [5, 0] [7, 0] = some [1, 0]
+-- zero operand: 0 * 5 mod 7 = 0.
+#guard fpMul (p := 17) 4 2 [0, 0] [5, 0] [7, 0] = some [0, 0]
+-- 2 * 3 mod 100 = 6. c = [4, 6] encodes 4 + 6·16 = 100; result 6 encodes as [6, 0].
+#guard fpMul (p := 17) 4 2 [2, 0] [3, 0] [4, 6] = some [6, 0]
+-- 15 * 15 mod 230 = 225, encoded as [1, 14] (1 + 14·16 = 225). c = [6, 14] encodes 6 + 14·16 = 230.
+#guard fpMul (p := 17) 4 2 [15, 0] [15, 0] [6, 14] = some [1, 14]
+-- 7 * 11 mod 13 = 77 mod 13 = 12.
+#guard fpMul (p := 17) 4 1 [7] [11] [13] = some [12]
+-- 100 * 50 mod 77 = 5000 mod 77 = 72. a = [4,6,0] = 100; b = [2,3,0] = 50; c = [13,4,0] = 77; 72 = [8,4,0].
+#guard fpMul (p := 17) 4 3 [4, 6, 0] [2, 3, 0] [13, 4, 0] = some [8, 4, 0]
+-- 12345 * 67890 mod 1_000_003 = 838_102_050 mod 1_000_003 = 99_536.
+#guard fpMul (p := Primes.bn254) 64 1 [12345] [67890] [1000003] = some [99536]
+-- B = 2^64, a = 5B + 100, b = 7B + 50, c = B² - 1.
+-- (5B + 100)(7B + 50) = 35B² + 950B + 5000; modulo (B² - 1), 35B² ≡ 35, so
+-- result = 5035 + 950B, encoded LSB-first as [5035, 950].
+#guard fpMul (p := Primes.bn254) 64 2 [100, 5] [50, 7] [2^64 - 1, 2^64 - 1] = some [5035, 950]
+-- a = b = 2^70 = [0, 2^6, 0, 0]; c = 2^140 + 1 = [1, 0, 2^12, 0].
+-- a·b = 2^140 < c, so the result is a·b itself, encoded as [0, 0, 2^12, 0].
+#guard fpMul (p := Primes.bn254) 64 4 [0, 2^6, 0, 0] [0, 2^6, 0, 0] [1, 0, 2^12, 0] = some [0, 0, 2^12, 0]
+-- length mismatch
+#guard fpMul (p := 17) 4 2 [3] [5, 0] [7, 0] = none
+-- limb 16 ≥ 2^4 is out of range
+#guard fpMul (p := 17) 4 2 [16, 0] [5, 0] [7, 0] = none
+-- C = 0
+#guard fpMul (p := 17) 4 2 [3, 0] [5, 0] [0, 0] = none
+
+end TestFpMul

@@ -13,10 +13,11 @@ class Core (p : ℕ) : Type _ where
   isZero      : F → Option F
   num2bits    : ℕ → F → Option (List F)
   bits2num    : List F → F
+  fpMul       : ℕ → ℕ → List F → List F → List F → Option (List F)
 
   [onlyForDebugF  : ToString F  ]
 
-attribute [reducible] Core.F Core.instF Core.accept Core.eq0 Core.share Core.isZero Core.num2bits Core.bits2num Core.onlyForDebugF
+attribute [reducible] Core.F Core.instF Core.accept Core.eq0 Core.share Core.isZero Core.num2bits Core.bits2num Core.fpMul Core.onlyForDebugF
 attribute [instance] Core.instF Core.onlyForDebugF
 
 variable {p : ℕ} [Core p]
@@ -243,6 +244,7 @@ scoped instance instCoreZMod {p:ℕ} [Fact (Nat.Prime p)] : Core p where
   isZero := Compiler.isZero
   num2bits := Compiler.num2bits
   bits2num := Compiler.bits2num
+  fpMul := Compiler.fpMul
   onlyForDebugF
 
 def F8.ofF! {p:ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] : F p → F8 p := Clap.num2bitsLsbPure 8
