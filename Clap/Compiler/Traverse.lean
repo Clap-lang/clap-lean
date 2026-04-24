@@ -48,7 +48,7 @@ private partial def down (reduce : Expr → TermElabM Expr)
     let simped ← reduce todo
     if simped != todo
     then
-      trace[Clap.Compile.simp] "[↓] {checkEmoji}\n{todo}\n--->\n{simped}"
+      trace[Clap.Compile.simp] "[↓] {checkEmoji}\n{todo}\n==>\n{simped}"
       trace[Clap.Compile.down] "\ngo [↓]:\n{simped}"
       down reduce reduceOuter stack simped
     else
@@ -77,7 +77,7 @@ private partial def up (reduce : Expr → TermElabM Expr)
 
          let simped ← reduceOuter bind
          if simped != bind
-         then trace[Clap.Compile.simp] "[↑] {checkEmoji}\n{bind}\n--->\n{simped}"
+         then trace[Clap.Compile.simp] "[↑] {checkEmoji}\n{bind}\n==>\n{simped}"
          else trace[Clap.Compile.simp] "[↑] {crossEmoji}\n{bind}"
 
          trace[Clap.Compile.up] "\ngo [↑]:\n{simped}"
@@ -139,57 +139,28 @@ def ex₁ (n : Nat) : Option Unit := do
   let res ← (#v[0, 1].foldlM (fun acc _ ↦ return acc) (#v[n, 6]))
   let res' := res.map (·+1)
   eq0 (res'[0])
+  eq0 (res'[1])
   return ()
-
--- example : #v[0, 1].foldlM (fun acc _ ↦ (return acc : Option (Vector Nat 2))) (#v[5, 6]) = sorry := by
---   simp?
---   sorry
-
--- example : (fun n : Nat ↦ do
---   do eq0 0
---      let res ← (#v[0, 1].foldlM (fun acc _ ↦ return acc) (#v[n, 6]))
---      let res' := res.map (·+1)
---      eq0 (res'[0]!)
---      return ()) = sorry := by
---   simp?
-  -- done
-  
--- attribute [simproc] explodeVectorProc
--- attribute [simproc↓] dontExplodeVector
--- attribute [simproc↓] dontExplodeVector!
-
-example : #v[1, 2, 3].foldlM (fun acc x ↦ (return acc + x : Id Nat)) 0 = sorry := by
-  rw [Vector.foldlM_mk]
-  rw [List.foldlM_toArray]
 
 set_option pp.parens true
 set_option trace.Clap.Compile true
 
-example {res : Vector Nat 2} :
-  (Vector.map (fun x => (x + 1)) (Vector.mk (n := 2) { toList := [res[0], res[1]] } sorry))[0]! = sorry := by
-  simp only [Vector.map_mk, List.map_toArray, List.map_cons, List.map_nil, Nat.zero_lt_succ,
-    getElem!_pos, Vector.getElem_mk, List.getElem_toArray, List.getElem_cons_zero]
-  done
-
--- example {x : Vector Nat 2} :
---   @Vector.mk Nat
---   { toList := [(Vector.mk { toList := [x[0], x[1]] } sorry)[0], (Vector.mk { toList := [x[0], x[1]] } sorry)[1]] }.size
---   { toList := [(Vector.mk { toList := [x[0], x[1]] } sorry)[0], (Vector.mk { toList := [x[0], x[1]] } sorry)[1]] } sorry = sorry := by
-set_option trace.Meta.Tactic.simp true
-example {res : Vector Nat 2} :
-  (Vector.mk (n := 2) { toList := [res[0], res[1]] } sorry)[0] = sorry := by
-  simp? [↓dontExplodeVector, explodeVectorProc]
+-- set_option trace.Meta.Tactic.simp.rewrite true
+-- set_option trace.Debug.Meta.Tactic.simp true
 
 #eval show TermElabM _ from do
   let name := ``ex₁
   let e := ((←getEnv).find? name).get!.value!
-  compile e (only := false)
+  compile e (only := true)
     (SimpSet.withAllPost #[
       ``Vector.foldlM_mk, ``List.foldlM_toArray,
-      ``List.foldlM_cons, ``List.foldlM_nil, ``Vector.getElem_mk,
+      ``List.foldlM_cons, ``List.foldlM_nil,
+      ``Vector.getElem_mk,
       ``Vector.map_mk, ``List.map_toArray, ``List.map_cons, ``List.map_nil, ``Nat.zero_lt_succ,
-      ``getElem!_pos, ``Vector.getElem_mk, ``List.getElem_toArray, ``List.getElem_cons_zero,
-      ``Vector.getElem_mk, ``List.getElem_toArray, ``List.getElem_cons_zero] |>.union {
+      ``getElem!_pos, ``List.getElem_toArray,
+      ``List.getElem_cons_zero, ``List.getElem_cons_succ,
+      ``Vector.eq_mk,
+      ``Option.pure_def] |>.union {
           pos := #[(``explodeVectorProc, .Post), (``dontExplodeVector, .Pre)]
         }) >>=
     (liftM ∘ PrettyPrinter.ppExpr)

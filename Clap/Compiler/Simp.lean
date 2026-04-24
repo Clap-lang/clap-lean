@@ -15,7 +15,9 @@ As such, we simply interface with it via a `runTactic` and construct the 'approp
 namespace API
 
 inductive Order where | Pre | Post
-deriving Repr
+
+instance : Repr Order where
+  reprPrec x _ := match x with | .Pre => f!"Pre" | .Post => f!"Post"
 
 inductive Lemma where
   | pos (name : Name) (order : Order)

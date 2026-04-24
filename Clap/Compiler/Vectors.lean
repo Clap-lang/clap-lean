@@ -20,39 +20,37 @@ def sequenceAsVecExpr (name : Expr) (t : Expr) (len : Nat) : TermElabM Expr := d
   let array ← mkAppM ``Array.mk #[
     ←mkListLit t (←List.range len |>.mapM (getElemVectorOfIdx name))
   ]
-  let arraySize ← mkAppM ``Array.size #[array]
-  mkAppM ``Vector.mk #[array, ←mkEqRefl arraySize]
+  let vectorSansProof := mkAppN (.const ``Vector.mk [0]) #[t, toExpr len, array]
+  let .forallE _ argT _ _ ← inferType vectorSansProof | unreachable!
+  let proof ← Term.mkTacticMVar argT (←`(by simp)) .term
+  Term.synthesizeSyntheticMVarsNoPostponing
+  pure (Expr.app vectorSansProof proof) >>= instantiateMVars
 
 def needsExploding (e : Expr) : SimpM Bool := do
   let t ← inferType e
   return t.isAppOf ``Vector
 
-simproc_decl explodeVectorProc (_) := fun e ↦ do
+dsimproc_decl explodeVectorProc (_) := fun e ↦ do
   let t ← inferType e
   let_expr Vector t sz := t | return .continue
   
   if e.isFVar && (←needsExploding e)
   then trace[Clap.Compile.simp.kaboom]
-         m!"Exploding:\n{e}\n--->\n{←(sequenceAsVecExpr e t (←Simp.simp sz).1.nat?.get!).run'}"
-       return .done ⟨←(sequenceAsVecExpr e t (←Simp.simp sz).1.nat?.get!).run', .none, true⟩
+         m!"Exploding:\n{e}\n==>\n{←(sequenceAsVecExpr e t (←Simp.simp sz).1.nat?.get!).run'}"
+       return .done (←(sequenceAsVecExpr e t (←Simp.simp sz).1.nat?.get!).run')
   else return .continue
 
-def rejectVectorSansProof (coll e : Expr) : SimpM Simp.Step := do
+def rejectVectorSansProof (coll e : Expr) : SimpM Simp.DStep := do
   let_expr Vector _ _ := ← inferType coll | return .continue
-  -- logInfo m!"Rejected: {e}"
-  return .done ⟨e, .none, true⟩
+  return .done e
 
-simproc_decl dontExplodeVector (GetElem.getElem _ _ _) := fun e ↦ do
+dsimproc_decl dontExplodeVector (GetElem.getElem _ _ _) := fun e ↦ do
   let_expr GetElem.getElem _ _ _ _ _ coll _ _ := e | unreachable!
-  -- let_expr Vector.mk _ _ _ _ := coll | rejectVectorSansProof coll e
   if coll.isFVar
   then
-    -- trace[Clap.Compile.simp] m!"Rejecting:\n{e}"
     rejectVectorSansProof coll e
   else 
-    -- trace[Clap.Compile.simp] m!"Allowing:\n{e}"
-    -- logInfo m!"Simped: {(←Simp.simp e).expr}"
-    return .visit ⟨e, .none, true⟩ -- (←Simp.simp e)
+    return .continue
 
 -- simproc_decl dontExplodeVector' (getElem _ _ _) := fun e ↦ do
 --   let_expr GetElem.getElem _ _ _ _ _ coll _ _ := e | unreachable!
