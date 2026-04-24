@@ -104,7 +104,7 @@ def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : TermElabM Exp
     mkLambdaFVars args compiled
   where
     compilerSet : SimpSet :=
-      SimpSet.withAllPost #[``Option.bind_assoc, ``bind_assoc] #[``Option.bind_eq_bind]
+      SimpSet.withAllPost #[``Option.bind_assoc, ``bind_assoc] -- #[``Option.bind_eq_bind]
 
 namespace Exampru
 
@@ -142,12 +142,6 @@ def ex₁ (n : Nat) : Option Unit := do
   eq0 (res'[1])
   return ()
 
-set_option pp.parens true
-set_option trace.Clap.Compile true
-
--- set_option trace.Meta.Tactic.simp.rewrite true
--- set_option trace.Debug.Meta.Tactic.simp true
-
 #eval show TermElabM _ from do
   let name := ``ex₁
   let e := ((←getEnv).find? name).get!.value!
@@ -155,12 +149,13 @@ set_option trace.Clap.Compile true
     (SimpSet.withAllPost #[
       ``Vector.foldlM_mk, ``List.foldlM_toArray,
       ``List.foldlM_cons, ``List.foldlM_nil,
-      ``Vector.getElem_mk,
-      ``Vector.map_mk, ``List.map_toArray, ``List.map_cons, ``List.map_nil, ``Nat.zero_lt_succ,
-      ``getElem!_pos, ``List.getElem_toArray,
+
+      ``Vector.getElem_mk, ``List.getElem_toArray,
       ``List.getElem_cons_zero, ``List.getElem_cons_succ,
-      ``Vector.eq_mk,
-      ``Option.pure_def] |>.union {
+      
+      ``Vector.map_mk, ``List.map_toArray,
+      ``List.map_cons, ``List.map_nil
+      ] |>.union {
           pos := #[(``explodeVectorProc, .Post), (``dontExplodeVector, .Pre)]
         }) >>=
     (liftM ∘ PrettyPrinter.ppExpr)
