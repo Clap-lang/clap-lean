@@ -42,6 +42,9 @@ def SimpSet.union (s₁ s₂ : SimpSet) : SimpSet where
 
 instance : Union SimpSet := ⟨SimpSet.union⟩
 
+instance : Singleton Name SimpSet where
+  singleton x := ⟨#[(x, .Post)], #[]⟩
+
 section
 
 open Parser Tactic

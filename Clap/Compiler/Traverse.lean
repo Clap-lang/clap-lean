@@ -110,6 +110,11 @@ namespace CompileSets
 
 namespace Vector
 
+def explode : SimpSet :=
+  {
+    pos := #[(``explodeVector, .Post), (``dontExplodeVector, .Pre)]
+  }
+
 def foldlM : SimpSet :=
   SimpSet.withAllPost #[
     ``Vector.foldlM_mk, ``List.foldlM_toArray,
@@ -129,6 +134,13 @@ def map : SimpSet :=
     ``Vector.map_mk, ``List.map_toArray,
     
     ``List.map_cons, ``List.map_nil
+  ]
+
+def append : SimpSet :=
+  SimpSet.withAllPost #[
+    ``Vector.mk_append_mk, ``List.append_toArray,
+
+    ``List.cons_append, ``List.nil_append
   ]
 
 end Vector
@@ -165,7 +177,7 @@ info: do
 
 def ex₁ (n : Nat) : Option Unit := do
   eq0 0
-  let res ← (#v[0, 1].foldlM (fun acc _ ↦ return acc) (#v[n, 6]))
+  let res ← (#v[0, 1].foldlM (fun acc _ ↦ return acc) #v[n, 6])
   let res' := res.map (·+1)
   eq0 (res'[0])
   eq0 (res'[1])
@@ -182,7 +194,26 @@ info: fun n => do
 #eval show TermElabM _ from do
   let name := ``ex₁
   let e := ((←getEnv).find? name).get!.value!
-  compile e (foldlM ∪ getElem ∪ map) >>= (liftM ∘ PrettyPrinter.ppExpr)
+  compile e (foldlM ∪ getElem ∪ map ∪ explode) >>= (liftM ∘ PrettyPrinter.ppExpr)
+
+def ex₂ (vec : Vector Nat 4) : Option Unit := do
+  eq0 ((vec ++ vec)[0])
+  eq0 0
+  let _res ← vec.foldlM (fun acc x ↦ do eq0 x; acc) (eq0 4)
+  eq0 4
+
+/--
+info: fun vec => do
+  eq0 vec[0]
+  eq0 0
+  (eq0 vec[0]).bind fun y =>
+      (eq0 4).bind fun y => (eq0 vec[1]).bind fun y => (eq0 vec[2]).bind fun y => (eq0 vec[3]).bind fun y => eq0 4
+-/
+#guard_msgs in
+#eval show TermElabM _ from do
+  let name := ``ex₂
+  let e := ((←getEnv).find? name).get!.value!
+  compile (only := true) e (foldlM ∪ getElem ∪ map ∪ explode ∪ append) >>= (liftM ∘ PrettyPrinter.ppExpr)
 
 end Exampru
 
