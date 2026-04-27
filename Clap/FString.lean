@@ -201,8 +201,13 @@ open Primes HashToField in
 
   Enforces:
   - `left` is 0-padded after `left.len` characters
-  - `right` is 0-padded after `right.len` characters
   - `fullStr = left || right` where `||` is concatenation
+
+  Mirrors `circuit/templates/helpers/strings/AssertIsConcatenation.circom` from
+  the aptos-labs `keyless-zk-proofs` reference: the CIRCOM template only
+  checks left-padding and explicitly states "Assumes `right_len` has been
+  validated to be correct outside of this subcircuit, i.e. that `right` is
+  0-padded after `right_len` values"
 -/
 def assertIsConcatenation
     {maxFullLen maxLeftLen maxRightLen : ℕ}
@@ -221,10 +226,6 @@ def assertIsConcatenation
   let leftSelector ← FArray.rightArraySelector maxLeftLen (left.len - 1)
   for l : i in [0:maxLeftLen] do
     eq0 (leftSelector[i] * left.chars[i].toF)
-  -- Step 2b: enforce that right is 0-padded after right.len
-  let rightSelector ← FArray.rightArraySelector maxRightLen (right.len - 1)
-  for l : i in [0:maxRightLen] do
-    eq0 (rightSelector[i] * right.chars[i].toF)
   -- Step 3: build challenge powers α⁰, α¹, …, α^{maxFullLen-1}
   let powers : Vector (F bn254) maxFullLen ← powers α maxFullLen
   -- Step 4: left_poly_eval = Σᵢ left[i] · powers[i]
