@@ -1,5 +1,6 @@
 import Clap.Compiler.Wheels
 import Qq
+import Mathlib.Tactic
 
 import Lean
 
@@ -16,15 +17,26 @@ def getElemVectorOfIdx (coll : Expr) (idx : Nat) : TermElabM Expr := do
   Term.synthesizeSyntheticMVarsNoPostponing
   instantiateMVars <| mkAppN getElemSansProof #[proof]
 
-def sequenceAsVecExpr (name : Expr) (t : Expr) (len : Nat) : TermElabM Expr := do
-  let array ← mkAppM ``Array.mk #[
-    ←mkListLit t (←List.range len |>.mapM (getElemVectorOfIdx name))
-  ]
-  let vectorSansProof := mkAppN (.const ``Vector.mk [0]) #[t, toExpr len, array]
+def inferVectorProof (vectorSansProof : Expr) : TermElabM Expr := do
   let .forallE _ argT _ _ ← inferType vectorSansProof | unreachable!
   let proof ← Term.mkTacticMVar argT (←`(by simp)) .term
   Term.synthesizeSyntheticMVarsNoPostponing
   pure (Expr.app vectorSansProof proof) >>= instantiateMVars
+
+def mkVecLit (l : Expr) (sz : Expr) : TermElabM Expr := do
+  -- logInfo m!"mkVecLit:\n{l}\nsz:\n{sz}"
+  let array ← mkAppM ``List.toArray #[l]
+  let t := (←inferType array).getAppArgs[0]!
+  let u ← getDecLevel t
+  let vectorSansProof := mkAppN (.const ``_root_.Vector.mk [u]) #[t, sz, array]
+  inferVectorProof vectorSansProof
+
+def sequenceAsVecExpr (name : Expr) (t : Expr) (len : Nat) : TermElabM Expr := do
+  let array ← mkAppM ``List.toArray #[
+    ←mkListLit t (←List.range len |>.mapM (getElemVectorOfIdx name))
+  ]
+  let u ← getDecLevel t
+  inferVectorProof (mkAppN (.const ``Vector.mk [u]) #[t, toExpr len, array])
 
 def needsExploding (e : Expr) : SimpM Bool := do
   let t ← inferType e

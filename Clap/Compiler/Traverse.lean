@@ -95,16 +95,20 @@ def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : TermElabM Exp
   trace[Clap.Compile.simp.config]
     m!"Reducer: [only := {only}, singlePass := {true}, set := {repr simpset}"
   trace[Clap.Compile.simp.config]
-    m!"Compiler: [only := {false}, singlePass := {false}, set := {repr compilerSet} ∪ {repr simpset}"
+    m!"Compiler: [only := true, singlePass := {false}, set := {repr compilerSet} ∪ {repr simpset}"
   
   lambdaTelescope e fun args e ↦ do
     let compiled ←
       down (simplify (only := only) (singlePass := true) simpset)
-           (simplify (compilerSet.union simpset)) [] e
+           (simplify (only := true) (compilerSet.union simpset)) [] e
     mkLambdaFVars args compiled
   where
     compilerSet : SimpSet :=
-      SimpSet.withAllPost #[``Option.bind_assoc, ``bind_assoc] -- #[``Option.bind_eq_bind]
+      SimpSet.withAllPost #[
+        ``Option.bind_assoc, ``bind_assoc,
+        ``Option.pure_def,
+        ``Option.bind_eq_bind, ``Option.bind_fun_some, ``Option.bind_some, ``bind_pure, ``pure_bind
+      ]
 
 namespace CompileSets
 
@@ -136,6 +140,20 @@ def map : SimpSet :=
     ``List.map_cons, ``List.map_nil
   ]
 
+def mapIdx : SimpSet :=
+  SimpSet.withAllPost #[
+    ``Vector.mapIdx_mk, ``List.mapIdx_toArray,
+    
+    ``List.mapIdx_cons, ``List.mapIdx_nil
+  ]
+
+def zipWith : SimpSet :=
+  SimpSet.withAllPost #[
+    ``Vector.mk_zipWith_mk, ``List.zipWith_toArray,
+    
+    ``List.zipWith_cons_cons, ``List.zipWith_nil_left, ``List.zipWith_nil_right
+  ]
+
 def append : SimpSet :=
   SimpSet.withAllPost #[
     ``Vector.mk_append_mk, ``List.append_toArray,
@@ -143,11 +161,90 @@ def append : SimpSet :=
     ``List.cons_append, ``List.nil_append
   ]
 
+def take : SimpSet :=
+  SimpSet.withAllPost #[
+    ``Vector.take_mk, ``List.take_toArray,
+
+    ``List.take_succ_cons, ``List.take_nil
+    -- ``List.take_cons, ``List.take_nil
+  ]
+
+theorem _root_.List.drop_toArray {α} {l : List α} {i} :
+  l.toArray.drop i = (l.drop i).toArray := by
+  simp only [
+    Array.drop_eq_extract, List.size_toArray, List.extract_toArray,
+    List.extract_eq_take_drop, Array.mk.injEq
+  ]
+  rw [←List.extract_eq_take_drop, List.drop_eq_extract]
+
+def drop : SimpSet :=
+  SimpSet.withAllPost #[
+    ``Vector.drop_mk, ``_root_.List.drop_toArray,
+
+    -- ``List.drop_cons, ``List.drop_nil,
+    ``List.drop_succ_cons, ``List.drop_zero, ``List.drop_nil
+  ]
+
+def foldl : SimpSet :=
+  SimpSet.withAllPost #[
+    ``Vector.foldl_mk, ``List.foldl_toArray,
+
+    ``List.foldl_cons, ``List.foldl_nil
+  ]
+
+def foldr : SimpSet :=
+  SimpSet.withAllPost #[
+    ``Vector.foldr_mk, ``List.foldr_toArray,
+
+    ``List.foldr_cons, ``List.foldr_nil
+  ]
+
+def sum : SimpSet :=
+  SimpSet.withAllPost #[
+    ``Vector.sum_eq_foldr
+  ] ∪ foldr
+
+@[simp]
+theorem _root_.Vector.mapM_singleton {α β} {m} [Monad m] [LawfulMonad m] {f : α → m β} {x} :
+  #v[x].mapM f = (#v[·]) <$> f x := by
+  apply Vector.map_toArray_inj.mp; simp
+
+@[simp↓ high]
+theorem _root_.Vector.mapM_mk_singleton_append {m} [Monad m] [LawfulMonad m] {α β} {n} {f : α → m β}
+  (v : Vector α n) {x : α} :
+  (#v[x] ++ v).mapM f = (return #v[(←f x)] ++ (←v.mapM f)) := by simp
+
+def liftTermElabM {α} (m : TermElabM α) : SimpM α := liftM m.run'
+
+dsimproc_decl _root_.Vector.mapM_mk_eq_append (_root_.Vector.mapM _ _) := fun e ↦ do
+  let_expr _root_.Vector.mapM _ _ _ _ _ f vec := e | return .continue
+  let_expr _root_.Vector.mk _ sz arr _ := vec | return .continue
+  let_expr List.toArray _ l := arr | return .continue
+  let_expr List.cons t hd tl := l | return .continue
+  let szN := (←simp sz).expr.nat?.get!
+  if szN <= 1 then return .continue
+  let hd ← liftTermElabM (mkVecLit (←mkListLit t [hd]) (mkNatLit 1))
+  let tl ← liftTermElabM (mkVecLit tl (toExpr (szN - 1)))
+  let consHdTl ← mkAppM ``HAppend.hAppend #[hd, tl]
+  let mapM ← mkAppM ``_root_.Vector.mapM #[f, consHdTl]  
+  let consMapM ← mapM.runTactic (←`(tactic| rw[$(mkIdent ``Vector.mapM_mk_singleton_append):ident]))
+  return .visit consMapM
+
+def mapM : SimpSet :=
+  SimpSet.withAllPost #[
+    ``Vector.mapM_mk_singleton_append,
+    
+    ``Vector.mapM_mk_eq_append, ``Vector.mapM_singleton, ``map_pure
+  ] ∪ append ∪ getElem
+
 end Vector
 
 end CompileSets
 
 namespace Exampru
+
+def compileExample (ex : Name) (simpset : SimpSet) (only : Bool := true) : TermElabM Format := do
+  compile (((←getEnv).find? ex).get!.value!) simpset only >>= (liftM ∘ PrettyPrinter.ppExpr)
 
 def eq0 (e : Nat) : Option Unit := .some ()
 
@@ -188,13 +285,11 @@ open CompileSets Vector
 /--
 info: fun n => do
   eq0 0
-  (eq0 (n + 1)).bind fun x => (eq0 7).bind fun x => some ()
+  (eq0 (n + 1)).bind fun a => (eq0 7).bind fun a => some ()
 -/
 #guard_msgs in
-#eval show TermElabM _ from do
-  let name := ``ex₁
-  let e := ((←getEnv).find? name).get!.value!
-  compile e (foldlM ∪ getElem ∪ map ∪ explode) >>= (liftM ∘ PrettyPrinter.ppExpr)
+#eval compileExample ``ex₁
+        (foldlM ∪ getElem ∪ map ∪ explode)
 
 def ex₂ (vec : Vector Nat 4) : Option Unit := do
   eq0 ((vec ++ vec)[0])
@@ -206,14 +301,100 @@ def ex₂ (vec : Vector Nat 4) : Option Unit := do
 info: fun vec => do
   eq0 vec[0]
   eq0 0
-  (eq0 vec[0]).bind fun y =>
-      (eq0 4).bind fun y => (eq0 vec[1]).bind fun y => (eq0 vec[2]).bind fun y => (eq0 vec[3]).bind fun y => eq0 4
+  (eq0 vec[0]).bind fun a =>
+      (eq0 4).bind fun a => (eq0 vec[1]).bind fun a => (eq0 vec[2]).bind fun a => (eq0 vec[3]).bind fun a => eq0 4
 -/
 #guard_msgs in
-#eval show TermElabM _ from do
-  let name := ``ex₂
-  let e := ((←getEnv).find? name).get!.value!
-  compile (only := true) e (foldlM ∪ getElem ∪ map ∪ explode ∪ append) >>= (liftM ∘ PrettyPrinter.ppExpr)
+#eval compileExample ``ex₂
+        (foldlM ∪ getElem ∪ map ∪ explode ∪ append)
+
+def ex₃ (vec : Vector Nat 3) : Option Unit := do
+  eq0 ((vec ++ vec)[0])
+  eq0 0
+  let res := vec.mapIdx fun i _ ↦ i
+  eq0 res[0]
+  eq0 res[1]
+  eq0 res[2]
+
+/--
+info: fun vec => do
+  eq0 vec[0]
+  eq0 0
+  eq0 0
+  eq0 1
+  eq0 2
+-/
+#guard_msgs in
+#eval compileExample ``ex₃
+        (foldlM ∪ getElem ∪ map ∪ explode ∪ append ∪ mapIdx)
+
+def ex₄ (vec : Vector Nat 3) : Option Unit := do
+  eq0 ((vec ++ vec)[0])
+  eq0 0
+  let res := vec.zipWith (bs := vec.map (·+1)) fun x y ↦ x + y
+  eq0 res[0]
+  eq0 res[1]
+  eq0 res[2]
+
+/--
+info: fun vec => do
+  eq0 vec[0]
+  eq0 0
+  eq0 (2 * vec[0] + 1)
+  eq0 (2 * vec[1] + 1)
+  eq0 (2 * vec[2] + 1)
+-/
+#guard_msgs in
+#eval compileExample ``ex₄
+        (foldlM ∪ getElem ∪ map ∪ explode ∪ append ∪ mapIdx ∪ zipWith)
+  
+def ex₅ (vec : Vector Nat 3) : Option Unit := do
+  eq0 ((vec ++ vec)[0])
+  eq0 0
+  let res := (vec.drop 1).take 1
+  eq0 res[0]
+
+/--
+info: fun vec => do
+  eq0 vec[0]
+  eq0 0
+  eq0 vec[1]
+-/
+#guard_msgs in
+#eval compileExample ``ex₅
+        (foldlM ∪ getElem ∪ map ∪ explode ∪ append ∪ mapIdx ∪ zipWith ∪ take ∪ drop)
+
+def ex₆ (vec : Vector Nat 3) : Option Unit := do
+  eq0 ((vec ++ vec)[0])
+  eq0 0
+  let res := vec.sum
+  eq0 res
+
+/--
+info: fun vec => do
+  eq0 vec[0]
+  eq0 0
+  eq0 (vec[0] + vec[1] + vec[2])
+-/
+#guard_msgs in
+#eval compileExample ``ex₆
+        (foldlM ∪ getElem ∪ map ∪ explode ∪ append ∪ mapIdx ∪ zipWith ∪ take ∪ drop ∪ sum)
+
+def ex₇ (vec : Vector Nat 3) : Option Unit := do
+  let vec := vec.zipWith (·+·) #v[1, 5, 10]
+  eq0 42
+  let res ← vec.mapM (fun n ↦ return n + 1)
+  eq0 res[0]
+  eq0 res[1]
+  eq0 res[2]
+
+/--
+info: fun vec => do
+  eq0 42
+  (eq0 (vec[0] + 2)).bind fun a => (eq0 (vec[1] + 6)).bind fun a => eq0 (vec[2] + 11)
+-/
+#guard_msgs in
+#eval compileExample ``ex₇ (explode ∪ mapM ∪ zipWith)
 
 end Exampru
 

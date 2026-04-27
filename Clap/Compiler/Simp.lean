@@ -6,7 +6,26 @@ namespace Clap.Compiler
 
 namespace Simp
 
-private opaque SimpWrap {α : Type} : α → Prop
+opaque SimpWrap {α : Type} : α → Prop
+
+def withSimpableExpression {m} [Monad m] [MonadLiftT MetaM m]
+                           (e : Expr) (f : Expr → m Expr) : m Expr := do
+  let_expr SimpWrap _ result := ← f (←mkAppM ``SimpWrap #[e]) | unreachable!
+  return result
+
+/--
+TODO: Generalise for k-goals-producing tactics.
+-/
+def _root_.Lean.Expr.runTactic {m}
+                               [Monad m] [MonadLiftT MetaM m]
+                               [MonadError m] [MonadMCtx m]
+                               (e : Expr) (stx : Syntax) : m Expr := do
+  withSimpableExpression e fun e ↦ do
+    let mvar ← mkFreshExprMVar (.some e) MetavarKind.syntheticOpaque
+    let ([mvar], _) ←
+      Elab.runTactic mvar.mvarId! stx {} {} | -- TODO: Check if we need `(←read)` and `(←get)` for `runTactic`
+        throwError "{stx} generated more than a single goal on:\n{e}"
+    instantiateMVars (←mvar.getType)
 
 /-
 `simp` is inconvenient to call from `MetaM` (viz. `mkSimpConfig`).
@@ -86,13 +105,7 @@ def mkSimp (simpset : SimpSet)
 set_option hygiene false in
 def simplify (simpset : SimpSet) (e : Expr) (only singlePass : Bool := false) : TermElabM Expr := do
   lambdaTelescope e fun args body ↦ do
-    let abc ← mkAppM ``SimpWrap #[body]
-    let mvar ← mkFreshExprMVar (.some abc) MetavarKind.syntheticOpaque
-    let ([mvar], _) ←
-      Elab.runTactic mvar.mvarId! (←mkSimp simpset only singlePass) (←read) (←get) |
-        throwError "Simp generated more than a single goal on:\n{e}"
-    let_expr SimpWrap _ x := ←instantiateMVars (←mvar.getType) | unreachable!
-    mkLambdaFVars args x
+    body.runTactic (←mkSimp simpset only singlePass) >>= liftM ∘ mkLambdaFVars args
   where simpAll := `simpAll
 
 end Simp
