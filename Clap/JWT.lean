@@ -570,13 +570,9 @@ def isQuotation (l : List (F p)) (i : Fin l.length) : Bool :=
   | 0 => l[i] = '"'
   | i' + 1 => l[i] = '"' ∧ ¬ isEscape l ⟨i', by lia⟩
 
+-- def isInQuotes (l : List (F p)) (i : Fin l.length) : Prop :=
 def isInQuotes (l : List (F p)) (i : Fin l.length) : Bool :=
   ¬isQuotation l i ∧ Odd {j | j < i ∧ isQuotation l j}.toFinset.card
-
-def isInQuotes' (l : List (F p)) (i : Fin l.length) : Bool :=
-  ¬isQuotation l i ∧ Odd {j | j < i ∧ isQuotation l j}.toFinset.card
-
-#check Finset.card_eq_of_equiv
 
   -- (List.range i).map (fun j ↦ isQuotation l ⟨j, by lia⟩) = []
   -- sorry
@@ -698,7 +694,7 @@ private lemma stringBodies₁_length (l : List (F p)) :
     simp
 
 lemma stringBodies_length (l : List (F p)) : (stringBodies' l).length = l.length := by
-  simp [stringBodies', stringBodies₀_length, stringBodies₁_length]
+  simp [stringBodies', stringBodies₀_length]
 
 lemma stringBodiesR_length (l : List (F p)) : (stringBodiesR l).length = l.length := by
   simp [stringBodiesR, stringBodies₁_length]
@@ -714,7 +710,28 @@ example : ∀ (h : F p) (t : List (F p)) (i : Fin t.length),
 lemma quotes₂ : ∀ (t : List (F p)) (i : Fin (t.length + 1)) (i_pos : i.val > 0),
   (stringBodiesR ('\"' :: t))[i]'(by simp [stringBodiesR_length]; lia) = 1 ↔
     (stringBodiesR t)[i.val - 1]'(by simp [stringBodiesR_length]; lia) ≠ 1
-:= by sorry
+:= by
+  intro t i i_pos
+  unfold stringBodiesR
+  simp only [List.reverse_cons]
+  unfold stringBodiesRev₁
+  simp only [List.foldr_concat, stringBodiesRev₁.go]
+  simp only [default, zero_mul, FB.xor, FB.not]
+  ring_nf
+  simp only [FB.and, mul_one]
+  simp_all only
+    [ Char.isValue,
+      Char.reduceToNat,
+      ne_eq,
+      -- Nat.reduceEqDiff,
+      -- not_false_eq_true,
+      Nat.cast_ofNat,
+      -- List.foldr_reverse,
+      -- Fin.getElem_fin
+    ]
+  simp_all
+  -- simp only [stringBodiesRev₁.go]
+  sorry
 
 lemma quotes₃ : ∀ (h : F p) (t : List (F p)) (i : Fin (t.length + 1))
   (i_pos : i.val > 0)
@@ -733,9 +750,17 @@ lemma quotes₁ (l : List (F p)) (i : Fin (l.length + 1)) (i_pos : i.val > 0) :
     grind
   | cons h t ih =>
     simp [isInQuotes]
-    -- aesop
-    -- simp [Set.ncard_def, Set.encard, ENat.card]
     sorry
+
+lemma isInQuotes_esc (x : F p) (xs : List (F p)) (i : Fin (xs.length + 2)) (i_pos : i.val > 1) :
+  isInQuotes ('\\' :: x :: xs) i = isInQuotes xs ⟨i-2, by lia⟩
+:= by
+  sorry
+
+lemma stringBodies_esc (x : F p) (xs : List (F p)) (i : Fin (xs.length + 2)) (i_pos : i.val > 1) :
+  (stringBodiesR ('\\' :: x :: xs))[i]'(by simp [stringBodiesR_length]; lia) = 1 ↔
+    (stringBodiesR xs)[i.val - 2]'(by simp [stringBodiesR_length]; lia) = 1
+:= by sorry
 
 lemma isE_eq (h : F p) (t : List (F p)) (i : Fin (t.length + 1))
   (i_pos : i.val > 0)
@@ -772,15 +797,6 @@ lemma isQ_eq (h : F p) (t : List (F p)) (i : Fin (t.length + 1))
       simp
       intro; contradiction
     · grind [isE_eq, Fin.succ_ne_zero]
-
--- lemma quotes₀ (h : F p) (t : List (F p)) (i : Fin (t.length + 1))
---   (i_pos : i.val > 0)
---   (ne_q : h ≠ '"') :
---   isInQuotes (h :: t) i = isInQuotes t ⟨i-1, by lia⟩
--- := by
---   unfold isInQuotes
---   simp
---   sorry
 
 lemma isInQuotes_zero (l : List (F p)) (_ : ¬l.isEmpty) :
   isInQuotes l ⟨0, by grind⟩ = false
@@ -820,32 +836,27 @@ lemma stringBodies_zero (l : List (F p)) (nonempty : ¬l.isEmpty) :
     left
     simp only [default]
 
-#check (∅ : Set ℕ)
-#check Finset.card_eq_of_equiv_fin
--- #check Finset.map_pred
-
--- #check Finset.card_bi
-#check Nat.twoStepInduction
-#check List.twoStepInduction
-
 theorem isInQuotes_iff (l : List (F p)) :
   ∀ i : Fin l.length,
     isInQuotes l i ↔ (stringBodiesR l)[i]'(by simp[stringBodiesR_length]) = 1
 := by
   intro i
-  induction l with
+  induction l using List.twoStepInduction with
   | nil =>
     simp at i
     cases i
     contradiction
-  | cons h t ih =>
+  | singleton h => sorry
+  | cons_cons h₁ h₂ t ih₁ ih₂ =>
+    simp at ih₂
+    -- let t' := (h₂ :: t)
     simp at i
-    by_cases h_quotes : h = '"'
+    by_cases h_quotes : h₁ = '"'
     · by_cases i_pos : i > 0
       · subst h_quotes
-        rw [quotes₁ t i i_pos]
-        simp only [ih, Fin.getElem_fin, List.length_cons]
-        have := quotes₂ t i i_pos
+        rw [quotes₁ (h₂ :: t) i i_pos]
+        simp only [ih₂ h₂, Fin.getElem_fin, List.length_cons]
+        have := quotes₂ (h₂ :: t) i i_pos
         simp at this
         rw [←this]
         simp
@@ -854,21 +865,34 @@ theorem isInQuotes_iff (l : List (F p)) :
         simp [stringBodies_zero, isInQuotes]
         intro; use 0; simp; grind
     · by_cases i_pos : i > 0
-      · by_cases h_esc : h = '\\'
+      · by_cases h_esc : h₁ = '\\'
         · -- h is esc, only t's tail matters
-
-          sorry
+          subst h_esc
+          by_cases i_gt_one : i > 1
+          · have := isInQuotes_esc h₂ t i i_gt_one
+            rw [this, ih₁]
+            have := stringBodies_esc h₂ t i
+            simp at this
+            have abc : 1 < i.val := by
+              simp at i_gt_one
+              have := Fin.val_fin_lt.2 i_gt_one
+              simp_all
+            conv => right; simp; rw [this abc]
+            rfl
+          · have : i = 1 := eq_of_le_of_ge (le_of_not_gt i_gt_one) i_pos
+            subst this
+            sorry
         · unfold isInQuotes
-          rw [isQ_eq h t i i_pos h_esc]
-          have quotes₃:= quotes₃ h t i i_pos h_esc h_quotes
+          rw [isQ_eq h₁ (h₂ :: t) i i_pos h_esc]
+          have quotes₃:= quotes₃ h₁ (h₂ :: t) i i_pos h_esc h_quotes
           simp at quotes₃
           simp only [List.length_cons, Fin.getElem_fin]
           rw [quotes₃]
-          specialize ih ⟨i - 1, by grind⟩
-          simp at ih
+          specialize ih₂ h₂ ⟨i - 1, by grind⟩
+          simp at ih₂
           simp only [Bool.not_eq_true, Bool.decide_and, Bool.decide_eq_false,
-            Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_true_eq]
-          rw [←ih]
+            Bool.and_eq_true]
+          rw [←ih₂]
           unfold isInQuotes
           simp only [Bool.not_eq_true, Bool.decide_and, Bool.decide_eq_false,
             Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_true_eq,
@@ -878,37 +902,39 @@ theorem isInQuotes_iff (l : List (F p)) :
             rintro rfl; trivial
           apply h_odd
           simp
+          let t' := h₂ :: t
           have equiv :
-            { x // x < i ∧ isQuotation (h :: t) x = true } ≃
-              { x // x < ⟨i - 1, by lia⟩ ∧ isQuotation t x = true }
-          := {
-            toFun := fun ⟨⟨x₁, x₁_lt⟩, hx₁, hx₂⟩ ↦
-              { val := ⟨x₁ - 1, by lia⟩
-                property := by grind [isQuotation, isQ_eq]
-              }
-            invFun := fun ⟨⟨x₂, x₂_lt⟩, hx₁, hx₂⟩ ↦
-              { val := ⟨x₂ + 1, by lia⟩
-                property := by grind [isQ_eq]
-              }
-            left_inv := by
-              rintro ⟨⟨x₁, x₁_lt⟩, hx₁, hx₂⟩
-              simp
-              split; next => grind [isQuotation]
-            right_inv := by
-              rintro ⟨⟨x₂, x₂_lt⟩, hx₂, hx₂⟩
-              simp
-              split; next => grind [isQuotation]
-          }
+            { x // x < i ∧ isQuotation (h₁ :: t') x = true } ≃
+              { x // x < ⟨i - 1, by grind⟩ ∧ isQuotation t' x = true }
+          := -- sorry -- It works but takes a lot of time
+            {
+              toFun := fun ⟨⟨x₁, x₁_lt⟩, hx₁, hx₂⟩ ↦
+                { val := ⟨x₁ - 1, by grind⟩
+                  property := by grind [isQuotation, isQ_eq]
+                }
+              invFun := fun ⟨⟨x₂, x₂_lt⟩, hx₁, hx₂⟩ ↦
+                { val := ⟨x₂ + 1, by grind⟩
+                  property := by grind [isQ_eq]
+                }
+              left_inv := by
+                rintro ⟨⟨x₁, x₁_lt⟩, hx₁, hx₂⟩
+                simp
+                split; next => grind [isQuotation]
+              right_inv := by
+                rintro ⟨⟨x₂, x₂_lt⟩, hx₂, hx₂⟩
+                simp
+                split; next => grind [isQuotation]
+            }
           apply Finset.card_eq_of_equiv
           simp
           exact equiv
       · simp at i_pos
         subst i_pos
-        have := isInQuotes_zero (h :: t)
+        have := isInQuotes_zero (h₁ :: h₂ :: t)
         simp at this
         conv => left; simp; rw [this]
         simp
-        conv => arg 1; rw [stringBodies_zero (h :: t) (by grind)]
+        conv => arg 1; rw [stringBodies_zero (h₁ :: h₂ :: t) (by grind)]
         simp
 
 example {l : List (F p)} :
