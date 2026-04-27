@@ -220,4 +220,52 @@ example : testPoseidon
   [3, 4, 5, 10, 23] 13034429309846638789535561449942021891039729847501137143363028890275222221409
   = some () := by native_decide
 
+-- The vectors below come from arnaucube's `poseidon-ark` reference suite (https://github.com/arnaucube/poseidon-ark/blob/master/src/lib.rs#L160-L240),
+-- which is the canonical bn254 Poseidon implementation Aptos's `aptos_crypto::poseidon_bn254` is benchmarked against (see the comment at https://github.com/aptos-labs/aptos-core/blob/main/crates/aptos-crypto/src/poseidon_bn254/mod.rs#L128).
+-- They cover arities used by the Keyless circuit but missing from the four circomlib `poseidoncircuit.js` tests above:
+-- - arity 4  → `computeIdentityCommitment` (Poseidon over 4 inputs)
+-- - arity 6  → `verifyNonce` (Poseidon over 6 inputs)
+-- - arity 14 → `verifyPublicInputsHash` (Poseidon over 14 inputs)
+
+-- arity 1: hash([1])
+example : testPoseidon [1]
+  18586133768512220936620570745912940619677854269274689475585506675881198879027
+  = some () := by native_decide
+
+-- arity 4: hash([1, 2, 3, 4]) — also matches circomlibjs's `poseidonperm_x5_254_5`
+-- (https://github.com/iden3/circomlibjs/blob/main/test/poseidon.js)
+example : testPoseidon [1, 2, 3, 4]
+  18821383157269793795438455681495246036402687001665670618754263018637548127333
+  = some () := by native_decide
+
+-- arity 6: hash([1, 2, 0, 0, 0, 0])
+example : testPoseidon [1, 2, 0, 0, 0, 0]
+  15336558801450556532856248569924170992202208561737609669134139141992924267169
+  = some () := by native_decide
+
+-- arity 6: hash([1, 2, 3, 4, 5, 6])
+example : testPoseidon [1, 2, 3, 4, 5, 6]
+  20400040500897583745843009878988256314335038853985262692600694741116813247201
+  = some () := by native_decide
+
+-- arity 14: hash([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])
+example : testPoseidon [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+  8354478399926161176778659061636406690034081872658507739535256090879947077494
+  = some () := by native_decide
+
+-- arity 14: hash([1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0])
+example : testPoseidon [1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0]
+  5540388656744764564518487011617040650780060800286365721923524861648744699539
+  = some () := by native_decide
+
+-- arity 16: hash([1, …, 16])
+example : testPoseidon [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+  9989051620750914585850546081941653841776809718687451684622678807385399211877
+  = some () := by native_decide
+
+-- arity 16: hash([1, …, 9, 0×7])
+example : testPoseidon [1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0, 0]
+  11882816200654282475720830292386643970958445617880627439994635298904836126497
+  = some () := by native_decide
+
 end Poseidon.Test
