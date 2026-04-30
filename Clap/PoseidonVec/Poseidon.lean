@@ -2,6 +2,7 @@ import Clap.Primes
 import Clap.Spec
 import Clap.Lang
 import Clap.PoseidonVec.Constant
+import Clap.Compiler.Traverse
 
 namespace Clap.PoseidonVec
 
@@ -210,5 +211,28 @@ example : poseidonBN254 #v[1, 2, 0, 0, 0] = some 1018317224307729531995786483840
 -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L39
 example : poseidonBN254 #v[3, 4, 5, 10, 23] = some 13034429309846638789535561449942021891039729847501137143363028890275222221409
   := by native_decide
+
+section
+
+open Lean Meta Clap.Compiler.Simp.API
+
+/-- Run poseidon on `ZMod bn254` inputs, looking up constants by `t`. -/
+private def testPoseidon (inputs : Vector (ZMod p) 2) (expected : F p) : Option Unit := do
+  F.assert_eq (← poseidonBN254 inputs) expected
+
+def poseidonBN254 : SimpSet :=
+  SimpSet.withAllPost #[
+    ``PoseidonVec.poseidonBN254, ``poseidon, ``poseidonEx
+  ]
+
+set_option trace.Clap.Compile true
+set_option trace.Meta.Tactic.simp true
+
+#eval show Elab.TermElabM _ from do
+  Compiler.compile
+    (((←getEnv).find? ``testPoseidon).get!.value!)
+    (poseidonBN254 ∪ Clap.Compiler.CompileSets.Vector.foldlM) true >>= (liftM ∘ PrettyPrinter.ppExpr)
+
+end
 
 end Clap.PoseidonVec.Test
