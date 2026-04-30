@@ -1,0 +1,206 @@
+-- import Lean
+
+-- open Lean Elab Meta
+
+-- def timeInSecondsOfMs (begin «end» : Nat) : Float :=
+--   (Float.ofNat «end» - Float.ofNat begin) / Float.ofNat 1000
+
+-- elab "sym_simp" "[" declNames:ident,* "]" : tactic => do
+--   let rewrite ← Sym.mkSimprocFor (← declNames.getElems.mapM fun s => realizeGlobalConstNoOverload s.raw) Sym.Simp.dischargeNone
+--   let methods : Sym.Simp.Methods := {
+--     pre  := fun _ ↦ return .rfl
+--     post := rewrite
+--   }
+--   Tactic.liftMetaTactic1 fun mvarId => Sym.SymM.run do
+--     let mvarId ← Sym.preprocessMVar mvarId
+--     let time ← IO.monoMsNow
+--     let res ← (← Sym.simpGoal mvarId methods).toOption
+--     logInfo m!"sym_simp took {timeInSecondsOfMs time (←IO.monoMsNow)}s"
+--     return res
+
+-- opaque eq0 : Nat → Option Unit
+
+-- set_option maxHeartbeats 0 in
+-- example {vec : Vector Nat 160} :
+-- (do
+-- let (x : Vector Nat 160) ←
+-- (pure (vec[0] + 1) : Option _ ).bind fun row_0 =>
+-- (pure (vec[1] + 1) : Option _ ).bind fun row_1 =>
+-- (pure (vec[2] + 1) : Option _ ).bind fun row_2 =>
+-- (pure (vec[3] + 1) : Option _ ).bind fun row_3 =>
+-- (pure (vec[4] + 1) : Option _ ).bind fun row_4 =>
+-- (pure (vec[5] + 1) : Option _ ).bind fun row_5 =>
+-- (pure (vec[6] + 1) : Option _ ).bind fun row_6 =>
+-- (pure (vec[7] + 1) : Option _ ).bind fun row_7 =>
+-- (pure (vec[8] + 1) : Option _ ).bind fun row_8 =>
+-- (pure (vec[9] + 1) : Option _ ).bind fun row_9 =>
+-- (pure (vec[10] + 1) : Option _ ).bind fun row_10 =>
+-- (pure (vec[11] + 1) : Option _ ).bind fun row_11 =>
+-- (pure (vec[12] + 1) : Option _ ).bind fun row_12 =>
+-- (pure (vec[13] + 1) : Option _ ).bind fun row_13 =>
+-- (pure (vec[14] + 1) : Option _ ).bind fun row_14 =>
+-- (pure (vec[15] + 1) : Option _ ).bind fun row_15 =>
+-- (pure (vec[16] + 1) : Option _ ).bind fun row_16 =>
+-- (pure (vec[17] + 1) : Option _ ).bind fun row_17 =>
+-- (pure (vec[18] + 1) : Option _ ).bind fun row_18 =>
+-- (pure (vec[19] + 1) : Option _ ).bind fun row_19 =>
+-- (pure (vec[20] + 1) : Option _ ).bind fun row_20 =>
+-- (pure (vec[21] + 1) : Option _ ).bind fun row_21 =>
+-- (pure (vec[22] + 1) : Option _ ).bind fun row_22 =>
+-- (pure (vec[23] + 1) : Option _ ).bind fun row_23 =>
+-- (pure (vec[24] + 1) : Option _ ).bind fun row_24 =>
+-- (pure (vec[25] + 1) : Option _ ).bind fun row_25 =>
+-- (pure (vec[26] + 1) : Option _ ).bind fun row_26 =>
+-- (pure (vec[27] + 1) : Option _ ).bind fun row_27 =>
+-- (pure (vec[28] + 1) : Option _ ).bind fun row_28 =>
+-- (pure (vec[29] + 1) : Option _ ).bind fun row_29 =>
+-- (pure (vec[30] + 1) : Option _ ).bind fun row_30 =>
+-- (pure (vec[31] + 1) : Option _ ).bind fun row_31 =>
+-- (pure (vec[32] + 1) : Option _ ).bind fun row_32 =>
+-- (pure (vec[33] + 1) : Option _ ).bind fun row_33 =>
+-- (pure (vec[34] + 1) : Option _ ).bind fun row_34 =>
+-- (pure (vec[35] + 1) : Option _ ).bind fun row_35 =>
+-- (pure (vec[36] + 1) : Option _ ).bind fun row_36 =>
+-- (pure (vec[37] + 1) : Option _ ).bind fun row_37 =>
+-- (pure (vec[38] + 1) : Option _ ).bind fun row_38 =>
+-- (pure (vec[39] + 1) : Option _ ).bind fun row_39 =>
+-- (pure (vec[40] + 1) : Option _ ).bind fun row_40 =>
+-- (pure (vec[41] + 1) : Option _ ).bind fun row_41 =>
+-- (pure (vec[42] + 1) : Option _ ).bind fun row_42 =>
+-- (pure (vec[43] + 1) : Option _ ).bind fun row_43 =>
+-- (pure (vec[44] + 1) : Option _ ).bind fun row_44 =>
+-- (pure (vec[45] + 1) : Option _ ).bind fun row_45 =>
+-- (pure (vec[46] + 1) : Option _ ).bind fun row_46 =>
+-- (pure (vec[47] + 1) : Option _ ).bind fun row_47 =>
+-- (pure (vec[48] + 1) : Option _ ).bind fun row_48 =>
+-- (pure (vec[49] + 1) : Option _ ).bind fun row_49 =>
+-- (pure (vec[50] + 1) : Option _ ).bind fun row_50 =>
+-- (pure (vec[51] + 1) : Option _ ).bind fun row_51 =>
+-- (pure (vec[52] + 1) : Option _ ).bind fun row_52 =>
+-- (pure (vec[53] + 1) : Option _ ).bind fun row_53 =>
+-- (pure (vec[54] + 1) : Option _ ).bind fun row_54 =>
+-- (pure (vec[55] + 1) : Option _ ).bind fun row_55 =>
+-- (pure (vec[56] + 1) : Option _ ).bind fun row_56 =>
+-- (pure (vec[57] + 1) : Option _ ).bind fun row_57 =>
+-- (pure (vec[58] + 1) : Option _ ).bind fun row_58 =>
+-- (pure (vec[59] + 1) : Option _ ).bind fun row_59 =>
+-- (pure (vec[60] + 1) : Option _ ).bind fun row_60 =>
+-- (pure (vec[61] + 1) : Option _ ).bind fun row_61 =>
+-- (pure (vec[62] + 1) : Option _ ).bind fun row_62 =>
+-- (pure (vec[63] + 1) : Option _ ).bind fun row_63 =>
+-- (pure (vec[64] + 1) : Option _ ).bind fun row_64 =>
+-- (pure (vec[65] + 1) : Option _ ).bind fun row_65 =>
+-- (pure (vec[66] + 1) : Option _ ).bind fun row_66 =>
+-- (pure (vec[67] + 1) : Option _ ).bind fun row_67 =>
+-- (pure (vec[68] + 1) : Option _ ).bind fun row_68 =>
+-- (pure (vec[69] + 1) : Option _ ).bind fun row_69 =>
+-- (pure (vec[70] + 1) : Option _ ).bind fun row_70 =>
+-- (pure (vec[71] + 1) : Option _ ).bind fun row_71 =>
+-- (pure (vec[72] + 1) : Option _ ).bind fun row_72 =>
+-- (pure (vec[73] + 1) : Option _ ).bind fun row_73 =>
+-- (pure (vec[74] + 1) : Option _ ).bind fun row_74 =>
+-- (pure (vec[75] + 1) : Option _ ).bind fun row_75 =>
+-- (pure (vec[76] + 1) : Option _ ).bind fun row_76 =>
+-- (pure (vec[77] + 1) : Option _ ).bind fun row_77 =>
+-- (pure (vec[78] + 1) : Option _ ).bind fun row_78 =>
+-- (pure (vec[79] + 1) : Option _ ).bind fun row_79 =>
+-- (pure (vec[80] + 1) : Option _ ).bind fun row_80 =>
+-- (pure (vec[81] + 1) : Option _ ).bind fun row_81 =>
+-- (pure (vec[82] + 1) : Option _ ).bind fun row_82 =>
+-- (pure (vec[83] + 1) : Option _ ).bind fun row_83 =>
+-- (pure (vec[84] + 1) : Option _ ).bind fun row_84 =>
+-- (pure (vec[85] + 1) : Option _ ).bind fun row_85 =>
+-- (pure (vec[86] + 1) : Option _ ).bind fun row_86 =>
+-- (pure (vec[87] + 1) : Option _ ).bind fun row_87 =>
+-- (pure (vec[88] + 1) : Option _ ).bind fun row_88 =>
+-- (pure (vec[89] + 1) : Option _ ).bind fun row_89 =>
+-- (pure (vec[90] + 1) : Option _ ).bind fun row_90 =>
+-- (pure (vec[91] + 1) : Option _ ).bind fun row_91 =>
+-- (pure (vec[92] + 1) : Option _ ).bind fun row_92 =>
+-- (pure (vec[93] + 1) : Option _ ).bind fun row_93 =>
+-- (pure (vec[94] + 1) : Option _ ).bind fun row_94 =>
+-- (pure (vec[95] + 1) : Option _ ).bind fun row_95 =>
+-- (pure (vec[96] + 1) : Option _ ).bind fun row_96 =>
+-- (pure (vec[97] + 1) : Option _ ).bind fun row_97 =>
+-- (pure (vec[98] + 1) : Option _ ).bind fun row_98 =>
+-- (pure (vec[99] + 1) : Option _ ).bind fun row_99 =>
+-- (pure (vec[100] + 1) : Option _ ).bind fun row_100 =>
+-- (pure (vec[101] + 1) : Option _ ).bind fun row_101 =>
+-- (pure (vec[102] + 1) : Option _ ).bind fun row_102 =>
+-- (pure (vec[103] + 1) : Option _ ).bind fun row_103 =>
+-- (pure (vec[104] + 1) : Option _ ).bind fun row_104 =>
+-- (pure (vec[105] + 1) : Option _ ).bind fun row_105 =>
+-- (pure (vec[106] + 1) : Option _ ).bind fun row_106 =>
+-- (pure (vec[107] + 1) : Option _ ).bind fun row_107 =>
+-- (pure (vec[108] + 1) : Option _ ).bind fun row_108 =>
+-- (pure (vec[109] + 1) : Option _ ).bind fun row_109 =>
+-- (pure (vec[110] + 1) : Option _ ).bind fun row_110 =>
+-- (pure (vec[111] + 1) : Option _ ).bind fun row_111 =>
+-- (pure (vec[112] + 1) : Option _ ).bind fun row_112 =>
+-- (pure (vec[113] + 1) : Option _ ).bind fun row_113 =>
+-- (pure (vec[114] + 1) : Option _ ).bind fun row_114 =>
+-- (pure (vec[115] + 1) : Option _ ).bind fun row_115 =>
+-- (pure (vec[116] + 1) : Option _ ).bind fun row_116 =>
+-- (pure (vec[117] + 1) : Option _ ).bind fun row_117 =>
+-- (pure (vec[118] + 1) : Option _ ).bind fun row_118 =>
+-- (pure (vec[119] + 1) : Option _ ).bind fun row_119 =>
+-- (pure (vec[120] + 1) : Option _ ).bind fun row_120 =>
+-- (pure (vec[121] + 1) : Option _ ).bind fun row_121 =>
+-- (pure (vec[122] + 1) : Option _ ).bind fun row_122 =>
+-- (pure (vec[123] + 1) : Option _ ).bind fun row_123 =>
+-- (pure (vec[124] + 1) : Option _ ).bind fun row_124 =>
+-- (pure (vec[125] + 1) : Option _ ).bind fun row_125 =>
+-- (pure (vec[126] + 1) : Option _ ).bind fun row_126 =>
+-- (pure (vec[127] + 1) : Option _ ).bind fun row_127 =>
+-- (pure (vec[128] + 1) : Option _ ).bind fun row_128 =>
+-- (pure (vec[129] + 1) : Option _ ).bind fun row_129 =>
+-- (pure (vec[130] + 1) : Option _ ).bind fun row_130 =>
+-- (pure (vec[131] + 1) : Option _ ).bind fun row_131 =>
+-- (pure (vec[132] + 1) : Option _ ).bind fun row_132 =>
+-- (pure (vec[133] + 1) : Option _ ).bind fun row_133 =>
+-- (pure (vec[134] + 1) : Option _ ).bind fun row_134 =>
+-- (pure (vec[135] + 1) : Option _ ).bind fun row_135 =>
+-- (pure (vec[136] + 1) : Option _ ).bind fun row_136 =>
+-- (pure (vec[137] + 1) : Option _ ).bind fun row_137 =>
+-- (pure (vec[138] + 1) : Option _ ).bind fun row_138 =>
+-- (pure (vec[139] + 1) : Option _ ).bind fun row_139 =>
+-- (pure (vec[140] + 1) : Option _ ).bind fun row_140 =>
+-- (pure (vec[141] + 1) : Option _ ).bind fun row_141 =>
+-- (pure (vec[142] + 1) : Option _ ).bind fun row_142 =>
+-- (pure (vec[143] + 1) : Option _ ).bind fun row_143 =>
+-- (pure (vec[144] + 1) : Option _ ).bind fun row_144 =>
+-- (pure (vec[145] + 1) : Option _ ).bind fun row_145 =>
+-- (pure (vec[146] + 1) : Option _ ).bind fun row_146 =>
+-- (pure (vec[147] + 1) : Option _ ).bind fun row_147 =>
+-- (pure (vec[148] + 1) : Option _ ).bind fun row_148 =>
+-- (pure (vec[149] + 1) : Option _ ).bind fun row_149 =>
+-- (pure (vec[150] + 1) : Option _ ).bind fun row_150 =>
+-- (pure (vec[151] + 1) : Option _ ).bind fun row_151 =>
+-- (pure (vec[152] + 1) : Option _ ).bind fun row_152 =>
+-- (pure (vec[153] + 1) : Option _ ).bind fun row_153 =>
+-- (pure (vec[154] + 1) : Option _ ).bind fun row_154 =>
+-- (pure (vec[155] + 1) : Option _ ).bind fun row_155 =>
+-- (pure (vec[156] + 1) : Option _ ).bind fun row_156 =>
+-- (pure (vec[157] + 1) : Option _ ).bind fun row_157 =>
+-- (pure (vec[158] + 1) : Option _ ).bind fun row_158 =>
+-- (pure (vec[159] + 1) : Option _ ).bind fun row_159 =>
+-- some (Vector.mk
+-- {
+-- toList :=
+--   [row_0, row_1, row_2, row_3, row_4, row_5, row_6, row_7, row_8, row_9, row_10, row_11, row_12, row_13,
+--   row_14, row_15, row_16, row_17, row_18, row_19, row_20, row_21, row_22, row_23, row_24, row_25, row_26,
+--   row_27, row_28, row_29, row_30, row_31, row_32, row_33, row_34, row_35, row_36, row_37, row_38, row_39,
+--   row_40, row_41, row_42, row_43, row_44, row_45, row_46, row_47, row_48, row_49, row_50, row_51, row_52,
+--   row_53, row_54, row_55, row_56, row_57, row_58, row_59, row_60, row_61, row_62, row_63, row_64, row_65,
+--   row_66, row_67, row_68, row_69, row_70, row_71, row_72, row_73, row_74, row_75, row_76, row_77, row_78,
+--   row_79, row_80, row_81, row_82, row_83, row_84, row_85, row_86, row_87, row_88, row_89, row_90, row_91,
+--   row_92, row_93, row_94, row_95, row_96, row_97, row_98, row_99,
+--   row_100, row_101, row_102, row_103,
+--   row_104, row_105, row_106, row_107, row_108, row_109, row_110, row_111, row_112, row_113, row_114,
+--   row_115, row_116, row_117, row_118, row_119, row_120, row_121, row_122, row_123, row_124, row_125,
+--   row_126, row_127, row_128, row_129, row_130, row_131, row_132, row_133, row_134, row_135, row_136,
+--   row_137, row_138, row_139, row_140, row_141, row_142, row_143, row_144, row_145, row_146, row_147,
+--   row_148, row_149, row_150, row_151, row_152, row_153, row_154, row_155, row_156, row_157, row_158, row_159]
+--   }
+-- sorry)
+-- eq0 x[0]) = sorry := by sym_simp [Option.pure_apply]
