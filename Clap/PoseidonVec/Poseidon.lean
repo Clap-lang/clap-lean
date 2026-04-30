@@ -2,6 +2,7 @@ import Clap.Primes
 import Clap.Spec
 import Clap.Lang
 import Clap.PoseidonVec.Constant
+import Clap.Compiler.Traverse
 
 namespace Clap.PoseidonVec
 
@@ -22,7 +23,7 @@ def sigma (x : F p) : Option (F p) := do
 
     Mirrors circomlib's `Ark(t, C, r)` -/
 def ark {t c : ℕ} (state : Vector (F p) t) (C : Vector (F p) c) (r : ℕ) : Vector (F p) t :=
-  state.mapIdx (fun i s ↦ s + C[i + r]!)
+  state.mapIdx (fun i s ↦ s + C[i + r]'sorry)
 
 /-- **Mix (MDS matrix multiplication):** Multiplies the state vector by a
     Maximum Distance Separable matrix
@@ -30,7 +31,7 @@ def ark {t c : ℕ} (state : Vector (F p) t) (C : Vector (F p) c) (r : ℕ) : Ve
     Mirrors circomlib's `Mix(t, M)` template: `out[i] = Σⱼ M[j][i] · in[j]` -/
 def mix {t : ℕ} (state : Vector (F p) t) (M : Vector (Vector (F p) t) t) : Vector (F p) t :=
   state.mapIdx (fun (i : ℕ) _ ↦
-    (state.zipWith (fun (sj : F p) (row : Vector (F p) t) ↦ row[i]! * sj) M).sum)
+    (state.zipWith (fun (sj : F p) (row : Vector (F p) t) ↦ row[i]'sorry * sj) M).sum)
 
 -- TODO: Imperative or functional style?
 -- def mix (state : Array (F p)) (m : Array (Array (F p))) : Array (F p) := Id.run do
@@ -39,7 +40,7 @@ def mix {t : ℕ} (state : Vector (F p) t) (M : Vector (Vector (F p) t) t) : Vec
 --   for i in [:t] do
 --     let mut acc : F p := 0
 --     for j in [:t] do
---       acc := acc + ((m[j]!)[i]! * state[j]!)
+--       acc := acc + ((m[j]'sorry)[i]'sorry * state[j]'sorry)
 --     out := out.push acc
 --   return out
 
@@ -49,13 +50,13 @@ def mix {t : ℕ} (state : Vector (F p) t) (M : Vector (Vector (F p) t) t) : Vec
 
     Mirrors circomlib's `MixLast(t, M, s)` template: `out = Σⱼ M[j][s] · in[j]` -/
 def mixLast {t : ℕ} (state : Vector (F p) t) (M : Vector (Vector (F p) t) t) (s : ℕ) : F p :=
-  (state.zipWith (fun (sj : F p) (row : Vector (F p) t) ↦ row[s]! * sj) M).sum
+  (state.zipWith (fun (sj : F p) (row : Vector (F p) t) ↦ row[s]'sorry * sj) M).sum
 
 -- TODO: Imperative or functional style?
 -- def mixLast (s : ℕ) (state : Array (F p)) (m : Array (Array (F p))) : F p := Id.run do
 --   let mut acc : F p := 0
 --   for j in [:state.size] do
---     acc := acc + (m[j]!)[s]! * state[j]!
+--     acc := acc + (m[j]'sorry)[s]'sorry * state[j]'sorry
 --   return acc
 
 /-- **MixS (Sparse Mix):** Applies the sparse-matrix multiplication used during
@@ -73,7 +74,7 @@ where
     (state.zipWith (· * ·) s').sum
   /-- `out[i] = in[i] + in[0] · S[base + t + i − 1]` for `i ∈ [1, t)` -/
   tail (base : ℕ) : Vector (F p) (t-1) :=
-    (state.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state[0]! * S[base + t + i]!)
+    (state.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state[0]'sorry * S[base + t + i]'sorry)
 
 -- TODO: Imperative or functional style?
 -- def mixS (r : ℕ) (state : Array (F p)) (s : Array (F p)) : Array (F p) := Id.run do
@@ -88,11 +89,11 @@ where
 --   dotProduct (base t : ℕ) : F p := Id.run do
 --     let mut acc : F p := 0
 --     for i in [:t] do
---       acc := acc + s[base + i]! * state[i]!
+--       acc := acc + s[base + i]'sorry * state[i]'sorry
 --     return acc
 --   /-- `out[i] = in[i] + in[0] · S[base + t + i − 1]` — identity + in[0] correction -/
 --   sparseCorrection (base t i : ℕ) : F p :=
---     state[i]! + state[0]! * s[base + t + i - 1]!
+--     state[i]'sorry + state[0]'sorry * s[base + t + i - 1]'sorry
 
 /-- **PoseidonEx:** Full Poseidon permutation
 
@@ -122,10 +123,10 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := 1 + n
   let nRoundsF : ℕ := 8
-  let nRoundsP : ℕ := N_ROUNDS_P[t - 2]!
+  let nRoundsP : ℕ := N_ROUNDS_P[t - 2]'sorry
   let half : ℕ := nRoundsF / 2
 
-  let state : Vector (F p) t := Vector.append #v[initState] inputs
+  let state : Vector (F p) t := #v[initState] ++ inputs
 
   -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
   let state := ark state C 0
@@ -135,22 +136,23 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
     let l ← state.mapM sigma
     mix (ark l C ((r + 1) * t)) M) state
 
-  -- Boundary round (r = half−1): sigma → ark → mix with P
+  -- -- Boundary round (r = half−1): sigma → ark → mix with P
   let state := mix (ark (← state.mapM sigma) C (half * t)) P
 
   -- Phase 2: partial rounds
-  let state ← (List.range nRoundsP).foldlM (fun state r ↦ do
-    let s0 := (← sigma state[0]!) + C[(half + 1) * t + r]!
-    mixS r (state.set 0 s0) S) state
+  -- let state ← (List.range nRoundsP).foldlM (fun state r ↦ do
+  --   let s0 := (← sigma state[0]) + C[(half + 1) * t + r]'sorry
+  --   mixS r (state.set 0 s0) S) state
 
-  -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
-  let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
-    let l ← state.mapM sigma
-    mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
+  state[0]
+  -- -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
+  -- let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
+  --   let l ← state.mapM sigma
+  --   mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
 
-  -- Final round: sigma on all, then extract nOuts elements via MixLast
-  let state ← state.mapM sigma
-  mixLast state M 0
+  -- -- Final round: sigma on all, then extract nOuts elements via MixLast
+  -- let state ← state.mapM sigma
+  -- mixLast state M 0
 
 /-- **Poseidon:** Single-output Poseidon hash. Wraps `poseidonEx` with
     `nOuts = 1` and `initialState = 0`, returning the first element of
@@ -201,5 +203,72 @@ example : poseidonBN254 #v[1, 2, 0, 0, 0] = some 1018317224307729531995786483840
 -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L39
 example : poseidonBN254 #v[3, 4, 5, 10, 23] = some 13034429309846638789535561449942021891039729847501137143363028890275222221409
   := by native_decide
+
+section
+
+open Lean Meta Clap Compiler Simp API CompileSets
+
+-- example {inputs : Vector (F Primes.bn254) 2} : List.foldlM
+--   (fun state r => do
+--     let l ← Vector.mapM sigma state
+--     some (mix (ark l (liftVec (Constant.C (1 + 2))) (3 * r + 3)) (liftMat (Constant.M (1 + 2)))))
+--   (ark (#v[0].append inputs) (liftVec (Constant.C (1 + 2))) 0) (List.range (8 / 2 - 1)) = sorry := by
+--   simp? +singlePass +arith
+
+/-- Run poseidon on `ZMod bn254` inputs, looking up constants by `t`. -/
+private def testPoseidon (inputs : Vector (ZMod p) 2) (expected : F p) : Option Unit := do
+  let res ← poseidonBN254 inputs
+  F.assert_eq res expected
+-- bind (poseidonBN254 inputs) >>= fun res ↦ F.assert_eq res expected
+-- process (poseidonBN254 inputs) | push 
+def poseidonBN254 : SimpSet :=
+  SimpSet.withAllPost #[
+    ``PoseidonVec.poseidonBN254, ``poseidon, ``poseidonEx, ``liftVec, ``liftMat,
+    ``ark, ``sigma, ``const, ``id,
+    ``Constant.C, ``Constant.M, ``Constant.P, ``Constant.S,
+    ``Constant.C.C02, ``Constant.C.C03, ``Constant.C.C04, ``Constant.C.C05, ``Constant.C.C06, ``Constant.C.C07, ``Constant.C.C08, ``Constant.C.C09, ``Constant.C.C10, ``Constant.C.C11, ``Constant.C.C12, ``Constant.C.C13, ``Constant.C.C14, ``Constant.C.C15, ``Constant.C.C16, ``Constant.C.C17,
+    ``Constant.M.M02, ``Constant.M.M03, ``Constant.M.M04, ``Constant.M.M05, ``Constant.M.M06, ``Constant.M.M07, ``Constant.M.M08, ``Constant.M.M09, ``Constant.M.M10, ``Constant.M.M11, ``Constant.M.M12, ``Constant.M.M13, ``Constant.M.M14, ``Constant.M.M15, ``Constant.M.M16, ``Constant.M.M17,
+    ``Constant.P.P02, ``Constant.P.P03, ``Constant.P.P04, ``Constant.P.P05, ``Constant.P.P06, ``Constant.P.P07, ``Constant.P.P08, ``Constant.P.P09, ``Constant.P.P10, ``Constant.P.P11, ``Constant.P.P12, ``Constant.P.P13, ``Constant.P.P14, ``Constant.P.P15, ``Constant.P.P16, ``Constant.P.P17,
+    ``Constant.S.S02, ``Constant.S.S03, ``Constant.S.S04, ``Constant.S.S05, ``Constant.S.S06, ``Constant.S.S07, ``Constant.S.S08, ``Constant.S.S09, ``Constant.S.S10, ``Constant.S.S11, ``Constant.S.S12, ``Constant.S.S13, ``Constant.S.S14, ``Constant.S.S15, ``Constant.S.S16, ``Constant.S.S17,
+ ``mix, ``mixS, ``mixS.dotProduct, ``mixS.tail
+  ]
+
+-- set_option trace.Clap.Compile.simp.fail true
+-- set_option trace.Meta.Tactic.simp true
+-- -- set_option trace.Clap.Compile.down true
+-- #check ite_false
+set_option trace.Clap.Compile true
+set_option maxRecDepth 8192
+set_option maxHeartbeats 400000
+-- set_option trace.Clap.Compile.simp.fail true
+-- set_option trace.Clap.Compile.simp.warnDownNotGround true
+-- set_option trace.Meta.Tactic.simp true
+#guard_msgs in
+#eval show Elab.TermElabM _ from do
+  Compiler.compile
+    (((←getEnv).find? ``testPoseidon).get!.value!)
+    (poseidonBN254 ∪
+     CompileSets.Vector.append ∪
+     CompileSets.Vector.foldlM ∪
+     CompileSets.Vector.mapIdx ∪
+     CompileSets.Vector.map ∪
+     CompileSets.Vector.mapM ∪
+     CompileSets.Nat.arith ∪
+     CompileSets.Array.range ∪
+     CompileSets.List.range ∪
+     CompileSets.Logic.cases ∪ 
+    --  CompileSets.Vector.getElem! ∪
+     CompileSets.Vector.sum ∪
+     CompileSets.Vector.explode ∪
+     CompileSets.Vector.zipWith ∪
+     CompileSets.Vector.extract ∪
+     CompileSets.Vector.drop ∪
+     CompileSets.Vector.set ∪
+     CompileSets.Vector.take ∪
+     CompileSets.Vector.size ∪
+     CompileSets.Vector.foldr
+     ) true >>= (liftM ∘ PrettyPrinter.ppExpr)
+
+end
 
 end Clap.PoseidonVec.Test
