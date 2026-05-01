@@ -52,7 +52,7 @@ private partial def down (reduce : Expr → TermElabM Expr)
       trace[Clap.Compile.down] "\ngo [↓]:\n{simped}"
       down reduce reduceOuter stack simped
     else
-      trace[Clap.Compile.simp] "[↓] {crossEmoji}\n{todo}"
+      trace[Clap.Compile.simp.fail] "[↓] {crossEmoji}\n{todo}"
       trace[Clap.Compile.down] "\ngo [↑]:\n{todo}"
       up reduce reduceOuter stack todo
 
@@ -78,7 +78,7 @@ private partial def up (reduce : Expr → TermElabM Expr)
          let simped ← reduceOuter bind
          if simped != bind
          then trace[Clap.Compile.simp] "[↑] {checkEmoji}\n{bind}\n==>\n{simped}"
-         else trace[Clap.Compile.simp] "[↑] {crossEmoji}\n{bind}"
+         else trace[Clap.Compile.simp.fail] "[↑] {crossEmoji}\n{bind}"
 
          trace[Clap.Compile.up] "\ngo [↑]:\n{simped}"
          up simped
@@ -100,7 +100,7 @@ def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : TermElabM Exp
   lambdaTelescope e fun args e ↦ do
     let compiled ←
       down (simplify (only := only) (singlePass := true) simpset)
-           (simplify (only := true) (compilerSet.union simpset)) [] e
+           (simplify (only := true) (compilerSet ∪ simpset)) [] e
     mkLambdaFVars args compiled
   where
     compilerSet : SimpSet :=
@@ -111,6 +111,69 @@ def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : TermElabM Exp
       ]
 
 namespace CompileSets
+
+namespace Logic
+
+def cases :=
+  SimpSet.withAllPost #[
+    ``dite_false, ``ite_false,
+
+    ``dite_true, ``ite_true    
+  ]
+
+end Logic
+
+namespace Nat
+
+def arith :=
+  SimpSet.withAllPost #[
+    ``Nat.reduceMul, ``Nat.reduceDiv,
+    ``Nat.reduceAdd, ``Nat.reduceSub,
+    ``Nat.zero_add, ``Nat.add_zero,
+    ``Nat.one_mul, ``Nat.mul_one
+  ]
+
+end Nat
+
+namespace List
+-- #check List.range_succ
+dsimproc_decl reduceRange (List.range _) := fun e ↦ do
+  let_expr _root_.List.range k ← e | return .continue
+  let ctx ← Simp.getContext
+  let ctx ← ctx.setConfig {ctx.config with singlePass := false}
+  logInfo m!"IS SINGLE PASS BEFORE: {(←Simp.getConfig).singlePass}"
+  withTheReader Simp.Context (fun _ ↦ ctx) do
+  logInfo m!"IS SINGLE PASS AFTER: {(←Simp.getConfig).singlePass}"
+  logInfo m!"k: {k} simped: {(←simp k).expr}"
+  let l := _root_.List.range (←simp k).expr.nat?.get!
+  return .visit (Lean.toExpr l)
+
+def range : SimpSet :=
+  {
+    pos := #[(``reduceRange, .Pre)]
+  }
+
+end List
+
+namespace Array
+
+dsimproc_decl reduceRange (Array.range _) := fun e ↦ do
+  let_expr _root_.Array.range k ← e | return .continue
+  let ctx ← Simp.getContext
+  let ctx ← ctx.setConfig {ctx.config with singlePass := false}
+  logInfo m!"IS SINGLE PASS BEFORE: {(←Simp.getConfig).singlePass}"
+  withTheReader Simp.Context (fun _ ↦ ctx) do
+  logInfo m!"IS SINGLE PASS AFTER: {(←Simp.getConfig).singlePass}"
+  logInfo m!"k: {k} simped: {(←simp k).expr}"
+  let l := _root_.Array.range (←simp k).expr.nat?.get!
+  return .visit (Lean.toExpr l)
+
+def range : SimpSet :=
+  {
+    pos := #[(``reduceRange, .Pre)]
+  }
+
+end Array
 
 namespace Vector
 
@@ -133,12 +196,27 @@ def getElem : SimpSet :=
     ``List.getElem_cons_zero, ``List.getElem_cons_succ,
   ]
 
+set_option autoImplicit true in
+@[simp, grind =] theorem getElem!_pos [GetElem? cont idx elem dom] [LawfulGetElem cont idx elem dom]
+    [Inhabited elem] (c : cont) (i : idx) :
+    c[i]! = c[i]'(sorry) := by sorry
+
+def getElem! : SimpSet :=
+  SimpSet.withAllPost #[
+    ``getElem!_pos
+  ] ∪ getElem
+
+def mapOptim : SimpSet :=
+  {
+    pos := #[(``List.map_id, .Pre)]
+  }    
+
 def map : SimpSet :=
   SimpSet.withAllPost #[
     ``Vector.map_mk, ``List.map_toArray,
     
     ``List.map_cons, ``List.map_nil
-  ]
+  ] ∪ mapOptim
 
 def mapIdx : SimpSet :=
   SimpSet.withAllPost #[
@@ -154,9 +232,13 @@ def zipWith : SimpSet :=
     ``List.zipWith_cons_cons, ``List.zipWith_nil_left, ``List.zipWith_nil_right
   ]
 
+dsimproc_decl rwMk_append_mk (Vector.mk _ _ ++ Vector.mk _ _) := fun e ↦ do
+  let x ← e.runTactic (←`(tactic| rw [$(mkIdent ``Vector.mk_append_mk):ident]))
+  return .visit x
+
 def append : SimpSet :=
   SimpSet.withAllPost #[
-    ``Vector.mk_append_mk, ``List.append_toArray,
+    ``rwMk_append_mk, ``List.append_toArray, -- ``Vector.mk_append_mk
 
     ``List.cons_append, ``List.nil_append
   ]
@@ -256,145 +338,191 @@ def ex₀ : Expr := q(
      return ()
 )                    
 
-/--
-info: do
-  eq0 0
-  eq0 1
-  do
-    eq0 2
-    let init ← eq0 2
-    pure init
-  eq0 3
-  pure ()
--/
-#guard_msgs in
-#eval compile ex₀
-  (SimpSet.withAllPost #[``List.foldlM_cons, ``List.foldlM_nil]) >>=
-  (liftM ∘ PrettyPrinter.ppExpr)
+-- /--
+-- info: do
+--   eq0 0
+--   eq0 1
+--   do
+--     eq0 2
+--     let init ← eq0 2
+--     pure init
+--   eq0 3
+--   pure ()
+-- -/
+-- #guard_msgs in
+-- #eval compile ex₀
+--   (SimpSet.withAllPost #[``List.foldlM_cons, ``List.foldlM_nil]) >>=
+--   (liftM ∘ PrettyPrinter.ppExpr)
 
-def ex₁ (n : Nat) : Option Unit := do
-  eq0 0
-  let res ← (#v[0, 1].foldlM (fun acc _ ↦ return acc) #v[n, 6])
-  let res' := res.map (·+1)
-  eq0 (res'[0])
-  eq0 (res'[1])
-  return ()
+-- def ex₁ (n : Nat) : Option Unit := do
+--   eq0 0
+--   let res ← (#v[0, 1].foldlM (fun acc _ ↦ return acc) #v[n, 6])
+--   let res' := res.map (·+1)
+--   eq0 (res'[0])
+--   eq0 (res'[1])
+--   return ()
 
 open CompileSets Vector
 
-/--
-info: fun n => do
-  eq0 0
-  (eq0 (n + 1)).bind fun a => (eq0 7).bind fun a => some ()
--/
-#guard_msgs in
-#eval compileExample ``ex₁
-        (foldlM ∪ getElem ∪ map ∪ explode)
+-- /--
+-- info: fun n => do
+--   eq0 0
+--   (eq0 (n + 1)).bind fun a => (eq0 7).bind fun a => some ()
+-- -/
+-- #guard_msgs in
+-- #eval compileExample ``ex₁
+--         (foldlM ∪ getElem ∪ map ∪ explode)
 
-def ex₂ (vec : Vector Nat 4) : Option Unit := do
-  eq0 ((vec ++ vec)[0])
-  eq0 0
-  let _res ← vec.foldlM (fun acc x ↦ do eq0 x; acc) (eq0 4)
-  eq0 4
+-- def ex₂ (vec : Vector Nat 4) : Option Unit := do
+--   eq0 ((vec ++ vec)[0])
+--   eq0 0
+--   let _res ← vec.foldlM (fun acc x ↦ do eq0 x; acc) (eq0 4)
+--   eq0 4
 
-/--
-info: fun vec => do
-  eq0 vec[0]
-  eq0 0
-  (eq0 vec[0]).bind fun a =>
-      (eq0 4).bind fun a => (eq0 vec[1]).bind fun a => (eq0 vec[2]).bind fun a => (eq0 vec[3]).bind fun a => eq0 4
--/
-#guard_msgs in
-#eval compileExample ``ex₂
-        (foldlM ∪ getElem ∪ map ∪ explode ∪ append)
+-- /--
+-- info: fun vec => do
+--   eq0 vec[0]
+--   eq0 0
+--   (eq0 vec[0]).bind fun a =>
+--       (eq0 4).bind fun a => (eq0 vec[1]).bind fun a => (eq0 vec[2]).bind fun a => (eq0 vec[3]).bind fun a => eq0 4
+-- -/
+-- #guard_msgs in
+-- #eval compileExample ``ex₂
+--         (foldlM ∪ getElem ∪ map ∪ explode ∪ append)
 
-def ex₃ (vec : Vector Nat 3) : Option Unit := do
-  eq0 ((vec ++ vec)[0])
-  eq0 0
-  let res := vec.mapIdx fun i _ ↦ i
-  eq0 res[0]
-  eq0 res[1]
-  eq0 res[2]
+-- def ex₃ (vec : Vector Nat 3) : Option Unit := do
+--   eq0 ((vec ++ vec)[0])
+--   eq0 0
+--   let res := vec.mapIdx fun i _ ↦ i
+--   eq0 res[0]
+--   eq0 res[1]
+--   eq0 res[2]
 
-/--
-info: fun vec => do
-  eq0 vec[0]
-  eq0 0
-  eq0 0
-  eq0 1
-  eq0 2
--/
-#guard_msgs in
-#eval compileExample ``ex₃
-        (foldlM ∪ getElem ∪ map ∪ explode ∪ append ∪ mapIdx)
+-- /--
+-- info: fun vec => do
+--   eq0 vec[0]
+--   eq0 0
+--   eq0 0
+--   eq0 1
+--   eq0 2
+-- -/
+-- #guard_msgs in
+-- #eval compileExample ``ex₃
+--         (foldlM ∪ getElem ∪ map ∪ explode ∪ append ∪ mapIdx)
 
-def ex₄ (vec : Vector Nat 3) : Option Unit := do
-  eq0 ((vec ++ vec)[0])
-  eq0 0
-  let res := vec.zipWith (bs := vec.map (·+1)) fun x y ↦ x + y
-  eq0 res[0]
-  eq0 res[1]
-  eq0 res[2]
+-- def ex₄ (vec : Vector Nat 3) : Option Unit := do
+--   eq0 ((vec ++ vec)[0])
+--   eq0 0
+--   let res := vec.zipWith (bs := vec.map (·+1)) fun x y ↦ x + y
+--   eq0 res[0]
+--   eq0 res[1]
+--   eq0 res[2]
 
-/--
-info: fun vec => do
-  eq0 vec[0]
-  eq0 0
-  eq0 (2 * vec[0] + 1)
-  eq0 (2 * vec[1] + 1)
-  eq0 (2 * vec[2] + 1)
--/
-#guard_msgs in
-#eval compileExample ``ex₄
-        (foldlM ∪ getElem ∪ map ∪ explode ∪ append ∪ mapIdx ∪ zipWith)
+-- /--
+-- info: fun vec => do
+--   eq0 vec[0]
+--   eq0 0
+--   eq0 (2 * vec[0] + 1)
+--   eq0 (2 * vec[1] + 1)
+--   eq0 (2 * vec[2] + 1)
+-- -/
+-- #guard_msgs in
+-- #eval compileExample ``ex₄
+--         (foldlM ∪ getElem ∪ map ∪ explode ∪ append ∪ mapIdx ∪ zipWith)
   
-def ex₅ (vec : Vector Nat 3) : Option Unit := do
-  eq0 ((vec ++ vec)[0])
-  eq0 0
-  let res := (vec.drop 1).take 1
-  eq0 res[0]
+-- def ex₅ (vec : Vector Nat 3) : Option Unit := do
+--   eq0 ((vec ++ vec)[0])
+--   eq0 0
+--   let res := (vec.drop 1).take 1
+--   eq0 res[0]
 
-/--
-info: fun vec => do
-  eq0 vec[0]
-  eq0 0
-  eq0 vec[1]
--/
-#guard_msgs in
-#eval compileExample ``ex₅
-        (foldlM ∪ getElem ∪ map ∪ explode ∪ append ∪ mapIdx ∪ zipWith ∪ take ∪ drop)
+-- /--
+-- info: fun vec => do
+--   eq0 vec[0]
+--   eq0 0
+--   eq0 vec[1]
+-- -/
+-- #guard_msgs in
+-- #eval compileExample ``ex₅
+--         (foldlM ∪ getElem ∪ map ∪ explode ∪ append ∪ mapIdx ∪ zipWith ∪ take ∪ drop)
 
-def ex₆ (vec : Vector Nat 3) : Option Unit := do
-  eq0 ((vec ++ vec)[0])
-  eq0 0
-  let res := vec.sum
-  eq0 res
+-- def ex₆ (vec : Vector Nat 3) : Option Unit := do
+--   eq0 ((vec ++ vec)[0])
+--   eq0 0
+--   let res := vec.sum
+--   eq0 res
+-- -- set_option trace.Clap.Compile true
+-- /--
+-- info: fun vec => do
+--   eq0 vec[0]
+--   eq0 0
+--   eq0 (vec[0] + vec[1] + vec[2])
+-- -/
+-- #guard_msgs in
+-- #eval compileExample ``ex₆
+--         (explode ∪ append  ∪ sum)
 
-/--
-info: fun vec => do
-  eq0 vec[0]
-  eq0 0
-  eq0 (vec[0] + vec[1] + vec[2])
--/
-#guard_msgs in
-#eval compileExample ``ex₆
-        (foldlM ∪ getElem ∪ map ∪ explode ∪ append ∪ mapIdx ∪ zipWith ∪ take ∪ drop ∪ sum)
+-- def ex₇ (vec : Vector Nat 3) : Option Unit := do
+--   let vec := vec.zipWith (·+·) #v[1, 5, 10]
+--   eq0 42
+--   let res ← vec.mapM (fun n ↦ return n + 1)
+--   eq0 res[0]
+--   eq0 res[1]
+--   eq0 res[2]
 
-def ex₇ (vec : Vector Nat 3) : Option Unit := do
-  let vec := vec.zipWith (·+·) #v[1, 5, 10]
-  eq0 42
-  let res ← vec.mapM (fun n ↦ return n + 1)
-  eq0 res[0]
-  eq0 res[1]
-  eq0 res[2]
+-- /--
+-- info: fun vec => do
+--   eq0 42
+--   (eq0 (vec[0] + 2)).bind fun a => (eq0 (vec[1] + 6)).bind fun a => eq0 (vec[2] + 11)
+-- -/
+-- #guard_msgs in
+-- #eval compileExample ``ex₇ (explode ∪ mapM ∪ zipWith)
 
-/--
-info: fun vec => do
-  eq0 42
-  (eq0 (vec[0] + 2)).bind fun a => (eq0 (vec[1] + 6)).bind fun a => eq0 (vec[2] + 11)
--/
-#guard_msgs in
-#eval compileExample ``ex₇ (explode ∪ mapM ∪ zipWith)
+-- Vector.mapM sigma
+--       #v[(Vector.mapIdx (fun i s => s + Constant.C.C03[i]) (#v[0] ++ #v[inputs[0], inputs[1]]))[0],
+--         (Vector.mapIdx (fun i s => s + Constant.C.C03[i]) (#v[0] ++ #v[inputs[0], inputs[1]]))[1],
+--         (Vector.mapIdx (fun i s => s + Constant.C.C03[i]) (#v[0] ++ #v[inputs[0], inputs[1]]))[2]] 
+
+-- def const : Nat := 42
+
+-- def ex₃ (vec : Vector Nat 3) : Option Unit := do
+--   eq0 ((vec ++ vec)[0])
+--   eq0 0
+--   let res := vec.mapIdx fun i _ ↦ i
+--   eq0 res[0]
+--   eq0 res[1]
+--   eq0 res[2]
+
+example {inputs : Vector Nat 2} {sigma : ℕ → Option Unit} :
+  Vector.mapM sigma
+      #v[0 + 6745197990210204598374042828761989596302876299545964402857411729872131034734,
+        inputs[0] + 426281677759936592021316809065178817848084678679510574715894138690250139748,
+        inputs[1] + 4014188762916583598888942667424965430287497824629657219807941460227372577781] =
+  sorry := by
+  simp []
+  done
+
+-- #eval compileExample ``ex₃ (mapIdx ∪ append ∪ getElem ∪ explode)
+-- example {vec : Vector Nat 3} :
+--   #v[0] ++ #v[vec[0], vec[1], vec[2]] = sorry := by
+--   -- rw [Vector.mk_append_mk]
+--   simp [Vector.mk_append_mk]
+-- def ex₈ (vec : Vector Nat 3) : Option Unit := do
+--   let res := (#v[0] ++ vec).mapIdx (fun i s => s + const)
+--   eq0 res[0]
+-- set_option trace.Clap.Compile true
+-- #check Vector.mk_append_mk
+-- #eval compileExample ``ex₈ (
+--      append ∪
+--      CompileSets.Vector.foldlM ∪
+--      CompileSets.Vector.mapIdx ∪
+--      CompileSets.Vector.map ∪
+--      CompileSets.Nat.arith ∪
+--      CompileSets.Array.range ∪
+--      CompileSets.List.range ∪
+--      CompileSets.Logic.cases ∪ 
+--      CompileSets.Vector.getElem! ∪
+--      CompileSets.Vector.explode)
 
 end Exampru
 

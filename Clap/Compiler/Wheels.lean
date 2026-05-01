@@ -41,6 +41,8 @@ initialize Lean.registerTraceClass `Clap.Compile.up (inherited := true)
 
 initialize Lean.registerTraceClass `Clap.Compile.simp (inherited := true)
 
+initialize Lean.registerTraceClass `Clap.Compile.simp.fail (inherited := true)
+
 initialize Lean.registerTraceClass `Clap.Compile.simp.config (inherited := true)
 
 initialize Lean.registerTraceClass `Clap.Compile.simp.kaboom (inherited := true)
