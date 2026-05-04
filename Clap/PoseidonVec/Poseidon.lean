@@ -140,7 +140,7 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
     let l ← state.mapM sigma
     mix (ark l C ((r + 1) * t)) M) state
 
-  -- Boundary round (r = half−1): sigma → ark → mix with P
+  -- -- Boundary round (r = half−1): sigma → ark → mix with P
   let state := mix (ark (← state.mapM sigma) C (half * t)) P
 
   -- Phase 2: partial rounds
@@ -148,14 +148,15 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
     let s0 := (← sigma state[0]) + C[(half + 1) * t + r]'sorry
     mixS r (state.set 0 s0) S) state
 
-  -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
-  let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
-    let l ← state.mapM sigma
-    mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
+  state[0]
+  -- -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
+  -- let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
+  --   let l ← state.mapM sigma
+  --   mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
 
-  -- Final round: sigma on all, then extract nOuts elements via MixLast
-  let state ← state.mapM sigma
-  mixLast state M 0
+  -- -- Final round: sigma on all, then extract nOuts elements via MixLast
+  -- let state ← state.mapM sigma
+  -- mixLast state M 0
 
 /-- **Poseidon:** Single-output Poseidon hash. Wraps `poseidonEx` with
     `nOuts = 1` and `initialState = 0`, returning the first element of
@@ -259,12 +260,12 @@ example : [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64,
 
 #eval crossEmoji
 -- set_option trace.Clap.Compile.simp.fail true
-set_option trace.Meta.Tactic.simp true
+-- set_option trace.Meta.Tactic.simp true
 set_option trace.Clap.Compile true
 -- set_option trace.Clap.Compile.down true
 #check ite_false
-set_option maxRecDepth 10_000
-set_option maxHeartbeats 400000
+set_option maxRecDepth 2048
+set_option maxHeartbeats 800000
 #guard_msgs in
 #eval show Elab.TermElabM _ from do
   Compiler.compile

@@ -35,6 +35,9 @@ def _root_.Lean.Expr.mkBind (l r : Expr) (m? : Name := ``Bind.bind) : MetaM Expr
 
 private def treeEmoji : String := "🌲"
 
+def isGround (e : Expr) : MetaM Expr := do
+  
+
 mutual
 
 private partial def down (reduce : Expr → TermElabM Expr)
@@ -74,8 +77,6 @@ private partial def up (reduce : Expr → TermElabM Expr)
     then trace[Clap.Compile.up] "\ngo [↑]:\n{bind}"
          up bind
     else trace[Clap.Compile.simp] "Binding value: {l.2}"
-         trace[Clap.Compile.simp] "REMOVE ME:\n{bind}"
-         trace[Clap.Compile.simp] "stack:\n{stack.length}"
          let simped ← reduceOuter bind
          if simped != bind
          then trace[Clap.Compile.simp] "[↑] {checkEmoji}\n{bind}\n==>\n{simped}"
@@ -94,9 +95,9 @@ open Simp API
 def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : TermElabM Expr := do
   withTraceNode `Clap.Compile formatExprWith do
   trace[Clap.Compile.simp.config]
-    m!"Reducer: [only := {only}, singlePass := {true}, set := {repr simpset}"
+    m!"Reducer: [only := {only}, singlePass := true, set := {repr simpset}"
   trace[Clap.Compile.simp.config]
-    m!"Compiler: [only := true, singlePass := {false}, set := {repr compilerSet} ∪ {repr simpset}"
+    m!"Compiler: [only := true, singlePass := true, set := {repr compilerSet} ∪ {repr simpset}"
   
   lambdaTelescope e fun args e ↦ do
     let compiled ←
