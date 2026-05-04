@@ -47,6 +47,8 @@ initialize Lean.registerTraceClass `Clap.Compile.simp.config (inherited := true)
 
 initialize Lean.registerTraceClass `Clap.Compile.simp.kaboom (inherited := true)
 
+initialize Lean.registerTraceClass `Clap.Compile.simp.isGround (inherited := true)
+
 open Lean Elab.Term in
 def formatExprWith {m : Type _ → Type _} [Monad m]
                    (s : String := "") (res : Except Exception Expr) : m MessageData :=

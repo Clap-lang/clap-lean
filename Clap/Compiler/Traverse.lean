@@ -35,8 +35,78 @@ def _root_.Lean.Expr.mkBind (l r : Expr) (m? : Name := ``Bind.bind) : MetaM Expr
 
 private def treeEmoji : String := "🌲"
 
-def isGround (e : Expr) : MetaM Expr := do
-  
+-- + [Option.bind,
+-- +  GetElem.getElem,
+-- +  Clap.PoseidonVec.Test.p,
+-- +  Decidable.byContradiction,
+-- +  _private.Clap.PoseidonVec.Poseidon.0._proof_148,
+-- +  Option.some]
+#check Decidable.byContradiction
+def constantsSans (e : Expr) («instances» types : Bool := true) : MetaM (Array Name) := do
+  let env ← getEnv
+
+  e.getUsedConstants.filterM fun name ↦ do
+    let .some ci := env.find? name | throwError "Unknown constant: {name}"
+    let isPermitted (ci : ConstantInfo) : MetaM Bool :=
+      let neutral := fun _ ↦ return true
+      let null (f : ConstantInfo → MetaM Bool) (b : Bool) := if b then f else neutral
+      let f := #[
+        null notIsInstance «instances»,
+        null notIsType types,
+        notIsProp,
+        fun e ↦ return notIsInLanguage e,
+        notIsOfTypeProp
+      ].foldl (init := neutral)
+              fun f g ci ↦ return (←f ci) && (←g ci)
+      f ci
+    isPermitted ci
+  where
+    isFormerOf (ci : ConstantInfo) (f : Expr → Environment → Bool) : MetaM Bool := do
+      forallTelescopeReducing ci.type fun _ conclusion ↦ return f conclusion (←getEnv)
+
+    notIsInstance (ci : ConstantInfo) : MetaM Bool :=
+      isFormerOf ci fun e env ↦ e.getAppFn.const?.elim true fun (name, _) ↦ !isClass env name
+
+    notIsType (ci : ConstantInfo) : MetaM Bool :=
+      isFormerOf ci fun e _ ↦ !e.isType
+
+    notIsProp (ci : ConstantInfo) : MetaM Bool :=
+      isFormerOf ci fun e _ ↦ !e.isProp
+
+    notIsOfTypeProp (ci : ConstantInfo) : MetaM Bool :=
+      forallTelescopeReducing ci.type fun _ conclusion ↦ do
+        -- logInfo m!"checking {←inferType conclusion} for {conclusion}"
+        return !(←inferType conclusion).isProp
+
+    /-
+    TODO: This is pretty rough.
+    -/
+    privileged :=
+      Name.append `Clap.Spec.Compiler <$> #[
+        `share, `eq0, `num2bits, `isZero
+      ] ++
+      Name.append `Clap.Lang.Core <$> #[
+        `share, `eq0, `num2bits, `isZero
+      ] ++
+      #[
+        ``HAdd.hAdd, ``HMul.hMul, ``HSub.hSub, ``HPow.hPow, ``OfNat.ofNat
+      ] ++
+      -- `GetElem.getElem` is cheating for now, we miss stuff like `<nonInput>[x]`.
+      -- The solution here is to only allow `<input>[x]`, which needs a different traversal
+      -- than just using the constants. Perhaps something akin to the solution of `Deep.lean`.
+      #[
+        ``Option.bind, ``GetElem.getElem, ``Option.some
+      ] ++
+      #[
+        `Primes.bn254, `Clap.PoseidonVec.p, `Clap.PoseidonVec.Test.p, 
+      ]
+
+    notIsInLanguage (ci : ConstantInfo) : Bool :=
+      dbg_trace s!"{privileged} contains {ci.name}"
+      !privileged.contains ci.name
+
+def isGround (e : Expr) : MetaM Bool :=
+  Array.isEmpty <$> constantsSans e
 
 mutual
 
@@ -69,6 +139,10 @@ private partial def up (reduce : Expr → TermElabM Expr)
   | .inr r :: stack =>
     lambdaTelescopeOne! r fun arg body ↦ do
       trace[Clap.Compile.up] "\npush [←]:\n{(done, arg)}\ngo [↓]:\n{body}"
+      logInfo m!"done:\n{done}\nconstants:\n{←constantsSans done}"
+      -- if !(←isGround done) then
+      --   throwError m!"ABORTING. Not ground:\n{done}"
+      -- else logInfo m!"Ground:\n{done}"
       down reduce reduceOuter (.inl (done, arg) :: stack) body
   | .inl l :: stack => do
     let bind ← mkBindWith l done
