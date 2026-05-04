@@ -101,7 +101,7 @@ def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : TermElabM Exp
   lambdaTelescope e fun args e ↦ do
     let compiled ←
       down (simplify (only := only) (singlePass := true) simpset)
-           (simplify (only := true) (compilerSet ∪ simpset)) [] e
+           (simplify (only := true) (singlePass := true) (compilerSet ∪ simpset)) [] e
     mkLambdaFVars args compiled
   where
     compilerSet : SimpSet :=
