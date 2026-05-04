@@ -1,4 +1,6 @@
 import Lean
+-- import Lean.Util.PtrSet
+-- import Lean.Declaration
 
 initialize Lean.registerTraceClass `Clap.Compiler
 
@@ -75,3 +77,54 @@ def Lean.Meta.forallTelescopeOne!.{u}
 register_simp_attr dbgSimp
 
 register_simp_attr compilerSimp
+
+-- /-
+-- Based on `Expr.getUsedConstants`.
+-- -/
+
+-- namespace Lean
+-- namespace Expr
+-- namespace FoldConstsImpl
+
+-- unsafe structure State' where
+--  visited       : PtrSet Expr := mkPtrSet
+--  visitedConsts : NameHashSet := {}
+
+-- unsafe def fold' {α : Type} (f : Name → α → α) (e : Expr) (acc : α) : StateT State MetaM α :=
+--   let rec visit (e : Expr) (acc : α) : StateT State MetaM α := do
+--     if (←Meta.inferType e).isProp then
+--       logInfo m!"Rejected: {e} with T: {←Meta.inferType e}"
+--       return acc
+--     if (← get).visited.contains e then
+--       return acc
+--     modify fun s => { s with visited := s.visited.insert e }
+--     match e with
+--     | .forallE _ d b _   => visit b (← visit d acc)
+--     | .lam _ d b _       => visit b (← visit d acc)
+--     | .mdata _ b         => visit b acc
+--     | .letE _ t v b _    => visit b (← visit v (← visit t acc))
+--     | .app f a           => visit a (← visit f acc)
+--     | .proj _ _ b        => visit b acc
+--     | .const c _         =>
+--       if (← get).visitedConsts.contains c then
+--         return acc
+--       else
+--         modify fun s => { s with visitedConsts := s.visitedConsts.insert c };
+--         return f c acc
+--     | _ => return acc
+--   visit e acc
+
+-- @[inline] unsafe def foldUnsafe' {α : Type} (e : Expr) (init : α) (f : Name → α → α) : MetaM α :=
+--   (fold' f e init).run' {}
+
+-- end FoldConstsImpl
+
+-- /-- Apply `f` to every constant occurring in `e` once. -/
+-- @[implemented_by FoldConstsImpl.foldUnsafe']
+-- opaque foldConsts' {α : Type} (e : Expr) (init : α) (f : Name → α → α) : MetaM α := return init
+
+-- def getUsedConstants' (e : Expr) : MetaM (Array Name) :=
+--   e.foldConsts' #[] fun c cs => cs.push c
+
+-- end Expr
+-- end Lean

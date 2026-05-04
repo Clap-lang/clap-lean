@@ -35,78 +35,151 @@ def _root_.Lean.Expr.mkBind (l r : Expr) (m? : Name := ``Bind.bind) : MetaM Expr
 
 private def treeEmoji : String := "🌲"
 
--- + [Option.bind,
--- +  GetElem.getElem,
--- +  Clap.PoseidonVec.Test.p,
--- +  Decidable.byContradiction,
--- +  _private.Clap.PoseidonVec.Poseidon.0._proof_148,
--- +  Option.some]
-#check Decidable.byContradiction
-def constantsSans (e : Expr) («instances» types : Bool := true) : MetaM (Array Name) := do
-  let env ← getEnv
+partial def isGroundExp (p : Expr) (var : Expr) (e : Expr) : MetaM Bool := do
+  if let (``OfNat.ofNat, _) := e.getAppFnArgs then
+    return true
+  else if let .fvar _ := e then
+    return true
+  else if let (``HAdd.hAdd, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
+    let l <- isGroundExp p var l
+    let r <- isGroundExp p var r
+    return l && r
+  else if let (``HMul.hMul, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
+    let l <- isGroundExp p var l
+    let r <- isGroundExp p var r
+    return l && r
+  else if let (``HSub.hSub, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
+    let l <- isGroundExp p var l
+    let r <- isGroundExp p var r
+    return l && r
+  else return false
 
-  e.getUsedConstants.filterM fun name ↦ do
-    let .some ci := env.find? name | throwError "Unknown constant: {name}"
-    let isPermitted (ci : ConstantInfo) : MetaM Bool :=
-      let neutral := fun _ ↦ return true
-      let null (f : ConstantInfo → MetaM Bool) (b : Bool) := if b then f else neutral
-      let f := #[
-        null notIsInstance «instances»,
-        null notIsType types,
-        notIsProp,
-        fun e ↦ return notIsInLanguage e,
-        notIsOfTypeProp
-      ].foldl (init := neutral)
-              fun f g ci ↦ return (←f ci) && (←g ci)
-      f ci
-    isPermitted ci
-  where
-    isFormerOf (ci : ConstantInfo) (f : Expr → Environment → Bool) : MetaM Bool := do
-      forallTelescopeReducing ci.type fun _ conclusion ↦ return f conclusion (←getEnv)
+def typeZModp (p:Expr) : Expr := .app (mkConst ``ZMod) p
 
-    notIsInstance (ci : ConstantInfo) : MetaM Bool :=
-      isFormerOf ci fun e env ↦ e.getAppFn.const?.elim true fun (name, _) ↦ !isClass env name
+def matchBinds (e:Expr) : Option (Expr × Expr) :=
+  if let (``Bind.bind, ⟨_ :: _ :: _ :: _ :: e :: k :: _⟩) := e.getAppFnArgs then some (e,k)
+  else none
 
-    notIsType (ci : ConstantInfo) : MetaM Bool :=
-      isFormerOf ci fun e _ ↦ !e.isType
+partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Bool := do
+  if let .lam name type body bi := e then
+    if not (<- isDefEq type (typeZModp p))
+    then throwError m!"compile.lam: argument not a ZMod p\n{type}"
+    let e <- withLocalDecl name bi var fun fvar => do
+      let body := body.instantiate1 fvar
+      return compile p var body
+    return true
 
-    notIsProp (ci : ConstantInfo) : MetaM Bool :=
-      isFormerOf ci fun e _ ↦ !e.isProp
+  else if let (``Option.some, ⟨_ :: accept :: _⟩) := e.getAppFnArgs then
+    if not (←isDefEq accept (.const ``Clap.Spec.Compiler.accept []))
+    then throwError m!"compile.accept: not accept - {accept}"
+--    dbg_trace s!"accept"
+    mkAppOptM ``Clap.Circuit.nil #[p,var]
 
-    notIsOfTypeProp (ci : ConstantInfo) : MetaM Bool :=
-      forallTelescopeReducing ci.type fun _ conclusion ↦ do
-        -- logInfo m!"checking {←inferType conclusion} for {conclusion}"
-        return !(←inferType conclusion).isProp
+  else if let some (e,k) := matchBinds e then
+    let .lam name type body _bi := k | throwError m!"compile.bind: not a lam"
+    if let (`Clap.Spec.Compiler.eq0, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
+      let e : Expr <- compileExp p var e
+      let k <- withLocalDecl name .default type fun u => do
+        let body := body.instantiate1 u
+        let body <- compile p var body
+        mkLambdaFVars #[u] body
+      let c := Expr.app k (mkConst ``Unit.unit)
+      mkAppOptM ``Clap.Circuit.eq0 #[p,var,e,c]
 
-    /-
-    TODO: This is pretty rough.
-    -/
-    privileged :=
-      Name.append `Clap.Spec.Compiler <$> #[
-        `share, `eq0, `num2bits, `isZero
-      ] ++
-      Name.append `Clap.Lang.Core <$> #[
-        `share, `eq0, `num2bits, `isZero
-      ] ++
-      #[
-        ``HAdd.hAdd, ``HMul.hMul, ``HSub.hSub, ``HPow.hPow, ``OfNat.ofNat
-      ] ++
-      -- `GetElem.getElem` is cheating for now, we miss stuff like `<nonInput>[x]`.
-      -- The solution here is to only allow `<input>[x]`, which needs a different traversal
-      -- than just using the constants. Perhaps something akin to the solution of `Deep.lean`.
-      #[
-        ``Option.bind, ``GetElem.getElem, ``Option.some
-      ] ++
-      #[
-        `Primes.bn254, `Clap.PoseidonVec.p, `Clap.PoseidonVec.Test.p, 
-      ]
+    else if let (`Clap.Spec.Compiler.num2bits, ⟨_ :: w :: e :: _⟩) := e.getAppFnArgs then
+        let e : Expr <- compileExp p var e
+        let k <- withLocalDecl `vars .default (<- mkAppM ``List #[var]) fun fvar => do
+          let body := body.instantiate1 fvar
+          let body <- compile p var body
+          mkLambdaFVars #[fvar] body
+        mkAppM ``Clap.Circuit.num2bits #[w, e, k]
 
-    notIsInLanguage (ci : ConstantInfo) : Bool :=
-      dbg_trace s!"{privileged} contains {ci.name}"
-      !privileged.contains ci.name
+    else if let (`Clap.Spec.Compiler.isZero, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
+--      dbg_trace s!"isZero"
+      let k <- withLocalDecl name .default var fun fvar => do
+        let body := body.instantiate1 fvar
+        let body ← compile p var body
+        mkLambdaFVars #[fvar] body
+      let e : Expr <- compileExp p var e
+      mkAppOptM ``Clap.Circuit.isZero #[p,var,e,k]
 
-def isGround (e : Expr) : MetaM Bool :=
-  Array.isEmpty <$> constantsSans e
+    else if let (`Clap.Spec.Compiler.share, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
+--      dbg_trace s!"share"
+      let k <- withLocalDecl name .default var fun fvar => do
+        let body := body.instantiate1 fvar
+        let body ← compile p var body
+        mkLambdaFVars #[fvar] body
+      let e : Expr <- compileExp p var e
+      mkAppOptM ``Clap.Circuit.share #[p,var,e,k]
+
+    else throwError m!"compile.bind: unknown bind\n{e.getAppFnArgs}"
+
+  else throwError m!"compile: not supported\n{e.getAppFnArgs} (missing accept?)"
+
+-- def constantsSans (e : Expr) («instances» types : Bool := true) : MetaM (Array Name) := do
+--   let env ← getEnv
+--   (←e.getUsedConstants').filterM fun name ↦ do
+--     let .some ci := env.find? name | throwError "Unknown constant: {name}"
+--     let isPermitted (ci : ConstantInfo) : MetaM Bool :=
+--       let neutral := fun _ ↦ return true
+--       let null (f : ConstantInfo → MetaM Bool) (b : Bool) := if b then f else neutral
+--       let f := #[
+--         null notIsInstance «instances»,
+--         null notIsType types,
+--         notIsProp,
+--         fun e ↦ return notIsInLanguage e,
+--         notIsOfTypeProp
+--       ].foldl (init := neutral)
+--               fun f g ci ↦ return (←f ci) && (←g ci)
+--       f ci
+--     isPermitted ci
+--   where
+--     isFormerOf (ci : ConstantInfo) (f : Expr → Environment → Bool) : MetaM Bool := do
+--       forallTelescopeReducing ci.type fun _ conclusion ↦ return f conclusion (←getEnv)
+
+--     notIsInstance (ci : ConstantInfo) : MetaM Bool :=
+--       isFormerOf ci fun e env ↦ e.getAppFn.const?.elim true fun (name, _) ↦ !isClass env name
+
+--     notIsType (ci : ConstantInfo) : MetaM Bool :=
+--       isFormerOf ci fun e _ ↦ !e.isType
+
+--     notIsProp (ci : ConstantInfo) : MetaM Bool :=
+--       isFormerOf ci fun e _ ↦ !e.isProp
+
+--     notIsOfTypeProp (ci : ConstantInfo) : MetaM Bool :=
+--       forallTelescopeReducing ci.type fun _ conclusion ↦ do
+--         -- logInfo m!"checking {←inferType conclusion} for {conclusion}"
+--         return !(←inferType conclusion).isProp
+
+--     /-
+--     TODO: This is pretty rough.
+--     -/
+--     privileged :=
+--       Name.append `Clap.Spec.Compiler <$> #[
+--         `share, `eq0, `num2bits, `isZero
+--       ] ++
+--       Name.append `Clap.Lang.Core <$> #[
+--         `share, `eq0, `num2bits, `isZero
+--       ] ++
+--       #[
+--         ``HAdd.hAdd, ``HMul.hMul, ``HSub.hSub, ``HPow.hPow, ``OfNat.ofNat
+--       ] ++
+--       -- `GetElem.getElem` is cheating for now, we miss stuff like `<nonInput>[x]`.
+--       -- The solution here is to only allow `<input>[x]`, which needs a different traversal
+--       -- than just using the constants. Perhaps something akin to the solution of `Deep.lean`.
+--       #[
+--         ``Option.bind, ``GetElem.getElem, ``Option.some
+--       ] ++
+--       #[
+--         `Primes.bn254, `Clap.PoseidonVec.p, `Clap.PoseidonVec.Test.p, 
+--       ]
+
+--     notIsInLanguage (ci : ConstantInfo) : Bool :=
+--       dbg_trace s!"{privileged} contains {ci.name}"
+--       !privileged.contains ci.name
+
+-- def isGround (e : Expr) : MetaM Bool :=
+--   Array.isEmpty <$> constantsSans e
 
 mutual
 
