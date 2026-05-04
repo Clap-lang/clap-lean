@@ -225,7 +225,10 @@ open Lean Meta Clap Compiler Simp API CompileSets
 
 /-- Run poseidon on `ZMod bn254` inputs, looking up constants by `t`. -/
 private def testPoseidon (inputs : Vector (ZMod p) 2) (expected : F p) : Option Unit := do
-  F.assert_eq (← poseidonBN254 inputs) expected
+  let res ← poseidonBN254 inputs
+  F.assert_eq res expected
+-- bind (poseidonBN254 inputs) >>= fun res ↦ F.assert_eq res expected
+-- process (poseidonBN254 inputs) | push 
 def poseidonBN254 : SimpSet :=
   SimpSet.withAllPost #[
     ``PoseidonVec.poseidonBN254, ``poseidon, ``poseidonEx, ``liftVec, ``liftMat,
@@ -248,18 +251,19 @@ def poseidonBN254 : SimpSet :=
     ``Constant.C.C16,
     ``Constant.C.C17
   ]
-
+#check bind_map_left
+#check map_pure
 example : [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64,
     68][1 + 2 - 2] = sorry := by
   simp +singlePass
 
 #eval crossEmoji
 -- set_option trace.Clap.Compile.simp.fail true
--- set_option trace.Meta.Tactic.simp true
+set_option trace.Meta.Tactic.simp true
 set_option trace.Clap.Compile true
 #check ite_false
 set_option maxHeartbeats 200000
--- #guard_msgs in
+#guard_msgs in
 #eval show Elab.TermElabM _ from do
   Compiler.compile
     (((←getEnv).find? ``testPoseidon).get!.value!)
