@@ -54,9 +54,11 @@ dsimproc_decl explodeVector (_) := fun e ↦ do
   let_expr Vector t sz := t | return .continue
   
   if e.isFVar && (←needsExploding e)
-  then let explodedVec ← (sequenceAsVecExpr e t (←Simp.simp sz).1.nat?.get!).run'
-       trace[Clap.Compile.simp.kaboom] m!"Exploding:\n{e}\n==>\n{explodedVec}"
-       return .done explodedVec
+  then match (←Simp.simp sz).1.nat? with
+       | .none => throwError m!"{(←Simp.simp sz).1} is not a Nat"
+       | .some n => let explodedVec ← (sequenceAsVecExpr e t n).run'
+                    trace[Clap.Compile.simp.kaboom] m!"Exploding:\n{e}\n==>\n{explodedVec}"
+                    return .done explodedVec
   else return .continue
 
 def rejectVectorSansProof (coll e : Expr) : SimpM Simp.DStep := do

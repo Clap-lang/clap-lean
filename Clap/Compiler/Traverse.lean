@@ -143,8 +143,10 @@ dsimproc_decl reduceRange (List.range _) := fun e ↦ do
   let ctx ← ctx.setConfig {ctx.config with singlePass := false}
   withTheReader Simp.Context (fun _ ↦ ctx) do
   -- logInfo m!"k: {k} simped: {(←simp k).expr}"
-  let l := _root_.List.range (←simp k).expr.nat?.get!
-  return .visit (Lean.toExpr l)
+  match (←simp k).expr.nat? with
+  | .none => throwError m!"{(←simp k).expr} is not a Nat"
+  | .some n => let l := _root_.List.range n
+               return .visit (Lean.toExpr l)
 
 def range : SimpSet :=
   {
@@ -160,9 +162,10 @@ dsimproc_decl reduceRange (Array.range _) := fun e ↦ do
   let ctx ← Simp.getContext
   let ctx ← ctx.setConfig {ctx.config with singlePass := false}
   withTheReader Simp.Context (fun _ ↦ ctx) do
-  -- logInfo m!"k: {k} simped: {(←simp k).expr}"
-  let l := _root_.Array.range (←simp k).expr.nat?.get!
-  return .visit (Lean.toExpr l)
+  match (←simp k).expr.nat? with
+  | .none => throwError m!"{(←simp k).expr} is not a Nat"
+  | .some n => let l := _root_.Array.range n
+               return .visit (Lean.toExpr l)
 
 def range : SimpSet :=
   {
