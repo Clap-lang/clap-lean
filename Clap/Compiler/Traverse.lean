@@ -74,7 +74,8 @@ private partial def up (reduce : Expr → TermElabM Expr)
     then trace[Clap.Compile.up] "\ngo [↑]:\n{bind}"
          up bind
     else trace[Clap.Compile.simp] "Binding value: {l.2}"
-
+         trace[Clap.Compile.simp] "REMOVE ME:\n{bind}"
+         trace[Clap.Compile.simp] "stack:\n{stack.length}"
          let simped ← reduceOuter bind
          if simped != bind
          then trace[Clap.Compile.simp] "[↑] {checkEmoji}\n{bind}\n==>\n{simped}"
@@ -107,7 +108,8 @@ def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : TermElabM Exp
       SimpSet.withAllPost #[
         ``Option.bind_assoc, ``bind_assoc,
         ``Option.pure_def,
-        ``Option.bind_eq_bind, ``Option.bind_fun_some, ``Option.bind_some, ``bind_pure, ``pure_bind
+        ``Option.bind_eq_bind, ``Option.bind_fun_some, ``Option.bind_some, ``bind_pure, ``pure_bind,
+        ``Option.map_eq_map, ``Option.map_some
       ]
 
 namespace CompileSets
@@ -144,7 +146,8 @@ dsimproc_decl reduceRange (List.range _) := fun e ↦ do
   withTheReader Simp.Context (fun _ ↦ ctx) do
   -- logInfo m!"k: {k} simped: {(←simp k).expr}"
   match (←simp k).expr.nat? with
-  | .none => throwError m!"{(←simp k).expr} is not a Nat"
+  | .none => logError m!"{(←simp k).expr} is not ground"
+             return .done e
   | .some n => let l := _root_.List.range n
                return .visit (Lean.toExpr l)
 
@@ -163,7 +166,8 @@ dsimproc_decl reduceRange (Array.range _) := fun e ↦ do
   let ctx ← ctx.setConfig {ctx.config with singlePass := false}
   withTheReader Simp.Context (fun _ ↦ ctx) do
   match (←simp k).expr.nat? with
-  | .none => throwError m!"{(←simp k).expr} is not a Nat"
+  | .none => logError m!"{(←simp k).expr} is not ground"
+             return .done e
   | .some n => let l := _root_.Array.range n
                return .visit (Lean.toExpr l)
 
@@ -284,10 +288,46 @@ def sum : SimpSet :=
   SimpSet.withAllPost #[
     ``Vector.sum_eq_foldr
   ] ∪ foldr
+#check map_bind
+-- example {l : Vector Nat 2} :
+--   (do let l ← (((fun x => #v[x]) <$> some 1).bind fun a => some #v[a[0]])
+--       some #v[l[0]]) = sorry := by
+--   rw [Option.map_eq_map]
+--   rw [Option.map_some] -- map_pure | map_pure
+--   done
+
+-- opaque share : Nat → Nat
+
+-- example {inputs : Vector Nat 2} : Option.map (fun x => #v[x])
+--           ((some
+--                 (share
+--                   ((inputs[1] + 2) *
+--                     (inputs[1] + 2)))).bind
+--             fun a =>
+--             (some (share (a * a))).bind fun a =>
+--               some (a * (inputs[1] + 2))) = sorry := by
+--   simp?
+--   done
+
+-- example {inputs : Vector Nat 2}: (Option.map (fun x => #v[x]) do
+--           let x2 ←
+--             some
+--                 (share
+--                   ((inputs[1] + 2) *
+--                     (inputs[1] + 2)))
+--           let x4 ← some (share (x2 * x2))
+--           some (x4 * (inputs[1] + 2))) = sorry := by
+--   simp?
+--   done
+
+-- @[simp]
+-- theorem _root_.Vector.mapM_singleton {α β} {m} [Monad m] [LawfulMonad m] {f : α → m β} {x} :
+--   #v[x].mapM f = (#v[·]) <$> f x := by
+--   apply Vector.map_toArray_inj.mp; simp
 
 @[simp]
 theorem _root_.Vector.mapM_singleton {α β} {m} [Monad m] [LawfulMonad m] {f : α → m β} {x} :
-  #v[x].mapM f = (#v[·]) <$> f x := by
+  #v[x].mapM f = f x >>= (pure #v[·]) := by
   apply Vector.map_toArray_inj.mp; simp
 
 @[simp↓ high]
@@ -323,7 +363,9 @@ def mapM : SimpSet :=
   SimpSet.withAllPost #[
     ``Vector.mapM_mk_singleton_append,
     
-    ``Vector.mapM_mk_eq_append, ``Vector.mapM_singleton, ``map_pure
+    ``Vector.mapM_mk_eq_append, ``Vector.mapM_singleton
+
+    -- ``map_pure, ``Option.map_eq_map, ``Option.map_some, ``Option.bind_eq_bind
   ] ∪ append ∪ getElem
 
 end Vector
