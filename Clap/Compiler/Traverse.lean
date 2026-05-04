@@ -136,15 +136,13 @@ def arith :=
 end Nat
 
 namespace List
--- #check List.range_succ
+
 dsimproc_decl reduceRange (List.range _) := fun e ↦ do
   let_expr _root_.List.range k ← e | return .continue
   let ctx ← Simp.getContext
   let ctx ← ctx.setConfig {ctx.config with singlePass := false}
-  logInfo m!"IS SINGLE PASS BEFORE: {(←Simp.getConfig).singlePass}"
   withTheReader Simp.Context (fun _ ↦ ctx) do
-  logInfo m!"IS SINGLE PASS AFTER: {(←Simp.getConfig).singlePass}"
-  logInfo m!"k: {k} simped: {(←simp k).expr}"
+  -- logInfo m!"k: {k} simped: {(←simp k).expr}"
   let l := _root_.List.range (←simp k).expr.nat?.get!
   return .visit (Lean.toExpr l)
 
@@ -161,10 +159,8 @@ dsimproc_decl reduceRange (Array.range _) := fun e ↦ do
   let_expr _root_.Array.range k ← e | return .continue
   let ctx ← Simp.getContext
   let ctx ← ctx.setConfig {ctx.config with singlePass := false}
-  logInfo m!"IS SINGLE PASS BEFORE: {(←Simp.getConfig).singlePass}"
   withTheReader Simp.Context (fun _ ↦ ctx) do
-  logInfo m!"IS SINGLE PASS AFTER: {(←Simp.getConfig).singlePass}"
-  logInfo m!"k: {k} simped: {(←simp k).expr}"
+  -- logInfo m!"k: {k} simped: {(←simp k).expr}"
   let l := _root_.Array.range (←simp k).expr.nat?.get!
   return .visit (Lean.toExpr l)
 
@@ -298,6 +294,14 @@ theorem _root_.Vector.mapM_mk_singleton_append {m} [Monad m] [LawfulMonad m] {α
 
 def liftTermElabM {α} (m : TermElabM α) : SimpM α := liftM m.run'
 
+/--
+0. Only for `Vector.mapM f xs`.
+1. Vector.mapM f #v[a, b, c] → Vector.mapM f (#v[a] ++ #v[b, c])
+2. Vector.mapM f (#v[x] ++ v) = do
+     let __do_lift ← f x
+     let __do_lift_1 ← Vector.mapM f v
+     pure (#v[__do_lift] ++ __do_lift_1)
+-/
 dsimproc_decl _root_.Vector.mapM_mk_eq_append (_root_.Vector.mapM _ _) := fun e ↦ do
   let_expr _root_.Vector.mapM _ _ _ _ _ f vec := e | return .continue
   let_expr _root_.Vector.mk _ sz arr _ := vec | return .continue
@@ -483,6 +487,8 @@ open CompileSets Vector
 --         (Vector.mapIdx (fun i s => s + Constant.C.C03[i]) (#v[0] ++ #v[inputs[0], inputs[1]]))[1],
 --         (Vector.mapIdx (fun i s => s + Constant.C.C03[i]) (#v[0] ++ #v[inputs[0], inputs[1]]))[2]] 
 
+
+
 -- def const : Nat := 42
 
 -- def ex₃ (vec : Vector Nat 3) : Option Unit := do
@@ -493,14 +499,18 @@ open CompileSets Vector
 --   eq0 res[1]
 --   eq0 res[2]
 
-example {inputs : Vector Nat 2} {sigma : ℕ → Option Unit} :
-  Vector.mapM sigma
-      #v[0 + 6745197990210204598374042828761989596302876299545964402857411729872131034734,
-        inputs[0] + 426281677759936592021316809065178817848084678679510574715894138690250139748,
-        inputs[1] + 4014188762916583598888942667424965430287497824629657219807941460227372577781] =
-  sorry := by
-  simp []
-  done
+
+    -- ``Vector.mapM_mk_eq_append, ``Vector.mapM_singleton, ``map_pure
+-- example {inputs : Vector Nat 2} {sigma : ℕ → Option Unit} :
+--   Vector.mapM sigma
+--       #v[0 + 6745197990210204598374042828761989596302876299545964402857411729872131034734,
+--         inputs[0] + 426281677759936592021316809065178817848084678679510574715894138690250139748,
+--         inputs[1] + 4014188762916583598888942667424965430287497824629657219807941460227372577781] =
+--   sorry := by
+--   simp +singlePass [Vector.mapM_mk_eq_append]
+--   simp +singlePass [Vector.mapM_mk_eq_append]
+--   simp? +singlePass [Vector.mapM_mk_eq_append]
+--   done
 
 -- #eval compileExample ``ex₃ (mapIdx ∪ append ∪ getElem ∪ explode)
 -- example {vec : Vector Nat 3} :

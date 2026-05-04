@@ -42,8 +42,12 @@ def needsExploding (e : Expr) : SimpM Bool := do
   let t ← inferType e
   return t.isAppOf ``Vector
 
+
+
 /--
 Intended as `↑` in combination with `↓dontExplodeVector`.
+
+- `vec : Vector α k ==> #v[vec[0], vec[1], ..., vec[k - 1]]`
 -/
 dsimproc_decl explodeVector (_) := fun e ↦ do
   let t ← inferType e

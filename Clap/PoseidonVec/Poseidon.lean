@@ -257,7 +257,7 @@ example : [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64,
 set_option trace.Clap.Compile.simp.fail true
 -- set_option trace.Meta.Tactic.simp true
 #check ite_false
-set_option maxHeartbeats 800000
+set_option maxHeartbeats 200000
 -- #guard_msgs in
 #eval show Elab.TermElabM _ from do
   Compiler.compile
@@ -274,7 +274,8 @@ set_option maxHeartbeats 800000
      CompileSets.Logic.cases ∪ 
      CompileSets.Vector.getElem! ∪
      CompileSets.Vector.sum ∪
-     CompileSets.Vector.explode
+     CompileSets.Vector.explode ∪
+     CompileSets.Vector.zipWith
      ) true >>= (liftM ∘ PrettyPrinter.ppExpr)
 
 end
