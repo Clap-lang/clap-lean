@@ -234,23 +234,12 @@ def poseidonBN254 : SimpSet :=
   SimpSet.withAllPost #[
     ``PoseidonVec.poseidonBN254, ``poseidon, ``poseidonEx, ``liftVec, ``liftMat,
     ``ark, ``sigma, ``const, ``id,
-    ``Constant.C, ``Constant.M, ``Constant.P, ``Constant.S, ``mix,
-    ``Constant.C.C02,
-    ``Constant.C.C03,
-    ``Constant.C.C04,
-    ``Constant.C.C05,
-    ``Constant.C.C06,
-    ``Constant.C.C07,
-    ``Constant.C.C08,
-    ``Constant.C.C09,
-    ``Constant.C.C10,
-    ``Constant.C.C11,
-    ``Constant.C.C12,
-    ``Constant.C.C13,
-    ``Constant.C.C14,
-    ``Constant.C.C15,
-    ``Constant.C.C16,
-    ``Constant.C.C17
+    ``Constant.C, ``Constant.M, ``Constant.P, ``Constant.S,
+    ``Constant.C.C02, ``Constant.C.C03, ``Constant.C.C04, ``Constant.C.C05, ``Constant.C.C06, ``Constant.C.C07, ``Constant.C.C08, ``Constant.C.C09, ``Constant.C.C10, ``Constant.C.C11, ``Constant.C.C12, ``Constant.C.C13, ``Constant.C.C14, ``Constant.C.C15, ``Constant.C.C16, ``Constant.C.C17,
+    ``Constant.M.M02, ``Constant.M.M03, ``Constant.M.M04, ``Constant.M.M05, ``Constant.M.M06, ``Constant.M.M07, ``Constant.M.M08, ``Constant.M.M09, ``Constant.M.M10, ``Constant.M.M11, ``Constant.M.M12, ``Constant.M.M13, ``Constant.M.M14, ``Constant.M.M15, ``Constant.M.M16, ``Constant.M.M17,
+    ``Constant.P.P02, ``Constant.P.P03, ``Constant.P.P04, ``Constant.P.P05, ``Constant.P.P06, ``Constant.P.P07, ``Constant.P.P08, ``Constant.P.P09, ``Constant.P.P10, ``Constant.P.P11, ``Constant.P.P12, ``Constant.P.P13, ``Constant.P.P14, ``Constant.P.P15, ``Constant.P.P16, ``Constant.P.P17,
+    ``Constant.S.S02, ``Constant.S.S03, ``Constant.S.S04, ``Constant.S.S05, ``Constant.S.S06, ``Constant.S.S07, ``Constant.S.S08, ``Constant.S.S09, ``Constant.S.S10, ``Constant.S.S11, ``Constant.S.S12, ``Constant.S.S13, ``Constant.S.S14, ``Constant.S.S15, ``Constant.S.S16, ``Constant.S.S17,
+ ``mix, ``mixS, ``mixS.dotProduct, ``mixS.tail
   ]
 #check bind_map_left
 #check map_pure
