@@ -322,6 +322,8 @@ def take : SimpSet :=
 
     ``List.take_succ_cons, ``List.take_nil, ``List.take_zero
     -- ``List.take_cons, ``List.take_nil
+  ]
+
 def size : SimpSet :=
   SimpSet.withAllPost #[
    ``Vector.size_toArray,
