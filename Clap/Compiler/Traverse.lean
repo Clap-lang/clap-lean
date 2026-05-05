@@ -36,6 +36,7 @@ def _root_.Lean.Expr.mkBind (l r : Expr) (m? : Name := ``Bind.bind) : MetaM Expr
   mkAppM m? #[l, r]
 
 private def treeEmoji : String := "🌲"
+private def stopEmoji : String := "🛑"
 
 def typeZModp (p:Expr) : Expr := .app (mkConst ``ZMod) p
 
@@ -143,6 +144,9 @@ private partial def down (reduce : Expr → TermElabM Expr)
     else
       trace[Clap.Compile.simp.fail] "[↓] {crossEmoji}\n{todo}"
       trace[Clap.Compile.down] "\ngo [↑]:\n{todo}"
+      match ←isGroundTerm todo with
+      | .some e => trace[Clap.Compile.simp.warnDownNotGround] "{stopEmoji} [↓] stopped:\n{e}"
+      | .none => pure ()
       up reduce reduceOuter stack todo
 
 private partial def up (reduce : Expr → TermElabM Expr)
@@ -186,12 +190,12 @@ def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : TermElabM Exp
   trace[Clap.Compile.simp.config]
     m!"Reducer: [only := {only}, singlePass := true, set := {repr simpset}"
   trace[Clap.Compile.simp.config]
-    m!"Compiler: [only := true, singlePass := true, set := {repr compilerSet} ∪ {repr simpset}"
+    m!"Compiler: [only := true, singlePass := false, set := {repr compilerSet} ∪ {repr simpset}"
   
   lambdaTelescope e fun args e ↦ do
     let compiled ←
       down (simplify (only := only) (singlePass := true) simpset)
-           (simplify (only := true) (singlePass := true) (compilerSet ∪ simpset)) [] e
+           (simplify (only := true) (singlePass := false) (compilerSet ∪ simpset)) [] e
     mkLambdaFVars args compiled
   where
     compilerSet : SimpSet :=
@@ -289,15 +293,10 @@ def getElem : SimpSet :=
     ``List.getElem_cons_zero, ``List.getElem_cons_succ,
   ]
 
-set_option autoImplicit true in
-@[simp, grind =] theorem getElem!_pos [GetElem? cont idx elem dom] [LawfulGetElem cont idx elem dom]
-    [Inhabited elem] (c : cont) (i : idx) :
-    c[i]! = c[i]'(sorry) := by sorry
+-- example {inputs : Vector Nat 2} {a} {a_2} : #v[a, #v[a_2 * (inputs[1] + 66)][0]] = sorry := by
+  -- rw [Vector.getElem_mk]
 
-def getElem! : SimpSet :=
-  SimpSet.withAllPost #[
-    ``getElem!_pos
-  ] ∪ getElem
+  -- simp +singlePass only [Vector.getElem_mk, List.getElem_toArray, List.getElem_cons_zero]
 
 def mapOptim : SimpSet :=
   {
