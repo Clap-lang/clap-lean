@@ -333,7 +333,14 @@ def extract : SimpSet :=
     ``Vector.extract_mk, ``List.extract_toArray,
     
     ``List.extract_eq_take_drop
-  ] ∪ drop ∪ take
+  ] ∪ drop ∪ take 
+
+def set : SimpSet :=
+  SimpSet.withAllPost #[
+    ``Vector.set_mk, ``List.set_toArray,
+    
+    ``List.set_cons_succ, ``List.set_cons_zero,
+  ]
 
 def foldl : SimpSet :=
   SimpSet.withAllPost #[
@@ -564,6 +571,13 @@ open CompileSets Vector
 --   eq0 res[0]
 
 -- #eval compileExample ``ex₈ (append ∪ explode ∪ extract ∪ getElem)
+
+
+-- def ex₉ (vec : Vector Nat 3) : Option Unit := do
+--   let res := (#v[0] ++ vec).set 0 42
+--   eq0 res[0]
+
+-- #eval compileExample ``ex₉ (append ∪ explode ∪ extract ∪ getElem ∪ set)
 
 end Exampru
 
