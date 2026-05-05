@@ -309,7 +309,7 @@ def take : SimpSet :=
   SimpSet.withAllPost #[
     ``Vector.take_mk, ``List.take_toArray,
 
-    ``List.take_succ_cons, ``List.take_nil
+    ``List.take_succ_cons, ``List.take_nil, ``List.take_zero
     -- ``List.take_cons, ``List.take_nil
   ]
 
@@ -325,9 +325,15 @@ def drop : SimpSet :=
   SimpSet.withAllPost #[
     ``Vector.drop_mk, ``_root_.List.drop_toArray,
 
-    -- ``List.drop_cons, ``List.drop_nil,
-    ``List.drop_succ_cons, ``List.drop_zero, ``List.drop_nil
+    ``List.drop_succ_cons, ``List.drop_zero, ``List.drop_nil, ``List.drop_zero
   ]
+
+def extract : SimpSet :=
+  SimpSet.withAllPost #[
+    ``Vector.extract_mk, ``List.extract_toArray,
+    
+    ``List.extract_eq_take_drop
+  ] ∪ drop ∪ take
 
 def foldl : SimpSet :=
   SimpSet.withAllPost #[
@@ -523,7 +529,7 @@ open CompileSets Vector
 --   eq0 0
 --   let res := vec.sum
 --   eq0 res
--- -- set_option trace.Clap.Compile true
+
 -- /--
 -- info: fun vec => do
 --   eq0 vec[0]
@@ -542,33 +548,6 @@ open CompileSets Vector
 --   eq0 res[1]
 --   eq0 res[2]
 
--- /--
--- info: fun vec => do
---   eq0 42
---   (eq0 (vec[0] + 2)).bind fun a => (eq0 (vec[1] + 6)).bind fun a => eq0 (vec[2] + 11)
--- -/
--- #guard_msgs in
--- #eval compileExample ``ex₇ (explode ∪ mapM ∪ zipWith)
-
--- Vector.mapM sigma
---       #v[(Vector.mapIdx (fun i s => s + Constant.C.C03[i]) (#v[0] ++ #v[inputs[0], inputs[1]]))[0],
---         (Vector.mapIdx (fun i s => s + Constant.C.C03[i]) (#v[0] ++ #v[inputs[0], inputs[1]]))[1],
---         (Vector.mapIdx (fun i s => s + Constant.C.C03[i]) (#v[0] ++ #v[inputs[0], inputs[1]]))[2]] 
-
-
-
--- def const : Nat := 42
-
--- def ex₃ (vec : Vector Nat 3) : Option Unit := do
---   eq0 ((vec ++ vec)[0])
---   eq0 0
---   let res := vec.mapIdx fun i _ ↦ i
---   eq0 res[0]
---   eq0 res[1]
---   eq0 res[2]
-
-
-    -- ``Vector.mapM_mk_eq_append, ``Vector.mapM_singleton, ``map_pure
 -- example {inputs : Vector Nat 2} {sigma : ℕ → Option Unit} :
 --   Vector.mapM sigma
 --       #v[0 + 6745197990210204598374042828761989596302876299545964402857411729872131034734,
@@ -580,27 +559,11 @@ open CompileSets Vector
 --   simp? +singlePass [Vector.mapM_mk_eq_append]
 --   done
 
--- #eval compileExample ``ex₃ (mapIdx ∪ append ∪ getElem ∪ explode)
--- example {vec : Vector Nat 3} :
---   #v[0] ++ #v[vec[0], vec[1], vec[2]] = sorry := by
---   -- rw [Vector.mk_append_mk]
---   simp [Vector.mk_append_mk]
 -- def ex₈ (vec : Vector Nat 3) : Option Unit := do
---   let res := (#v[0] ++ vec).mapIdx (fun i s => s + const)
+--   let res := (#v[0] ++ vec).extract 1 2
 --   eq0 res[0]
--- set_option trace.Clap.Compile true
--- #check Vector.mk_append_mk
--- #eval compileExample ``ex₈ (
---      append ∪
---      CompileSets.Vector.foldlM ∪
---      CompileSets.Vector.mapIdx ∪
---      CompileSets.Vector.map ∪
---      CompileSets.Nat.arith ∪
---      CompileSets.Array.range ∪
---      CompileSets.List.range ∪
---      CompileSets.Logic.cases ∪ 
---      CompileSets.Vector.getElem! ∪
---      CompileSets.Vector.explode)
+
+-- #eval compileExample ``ex₈ (append ∪ explode ∪ extract ∪ getElem)
 
 end Exampru
 
