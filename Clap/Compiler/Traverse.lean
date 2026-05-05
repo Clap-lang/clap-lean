@@ -387,9 +387,15 @@ def foldl : SimpSet :=
     ``List.foldl_cons, ``List.foldl_nil
   ]
 
+dsimproc_decl erwFoldr_toArray (Array.foldr _ _ _ _ _) := fun e ↦ do
+  let_expr Array.foldr _ _ _ _ arr _ _ := e | return .continue
+  let_expr List.toArray _ _ := arr | return .continue
+  let x ← e.runTactic (←`(tactic| erw [$(mkIdent ``List.foldr_toArray):ident]))
+  return .visit x
+
 def foldr : SimpSet :=
   SimpSet.withAllPost #[
-    ``Vector.foldr_mk, ``List.foldr_toArray, ``List.foldr_toArray',
+    ``Vector.foldr_mk, ``erwFoldr_toArray,
 
     ``List.foldr_cons, ``List.foldr_nil
   ] ∪ size
@@ -616,6 +622,19 @@ open CompileSets Vector
 --   eq0 res[0]
 
 -- #eval compileExample ``ex₉ (append ∪ explode ∪ extract ∪ getElem ∪ set)
+
+-- example {l : Vector Nat 3} :
+--   some
+--   #v[Array.foldr (fun x1 x2 => x1 + x2) 0 #[66 * (l[0] + 66), 66 * (l[1] + 66), 66 * (l[2] + 66)] 3,
+--     Array.foldr (fun x1 x2 => x1 + x2) 0 #[66 * (l[0] + 66), 66 * (l[1] + 66), 66 * (l[2] + 66)] 3,
+--     Array.foldr (fun x1 x2 => x1 + x2) 0 #[66 * (l[0] + 66), 66 * (l[1] + 66), 66 * (l[2] + 66)] 3] = sorry := by
+--   erw [List.foldr_toArray]
+--   rw [List.foldr_cons]
+--   rw [List.foldr_cons]
+--   rw [List.foldr_cons]
+--   rw 
+--   simp only [List.size_toArray, List.length_cons, List.length_nil, _root_.zero_add, Nat.reduceAdd,
+--     List.foldr_toArray', List.foldr_cons, List.foldr_nil, _root_.add_zero]
 
 end Exampru
 
