@@ -278,7 +278,8 @@ set_option trace.Clap.Compile.simp.fail true
      CompileSets.Vector.drop ∪
      CompileSets.Vector.set ∪
      CompileSets.Vector.take ∪
-     CompileSets.Vector.size
+     CompileSets.Vector.size ∪
+     CompileSets.Vector.foldr
      ) true >>= (liftM ∘ PrettyPrinter.ppExpr)
 
 end
