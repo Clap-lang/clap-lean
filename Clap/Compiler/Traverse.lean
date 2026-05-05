@@ -84,19 +84,24 @@ partial def isGroundTerm (e : Expr) : TermElabM Bool := do
     return (←isGroundTerm hd) && (←isGroundTerm tl)
   if let (``OfNat.ofNat, _) := e.getAppFnArgs then
     return true
-  else if let .fvar _ := e then
+  else
+  if let .fvar _ := e then
     return true
-  else if e.isAppOf ``GetElem.getElem then -- TODO: Do we want to allow only `<circuit input>[i]`?
-    return true
-  else if let (``HAdd.hAdd, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
+  else
+  if let (``GetElem.getElem, ⟨_ :: _ :: _ :: _ :: _ :: coll :: elem :: _ :: _⟩) := e.getAppFnArgs then -- TODO: Do we want to allow only `<circuit input>[i]`?
+    return coll.isFVar && (←isGroundTerm elem)
+  else
+  if let (``HAdd.hAdd, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
     let l ← isGroundTerm l
     let r ← isGroundTerm r
     return l && r
-  else if let (``HMul.hMul, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
+  else
+  if let (``HMul.hMul, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
     let l ← isGroundTerm l
     let r ← isGroundTerm r
     return l && r
-  else if let (``HSub.hSub, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
+  else
+  if let (``HSub.hSub, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
     let l ← isGroundTerm l
     let r ← isGroundTerm r
     return l && r
