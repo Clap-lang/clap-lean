@@ -272,7 +272,9 @@ set_option trace.Clap.Compile true
      CompileSets.Vector.getElem! ∪
      CompileSets.Vector.sum ∪
      CompileSets.Vector.explode ∪
-     CompileSets.Vector.zipWith
+     CompileSets.Vector.zipWith ∪
+     CompileSets.Vector.extract ∪
+     CompileSets.Vector.drop
      ) true >>= (liftM ∘ PrettyPrinter.ppExpr)
 
 end
