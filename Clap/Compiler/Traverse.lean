@@ -177,7 +177,6 @@ private partial def up (reduce : Expr → TermElabM Expr)
          if simped != bind
          then trace[Clap.Compile.simp] "[↑] {checkEmoji}\n{bind}\n==>\n{simped}"
          else trace[Clap.Compile.simp.fail] "[↑] {crossEmoji}\n{bind}"
-
          trace[Clap.Compile.up] "\ngo [↑]:\n{simped}"
          up simped
   where mkBindWith (stackEntry : Expr × Expr) (cont : Expr)
@@ -197,8 +196,21 @@ def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : TermElabM Exp
   
   lambdaTelescope e fun args e ↦ do
     let compiled ←
-      down (simplify (only := only) (singlePass := true) simpset)
-           (simplify (only := true) (singlePass := false) (compilerSet ∪ simpset)) [] e
+      down (reduce := simplify (only := only)
+                               (singlePass := true)
+                               simpset)
+           (reduceOuter :=
+              fun e ↦ do
+                let mut res := e
+                for _ in List.range 64 do
+                  let res' ← simplify (only := true)
+                                      (singlePass := true)
+                                      (compilerSet ∪ simpset)
+                                      res
+                  if res == res' then break
+                  res := res'
+                return e)
+           [] e
     mkLambdaFVars args compiled
   where
     compilerSet : SimpSet :=
