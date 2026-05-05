@@ -623,19 +623,6 @@ open CompileSets Vector
 
 -- #eval compileExample ``ex₉ (append ∪ explode ∪ extract ∪ getElem ∪ set)
 
--- example {l : Vector Nat 3} :
---   some
---   #v[Array.foldr (fun x1 x2 => x1 + x2) 0 #[66 * (l[0] + 66), 66 * (l[1] + 66), 66 * (l[2] + 66)] 3,
---     Array.foldr (fun x1 x2 => x1 + x2) 0 #[66 * (l[0] + 66), 66 * (l[1] + 66), 66 * (l[2] + 66)] 3,
---     Array.foldr (fun x1 x2 => x1 + x2) 0 #[66 * (l[0] + 66), 66 * (l[1] + 66), 66 * (l[2] + 66)] 3] = sorry := by
---   erw [List.foldr_toArray]
---   rw [List.foldr_cons]
---   rw [List.foldr_cons]
---   rw [List.foldr_cons]
---   rw 
---   simp only [List.size_toArray, List.length_cons, List.length_nil, _root_.zero_add, Nat.reduceAdd,
---     List.foldr_toArray', List.foldr_cons, List.foldr_nil, _root_.add_zero]
-
 end Exampru
 
 end Clap.Compiler

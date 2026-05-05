@@ -241,20 +241,14 @@ def poseidonBN254 : SimpSet :=
     ``Constant.S.S02, ``Constant.S.S03, ``Constant.S.S04, ``Constant.S.S05, ``Constant.S.S06, ``Constant.S.S07, ``Constant.S.S08, ``Constant.S.S09, ``Constant.S.S10, ``Constant.S.S11, ``Constant.S.S12, ``Constant.S.S13, ``Constant.S.S14, ``Constant.S.S15, ``Constant.S.S16, ``Constant.S.S17,
  ``mix, ``mixS, ``mixS.dotProduct, ``mixS.tail
   ]
-#check bind_map_left
-#check map_pure
-example : [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64,
-    68][1 + 2 - 2] = sorry := by
-  simp +singlePass
 
-#eval crossEmoji
 -- set_option trace.Clap.Compile.simp.fail true
 -- set_option trace.Meta.Tactic.simp true
 -- set_option trace.Clap.Compile true
 -- -- set_option trace.Clap.Compile.down true
 -- #check ite_false
 set_option maxRecDepth 8192
-set_option maxHeartbeats 200000
+set_option maxHeartbeats 800000
 set_option trace.Clap.Compile.simp.fail true
 set_option trace.Clap.Compile.simp.warnDownNotGround true
 -- set_option trace.Meta.Tactic.simp true
