@@ -68,6 +68,9 @@ partial def isGroundTerm (e : Expr) : TermElabM (Option Expr) := do
   if let (``Option.some, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
     isGroundTerm e
   else
+  if let (``Pure.pure, ⟨_ :: _ :: _ :: e :: _⟩) := e.getAppFnArgs then
+    isGroundTerm e
+  else
   if let (``Clap.Lang.Core.eq0, ⟨_ :: _ :: e :: _⟩) := e.getAppFnArgs then
     isGroundTerm e
   else
