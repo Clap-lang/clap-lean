@@ -1,6 +1,8 @@
 import Lean
 import Qq
 
+import Clap.Lang
+import Clap.Spec
 import Clap.Compiler.Simp
 import Clap.Compiler.Vectors
 import Clap.Compiler.Wheels
@@ -35,151 +37,60 @@ def _root_.Lean.Expr.mkBind (l r : Expr) (m? : Name := ``Bind.bind) : MetaM Expr
 
 private def treeEmoji : String := "🌲"
 
-partial def isGroundExp (p : Expr) (var : Expr) (e : Expr) : MetaM Bool := do
+partial def isGroundExp (e : Expr) : MetaM Bool := do
   if let (``OfNat.ofNat, _) := e.getAppFnArgs then
     return true
   else if let .fvar _ := e then
     return true
+  else if e.isAppOf ``GetElem.getElem then -- TODO: Do we want to allow only `<circuit input>[i]`?
+    return true
   else if let (``HAdd.hAdd, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
-    let l <- isGroundExp p var l
-    let r <- isGroundExp p var r
+    let l ← isGroundExp l
+    let r ← isGroundExp r
     return l && r
   else if let (``HMul.hMul, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
-    let l <- isGroundExp p var l
-    let r <- isGroundExp p var r
+    let l ← isGroundExp l
+    let r ← isGroundExp r
     return l && r
   else if let (``HSub.hSub, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
-    let l <- isGroundExp p var l
-    let r <- isGroundExp p var r
+    let l ← isGroundExp l
+    let r ← isGroundExp r
     return l && r
-  else return false
+  else 
+    return false
 
 def typeZModp (p:Expr) : Expr := .app (mkConst ``ZMod) p
 
 def matchBinds (e:Expr) : Option (Expr × Expr) :=
-  if let (``Bind.bind, ⟨_ :: _ :: _ :: _ :: e :: k :: _⟩) := e.getAppFnArgs then some (e,k)
+  if let (``Bind.bind, ⟨_ :: _ :: _ :: _ :: e :: k :: _⟩) := e.getAppFnArgs then some (e, k)
+  else
+  if let (``Option.bind, ⟨_ :: _ :: e :: k :: []⟩) := e.getAppFnArgs then some (e, k)
   else none
 
-partial def compile (p : Expr) (var : Expr) (e : Expr) : TermElabM Bool := do
+partial def isGroundTerm (e : Expr) : TermElabM Bool := do
   if let .lam name type body bi := e then
-    if not (<- isDefEq type (typeZModp p))
-    then throwError m!"compile.lam: argument not a ZMod p\n{type}"
-    let e <- withLocalDecl name bi var fun fvar => do
-      let body := body.instantiate1 fvar
-      return compile p var body
+    withLocalDecl name bi type fun fvar =>
+      isGroundTerm (body.instantiate1 fvar)
+  else
+  if let some (e,k) := matchBinds e then
+    return (←isGroundTerm e) && (←isGroundTerm k)
+  else
+  if let (``Option.some, ⟨_ :: _ :: _⟩) := e.getAppFnArgs then
     return true
-
-  else if let (``Option.some, ⟨_ :: accept :: _⟩) := e.getAppFnArgs then
-    if not (←isDefEq accept (.const ``Clap.Spec.Compiler.accept []))
-    then throwError m!"compile.accept: not accept - {accept}"
---    dbg_trace s!"accept"
-    mkAppOptM ``Clap.Circuit.nil #[p,var]
-
-  else if let some (e,k) := matchBinds e then
-    let .lam name type body _bi := k | throwError m!"compile.bind: not a lam"
-    if let (`Clap.Spec.Compiler.eq0, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
-      let e : Expr <- compileExp p var e
-      let k <- withLocalDecl name .default type fun u => do
-        let body := body.instantiate1 u
-        let body <- compile p var body
-        mkLambdaFVars #[u] body
-      let c := Expr.app k (mkConst ``Unit.unit)
-      mkAppOptM ``Clap.Circuit.eq0 #[p,var,e,c]
-
-    else if let (`Clap.Spec.Compiler.num2bits, ⟨_ :: w :: e :: _⟩) := e.getAppFnArgs then
-        let e : Expr <- compileExp p var e
-        let k <- withLocalDecl `vars .default (<- mkAppM ``List #[var]) fun fvar => do
-          let body := body.instantiate1 fvar
-          let body <- compile p var body
-          mkLambdaFVars #[fvar] body
-        mkAppM ``Clap.Circuit.num2bits #[w, e, k]
-
-    else if let (`Clap.Spec.Compiler.isZero, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
---      dbg_trace s!"isZero"
-      let k <- withLocalDecl name .default var fun fvar => do
-        let body := body.instantiate1 fvar
-        let body ← compile p var body
-        mkLambdaFVars #[fvar] body
-      let e : Expr <- compileExp p var e
-      mkAppOptM ``Clap.Circuit.isZero #[p,var,e,k]
-
-    else if let (`Clap.Spec.Compiler.share, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
---      dbg_trace s!"share"
-      let k <- withLocalDecl name .default var fun fvar => do
-        let body := body.instantiate1 fvar
-        let body ← compile p var body
-        mkLambdaFVars #[fvar] body
-      let e : Expr <- compileExp p var e
-      mkAppOptM ``Clap.Circuit.share #[p,var,e,k]
-
-    else throwError m!"compile.bind: unknown bind\n{e.getAppFnArgs}"
-
-  else throwError m!"compile: not supported\n{e.getAppFnArgs} (missing accept?)"
-
--- def constantsSans (e : Expr) («instances» types : Bool := true) : MetaM (Array Name) := do
---   let env ← getEnv
---   (←e.getUsedConstants').filterM fun name ↦ do
---     let .some ci := env.find? name | throwError "Unknown constant: {name}"
---     let isPermitted (ci : ConstantInfo) : MetaM Bool :=
---       let neutral := fun _ ↦ return true
---       let null (f : ConstantInfo → MetaM Bool) (b : Bool) := if b then f else neutral
---       let f := #[
---         null notIsInstance «instances»,
---         null notIsType types,
---         notIsProp,
---         fun e ↦ return notIsInLanguage e,
---         notIsOfTypeProp
---       ].foldl (init := neutral)
---               fun f g ci ↦ return (←f ci) && (←g ci)
---       f ci
---     isPermitted ci
---   where
---     isFormerOf (ci : ConstantInfo) (f : Expr → Environment → Bool) : MetaM Bool := do
---       forallTelescopeReducing ci.type fun _ conclusion ↦ return f conclusion (←getEnv)
-
---     notIsInstance (ci : ConstantInfo) : MetaM Bool :=
---       isFormerOf ci fun e env ↦ e.getAppFn.const?.elim true fun (name, _) ↦ !isClass env name
-
---     notIsType (ci : ConstantInfo) : MetaM Bool :=
---       isFormerOf ci fun e _ ↦ !e.isType
-
---     notIsProp (ci : ConstantInfo) : MetaM Bool :=
---       isFormerOf ci fun e _ ↦ !e.isProp
-
---     notIsOfTypeProp (ci : ConstantInfo) : MetaM Bool :=
---       forallTelescopeReducing ci.type fun _ conclusion ↦ do
---         -- logInfo m!"checking {←inferType conclusion} for {conclusion}"
---         return !(←inferType conclusion).isProp
-
---     /-
---     TODO: This is pretty rough.
---     -/
---     privileged :=
---       Name.append `Clap.Spec.Compiler <$> #[
---         `share, `eq0, `num2bits, `isZero
---       ] ++
---       Name.append `Clap.Lang.Core <$> #[
---         `share, `eq0, `num2bits, `isZero
---       ] ++
---       #[
---         ``HAdd.hAdd, ``HMul.hMul, ``HSub.hSub, ``HPow.hPow, ``OfNat.ofNat
---       ] ++
---       -- `GetElem.getElem` is cheating for now, we miss stuff like `<nonInput>[x]`.
---       -- The solution here is to only allow `<input>[x]`, which needs a different traversal
---       -- than just using the constants. Perhaps something akin to the solution of `Deep.lean`.
---       #[
---         ``Option.bind, ``GetElem.getElem, ``Option.some
---       ] ++
---       #[
---         `Primes.bn254, `Clap.PoseidonVec.p, `Clap.PoseidonVec.Test.p, 
---       ]
-
---     notIsInLanguage (ci : ConstantInfo) : Bool :=
---       dbg_trace s!"{privileged} contains {ci.name}"
---       !privileged.contains ci.name
-
--- def isGround (e : Expr) : MetaM Bool :=
---   Array.isEmpty <$> constantsSans e
+  else
+  if let (``Clap.Lang.Core.eq0, ⟨_ :: _ :: e :: _⟩) := e.getAppFnArgs then
+    isGroundExp e
+  else
+  if let (``Clap.Lang.Core.num2bits, ⟨_ :: _ :: _ :: e :: _⟩) := e.getAppFnArgs then
+    isGroundExp e
+  else
+  if let (``Clap.Lang.Core.isZero, ⟨_ :: _ :: e :: _⟩) := e.getAppFnArgs then
+    isGroundExp e
+  else
+  if let (``Clap.Lang.Core.share, ⟨_ :: _ :: e :: _⟩) := e.getAppFnArgs then
+    isGroundExp e
+  else
+    return false
 
 mutual
 
@@ -212,7 +123,7 @@ private partial def up (reduce : Expr → TermElabM Expr)
   | .inr r :: stack =>
     lambdaTelescopeOne! r fun arg body ↦ do
       trace[Clap.Compile.up] "\npush [←]:\n{(done, arg)}\ngo [↓]:\n{body}"
-      logInfo m!"done:\n{done}\nconstants:\n{←constantsSans done}"
+      logInfo m!"done:\n{done}\nisGround:\n{←isGroundTerm done}"
       -- if !(←isGround done) then
       --   throwError m!"ABORTING. Not ground:\n{done}"
       -- else logInfo m!"Ground:\n{done}"
@@ -436,42 +347,6 @@ def sum : SimpSet :=
   SimpSet.withAllPost #[
     ``Vector.sum_eq_foldr
   ] ∪ foldr
-#check map_bind
--- example {l : Vector Nat 2} :
---   (do let l ← (((fun x => #v[x]) <$> some 1).bind fun a => some #v[a[0]])
---       some #v[l[0]]) = sorry := by
---   rw [Option.map_eq_map]
---   rw [Option.map_some] -- map_pure | map_pure
---   done
-
--- opaque share : Nat → Nat
-
--- example {inputs : Vector Nat 2} : Option.map (fun x => #v[x])
---           ((some
---                 (share
---                   ((inputs[1] + 2) *
---                     (inputs[1] + 2)))).bind
---             fun a =>
---             (some (share (a * a))).bind fun a =>
---               some (a * (inputs[1] + 2))) = sorry := by
---   simp?
---   done
-
--- example {inputs : Vector Nat 2}: (Option.map (fun x => #v[x]) do
---           let x2 ←
---             some
---                 (share
---                   ((inputs[1] + 2) *
---                     (inputs[1] + 2)))
---           let x4 ← some (share (x2 * x2))
---           some (x4 * (inputs[1] + 2))) = sorry := by
---   simp?
---   done
-
--- @[simp]
--- theorem _root_.Vector.mapM_singleton {α β} {m} [Monad m] [LawfulMonad m] {f : α → m β} {x} :
---   #v[x].mapM f = (#v[·]) <$> f x := by
---   apply Vector.map_toArray_inj.mp; simp
 
 @[simp]
 theorem _root_.Vector.mapM_singleton {α β} {m} [Monad m] [LawfulMonad m] {f : α → m β} {x} :
