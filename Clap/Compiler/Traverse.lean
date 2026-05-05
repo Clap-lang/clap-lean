@@ -37,28 +37,6 @@ def _root_.Lean.Expr.mkBind (l r : Expr) (m? : Name := ``Bind.bind) : MetaM Expr
 
 private def treeEmoji : String := "🌲"
 
-partial def isGroundExp (e : Expr) : MetaM Bool := do
-  if let (``OfNat.ofNat, _) := e.getAppFnArgs then
-    return true
-  else if let .fvar _ := e then
-    return true
-  else if e.isAppOf ``GetElem.getElem then -- TODO: Do we want to allow only `<circuit input>[i]`?
-    return true
-  else if let (``HAdd.hAdd, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
-    let l ← isGroundExp l
-    let r ← isGroundExp r
-    return l && r
-  else if let (``HMul.hMul, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
-    let l ← isGroundExp l
-    let r ← isGroundExp r
-    return l && r
-  else if let (``HSub.hSub, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
-    let l ← isGroundExp l
-    let r ← isGroundExp r
-    return l && r
-  else 
-    return false
-
 def typeZModp (p:Expr) : Expr := .app (mkConst ``ZMod) p
 
 def matchBinds (e:Expr) : Option (Expr × Expr) :=
@@ -75,20 +53,53 @@ partial def isGroundTerm (e : Expr) : TermElabM Bool := do
   if let some (e,k) := matchBinds e then
     return (←isGroundTerm e) && (←isGroundTerm k)
   else
-  if let (``Option.some, ⟨_ :: _ :: _⟩) := e.getAppFnArgs then
-    return true
+  if let (``Option.some, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
+    isGroundTerm e
   else
   if let (``Clap.Lang.Core.eq0, ⟨_ :: _ :: e :: _⟩) := e.getAppFnArgs then
-    isGroundExp e
+    isGroundTerm e
   else
   if let (``Clap.Lang.Core.num2bits, ⟨_ :: _ :: _ :: e :: _⟩) := e.getAppFnArgs then
-    isGroundExp e
+    isGroundTerm e
   else
   if let (``Clap.Lang.Core.isZero, ⟨_ :: _ :: e :: _⟩) := e.getAppFnArgs then
-    isGroundExp e
+    isGroundTerm e
   else
   if let (``Clap.Lang.Core.share, ⟨_ :: _ :: e :: _⟩) := e.getAppFnArgs then
-    isGroundExp e
+    isGroundTerm e
+  else
+  if let (``Vector.mk, ⟨_ :: _ :: e :: _ :: _⟩) := e.getAppFnArgs then
+    isGroundTerm e
+  else
+  if let (``Array.mk, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
+    isGroundTerm e
+  else
+  if let (``List.toArray, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
+    isGroundTerm e
+  else
+  if let (``List.nil, _) := e.getAppFnArgs then
+    return true
+  else
+  if let (``List.cons, ⟨_ :: hd :: tl :: _⟩) := e.getAppFnArgs then
+    return (←isGroundTerm hd) && (←isGroundTerm tl)
+  if let (``OfNat.ofNat, _) := e.getAppFnArgs then
+    return true
+  else if let .fvar _ := e then
+    return true
+  else if e.isAppOf ``GetElem.getElem then -- TODO: Do we want to allow only `<circuit input>[i]`?
+    return true
+  else if let (``HAdd.hAdd, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
+    let l ← isGroundTerm l
+    let r ← isGroundTerm r
+    return l && r
+  else if let (``HMul.hMul, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
+    let l ← isGroundTerm l
+    let r ← isGroundTerm r
+    return l && r
+  else if let (``HSub.hSub, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
+    let l ← isGroundTerm l
+    let r ← isGroundTerm r
+    return l && r
   else
     return false
 

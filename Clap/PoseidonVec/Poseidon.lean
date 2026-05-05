@@ -250,11 +250,12 @@ example : [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64,
 #eval crossEmoji
 -- set_option trace.Clap.Compile.simp.fail true
 -- set_option trace.Meta.Tactic.simp true
-set_option trace.Clap.Compile true
--- set_option trace.Clap.Compile.down true
-#check ite_false
--- set_option maxRecDepth 2048
--- set_option maxHeartbeats 800000
+-- set_option trace.Clap.Compile true
+-- -- set_option trace.Clap.Compile.down true
+-- #check ite_false
+set_option maxRecDepth 8192
+set_option maxHeartbeats 800000
+set_option trace.Clap.Compile.simp.fail true
 #guard_msgs in
 #eval show Elab.TermElabM _ from do
   Compiler.compile
