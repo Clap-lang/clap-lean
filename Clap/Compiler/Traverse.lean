@@ -311,6 +311,11 @@ def take : SimpSet :=
 
     ``List.take_succ_cons, ``List.take_nil, ``List.take_zero
     -- ``List.take_cons, ``List.take_nil
+def size : SimpSet :=
+  SimpSet.withAllPost #[
+   ``Vector.size_toArray,
+   ``List.size_toArray,
+   ``List.length_cons, ``List.length_nil
   ]
 
 theorem _root_.List.drop_toArray {α} {l : List α} {i} :

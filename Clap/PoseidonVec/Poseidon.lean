@@ -274,7 +274,10 @@ set_option trace.Clap.Compile true
      CompileSets.Vector.explode ∪
      CompileSets.Vector.zipWith ∪
      CompileSets.Vector.extract ∪
-     CompileSets.Vector.drop
+     CompileSets.Vector.drop ∪
+     CompileSets.Vector.set ∪
+     CompileSets.Vector.take ∪
+     CompileSets.Vector.size
      ) true >>= (liftM ∘ PrettyPrinter.ppExpr)
 
 end
