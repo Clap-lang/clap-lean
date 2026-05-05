@@ -45,13 +45,24 @@ def matchBinds (e:Expr) : Option (Expr × Expr) :=
   if let (``Option.bind, ⟨_ :: _ :: e :: k :: []⟩) := e.getAppFnArgs then some (e, k)
   else none
 
-partial def isGroundTerm (e : Expr) : TermElabM Bool := do
+-- example {l : Vector Nat 3} :
+--   #v[Array.foldr (fun x1 x2 => x1 + x2) 0 #[66 * (l[0] + 66), 66 * (l[1] + 66), 66 * (l[2] + 66)] 3 0,
+--       Array.foldr (fun x1 x2 => x1 + x2) 0 #[66 * (l[0] + 66), 66 * (l[1] + 66), 66 * (l[2] + 66)] 3 0,
+--       Array.foldr (fun x1 x2 => x1 + x2) 0 #[66 * (l[0] + 66), 66 * (l[1] + 66), 66 * (l[2] + 66)] 3 0] = sorry := by
+--   simp only [List.size_toArray, List.length_cons, List.length_nil, List.foldr_toArray',
+--     List.foldr_cons, List.foldr_nil]
+--   sorry
+
+/--
+For the purposes of reporting, we bias chains of non-ground expressions to the right.
+-/
+partial def isGroundTerm (e : Expr) : TermElabM (Option Expr) := do
   if let .lam name type body bi := e then
     withLocalDecl name bi type fun fvar =>
       isGroundTerm (body.instantiate1 fvar)
   else
   if let some (e,k) := matchBinds e then
-    return (←isGroundTerm e) && (←isGroundTerm k)
+    return andThen (←isGroundTerm e) (←isGroundTerm k)
   else
   if let (``Option.some, ⟨_ :: e :: _⟩) := e.getAppFnArgs then
     isGroundTerm e
@@ -78,35 +89,40 @@ partial def isGroundTerm (e : Expr) : TermElabM Bool := do
     isGroundTerm e
   else
   if let (``List.nil, _) := e.getAppFnArgs then
-    return true
+    return .none
   else
   if let (``List.cons, ⟨_ :: hd :: tl :: _⟩) := e.getAppFnArgs then
-    return (←isGroundTerm hd) && (←isGroundTerm tl)
+    return andThen (←isGroundTerm hd) (←isGroundTerm tl)
   if let (``OfNat.ofNat, _) := e.getAppFnArgs then
-    return true
+    return .none
   else
   if let .fvar _ := e then
-    return true
+    return .none
   else
   if let (``GetElem.getElem, ⟨_ :: _ :: _ :: _ :: _ :: coll :: elem :: _ :: _⟩) := e.getAppFnArgs then -- TODO: Do we want to allow only `<circuit input>[i]`?
-    return coll.isFVar && (←isGroundTerm elem)
+    return andThen (if coll.isFVar then .none else .some e) (←isGroundTerm elem)
   else
   if let (``HAdd.hAdd, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
     let l ← isGroundTerm l
     let r ← isGroundTerm r
-    return l && r
+    return andThen l r
   else
   if let (``HMul.hMul, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
     let l ← isGroundTerm l
     let r ← isGroundTerm r
-    return l && r
+    return andThen l r
   else
   if let (``HSub.hSub, ⟨_ :: _ :: _ :: _ :: l :: r :: _⟩) := e.getAppFnArgs then
     let l ← isGroundTerm l
     let r ← isGroundTerm r
-    return l && r
+    return andThen l r
   else
-    return false
+    return .some e
+  where andThen (e₁ e₂ : Option Expr) : Option Expr :=
+    match e₁, e₂ with
+    | .none, .none => .none
+    | .none, .some e | .some e, .none => .some e
+    | .some _, .some e => .some e
 
 mutual
 
@@ -138,11 +154,10 @@ private partial def up (reduce : Expr → TermElabM Expr)
     return done
   | .inr r :: stack =>
     lambdaTelescopeOne! r fun arg body ↦ do
+      match ←isGroundTerm done with
+      | .some e => throwError m!"{bombEmoji} Not ground:\n{e}\nin:\n{done}"
+      | .none =>
       trace[Clap.Compile.up] "\npush [←]:\n{(done, arg)}\ngo [↓]:\n{body}"
-      logInfo m!"done:\n{done}\nisGround:\n{←isGroundTerm done}"
-      -- if !(←isGround done) then
-      --   throwError m!"ABORTING. Not ground:\n{done}"
-      -- else logInfo m!"Ground:\n{done}"
       down reduce reduceOuter (.inl (done, arg) :: stack) body
   | .inl l :: stack => do
     let bind ← mkBindWith l done
@@ -326,13 +341,11 @@ def take : SimpSet :=
     ``Vector.take_mk, ``List.take_toArray,
 
     ``List.take_succ_cons, ``List.take_nil, ``List.take_zero
-    -- ``List.take_cons, ``List.take_nil
   ]
 
 def size : SimpSet :=
   SimpSet.withAllPost #[
-   ``Vector.size_toArray,
-   ``List.size_toArray,
+   ``Vector.size_toArray, ``List.size_toArray,
    ``List.length_cons, ``List.length_nil
   ]
 
@@ -374,10 +387,10 @@ def foldl : SimpSet :=
 
 def foldr : SimpSet :=
   SimpSet.withAllPost #[
-    ``Vector.foldr_mk, ``List.foldr_toArray,
+    ``Vector.foldr_mk, ``List.foldr_toArray, ``List.foldr_toArray',
 
     ``List.foldr_cons, ``List.foldr_nil
-  ]
+  ] ∪ size
 
 def sum : SimpSet :=
   SimpSet.withAllPost #[
