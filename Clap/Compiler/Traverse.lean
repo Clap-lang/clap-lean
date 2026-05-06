@@ -209,7 +209,7 @@ def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : TermElabM Exp
                                       res
                   if res == res' then break
                   res := res'
-                return e)
+                return res)
            [] e
     mkLambdaFVars args compiled
   where
