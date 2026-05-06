@@ -671,6 +671,7 @@ instance : Repr (Wg p) where
 instance : ToString (Wg p) :=
   ⟨Std.Format.pretty ∘ Wg.repr 0⟩
 
+
 def num2bits_wg (w : ℕ) (e : Exp p (ZMod p)) (c : List (ZMod p) → Wg p) : Wg p :=
   letI bits := num2bitsLsbPure w (Exp.eval e)
   List.foldr (fun b acc => .cons b acc) (c bits) bits
@@ -683,7 +684,24 @@ open CompPoly
 def toCompPoly {k : ℕ} (vec : Vector (ZMod p) k) : CPolynomial (ZMod p) :=
   List.foldr (fun i p ↦ p + CPolynomial.C (vec[i]) * CPolynomial.X ^ i.1) 0 (List.finRange k)
 
-def check_carry_zero_wg {k : ℕ} (t : Vector (Exp p (ZMod p)) k) (rest : Wg p) : Wg p := rest
+def carry (w : ℕ) : List (ZMod p) → ZMod p → List (ZMod p)
+| l :: l' :: ls, c =>
+  let c' : ZMod p := (l + c) / (2 ^ w)
+  c' :: carry w (l' :: ls) c'
+| _ :: [], _ => []
+| [], _ => []
+
+def check_carry_zero_wg {k : ℕ} (w : ℕ) (t : Vector (Exp p (ZMod p)) k) (rest : Wg p) : Wg p :=
+  let carry : List (ZMod p) := carry w (t.toList.map Exp.eval) 0
+  List.foldr
+    Wg.cons
+    (
+      List.foldr
+      (fun c rest ↦ num2bits_wg (w + Nat.clog 2 k + 2) (.c $ c + (2 ^ (w + 1) * k)) (fun _ ↦ rest))
+      rest
+      carry
+    )
+    carry
 
 example {w k : ℕ} : k > 0 → w > 0 → (2 ^ (2*w + 1) * k) > (2^(2*w)*k + 2^w) := by
   intros h h'
@@ -735,7 +753,7 @@ def Circuit.toWg (c : Circuitₑ p) : Wg p :=
                           List.foldr
                             (fun i ↦ Wg.cons (t.coeff i))
                             (
-                              check_carry_zero_wg (Vector.ofFn (fun i : Fin (2 * k - 1) ↦ .v (t.coeff i.1)))
+                              check_carry_zero_wg w (Vector.ofFn (fun i : Fin (2 * k - 1) ↦ .v (t.coeff i.1)))
                                 (cont r_vec).toWg
                             )
                             (List.range (2 * k - 1)
