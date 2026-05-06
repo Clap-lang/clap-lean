@@ -244,11 +244,11 @@ def poseidonBN254 : SimpSet :=
 
 -- set_option trace.Clap.Compile.simp.fail true
 -- set_option trace.Meta.Tactic.simp true
-set_option trace.Clap.Compile true
 -- -- set_option trace.Clap.Compile.down true
 -- #check ite_false
+set_option trace.Clap.Compile true
 set_option maxRecDepth 8192
-set_option maxHeartbeats 500000
+set_option maxHeartbeats 400000
 -- set_option trace.Clap.Compile.simp.fail true
 -- set_option trace.Clap.Compile.simp.warnDownNotGround true
 -- set_option trace.Meta.Tactic.simp true
