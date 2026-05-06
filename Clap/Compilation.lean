@@ -333,32 +333,38 @@ def assert_poly_eq_prod {k : ℕ}
     rest
     (List.range (2*k - 1))
 
-def check_carry_zero_circuit {k : ℕ} [inst : Fact (k > 1)] (n : ℕ) (t : Vector (Exp p var) k) (rest : Cs p var) : Cs p var :=
-  Cs.curry (k - 1)
-    (
-      fun carry =>
-        List.foldr
-          (fun (i : Fin (k - 1)) rest =>
-            let e :=
-              if h : i.1 = 0
-              then t[i]
-              else
-                t[i] + (.v carry[(⟨i.1 - 1, by omega⟩ : Fin k)])
-            Cs.eq0 (e - ((.c (2 ^ n)) * (.v carry[i])))
-            (
-              -- -(2 ^ (2*n + 1) * k) < - (2^(2*n)*k + 2^n)  < t[i] < (2 ^ (2 * n) * k) →
-              -- 0 ≤ t[i] + (2 ^ (2*n + 1) * k) < (2 ^ (2 * n) * k) + (2 ^ (2*n + 1) * k) =
-              -- (2 ^ (2 * n) * k) + (2 * 2 ^ (2 * n) * k) = 3 * (2 ^ (2 * n) * k) < 4 * (2 ^ (2 * n) * k) =
-              -- 2 ^ (2 * n + 2) * k < 2 ^ (2 * n + Nat.clog 2 k + 2)
-              num2bits_circuit (n + Nat.clog 2 k + 2) (.v carry[i] + .c (2 ^ (n + 1) * k)) (fun _ ↦ rest)
+def check_carry_zero_circuit {k : ℕ} (n : ℕ) (t : Vector (Exp p var) k) (rest : Cs p var) : Cs p var :=
+  if h : k = 0 then rest
+  else
+    Cs.curry (k - 1)
+      (
+        fun carry =>
+          List.foldr
+            (fun (i : Fin (k - 1)) rest =>
+              let e :=
+                if h : i.1 = 0
+                then t[i]
+                else
+                  t[i] + (.v carry[(⟨i.1 - 1, by omega⟩ : Fin k)])
+              Cs.eq0 (e - ((.c (2 ^ n)) * (.v carry[i])))
+              (
+                -- -(2 ^ (2*n + 1) * k) < - (2^(2*n)*k + 2^n)  < t[i] < (2 ^ (2 * n) * k) →
+                -- 0 ≤ t[i] + (2 ^ (2*n + 1) * k) < (2 ^ (2 * n) * k) + (2 ^ (2*n + 1) * k) =
+                -- (2 ^ (2 * n) * k) + (2 * 2 ^ (2 * n) * k) = 3 * (2 ^ (2 * n) * k) < 4 * (2 ^ (2 * n) * k) =
+                -- 2 ^ (2 * n + 2) * k < 2 ^ (2 * n + Nat.clog 2 k + 2)
+                num2bits_circuit (n + Nat.clog 2 k + 2) (.v carry[i] + .c (2 ^ (n + 1) * k)) (fun _ ↦ rest)
+              )
             )
-          )
-          (
-            Cs.eq0 (t[(⟨k - 1, by have := inst.out; omega⟩ : Fin k)] + .v carry[(⟨k - 2, by have := inst.out; omega⟩ : Fin (k - 1))])
-              rest
-          )
-          (List.finRange (k - 1))
-    )
+            (
+              Cs.eq0
+                (
+                  t[(⟨k - 1, by omega⟩ : Fin k)] +
+                  (if h' : k = 1 then .c 0 else .v carry[(⟨k - 2, by omega⟩ : Fin (k - 1))])
+                )
+                rest
+            )
+            (List.finRange (k - 1))
+      )
 
 
 def Circuit.toCs (c : Circuit p var) : Cs p var :=
@@ -381,9 +387,6 @@ def Circuit.toCs (c : Circuit p var) : Cs p var :=
   | .num2bits w e c =>
     num2bits_circuit w e (fun bits => (c bits.toList).toCs)
   | .fpmul w k a b p' cont =>
-    haveI inst : Fact (k > 1) := sorry
-    haveI : Fact (2 * k - 1 > 1) :=
-      ⟨by have := inst.out; grind⟩
     range_check_vec_circuit w a $
       range_check_vec_circuit w b $
         range_check_vec_circuit w p' $
