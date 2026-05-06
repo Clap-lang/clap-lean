@@ -102,11 +102,18 @@ def mkSimp (simpset : SimpSet)
   then `(tactic| simp $(←configStx singlePass) only [$[$simpsetStx],*])
   else `(tactic| simp $(←configStx singlePass) [$[$simpsetStx],*])
 
+def forceHeartbeats {α : Type} {m : Type → Type} [MonadWithReaderOf Core.Context m]
+                    (heartBeats : Nat) : m α → m α :=
+  withTheReader Core.Context ({· with maxHeartbeats := (heartBeats * 1000)})
+
 set_option hygiene false in
 def simplify (simpset : SimpSet) (e : Expr) (only singlePass : Bool := false) : TermElabM Expr := do
-  lambdaTelescope e fun args body ↦ do
-    body.runTactic (←mkSimp simpset only singlePass) >>= liftM ∘ mkLambdaFVars args
-  where simpAll := `simpAll
+--  withOptions (·.set `maxHeartbeats 200000) do
+  tryCatchRuntimeEx
+    (forceHeartbeats 300_000 do
+      lambdaTelescope e fun args body ↦ do
+        body.runTactic (←mkSimp simpset only singlePass) >>= liftM ∘ mkLambdaFVars args)
+    (fun _ ↦ do throwError s!"Simp Timeout:\n{←PrettyPrinter.ppExpr e}")
 
 end Simp
 
