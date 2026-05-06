@@ -144,9 +144,9 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   let state := mix (ark (← state.mapM sigma) C (half * t)) P
 
   -- Phase 2: partial rounds
-  let state ← (List.range nRoundsP).foldlM (fun state r ↦ do
-    let s0 := (← sigma state[0]) + C[(half + 1) * t + r]'sorry
-    mixS r (state.set 0 s0) S) state
+  -- let state ← (List.range nRoundsP).foldlM (fun state r ↦ do
+  --   let s0 := (← sigma state[0]) + C[(half + 1) * t + r]'sorry
+  --   mixS r (state.set 0 s0) S) state
 
   state[0]
   -- -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
