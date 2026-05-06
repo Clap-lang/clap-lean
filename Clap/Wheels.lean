@@ -126,24 +126,26 @@ def Lean.Expr.foldlRecM {α : Type}
     ) init
   )
 
-lemma ZMod.val_sum' {m n : ℕ} [NeZero n] {f : Fin m → ZMod n} :
-    (∑ i, f i).val =  (∑ i, (f i).val) % n := by
-  induction m with
-  | zero => simp
-  | succ m ih =>
-    rw [Fin.sum_univ_succ, Fin.sum_univ_succ, ZMod.val_add, ih, Nat.add_mod_mod]
+lemma ZMod.val_finset_sum {n : ℕ} [NeZero n] {α : Type} [DecidableEq α] {s : Finset α} {f : α → ZMod n} :
+    (∑ a ∈ s, f a).val = (∑ a ∈ s, (f a).val) % n := by
+  induction s using Finset.induction
+  · simp
+  · (expose_names; rw [Finset.sum_insert h, Finset.sum_insert h, ZMod.val_add, h_1, Nat.add_mod_mod])
 
-lemma ZMod.val_sum {n : ℕ} [NeZero n] {α : Type} [Fintype α] {f : α → ZMod n} :
+lemma ZMod.val_sum {n : ℕ} [NeZero n] {α : Type} [Fintype α] [DecidableEq α] {f : α → ZMod n} :
     (∑ i, f i).val =  (∑ i, (f i).val) % n := by
-  rcases Finite.exists_equiv_fin α with ⟨α_size, ⟨exists_bij⟩⟩
-  let g := exists_bij.toFun
-  let g_inv := exists_bij.invFun
-  have h₁ {β : Type} [Semiring β] {f : α → β} : ∑ i, f i = ∑ i, f (g_inv i) := by
-    refine Function.Bijective.finset_sum g (Equiv.bijective exists_bij) f (fun x => f (g_inv x)) ?_
-    intros x
-    simp only
-    congr
-    dsimp [g, g_inv]
-    exact (Equiv.apply_eq_iff_eq_symm_apply exists_bij).mp rfl
-  rw [h₁, h₁]
-  exact val_sum'
+    erw [val_finset_sum]
+
+lemma Finset.sum_le_card_mul_bound {α : Type} {s : Finset α} {f : α → ℕ} {b : ℕ} (h : ∀ a ∈ s, f a ≤ b) : ∑ a ∈ s, f a ≤ b * s.card := by
+    simpa only [smul_eq_mul, mul_comm] using Finset.sum_le_card_nsmul s f b h
+
+lemma Finset.sum_lt_card_mul_bound {α : Type} {s : Finset α} (h'' : s ≠ ∅) {f : α → ℕ} {b : ℕ} : b > 0 → (∀ a ∈ s, f a < b) → ∑ a ∈ s, f a < b * s.card := by
+    intros h h'
+    have : ∃ a, a ∈ s := by
+      simpa [←Finset.nonempty_def, Finset.nonempty_iff_ne_empty] using h''
+    rcases this with ⟨a, this⟩
+    match b with
+    | .zero => specialize h' a this; simp at h'
+    | .succ b =>
+      have : ∑ a ∈ s, f a ≤ b * s.card := Finset.sum_le_card_mul_bound (by grind)
+      grind
