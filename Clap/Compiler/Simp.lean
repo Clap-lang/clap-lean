@@ -1,4 +1,5 @@
 import Lean
+import Lean.Meta.Sym.SymM
 
 open Lean Meta Elab
 
@@ -59,6 +60,21 @@ def SimpSet.union (s₁ s₂ : SimpSet) : SimpSet where
   pos := s₁.pos ++ s₂.pos
   neg := s₁.neg ++ s₂.neg
 
+def SimpSet.toMethods (s : SimpSet) : Sym.SymM Sym.Simp.Methods := do
+  unless s.neg.isEmpty do throwError m!"Erasing Sym.simp theorems currently unsupported."
+  let (pre, post) := (s.pos.partition fun (_, order) ↦ order matches .Pre).map (·.map Prod.fst) (·.map Prod.fst)
+  let simprocsPre ← Sym.mkSimprocFor pre
+  let simprocsPost ← Sym.mkSimprocFor post
+  return {
+    pre := simprocsPre
+    post := simprocsPost
+  }
+
+def config : Sym.Simp.Config :=
+  {
+    maxSteps := 1_000_000
+  }
+
 instance : Union SimpSet := ⟨SimpSet.union⟩
 
 instance : Singleton Name SimpSet where
@@ -69,7 +85,7 @@ section
 open Parser Tactic
 
 set_option hygiene false in
-def configStx (singlePass : Bool := false) : MetaM (TSyntax ``optConfig) := do
+def configStx (singlePass : Bool := false) : Sym.SymM (TSyntax ``optConfig) := do
   `(optConfig|(
       config := {
         failIfUnchanged := false
@@ -81,7 +97,7 @@ def configStx (singlePass : Bool := false) : MetaM (TSyntax ``optConfig) := do
   where defaultMaxSteps := 10_000_000
 
 def simpSetStx (sets : Array Lemma) :
-  MetaM (Syntax.TSepArray [``simpStar, ``simpErase, ``simpLemma] ",") := do
+  Sym.SymM (Syntax.TSepArray [``simpStar, ``simpErase, ``simpLemma] ",") := do
   let arrStx ← sets.mapM fun lemma ↦
     match lemma with
     | .neg name => `(simpErase|-$(mkIdent name):term)
@@ -96,7 +112,7 @@ open API
 
 set_option hygiene false in
 def mkSimp (simpset : SimpSet)
-           (only singlePass : Bool := false) : TermElabM (TSyntax `tactic) := do
+           (only singlePass : Bool := false) : Sym.SymM (TSyntax `tactic) := do
   let simpsetStx ← simpSetStx simpset.toSimpSet
   if only
   then `(tactic| simp $(←configStx singlePass) only [$[$simpsetStx],*])
@@ -104,15 +120,16 @@ def mkSimp (simpset : SimpSet)
 
 def forceHeartbeats {α : Type} {m : Type → Type} [MonadWithReaderOf Core.Context m]
                     (heartBeats : Nat) : m α → m α :=
-  withTheReader Core.Context ({· with maxHeartbeats := (heartBeats * 1000)})
+  withTheReader Core.Context ({· with maxHeartbeats := heartBeats * 1000})
 
 set_option hygiene false in
-def simplify (simpset : SimpSet) (e : Expr) (only singlePass : Bool := false) : TermElabM Expr := do
---  withOptions (·.set `maxHeartbeats 200000) do
+def simplify (simpset : SimpSet) (e : Expr) (only singlePass : Bool := false) : Sym.SymM Expr := do
   tryCatchRuntimeEx
     (forceHeartbeats 300_000 do
       lambdaTelescope e fun args body ↦ do
-        body.runTactic (←mkSimp simpset only singlePass) >>= liftM ∘ mkLambdaFVars args)
+        let res ← Sym.simp body (←simpset.toMethods) config
+        Sym.mkLambdaFVarsS args (res.getResultExpr body)
+    )
     (fun _ ↦ do throwError s!"Simp Timeout:\n{←PrettyPrinter.ppExpr e}")
 
 end Simp

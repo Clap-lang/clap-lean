@@ -1,5 +1,6 @@
 import Lean
 import Qq
+import Lean.Meta.Sym.SymM
 
 import Clap.Lang
 import Clap.Spec
@@ -13,51 +14,16 @@ open Lean Meta Qq Elab
 
 abbrev ExprS := Expr × Expr ⊕ Expr
 
-def ExprS.pretty (e : ExprS) : MetaM String := do
-  match e with
-  | .inl (e, binder) => return s!"λ {binder} ↦ {←PrettyPrinter.ppExpr e}"
-  | .inr e => PrettyPrinter.ppExpr e <&> Format.pretty
-
-def _root_.Lean.Expr.isBind (e : Expr) : MetaM Bool := do
-  return e.isAppOf ``Bind.bind || e.isAppOf ``Option.bind
-
-def _root_.Lean.Expr.getBindArgs? (e : Expr) : MetaM (Option (Expr × Expr)) := do
-  -- If `e` is not `λ _ ↦ _`, then `lambdaTelescope = id`.
-  lambdaTelescope e fun _ e ↦ do
-    if !(←e.isBind) then return .none
-    let firstExplicitArg := (←getFunInfo e.getAppFn).paramInfo.findIdx (·.binderInfo.isExplicit)
-    let bindArgs := e.getAppArgs
-    return .some (
-      bindArgs[firstExplicitArg]!,
-      bindArgs[firstExplicitArg + 1]!
-    )
-
-def _root_.Lean.Expr.mkBind (l r : Expr) (m? : Name := ``Bind.bind) : MetaM Expr := do
-  mkAppM m? #[l, r]
-
-private def treeEmoji : String := "🌲"
-private def stopEmoji : String := "🛑"
-
-def typeZModp (p:Expr) : Expr := .app (mkConst ``ZMod) p
-
-def matchBinds (e:Expr) : Option (Expr × Expr) :=
+def matchBinds (e : Expr) : Option (Expr × Expr) :=
   if let (``Bind.bind, ⟨_ :: _ :: _ :: _ :: e :: k :: _⟩) := e.getAppFnArgs then some (e, k)
   else
   if let (``Option.bind, ⟨_ :: _ :: e :: k :: []⟩) := e.getAppFnArgs then some (e, k)
   else none
 
--- example {l : Vector Nat 3} :
---   #v[Array.foldr (fun x1 x2 => x1 + x2) 0 #[66 * (l[0] + 66), 66 * (l[1] + 66), 66 * (l[2] + 66)] 3 0,
---       Array.foldr (fun x1 x2 => x1 + x2) 0 #[66 * (l[0] + 66), 66 * (l[1] + 66), 66 * (l[2] + 66)] 3 0,
---       Array.foldr (fun x1 x2 => x1 + x2) 0 #[66 * (l[0] + 66), 66 * (l[1] + 66), 66 * (l[2] + 66)] 3 0] = sorry := by
---   simp only [List.size_toArray, List.length_cons, List.length_nil, List.foldr_toArray',
---     List.foldr_cons, List.foldr_nil]
---   sorry
-
 /--
 For the purposes of reporting, we bias chains of non-ground expressions to the right.
 -/
-partial def isGroundTerm (e : Expr) : TermElabM (Option Expr) := do
+partial def isGroundTerm (e : Expr) : Sym.SymM (Option Expr) := do
   if let .lam name type body bi := e then
     withLocalDecl name bi type fun fvar =>
       isGroundTerm (body.instantiate1 fvar)
@@ -128,11 +94,36 @@ partial def isGroundTerm (e : Expr) : TermElabM (Option Expr) := do
     | .none, .some e | .some e, .none => .some e
     | .some _, .some e => .some e
 
+def ExprS.pretty (e : ExprS) : Sym.SymM String := do
+  match e with
+  | .inl (e, binder) => return s!"λ {binder} ↦ {←PrettyPrinter.ppExpr e}"
+  | .inr e => PrettyPrinter.ppExpr e <&> Format.pretty
+
+def _root_.Lean.Expr.isBind (e : Expr) : Sym.SymM Bool := do
+  return e.isAppOf ``Bind.bind || e.isAppOf ``Option.bind
+
+def _root_.Lean.Expr.getBindArgs? (e : Expr) : Sym.SymM (Option (Expr × Expr)) := do
+  -- If `e` is not `λ _ ↦ _`, then `lambdaTelescope = id`.
+  lambdaTelescope e fun _ e ↦ do
+    if !(←e.isBind) then return .none
+    let firstExplicitArg := (←getFunInfo e.getAppFn).paramInfo.findIdx (·.binderInfo.isExplicit)
+    let bindArgs := e.getAppArgs
+    return .some (
+      bindArgs[firstExplicitArg]!,
+      bindArgs[firstExplicitArg + 1]!
+    )
+
+def _root_.Lean.Expr.mkBind (l r : Expr) (m? : Name := ``Option.bind) : Sym.SymM Expr := do
+  mkAppM m? #[l, r]
+
+private def treeEmoji : String := "🌲"
+private def stopEmoji : String := "🛑"
+
 mutual
 
-private partial def down (reduce : Expr → TermElabM Expr)
-                         (reduceOuter : Expr → TermElabM Expr)
-                         (stack : List ExprS) (todo : Expr) : TermElabM Expr := do
+private partial def down (reduce : Expr → Sym.SymM Expr)
+                         (reduceOuter : Expr → Sym.SymM Expr)
+                         (stack : List ExprS) (todo : Expr) : Sym.SymM Expr := do
   if let .some (l, r) ← todo.getBindArgs?
   then
     trace[Clap.Compile.down] "\npush [→]:\n{r}\ngo [↓]:\n{l}"
@@ -152,18 +143,18 @@ private partial def down (reduce : Expr → TermElabM Expr)
       | .none => pure ()
       up reduce reduceOuter stack todo
 
-private partial def up (reduce : Expr → TermElabM Expr)
-                       (reduceOuter : Expr → TermElabM Expr)
-                       (stack : List ExprS) (done : Expr) : TermElabM Expr := do
+private partial def up (reduce : Expr → Sym.SymM Expr)
+                       (reduceOuter : Expr → Sym.SymM Expr)
+                       (stack : List ExprS) (done : Expr) : Sym.SymM Expr := do
   match stack with
   | [] =>
     trace[Clap.Compile.up] "Done"
     return done
   | .inr r :: stack =>
     lambdaTelescopeOne! r fun arg body ↦ do
-      match ←isGroundTerm done with
-      | .some e => throwError m!"{bombEmoji} Not ground:\n{e}\nin:\n{done}"
-      | .none =>
+      -- match ←isGroundTerm done with
+      -- | .some e => throwError m!"{bombEmoji} Not ground:\n{e}\nin:\n{done}"
+      -- | .none =>
       trace[Clap.Compile.up] "\npush [←]:\n{(done, arg)}\ngo [↓]:\n{body}"
       down reduce reduceOuter (.inl (done, arg) :: stack) body
   | .inl l :: stack => do
@@ -174,21 +165,21 @@ private partial def up (reduce : Expr → TermElabM Expr)
          up bind
     else trace[Clap.Compile.simp] "Binding value: {l.2} {bind}"
          let simped ← reduceOuter bind
-         trace[Clap.Compile.simp] "WE MADE IT"
+        --  trace[Clap.Compile.simp] "WE MADE IT"
          if simped != bind
          then trace[Clap.Compile.simp] "[↑] {checkEmoji}\n{bind}\n==>\n{simped}"
          else trace[Clap.Compile.simp.fail] "[↑] {crossEmoji}\n{bind}"
          trace[Clap.Compile.up] "\ngo [↑]:\n{simped}"
          up simped
   where mkBindWith (stackEntry : Expr × Expr) (cont : Expr)
-                   (m? : Name := ``Bind.bind) : MetaM Expr := do
-    mkLambdaFVars #[stackEntry.2] cont >>= stackEntry.1.mkBind (m? := m?)
+                   (m? : Name := ``Option.bind) : Sym.SymM Expr := do
+    Sym.mkLambdaFVarsS #[stackEntry.2] cont >>= stackEntry.1.mkBind (m? := m?)
 
 end
 
 open Simp API
 
-def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : TermElabM Expr := do
+def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : Sym.SymM Expr := do
   withTraceNode `Clap.Compile formatExprWith do
   trace[Clap.Compile.simp.config]
     m!"Reducer: [only := {only}, singlePass := true, set := {repr simpset}"
@@ -200,19 +191,20 @@ def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : TermElabM Exp
       down (reduce := simplify (only := only)
                                (singlePass := true)
                                simpset)
-           (reduceOuter :=
-              fun e ↦ do
-                let mut res := e
-                for i in List.range 20 do
-                  let res' ← simplify (only := true)
-                                      (singlePass := true)
-                                      (compilerSet ∪ simpset)
-                                      res
-                  if res == res' then
-                    logWarning s!"STOP at {i}" ; break
-                  logWarning m!"intermediate: {res'}"
-                  res := res'
-                return res)
+           (reduceOuter := simplify (only := true) (singlePass := true) (simpset ∪ compilerSet)
+              -- fun e ↦ do
+              --   let mut res := e
+              --   for i in List.range 20 do
+              --     let res' ← simplify (only := true)
+              --                         (singlePass := true)
+              --                         (compilerSet ∪ simpset)
+              --                         res
+              --     if res == res' then
+              --       logWarning s!"STOP at {i}" ; break
+              --     logWarning m!"intermediate: {res'}"
+              --     res := res'
+              --   return res
+                )
            [] e
     mkLambdaFVars args compiled
   where
@@ -469,8 +461,11 @@ end CompileSets
 
 namespace Exampru
 
-def compileExample (ex : Name) (simpset : SimpSet) (only : Bool := true) : TermElabM Format := do
+def compileExample (ex : Name) (simpset : SimpSet) (only : Bool := true) : Sym.SymM Format := do
   compile (((←getEnv).find? ex).get!.value!) simpset only >>= (liftM ∘ PrettyPrinter.ppExpr)
+
+def spoon (m : Sym.SymM Format) : MetaM Format :=
+  m.run {}
 
 def eq0 (e : Nat) : Option Unit := .some ()
 
@@ -482,40 +477,36 @@ def ex₀ : Expr := q(
      return ()
 )                    
 
--- /--
--- info: do
---   eq0 0
---   eq0 1
---   do
---     eq0 2
---     let init ← eq0 2
---     pure init
---   eq0 3
---   pure ()
--- -/
--- #guard_msgs in
--- #eval compile ex₀
---   (SimpSet.withAllPost #[``List.foldlM_cons, ``List.foldlM_nil]) >>=
---   (liftM ∘ PrettyPrinter.ppExpr)
+/--
+info: (eq0 0).bind fun x =>
+  (eq0 1).bind fun x =>
+    ((eq0 2).bind fun init => (eq0 2).bind fun init => pure init).bind fun _res => (eq0 3).bind fun x => pure ()
+-/
+#guard_msgs in
+#eval show MetaM _ from do
+  let res := compile ex₀
+    (SimpSet.withAllPost #[``List.foldlM_cons, ``List.foldlM_nil]) >>=
+    (liftM ∘ PrettyPrinter.ppExpr)
+  res.run default
 
--- def ex₁ (n : Nat) : Option Unit := do
---   eq0 0
---   let res ← (#v[0, 1].foldlM (fun acc _ ↦ return acc) #v[n, 6])
---   let res' := res.map (·+1)
---   eq0 (res'[0])
---   eq0 (res'[1])
---   return ()
+def ex₁ (n : Nat) : Option Unit := do
+  eq0 0
+  let res ← (#v[0, 1].foldlM (fun acc _ ↦ return acc) #v[n, 6])
+  let res' := res.map (·+1)
+  eq0 (res'[0])
+  eq0 (res'[1])
+  return ()
 
 open CompileSets Vector
 
--- /--
--- info: fun n => do
---   eq0 0
---   (eq0 (n + 1)).bind fun a => (eq0 7).bind fun a => some ()
--- -/
--- #guard_msgs in
--- #eval compileExample ``ex₁
---         (foldlM ∪ getElem ∪ map ∪ explode)
+/--
+info: fun n => do
+  eq0 0
+  (eq0 (n + 1)).bind fun a => (eq0 7).bind fun a => some ()
+-/
+#guard_msgs in
+#eval spoon <| compileExample ``ex₁
+        (foldlM ∪ getElem ∪ map ∪ explode)
 
 -- def ex₂ (vec : Vector Nat 4) : Option Unit := do
 --   eq0 ((vec ++ vec)[0])
@@ -554,25 +545,25 @@ open CompileSets Vector
 -- #eval compileExample ``ex₃
 --         (foldlM ∪ getElem ∪ map ∪ explode ∪ append ∪ mapIdx)
 
--- def ex₄ (vec : Vector Nat 3) : Option Unit := do
---   eq0 ((vec ++ vec)[0])
---   eq0 0
---   let res := vec.zipWith (bs := vec.map (·+1)) fun x y ↦ x + y
---   eq0 res[0]
---   eq0 res[1]
---   eq0 res[2]
+def ex₄ (vec : Vector Nat 3) : Option Unit := do
+  eq0 ((vec ++ vec)[0])
+  eq0 0
+  let res := vec.zipWith (bs := vec.map (·+1)) fun x y ↦ x + y
+  eq0 res[0]
+  eq0 res[1]
+  eq0 res[2]
 
--- /--
--- info: fun vec => do
---   eq0 vec[0]
---   eq0 0
---   eq0 (2 * vec[0] + 1)
---   eq0 (2 * vec[1] + 1)
---   eq0 (2 * vec[2] + 1)
--- -/
--- #guard_msgs in
--- #eval compileExample ``ex₄
---         (foldlM ∪ getElem ∪ map ∪ explode ∪ append ∪ mapIdx ∪ zipWith)
+/--
+info: fun vec => do
+  eq0 vec[0]
+  eq0 0
+  eq0 (2 * vec[0] + 1)
+  eq0 (2 * vec[1] + 1)
+  eq0 (2 * vec[2] + 1)
+-/
+#guard_msgs in
+#eval spoon <| compileExample ``ex₄
+        (foldlM ∪ getElem ∪ map ∪ explode ∪ append ∪ mapIdx ∪ zipWith)
   
 -- def ex₅ (vec : Vector Nat 3) : Option Unit := do
 --   eq0 ((vec ++ vec)[0])
@@ -637,28 +628,28 @@ open CompileSets Vector
 --   eq0 res[0]
 
 -- #eval compileExample ``ex₉ (append ∪ explode ∪ extract ∪ getElem ∪ set)
-
+#check Sym.simp
 opaque share : Nat → Option Nat
 
-example {inputs : Vector Nat 3} : ((share ((0 + 66) * (0 + 66))).bind fun a =>
-  (share (a * a)).bind fun a =>
-    (share ((inputs[0] + 66) * (inputs[0] + 66))).bind fun a_1 =>
-      (share (a_1 * a_1)).bind fun a_2 =>
-        (share ((inputs[1] + 66) * (inputs[1] + 66))).bind fun a_3 =>
-          (share (a_3 * a_3)).bind fun a_4 =>
-            some
-              #v[66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][0] + 66) +
-                  (66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][1] + 66) +
-                    (66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][2] + 66) + 0)),
-                66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][0] + 66) +
-                  (66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][1] + 66) +
-                    (66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][2] + 66) + 0)),
-                66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][0] + 66) +
-                  (66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][1] + 66) +
-                    (66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][2] + 66) + 0))]) = sorry := by
-  simp?
-  sorry
-  done
+-- example {inputs : Vector Nat 3} : ((share ((0 + 66) * (0 + 66))).bind fun a =>
+--   (share (a * a)).bind fun a =>
+--     (share ((inputs[0] + 66) * (inputs[0] + 66))).bind fun a_1 =>
+--       (share (a_1 * a_1)).bind fun a_2 =>
+--         (share ((inputs[1] + 66) * (inputs[1] + 66))).bind fun a_3 =>
+--           (share (a_3 * a_3)).bind fun a_4 =>
+--             some
+--               #v[66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][0] + 66) +
+--                   (66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][1] + 66) +
+--                     (66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][2] + 66) + 0)),
+--                 66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][0] + 66) +
+--                   (66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][1] + 66) +
+--                     (66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][2] + 66) + 0)),
+--                 66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][0] + 66) +
+--                   (66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][1] + 66) +
+--                     (66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][2] + 66) + 0))]) = sorry := by
+--   simp?
+--   sorry
+--   done
 
 end Exampru
 
