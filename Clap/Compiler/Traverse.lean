@@ -203,13 +203,14 @@ def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : TermElabM Exp
            (reduceOuter :=
               fun e ↦ do
                 let mut res := e
-                for i in List.range 10 do
+                for i in List.range 20 do
                   let res' ← simplify (only := true)
                                       (singlePass := true)
                                       (compilerSet ∪ simpset)
                                       res
                   if res == res' then
                     logWarning s!"STOP at {i}" ; break
+                  logWarning m!"intermediate: {res'}"
                   res := res'
                 return res)
            [] e
@@ -636,6 +637,28 @@ open CompileSets Vector
 --   eq0 res[0]
 
 -- #eval compileExample ``ex₉ (append ∪ explode ∪ extract ∪ getElem ∪ set)
+
+opaque share : Nat → Option Nat
+
+example {inputs : Vector Nat 3} : ((share ((0 + 66) * (0 + 66))).bind fun a =>
+  (share (a * a)).bind fun a =>
+    (share ((inputs[0] + 66) * (inputs[0] + 66))).bind fun a_1 =>
+      (share (a_1 * a_1)).bind fun a_2 =>
+        (share ((inputs[1] + 66) * (inputs[1] + 66))).bind fun a_3 =>
+          (share (a_3 * a_3)).bind fun a_4 =>
+            some
+              #v[66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][0] + 66) +
+                  (66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][1] + 66) +
+                    (66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][2] + 66) + 0)),
+                66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][0] + 66) +
+                  (66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][1] + 66) +
+                    (66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][2] + 66) + 0)),
+                66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][0] + 66) +
+                  (66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][1] + 66) +
+                    (66 * ([a * (0 + 66), a_2 * (inputs[0] + 66), a_4 * (inputs[1] + 66)][2] + 66) + 0))]) = sorry := by
+  simp?
+  sorry
+  done
 
 end Exampru
 
