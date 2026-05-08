@@ -1,6 +1,8 @@
 import Lean
 import Qq
+
 import Lean.Meta.Sym.SymM
+import Lean.Meta.Tactic.Cbv.Main
 
 import Clap.Lang
 import Clap.Spec
@@ -23,7 +25,7 @@ def matchBinds (e : Expr) : Option (Expr × Expr) :=
 /--
 For the purposes of reporting, we bias chains of non-ground expressions to the right.
 -/
-partial def isGroundTerm (e : Expr) : Sym.SymM (Option Expr) := do
+partial def isGroundTerm (e : Expr) : Sym.Simp.SimpM (Option Expr) := do
   if let .lam name type body bi := e then
     withLocalDecl name bi type fun fvar =>
       isGroundTerm (body.instantiate1 fvar)
@@ -94,15 +96,15 @@ partial def isGroundTerm (e : Expr) : Sym.SymM (Option Expr) := do
     | .none, .some e | .some e, .none => .some e
     | .some _, .some e => .some e
 
-def ExprS.pretty (e : ExprS) : Sym.SymM String := do
+def ExprS.pretty (e : ExprS) : Sym.Simp.SimpM String := do
   match e with
   | .inl (e, binder) => return s!"λ {binder} ↦ {←PrettyPrinter.ppExpr e}"
   | .inr e => PrettyPrinter.ppExpr e <&> Format.pretty
 
-def _root_.Lean.Expr.isBind (e : Expr) : Sym.SymM Bool := do
+def _root_.Lean.Expr.isBind (e : Expr) : Sym.Simp.SimpM Bool := do
   return e.isAppOf ``Bind.bind || e.isAppOf ``Option.bind
 
-def _root_.Lean.Expr.getBindArgs? (e : Expr) : Sym.SymM (Option (Expr × Expr)) := do
+def _root_.Lean.Expr.getBindArgs? (e : Expr) : Sym.Simp.SimpM (Option (Expr × Expr)) := do
   -- If `e` is not `λ _ ↦ _`, then `lambdaTelescope = id`.
   lambdaTelescope e fun _ e ↦ do
     if !(←e.isBind) then return .none
@@ -113,17 +115,17 @@ def _root_.Lean.Expr.getBindArgs? (e : Expr) : Sym.SymM (Option (Expr × Expr)) 
       bindArgs[firstExplicitArg + 1]!
     )
 
-def _root_.Lean.Expr.mkBind (l r : Expr) (m? : Name := ``Option.bind) : Sym.SymM Expr := do
+def _root_.Lean.Expr.mkBind (l r : Expr) (m? : Name := ``Option.bind) : Sym.Simp.SimpM Expr := do
   mkAppM m? #[l, r]
 
 private def treeEmoji : String := "🌲"
 private def stopEmoji : String := "🛑"
-
+#check Sym.Simp.Theorems.rewrite
 mutual
 
-private partial def down (reduce : Expr → Sym.SymM Expr)
-                         (reduceOuter : Expr → Sym.SymM Expr)
-                         (stack : List ExprS) (todo : Expr) : Sym.SymM Expr := do
+private partial def down (reduce : Expr → Sym.Simp.SimpM Expr)
+                         (reduceOuter : Expr → Sym.Simp.SimpM Expr)
+                         (stack : List ExprS) (todo : Expr) : Sym.Simp.SimpM Expr := do
   if let .some (l, r) ← todo.getBindArgs?
   then
     trace[Clap.Compile.down] "\npush [→]:\n{r}\ngo [↓]:\n{l}"
@@ -143,9 +145,9 @@ private partial def down (reduce : Expr → Sym.SymM Expr)
       | .none => pure ()
       up reduce reduceOuter stack todo
 
-private partial def up (reduce : Expr → Sym.SymM Expr)
-                       (reduceOuter : Expr → Sym.SymM Expr)
-                       (stack : List ExprS) (done : Expr) : Sym.SymM Expr := do
+private partial def up (reduce : Expr → Sym.Simp.SimpM Expr)
+                       (reduceOuter : Expr → Sym.Simp.SimpM Expr)
+                       (stack : List ExprS) (done : Expr) : Sym.Simp.SimpM Expr := do
   match stack with
   | [] =>
     trace[Clap.Compile.up] "Done"
@@ -172,26 +174,25 @@ private partial def up (reduce : Expr → Sym.SymM Expr)
          trace[Clap.Compile.up] "\ngo [↑]:\n{simped}"
          up simped
   where mkBindWith (stackEntry : Expr × Expr) (cont : Expr)
-                   (m? : Name := ``Option.bind) : Sym.SymM Expr := do
+                   (m? : Name := ``Option.bind) : Sym.Simp.SimpM Expr := do
     Sym.mkLambdaFVarsS #[stackEntry.2] cont >>= stackEntry.1.mkBind (m? := m?)
 
 end
 
-open Simp API
-
-def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : Sym.SymM Expr := do
+open Simp API in
+def compile (e : Expr) (simpset : Sym.Simp.Methods) (only : Bool := true) : Sym.Simp.SimpM Expr := do
   withTraceNode `Clap.Compile formatExprWith do
-  trace[Clap.Compile.simp.config]
-    m!"Reducer: [only := {only}, singlePass := true, set := {repr simpset}"
-  trace[Clap.Compile.simp.config]
-    m!"Compiler: [only := true, singlePass := false, set := {repr compilerSet} ∪ {repr simpset}"
+  -- trace[Clap.Compile.simp.config]
+  --   m!"Reducer: [only := {only}, singlePass := true, set := {repr simpset}"
+  -- trace[Clap.Compile.simp.config]
+  --   m!"Compiler: [only := true, singlePass := false, set := {repr compilerSet} ∪ {repr simpset}"
   
   lambdaTelescope e fun args e ↦ do
     let compiled ←
       down (reduce := simplify (only := only)
                                (singlePass := true)
                                simpset)
-           (reduceOuter := simplify (only := true) (singlePass := true) (simpset ∪ compilerSet)
+           (reduceOuter := simplify (only := true) (singlePass := true) (simpset ∪ (←compilerSet))
               -- fun e ↦ do
               --   let mut res := e
               --   for i in List.range 20 do
@@ -206,10 +207,10 @@ def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : Sym.SymM Expr
               --   return res
                 )
            [] e
-    mkLambdaFVars args compiled
+    Sym.mkLambdaFVarsS args compiled
   where
-    compilerSet : SimpSet :=
-      SimpSet.withAllPost #[
+    compilerSet : MetaM Sym.Simp.Methods :=
+      Sym.mkMethods #[
         ``Option.bind_assoc, ``bind_assoc,
         ``Option.pure_def,
         ``Option.bind_eq_bind, ``Option.bind_fun_some, ``Option.bind_some, ``bind_pure, ``pure_bind,
@@ -217,6 +218,10 @@ def compile (e : Expr) (simpset : SimpSet) (only : Bool := true) : Sym.SymM Expr
       ]
 
 namespace CompileSets
+
+section
+
+open Simp API
 
 namespace Logic
 
@@ -334,15 +339,28 @@ def zipWith : SimpSet :=
     ``List.zipWith_cons_cons, ``List.zipWith_nil_left, ``List.zipWith_nil_right
   ]
 
+-- dsimproc_decl rwMk_append_mk (Vector.mk _ _ ++ Vector.mk _ _) := fun e ↦ do
+--   let x ← e.runTactic (←`(tactic| rw [$(mkIdent ``Vector.mk_append_mk):ident]))
+--   return .visit x
+
+-- def append : SimpSet :=
+--   SimpSet.withAllPost #[
+--     ``rwMk_append_mk, ``List.append_toArray, -- ``Vector.mk_append_mk
+
+--     ``List.cons_append, ``List.nil_append
+--   ]
+
 dsimproc_decl rwMk_append_mk (Vector.mk _ _ ++ Vector.mk _ _) := fun e ↦ do
   let x ← e.runTactic (←`(tactic| rw [$(mkIdent ``Vector.mk_append_mk):ident]))
   return .visit x
 
 def append : SimpSet :=
   SimpSet.withAllPost #[
-    ``rwMk_append_mk, ``List.append_toArray, -- ``Vector.mk_append_mk
+    ``Vector.mk_append_mk, ``List.append_toArray,
 
-    ``List.cons_append, ``List.nil_append
+    ``List.cons_append, ``List.nil_append,
+
+    ``List.append_nil
   ]
 
 def take : SimpSet :=
@@ -417,12 +435,38 @@ theorem _root_.Vector.mapM_singleton {α β} {m} [Monad m] [LawfulMonad m] {f : 
   #v[x].mapM f = f x >>= (pure #v[·]) := by
   apply Vector.map_toArray_inj.mp; simp
 
+@[simp]
+theorem _root_.Vector.mapM_nil {α β} {m} [Monad m] [LawfulMonad m] {f : α → m β} :
+  #v[].mapM f = pure #v[] := by simp
+
 @[simp↓ high]
 theorem _root_.Vector.mapM_mk_singleton_append {m} [Monad m] [LawfulMonad m] {α β} {n} {f : α → m β}
   (v : Vector α n) {x : α} :
   (#v[x] ++ v).mapM f = (return #v[(←f x)] ++ (←v.mapM f)) := by simp
 
-def liftTermElabM {α} (m : TermElabM α) : SimpM α := liftM m.run'
+def liftTermElabM {α} (m : TermElabM α) : Sym.Simp.SimpM α := liftM m.run'
+
+-- /--
+-- 0. Only for `Vector.mapM f xs`.
+-- 1. Vector.mapM f #v[a, b, c] → Vector.mapM f (#v[a] ++ #v[b, c])
+-- 2. Vector.mapM f (#v[x] ++ v) = do
+--      let __do_lift ← f x
+--      let __do_lift_1 ← Vector.mapM f v
+--      pure (#v[__do_lift] ++ __do_lift_1)
+-- -/
+-- dsimproc_decl _root_.Vector.mapM_mk_eq_append (_root_.Vector.mapM _ _) := fun e ↦ do
+--   let_expr _root_.Vector.mapM _ _ _ _ _ f vec := e | return .continue
+--   let_expr _root_.Vector.mk _ sz arr _ := vec | return .continue
+--   let_expr List.toArray _ l := arr | return .continue
+--   let_expr List.cons t hd tl := l | return .continue
+--   let szN := (←simp sz).expr.nat?.get!
+--   if szN <= 1 then return .continue
+--   let hd ← liftTermElabM (mkVecLit (←mkListLit t [hd]) (mkNatLit 1))
+--   let tl ← liftTermElabM (mkVecLit tl (toExpr (szN - 1)))
+--   let consHdTl ← mkAppM ``HAppend.hAppend #[hd, tl]
+--   let mapM ← mkAppM ``_root_.Vector.mapM #[f, consHdTl]  
+--   let consMapM ← mapM.runTactic (←`(tactic| rw[$(mkIdent ``Vector.mapM_mk_singleton_append):ident]))
+--   return .visit consMapM
 
 /--
 0. Only for `Vector.mapM f xs`.
@@ -432,42 +476,159 @@ def liftTermElabM {α} (m : TermElabM α) : SimpM α := liftM m.run'
      let __do_lift_1 ← Vector.mapM f v
      pure (#v[__do_lift] ++ __do_lift_1)
 -/
-dsimproc_decl _root_.Vector.mapM_mk_eq_append (_root_.Vector.mapM _ _) := fun e ↦ do
-  let_expr _root_.Vector.mapM _ _ _ _ _ f vec := e | return .continue
-  let_expr _root_.Vector.mk _ sz arr _ := vec | return .continue
-  let_expr List.toArray _ l := arr | return .continue
-  let_expr List.cons t hd tl := l | return .continue
-  let szN := (←simp sz).expr.nat?.get!
-  if szN <= 1 then return .continue
-  let hd ← liftTermElabM (mkVecLit (←mkListLit t [hd]) (mkNatLit 1))
-  let tl ← liftTermElabM (mkVecLit tl (toExpr (szN - 1)))
-  let consHdTl ← mkAppM ``HAppend.hAppend #[hd, tl]
-  let mapM ← mkAppM ``_root_.Vector.mapM #[f, consHdTl]  
-  let consMapM ← mapM.runTactic (←`(tactic| rw[$(mkIdent ``Vector.mapM_mk_singleton_append):ident]))
-  return .visit consMapM
+def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
+  let_expr _root_.Vector.mapM _ _ _ _ _ f vec := e | return .rfl
+  let_expr _root_.Vector.mk _ sz arr _ := vec | return .rfl
+  let_expr List.toArray _ l := arr | return .rfl
+  let_expr List.cons t hd tl := l | return .rfl
+  let sz' ← Sym.simp sz
+  match (sz'.getResultExpr sz).nat? with
+  | .none => throwError m!"{sz} does not simplify to ground"
+  | .some szN =>
+    if szN == 0 then return .rfl
+    let hd ← liftTermElabM (mkVecLit (←mkListLit t [hd]) (mkNatLit 1))
+    let tl ← liftTermElabM (mkVecLit tl (toExpr (szN - 1)))
+    let consHdTl ← mkAppM ``HAppend.hAppend #[hd, tl]
+    let mapM ← mkAppM ``_root_.Vector.mapM #[f, consHdTl]
+    -- let consMapM ← mapM.runTactic (←`(tactic| rw [$(mkIdent ``Vector.mapM_mk_singleton_append):ident]))
+    -- TODO: Definitely wrong, we need `Vector.mapM_mk_singleton_append` _at least_.
+    -- return .step consMapM (←Sym.mkEqRefl e)
+    return .step mapM (←Sym.mkEqRefl e)
 
 def mapM : SimpSet :=
   SimpSet.withAllPost #[
     ``Vector.mapM_mk_singleton_append,
     
-    ``Vector.mapM_mk_eq_append, ``Vector.mapM_singleton
+    ``Vector.mapM_mk_eq_append, ``Vector.mapM_mk_empty
 
     -- ``map_pure, ``Option.map_eq_map, ``Option.map_some, ``Option.bind_eq_bind
   ] ∪ append ∪ getElem
 
 end Vector
 
+end
+
 end CompileSets
 
-namespace Exampru
+namespace SymSets
 
-def compileExample (ex : Name) (simpset : SimpSet) (only : Bool := true) : Sym.SymM Format := do
+section
+
+open Sym.Simp Sym
+
+def mkPostMethods (declNames : Array Name) (d : Discharger := dischargeNone) : MetaM Methods := do
+  return { post := (←mkSimprocFor declNames d) }
+
+/--
+`mkPostMethods` with the recursive discharger
+
+- `mkPostMethodsDS = mkPostMethods (d := Sym.Simp.dischargeSimpSelf)`
+-/
+def mkPostMethodsDS (declNames : Array Name) : MetaM Methods := do
+  mkPostMethods declNames Sym.Simp.dischargeSimpSelf
+
+namespace General
+
+/--
+This is more or less `Lean.meta.Tactic.Cbv.zetaReduce`, which seems to not be exported.
+-/
+private def zetaReduce : Simproc := fun e => do
+  let .letE _ _ value body _ := e | return .rfl
+  let new := expandLet body #[value]
+  let new ← Sym.share new
+  return .step new (←Sym.mkEqRefl new)
+
+def zeta : MetaM Methods := do
+  return {
+    pre := zetaReduce
+  }
+
+def ground : MetaM Methods := do
+  return {
+    pre := evalGround
+  }
+
+end General
+
+namespace Vector
+
+def foldlM : MetaM Methods :=
+  mkPostMethodsDS #[
+    ``Vector.foldlM_mk, ``List.foldlM_toArray,
+
+    ``List.foldlM_cons, ``List.foldlM_nil
+  ]
+
+theorem test {α : Type} {xs : List Nat} {i : ℕ} : GetElem.getElem xs i sorry = 42 := sorry
+
+def append : MetaM Methods :=
+  mkPostMethodsDS #[
+    ``Vector.mk_append_mk, ``List.append_toArray,
+
+    ``List.cons_append, ``List.nil_append, ``List.append_nil
+  ]
+
+def getElem : MetaM Methods :=
+  mkPostMethods #[
+    ``Vector.getElem_mk, ``List.getElem_toArray,
+
+    ``List.getElem_cons_zero, ``List.getElem_cons_succ,
+  ]
+
+def gg : MetaM Methods :=
+  mkPostMethods #[
+    ``List.getElem_toArray
+  ]
+
+end Vector
+
+end
+
+end SymSets
+
+def compileExample (ex : Name) (simpset : Sym.Simp.Methods) (only : Bool := true) : Sym.Simp.SimpM Format := do
   compile (((←getEnv).find? ex).get!.value!) simpset only >>= (liftM ∘ PrettyPrinter.ppExpr)
 
-def spoon (m : Sym.SymM Format) : MetaM Format :=
-  m.run {}
-
 def eq0 (e : Nat) : Option Unit := .some ()
+
+def spoon (m : Sym.Simp.SimpM Format) : MetaM Format :=
+  m.run' {} |>.run
+
+namespace ExampruSym
+
+open SymSets Vector General
+
+def ex₀ : Option Unit := do
+  eq0 0
+  eq0 1
+  let _res ← ([0, 1].foldlM (init := ()) fun _ _ ↦ eq0 2)
+  eq0 3
+  return ()
+
+#eval spoon <| do compileExample ``ex₀ (←foldlM)
+#check  Sym.Simp.simpControl
+
+set_option trace.Clap.Compile true
+
+-- def ex₁ : Option Unit := do
+--   eq0 0
+--   eq0 1
+--   let _res ← (#v[0, 1, 2].mapM fun x ↦ return x + 1)
+--   eq0 3
+--   return ()
+
+def ex₁ (vec : Vector Nat 3) : Option Unit := do
+  eq0 #v[4, 5][0]
+  eq0 1
+  let res := #v[1, 2][0]
+  eq0 res
+  return ()
+
+#eval spoon <| do compileExample ``ex₁ ((←gg) ∪ (←getElem))
+
+end ExampruSym
+
+namespace Exampru
 
 def ex₀ : Expr := q(
   do eq0 0
@@ -476,7 +637,7 @@ def ex₀ : Expr := q(
      eq0 3
      return ()
 )                    
-
+set_option trace.Clap.Compile true
 /--
 info: (eq0 0).bind fun x =>
   (eq0 1).bind fun x =>
@@ -487,7 +648,7 @@ info: (eq0 0).bind fun x =>
   let res := compile ex₀
     (SimpSet.withAllPost #[``List.foldlM_cons, ``List.foldlM_nil]) >>=
     (liftM ∘ PrettyPrinter.ppExpr)
-  res.run default
+  res.run' default |>.run
 
 def ex₁ (n : Nat) : Option Unit := do
   eq0 0
@@ -499,14 +660,15 @@ def ex₁ (n : Nat) : Option Unit := do
 
 open CompileSets Vector
 
+set_option trace.Clap.Compile true
+
 /--
 info: fun n => do
   eq0 0
   (eq0 (n + 1)).bind fun a => (eq0 7).bind fun a => some ()
 -/
 #guard_msgs in
-#eval spoon <| compileExample ``ex₁
-        (foldlM ∪ getElem ∪ map ∪ explode)
+#eval spoon <| compileExample ``ex₁ (foldlM ∪ map ∪ getElem ∪ explode)
 
 -- def ex₂ (vec : Vector Nat 4) : Option Unit := do
 --   eq0 ((vec ++ vec)[0])

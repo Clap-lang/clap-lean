@@ -38,43 +38,60 @@ def sequenceAsVecExpr (name : Expr) (t : Expr) (len : Nat) : TermElabM Expr := d
   let u ← getDecLevel t
   inferVectorProof (mkAppN (.const ``Vector.mk [u]) #[t, toExpr len, array])
 
-def needsExploding (e : Expr) : SimpM Bool := do
+-- def needsExploding (e : Expr) : SimpM Bool := do
+--   let t ← inferType e
+--   return t.isAppOf ``Vector
+
+def explodeVector : Sym.Simp.Simproc := fun e ↦ do
   let t ← inferType e
-  return t.isAppOf ``Vector
+  let_expr Vector t sz := t | return .rfl  
+  unless e.isFVar do return .rfl
+  let sz' ← Sym.simp sz
+  match (sz'.getResultExpr sz).nat? with
+  | .none => throwError m!"{sz} does not simplify to ground"
+  | .some n => let explodedVec ← (sequenceAsVecExpr e t n).run'
+               trace[Clap.Compile.simp.kaboom] m!"Exploding:\n{e}\n==>\n{explodedVec}"
+               return .step explodedVec (←Sym.mkEqRefl e)
 
+-- /--
+-- Intended as `↑` in combination with `↓dontExplodeVector`.
 
-
-/--
-Intended as `↑` in combination with `↓dontExplodeVector`.
-
-- `vec : Vector α k ==> #v[vec[0], vec[1], ..., vec[k - 1]]`
--/
-dsimproc_decl explodeVector (_) := fun e ↦ do
-  let t ← inferType e
-  let_expr Vector t sz := t | return .continue
+-- - `vec : Vector α k ==> #v[vec[0], vec[1], ..., vec[k - 1]]`
+-- -/
+-- dsimproc_decl explodeVector (_) := fun e ↦ do
+--   let t ← inferType e
+--   let_expr Vector t sz := t | return .continue
   
-  if e.isFVar && (←needsExploding e)
-  then match (←Simp.simp sz).1.nat? with
-       | .none => logError m!"{(←Simp.simp sz).1} is not ground"
-                  return .done e
-       | .some n => let explodedVec ← (sequenceAsVecExpr e t n).run'
-                    trace[Clap.Compile.simp.kaboom] m!"Exploding:\n{e}\n==>\n{explodedVec}"
-                    return .done explodedVec
-  else return .continue
+--   if e.isFVar && (←needsExploding e)
+--   then match (←Simp.simp sz).1.nat? with
+--        | .none => logError m!"{(←Simp.simp sz).1} is not ground"
+--                   return .done e
+--        | .some n => let explodedVec ← (sequenceAsVecExpr e t n).run'
+--                     trace[Clap.Compile.simp.kaboom] m!"Exploding:\n{e}\n==>\n{explodedVec}"
+--                     return .done explodedVec
+--   else return .continue
 
-def rejectVectorSansProof (coll e : Expr) : SimpM Simp.DStep := do
-  let_expr Vector _ _ := ← inferType coll | return .continue
-  return .done e
+-- def rejectVectorSansProof (coll e : Expr) : SimpM Simp.DStep := do
+--   let_expr Vector _ _ := ← inferType coll | return .continue
+--   return .done e
 
+-- /--
+-- Use with `↓`.
+-- -/
+-- dsimproc_decl dontExplodeVector (GetElem.getElem _ _ _) := fun e ↦ do
+--   let_expr GetElem.getElem _ _ _ _ _ coll _ _ := e | unreachable!
+--   if coll.isFVar
+--   then
+--     rejectVectorSansProof coll e
+--   else 
+--     return .continue
+  
 /--
 Use with `↓`.
 -/
-dsimproc_decl dontExplodeVector (GetElem.getElem _ _ _) := fun e ↦ do
-  let_expr GetElem.getElem _ _ _ _ _ coll _ _ := e | unreachable!
-  if coll.isFVar
-  then
-    rejectVectorSansProof coll e
-  else 
-    return .continue
-  
+def dontExplodeVector : Sym.Simp.Simproc := fun e ↦ do
+  let_expr GetElem.getElem _ _ _ _ _ coll _ _ := e | return .rfl
+  unless coll.isFVar && (←inferType coll).isAppOf ``Vector do return .rfl
+  return .rfl (done := true)
+
 end Clap.Compiler
