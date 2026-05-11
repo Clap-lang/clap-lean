@@ -122,6 +122,10 @@ def config : Sym.Simp.Config :=
     maxSteps := 1_000_000
   }
 
+section Debug
+deriving instance Repr for Sym.Simp.Config
+end Debug
+
 instance : Union SimpSet := ⟨SimpSet.union⟩
 
 instance : Singleton Name SimpSet where
@@ -157,6 +161,10 @@ end API
 
 open API
 
+open Sym in
+def preprocessExpr (e : Expr) : SymM Expr := do
+  shareCommon (← unfoldReducible (← instantiateMVars e))
+
 set_option hygiene false in
 def mkSimp (simpset : SimpSet)
            (only singlePass : Bool := false) : Sym.Simp.SimpM (TSyntax `tactic) := do
@@ -170,16 +178,21 @@ def forceHeartbeats {α : Type} {m : Type → Type} [MonadWithReaderOf Core.Cont
   withTheReader Core.Context ({· with maxHeartbeats := heartBeats * 1000})
 
 set_option hygiene false in
-def simplify (simpset : Sym.Simp.Methods) (e : Expr) (only singlePass : Bool := false) : Sym.Simp.SimpM Expr := do
-  -- tryCatchRuntimeEx
-    -- (forceHeartbeats 300_000 do
-      lambdaTelescope e fun args body ↦ do
-        logInfo m!"Calling Sym.simp on:\n{body}"
-        let res ← Sym.simp body simpset config
-        logInfo m!"Result:\n{res.getResultExpr body}"
-        Sym.mkLambdaFVarsS args (res.getResultExpr body)
-    -- )
-    -- (fun _ ↦ do throwError s!"Simp Timeout:\n{←PrettyPrinter.ppExpr e}")
+def simplify (simpset : Sym.Simp.Methods) (e : Expr) : Sym.Simp.SimpM Expr := do
+  let e ← preprocessExpr e
+  tryCatchRuntimeEx
+    do return (←Sym.simp e simpset config).getResultExpr e
+    fun exc =>
+      throwError m!"***SIMP ERRROR***\nExpression:\n{e}\nInternal:\n{exc.toMessageData}"
+
+  -- lambdaTelescope e fun args body ↦ do
+  --   logInfo m!"Calling Sym.simp on:\n{body}\ncfg:{repr config}"
+  --   let res ← Sym.simp body simpset config
+  --   match res with
+  --   | .rfl e _ => logInfo m!"rfl"
+  --   | .step e prf _ _ => logInfo m!"step[e]:\n{e}\nstep[prf]:\n{prf}"
+  --   logInfo m!"Result:\n{res.getResultExpr body}"
+  --   Sym.mkLambdaFVarsS args (res.getResultExpr body)
 
 end Simp
 
