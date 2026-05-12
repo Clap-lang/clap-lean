@@ -8,21 +8,33 @@ open Lean Meta Elab Qq
 
 namespace Clap.Compiler
 
-def getElemVectorOfIdx (coll : Expr) (len idx : Nat) : TermElabM Expr := do
+-- def getElemVectorOfIdx (coll : Expr) (len idx : Nat) : Sym.Simp.SimpM Expr := do
+--   let idxQ : Q(Nat) := ToExpr.toExpr idx
+--   let szQ : Q(Nat) := mkNatLit len
+--   let getElemSansProof ← Meta.mkAppM ``GetElem.getElem #[coll, idxQ]
+--   let proof ← Sym.Simp.liftTermElabM (
+--                 Elab.Term.mkTacticMVar q($idxQ < $szQ) (←`(by get_elem_tactic)) .term
+--               )
+--   Sym.Simp.liftTermElabM Term.synthesizeSyntheticMVarsNoPostponing
+--   instantiateMVars <| mkAppN getElemSansProof #[proof]
+
+-- def inferVectorProof (vectorSansProof : Expr) : Sym.Simp.SimpM Expr := do
+--   let .forallE _ argT _ _ ← inferType vectorSansProof | unreachable!
+--   let proof ← Sym.Simp.liftTermElabM (Term.mkTacticMVar argT (←`(by simp)) .term)
+--   Sym.Simp.liftTermElabM Term.synthesizeSyntheticMVarsNoPostponing
+--   pure (Expr.app vectorSansProof proof) >>= instantiateMVars
+
+def getElemVectorOfIdx (coll : Expr) (len idx : Nat) : Sym.Simp.SimpM Expr := do
   let idxQ : Q(Nat) := ToExpr.toExpr idx
   let szQ : Q(Nat) := mkNatLit len
-  let getElemSansProof ← Meta.mkAppM ``GetElem.getElem #[coll, ToExpr.toExpr idx]
-  let proof ← Elab.Term.mkTacticMVar q($idxQ < $szQ) (←`(by get_elem_tactic)) .term
-  Term.synthesizeSyntheticMVarsNoPostponing
-  instantiateMVars <| mkAppN getElemSansProof #[proof]
+  let getElemSansProof ← Meta.mkAppM ``GetElem.getElem #[coll, idxQ]
+  return mkAppN getElemSansProof #[←mkSorry q($idxQ < $szQ) false]
 
-def inferVectorProof (vectorSansProof : Expr) : TermElabM Expr := do
+def inferVectorProof (vectorSansProof : Expr) : Sym.Simp.SimpM Expr := do
   let .forallE _ argT _ _ ← inferType vectorSansProof | unreachable!
-  let proof ← Term.mkTacticMVar argT (←`(by simp)) .term
-  Term.synthesizeSyntheticMVarsNoPostponing
-  pure (Expr.app vectorSansProof proof) >>= instantiateMVars
+  pure (Expr.app vectorSansProof (←mkSorry argT false)) >>= instantiateMVars
 
-def mkVecLit (l : Expr) (sz : Expr) : TermElabM Expr := do
+def mkVecLit (l : Expr) (sz : Expr) : Sym.Simp.SimpM Expr := do
   -- logInfo m!"mkVecLit:\n{l}\nsz:\n{sz}"
   let array ← mkAppM ``List.toArray #[l]
   let t := (←inferType array).getAppArgs[0]!
@@ -30,12 +42,12 @@ def mkVecLit (l : Expr) (sz : Expr) : TermElabM Expr := do
   let vectorSansProof := mkAppN (.const ``_root_.Vector.mk [u]) #[t, sz, array]
   inferVectorProof vectorSansProof
 
-def sequenceAsVecExpr (name : Expr) (t : Expr) (len : Nat) : TermElabM Expr := do
+def sequenceAsVecExpr (name : Expr) (t : Expr) (len : Nat) : Sym.Simp.SimpM Expr := do
   let array ← mkAppM ``List.toArray #[
     ←mkListLit t (←List.range len |>.mapM (getElemVectorOfIdx name len))
   ]
   let u ← getDecLevel t
-  inferVectorProof (mkAppN (.const ``Vector.mk [u]) #[t, toExpr len, array])
+  inferVectorProof (mkAppN (.const ``_root_.Vector.mk [u]) #[t, toExpr len, array])
 
 -- def needsExploding (e : Expr) : SimpM Bool := do
 --   let t ← inferType e
@@ -121,6 +133,7 @@ Use with `↓`.
 def dontExplodeVector : Sym.Simp.Simproc := fun e ↦ do
   let_expr GetElem.getElem _ _ _ _ _ coll _ _ := e | return .rfl
   unless coll.isFVar && (←inferType coll).isAppOf ``Vector do return .rfl
+  trace[Clap.Compile.simp.kaboom] m!"Done:\n{e}"
   return .rfl (done := true)
 
 /--
@@ -139,6 +152,61 @@ def explodeVector : Sym.Simp.Simproc := fun e ↦ do
   | .some n => let explodedVec ← (sequenceAsVecExpr e t n).run'
                trace[Clap.Compile.simp.kaboom] m!"Exploding:\n{e}\n==>\n{explodedVec}"
                return .step explodedVec (←mkSorry (←mkEq e explodedVec) false)
+
+def toVectorSequenceD (e : Expr) : Sym.Simp.SimpM (Option Expr) := do
+  unless e.isFVar do return .none
+  let_expr Vector t sz := ←inferType e | return .none
+  return .some (←sequenceAsVecExpr e t sz.nat?.get!)
+
+/-
+Ideally, we'd just use `explodeVector` and `dontExplodeVector`
+but marking things `done` in the case of `GetElem ... (.fvar _)` is not quite what the doctor ordered.
+
+Maybe some priority system like in `simp`... for now, we'll just have a `simproc` for each
+of the operations.
+-/
+
+/-
+TODO: Generalise.
+-/
+
+/--
+TODO: Proof. Viz. `abc'`.
+-/
+def explodeVectorAppend : Sym.Simp.Simproc := fun e ↦ do
+  let_expr HAppend.hAppend _ _ _ _ a b := e | return .rfl
+
+  let a? ← toVectorSequenceD a
+  let b? ← toVectorSequenceD b
+  if a?.isNone && b?.isNone then return .rfl
+
+  let append ← mkAppM ``HAppend.hAppend #[a?.getD a, b?.getD b]
+  return .step append (←mkSorry (←mkEq e append) false)
+
+/--
+TODO: Proof. Viz. `abc'`.
+-/
+def explodeVectorMap : Sym.Simp.Simproc := fun e ↦ do
+  let_expr Vector.map _ _ _ f xs := e | return .rfl
+
+  let xs ← toVectorSequenceD xs
+  match xs with
+  | .none => return .rfl
+  | .some xs => let map ← mkAppM ``Vector.map #[f, xs]
+                return .step map (←mkSorry (←mkEq e map) false)
+
+/--
+TODO: Proof. Viz. `abc'`.
+-/
+def explodeVectorMapM : Sym.Simp.Simproc := fun e ↦ do
+  let_expr Vector.mapM _ _ _ _ _ f xs := e | return .rfl
+
+  let xs ← toVectorSequenceD xs
+  match xs with
+  | .none => return .rfl
+  | .some xs => let map ← mkAppM ``Vector.mapM #[f, xs]
+                return .step map (←mkSorry (←mkEq e map) false)
+
 
 -- /--
 -- TODO: Thought experiment to explode on demand.

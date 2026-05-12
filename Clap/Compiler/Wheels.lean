@@ -74,6 +74,9 @@ def Lean.Meta.forallTelescopeOne!.{u}
     let #[arg] := args | panic! s!"Expected a single argument. Got: {args.size}"
     k arg body
 
+open Lean Meta Sym Elab in
+def Lean.Meta.Sym.Simp.liftTermElabM {α} (m : TermElabM α) : Sym.Simp.SimpM α := liftM m.run'
+
 register_simp_attr dbgSimp
 
 register_simp_attr compilerSimp
