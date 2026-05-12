@@ -604,6 +604,16 @@ private lemma foldr_stringBodies₀_length : ∀ (l acc : List (F p)) (x y : F p
     rw [ih]
     lia
 
+private lemma stringBodiesGo_length : ∀ (acc : List (F p)) (c x y : F p),
+  (stringBodiesGo c (acc, x, y)).1.length = acc.length + 1
+:= by
+  simp [stringBodiesGo]
+
+private lemma stringBodiesGo_acc : ∀ (acc : List (F p)) (c x y : F p),
+  ∃ r, (stringBodiesGo c (acc, x, y)).1 = r :: acc ∧ r = x * ((F.eqPure c ↑'\"'.toNat).and (FB.not y)).not
+:= by
+  simp [stringBodiesGo]
+
 private lemma foldr_stringBodies₁_length : ∀ (l acc : List (F p)) (x y : F p),
   (List.foldr stringBodiesGo (acc, x, y) l).1.length =
     (List.foldr stringBodiesGo ([], default, default) l).1.length + acc.length
@@ -642,31 +652,153 @@ lemma stringBodiesR_length (l : List (F p)) : (stringBodiesR l).length = l.lengt
 --     )
 -- := by sorry
 
-lemma quotes₂ : ∀ (t : List (F p)) (i : Fin (t.length + 1)) (i_pos : i.val > 0),
-  (stringBodiesR ('\"' :: t))[i]'(by simp [stringBodiesR_length]; lia) = 1 ↔
-    (stringBodiesR t)[i.val - 1]'(by simp [stringBodiesR_length]; lia) ≠ 1
+def isBinary (b : FB p) : Prop := b = 0 ∨ b = 1
+
+lemma zero_binary : isBinary 0 := by simp [isBinary]
+lemma one_binary : isBinary 1 := by simp [isBinary]
+lemma not_binary : ∀ b, isBinary b → isBinary b.not := by simp [isBinary]
+
+lemma quotesBin :
+  ∀ (l r : List (F p)) (q₀ q₁ e₀ e₁: FB p),
+    isBinary q₀ →
+    isBinary e₀ →
+    List.foldr stringBodiesGo ([], q₀, e₀) l = (r, q₁, e₁) →
+    isBinary q₁ ∧ isBinary e₁
 := by
-  intro t i i_pos
-  unfold stringBodiesR
-  simp only [List.reverse_cons]
-  unfold stringBodiesRev₁
-  simp only [List.foldr_concat, stringBodiesGo]
-  simp only [default, zero_mul, FB.xor, FB.not]
-  ring_nf
-  simp only [FB.and, mul_one]
-  simp_all only
-    [ Char.isValue,
-      Char.reduceToNat,
-      ne_eq,
-      -- Nat.reduceEqDiff,
-      -- not_false_eq_true,
-      Nat.cast_ofNat,
-      -- List.foldr_reverse,
-      -- Fin.getElem_fin
-    ]
-  simp_all
-  -- simp only [stringBodiesRev₁.go]
-  sorry
+  intro l
+  induction l with
+  | nil =>
+    intro r q₀ q₁ e₀ e₁
+    simp
+    rintro is_bin₁ is_bin₂ rfl rfl rfl
+    exact ⟨is_bin₁, is_bin₂⟩
+  | cons h t ih =>
+    intro r q₀ q₁ e₀ e₁ is_bin₁ is_bin₂ heq
+    let (eq := heq₂) (r', q', e') := List.foldr stringBodiesGo ([], q₀, e₀) t
+    simp at heq
+    specialize ih r' q₀ q' e₀ e' is_bin₁ is_bin₂ heq₂
+    rcases ih with ⟨ih_q, ih_e⟩
+    rw [heq₂] at heq
+    simp [stringBodiesGo] at heq
+    rcases heq with ⟨_, heq_q, heq_e⟩
+    simp [FB.xor, F.eqPure, isZeroPure, sub_eq_zero] at heq_q heq_e
+    rw [←heq_q, ←heq_e]
+    rcases ih_q <;> rcases ih_e <;> simp_all <;> grind [zero_binary, one_binary]
+
+-- lemma quotesABC' :
+--   ∀ (l r : List (F p)) (q₀ q₁ e₀ e₁: FB p),
+--     isBinary q₀ →
+--     isBinary e₀ →
+--     List.foldr stringBodiesGo ([], q₀, e₀) l = (r, q₁, e₁) →
+--     List.foldr stringBodiesGo ([], q₀.not, e₀) l = (r.map FB.not, q₁.not, e₁)
+-- := by
+--   intro l
+--   induction l with
+--   | nil => grind
+--   | cons h t ih =>
+--     rintro r q₀ q₁ e₀ e₁ q₀_bin e₀_bin heq
+--     simp only
+--       [ List.foldr_cons,
+--         stringBodiesGo,
+--         FB.and,
+--         Prod.mk.injEq
+--       ] at ⊢ heq
+--     let (eq := heq₂) (r', q', e') := List.foldr stringBodiesGo ([], q₀, e₀) t
+--     specialize ih r' q₀ q' e₀ e' q₀_bin e₀_bin heq₂
+--     rw [heq₂] at heq
+--     simp at heq
+--     rcases heq with ⟨heq₁, heq₂, heq₃⟩
+--     rw [ih] at ⊢
+--     simp only [↓Char.isValue, Char.reduceToNat, Nat.cast_ofNat]
+--     constructor
+--     · subst heq₁ heq₂ heq₃
+--       simp_all only [List.map_cons, List.cons.injEq, and_true]
+--       have : isBinary q' ∧ isBinary e' :=
+--         quotesBin _ _ _ _ _ _ q₀_bin e₀_bin heq₂
+--       unfold isBinary at this
+--       rcases this with ⟨(eq₁ | eq₁), (eq₂ | eq₂)⟩ <;> by_cases h = 34 <;> simp_all
+
+--     · sorry
+--     sorry
+
+-- lemma quotesABC :
+--   ∀ (l : List (F p)) (acc₁ acc₂ : List (FB p)) (e q : FB p) (i : Fin (l.length + 1)) (i_pos : i > 0),
+--   (List.foldr stringBodiesGo (acc₁, q, e) l.reverse).1[l.length - i]'
+--     (by
+--       have := stringBodies₁_length l.reverse
+--       unfold stringBodiesRev₁ at this
+--       grind [foldr_stringBodies₁_length]
+--     )
+--     =
+--   FB.not (
+--     (List.foldr stringBodiesGo (acc₂, q.not, e) l.reverse).1[l.length - i]'
+--     (by
+--       have := stringBodies₁_length l.reverse
+--       unfold stringBodiesRev₁ at this
+--       grind [foldr_stringBodies₁_length]
+--     )
+--   )
+-- := by
+--   intro l acc₁ acc₂ e q i i_pos
+
+  -- symm
+  -- conv => left; arg 1; arg 2; rw [←add_zero (l.length - _)]
+  -- have := stringBodies₁_length l.reverse
+  -- unfold stringBodiesRev₁ at this
+  -- rw
+  --   [ ←List.getElem_drop
+  --       (h := by grind [List.length_drop, foldr_stringBodies₁_length])
+  --   ]
+
+  -- sorry
+
+-- TODO: Restate in terms of `≠ 0` and `= 0`
+-- lemma quotes₂ : ∀ (l : List (F p)) (i : Fin (l.length + 1)) (i_pos : i.val > 0),
+--   (stringBodiesR ('\"' :: l))[i]'(by simp [stringBodiesR_length]; lia) = 1 ↔
+--     (stringBodiesR l)[i.val - 1]'(by simp [stringBodiesR_length]; lia) ≠ 1
+-- := by
+--   intro l i i_pos
+--   unfold stringBodiesR
+--   simp only [List.reverse_cons]
+--   unfold stringBodiesRev₁
+--   simp only [List.foldr_concat, stringBodiesGo]
+--   simp only [default, zero_mul, FB.xor, FB.not]
+--   ring_nf
+--   simp only [FB.and, mul_one]
+--   simp_all only
+--     [ Char.isValue,
+--       Char.reduceToNat,
+--       ne_eq,
+--       Nat.cast_ofNat,
+--     ]
+--   simp only
+--     [F.eqPure, isZeroPure, Clap.Spec.Compiler.isZero, sub_eq_zero, if_true]
+--   have :
+--     @OfNat.ofNat (F p) 34 instOfNatAtLeastTwo ≠ @OfNat.ofNat (F p) 92 instOfNatAtLeastTwo
+--   := by
+--     grind
+--   simp only [Option.get]
+--   simp only [this, ↓dreduceIte, Fin.getElem_fin, List.getElem_reverse]
+--   have h_len := stringBodies₁_length l.reverse
+--   unfold stringBodiesRev₁ at h_len
+--   conv =>
+--     left; arg 1; arg 2; arg 1
+--     rw [foldr_stringBodies₁_length, h_len, List.length_reverse]
+--     simp
+--   conv =>
+--     right; arg 1; arg 1; arg 2
+--     rw [foldr_stringBodies₁_length, h_len, List.length_reverse]
+--     simp
+--     rw [Nat.sub_sub_sub_cancel_right (by lia)]
+  -- simp
+  -- simp [List.getElem_map]
+
+  -- rw [quotesABC (acc₂ := []) (i_pos := by lia)]
+  -- simp only [FB.not]
+  -- simp
+  -- Close enouth for now
+  -- TODO: Restate in terms of `≠ 0` and `= 0`
+  -- sorry
 
 lemma quotes₃ : ∀ (h : F p) (t : List (F p)) (i : Fin (t.length + 1))
   (i_pos : i.val > 0)
@@ -676,16 +808,16 @@ lemma quotes₃ : ∀ (h : F p) (t : List (F p)) (i : Fin (t.length + 1))
     (stringBodiesR t)[i.val - 1]'(by simp [stringBodiesR_length]; lia) = 1
 := by sorry
 
-lemma quotes₁ (l : List (F p)) (i : Fin (l.length + 1)) (i_pos : i.val > 0) :
-  isInQuotes ('\"' :: l) i = ¬ isInQuotes l ⟨i-1, by lia⟩
-:= by
-  induction l with
-  | nil =>
-    simp [isInQuotes]
-    grind
-  | cons h t ih =>
-    simp [isInQuotes]
-    sorry
+-- lemma quotes₁ (l : List (F p)) (i : Fin (l.length + 1)) (i_pos : i.val > 0) :
+--   isInQuotes ('\"' :: l) i = ¬ isInQuotes l ⟨i-1, by lia⟩
+-- := by
+--   induction l with
+--   | nil =>
+--     simp [isInQuotes]
+--     grind
+--   | cons h t ih =>
+--     simp [isInQuotes]
+--     sorry
 
 lemma isInQuotes_esc (x : F p) (xs : List (F p)) (i : Fin (xs.length + 2)) (i_pos : i.val > 1) :
   isInQuotes ('\\' :: x :: xs) i = isInQuotes xs ⟨i-2, by lia⟩
@@ -739,6 +871,7 @@ lemma isInQuotes_zero (l : List (F p)) (_ : ¬l.isEmpty) :
   simp [isInQuotes, isQuotation]
   unfold_projs
   simp
+
 
 lemma drop_len init (l : List (F p)) :
   (List.foldr stringBodiesGo init l).1.drop l.length = init.1
@@ -804,12 +937,45 @@ lemma stringBodies_pure : ∀ l, stringBodiesGet l = stringBodiesR l := by
   unfold stringBodiesGet
   simp [stringBodies_some]
 
+lemma quotation_zero (l : List (F p)) (i : Fin l.length) :
+  isQuotation l i → (stringBodiesR l)[i]'(by simp [stringBodiesR_length]) ≠ 1
+:= by
+  rcases i with ⟨iVal, i_lt⟩
+  revert iVal
+  induction l using List.reverseRec with
+  | nil => grind
+  | append_singleton l a ih =>
+    intro i i_lt isQ
+    unfold stringBodiesR stringBodiesRev₁ at ih ⊢
+    simp [-List.foldr_reverse] at ⊢ isQ
+    let r₁ := List.foldr stringBodiesGo ([], default, default) l.reverse
+    have r₁_def : r₁ = l.reverse.foldr stringBodiesGo ([], default, default) := by rfl
+    conv => arg 1; left; arg 2; arg 1; rw [←r₁_def]
+    rcases r₁ with ⟨x, y, z⟩
+    conv => arg 1; left; arg 2; arg 1; arg 1; rw [stringBodiesGo_length]
+    conv => arg 1; left; arg 1; rw [←r₁_def]
+    simp
+    have := stringBodiesGo_acc x a y z
+    rcases this with ⟨r, hr₁, hr₂⟩
+    simp [hr₁, hr₂]
+    conv at ih => ext i; arg 2; arg 2; left; arg 1; rw [←r₁_def]
+    simp at ih
+    rw [List.getElem_cons]
+    split
+    · sorry
+    · conv => arg 1; arg 1; arg 2; rw [Nat.sub_sub, Nat.add_comm, ←Nat.sub_sub]
+      apply ih
+      · sorry
+      · sorry
+
 theorem isInQuotes_iff (l : List (F p)) :
   ∀ i : Fin l.length,
     isInQuotes l i ↔ (stringBodiesGet l)[i]'(by simp[stringBodiesGet_length]) = 1
 := by
   intro i
   conv => right; arg 1; arg 1; rw [stringBodies_pure l]
+  -- by_cases hq : isQuotation l i
+  -- · simp [isInQuotes, hq]; sorry
   induction l using List.twoStepInduction with
   | nil =>
     simp at i
@@ -826,12 +992,13 @@ theorem isInQuotes_iff (l : List (F p)) :
     by_cases h_quotes : h₁ = '"'
     · by_cases i_pos : i > 0
       · subst h_quotes
-        rw [quotes₁ (h₂ :: t) i i_pos]
-        simp only [ih₂ h₂, Fin.getElem_fin, List.length_cons]
-        have := quotes₂ (h₂ :: t) i i_pos
-        simp at this
-        rw [←this]
-        simp
+        -- rw [quotes₁ (h₂ :: t) i i_pos]
+        -- simp only [ih₂ h₂, Fin.getElem_fin, List.length_cons]
+        -- have := quotes₂ (h₂ :: t) i i_pos
+        -- simp at this
+        -- rw [←this]
+        -- simp
+        sorry
       · simp at i_pos
         subst i_pos
         simp [stringBodies_zero, isInQuotes]
