@@ -641,20 +641,31 @@ def getElemDbg : Sym.Simp.Simproc := fun e ↦ do
   -- match thmrw with
   -- | .rfl _ _ => logInfo m!"Rewrite failed."
   -- | .step e' _ _ _ => logInfo m!"Success. e: {e'}"
-  -- match ← thm.pattern.match? e with
+  -- match ←thm.pattern.unify? e with
+  -- | .none => logInfo m!"NO UNIFY"
+  -- | .some res => logInfo m!"UNIFY OK!:\n{res.args}"
+  
+  let esimped ← e.runTactic (←`(tactic|rw! (castMode := .all) [Nat.add_zero]))
+  -- let esimped := (← (Sym.simp e (←mkPostMethods #[``Nat.add_zero]))).getResultExpr e
+
+  match ← thm.pattern.match? e with
+  | .none => logInfo m!"NO MATCH:\n{e}\n=?=\n{thm.pattern.pattern}"
+  | .some e' => logInfo m!"OK!: {e'.args}"
+
+  match ← thm.pattern.match? esimped with
+  | .none => logInfo m!"NO MATCH SIMPED:\n{esimped}\n=?=\n{thm.pattern.pattern}"
+  | .some e' => logInfo m!"OK!: {e'.args}\n"
+  -- match ← thm.pattern.match? ((← unfoldReducible (← instantiateMVars e))) with
   -- | .none => logInfo m!"did not match"
   -- | .some e => logInfo m!"OK!: {e.args}"
-  match ← thm.pattern.match? ((← unfoldReducible (← instantiateMVars e))) with
-  | .none => logInfo m!"did not match"
-  | .some e => logInfo m!"OK!: {e.args}"
 
   return .rfl
 
 def getElem : MetaM Methods :=
   mkPostMethods #[
-    ``Vector.getElem_mk, ``List.getElem_toArray,
+    -- ``Vector.getElem_mk, ``List.getElem_toArray,
 
-    ``List.getElem_cons_zero, ``List.getElem_cons_succ,
+    -- ``List.getElem_cons_zero, ``List.getElem_cons_succ,
 
     ``getElemDbg
   ]
@@ -745,27 +756,28 @@ info: (eq0 0).bind fun x =>
 -- set_option trace.Clap.Compile true
 
 def ex₁ (vec : Vector Nat 3) : Option Unit := do
-  eq0 #v[4, 5][0]
+  eq0 <| GetElem.getElem #v[4] 0 (by sorry)
+  -- eq0 #v[4, 5][0]
 
-/-- info: fun vec => eq0 4 -/
-#guard_msgs in
-#eval spoon <| do compileExample ``ex₁ (←getElem)
+-- /-- info: fun vec => eq0 4 -/
+-- #guard_msgs in
+-- #eval spoon <| do compileExample ``ex₁ (←getElem)
 
-def ex₂ (vec : Vector Nat 3) : Option Unit := do
-  let x := (vec ++ vec)[0]
-  eq0 x
+-- def ex₂ (vec : Vector Nat 3) : Option Unit := do
+--   let x := (vec ++ vec)[0]
+--   eq0 x
 
-/-- info: fun vec => eq0 vec[0] -/
-#guard_msgs in
-#eval spoon <| do compileExample ``ex₂ (←(append ∪ zeta ∪ getElem))
+-- /-- info: fun vec => eq0 vec[0] -/
+-- #guard_msgs in
+-- #eval spoon <| do compileExample ``ex₂ (←(append ∪ zeta ∪ getElem))
 
-def ex₃ (vec : Vector Nat 3) : Option Unit := do
-  let x := vec.map (·+1)
-  eq0 x[0]
+-- def ex₃ (vec : Vector Nat 3) : Option Unit := do
+--   let x := vec.map (·+1)
+--   eq0 x[0]
 
 /-- info: fun vec => eq0 (vec[0] + 1) -/
-#guard_msgs in
-#eval spoon <| do compileExample ``ex₃ (←(map ∪ zeta ∪ getElem))
+-- #guard_msgs in
+-- #eval spoon <| do compileExample ``ex₃ (←(map ∪ zeta ∪ getElem))
 
 def ex₄ (vec : Vector Nat 1) : Option Unit := do
   let x ← vec.mapM (fun x ↦ return x + 1)
@@ -773,8 +785,44 @@ def ex₄ (vec : Vector Nat 1) : Option Unit := do
 
 #check Nat.sub_add_cancel
 set_option trace.Clap.Compile true
-
+set_option pp.proofs true in
 #eval spoon <| do compileExample ``ex₄ (←(ground ∪ mapM ∪ getElem ∪ zeta))
+
+-- not ok
+-- @GetElem.getElem
+--   (Vector ℕ 1)
+--   ℕ
+--   ℕ
+--   (fun x i => i < 1)
+--   instGetElemNatLt
+--   (Vector.mk - CAREFUL: The type of this has to match the type of GetElem up to defeq.
+--     { toList := [vec[0] + 1] }
+--     (Eq.trans <some eq> ▸ mk_append_mk._proof_1 rfl sorry))
+--   0
+--   ex₄._proof_2
+
+-- ok
+-- @GetElem.getElem
+--   (Vector ℕ 2) 
+--   ℕ
+--   ℕ
+--   (fun x i => i < 2)
+--   instGetElemNatLt
+--   (Vector.mk
+--     { toList := [4, 5] }
+--     ex₁._proof_2)
+--   0
+--   ex₁._proof_3
+
+-- @GetElem.getElem
+--   (Vector #5 #4)
+--   ℕ
+--   #5
+--   (fun x i => i < #4)
+--   instGetElemNatLt
+--   (Vector.mk #3 #2)
+--   #1
+--   #0
 
 #exit
 
