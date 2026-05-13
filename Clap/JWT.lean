@@ -530,17 +530,21 @@ def isQuotation (l : List (F p)) (i : Fin l.length) : Bool :=
   | 0 => l[i] = '"'
   | i' + 1 => l[i] = '"' ∧ ¬ isEscape l ⟨i', by lia⟩
 
+def oddNrQuotesUntil (l : List (F p)) (i : Fin l.length) : Bool :=
+  Odd {j | j < i ∧ isQuotation l j}.toFinset.card
+
 -- def isInQuotes (l : List (F p)) (i : Fin l.length) : Prop :=
 def isInQuotes (l : List (F p)) (i : Fin l.length) : Bool :=
-  ¬isQuotation l i ∧ Odd {j | j < i ∧ isQuotation l j}.toFinset.card
+  ¬isQuotation l i ∧ oddNrQuotesUntil l i
 
 private def stringBodiesGo : F p → List (FB p) × FB p × FB p → List (FB p) × FB p × FB p :=
-  fun c (acc, openedQuotes, escaped) ↦
-    let isNonEscQuotationMark := FB.and (F.eqPure c '\"') (FB.not escaped)
-    let acc' := openedQuotes * FB.not isNonEscQuotationMark :: acc
-    let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
-    let escaped' := FB.and (F.eqPure c '\\') (FB.not escaped)
-    (acc', openedQuotes', escaped')
+  fun c (res₀, oddNrQuotesUntil₀, isEscape₀) ↦
+    let isQuotation := FB.and (F.eqPure c '\"') (FB.not isEscape₀)
+    let isEscape := FB.and (F.eqPure c '\\') (FB.not isEscape₀)
+    let isInQuotes := FB.and oddNrQuotesUntil₀ (FB.not isQuotation)
+    let res := isInQuotes :: res₀
+    let oddNrQuotesUntil := FB.xor oddNrQuotesUntil₀ isQuotation
+    (res, oddNrQuotesUntil, isEscape)
 
 theorem stringBodies_go_some :
   ∀ (c : F p) (acc : List (F p)) (openedQuotes escaped : FB p),
@@ -868,7 +872,7 @@ lemma isQ_eq (h : F p) (t : List (F p)) (i : Fin (t.length + 1))
 lemma isInQuotes_zero (l : List (F p)) (_ : ¬l.isEmpty) :
   isInQuotes l ⟨0, by grind⟩ = false
 := by
-  simp [isInQuotes, isQuotation]
+  simp [isInQuotes, isQuotation, oddNrQuotesUntil]
   unfold_projs
   simp
 
@@ -900,7 +904,7 @@ lemma stringBodies_zero (l : List (F p)) (nonempty : ¬l.isEmpty) :
     conv => left; arg 1; rw [←List.length_reverse]
     conv => left; arg 1; rw [drop_len]
     unfold stringBodiesGo
-    simp only [List.getElem_cons_zero, mul_eq_zero]
+    simp only [List.getElem_cons_zero, mul_eq_zero, FB.and]
     left
     simp only [default]
 
@@ -937,9 +941,40 @@ lemma stringBodies_pure : ∀ l, stringBodiesGet l = stringBodiesR l := by
   unfold stringBodiesGet
   simp [stringBodies_some]
 
+#check List.dropLast_append_getLast
+
 lemma quotation_zero (l : List (F p)) (i : Fin l.length) :
   isQuotation l i → (stringBodiesR l)[i]'(by simp [stringBodiesR_length]) ≠ 1
 := by
+  -- rcases i with ⟨iVal, i_lt⟩
+  -- revert iVal
+  -- induction l using List.reverseRec with
+  -- | nil => grind
+  -- | append_singleton l a ih =>
+  --   intro i i_lt isQ
+  --   by_cases hl : l = []
+  --   · subst hl
+  --     simp [stringBodiesR, stringBodiesRev₁, stringBodiesGo, default]
+  --   · have hl_app := List.dropLast_append_getLast hl
+  --     conv => left; arg 1; rw [←hl_app]
+  --     rcases i with (_ | i')
+  --     · simp [stringBodies_zero]
+  --     · simp [isQuotation] at isQ
+  --       unfold stringBodiesR stringBodiesRev₁ at ih ⊢
+  --       simp only
+  --         [ List.append_assoc,
+  --           List.cons_append,
+  --           List.nil_append,
+  --           List.reverse_append,
+  --           List.reverse_cons,
+  --           List.reverse_nil,
+  --           -- List.foldr_cons,
+  --           -- Fin.getElem_fin,
+  --           -- List.getElem_reverse,
+  --           -- ne_eq
+  --           ]
+  --       rcases isQ with ⟨isQ₁, isQ₂⟩
+  --       unfold isEscape at isQ₂
   rcases i with ⟨iVal, i_lt⟩
   revert iVal
   induction l using List.reverseRec with
@@ -1001,7 +1036,7 @@ theorem isInQuotes_iff (l : List (F p)) :
         sorry
       · simp at i_pos
         subst i_pos
-        simp [stringBodies_zero, isInQuotes]
+        simp [stringBodies_zero, isInQuotes, oddNrQuotesUntil]
         intro; use 0; simp; grind
     · by_cases i_pos : i > 0
       · by_cases h_esc : h₁ = '\\'
@@ -1029,6 +1064,7 @@ theorem isInQuotes_iff (l : List (F p)) :
               simp
               constructor
               · rintro ⟨_, h_odd⟩
+                simp [oddNrQuotesUntil] at h_odd
                 simp [Finset.card, Odd] at h_odd
                 rcases h_odd with ⟨k, hk⟩
                 have :
@@ -1069,7 +1105,7 @@ theorem isInQuotes_iff (l : List (F p)) :
           unfold isInQuotes
           simp only [Bool.not_eq_true, Bool.decide_and, Bool.decide_eq_false,
             Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_true_eq,
-            and_congr_right_iff]
+            and_congr_right_iff, oddNrQuotesUntil]
           intro isq
           have h_odd (a b : ℕ) : a = b → (Odd a ↔ Odd b) := by
             rintro rfl; trivial
