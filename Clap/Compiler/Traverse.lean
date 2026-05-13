@@ -616,7 +616,7 @@ def ground : MetaM Methods := do
 end General
 
 namespace Vector
-
+-- mk_append_mk is being naughty
 def append : MetaM Methods :=
   mkPostMethods #[
     ``Vector.mk_append_mk, ``List.append_toArray,
@@ -743,8 +743,8 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
     -- logInfo m!"thatGuy: {thatGuy}"
     let thisGuy := appendHdTl
     let thisGuy := thatGuy
-    logInfo m!"INFER: {←Sym.inferType thisGuy}"
-    let mapM ← mkAppM ``_root_.Vector.mapM #[f, appendHdTl]
+    -- logInfo m!"INFER: {←Sym.inferType thisGuy}"
+    let mapM ← mkAppM ``_root_.Vector.mapM #[f, thisGuy]
     let theMiddleBit ←
       if szN == 1
       then mkVecLit (←mkListLit t [.bvar 1]) (mkNatLit 1)
@@ -762,7 +762,7 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
               ←mkVecLit (←mkListLit t [.bvar 1]) (mkNatLit 1),
               .bvar 0
             ]
-    logInfo m!"theMiddleBit: {theMiddleBit}"
+    logInfo m!"theMiddleBit: {theMiddleBit}\nt: {←Sym.inferType theMiddleBit}"
     let consMapM ←
       mkAppM ``Option.bind #[
         f.beta #[hd],
@@ -776,7 +776,7 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
           ])
           .default 
       ]
-    logInfo m!"What this: {consMapM}"
+    -- logInfo m!"What this: {consMapM}"
     -- let consMapM ←
     --   mkAppM ``Option.bind #[
     --     .app f hdVec,
@@ -796,6 +796,7 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
     --       .default 
     --   ]
     -- logInfo m!"What is this: {consMapM}"
+    
     
     return .step consMapM (←mkSorry (←mkEq e mapM) false)
     

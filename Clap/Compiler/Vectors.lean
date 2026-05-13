@@ -32,6 +32,7 @@ def getElemVectorOfIdx (coll : Expr) (len idx : Nat) : Sym.Simp.SimpM Expr := do
 
 def inferVectorProof (vectorSansProof : Expr) : Sym.Simp.SimpM Expr := do
   let .forallE _ argT _ _ ← inferType vectorSansProof | unreachable!
+  logInfo m!"vectorSansProof: {vectorSansProof}\ntype: {←inferType vectorSansProof}"
   pure (Expr.app vectorSansProof (←mkSorry argT false)) >>= instantiateMVars
 
 def mkVecLit (l : Expr) (sz : Expr) : Sym.Simp.SimpM Expr := do
@@ -42,11 +43,15 @@ def mkVecLit (l : Expr) (sz : Expr) : Sym.Simp.SimpM Expr := do
   let vectorSansProof := mkAppN (.const ``_root_.Vector.mk [u]) #[t, sz, array]
   inferVectorProof vectorSansProof
 
+/--
+TODO: Use mkVecLit
+-/
 def sequenceAsVecExpr (name : Expr) (t : Expr) (len : Nat) : Sym.Simp.SimpM Expr := do
   let array ← mkAppM ``List.toArray #[
     ←mkListLit t (←List.range len |>.mapM (getElemVectorOfIdx name len))
   ]
   let u ← getDecLevel t
+  -- logInfo m!"sequenceAsVecExpr: {←inferType (←inferVectorProof (mkAppN (.const ``_root_.Vector.mk [u]) #[t, toExpr len, array]))}"
   inferVectorProof (mkAppN (.const ``_root_.Vector.mk [u]) #[t, toExpr len, array])
 
 -- def needsExploding (e : Expr) : SimpM Bool := do
