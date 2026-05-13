@@ -700,29 +700,63 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
   | .none => throwError m!"{sz} does not simplify to ground. Expr:\n{e}"
   | .some szN =>
     if szN == 0 then return .rfl
-    let hdList ← mkVecLit (←mkListLit t [hd]) (mkNatLit 1)
+    let hdVec ← mkVecLit (←mkListLit t [hd]) (mkNatLit 1)
     let tl ← mkVecLit tl (toExpr (szN - 1)) -- Doing `-1` feels scary
-    let appendHdTl ← mkAppM ``HAppend.hAppend #[hdList, tl]
+    let appendHdTl ← mkAppM ``HAppend.hAppend #[hdVec, tl]
     let mapM ← mkAppM ``_root_.Vector.mapM #[f, appendHdTl]
+
     let consMapM ←
-      mkAppM ``Bind.bind #[
-        .app f hdList,
+      mkAppM ``Option.bind #[
+        .app f hdVec,
         .lam `fst t
-          (←mkAppM ``Bind.bind #[
+          (←mkAppM ``Option.bind #[
                      ←mkAppM ``Vector.mapM #[f, tl],
                      .lam `snd (←Sym.inferType tl)
-                       (←mkAppM ``Pure.pure #[←mkAppM ``HAppend.hAppend _])
+                       (←mkAppM ``Option.some #[
+                         mkAppN
+                          (.const ``HAppend.hAppend [
+                            ←getDecLevel (←Sym.inferType hdVec),
+                            ←getDecLevel (←Sym.inferType tl),
+                            ←getDecLevel (←Sym.inferType appendHdTl)
+                          ]) #[
+                           ←Sym.inferType hdVec,
+                           ←Sym.inferType tl,
+                           ←Sym.inferType appendHdTl,
+                           ←Sym.synthInstance (←mkAppM ``HAppend #[←Sym.inferType hdVec,←Sym.inferType tl,←Sym.inferType appendHdTl,]),
+                           ←mkVecLit (←mkListLit t [.bvar 1]) (mkNatLit 1),
+                          --  ←mkVecLit (←mkListLit t [.bvar 1]) (mkNatLit 1),
+                           .bvar 0
+                         ]
+                       ])
                        .default
-            ])
+          ])
           .default 
       ]
-    _
+    logInfo m!"What is this: {consMapM}"
 
-
-    -- -- TODO: I am guessing this is... slow?
-    -- let consMapM ← mapM.runTactic (←`(tactic| rw[$(mkIdent ``Vector.mapM_mk_singleton_append):ident]))
-    -- -- TODO: Puh-ROOF!
-    -- return .step consMapM (←mkSorry (←mkEq e mapM) false)
+    -- let consMapM ←
+    --   mkAppM ``Option.bind #[
+    --     .app f hdVec,
+    --     .lam `fst t
+    --       (←mkAppM ``Option.bind #[
+    --                  ←mkAppM ``Vector.mapM #[f, tl],
+    --                  .lam `snd (←Sym.inferType tl)
+    --                    (←mkAppM ``Option.some #[
+    --                      ←mkAppM ``HAppend.hAppend #[
+    --                        ←mkVecLit (←mkListLit t [.bvar 1]) (mkNatLit 1),
+    --                        ←mkVecLit (←mkListLit t [.bvar 1]) (mkNatLit 1),
+    --                       --  .bvar 0
+    --                      ]
+    --                    ])
+    --                    .default
+    --       ])
+    --       .default 
+    --   ]
+    -- logInfo m!"What is this: {consMapM}"
+    -- TODO: I am guessing this is... slow?
+    let consMapM ← mapM.runTactic (←`(tactic| rw[$(mkIdent ``Vector.mapM_mk_singleton_append):ident]))
+    -- TODO: Puh-ROOF!
+    return .step consMapM (←mkSorry (←mkEq e mapM) false)
 
 /--
 `Vector.mapM_mk_singleton_append` is a part of `Vector.mapM_mk_append` to ensure that
