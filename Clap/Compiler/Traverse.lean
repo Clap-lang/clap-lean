@@ -680,7 +680,7 @@ def map : MetaM Methods :=
   ] ∪ mapOptim
   where
     mapOptim : MetaM Methods := mkPreMethods #[``List.map_id]
-
+#check Vector.mapM_mk_singleton_append
 /--
 0. Only for `Vector.mapM f xs`.
 1. Vector.mapM f #v[a, b, c] → Vector.mapM f (#v[a] ++ #v[b, c])
@@ -700,14 +700,29 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
   | .none => throwError m!"{sz} does not simplify to ground. Expr:\n{e}"
   | .some szN =>
     if szN == 0 then return .rfl
-    let hd ← mkVecLit (←mkListLit t [hd]) (mkNatLit 1)
-    let tl ← mkVecLit tl (toExpr (szN - 1))
-    let consHdTl ← mkAppM ``HAppend.hAppend #[hd, tl]
-    let mapM ← mkAppM ``_root_.Vector.mapM #[f, consHdTl]
-    -- TODO: I am guessing this is... slow?
-    let consMapM ← mapM.runTactic (←`(tactic| rw[$(mkIdent ``Vector.mapM_mk_singleton_append):ident]))
-    -- TODO: Puh-ROOF!
-    return .step consMapM (←mkSorry (←mkEq e mapM) false)
+    let hdList ← mkVecLit (←mkListLit t [hd]) (mkNatLit 1)
+    let tl ← mkVecLit tl (toExpr (szN - 1)) -- Doing `-1` feels scary
+    let appendHdTl ← mkAppM ``HAppend.hAppend #[hdList, tl]
+    let mapM ← mkAppM ``_root_.Vector.mapM #[f, appendHdTl]
+    let consMapM ←
+      mkAppM ``Bind.bind #[
+        .app f hdList,
+        .lam `fst t
+          (←mkAppM ``Bind.bind #[
+                     ←mkAppM ``Vector.mapM #[f, tl],
+                     .lam `snd (←Sym.inferType tl)
+                       (←mkAppM ``Pure.pure #[←mkAppM ``HAppend.hAppend _])
+                       .default
+            ])
+          .default 
+      ]
+    _
+
+
+    -- -- TODO: I am guessing this is... slow?
+    -- let consMapM ← mapM.runTactic (←`(tactic| rw[$(mkIdent ``Vector.mapM_mk_singleton_append):ident]))
+    -- -- TODO: Puh-ROOF!
+    -- return .step consMapM (←mkSorry (←mkEq e mapM) false)
 
 /--
 `Vector.mapM_mk_singleton_append` is a part of `Vector.mapM_mk_append` to ensure that
