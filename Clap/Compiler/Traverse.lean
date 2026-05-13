@@ -580,7 +580,7 @@ end Monad
 namespace General
 
 /--
-This is more or less `Lean.meta.Tactic.Cbv.zetaReduce`, which seems to not be exported.
+This is more or less `Lean.Meta.Tactic.Cbv.zetaReduce`, which seems to not be exported.
 
 In `Sym`, maybe we can choose to not `zeta` certain things without breaking `simp`?
 -/
@@ -590,9 +590,22 @@ private def zetaReduce : Simproc := fun e => do
   let new ← Sym.share new
   return .step new (←Sym.mkEqRefl new)
 
+/--
+This is more or less `Lean.Meta.Tactic.Cbv.betaReduce`, which seems to not be exported.
+-/
+def betaReduce : Simproc := fun e => do
+  let new := e.headBeta
+  let new ← Sym.share new
+  return .step new (←Sym.mkEqRefl new)
+
 def zeta : MetaM Methods := do
   return {
     pre := zetaReduce
+  }
+
+def beta : MetaM Methods := do
+  return {
+    pre := betaReduce
   }
 
 def ground : MetaM Methods := do
@@ -645,16 +658,15 @@ def getElemDbg : Sym.Simp.Simproc := fun e ↦ do
   -- | .none => logInfo m!"NO UNIFY"
   -- | .some res => logInfo m!"UNIFY OK!:\n{res.args}"
   
-  let esimped ← e.runTactic (←`(tactic|rw! (castMode := .all) [Nat.add_zero]))
-  -- let esimped := (← (Sym.simp e (←mkPostMethods #[``Nat.add_zero]))).getResultExpr e
+  -- let esimped ← e.runTactic (←`(tactic|rw! (castMode := .all) [Nat.add_zero]))
 
   match ← thm.pattern.match? e with
   | .none => logInfo m!"NO MATCH:\n{e}\n=?=\n{thm.pattern.pattern}"
-  | .some e' => logInfo m!"OK!: {e'.args}"
+  | .some e' => logInfo m!"YOU TRIGGERED SON! OK!: {e'.args}"
 
-  match ← thm.pattern.match? esimped with
-  | .none => logInfo m!"NO MATCH SIMPED:\n{esimped}\n=?=\n{thm.pattern.pattern}"
-  | .some e' => logInfo m!"OK!: {e'.args}\n"
+  -- match ← thm.pattern.match? esimped with
+  -- | .none => logInfo m!"NO MATCH SIMPED:\n{esimped}\n=?=\n{thm.pattern.pattern}"
+  -- | .some e' => logInfo m!"OK!: {e'.args}\n"
   -- match ← thm.pattern.match? ((← unfoldReducible (← instantiateMVars e))) with
   -- | .none => logInfo m!"did not match"
   -- | .some e => logInfo m!"OK!: {e.args}"
@@ -663,11 +675,11 @@ def getElemDbg : Sym.Simp.Simproc := fun e ↦ do
 
 def getElem : MetaM Methods :=
   mkPostMethods #[
-    -- ``Vector.getElem_mk, ``List.getElem_toArray,
+    ``Vector.getElem_mk, ``List.getElem_toArray,
 
-    -- ``List.getElem_cons_zero, ``List.getElem_cons_succ,
+    ``List.getElem_cons_zero, ``List.getElem_cons_succ,
 
-    ``getElemDbg
+    -- ``getElemDbg
   ]
 
 def map : MetaM Methods :=
@@ -680,7 +692,7 @@ def map : MetaM Methods :=
   ] ∪ mapOptim
   where
     mapOptim : MetaM Methods := mkPreMethods #[``List.map_id]
-#check Vector.mapM_mk_singleton_append
+
 /--
 0. Only for `Vector.mapM f xs`.
 1. Vector.mapM f #v[a, b, c] → Vector.mapM f (#v[a] ++ #v[b, c])
@@ -702,37 +714,39 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
     if szN == 0 then return .rfl
     let hdVec ← mkVecLit (←mkListLit t [hd]) (mkNatLit 1)
     let tl ← mkVecLit tl (toExpr (szN - 1)) -- Doing `-1` feels scary
-    let appendHdTl ← mkAppM ``HAppend.hAppend #[hdVec, tl]
+    -- `let appendHdTl ← mkAppM ``HAppend.hAppend #[hdVec, tl]` makes a silly `k + 0` vector
+    -- TODO: This is just a WIP-test solution, it's clearly terrible.
+    let appendHdTl ← if szN == 1 then pure hdVec else mkAppM ``HAppend.hAppend #[hdVec, tl]
     let mapM ← mkAppM ``_root_.Vector.mapM #[f, appendHdTl]
-
+    let theMiddleBit ←
+      if szN == 1
+      then mkVecLit (←mkListLit t [.bvar 1]) (mkNatLit 1)
+      else pure <| mkAppN
+            (.const ``HAppend.hAppend [
+              ←getDecLevel (←Sym.inferType hdVec),
+              ←getDecLevel (←Sym.inferType tl),
+              ←getDecLevel (←Sym.inferType appendHdTl)
+            ]) #[
+              ←Sym.inferType hdVec,
+              ←Sym.inferType tl,
+              ←Sym.inferType appendHdTl,
+              ←Sym.synthInstance (←mkAppM ``HAppend #[←Sym.inferType hdVec,←Sym.inferType tl,←Sym.inferType appendHdTl,]),
+              ←mkVecLit (←mkListLit t [.bvar 1]) (mkNatLit 1),
+              .bvar 0
+            ]
     let consMapM ←
       mkAppM ``Option.bind #[
-        .app f hdVec,
+        f.beta #[hd],
+        -- Expr.app f hdVec,
         .lam `fst t
           (←mkAppM ``Option.bind #[
                      ←mkAppM ``Vector.mapM #[f, tl],
                      .lam `snd (←Sym.inferType tl)
-                       (←mkAppM ``Option.some #[
-                         mkAppN
-                          (.const ``HAppend.hAppend [
-                            ←getDecLevel (←Sym.inferType hdVec),
-                            ←getDecLevel (←Sym.inferType tl),
-                            ←getDecLevel (←Sym.inferType appendHdTl)
-                          ]) #[
-                           ←Sym.inferType hdVec,
-                           ←Sym.inferType tl,
-                           ←Sym.inferType appendHdTl,
-                           ←Sym.synthInstance (←mkAppM ``HAppend #[←Sym.inferType hdVec,←Sym.inferType tl,←Sym.inferType appendHdTl,]),
-                           ←mkVecLit (←mkListLit t [.bvar 1]) (mkNatLit 1),
-                          --  ←mkVecLit (←mkListLit t [.bvar 1]) (mkNatLit 1),
-                           .bvar 0
-                         ]
-                       ])
+                       (←mkAppM ``Option.some #[theMiddleBit])
                        .default
           ])
           .default 
       ]
-    logInfo m!"What is this: {consMapM}"
 
     -- let consMapM ←
     --   mkAppM ``Option.bind #[
@@ -753,10 +767,13 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
     --       .default 
     --   ]
     -- logInfo m!"What is this: {consMapM}"
-    -- TODO: I am guessing this is... slow?
-    let consMapM ← mapM.runTactic (←`(tactic| rw[$(mkIdent ``Vector.mapM_mk_singleton_append):ident]))
-    -- TODO: Puh-ROOF!
+    
     return .step consMapM (←mkSorry (←mkEq e mapM) false)
+    
+    -- -- TODO: I am guessing this is... slow?
+    -- let consMapM ← mapM.runTactic (←`(tactic| rw[$(mkIdent ``Vector.mapM_mk_singleton_append):ident]))
+    -- -- TODO: Puh-ROOF!
+    -- return .step consMapM (←mkSorry (←mkEq e mapM) false)
 
 /--
 `Vector.mapM_mk_singleton_append` is a part of `Vector.mapM_mk_append` to ensure that
@@ -802,40 +819,36 @@ info: (eq0 0).bind fun x =>
 #guard_msgs in
 #eval spoon <| do compileExample ``ex₀ (←foldlM)
 
--- set_option trace.Clap.Compile true
+def ex₁ (_vec : Vector Nat 3) : Option Unit := do
+  eq0 #v[4, 5][0]
 
-def ex₁ (vec : Vector Nat 3) : Option Unit := do
-  eq0 <| GetElem.getElem #v[4] 0 (by sorry)
-  -- eq0 #v[4, 5][0]
+/-- info: fun _vec => eq0 4 -/
+#guard_msgs in
+#eval spoon <| do compileExample ``ex₁ (←getElem)
 
--- /-- info: fun vec => eq0 4 -/
--- #guard_msgs in
--- #eval spoon <| do compileExample ``ex₁ (←getElem)
+def ex₂ (vec : Vector Nat 3) : Option Unit := do
+  let x := (vec ++ vec)[0]
+  eq0 x
 
--- def ex₂ (vec : Vector Nat 3) : Option Unit := do
---   let x := (vec ++ vec)[0]
---   eq0 x
+/-- info: fun vec => eq0 vec[0] -/
+#guard_msgs in
+#eval spoon <| do compileExample ``ex₂ (←(append ∪ zeta ∪ getElem))
 
--- /-- info: fun vec => eq0 vec[0] -/
--- #guard_msgs in
--- #eval spoon <| do compileExample ``ex₂ (←(append ∪ zeta ∪ getElem))
-
--- def ex₃ (vec : Vector Nat 3) : Option Unit := do
---   let x := vec.map (·+1)
---   eq0 x[0]
+def ex₃ (vec : Vector Nat 3) : Option Unit := do
+  let x := vec.map (·+1)
+  eq0 x[0]
 
 /-- info: fun vec => eq0 (vec[0] + 1) -/
--- #guard_msgs in
--- #eval spoon <| do compileExample ``ex₃ (←(map ∪ zeta ∪ getElem))
+#guard_msgs in
+#eval spoon <| do compileExample ``ex₃ (←(map ∪ zeta ∪ getElem))
 
 def ex₄ (vec : Vector Nat 1) : Option Unit := do
   let x ← vec.mapM (fun x ↦ return x + 1)
   eq0 x[0]
 
-#check Nat.sub_add_cancel
-set_option trace.Clap.Compile true
-set_option pp.proofs true in
-#eval spoon <| do compileExample ``ex₄ (←(ground ∪ mapM ∪ getElem ∪ zeta))
+/-- info: fun vec => eq0 (vec[0] + 1) -/
+#guard_msgs in
+#eval spoon <| do compileExample ``ex₄ (←mapM)
 
 -- not ok
 -- @GetElem.getElem
