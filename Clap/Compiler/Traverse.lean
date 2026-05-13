@@ -675,11 +675,11 @@ def getElemDbg : Sym.Simp.Simproc := fun e ↦ do
 
 def getElem : MetaM Methods :=
   mkPostMethods #[
-    ``Vector.getElem_mk, ``List.getElem_toArray,
+    -- ``Vector.getElem_mk, ``List.getElem_toArray,
 
-    ``List.getElem_cons_zero, ``List.getElem_cons_succ,
+    -- ``List.getElem_cons_zero, ``List.getElem_cons_succ,
 
-    -- ``getElemDbg
+    ``getElemDbg
   ]
 
 def map : MetaM Methods :=
@@ -692,6 +692,20 @@ def map : MetaM Methods :=
   ] ∪ mapOptim
   where
     mapOptim : MetaM Methods := mkPreMethods #[``List.map_id]
+
+/--
+YEEEEEHAAAAAAAAW, you're a rootin' tootin' cowboy.
+-/
+def cowboyCast (e : Expr) (yourDeepestDesire : ℕ) : SymM Expr := do
+  -- let ⟨u, α, e⟩ ← inferTypeQ e
+  let_expr Vector t sz := ←Sym.inferType e | throwError m!"Not a true cowboy."
+
+  -- let ⟨u, tu⟩ ← getLevelQ t
+  -- let yourDeepestDesireQ : Q(ℕ) := toExpr yourDeepestDesire
+  let proof ← mkEq (←Sym.inferType e) (←mkAppM ``Vector #[t, mkNatLit yourDeepestDesire])
+  logInfo m!"Cowboy: {←e.rewriteType (←mkSorry proof false)}"
+  -- let proof := q($α = Vector $t $yourDeepestDesireQ)
+  e.rewriteType (←mkSorry proof false)
 
 /--
 0. Only for `Vector.mapM f xs`.
@@ -717,6 +731,19 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
     -- `let appendHdTl ← mkAppM ``HAppend.hAppend #[hdVec, tl]` makes a silly `k + 0` vector
     -- TODO: This is just a WIP-test solution, it's clearly terrible.
     let appendHdTl ← if szN == 1 then pure hdVec else mkAppM ``HAppend.hAppend #[hdVec, tl]
+    logInfo m!"appendHdTl: {appendHdTl} appendHdTlT: {←Sym.inferType appendHdTl}"
+    let_expr Vector _ szAppendHdTl := ←Sym.inferType appendHdTl | unreachable!
+    let szAppendHdTlQ : Q(ℕ) := szAppendHdTl
+    let szDesired : Q(ℕ) := toExpr szN
+    let proof ← mkSorry q($szAppendHdTlQ = $szDesired) false
+    logInfo m!"Sizes: {szAppendHdTlQ} → {szDesired}"
+    -- let thisGuy ← mkAppM ``Vector.cast #[proof, appendHdTl]
+    -- logInfo m!"them apples: {thisGuy}"
+    let thatGuy ← cowboyCast appendHdTl szN
+    -- logInfo m!"thatGuy: {thatGuy}"
+    let thisGuy := appendHdTl
+    let thisGuy := thatGuy
+    logInfo m!"INFER: {←Sym.inferType thisGuy}"
     let mapM ← mkAppM ``_root_.Vector.mapM #[f, appendHdTl]
     let theMiddleBit ←
       if szN == 1
@@ -725,15 +752,17 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
             (.const ``HAppend.hAppend [
               ←getDecLevel (←Sym.inferType hdVec),
               ←getDecLevel (←Sym.inferType tl),
-              ←getDecLevel (←Sym.inferType appendHdTl)
+              ←getDecLevel (←Sym.inferType thisGuy)
             ]) #[
               ←Sym.inferType hdVec,
               ←Sym.inferType tl,
-              ←Sym.inferType appendHdTl,
-              ←Sym.synthInstance (←mkAppM ``HAppend #[←Sym.inferType hdVec,←Sym.inferType tl,←Sym.inferType appendHdTl,]),
+              ←Sym.inferType thisGuy,
+              -- ←Sym.inferType appendHdTl,
+              ←Sym.synthInstance (←mkAppM ``HAppend #[←Sym.inferType hdVec,←Sym.inferType tl,←Sym.inferType thisGuy,]),
               ←mkVecLit (←mkListLit t [.bvar 1]) (mkNatLit 1),
               .bvar 0
             ]
+    logInfo m!"theMiddleBit: {theMiddleBit}"
     let consMapM ←
       mkAppM ``Option.bind #[
         f.beta #[hd],
@@ -747,7 +776,7 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
           ])
           .default 
       ]
-
+    logInfo m!"What this: {consMapM}"
     -- let consMapM ←
     --   mkAppM ``Option.bind #[
     --     .app f hdVec,
@@ -842,13 +871,13 @@ def ex₃ (vec : Vector Nat 3) : Option Unit := do
 #guard_msgs in
 #eval spoon <| do compileExample ``ex₃ (←(map ∪ zeta ∪ getElem))
 
-def ex₄ (vec : Vector Nat 1) : Option Unit := do
+def ex₄ (vec : Vector Nat 2) : Option Unit := do
   let x ← vec.mapM (fun x ↦ return x + 1)
   eq0 x[0]
 
-/-- info: fun vec => eq0 (vec[0] + 1) -/
-#guard_msgs in
-#eval spoon <| do compileExample ``ex₄ (←mapM)
+-- /-- info: fun vec => eq0 (vec[0] + 1) -/
+-- #guard_msgs in
+#eval spoon <| do compileExample ``ex₄ (←(ground ∪ mapM ∪ getElem ∪ zeta))
 
 -- not ok
 -- @GetElem.getElem
