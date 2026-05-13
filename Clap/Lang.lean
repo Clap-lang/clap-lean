@@ -152,6 +152,9 @@ def assert_eq (a b : FBitVec p) : Option Unit :=
       assert_eq tla tlb
   | _,_ => none
 
+def eq (a b : FBitVec p) : Option (FB p) :=
+  List.foldlM (fun acc (a,b) => do FB.and acc (←FB.eq a b)) FB.true (a.zip b)
+
 def lessThan (a b : FBitVec p) : Option (FB p) :=
   (a.zip b).foldlM (fun acc (aᵢ, bᵢ) ↦ do
     let eqᵢ ← FB.eq aᵢ bᵢ
@@ -172,15 +175,7 @@ variable [Fact (Primes.fits p 8)]
 def ofF (x:F p) : Option (F8 p) := do
   FBitVec.ofF 8 x
 
-def ofUInt8 (u:UInt8) : Option (F8 p) :=
-  num2bits 8 (u.toNat)
-
-def zero : F8 p := FBitVec.default 8
-
-def eq (a b : F8 p) : Option (FB p) :=
-  List.foldlM (fun acc (a,b) => do FB.and acc (←FB.eq a b)) FB.true (a.zip b)
-
-def assert_eq (a b : F8 p) := FBitVec.assert_eq a b
+def eq (a b : F8 p) : Option (FB p) := FBitVec.eq a b
 
 end F8
 
@@ -201,9 +196,6 @@ def ofF (x:F p) : Option (F32 p) := do
 
 def ofF8 [Fact (Primes.fits p 8)] (u8 : F8 p) : F32 p :=
   u8 ++ (List.replicate 24 (0:FB p))
-
-def ofUInt32 (u:UInt32) : Option (F32 p) :=
-  num2bits 32 (u.toNat)
 
 def add (a b : F32 p) : Option (F32 p) := do
   List.take 32 (← FBitVec.binSum a b)
