@@ -584,7 +584,7 @@ This is more or less `Lean.Meta.Tactic.Cbv.zetaReduce`, which seems to not be ex
 
 In `Sym`, maybe we can choose to not `zeta` certain things without breaking `simp`?
 -/
-private def zetaReduce : Simproc := fun e => do
+private def zetaReduce : Simproc := fun e ↦ do
   let .letE _ _ value body _ := e | return .rfl
   let new := expandLet body #[value]
   let new ← Sym.share new
@@ -593,7 +593,7 @@ private def zetaReduce : Simproc := fun e => do
 /--
 This is more or less `Lean.Meta.Tactic.Cbv.betaReduce`, which seems to not be exported.
 -/
-def betaReduce : Simproc := fun e => do
+def betaReduce : Simproc := fun e ↦ do
   let new := e.headBeta
   let new ← Sym.share new
   return .step new (←Sym.mkEqRefl new)
@@ -616,7 +616,34 @@ def ground : MetaM Methods := do
 end General
 
 namespace Vector
--- mk_append_mk is being naughty
+
+-- Essentially `Vector.mk_append_mk`.
+private def mk_append_mk : Simproc := fun e ↦ do
+  let_expr HAppend.hAppend _ _ _ _ xs ys := e | return .rfl
+  let_expr Vector t szXs := ←Sym.inferType xs | return .rfl
+  let_expr Vector _ szYs := ←Sym.inferType ys | return .rfl
+  let_expr Vector.mk _ _ xs _ := xs | return .rfl
+  let_expr Vector.mk _ _ ys _ := ys | return .rfl
+  match szXs.nat?, szYs.nat? with
+  | .some szXs, .some szYs =>
+    -- The trick here is to enforce _syntactically_ that `szXs + szYs` for concrete values
+    -- is evaluated. `Vector.mk_append_mk` leaves `q(szXs + szYs)`.
+    let append ← mkAppM ``HAppend.hAppend #[xs, ys]
+    let szAppend := toExpr (szXs + szYs)
+    let szAppendProof ← mkSorry (←mkEq (←mkAppM ``Array.size #[append]) szAppend) false
+    let e' := mkAppN
+                (.const ``Vector.mk [←getDecLevel t])
+                #[t, szAppend, append, szAppendProof]
+    let proof ← mkSorry (←mkEq e e') false -- Probably just `Vector.mk_append_mk` up to defeq
+    -- logInfo m!"mk_append_mk\n{e}\n==>\n{e'}"
+    return .step e' proof
+  | _ , _ =>
+    -- TODO: I have a feeling this sometimes misbehaves for some reason, look into this.
+    -- Notably, when using `Vector.getElem_mk` 'directly', it simps more things than this guy?
+    logWarning m!"{e} is an append of non-ground size (TODO: remove)"
+    let thm ← mkTheoremFromDecl ``Vector.getElem_mk
+    thm.rewrite e
+
 def append : MetaM Methods :=
   mkPostMethods #[
     ``Vector.mk_append_mk, ``List.append_toArray,
@@ -640,8 +667,14 @@ def foldlM : MetaM Methods :=
   ]
 
 def getElemDbg : Sym.Simp.Simproc := fun e ↦ do
+  logInfo m!"getElemDbg: {e}"
   let_expr GetElem.getElem _ _ _ _ _ coll i h := e | return .rfl
-  let_expr Vector.mk _ _ arr h := coll | return .rfl
+  logInfo m!"coll: {coll}\ni: {i}"
+  let_expr Vector.mk _ _ arr h := coll |
+    logInfo m!"Rejected: {coll}"
+    logInfo m!"App of: {coll.getAppFnArgs}"
+    return .rfl
+  logInfo m!"arr: {arr}"
   logInfo m!"This is getElem on Vector.mk:\n({coll})[{i}]"
   logInfo m!"e:\n{e}"
   
@@ -675,11 +708,11 @@ def getElemDbg : Sym.Simp.Simproc := fun e ↦ do
 
 def getElem : MetaM Methods :=
   mkPostMethods #[
-    -- ``Vector.getElem_mk, ``List.getElem_toArray,
+    ``Vector.getElem_mk, ``List.getElem_toArray,
 
-    -- ``List.getElem_cons_zero, ``List.getElem_cons_succ,
+    ``List.getElem_cons_zero, ``List.getElem_cons_succ,
 
-    ``getElemDbg
+    -- ``getElemDbg
   ]
 
 def map : MetaM Methods :=
@@ -694,7 +727,7 @@ def map : MetaM Methods :=
     mapOptim : MetaM Methods := mkPreMethods #[``List.map_id]
 
 /--
-YEEEEEHAAAAAAAAW, you're a rootin' tootin' cowboy.
+YEEEEEHAAAAAAAAW, you rootin' tootin' cowboy.
 -/
 def cowboyCast (e : Expr) (yourDeepestDesire : ℕ) : SymM Expr := do
   -- let ⟨u, α, e⟩ ← inferTypeQ e
@@ -703,7 +736,7 @@ def cowboyCast (e : Expr) (yourDeepestDesire : ℕ) : SymM Expr := do
   -- let ⟨u, tu⟩ ← getLevelQ t
   -- let yourDeepestDesireQ : Q(ℕ) := toExpr yourDeepestDesire
   let proof ← mkEq (←Sym.inferType e) (←mkAppM ``Vector #[t, mkNatLit yourDeepestDesire])
-  logInfo m!"Cowboy: {←e.rewriteType (←mkSorry proof false)}"
+  -- logInfo m!"Cowboy: {←e.rewriteType (←mkSorry proof false)}"
   -- let proof := q($α = Vector $t $yourDeepestDesireQ)
   e.rewriteType (←mkSorry proof false)
 
@@ -728,15 +761,15 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
     if szN == 0 then return .rfl
     let hdVec ← mkVecLit (←mkListLit t [hd]) (mkNatLit 1)
     let tl ← mkVecLit tl (toExpr (szN - 1)) -- Doing `-1` feels scary
-    -- `let appendHdTl ← mkAppM ``HAppend.hAppend #[hdVec, tl]` makes a silly `k + 0` vector
+    -- -- `let appendHdTl ← mkAppM ``HAppend.hAppend #[hdVec, tl]` makes a silly `k + 0` vector
     -- TODO: This is just a WIP-test solution, it's clearly terrible.
     let appendHdTl ← if szN == 1 then pure hdVec else mkAppM ``HAppend.hAppend #[hdVec, tl]
-    logInfo m!"appendHdTl: {appendHdTl} appendHdTlT: {←Sym.inferType appendHdTl}"
+    -- logInfo m!"appendHdTl: {appendHdTl} appendHdTlT: {←Sym.inferType appendHdTl}"
     let_expr Vector _ szAppendHdTl := ←Sym.inferType appendHdTl | unreachable!
     let szAppendHdTlQ : Q(ℕ) := szAppendHdTl
     let szDesired : Q(ℕ) := toExpr szN
     let proof ← mkSorry q($szAppendHdTlQ = $szDesired) false
-    logInfo m!"Sizes: {szAppendHdTlQ} → {szDesired}"
+    -- logInfo m!"Sizes: {szAppendHdTlQ} → {szDesired}"
     -- let thisGuy ← mkAppM ``Vector.cast #[proof, appendHdTl]
     -- logInfo m!"them apples: {thisGuy}"
     let thatGuy ← cowboyCast appendHdTl szN
@@ -762,7 +795,7 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
               ←mkVecLit (←mkListLit t [.bvar 1]) (mkNatLit 1),
               .bvar 0
             ]
-    logInfo m!"theMiddleBit: {theMiddleBit}\nt: {←Sym.inferType theMiddleBit}"
+    -- logInfo m!"theMiddleBit: {theMiddleBit}\nt: {←Sym.inferType theMiddleBit}"
     let consMapM ←
       mkAppM ``Option.bind #[
         f.beta #[hd],
@@ -872,9 +905,12 @@ def ex₃ (vec : Vector Nat 3) : Option Unit := do
 #guard_msgs in
 #eval spoon <| do compileExample ``ex₃ (←(map ∪ zeta ∪ getElem))
 
-def ex₄ (vec : Vector Nat 2) : Option Unit := do
+def ex₄ (vec : Vector Nat 30) : Option Unit := do
   let x ← vec.mapM (fun x ↦ return x + 1)
   eq0 x[0]
+-- set_option trace.Clap.Compile true
+
+set_option profiler true
 
 -- /-- info: fun vec => eq0 (vec[0] + 1) -/
 -- #guard_msgs in

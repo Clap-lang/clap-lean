@@ -32,7 +32,7 @@ def getElemVectorOfIdx (coll : Expr) (len idx : Nat) : Sym.Simp.SimpM Expr := do
 
 def inferVectorProof (vectorSansProof : Expr) : Sym.Simp.SimpM Expr := do
   let .forallE _ argT _ _ ← inferType vectorSansProof | unreachable!
-  logInfo m!"vectorSansProof: {vectorSansProof}\ntype: {←inferType vectorSansProof}"
+  -- logInfo m!"vectorSansProof: {vectorSansProof}\ntype: {←inferType vectorSansProof}"
   pure (Expr.app vectorSansProof (←mkSorry argT false)) >>= instantiateMVars
 
 def mkVecLit (l : Expr) (sz : Expr) : Sym.Simp.SimpM Expr := do
