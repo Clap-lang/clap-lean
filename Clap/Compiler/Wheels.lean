@@ -51,6 +51,12 @@ initialize Lean.registerTraceClass `Clap.Compile.simp.kaboom (inherited := true)
 
 initialize Lean.registerTraceClass `Clap.Compile.simp.warnDownNotGround (inherited := true)
 
+initialize Lean.registerTraceClass `Clap.Compile.simp.proc (inherited := true)
+
+initialize Lean.registerTraceClass `Clap.Compile.simp.proc.getElem_mk (inherited := true)
+
+initialize Lean.registerTraceClass `Clap.Compile.simp.proc.mk_append_mk (inherited := true)
+
 open Lean Elab.Term in
 def formatExprWith {m : Type _ → Type _} [Monad m]
                    (s : String := "") (res : Except Exception Expr) : m MessageData :=

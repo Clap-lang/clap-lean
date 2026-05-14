@@ -507,6 +507,23 @@ end
 
 end CompileSets
 
+/--
+YEEEEEHAAAAAAAAW, you rootin' tootin' cowboy.
+-/
+def cowboyCast (e : Expr) (yourDeepestDesire : ℕ) : Sym.SymM Expr := do
+  -- let ⟨u, α, e⟩ ← inferTypeQ e
+  let_expr Vector t sz := ←Sym.inferType e | throwError m!"Not a true cowboy."
+
+  -- let ⟨u, tu⟩ ← getLevelQ t
+  -- let yourDeepestDesireQ : Q(ℕ) := toExpr yourDeepestDesire
+  let proof ← mkEq (←Sym.inferType e) (←mkAppM ``Vector #[t, mkNatLit yourDeepestDesire])
+  -- logInfo m!"Cowboy: {←e.rewriteType (←mkSorry proof false)}"
+  -- let proof := q($α = Vector $t $yourDeepestDesireQ)
+  let e' ← e.rewriteType (←mkSorry proof false)
+  -- logInfo m!"YEEEEEEEEHAAAAAAAAAAAW\n{e}\n==>\n{e'}"
+  return e'
+  
+
 namespace SymSets
 
 section
@@ -618,12 +635,13 @@ end General
 namespace Vector
 
 -- Essentially `Vector.mk_append_mk`.
-private def mk_append_mk : Simproc := fun e ↦ do
+private def mk_append_mk' : Simproc := fun e ↦ do
   let_expr HAppend.hAppend _ _ _ _ xs ys := e | return .rfl
   let_expr Vector t szXs := ←Sym.inferType xs | return .rfl
   let_expr Vector _ szYs := ←Sym.inferType ys | return .rfl
   let_expr Vector.mk _ _ xs _ := xs | return .rfl
   let_expr Vector.mk _ _ ys _ := ys | return .rfl
+  -- trace[Clap.Compile.simp.proc.mk_append_mk] m!"hell"
   match szXs.nat?, szYs.nat? with
   | .some szXs, .some szYs =>
     -- The trick here is to enforce _syntactically_ that `szXs + szYs` for concrete values
@@ -635,7 +653,8 @@ private def mk_append_mk : Simproc := fun e ↦ do
                 (.const ``Vector.mk [←getDecLevel t])
                 #[t, szAppend, append, szAppendProof]
     let proof ← mkSorry (←mkEq e e') false -- Probably just `Vector.mk_append_mk` up to defeq
-    -- logInfo m!"mk_append_mk\n{e}\n==>\n{e'}"
+    trace[Clap.Compile.simp.proc.mk_append_mk]
+      m!"mk_append_mk\n{e}\n==>\n{e'}"
     return .step e' proof
   | _ , _ =>
     -- TODO: I have a feeling this sometimes misbehaves for some reason, look into this.
@@ -665,7 +684,7 @@ def foldlM : MetaM Methods :=
 
     ``List.foldlM_cons, ``List.foldlM_nil
   ]
-
+#check Vector.append
 def getElemDbg : Sym.Simp.Simproc := fun e ↦ do
   logInfo m!"getElemDbg: {e}"
   let_expr GetElem.getElem _ _ _ _ _ coll i h := e | return .rfl
@@ -706,13 +725,57 @@ def getElemDbg : Sym.Simp.Simproc := fun e ↦ do
 
   return .rfl
 
+-- private def getElem_t : Simproc := fun e ↦ do
+--   let_expr GetElem.getElem collT _ _ _ _ coll i h := e | return .rfl
+--   let_expr Vector _ sz := collT | return .rfl
+--   let simpedSz := (←Sym.simp sz (←General.ground)).getResultExpr sz
+--   match simpedSz.nat? with
+--   | .none => return .rfl
+--   | .some simpedSzN =>
+--     return .rfl
+--     -- if simpedSz == sz then return .rfl -- TODO: `isSameExpr`?
+--     -- let coll ← cowboyCast coll simpedSzN
+--     -- let e' := ←mkAppM ``GetElem.getElem #[coll, i]
+--     -- logInfo m!"e': {e'}"
+--     -- -- This plays loose, let's pretend this is ok for now.
+--     -- return .step e' (←mkSorry (←mkEq e e') false)
+--     -- logInfo m!"szVec: {(←Sym.simp sz (←General.ground)).getResultExpr sz}"
+--     -- logInfo m!"szVecSimped: {sz}"
+--     -- let_expr Vector.mk _ sz arr _ := coll | return .rfl
+
+--     -- logInfo m!"sz: {sz}"
+--     -- logInfo m!"simped sz: {(←Sym.simp sz).getResultExpr sz}"
+--     -- return .rfl
+
+-- /--
+-- `Vector.getElem_mk` up to reducible.
+-- Trying to be as explicit as possible for `Sym`.
+-- -/
+-- private def getElem_mk : Simproc := fun e ↦ do
+--   let_expr GetElem.getElem collT _ _ _ _ coll i h := e | return .rfl
+--   let_expr Vector _ _getElemSz := collT | return .rfl
+--   let_expr Vector.mk _ _mkSz arr _ := coll | return .rfl
+--   -- Note we are not looking at `_getElemSz` and `_mkSz`.
+--   logInfo m!"WAT {h}"
+--   let szProof ← mkLt i (←mkAppM ``Array.size #[arr])
+--   let e' ← mkAppM ``GetElem.getElem #[arr, i, ←mkSorry szProof false]
+--   trace[Clap.Compile.simp.proc.getElem_mk] m!"{e}\n==>\n{e'}"
+--   return .step e' (←mkSorry (←mkEq e e') false)
+--   -- let getElemSz := (←Sym.simp getElemSz (←General.ground)).getResultExpr getElemSz
+--   -- let mkSz := (←Sym.simp mkSz (←General.ground)).getResultExpr mkSz
+--   -- unless isSameExpr getElemSz mkSz do return .rfl
+--   -- trace[Clap.Compile.simp.proc.getElem_mk] m!""
+  -- _
+#check Vector.append
+#check GetElem.getElem (coll := Vector ℕ 4) (Vector.mk (n := 2 + 2) #[1, 2, 3, 4] rfl) 0 (by decide)
 def getElem : MetaM Methods :=
   mkPostMethods #[
+    -- ``getElem_t,
     ``Vector.getElem_mk, ``List.getElem_toArray,
 
     ``List.getElem_cons_zero, ``List.getElem_cons_succ,
 
-    -- ``getElemDbg
+    ``getElemDbg
   ]
 
 def map : MetaM Methods :=
@@ -725,20 +788,6 @@ def map : MetaM Methods :=
   ] ∪ mapOptim
   where
     mapOptim : MetaM Methods := mkPreMethods #[``List.map_id]
-
-/--
-YEEEEEHAAAAAAAAW, you rootin' tootin' cowboy.
--/
-def cowboyCast (e : Expr) (yourDeepestDesire : ℕ) : SymM Expr := do
-  -- let ⟨u, α, e⟩ ← inferTypeQ e
-  let_expr Vector t sz := ←Sym.inferType e | throwError m!"Not a true cowboy."
-
-  -- let ⟨u, tu⟩ ← getLevelQ t
-  -- let yourDeepestDesireQ : Q(ℕ) := toExpr yourDeepestDesire
-  let proof ← mkEq (←Sym.inferType e) (←mkAppM ``Vector #[t, mkNatLit yourDeepestDesire])
-  -- logInfo m!"Cowboy: {←e.rewriteType (←mkSorry proof false)}"
-  -- let proof := q($α = Vector $t $yourDeepestDesireQ)
-  e.rewriteType (←mkSorry proof false)
 
 /--
 0. Only for `Vector.mapM f xs`.
@@ -888,7 +937,7 @@ def ex₁ (_vec : Vector Nat 3) : Option Unit := do
 /-- info: fun _vec => eq0 4 -/
 #guard_msgs in
 #eval spoon <| do compileExample ``ex₁ (←getElem)
-
+set_option trace.Clap.Compile true
 def ex₂ (vec : Vector Nat 3) : Option Unit := do
   let x := (vec ++ vec)[0]
   eq0 x
@@ -905,52 +954,17 @@ def ex₃ (vec : Vector Nat 3) : Option Unit := do
 #guard_msgs in
 #eval spoon <| do compileExample ``ex₃ (←(map ∪ zeta ∪ getElem))
 
-def ex₄ (vec : Vector Nat 30) : Option Unit := do
+def ex₄ (vec : Vector Nat 5) : Option Unit := do
   let x ← vec.mapM (fun x ↦ return x + 1)
   eq0 x[0]
 -- set_option trace.Clap.Compile true
 
-set_option profiler true
-
+-- set_option profiler true
+-- set_option trace.sym.issues true
 -- /-- info: fun vec => eq0 (vec[0] + 1) -/
--- #guard_msgs in
-#eval spoon <| do compileExample ``ex₄ (←(ground ∪ mapM ∪ getElem ∪ zeta))
 
--- not ok
--- @GetElem.getElem
---   (Vector ℕ 1)
---   ℕ
---   ℕ
---   (fun x i => i < 1)
---   instGetElemNatLt
---   (Vector.mk - CAREFUL: The type of this has to match the type of GetElem up to defeq.
---     { toList := [vec[0] + 1] }
---     (Eq.trans <some eq> ▸ mk_append_mk._proof_1 rfl sorry))
---   0
---   ex₄._proof_2
-
--- ok
--- @GetElem.getElem
---   (Vector ℕ 2) 
---   ℕ
---   ℕ
---   (fun x i => i < 2)
---   instGetElemNatLt
---   (Vector.mk
---     { toList := [4, 5] }
---     ex₁._proof_2)
---   0
---   ex₁._proof_3
-
--- @GetElem.getElem
---   (Vector #5 #4)
---   ℕ
---   #5
---   (fun x i => i < #4)
---   instGetElemNatLt
---   (Vector.mk #3 #2)
---   #1
---   #0
+-- set_option debug.skipKernelTC true in
+#eval spoon <| do compileExample ``ex₄ (←(ground ∪ mapM ∪ getElem ∪ zeta)) -- It's the append that construcst this
 
 #exit
 
