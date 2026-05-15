@@ -23,7 +23,11 @@ def hash64BitLimbsToFieldWithLen {numLimbs : ℕ}
   Option (F p)
 :=
   assert! inputMaxbits <= 64 && numLimbs != 0
-  let elems := Packing.chunksToFieldElems (p := p) 3 64 input
+  let w := (numLimbs + 2) / 3
+  let padded : Vector (F p) (w * 3) :=
+    have h : numLimbs ≤ w * 3 := by omega
+    Nat.add_sub_cancel' h ▸ (input ++ Vector.replicate (w * 3 - numLimbs) (0 : F p))
+  let elems := Packing.chunksToFieldElems (p := p) 3 64 padded
   let elems := elems.push len
   Clap.Poseidon.poseidonBN254 elems.toList
 
@@ -44,9 +48,13 @@ def hashBytesToFieldWithLen {numBytes : ℕ}
 := do
   assert! numBytes != 0
   Packing.assertIsBytes input
-  let elems := Packing.chunksToFieldElems (p := p) 31 8 input
+  let w := (numBytes + 30) / 31
+  let padded : Vector (F p) (w * 31) :=
+    have h : numBytes ≤ w * 31 := by omega
+    Nat.add_sub_cancel' h ▸ (input ++ Vector.replicate (w * 31 - numBytes) (0 : F p))
+  let elems := Packing.chunksToFieldElems (p := p) 31 8 padded
   let elems := elems.push len
-  hashElemsToField elems
+  hashElemsToField elems.toArray
 
 end HashToField
 
