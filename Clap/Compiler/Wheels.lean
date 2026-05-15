@@ -59,6 +59,8 @@ initialize Lean.registerTraceClass `Clap.Compile.simp.proc.mk_append_mk (inherit
 
 initialize Lean.registerTraceClass `Clap.Compile.simp.proc.vector_mapM_mk_eq_append (inherited := true)
 
+initialize Lean.registerTraceClass `Clap.Compile.simp.proc.sequenceAsVecExpr (inherited := true)
+
 initialize Lean.registerTraceClass `Clap.Compile.debug.simp (inherited := true)
 
 

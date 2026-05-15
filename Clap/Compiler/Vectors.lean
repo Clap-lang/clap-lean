@@ -51,8 +51,10 @@ def sequenceAsVecExpr (name : Expr) (t : Expr) (len : Nat) : Sym.Simp.SimpM Expr
     ←mkListLit t (←List.range len |>.mapM (getElemVectorOfIdx name len))
   ]
   let u ← getDecLevel t
-  -- logInfo m!"sequenceAsVecExpr: {←inferType (←inferVectorProof (mkAppN (.const ``_root_.Vector.mk [u]) #[t, toExpr len, array]))}"
-  inferVectorProof (mkAppN (.const ``_root_.Vector.mk [u]) #[t, toExpr len, array])
+  let e' ← inferVectorProof (mkAppN (.const ``_root_.Vector.mk [u]) #[t, toExpr len, array])
+  trace[Clap.Compile.simp.proc.sequenceAsVecExpr]
+    m!"{name}[length = {len}][elemType = {t}]\n==>\n{e'}"
+  Sym.shareCommonInc e'
 
 -- def needsExploding (e : Expr) : SimpM Bool := do
 --   let t ← inferType e
@@ -158,7 +160,7 @@ def explodeVector : Sym.Simp.Simproc := fun e ↦ do
                trace[Clap.Compile.simp.kaboom] m!"Exploding:\n{e}\n==>\n{explodedVec}"
                return .step explodedVec (←mkSorry (←mkEq e explodedVec) false)
 
-def toVectorSequenceD (e : Expr) : Sym.Simp.SimpM (Option Expr) := do
+def toVectorSequence? (e : Expr) : Sym.Simp.SimpM (Option Expr) := do
   unless e.isFVar do return .none
   let_expr Vector t sz := ←inferType e | return .none
   return .some (←sequenceAsVecExpr e t sz.nat?.get!)
@@ -181,8 +183,8 @@ TODO: Proof. Viz. `abc'`.
 def explodeVectorAppend : Sym.Simp.Simproc := fun e ↦ do
   let_expr HAppend.hAppend _ _ _ _ a b := e | return .rfl
 
-  let a? ← toVectorSequenceD a
-  let b? ← toVectorSequenceD b
+  let a? ← toVectorSequence? a
+  let b? ← toVectorSequence? b
   if a?.isNone && b?.isNone then return .rfl
 
   let append ← mkAppM ``HAppend.hAppend #[a?.getD a, b?.getD b]
@@ -194,7 +196,7 @@ TODO: Proof. Viz. `abc'`.
 def explodeVectorMap : Sym.Simp.Simproc := fun e ↦ do
   let_expr Vector.map _ _ _ f xs := e | return .rfl
 
-  let xs ← toVectorSequenceD xs
+  let xs ← toVectorSequence? xs
   match xs with
   | .none => return .rfl
   | .some xs => let map ← mkAppM ``Vector.map #[f, xs]
@@ -205,8 +207,7 @@ TODO: Proof. Viz. `abc'`.
 -/
 def explodeVectorMapM : Sym.Simp.Simproc := fun e ↦ do
   let_expr Vector.mapM _ _ _ _ _ f xs := e | return .rfl
-
-  let xs ← toVectorSequenceD xs
+  let xs ← toVectorSequence? xs
   match xs with
   | .none => return .rfl
   | .some xs => let map ← mkAppM ``Vector.mapM #[f, xs]

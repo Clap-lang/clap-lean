@@ -513,6 +513,7 @@ def cowboyCast (e : Expr) (yourDeepestDesire : ℕ) : Sym.SymM Expr := do
   let proof ← mkEq (←Sym.inferType e) (←mkAppM ``Vector #[t, mkNatLit yourDeepestDesire])
   -- let proof := q($α = Vector $t $yourDeepestDesireQ)
   let e' ← e.rewriteType (←mkSorry proof false)
+  logInfo m!"Cowboy cast:\n{e}\n==>\n{e'}"
   return e'
   
 
@@ -585,7 +586,7 @@ def monad : MetaM Sym.Simp.Methods :=
 end Monad
 
 namespace General
-
+-- checkMaxShared
 /--
 This is more or less `Lean.Meta.Tactic.Cbv.zetaReduce`, which seems to not be exported.
 
@@ -674,7 +675,7 @@ def foldlM : MetaM Methods :=
 
     ``List.foldlM_cons, ``List.foldlM_nil
   ]
-#check Vector.append
+
 def getElemDbg : Sym.Simp.Simproc := fun e ↦ do
   logInfo m!"getElemDbg: {e}"
   let_expr GetElem.getElem _ _ _ _ _ coll i h := e | return .rfl
@@ -788,7 +789,8 @@ def map : MetaM Methods :=
      pure (#v[__do_lift] ++ __do_lift_1)
 -/
 def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
-  let α ← IO.monoMsNow
+  -- logInfo m!"Nodes: {←e.numObjs}"
+  -- let α ← IO.monoMsNow
   let_expr _root_.Vector.mapM _ _ _ _ _ f vec := e | return .rfl
   let_expr _root_.Vector.mk _ sz arr _ := vec | return .rfl
   unless arr.isAppOf ``List.toArray || arr.isAppOf ``Array.mk do return .rfl
@@ -845,8 +847,9 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
 
     trace[Clap.Compile.simp.proc.vector_mapM_mk_eq_append]
       m!"\n{e}\n==>\n{consMapM}"
-    let ω ← IO.monoMsNow
-    logInfo m!"timing: {Float.ofNat (ω - α)/Float.ofNat 1000}"
+    -- let ω ← IO.monoMsNow
+    -- logInfo m!"timing: {Float.ofNat (ω - α)/Float.ofNat 1000}"
+    -- logInfo m!"Nodes: {←consMapM.numObjs}"
     return .step consMapM (←mkSorry (←mkEq e mapM) false)
     
     -- -- TODO: I am guessing this is... slow?
@@ -901,8 +904,12 @@ info: (eq0 0).bind fun x =>
 def ex₁ (_vec : Vector Nat 3) : Option Unit := do
   eq0 #v[4, 5][0]
 
-/-- info: fun _vec => eq0 4 -/
-#guard_msgs in
+set_option profiler true
+set_option profiler.threshold 10
+
+
+-- /-- info: fun _vec => eq0 4 -/
+-- #guard_msgs in
 #eval spoon <| do compileExample ``ex₁ (←getElem)
 set_option trace.Clap.Compile true
 def ex₂ (vec : Vector Nat 3) : Option Unit := do
@@ -913,7 +920,7 @@ def ex₂ (vec : Vector Nat 3) : Option Unit := do
 #guard_msgs in
 #eval spoon <| do compileExample ``ex₂ (←(append ∪ zeta ∪ getElem))
 
-def ex₃ (vec : Vector Nat 3) : Option Unit := do
+def ex₃ (vec : Vector Nat 250) : Option Unit := do
   let x := vec.map (·+1)
   eq0 x[0]
 
@@ -931,7 +938,7 @@ set_option profiler true
 -- /-- info: fun vec => eq0 (vec[0] + 1) -/
 
 set_option trace.Clap.Compile.debug.simp true
-
+set_option pp.exprSizes true
 -- set_option debug.skipKernelTC true in
 #eval spoon <| do compileExample ``ex₄ (←(ground ∪ mapM ∪ getElem ∪ zeta)) -- It's the append that construcst this
 
