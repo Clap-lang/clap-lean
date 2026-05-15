@@ -57,6 +57,11 @@ initialize Lean.registerTraceClass `Clap.Compile.simp.proc.getElem_mk (inherited
 
 initialize Lean.registerTraceClass `Clap.Compile.simp.proc.mk_append_mk (inherited := true)
 
+initialize Lean.registerTraceClass `Clap.Compile.simp.proc.vector_mapM_mk_eq_append (inherited := true)
+
+initialize Lean.registerTraceClass `Clap.Compile.debug.simp (inherited := true)
+
+
 open Lean Elab.Term in
 def formatExprWith {m : Type _ → Type _} [Monad m]
                    (s : String := "") (res : Except Exception Expr) : m MessageData :=

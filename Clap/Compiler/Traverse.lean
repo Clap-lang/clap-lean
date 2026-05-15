@@ -163,16 +163,11 @@ private partial def up (reduce : Expr → Sym.Simp.SimpM Expr)
   match stack with
   | [] =>
     trace[Clap.Compile.up] "Done"
-    -- logInfo m!"DONE: {done}"
-    -- logInfo m!"REPR: {repr done}"
     trace[Clap.Compile.up]
       "This should go to debug tracing. Simped done:\n{←reduce done}"
     return done
   | .inr r :: stack =>
     lambdaTelescopeOne! r fun arg body ↦ do
-      -- match ←isGroundTerm done with
-      -- | .some e => throwError m!"{bombEmoji} Not ground:\n{e}\nin:\n{done}"
-      -- | .none =>
       trace[Clap.Compile.up] "\npush [←]:\n{(done, arg)}\ngo [↓]:\n{body}"
       down reduce reduceOuter (.inl (done, arg) :: stack) body
   | .inl l :: stack => do
@@ -250,7 +245,6 @@ dsimproc_decl reduceRange (List.range _) := fun e ↦ do
   let ctx ← Simp.getContext
   let ctx ← ctx.setConfig {ctx.config with singlePass := false}
   withTheReader Simp.Context (fun _ ↦ ctx) do
-  -- logInfo m!"k: {k} simped: {(←simp k).expr}"
   match (←simp k).expr.nat? with
   | .none => logError m!"{(←simp k).expr} is not ground"
              return .done e
@@ -517,10 +511,8 @@ def cowboyCast (e : Expr) (yourDeepestDesire : ℕ) : Sym.SymM Expr := do
   -- let ⟨u, tu⟩ ← getLevelQ t
   -- let yourDeepestDesireQ : Q(ℕ) := toExpr yourDeepestDesire
   let proof ← mkEq (←Sym.inferType e) (←mkAppM ``Vector #[t, mkNatLit yourDeepestDesire])
-  -- logInfo m!"Cowboy: {←e.rewriteType (←mkSorry proof false)}"
   -- let proof := q($α = Vector $t $yourDeepestDesireQ)
   let e' ← e.rewriteType (←mkSorry proof false)
-  -- logInfo m!"YEEEEEEEEHAAAAAAAAAAAW\n{e}\n==>\n{e'}"
   return e'
   
 
@@ -555,14 +547,12 @@ def andThen (names : Array Name) : MetaM Sym.Simp.Simproc := do
 def mkPostMethods (declNames : Array Name)
                   (d : Discharger := Sym.Simp.dischargeSimpSelf) : MetaM Methods := do
   let (procs, thms) ← declNames.toList.partitionM (liftM ∘ isSimproc)
-  -- logInfo m!"post procs: {procs}\nthms: {thms}"
   let procs ← andThen procs.toArray
   return { post := (←mkSimprocFor thms.toArray d) >> procs }
 
 def mkPreMethods (declNames : Array Name)
                  (d : Discharger := Sym.Simp.dischargeSimpSelf) : MetaM Methods := do
   let (procs, thms) ← declNames.toList.partitionM (liftM ∘ isSimproc)
-  -- logInfo m!"pre procs: {procs}"
   let procs ← andThen procs.toArray
   return { pre := (←mkSimprocFor thms.toArray d) >> procs }
 
@@ -635,13 +625,13 @@ end General
 namespace Vector
 
 -- Essentially `Vector.mk_append_mk`.
-private def mk_append_mk' : Simproc := fun e ↦ do
+private def mk_append_mk : Simproc := fun e ↦ do
   let_expr HAppend.hAppend _ _ _ _ xs ys := e | return .rfl
   let_expr Vector t szXs := ←Sym.inferType xs | return .rfl
   let_expr Vector _ szYs := ←Sym.inferType ys | return .rfl
   let_expr Vector.mk _ _ xs _ := xs | return .rfl
   let_expr Vector.mk _ _ ys _ := ys | return .rfl
-  -- trace[Clap.Compile.simp.proc.mk_append_mk] m!"hell"
+  trace[Clap.Compile.simp.proc.mk_append_mk] m!"hell"
   match szXs.nat?, szYs.nat? with
   | .some szXs, .some szYs =>
     -- The trick here is to enforce _syntactically_ that `szXs + szYs` for concrete values
@@ -654,7 +644,7 @@ private def mk_append_mk' : Simproc := fun e ↦ do
                 #[t, szAppend, append, szAppendProof]
     let proof ← mkSorry (←mkEq e e') false -- Probably just `Vector.mk_append_mk` up to defeq
     trace[Clap.Compile.simp.proc.mk_append_mk]
-      m!"mk_append_mk\n{e}\n==>\n{e'}"
+      m!"\n{e}\n==>\n{e'}"
     return .step e' proof
   | _ , _ =>
     -- TODO: I have a feeling this sometimes misbehaves for some reason, look into this.
@@ -775,7 +765,7 @@ def getElem : MetaM Methods :=
 
     ``List.getElem_cons_zero, ``List.getElem_cons_succ,
 
-    ``getElemDbg
+    -- ``getElemDbg
   ]
 
 def map : MetaM Methods :=
@@ -798,6 +788,7 @@ def map : MetaM Methods :=
      pure (#v[__do_lift] ++ __do_lift_1)
 -/
 def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
+  let α ← IO.monoMsNow
   let_expr _root_.Vector.mapM _ _ _ _ _ f vec := e | return .rfl
   let_expr _root_.Vector.mk _ sz arr _ := vec | return .rfl
   unless arr.isAppOf ``List.toArray || arr.isAppOf ``Array.mk do return .rfl
@@ -813,19 +804,13 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
     -- -- `let appendHdTl ← mkAppM ``HAppend.hAppend #[hdVec, tl]` makes a silly `k + 0` vector
     -- TODO: This is just a WIP-test solution, it's clearly terrible.
     let appendHdTl ← if szN == 1 then pure hdVec else mkAppM ``HAppend.hAppend #[hdVec, tl]
-    -- logInfo m!"appendHdTl: {appendHdTl} appendHdTlT: {←Sym.inferType appendHdTl}"
     let_expr Vector _ szAppendHdTl := ←Sym.inferType appendHdTl | unreachable!
     let szAppendHdTlQ : Q(ℕ) := szAppendHdTl
     let szDesired : Q(ℕ) := toExpr szN
     let proof ← mkSorry q($szAppendHdTlQ = $szDesired) false
-    -- logInfo m!"Sizes: {szAppendHdTlQ} → {szDesired}"
-    -- let thisGuy ← mkAppM ``Vector.cast #[proof, appendHdTl]
-    -- logInfo m!"them apples: {thisGuy}"
     let thatGuy ← cowboyCast appendHdTl szN
-    -- logInfo m!"thatGuy: {thatGuy}"
     let thisGuy := appendHdTl
     let thisGuy := thatGuy
-    -- logInfo m!"INFER: {←Sym.inferType thisGuy}"
     let mapM ← mkAppM ``_root_.Vector.mapM #[f, thisGuy]
     let theMiddleBit ←
       if szN == 1
@@ -844,7 +829,6 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
               ←mkVecLit (←mkListLit t [.bvar 1]) (mkNatLit 1),
               .bvar 0
             ]
-    -- logInfo m!"theMiddleBit: {theMiddleBit}\nt: {←Sym.inferType theMiddleBit}"
     let consMapM ←
       mkAppM ``Option.bind #[
         f.beta #[hd],
@@ -858,28 +842,11 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
           ])
           .default 
       ]
-    -- logInfo m!"What this: {consMapM}"
-    -- let consMapM ←
-    --   mkAppM ``Option.bind #[
-    --     .app f hdVec,
-    --     .lam `fst t
-    --       (←mkAppM ``Option.bind #[
-    --                  ←mkAppM ``Vector.mapM #[f, tl],
-    --                  .lam `snd (←Sym.inferType tl)
-    --                    (←mkAppM ``Option.some #[
-    --                      ←mkAppM ``HAppend.hAppend #[
-    --                        ←mkVecLit (←mkListLit t [.bvar 1]) (mkNatLit 1),
-    --                        ←mkVecLit (←mkListLit t [.bvar 1]) (mkNatLit 1),
-    --                       --  .bvar 0
-    --                      ]
-    --                    ])
-    --                    .default
-    --       ])
-    --       .default 
-    --   ]
-    -- logInfo m!"What is this: {consMapM}"
-    
-    
+
+    trace[Clap.Compile.simp.proc.vector_mapM_mk_eq_append]
+      m!"\n{e}\n==>\n{consMapM}"
+    let ω ← IO.monoMsNow
+    logInfo m!"timing: {Float.ofNat (ω - α)/Float.ofNat 1000}"
     return .step consMapM (←mkSorry (←mkEq e mapM) false)
     
     -- -- TODO: I am guessing this is... slow?
@@ -939,7 +906,7 @@ def ex₁ (_vec : Vector Nat 3) : Option Unit := do
 #eval spoon <| do compileExample ``ex₁ (←getElem)
 set_option trace.Clap.Compile true
 def ex₂ (vec : Vector Nat 3) : Option Unit := do
-  let x := (vec ++ vec)[0]
+  let x := (vec ++ vec)[0] -- `GetElem (Vector _ (3 + 3))`
   eq0 x
 
 /-- info: fun vec => eq0 vec[0] -/
@@ -954,14 +921,16 @@ def ex₃ (vec : Vector Nat 3) : Option Unit := do
 #guard_msgs in
 #eval spoon <| do compileExample ``ex₃ (←(map ∪ zeta ∪ getElem))
 
-def ex₄ (vec : Vector Nat 5) : Option Unit := do
+def ex₄ (vec : Vector Nat 30) : Option Unit := do
   let x ← vec.mapM (fun x ↦ return x + 1)
   eq0 x[0]
 -- set_option trace.Clap.Compile true
 
--- set_option profiler true
+set_option profiler true
 -- set_option trace.sym.issues true
 -- /-- info: fun vec => eq0 (vec[0] + 1) -/
+
+set_option trace.Clap.Compile.debug.simp true
 
 -- set_option debug.skipKernelTC true in
 #eval spoon <| do compileExample ``ex₄ (←(ground ∪ mapM ∪ getElem ∪ zeta)) -- It's the append that construcst this
@@ -987,36 +956,6 @@ example {vec : Vector Nat 1} : eq0
   
   done
 
-
-#check Vector.mapM_mk_eq_append
-/--
-this is for size 3
--/
-example {vec : Vector Nat 1} : ex₄ vec = sorry := by
-  unfold ex₄
-  sym_simp [dontExplodeVector] [explodeVector]
-  sym_simp [] [Vector.mapM_mk_eq_append]
-  sym_simp [] [Vector.mapM_nil]
-  sym_simp [] [Option.bind_assoc, bind_assoc,
-    Option.pure_def,
-    Option.bind_eq_bind, Option.bind_fun_some, Option.bind_some, bind_pure, pure_bind,
-    Option.map_eq_map, Option.map_some]
-  sym_simp [] [Vector.mk_append_mk]
-  simp
-  simp
-  simp [Vector.mk_append_mk]
-  rw [Vector.mk_append_mk]
-  simp
-  
-  
-  simp only [Vector.mk_append_mk]
-
-
-  -- simp only [Option.pure_def, Option.bind_eq_bind, Option.bind_some]
-  -- sym_simp [] [Vector.mk_append_mk]
-  
-  -- simp
-  simp
   
   
   

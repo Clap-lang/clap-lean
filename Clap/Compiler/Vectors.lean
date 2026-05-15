@@ -36,12 +36,12 @@ def inferVectorProof (vectorSansProof : Expr) : Sym.Simp.SimpM Expr := do
   pure (Expr.app vectorSansProof (←mkSorry argT false)) >>= instantiateMVars
 
 def mkVecLit (l : Expr) (sz : Expr) : Sym.Simp.SimpM Expr := do
-  -- logInfo m!"mkVecLit:\n{l}\nsz:\n{sz}"
   let array ← mkAppM ``List.toArray #[l]
   let t := (←inferType array).getAppArgs[0]!
   let u ← getDecLevel t
   let vectorSansProof := mkAppN (.const ``_root_.Vector.mk [u]) #[t, sz, array]
-  inferVectorProof vectorSansProof
+  let vector ← inferVectorProof vectorSansProof
+  return vector
 
 /--
 TODO: Use mkVecLit
