@@ -7,20 +7,67 @@ namespace JWT
 
 open Clap.Lang Core Primes
 
-variable {p : ℕ} [Core p] [Core bn254]
+open ZMod
+
+variable {p : ℕ} [p_prime : Core p] [bla : Core bn254]
+
+-- #synth Core p
+-- #synth HOr (@FB p (instCoreZMod (p := p))) (@FB p (instCoreZMod (p := p))) (@FB p (instCoreZMod (p := p)))
+
+-- #check @FB p (instCoreZMod)
+
+open FB
+
+-- #check instHOrOfOrOp
+-- #check instHOr
+
+-- -- set_option trace.Meta.synthInstance true in
+-- -- set_option pp.all true in
+-- -- set_option trace.Meta.synthInstance.instances true in
+-- -- instance ridiculous {p : ℕ} [Fact (Nat.Prime p)] : HOr (FB p) (FB p) (FB p) where
+-- --   hOr := FB.or
+
+-- instance myinstHOr {p : ℕ} [Fact (Nat.Prime p)] : HOr (@FB p sorry) (@FB p sorry) (@FB p sorry) where
+--   hOr := sorry
+
+-- set_option trace.Meta.synthInstance true in
+-- set_option pp.all true in
+-- set_option trace.Meta.synthInstance.instances true in
+-- example {p : ℕ} [inst : Fact (Nat.Prime p)]
+--   : HOr (FB p) (FB p) (FB p) := by
+--   -- have := @myinstHOr p (@instCoreZMod p inst)
+
+
+--   -- apply @instHOr
+
+--   -- have : @Clap.Lang.ZMod.instCoreZMod p p_prime = inst := by rfl
+--   -- -- have inst := @instCoreZMod p p_prime
+--   -- -- let := @instHOr p this
+
+--   infer_instance
+
+--   -- HOr.{0, 0, 0} (@Clap.Lang.FB p (@Clap.Lang.ZMod.instCoreZMod p p_prime))
+--   -- (@Clap.Lang.FB p (@Clap.Lang.ZMod.instCoreZMod p p_prime)) (@Clap.Lang.FB p (@Clap.Lang.ZMod.instCoreZMod p p_prime))
+
+--   -- HOr.{0, 0, 0} (@Clap.Lang.FB p inst) (@Clap.Lang.FB p inst) (@Clap.Lang.FB p inst)
+
+-- #synth HOr (FB p) (FB p) (FB p)
+
+-- instance : HOr (FB p) (FB p) (FB p) := by
+--   apply @instHOr p instCoreZMod
 
 instance : Coe Char (F p) := charToFp
 
-private def stringBodiesRev₀ (input : List (F p)) : Option (List (FB p) × FB p × FB p) :=
-  input.foldrM go ([], default, default)
+def stringBodiesRev₀ (input : List (F p)) : (List (FB p) × FB p × FB p) :=
+input.foldr go ([], default, default)
  where
-  go : F p → List (FB p) × FB p × FB p → Option (List (FB p) × FB p × FB p) :=
-    fun c (acc, openedQuotes, escaped) ↦ do
-      let isNonEscQuotationMark := FB.and (←F.eq c '\"') (FB.not escaped)
+  go : F p → List (FB p) × FB p × FB p → (List (FB p) × FB p × FB p) :=
+    fun c (acc, openedQuotes, escaped) ↦
+      let isNonEscQuotationMark := FB.and ((F.eq c '\"').get!) (FB.not escaped)
       let acc' := openedQuotes * FB.not isNonEscQuotationMark :: acc
       let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
-      let escaped' := FB.and (←F.eq c '\\') (FB.not escaped)
-      some (acc', openedQuotes', escaped')
+      let escaped' := FB.and (F.eq c '\\').get! (FB.not escaped)
+      (acc', openedQuotes', escaped')
 
 omit [Core bn254] in
 /-- From keyless:
@@ -30,8 +77,8 @@ omit [Core bn254] in
   input =  { asdfsdf "as\"df" }
   output = 00000000000111111000
 -/
-def stringBodies (input : List (F p)) : Option (List (FB p)) := do
-  (←stringBodiesRev₀ input.reverse).1.reverse
+def stringBodies (input : List (F p)) : (List (FB p)) :=
+  (stringBodiesRev₀ input.reverse).1.reverse
 
 /-
 omit [Core bn254] in
@@ -155,7 +202,7 @@ def emailVerifiedCheck
   let uidIsEmail ← FList.eq uidName email
   conditionallyAssert uidIsEmail (←FList.eq evName requiredEvName)
   conditionallyAssert uidIsEmail
-    ((←FList.eq evValue requiredEvValLen4) ||| (←FList.eq evValue requiredEvValLen6))
+    (((←FList.eq evValue requiredEvValLen4) ||| (←FList.eq evValue requiredEvValLen6)) : FB p)
   return uidIsEmail
  where
   conditionallyAssert (antecedent consequent : FB p) : Option Unit :=
@@ -434,6 +481,8 @@ open Clap.Lang Core ZMod FString FArray HashToField Primes
 
 abbrev p := Primes.bn254
 
+#synth Core p
+
 instance : Coe Char (F p) := charToFp
 
 attribute [local simp] Clap.Spec.Compiler.isZero F.eq FB.not FB.or FB.and
@@ -561,16 +610,14 @@ theorem stringBodies_go_some :
     case isFalse neq =>
       simp [F.eqPure, isZeroPure, sub_eq_zero, neq]
   case isFalse h =>
-    simp [F.eqPure, isZeroPure, FB.xor]
-    split
-    case isTrue hc =>
-      subst hc
-      simp [sub_eq_zero, h]
-    case isFalse hc =>
-      simp [sub_eq_zero, h, hc]
+    simp only [Option.get!_some, F.eqPure, isZeroPure, Clap.Spec.Compiler.isZero, FB.xor, zero_mul,
+      add_zero, mul_zero, sub_zero]
+    grind
 
 private def stringBodiesRev₁ (input : List (F p)) : List (FB p) × FB p × FB p :=
   input.foldr stringBodiesGo ([], default, default)
+
+
 
 lemma stringBodiesRev_some :
   ∀ input : List (F p), stringBodiesRev₀ input = some (stringBodiesRev₁ input)
@@ -580,8 +627,12 @@ lemma stringBodiesRev_some :
   induction l with
   | nil => grind
   | cons h t ih =>
+    simp at ih
     simp [ih]
-    rw [stringBodies_go_some]
+    let res := List.foldr stringBodiesGo ([], default, default) t
+    have := @stringBodies_go_some h res.1 res.2.1 res.2.2
+    simp only [Prod.mk.eta, Option.some.injEq] at this
+    rw [this]
 
 def stringBodiesR (input : List (F p)) : List (FB p) :=
   (stringBodiesRev₁ input.reverse).1.reverse
@@ -1145,6 +1196,29 @@ theorem isInQuotes_iff (l : List (F p)) :
         simp
         conv => arg 1; rw [stringBodies_zero (h₁ :: h₂ :: t) (by grind)]
         simp
+
+example {ls ls₁ : List (F p)} (h : stringBodies ls = some ls₁) :
+    ∀ i : Fin ls₁.length,
+      (ls₁[i] = 1 ∧ isInQuotes ls ⟨i.1,
+        by
+          have : ls.length = ls₁.length := sorry
+          rw [this]
+          exact i.2
+        ⟩) ∨
+      (ls₁[i] = 0 ∧ ¬ isInQuotes ls ⟨i.1, by
+          have : ls.length = ls₁.length := sorry
+          rw [this]
+          exact i.2⟩) := by
+  intros i
+  unfold stringBodies stringBodiesRev₀ at h
+  simp only [Option.some.injEq] at h
+
+
+
+
+  -- unfold isInQuotes isQuotation oddNrQuotesUntil
+  -- simp?
+  sorry
 
 -- #exit
 
