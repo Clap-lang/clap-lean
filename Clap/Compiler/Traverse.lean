@@ -891,7 +891,8 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
     let szDesired : Q(ℕ) := toExpr szN
     let proof ← mkSorry q($szAppendHdTlQ = $szDesired) false
     logInfo m!"will try to cowboy cast: {appendHdTl}"
-    let thatGuy ← cowboyCast appendHdTl szN
+    -- let thatGuy ← cowboyCast appendHdTl szN
+    let thatGuy := appendHdTl
     let thisGuy := appendHdTl
     let thisGuy := thatGuy
     let mapM ← mkAppM ``_root_.Vector.mapM #[f, thisGuy]
