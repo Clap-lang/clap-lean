@@ -61,6 +61,14 @@ initialize Lean.registerTraceClass `Clap.Compile.simp.proc.vector_mapM_mk_eq_app
 
 initialize Lean.registerTraceClass `Clap.Compile.simp.proc.sequenceAsVecExpr (inherited := true)
 
+initialize Lean.registerTraceClass `Clap.Compile.simp.proc.zeta (inherited := true)
+
+initialize Lean.registerTraceClass `Clap.Compile.simp.proc.evalGround (inherited := true)
+
+initialize Lean.registerTraceClass `Clap.Compile.simp.proc.vector_getElem_mk (inherited := true)
+
+initialize Lean.registerTraceClass `Clap.Compile.simp.proc.seemsTotallySafeInDTT (inherited := true)
+
 initialize Lean.registerTraceClass `Clap.Compile.debug.simp (inherited := true)
 
 

@@ -163,7 +163,11 @@ open API
 
 open Sym in
 def preprocessExpr (e : Expr) : SymM Expr := do
-  shareCommon (← unfoldReducible (← instantiateMVars e))
+  shareCommon (←unfoldReducible (←instantiateMVars e))
+
+open Sym in
+def reducedAndSharedInc (e : Expr) : SymM Expr := do
+  shareCommonInc (←unfoldReducible e)
 
 set_option hygiene false in
 def mkSimp (simpset : SimpSet)

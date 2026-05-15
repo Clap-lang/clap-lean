@@ -1,3 +1,4 @@
+import Clap.Compiler.Simp
 import Clap.Compiler.Wheels
 import Qq
 import Mathlib.Tactic
@@ -33,7 +34,7 @@ def getElemVectorOfIdx (coll : Expr) (len idx : Nat) : Sym.Simp.SimpM Expr := do
 def inferVectorProof (vectorSansProof : Expr) : Sym.Simp.SimpM Expr := do
   let .forallE _ argT _ _ ← inferType vectorSansProof | unreachable!
   -- logInfo m!"vectorSansProof: {vectorSansProof}\ntype: {←inferType vectorSansProof}"
-  pure (Expr.app vectorSansProof (←mkSorry argT false)) >>= instantiateMVars
+  pure (Expr.app vectorSansProof (←mkSorry argT false)) -- >>= instantiateMVars
 
 def mkVecLit (l : Expr) (sz : Expr) : Sym.Simp.SimpM Expr := do
   let array ← mkAppM ``List.toArray #[l]
@@ -47,13 +48,11 @@ def mkVecLit (l : Expr) (sz : Expr) : Sym.Simp.SimpM Expr := do
 TODO: Use mkVecLit
 -/
 def sequenceAsVecExpr (name : Expr) (t : Expr) (len : Nat) : Sym.Simp.SimpM Expr := do
-  let array ← mkAppM ``List.toArray #[
-    ←mkListLit t (←List.range len |>.mapM (getElemVectorOfIdx name len))
-  ]
-  let u ← getDecLevel t
-  let e' ← inferVectorProof (mkAppN (.const ``_root_.Vector.mk [u]) #[t, toExpr len, array])
+  let e' ← mkVecLit
+             (←mkListLit t (←List.range len |>.mapM (getElemVectorOfIdx name len)))
+             (mkNatLit len)
   trace[Clap.Compile.simp.proc.sequenceAsVecExpr]
-    m!"{name}[length = {len}][elemType = {t}]\n==>\n{e'}"
+    m!"\n{name}[length = {len}][elemType = {t}]\n==>\n{e'}"
   Sym.shareCommonInc e'
 
 -- def needsExploding (e : Expr) : SimpM Bool := do
@@ -177,6 +176,8 @@ of the operations.
 TODO: Generalise.
 -/
 
+open Compiler.Simp
+
 /--
 TODO: Proof. Viz. `abc'`.
 -/
@@ -187,7 +188,9 @@ def explodeVectorAppend : Sym.Simp.Simproc := fun e ↦ do
   let b? ← toVectorSequence? b
   if a?.isNone && b?.isNone then return .rfl
 
-  let append ← mkAppM ``HAppend.hAppend #[a?.getD a, b?.getD b]
+  let append ← reducedAndSharedInc (← mkAppM ``HAppend.hAppend #[a?.getD a, b?.getD b])
+  trace[Clap.Compile.simp.kaboom]
+    m!"\n{e}\n==>\n{append}"
   return .step append (←mkSorry (←mkEq e append) false)
 
 /--
@@ -199,7 +202,9 @@ def explodeVectorMap : Sym.Simp.Simproc := fun e ↦ do
   let xs ← toVectorSequence? xs
   match xs with
   | .none => return .rfl
-  | .some xs => let map ← mkAppM ``Vector.map #[f, xs]
+  | .some xs => let map ← reducedAndSharedInc (←mkAppM ``Vector.map #[f, xs])
+                trace[Clap.Compile.simp.kaboom]
+                  m!"\n{e}\n==>\n{map}"
                 return .step map (←mkSorry (←mkEq e map) false)
 
 /--
@@ -210,7 +215,9 @@ def explodeVectorMapM : Sym.Simp.Simproc := fun e ↦ do
   let xs ← toVectorSequence? xs
   match xs with
   | .none => return .rfl
-  | .some xs => let map ← mkAppM ``Vector.mapM #[f, xs]
+  | .some xs => let map ← reducedAndSharedInc (←mkAppM ``Vector.mapM #[f, xs])
+                trace[Clap.Compile.simp.kaboom]
+                  m!"\n{e}\n==>\n{map}"
                 return .step map (←mkSorry (←mkEq e map) false)
 
 

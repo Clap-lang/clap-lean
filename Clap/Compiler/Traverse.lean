@@ -505,13 +505,9 @@ end CompileSets
 YEEEEEHAAAAAAAAW, you rootin' tootin' cowboy.
 -/
 def cowboyCast (e : Expr) (yourDeepestDesire : ℕ) : Sym.SymM Expr := do
-  -- let ⟨u, α, e⟩ ← inferTypeQ e
-  let_expr Vector t sz := ←Sym.inferType e | throwError m!"Not a true cowboy."
-
-  -- let ⟨u, tu⟩ ← getLevelQ t
-  -- let yourDeepestDesireQ : Q(ℕ) := toExpr yourDeepestDesire
-  let proof ← mkEq (←Sym.inferType e) (←mkAppM ``Vector #[t, mkNatLit yourDeepestDesire])
-  -- let proof := q($α = Vector $t $yourDeepestDesireQ)
+  let t ← Sym.inferType e
+  let_expr Vector t sz := t | throwError m!"Not a true cowboy."
+  let proof ← mkEq t (←mkAppM ``Vector #[t, mkNatLit yourDeepestDesire])
   let e' ← e.rewriteType (←mkSorry proof false)
   logInfo m!"Cowboy cast:\n{e}\n==>\n{e'}"
   return e'
@@ -596,6 +592,8 @@ private def zetaReduce : Simproc := fun e ↦ do
   let .letE _ _ value body _ := e | return .rfl
   let new := expandLet body #[value]
   let new ← Sym.share new
+  trace[Clap.Compile.simp.proc.zeta]
+    m!"\n{e}\n==>\n{new}"
   return .step new (←Sym.mkEqRefl new)
 
 /--
@@ -616,23 +614,46 @@ def beta : MetaM Methods := do
     pre := betaReduce
   }
 
+private def evalGround : Simproc := fun e ↦ do
+  let e' ← Sym.Simp.evalGround {} e
+  unless isSameExpr e (e'.getResultExpr e) do
+    trace[Clap.Compile.simp.proc.evalGround]
+      m!"\n{e}\n==>\n{e'.getResultExpr e}"
+  return e'
+
 def ground : MetaM Methods := do
   return {
     post := evalGround
   }
+
+-- private def seemsTotallySafeInDTT : Simproc := fun e ↦ do
+--   let_expr Vector _ n := ←Sym.inferType e | return .rfl
+--   let groundSize := (←Sym.simp n (←ground)).getResultExpr n
+--   if isSameExpr n groundSize then return .rfl
+--   match groundSize.nat? with
+--   | .none => throwError m!"{groundSize} is not ground.\nTODO: Maybe this is ok."
+--   | .some groundSize =>
+--     let cowboyCast e _
+--     trace[Clap.Compile.simp.proc.seemsTotallySafeInDTT]
+--       m!"{}"
+--     return .rfl
+--   -- let e' ← Sym.Simp.evalGround {} e
+--   -- unless isSameExpr e (e'.getResultExpr e) do
+--   --   trace[Clap.Compile.simp.proc.evalGround]
+--   --     m!"\n{e}\n==>\n{e'.getResultExpr e}"
+--   -- return e'
 
 end General
 
 namespace Vector
 
 -- Essentially `Vector.mk_append_mk`.
-private def mk_append_mk : Simproc := fun e ↦ do
+private def mk_append_mk' : Simproc := fun e ↦ do
   let_expr HAppend.hAppend _ _ _ _ xs ys := e | return .rfl
   let_expr Vector t szXs := ←Sym.inferType xs | return .rfl
   let_expr Vector _ szYs := ←Sym.inferType ys | return .rfl
   let_expr Vector.mk _ _ xs _ := xs | return .rfl
   let_expr Vector.mk _ _ ys _ := ys | return .rfl
-  trace[Clap.Compile.simp.proc.mk_append_mk] m!"hell"
   match szXs.nat?, szYs.nat? with
   | .some szXs, .some szYs =>
     -- The trick here is to enforce _syntactically_ that `szXs + szYs` for concrete values
@@ -643,6 +664,7 @@ private def mk_append_mk : Simproc := fun e ↦ do
     let e' := mkAppN
                 (.const ``Vector.mk [←getDecLevel t])
                 #[t, szAppend, append, szAppendProof]
+    let e' ← Compiler.Simp.reducedAndSharedInc e'
     let proof ← mkSorry (←mkEq e e') false -- Probably just `Vector.mk_append_mk` up to defeq
     trace[Clap.Compile.simp.proc.mk_append_mk]
       m!"\n{e}\n==>\n{e'}"
@@ -650,9 +672,26 @@ private def mk_append_mk : Simproc := fun e ↦ do
   | _ , _ =>
     -- TODO: I have a feeling this sometimes misbehaves for some reason, look into this.
     -- Notably, when using `Vector.getElem_mk` 'directly', it simps more things than this guy?
+    -- TODO: Sharing
     logWarning m!"{e} is an append of non-ground size (TODO: remove)"
     let thm ← mkTheoremFromDecl ``Vector.getElem_mk
     thm.rewrite e
+
+-- def appendDbg : Sym.Simp.Simproc := fun e ↦ do
+  
+--   let_expr Vector.mk _ _ arr _ := e | return .rfl
+--   logInfo m!"{e} makes: {arr}"
+  
+--   let thm ← mkTheoremFromDecl ``List.append_toArray
+  
+--   match ←thm.pattern.match? arr with
+--   | .none => logInfo m!"{bombEmoji} Pattern:\n{thm.pattern.pattern}"
+--   | .some arr => logInfo m!"{checkEmoji} Pattern:\n{arr.args}"
+--   match ←thm.pattern.match? (←Compiler.Simp.preprocessExpr e) with
+--   | .none => logInfo m!"{bombEmoji} Pattern:\n{thm.pattern.pattern}"
+--   | .some arr => logInfo m!"{checkEmoji} Pattern:\n{arr.args}"
+--   return .rfl
+  
 
 def append : MetaM Methods :=
   mkPostMethods #[
@@ -660,7 +699,9 @@ def append : MetaM Methods :=
 
     ``List.cons_append, ``List.nil_append, ``List.append_nil,
 
-    ``Compiler.explodeVectorAppend
+    ``Compiler.explodeVectorAppend,
+
+    -- ``appendDbg
   ]
 
 def explode : MetaM Methods := do
@@ -757,6 +798,31 @@ def getElemDbg : Sym.Simp.Simproc := fun e ↦ do
 --   -- unless isSameExpr getElemSz mkSz do return .rfl
 --   -- trace[Clap.Compile.simp.proc.getElem_mk] m!""
   -- _
+
+def getElem_mk : Sym.Simp.Simproc := fun e ↦ do
+  let_expr GetElem.getElem collT _ _ _ _ coll _ _ := e | return .rfl
+  let_expr Vector.mk _ sz arr _ := coll | return .rfl
+  let_expr Vector _ getElemSz := collT | return .rfl
+  logWarning m!"Doing.\nGetElem={getElemSz}\nVec.mk={sz}"
+  if isSameExpr getElemSz sz then -- `1 + 1 ≠ 2`
+    let thm ← mkTheoremFromDecl ``Vector.getElem_mk -- TODO: Don't do this lazily here.
+    let e' ← thm.rewrite e
+    trace[Clap.Compile.simp.proc.vector_getElem_mk]
+      m!"\n{e}\n==>\n{e'.getResultExpr e}"
+    return e'
+  let simpedSz := (←Sym.simp sz (←General.ground)).getResultExpr sz
+  match simpedSz.nat? with
+  | .none =>
+    throwError m!"{simpedSz} is not ground.\nMaybe this is ok."
+    return .rfl
+  | .some simpedSzN =>
+    logInfo m!"sz:{sz}\nsimpedSz: {(←Sym.simp sz (←General.ground)).getResultExpr sz}"
+    let e' ← inferVectorProof (←mkAppM ``GetElem.getElem #[arr, mkNatLit simpedSzN])
+    let e' ← Compiler.Simp.reducedAndSharedInc e'
+    trace[Clap.Compile.simp.proc.vector_getElem_mk]
+      m!"\n{e}\n==>\n{e'}\nCheating.\nIn {collT} we pretend that {getElemSz} = {simpedSzN}."
+    return .step e' (←mkSorry (←mkEq e e') false)
+
 #check Vector.append
 #check GetElem.getElem (coll := Vector ℕ 4) (Vector.mk (n := 2 + 2) #[1, 2, 3, 4] rfl) 0 (by decide)
 def getElem : MetaM Methods :=
@@ -769,13 +835,27 @@ def getElem : MetaM Methods :=
     -- ``getElemDbg
   ]
 
+def mapDbg : Sym.Simp.Simproc := fun e ↦ do
+  let_expr Array.map _ _ _ _ := e | return .rfl
+  logInfo m!"Is Array.map:\n{e}"
+  let thm ← mkTheoremFromDecl ``List.map_toArray
+  match ←thm.pattern.match? e with
+  | .none => logInfo m!"{bombEmoji} Pattern:\n{thm.pattern.pattern}"
+  | .some e => logInfo m!"{checkEmoji} Pattern:\n{e.args}"
+  match ←thm.pattern.match? (←Compiler.Simp.preprocessExpr e) with
+  | .none => logInfo m!"{bombEmoji} Pattern:\n{thm.pattern.pattern}"
+  | .some e => logInfo m!"{checkEmoji} Pattern:\n{e.args}"
+  return .rfl
+
 def map : MetaM Methods :=
   mkPostMethods #[
     ``Vector.map_mk, ``List.map_toArray,
     
     ``List.map_cons, ``List.map_nil,
 
-    ``Compiler.explodeVectorMap
+    ``Compiler.explodeVectorMap,
+    
+    -- ``mapDbg
   ] ∪ mapOptim
   where
     mapOptim : MetaM Methods := mkPreMethods #[``List.map_id]
@@ -810,6 +890,7 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
     let szAppendHdTlQ : Q(ℕ) := szAppendHdTl
     let szDesired : Q(ℕ) := toExpr szN
     let proof ← mkSorry q($szAppendHdTlQ = $szDesired) false
+    logInfo m!"will try to cowboy cast: {appendHdTl}"
     let thatGuy ← cowboyCast appendHdTl szN
     let thisGuy := appendHdTl
     let thisGuy := thatGuy
@@ -850,6 +931,7 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
     -- let ω ← IO.monoMsNow
     -- logInfo m!"timing: {Float.ofNat (ω - α)/Float.ofNat 1000}"
     -- logInfo m!"Nodes: {←consMapM.numObjs}"
+    let consMapM ← Compiler.Simp.reducedAndSharedInc consMapM
     return .step consMapM (←mkSorry (←mkEq e mapM) false)
     
     -- -- TODO: I am guessing this is... slow?
@@ -876,6 +958,21 @@ end SymSets
 
 def compileExample (ex : Name) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Format := do
   compile (((←getEnv).find? ex).get!.value!) simpset >>= (liftM ∘ PrettyPrinter.ppExpr)
+
+def compileExampleJustSym (ex : Name) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Format := do
+  let e := ((←getEnv).find? ex).get!.value!
+  lambdaTelescope e fun args e ↦ do
+    let compiled ← Compiler.Simp.simplify (simpset ∪ (←compilerSet)) e
+    logInfo m!"Compiled: {compiled}"
+    Sym.mkLambdaFVarsS args compiled >>= (liftM ∘ PrettyPrinter.ppExpr)
+    where
+      compilerSet : MetaM Sym.Simp.Methods :=
+        Sym.mkMethods #[
+          ``Option.bind_assoc, ``bind_assoc,
+          ``Option.pure_def,
+          ``Option.bind_eq_bind, ``Option.bind_fun_some, ``Option.bind_some, ``bind_pure, ``pure_bind,
+          ``Option.map_eq_map, ``Option.map_some
+        ]
 
 def eq0 (e : Nat) : Option Unit := .some ()
 
@@ -910,25 +1007,26 @@ set_option profiler.threshold 10
 
 -- /-- info: fun _vec => eq0 4 -/
 -- #guard_msgs in
-#eval spoon <| do compileExample ``ex₁ (←getElem)
+#eval spoon <| do compileExampleJustSym ``ex₁ (←getElem)
 set_option trace.Clap.Compile true
+
 def ex₂ (vec : Vector Nat 3) : Option Unit := do
   let x := (vec ++ vec)[0] -- `GetElem (Vector _ (3 + 3))`
   eq0 x
 
 /-- info: fun vec => eq0 vec[0] -/
 #guard_msgs in
-#eval spoon <| do compileExample ``ex₂ (←(append ∪ zeta ∪ getElem))
+#eval spoon <| do compileExampleJustSym ``ex₂ (←(append ∪ zeta ∪ getElem))
 
-def ex₃ (vec : Vector Nat 250) : Option Unit := do
+def ex₃ (vec : Vector Nat 200) : Option Unit := do
   let x := vec.map (·+1)
   eq0 x[0]
-
+-- set_option maxRecDepth 1000
 /-- info: fun vec => eq0 (vec[0] + 1) -/
 #guard_msgs in
-#eval spoon <| do compileExample ``ex₃ (←(map ∪ zeta ∪ getElem))
+#eval spoon <| do compileExampleJustSym ``ex₃ (←(map ∪ zeta ∪ getElem))
 
-def ex₄ (vec : Vector Nat 30) : Option Unit := do
+def ex₄ (vec : Vector Nat 2) : Option Unit := do
   let x ← vec.mapM (fun x ↦ return x + 1)
   eq0 x[0]
 -- set_option trace.Clap.Compile true
@@ -940,7 +1038,7 @@ set_option profiler true
 set_option trace.Clap.Compile.debug.simp true
 set_option pp.exprSizes true
 -- set_option debug.skipKernelTC true in
-#eval spoon <| do compileExample ``ex₄ (←(ground ∪ mapM ∪ getElem ∪ zeta)) -- It's the append that construcst this
+#eval spoon <| do compileExampleJustSym ``ex₄ (←(ground ∪ mapM ∪ getElem ∪ zeta))
 
 #exit
 
