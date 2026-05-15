@@ -11,8 +11,8 @@ class Core (p : ℕ) : Type _ where
   eq0         : F → Option Unit
   share       : F → Option F
   isZero      : F → Option F
-  num2bits    : ℕ → F → Option (List F)
-  bits2num    : List F → F
+  num2bits    : (w:ℕ) → F → Option (Vector F w)
+  bits2num    : {w:ℕ} → Vector F w → F
   fpMul       : ℕ → ℕ → List F → List F → List F → Option (List F)
 
   [onlyForDebugF  : ToString F  ]
@@ -128,45 +128,40 @@ def greaterEqThan (w : ℕ) (a b : F p) : Option (FB p) :=
 end F
 
 /-- LSB first, like the output of num2bits -/
-abbrev FBitVec (p:ℕ) [Core p] := List (FB p)
+abbrev FBitVec (p w : ℕ) [Core p] := Vector (FB p) w
 
 namespace FBitVec
 
-def default (l:ℕ) : FBitVec p := List.replicate l FB.false
+def default (w:ℕ) : FBitVec p w := Vector.replicate w FB.false
 
-def ofF (w:ℕ) (e:F p) : Option (FBitVec p) :=
+def ofF (w:ℕ) (e:F p) : Option (FBitVec p w) :=
   num2bits w e
 
-abbrev toF (v:FBitVec p) : F p := Core.bits2num v
+abbrev toF {w} (v:FBitVec p w) : F p := Core.bits2num v
 
 -- if arguments are both n-bit long, result is n+1 bits
-def binSum (a b : FBitVec p) : Option (FBitVec p) :=
+def binSum {w} (a b : FBitVec p w) : Option (FBitVec p (w+1)) :=
   let sum : F p := a.toF + b.toF
-  num2bits (a.length + 1) sum
+  num2bits (w + 1) sum
 
-def assert_eq (a b : FBitVec p) : Option Unit :=
-  match a,b with
-  | [],[] => some ()
-  | ha::tla,hb::tlb => do
-      FB.assert_eq ha hb
-      assert_eq tla tlb
-  | _,_ => none
+def assert_eq {w} (a b : FBitVec p w) : Option Unit :=
+  (a.zip b).foldlM (fun () (a,b) ↦ FB.assert_eq a b) ()
 
-def eq (a b : FBitVec p) : Option (FB p) :=
-  List.foldlM (fun acc (a,b) => do FB.and acc (←FB.eq a b)) FB.true (a.zip b)
+def eq {w} (a b : FBitVec p w) : Option (FB p) :=
+  (a.zip b).foldlM (fun acc (a,b) => do FB.and acc (←FB.eq a b)) FB.true
 
-def lessThan (a b : FBitVec p) : Option (FB p) :=
+def lessThan {w} (a b : FBitVec p w) : Option (FB p) :=
   (a.zip b).foldlM (fun acc (aᵢ, bᵢ) ↦ do
     let eqᵢ ← FB.eq aᵢ bᵢ
     (eqᵢ &&& acc) ||| ((FB.not eqᵢ) &&& (FB.not aᵢ))
   ) FB.false
 
-def greaterThan (a b : FBitVec p) : Option (FB p) :=
+def greaterThan {w} (a b : FBitVec p w) : Option (FB p) :=
   lessThan b a
 
 end FBitVec
 
-abbrev F8 (p:ℕ) [Fact (Primes.fits p 8)] [Core p] := FBitVec p
+abbrev F8 (p:ℕ) [Fact (Primes.fits p 8)] [Core p] := FBitVec p 8
 
 namespace F8
 
@@ -175,12 +170,19 @@ variable [Fact (Primes.fits p 8)]
 def ofF (x:F p) : Option (F8 p) := do
   FBitVec.ofF 8 x
 
+def ofUInt8 (u:UInt8) : Option (F8 p) :=
+  num2bits 8 (u.toNat)
+
+def zero : F8 p := FBitVec.default 8
+
 def eq (a b : F8 p) : Option (FB p) := FBitVec.eq a b
+
+def assert_eq (a b : F8 p) := FBitVec.assert_eq a b
 
 end F8
 
 
-abbrev F32 (p:ℕ) [Fact (Primes.fits p 32)] [Core p] := FBitVec p
+abbrev F32 (p:ℕ) [Fact (Primes.fits p 32)] [Core p] := FBitVec p 32
 
 namespace F32
 
@@ -195,22 +197,23 @@ def ofF (x:F p) : Option (F32 p) := do
   FBitVec.ofF 32 x
 
 def ofF8 [Fact (Primes.fits p 8)] (u8 : F8 p) : F32 p :=
-  u8 ++ (List.replicate 24 (0:FB p))
+  u8 ++ (Vector.replicate 24 (0:FB p))
 
 def add (a b : F32 p) : Option (F32 p) := do
-  List.take 32 (← FBitVec.binSum a b)
+  have h : Option (FBitVec p (min 32 (32 + 1))) = Option (F32 p) := by grind
+  h ▸ Vector.take (← FBitVec.binSum a b) 32
 
 def assert_eq (a b : F32 p) := FBitVec.assert_eq a b
 
 end F32
 
-abbrev F64 (p:ℕ) [Fact (Primes.fits p 64)] [Core p] := FBitVec p
+abbrev F64 (p:ℕ) [Fact (Primes.fits p 64)] [Core p] := FBitVec p 64
 
 namespace F64
 
 variable [Fact (Primes.fits p 64)]
 
-def ofF (x:F p) : Option (F64 p) := do
+def ofF (x:F p) : Option (F64 p) :=
   FBitVec.ofF 64 x
 
 end F64
@@ -235,11 +238,11 @@ scoped instance instCoreZMod {p:ℕ} [Fact (Nat.Prime p)] : Core p where
   share := Compiler.share
   isZero := Compiler.isZero
   num2bits := Compiler.num2bits
-  bits2num := Compiler.bits2num
+  bits2num := Compiler.bits2numV
   fpMul := Compiler.fpMul
   onlyForDebugF
 
-def F8.ofF! {p:ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] : F p → F8 p := Clap.num2bitsLsbPure 8
+def F8.ofF! {p:ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] : F p → F8 p := Clap.num2bitsLsbPureV 8
 
 end ZMod
 
@@ -270,18 +273,18 @@ example : F.greaterEqThan 2 (2 : F p) 2 == some 1 := by native_decide
 example : F.greaterEqThan 2 (2 : F p) 3 == some 0 := by native_decide
 
 
-def testBinSum (a b expected : FBitVec p) : Option Unit := do
+def testBinSum (a b : FBitVec p 3) (expected : FBitVec p 4) : Option Unit := do
   FBitVec.assert_eq (← FBitVec.binSum a b) expected
 
-example : (testBinSum [1,0,0] [1,0,0] [0,1,0,0]) = some () := by native_decide
-example : (testBinSum [0,0,1] [0,0,1] [0,0,0,1]) = some () := by native_decide
-example : (testBinSum [1,1,1] [1,0,0] [0,0,0,1]) = some () := by native_decide
+example : (testBinSum #v[1,0,0] #v[1,0,0] #v[0,1,0,0]) = some () := by native_decide
+example : (testBinSum #v[0,0,1] #v[0,0,1] #v[0,0,0,1]) = some () := by native_decide
+example : (testBinSum #v[1,1,1] #v[1,0,0] #v[0,0,0,1]) = some () := by native_decide
 
 instance : Coe UInt32 (F32 p) where
-  coe n := Clap.num2bitsLsbPure 32 n.toNat
+  coe n := Clap.num2bitsLsbPureV 32 n.toNat
 
 instance (n:ℕ) : OfNat (F32 p) n where
-  ofNat := Clap.num2bitsLsbPure 32 n
+  ofNat := Clap.num2bitsLsbPureV 32 n
 
 example :
   letI a : UInt32 := 2^32 - 1
