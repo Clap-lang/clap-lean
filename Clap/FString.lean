@@ -14,9 +14,9 @@ variable {p : ℕ} [core : Core p] [Fact (Primes.fits p 8)]
 
 def isWhitespace (c : FChar p) : Option (FB p) := do
   -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
-  let bv8  : F8 p := [0, 0, 0, 1, 0, 0, 0, 0]
-  let bv14 : F8 p := [0, 1, 1, 1, 0, 0, 0, 0]
-  let bv32 : F8 p := [0, 0, 0, 0, 0, 1, 0, 0]
+  let bv8  : F8 p := #v[0, 0, 0, 1, 0, 0, 0, 0]
+  let bv14 : F8 p := #v[0, 1, 1, 1, 0, 0, 0, 0]
+  let bv32 : F8 p := #v[0, 0, 0, 0, 0, 1, 0, 0]
   let gt8 ← FBitVec.greaterThan c bv8
   let lt14 ← FBitVec.lessThan c bv14
   let isLineBreak : FB p := FB.and gt8 lt14
@@ -62,8 +62,8 @@ open FB in
 /-- Asserts that every value in `inp` is a valid ASCII digit (i.e., in the range [48, 57]). -/
 def assertIsAsciiDigits {maxDigits : ℕ} (inp : FString p maxDigits) : Option Unit := do
   let selector ← FArray.arraySelector maxDigits 0 inp.len
-  let bv47 : F8 p := [1, 1, 1, 1, 0, 1, 0, 0]
-  let bv58 : F8 p := [0, 1, 0, 1, 1, 1, 0, 0]
+  let bv47 : F8 p := #v[1, 1, 1, 1, 0, 1, 0, 0]
+  let bv58 : F8 p := #v[0, 1, 0, 1, 1, 1, 0, 0]
   for i in List.finRange maxDigits do
     let c := inp.chars[i]
     let gt ← FBitVec.greaterThan c bv47
@@ -273,7 +273,7 @@ example : countTrailingZeros #v[0,1,0,0] = some (2: F p) := by native_decide
 example : countTrailingZeros #v[0,0,1,0] = some (1: F p) := by native_decide
 
 example : (do FString.ofFs #v[]) = some {chars := #v[], len:= (0:F p)} := by native_decide
-example : (do FString.ofFs #v[(0:F p),1,0,0]) = some { chars := #v[[0,0,0,0,0,0,0,0],[1,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0]],len := 2 } := by native_decide
+example : (do FString.ofFs #v[(0:F p),1,0,0]) = some { chars := #v[#v[0,0,0,0,0,0,0,0],#v[1,0,0,0,0,0,0,0],#v[0,0,0,0,0,0,0,0],#v[0,0,0,0,0,0,0,0]],len := 2 } := by native_decide
 
 -- isWhitespace tests
 example : FChar.isWhitespace (F8.ofF! ( 9 : F p)) = some FB.true := by native_decide -- TAB
@@ -288,7 +288,7 @@ example : FChar.isWhitespace (F8.ofF! ( 0 : F p)) = some FB.false := by native_d
 /-- Construct an `FString` from a char vector and a length for use in tests.
     Notably this allows to construct a "wrong" FString that FString.ofFs would not return. -/
 private def mkFStr {n : ℕ} (chars : Vector (F p) n) (len : ZMod p) : FString p n :=
-  let chars : Vector _ n := chars.map (Clap.num2bitsLsbPure 8)
+  let chars : Vector _ n := chars.map (Clap.num2bitsLsbPureV 8)
   ⟨chars, len⟩
 
 -- assertIsAsciiDigits tests
@@ -365,7 +365,7 @@ example : FString.assertIsSubstring
 abbrev q := Primes.bn254
 
 private def mkFStrQ {n : ℕ} (chars : Vector (F q) n) (len : F q) : FString q n :=
-  let chars : Vector _ n := chars.map (Clap.num2bitsLsbPure 8)
+  let chars : Vector _ n := chars.map (Clap.num2bitsLsbPureV 8)
   ⟨chars, len⟩
 
 /-- Compute `strHash` for an `FString` via `hashBytesToFieldWithLen`. -/
