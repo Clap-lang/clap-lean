@@ -4,7 +4,7 @@ namespace Base64Len
 
 open Clap.Lang Core
 
-variable {p : ℕ} [Core p]
+variable {p : ℕ} [Fact (Primes.fits p 8)] [Core p]
 
 instance : Coe Char (F p) where
   coe c := c.toNat
@@ -103,18 +103,33 @@ def base64UrlLookup (i : F p) : Option (F p) := do
 
   pure sum_underscore
 
-def base64UrlDecode₀ (n : ℕ) (input : Array (F p)) : Option (Array (F p)) := do
-  if h : n > 0 then
-    let seq4Times6Bits ← input.take 4 |>.mapM (num2bits 6)
-    let seq3Times8Bits := seq4Times6Bits.reverse.toList.flatten.toChunks 8
-    let out := seq3Times8Bits.reverse.map bits2num
-    return Array.append ⟨out.take n⟩ (←base64UrlDecode₀ (n - 3) (input.drop 4))
-  else
-    return .empty
+def base64UrlDecode₀ {w} (h:8 ∣ w * 6) (input : Vector (F p) w) : Option (Vector (F p) (w*6/8)) := do
+  let tmp : Vector (FBitVec p 6) w ← input.mapM (num2bits 6)
+  let tmp : Vector (FBitVec p 6) w := tmp.map Vector.reverse
+  let tmp : FBitVec p (w*6) := tmp.flatten
+  let tmp : Vector (FBitVec p 8) (w*6/8) :=
+    have h : (w * 6) = (w * 6 / 8 * 8) := by
+      rw [eq_comm]
+      aesop (add safe [Nat.div_mul_cancel])
+    toChunks 8 (h ▸ tmp)
+  some (tmp.map (fun b ↦ bits2num b.reverse))
 
-def base64UrlDecode (n : ℕ) (input : Array (F p)) : Option (Array (F p)) := do
-  let a ← input.mapM base64UrlLookup
-  base64UrlDecode₀ n a
+
+-- def base64UrlDecode₀ (n : ℕ) (input : Array (F p)) : Option (Array (F p)) := do
+--   if h : n > 0 then
+--     let seq4Times6Bits ← input.take 4 |>.mapM (num2bits 6)
+--     let seq3Times8Bits := seq4Times6Bits.reverse.toList.flatten.toChunks 8
+--     let out := seq3Times8Bits.reverse.map bits2num
+--     return Array.append ⟨out.take n⟩ (←base64UrlDecode₀ (n - 3) (input.drop 4))
+--   else
+--     return .empty
+
+def base64UrlDecode {w} (n : ℕ) (h:8 ∣ n * 6) (hn : n ≤ w) (input : Vector (F p) w) : Option (Vector (F p) (n * 6 / 8)) := do
+  let input : Vector (F p) n :=
+    have h : min n w = n := by omega
+    h ▸ input.take n
+  let input : Vector (F p) n ← input.mapM base64UrlLookup
+  base64UrlDecode₀ h input
 
 end Base64Len
 
@@ -126,8 +141,10 @@ open Base64Len
 abbrev p := Primes.goldilocks
 
 private def testBase64UrlDecode (n : ℕ) (s : String) : Option String := do
-  let input := s.toList.map Char.toNat |>.map (fun n ↦ (ofNat(n) : ZMod p))
-  let output ← base64UrlDecode (p := p) n input.toArray
+  let m := (n * 4 + 2) / 3  -- number of base64 chars that encode n decoded bytes
+  let input : List (ZMod p) := s.toList.map Char.toNat |>.map (fun n ↦ (ofNat(n) : ZMod p))
+  let input : Vector (F p) input.length := ⟨input.toArray, by grind⟩
+  let output ← base64UrlDecode (p := p) m (by sorry) (by sorry) input
   return String.ofList <| output.toList.map (fun z => Char.ofNat z.val)
 
 example : testBase64UrlDecode 13 "T3JpZ2luYWwgdGV4dA==" == "Original text" := by
