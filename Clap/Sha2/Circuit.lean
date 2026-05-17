@@ -194,13 +194,13 @@ def test₁ {p:ℕ} [Core p] [Fact (Primes.fits p 32)]
   F32.assert_eq (Clap.Sha2.Circuit.ch x y z) F32.default
   -- accept p
 
-/--
-info: Compiled test₁ into test₁_circuit.
----
-info: Wg for test₁ is test₁_wg_wrap.
--/
-#guard_msgs in
-#compile test₁ using Primes.goldilocks
+-- /--
+-- info: Compiled test₁ into test₁_circuit.
+-- ---
+-- info: Wg for test₁ is test₁_wg_wrap.
+-- -/
+-- #guard_msgs in
+-- #compile test₁ using Primes.goldilocks
 
 end TestCompilation
 
