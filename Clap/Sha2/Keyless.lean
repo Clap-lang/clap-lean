@@ -67,7 +67,7 @@ private def processAllBlocks
     (blocks : Array (Block (F32 bn254))) (acc : Hash (F32 bn254))
     (i : Nat) (states : Array (Hash (F32 bn254))) : Option (Array (Hash (F32 bn254))) := do
   if i >= blocks.size then pure states else
-  let acc ← @compress Option _ (Circuit.t bn254) Circuit.instSha Circuit.instU32Monadic blocks[i]! acc
+  let acc ← @compress Option _ (Circuit.t bn254) Circuit.instSha Circuit.instU32Monadic acc blocks[i]!
   processAllBlocks blocks acc (i + 1) (states.push acc)
 
 open FString FArray HashToField
@@ -207,8 +207,7 @@ def sha256VerifiedDigest
   --       in <== Bytes2BigEndianBits(MAX_B64U_JWT_NO_SIG_LEN)(b64u_jwt_no_sig_sha2_padded),
   --       tBlock <== sha2_num_blocks - 1);
 
-  let dataBytes : Array (F8 bn254) := data.chars.toArray
-  let blocks := @parse_blocks (Circuit.t bn254) Circuit.instSha dataBytes
+  let blocks := (@parse_blocks (Circuit.t bn254) Circuit.instSha 24 data.chars).toArray
   -- Process all blocks and collect intermediate hash states.
   let allStates ← processAllBlocks blocks (@initial_hash (Circuit.t bn254) Circuit.instSha) 0 #[]
   let tBlock := sha2NumBlocks - 1
@@ -270,12 +269,13 @@ open Clap.Lang Core Primes ZMod
 private instance : Clap.Sha2.Sha (Clap.Sha2.Circuit.t bn254) := Clap.Sha2.Circuit.instSha
 private instance : Clap.Sha2.U32Monadic Option (F32 bn254) := Clap.Sha2.Circuit.instU32Monadic
 
-private def abcHash : Option (Array (F32 bn254)) :=
-  Clap.Sha2.digest (t := Clap.Sha2.Circuit.t bn254) (#[97, 98, 99].map fun (n : Nat) => (Clap.nat2bitsLsb 8 n : F8 bn254))
+private def abcHash : Option (Hash (F32 bn254)) :=
+  let bytes : Array (F8 bn254) := (#[97, 98, 99] : Array Nat).map (fun (n : Nat) => F8.ofF! (n : F bn254))
+  Clap.Sha2.digest (t := Clap.Sha2.Circuit.t bn254) ⟨bytes, rfl⟩
 
 example : (do
   let hash ← abcHash
-  pure (hashToRSALimbs hash)) =
+  pure (hashToRSALimbs hash.toArray)) =
   some #v[0xb410ff61f20015ad, 0xb00361a396177a9c, 0x414140de5dae2223, 0xba7816bf8f01cfea]
 := by native_decide
 
@@ -292,7 +292,7 @@ open Clap.Lang Core Primes ZMod
 -- (0x80 at position 3, then 52 zero bytes, then 8-byte big-endian length = 24 bits)
 -- Remaining bytes up to MAX_B64U_JWT_NO_SIG_LEN (1536) are zeros.
 
-private def natToF8 (n : Nat) : F8 bn254 := Clap.nat2bitsLsb 8 n
+private def natToF8 (n : Nat) : F8 bn254 := F8.ofF! (n : F bn254)
 
 private def mkTestData : FString bn254 MAX_B64U_JWT_NO_SIG_LEN :=
   let msgBytes : Array Nat := #[97, 98, 99]  -- "abc"
@@ -328,7 +328,7 @@ open Clap.Lang Core Primes ZMod
 -- Padding: msg(56) ++ [0x80] ++ zeros(63) ++ length(8) = 128 bytes = 2 blocks
 -- Length = 56 * 8 = 448 bits = 0x01C0
 
-private def natToF8 (n : Nat) : F8 bn254 := Clap.nat2bitsLsb 8 n
+private def natToF8 (n : Nat) : F8 bn254 := F8.ofF! (n : F bn254)
 
 private def msg56 : Array Nat :=
   "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".toUTF8.data.map (·.toNat)
@@ -381,13 +381,13 @@ The output conversion chain (F32 → big-endian bits → 64-bit limbs → LE ord
 private instance : Sha (Circuit.t bn254) := Circuit.instSha
 private instance : U32Monadic Option (F32 bn254) := Circuit.instU32Monadic
 
-private def natToF8 (n : Nat) : F8 bn254 := Clap.nat2bitsLsb 8 n
+private def natToF8 (n : Nat) : F8 bn254 := F8.ofF! (n : F bn254)
 
 -- Helper: run digest on raw bytes and convert to RSA limbs (Path A)
 private def digestToLimbs (msg : Array Nat) : Option (Vector (F bn254) 4) := do
   let f8Msg : Array (F8 bn254) := msg.map natToF8
-  let hash ← Clap.Sha2.digest (t := Circuit.t bn254) f8Msg
-  pure (hashToRSALimbs hash)
+  let hash ← Clap.Sha2.digest (t := Circuit.t bn254) ⟨f8Msg, rfl⟩
+  pure (hashToRSALimbs hash.toArray)
 
 -- (1) "abc" (3 bytes, 1 block)
 

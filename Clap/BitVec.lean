@@ -14,6 +14,17 @@ def nat2bitsLsb (n : ℕ) (f : ℕ) : List ℕ :=
     let rem := f / 2
     bit::(nat2bitsLsb n rem)
 
+def nat2bitsLsbV (n : ℕ) (f : ℕ) : Vector ℕ n :=
+  (aux n f).reverse
+where
+  aux (n : ℕ) (f : ℕ) : Vector ℕ n :=
+  match n with
+  | 0 => #v[]
+  | n+1 =>
+    let bit := f % 2
+    let rem := f / 2
+    (aux n rem).push bit
+
 variable {p : ℕ}
 
 /-- Computes the `n` bit binary representation of `f`.
@@ -37,7 +48,7 @@ where
   | 0 => #v[]
   | n+1 =>
     let bit := f.val % 2
-    let rem :=  f.val / 2
+    let rem := f.val / 2
     (aux n rem).push bit
 
 lemma num2bitsLsbPure_length {w : ℕ} {v : ZMod p} : (num2bitsLsbPure w v).length = w := by

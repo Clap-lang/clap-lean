@@ -218,6 +218,12 @@ def ofF (x:F p) : Option (F64 p) :=
 
 end F64
 
+def FByteArray (p w : ℕ) [Fact (Primes.fits p 8)] [Core p] := Vector (F8 p) w
+
+namespace FByteArray
+
+end FByteArray
+
 namespace ZMod
 
 open Clap.Spec
