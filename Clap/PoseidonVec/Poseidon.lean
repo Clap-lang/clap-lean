@@ -9,10 +9,6 @@ open Clap Lang
 
 abbrev p := Primes.bn254
 
-variable [Core p] -- not a concrete instance
-
-open Core
-
 /-- **Sigma (S-box):** The sole source of nonlinearity in the Poseidon permutation
 
     Mirrors circomlib's `Sigma` template -/
@@ -168,16 +164,13 @@ section Poseidon254
 
 open Primes
 
-def liftVec {n} (xs : Vector (ZMod p) n) : Vector (F p) n := xs.map const
-def liftMat {n} (xs : Vector (Vector (ZMod p) n) n) : Vector (Vector (F p) n) n := xs.map (·.map const)
-
 def poseidonBN254 {n} (inputs : Vector (F bn254) n) : Option (F bn254) :=
   let t := 1 + n -- element 2 is at list index 0 and so on
   let C := Clap.PoseidonVec.Constant.C t
   let S := Clap.PoseidonVec.Constant.S t
   let M := Clap.PoseidonVec.Constant.M t
   let P := Clap.PoseidonVec.Constant.P t
-  poseidon inputs (liftVec C) (liftVec S) (liftMat M) (liftMat P)
+  poseidon inputs C S M P
 
 end Poseidon254
 
@@ -187,9 +180,7 @@ namespace Clap.PoseidonVec.Test
 
 abbrev p := Primes.bn254
 
-open Clap Lang Core
-open Clap Lang ZMod
-open Clap PoseidonVec
+open Clap Lang PoseidonVec
 
 -- circomlib test vector: hash([1, 2]) with t=3
 -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L50

@@ -8,10 +8,6 @@ open Clap.Lang
 
 abbrev p := Clap.Poseidon.p
 
-open Core
-
-variable [Core p]
-
 /-
   `inputMaxbits` corresponds to the `{maxbits}` tag. Circom tags are assigned
   values known at compile time.
@@ -61,7 +57,7 @@ end HashToField
 namespace TestHashToField
 
 open HashToField
-open Clap.Lang Core ZMod
+open Clap.Lang
 
 abbrev p := Primes.bn254
 

@@ -23,13 +23,13 @@ namespace TestCircuit
 abbrev p := Primes.goldilocks
 
 open Clap.Sha2 Circuit
-open Clap.Lang Core ZMod
+open Clap.Lang
 
 def stringToU8s (s:String) : Vector (F8 p) s.length :=
   let bs : Vector UInt8 s.length := ⟨s.toUTF8.data, sorry⟩
   bs.map fun b =>
     let b : F p := (b.toNat : F p)
-    F8.ofF! b
+    Clap.num2bitsLsbPureV 8 b
 
 private instance : Sha (t p) := Clap.Sha2.Circuit.instSha
 private instance : U32Monadic Option (F32 p) := Clap.Sha2.Circuit.instU32Monadic

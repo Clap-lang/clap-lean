@@ -4,8 +4,7 @@ namespace Packing
 
 open Clap.Lang
 
-variable {p : ℕ} [Core p]
-open Core
+variable {p : ℕ}
 
 def assertIs64BitLimbs [Fact (Primes.fits p 64)] {numLimbs : ℕ}
   (a : Vector (F p) numLimbs) :
@@ -21,7 +20,7 @@ def assertIsBytes [Fact (Primes.fits p 8)] {numBytes : ℕ}
   _ ← a.mapM F8.ofF
   pure ()
 
-def bigEndianBits2Num {w} : FBitVec p w → F p := bits2num ∘ .reverse
+def bigEndianBits2Num {w} : FBitVec p w → F p := bits2numV ∘ .reverse
 
 def bytes2BigEndianBits [Fact (Primes.fits p 8)] {n : ℕ} (bytes : Vector (F p) n) : Option (FBitVec p (n*8)) := do
   bytes.flatMapM (fun byte ↦ Vector.reverse <$> F8.ofF byte)
@@ -55,7 +54,7 @@ end Packing
 namespace TestPacking
 
 open Packing
-open Clap.Lang Core ZMod
+open Clap.Lang
 
 abbrev p := Primes.bn254
 

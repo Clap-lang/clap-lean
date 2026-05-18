@@ -9,9 +9,7 @@ namespace Clap.Sha2.Circuit
 
 open Clap.Lang
 
-variable {p : ℕ} [Core p] [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)]
-
-open Core
+variable {p : ℕ} [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)]
 
 /-
 Ch(x, y, z) =
@@ -88,7 +86,7 @@ def shiftRight (n : ℕ) (x : F32 p) : F32 p :=
     res
   else x
 
-abbrev t p [Core p] [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)] : Clap.Sha2.T := {
+abbrev t p [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)] : Clap.Sha2.T := {
   U8  := F8  (p:=p),
   U32 := F32 (p:=p)
 }
@@ -104,18 +102,17 @@ def to_nat_be (bs : FByteArray p 4) : F32 p :=
   Vector.flatten litteEndian
 
 instance i₁ : Coe ℕ (F8 p) where
-  coe n := (Clap.nat2bitsLsbV 8 n).map (fun (x:ℕ) ↦ Core.const (x:ZMod p))
+  coe n := (Clap.nat2bitsLsbV 8 n).map (fun (x:ℕ) ↦ (x:ZMod p))
 
 instance i₂ : Coe ℕ (F32 p) where
-  coe n := (Clap.nat2bitsLsbV 32 n).map (fun (x:ℕ) ↦ Core.const (x:ZMod p))
+  coe n := (Clap.nat2bitsLsbV 32 n).map (fun (x:ℕ) ↦ (x:ZMod p))
 
 instance i₃ : Coe (F8 p) (F32 p) where
   coe := F32.ofF8
 
 def toString {w} (f : FBitVec p w) : String :=
   let n : F p := (f.foldl (fun (pow,sum) i => (pow * 2, sum + (i * pow))) (1,0)).2
-  Core.onlyForDebugF.toString n
-
+  n.val
 
 instance (priority := high) i₅ : ToString (F8 p) where
   toString f := toString f
@@ -150,7 +147,7 @@ namespace Tests
 abbrev p := Primes.goldilocks
 
 open Clap.Sha2.Circuit
-open Clap.Lang Core ZMod
+open Clap.Lang
 
 instance : Coe ℕ (F p) where
   coe n := n
@@ -189,7 +186,7 @@ instance : Coe UInt32 (F32 p) where
 
 namespace TestCompilation
 
-def test₁ {p:ℕ} [Core p] [Fact (Primes.fits p 32)]
+def test₁ {p:ℕ} [Fact (Primes.fits p 32)]
   (x y z : F32 p) : Option Unit := do
   F32.assert_eq (Clap.Sha2.Circuit.ch x y z) F32.default
   -- accept p

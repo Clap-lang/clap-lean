@@ -3,28 +3,19 @@ import Clap.Spec
 
 namespace Clap.Lang
 
-class Core (p : ℕ) : Type _ where
-  F           : Type
-  [instF      : Field F]
-  const       : ZMod p → F
-  accept      : Unit
-  eq0         : F → Option Unit
-  share       : F → Option F
-  isZero      : F → Option F
-  num2bits    : (w:ℕ) → F → Option (Vector F w)
-  bits2num    : {w:ℕ} → Vector F w → F
-  fpMul       : ℕ → ℕ → List F → List F → List F → Option (List F)
+export Clap.Spec.Compiler (
+  accept
+  eq0
+  share
+  isZero
+  num2bits
+  fpMul
+  bits2numV)
 
-  [onlyForDebugF  : ToString F  ]
+variable {p : ℕ}
 
-attribute [reducible] Core.F Core.instF Core.accept Core.eq0 Core.share Core.isZero Core.num2bits Core.bits2num Core.fpMul Core.onlyForDebugF
-attribute [instance] Core.instF Core.onlyForDebugF
-
-variable {p : ℕ} [Core p]
-
-open Core
-
-abbrev FB := F
+abbrev F p := ZMod p
+abbrev FB p := F p
 
 namespace F
 
@@ -127,7 +118,7 @@ def greaterEqThan (w : ℕ) (a b : F p) : Option (FB p) :=
 end F
 
 /-- LSB first, like the output of num2bits -/
-abbrev FBitVec (p w : ℕ) [Core p] := Vector (FB p) w
+abbrev FBitVec (p w : ℕ) := Vector (FB p) w
 
 namespace FBitVec
 
@@ -136,7 +127,7 @@ def default (w:ℕ) : FBitVec p w := Vector.replicate w FB.false
 def ofF (w:ℕ) (e:F p) : Option (FBitVec p w) :=
   num2bits w e
 
-abbrev toF {w} (v:FBitVec p w) : F p := Core.bits2num v
+abbrev toF {w} (v:FBitVec p w) : F p := bits2numV v
 
 -- if arguments are both n-bit long, result is n+1 bits
 def binSum {w} (a b : FBitVec p w) : Option (FBitVec p (w+1)) :=
@@ -160,7 +151,7 @@ def greaterThan {w} (a b : FBitVec p w) : Option (FB p) :=
 
 end FBitVec
 
-abbrev F8 (p:ℕ) [Fact (Primes.fits p 8)] [Core p] := FBitVec p 8
+abbrev F8 (p:ℕ) [Fact (Primes.fits p 8)] := FBitVec p 8
 
 namespace F8
 
@@ -181,7 +172,7 @@ def assert_eq (a b : F8 p) := FBitVec.assert_eq a b
 end F8
 
 
-abbrev F32 (p:ℕ) [Fact (Primes.fits p 32)] [Core p] := FBitVec p 32
+abbrev F32 (p:ℕ) [Fact (Primes.fits p 32)] := FBitVec p 32
 
 namespace F32
 
@@ -206,7 +197,7 @@ def assert_eq (a b : F32 p) := FBitVec.assert_eq a b
 
 end F32
 
-abbrev F64 (p:ℕ) [Fact (Primes.fits p 64)] [Core p] := FBitVec p 64
+abbrev F64 (p:ℕ) [Fact (Primes.fits p 64)] := FBitVec p 64
 
 namespace F64
 
@@ -217,39 +208,11 @@ def ofF (x:F p) : Option (F64 p) :=
 
 end F64
 
-def FByteArray (p w : ℕ) [Fact (Primes.fits p 8)] [Core p] := Vector (F8 p) w
+def FByteArray (p w : ℕ) [Fact (Primes.fits p 8)] := Vector (F8 p) w
 
 namespace FByteArray
 
 end FByteArray
-
-namespace ZMod
-
-open Clap.Spec
-
-instance onlyForDebugF {p:ℕ} : ToString (ZMod p) where
-  toString f := f.val
-
-/-
-  This instance should be avaible only when proving or testing a
-  circuit, never while writing it. The risk is that a circuit which
-  breaks the abstraction of Core won't be compilable.
--/
-scoped instance instCoreZMod {p:ℕ} [Fact (Nat.Prime p)] : Core p where
-  F := ZMod p
-  const := id
-  accept := Compiler.accept
-  eq0 := Compiler.eq0
-  share := Compiler.share
-  isZero := Compiler.isZero
-  num2bits := Compiler.num2bits
-  bits2num := Compiler.bits2numV
-  fpMul := Compiler.fpMul
-  onlyForDebugF
-
-def F8.ofF! {p:ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] : F p → F8 p := Clap.num2bitsLsbPureV 8
-
-end ZMod
 
 end Clap.Lang
 
@@ -257,7 +220,7 @@ namespace Test
 
 abbrev p := Primes.goldilocks
 
-open Clap.Lang Core ZMod
+open Clap.Lang
 
 example : F.lessThan 1 (0 : F p) 1 == some 1 := by native_decide
 example : F.lessThan 1 (0 : F p) 0 == some 0 := by native_decide
@@ -294,6 +257,8 @@ instance (n:ℕ) : OfNat (F32 p) n where
 example :
   letI a : UInt32 := 2^32 - 1
   (F32.add (a : F32 p) (1 : F32 p)) = ((UInt32.add a 1) : F32 p) := by native_decide
+
+def F8.ofF! {p:ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] : F p → F8 p := Clap.num2bitsLsbPureV 8
 
 example : FBitVec.lessThan (p := p) (F8.ofF! 0) (F8.ofF! 1) == some 1 := by native_decide
 example : FBitVec.lessThan (p := p) (F8.ofF! 1) (F8.ofF! 0) == some 0 := by native_decide

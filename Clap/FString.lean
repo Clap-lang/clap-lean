@@ -4,13 +4,13 @@ import Clap.Array
 import Clap.HashToField
 import Clap.Poseidon.Poseidon
 
-open Clap.Lang Core
+open Clap.Lang
 
 abbrev FChar := F8
 
 namespace FChar
 
-variable {p : ℕ} [core : Core p] [Fact (Primes.fits p 8)]
+variable {p : ℕ} [Fact (Primes.fits p 8)]
 
 def isWhitespace (c : FChar p) : Option (FB p) := do
   -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
@@ -28,13 +28,13 @@ end FChar
 /--
   Zero-padded vector of bytes of length `len`. `len` can at most be `maxLen`.
 -/
-structure FString (p : ℕ) [Fact (Primes.fits p 8)] [Core p] (maxLen : ℕ) where
+structure FString (p : ℕ) [Fact (Primes.fits p 8)] (maxLen : ℕ) where
   chars : Vector (FChar p) maxLen
   len : F p
 
 namespace FString
 
-variable {p : ℕ} [core : Core p] [Fact (Primes.fits p 8)]
+variable {p : ℕ} [Fact (Primes.fits p 8)]
 
 def toVF {maxLen} (fs : FString p maxLen) : Vector (F p) maxLen :=
   fs.chars.map FBitVec.toF
@@ -136,8 +136,6 @@ def isSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (subs
 /-- Asserts that `substr` appears in `str` starting at `startIndex`. -/
 def assertIsSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (substr : FString p maxSubstrLen) (startIndex : F p) : Option Unit := do
   FB.assert (← isSubstring str substr startIndex)
-
-variable [Core Primes.bn254]
 
 def powers (α : F p) (len : ℕ) : Option (Vector (F p) len) := do
   let l : List (F p) ← (List.range len).foldlM (fun pows _ ↦ do let last := List.head! pows ; let p ← share (last * α) ; p::pows) [1]
@@ -248,7 +246,7 @@ end FString
 
 namespace TestString
 
-open Clap.Lang Core Clap.Spec ZMod
+open Clap.Lang Clap.Spec
 open FChar FString
 
 abbrev p := Primes.babybear
@@ -260,7 +258,7 @@ Even after we open ZMod we still don't have it
 #synth DecidableEq (FString p 2)
 So we define it by hand here.
 -/
-instance {p m :ℕ} [Fact (Primes.fits p 8)] [Core p] [DecidableEq (F p)] [DecidableEq (FChar p)]: DecidableEq (FString p m) := by
+instance {p m :ℕ} [Fact (Primes.fits p 8)] [DecidableEq (F p)] [DecidableEq (FChar p)]: DecidableEq (FString p m) := by
   intros a b
   rcases a
   rcases b
@@ -274,6 +272,8 @@ example : countTrailingZeros #v[0,0,1,0] = some (1: F p) := by native_decide
 
 example : (do FString.ofFs #v[]) = some {chars := #v[], len:= (0:F p)} := by native_decide
 example : (do FString.ofFs #v[(0:F p),1,0,0]) = some { chars := #v[#v[0,0,0,0,0,0,0,0],#v[1,0,0,0,0,0,0,0],#v[0,0,0,0,0,0,0,0],#v[0,0,0,0,0,0,0,0]],len := 2 } := by native_decide
+
+def F8.ofF! {p:ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] : F p → F8 p := Clap.num2bitsLsbPureV 8
 
 -- isWhitespace tests
 example : FChar.isWhitespace (F8.ofF! ( 9 : F p)) = some FB.true := by native_decide -- TAB

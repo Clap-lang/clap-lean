@@ -26,7 +26,7 @@ commitment, identity commitment, and produces a public inputs hash.
 
 namespace Keyless
 
-open Clap.Lang Core Primes Clap.RSA
+open Clap.Lang Primes Clap.RSA
 
 -- Constants (from main.circom)
 
@@ -84,8 +84,6 @@ abbrev EV_NAME_LEN    := 14   -- "email_verified"
 -- ============================================================================
 -- Stubs for WIP components
 -- ============================================================================
-
-variable [Core bn254]
 
 -- Input structures
 

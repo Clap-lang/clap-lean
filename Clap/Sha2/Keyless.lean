@@ -7,10 +7,8 @@ import Clap.HashToField
 
 namespace Clap.Sha2.Keyless
 
-open Clap.Lang Core Primes
+open Clap.Lang Primes
 open Clap.Sha2
-
-variable [Core bn254]
 
 -- Re-export the Keyless constants we need (avoids circular import with Keyless.lean)
 abbrev MAX_B64U_JWT_NO_SIG_LEN := 1536
@@ -226,10 +224,17 @@ def sha256VerifiedDigest
 end Clap.Sha2.Keyless
 
 -- Tests
+
+open Clap.Sha2.Keyless
+open Clap.Sha2
+open Clap.Lang Primes
+
+def F8.ofF! {p:ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] : F p → F8 p := Clap.num2bitsLsbPureV 8
+
 namespace TestKPlus1Div8
 
 open Clap.Sha2.Keyless
-open Clap.Lang Core Primes ZMod
+open Clap.Lang Primes
 
 -- Expected behavior:
 --   K ∈ [0, 512) with K mod 8 = 7  →  some ((K+1)/8)   (valid byte-aligned K)
@@ -249,10 +254,6 @@ example : kPlus1Div8 (2^20 : F bn254) = none := by native_decide
 end TestKPlus1Div8
 
 namespace TestHashToRSALimbs
-
-open Clap.Sha2.Keyless
-open Clap.Sha2
-open Clap.Lang Core Primes ZMod
 
 -- SHA-256("abc") = ba7816bf 8f01cfea 414140de 5dae2223 b00361a3 96177a9c b410ff61 f20015ad
 -- As 4 × 64-bit limbs (big-endian limb order):
@@ -282,10 +283,6 @@ example : (do
 end TestHashToRSALimbs
 
 namespace TestSha256VerifiedDigest
-
-open Clap.Sha2.Keyless
-open Clap.Sha2
-open Clap.Lang Core Primes ZMod
 
 -- Construct a valid SHA2-padded version of "abc" (3 bytes → 1 block = 64 bytes).
 -- Padding: [97, 98, 99, 128, 0×52, 0, 0, 0, 0, 0, 0, 24]
@@ -317,10 +314,6 @@ example : sha256VerifiedDigest mkTestData testPaddingStart testNumBlocks testNum
 end TestSha256VerifiedDigest
 
 namespace TestMultiBlock
-
-open Clap.Sha2.Keyless
-open Clap.Sha2
-open Clap.Lang Core Primes ZMod
 
 -- "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq" (56 bytes)
 -- SHA-256 = 248d6a61 d20638b8 e5c02693 0c3e6039 a33ce459 64ff2167 f6ecedd4 19db06c1
@@ -360,10 +353,6 @@ example : sha256VerifiedDigest mkTestData56 testPaddingStart56 testNumBlocks56 t
 end TestMultiBlock
 
 namespace TestCrossCheck
-
-open Clap.Sha2.Keyless
-open Clap.Sha2
-open Clap.Lang Core Primes ZMod
 
 /-!
 `digest` vs `sha256VerifiedDigest`

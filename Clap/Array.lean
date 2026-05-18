@@ -3,9 +3,9 @@ import Clap.Wheels
 
 namespace FArray
 
-open Clap.Lang Core
+open Clap.Lang
 
-variable {p : ℕ} [Core p]
+variable {p : ℕ}
 
 /-- Computes a candidate one-hot mask: position `i` is `isZero(idx - i)`. -/
 private def oneHotRaw (len : ℕ) (idx : F p) : Option (Vector (FB p) len) :=
@@ -65,7 +65,7 @@ end FArray
 
 namespace TestArray
 
-open Clap.Lang Core Clap.Spec ZMod
+open Clap.Lang Clap.Spec
 open Array
 
 abbrev p := Primes.goldilocks

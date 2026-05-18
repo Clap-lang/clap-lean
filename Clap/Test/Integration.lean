@@ -7,17 +7,15 @@ namespace Circuit
 
 open Clap Lang
 
-open Core
-
 section
 
 scoped notation "🐻" => Primes.babybear
 
-structure Point2 (p : ℕ) [Core p] where
+structure Point2 (p : ℕ) where
   x : F p
   y : F p
 
-structure Point3 (p : ℕ) [Core p] where
+structure Point3 (p : ℕ) where
   x : F p
   y : F p
   z : F p
@@ -25,7 +23,7 @@ structure Point3 (p : ℕ) [Core p] where
 class Woob (p : ℕ) where
   zoob : Nat
 
-def produceEq0 {p} [Core p] (l : List (F p)) (h : l ≠ []) : Option Unit :=
+def produceEq0 {p} (l : List (F p)) (h : l ≠ []) : Option Unit :=
   match l with
   | [hd] => eq0 hd
   | hd :: hd' :: tl => do
@@ -33,11 +31,11 @@ def produceEq0 {p} [Core p] (l : List (F p)) (h : l ≠ []) : Option Unit :=
     produceEq0 (hd' :: tl) (by simp)
 
 -- Need to address the `structure P (p : Nat) [Core ] where F p <-`.
-def test {p:ℕ} [Core p] (x y z : Core.F p) (p₁ : Point2 p) (p₂ : Point3 p) : Option Unit := do
+def test {p:ℕ} (x y z : F p) (p₁ : Point2 p) (p₂ : Point3 p) : Option Unit := do
   let w := [x, x, y].map id
   produceEq0 w (by simp [w])
   id eq0 (x * (y - z) + z + p₁.x + p₂.x)
-  accept p
+  accept
 
 open ZMod
 

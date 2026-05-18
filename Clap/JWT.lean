@@ -5,9 +5,9 @@ import Clap.HashToField
 
 namespace JWT
 
-open Clap.Lang Core Primes
+open Clap.Lang Primes
 
-variable {p : ℕ} [Core p] [Core bn254]
+variable {p : ℕ}
 
 instance : Coe Char (F p) where
   coe c := c.toNat
@@ -23,7 +23,6 @@ private def stringBodiesRev₀ (input : List (F p)) : Option (List (FB p) × FB 
     )
     ([], default, default)
 
-omit [Core bn254] in
 /-- From keyless:
   Given an array of ask characters representing a JSON object, output a binary array demarquing
   the spaces in between quotes, so that the indices in between quotes in `in` are given the value
@@ -66,7 +65,10 @@ omit [Core bn254] in
   where `arr` is represented by its ASCII encoding, i.e. `{` = 123
 -/
 def bracketsMap (input : List (F p)) : Option (List (FB p)) := do
-  input.mapM (fun c ↦ do (←F.eq c '{') - (←F.eq c '}'))
+  input.mapM (fun c ↦ do
+    let eqOpen ← F.eq c '{'
+    let eqClose ←F.eq c '}'
+    some (eqOpen - eqClose))
 
 private def bracketsDepthMapRev₀ (input : List (F p)) : Option (List (F p) × F p) := do
   input.foldlM
@@ -442,7 +444,7 @@ namespace TestJWT
 
 open JWT
 
-open Clap.Lang Core ZMod FString FArray HashToField Primes
+open Clap.Lang FString FArray HashToField Primes
 
 abbrev p := Primes.bn254
 

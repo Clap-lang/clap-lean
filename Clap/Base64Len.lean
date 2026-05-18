@@ -2,9 +2,9 @@ import Clap.Lang
 
 namespace Base64Len
 
-open Clap.Lang Core
+open Clap.Lang
 
-variable {p : ℕ} [Fact (Primes.fits p 8)] [Core p]
+variable {p : ℕ} [Fact (Primes.fits p 8)]
 
 instance : Coe Char (F p) where
   coe c := c.toNat
@@ -51,7 +51,7 @@ def base64UrlDecodedLength (w : ℕ) (m : F p) : Option (F p) := do
   let _ ← num2bits w m                   -- range-check m < 2^w
   let three : F p ← share (m + m + m)
   let bits ← num2bits (w + 2) three      -- decompose 3m, proves < 2^(w+2)
-  return bits2num (bits.drop 2)          -- drop 2 LSBs = floor(3m/4)\
+  return bits2numV (bits.drop 2)          -- drop 2 LSBs = floor(3m/4)\
 
 /-- From keyless
   Given an 8-bit base64 character, returns its 6-bit decoding.
@@ -112,7 +112,7 @@ def base64UrlDecode₀ {w} (h:8 ∣ w * 6) (input : Vector (F p) w) : Option (Ve
       rw [eq_comm]
       aesop (add safe [Nat.div_mul_cancel])
     toChunks 8 (h ▸ tmp)
-  some (tmp.map (fun b ↦ bits2num b.reverse))
+  some (tmp.map (fun b ↦ bits2numV b.reverse))
 
 
 -- def base64UrlDecode₀ (n : ℕ) (input : Array (F p)) : Option (Array (F p)) := do
@@ -135,7 +135,7 @@ end Base64Len
 
 namespace TestBase64Len
 
-open Clap.Lang Core ZMod
+open Clap.Lang
 open Base64Len
 
 abbrev p := Primes.goldilocks
