@@ -318,8 +318,8 @@ def verifyAudField (json : JSONStructure)
     (audOverride : AudOverrideInput)
     : Option Unit := do
   -- Validate boolean flags
-  F.assertBinary audOverride.useAudOverride
-  F.assertBinary audOverride.skipAudChecks
+  FB.assertBool audOverride.useAudOverride
+  FB.assertBool audOverride.skipAudChecks
   -- Cannot skip aud checks while using override
   eq0 (audOverride.skipAudChecks * audOverride.useAudOverride)
   let performAudChecks : FB bn254 := FB.not audOverride.skipAudChecks
@@ -374,7 +374,7 @@ def verifyEvField (json : JSONStructure)
 /-- Verify the extra field (optional). -/
 def verifyExtraField (json : JSONStructure) (extra : ExtraFieldInput) : Option Unit := do
   -- useExtraField must be boolean
-  F.assertBinary extra.useExtraField
+  FB.assertBool extra.useExtraField
   -- Check substring
   let efPasses ← FString.isSubstringFS (by decide) json.payload json.payloadHash extra.extraField extra.extraFieldIndex
   -- Assert not inside nested brackets
