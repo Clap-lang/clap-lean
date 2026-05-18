@@ -12,18 +12,63 @@ namespace FChar
 
 variable {p : ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)]
 
+-- https://en.wikipedia.org/wiki/ASCII#Table_of_codes
 def isWhitespace (c : FChar p) : Option (FB p) := do
   -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
-  let bv8  : F8 p := #v[0, 0, 0, 1, 0, 0, 0, 0]
-  let bv14 : F8 p := #v[0, 1, 1, 1, 0, 0, 0, 0]
-  let bv32 : F8 p := #v[0, 0, 0, 0, 0, 1, 0, 0]
-  let gt8 ← FBitVec.greaterThan c bv8
-  let lt14 ← FBitVec.lessThan c bv14
-  let isLineBreak : FB p := FB.and gt8 lt14
-  let isSpace ← F8.eq c bv32 -- ASCII 32 is space
-  FB.or isLineBreak isSpace
+  let gt8 ← FBitVec.greaterThan c (F8.ofUInt8 8)
+  let lt14 ← FBitVec.lessThan c (F8.ofUInt8 14)
+  let isLineBreak : FB p := gt8 &&& lt14
+  let isSpace ← F8.eq c (F8.ofUInt8 32) -- ASCII 32 is space
+  isLineBreak ||| isSpace
 
 end FChar
+
+namespace Spec.FChar
+
+variable {p : ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)]
+
+def isWhitespace_spec (c:Char) : Bool :=
+  let c := c.toUInt8
+  (c > 8 && c < 14) || c = 32
+
+lemma UInt8.left_inverse (u:UInt8): (Char.ofUInt8 u).toUInt8 = u := by
+  aesop (add simp [Char.ofUInt8, Char.toUInt8])
+
+open Clap.Lang.Spec
+
+lemma isWhitespace_equiv (c:FChar p) :
+  FChar.isWhitespace c = some (FB.ofBool (isWhitespace_spec (Char.ofUInt8 $ UInt8.ofBitVec $ Spec.FBitVec.toBV c))) := by
+  unfold FChar.isWhitespace isWhitespace_spec FBitVec.greaterThan
+  simp [FBitVec.lessThan_equiv,Spec.F8.eq_equiv]
+  rw [FB.or_equiv]
+  rw [FB.and_equiv]
+  simp [FB.left_inv]
+  congr
+  . simp [F8.ofUInt8,Spec.FBitVec.right_inv]
+  . rw [UInt8.left_inverse]
+  . rw [UInt8.left_inverse]
+  . simp [F8.ofUInt8,Spec.FBitVec.right_inv]
+  . simp [UInt8.left_inverse,F8.toUInt8]
+  . apply Spec.F8.left_inv
+  . apply Spec.FB.valid_ofBool
+  . apply Spec.FB.valid_ofBool
+  . rw [Spec.FB.and_equiv]
+    repeat apply Spec.FB.valid_ofBool
+  . apply Spec.FB.valid_ofBool
+
+def isWhitespace_spec' (c:Char) : Bool :=
+  c ∈ ['\t',   -- tab
+        '\n',   -- line feed
+        '\x0B', -- \∨ vertical tab
+        '\x0C', -- \f form feed
+        '\x0D', -- \r carriage return
+        ' ']    -- space
+
+lemma high : isWhitespace_spec = isWhitespace_spec' := by
+  unfold isWhitespace_spec isWhitespace_spec'
+  sorry
+
+end Spec.FChar
 
 /--
   Zero-padded vector of bytes of length `len`. `len` can at most be `maxLen`.
