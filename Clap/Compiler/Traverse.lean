@@ -582,7 +582,7 @@ def monad : MetaM Sym.Simp.Methods :=
 end Monad
 
 namespace General
--- checkMaxShared
+
 /--
 This is more or less `Lean.Meta.Tactic.Cbv.zetaReduce`, which seems to not be exported.
 
@@ -625,6 +625,14 @@ def ground : MetaM Methods := do
   return {
     post := evalGround
   }
+
+def compilerSet : MetaM Sym.Simp.Methods :=
+  Sym.mkMethods #[
+    ``Option.bind_assoc, ``bind_assoc,
+    ``Option.pure_def,
+    ``Option.bind_eq_bind, ``Option.bind_fun_some, ``Option.bind_some, ``bind_pure, ``pure_bind,
+    ``Option.map_eq_map, ``Option.map_some
+  ]
 
 -- private def seemsTotallySafeInDTT : Simproc := fun e ↦ do
 --   let_expr Vector _ n := ←Sym.inferType e | return .rfl
@@ -960,20 +968,24 @@ end SymSets
 def compileExample (ex : Name) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Format := do
   compile (((←getEnv).find? ex).get!.value!) simpset >>= (liftM ∘ PrettyPrinter.ppExpr)
 
-def compileExampleJustSym (ex : Name) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Format := do
-  let e := ((←getEnv).find? ex).get!.value!
+def compileJustSym (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Format := do
   lambdaTelescope e fun args e ↦ do
-    let compiled ← Compiler.Simp.simplify (simpset ∪ (←compilerSet)) e
+    let compiled ← Compiler.Simp.simplify (simpset ∪ (←SymSets.General.compilerSet)) e
     logInfo m!"Compiled: {compiled}"
     Sym.mkLambdaFVarsS args compiled >>= (liftM ∘ PrettyPrinter.ppExpr)
-    where
-      compilerSet : MetaM Sym.Simp.Methods :=
-        Sym.mkMethods #[
-          ``Option.bind_assoc, ``bind_assoc,
-          ``Option.pure_def,
-          ``Option.bind_eq_bind, ``Option.bind_fun_some, ``Option.bind_some, ``bind_pure, ``pure_bind,
-          ``Option.map_eq_map, ``Option.map_some
-        ]
+
+def compileExampleJustSym (ex : Name) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Format := do
+  let e := ((←getEnv).find? ex).get!.value!
+  compileJustSym e simpset
+
+open SymSets in
+elab "compile_just_sym" "[" simps:ident,* "]" : tactic => do
+  let simps ← simps.getElems.mapM fun s ↦ realizeGlobalConstNoOverload s.raw
+  let methods ← simps.mapM (liftM ∘ Simp.API.getMethodsM)
+  let methods ← liftM <| methods.foldl (fun method acc ↦ method ∪ acc) (pure {})
+  Tactic.liftMetaTactic1 fun mvarId => Sym.SymM.run do
+    let mvarId ← Sym.preprocessMVar mvarId
+    (← Sym.simpGoal mvarId methods).toOption
 
 def eq0 (e : Nat) : Option Unit := .some ()
 
@@ -1040,6 +1052,10 @@ set_option trace.Clap.Compile.debug.simp true
 set_option pp.exprSizes true
 -- set_option debug.skipKernelTC true in
 #eval spoon <| do compileExampleJustSym ``ex₄ (←(ground ∪ mapM ∪ getElem ∪ zeta))
+
+example {vec : Vector Nat 2} : ex₄ vec = sorry := by
+  unfold ex₄
+  compile_just_sym [ground, SymSets.Vector.mapM, SymSets.Vector.getElem, zeta, compilerSet]
 
 #exit
 

@@ -71,19 +71,48 @@ def SimpSet.union (s₁ s₂ : SimpSet) : SimpSet where
 --   let thm := Sym.Simp.mkTheoremFromDecl name
 --   _
 
-def simproc? (name : Name) : MetaM (Option ConstantInfo) := do
+def ciOfName (name type : Name) : MetaM (Option ConstantInfo) := do
   let .some ci := (←getEnv).find? name | throwError m!"Undeclared constant: {name}"
-  return if ci.type.isConstOf `Lean.Meta.Sym.Simp.Simproc
+  return if ci.type.isConstOf type
          then .some ci
          else .none
+
+def simproc? (name : Name) : MetaM (Option ConstantInfo) := do
+  ciOfName name `Lean.Meta.Sym.Simp.Simproc
 
 def isSimproc (name : Name) : MetaM Bool := return (←simproc? name).isSome
 
 def getSimproc (name : Name) : MetaM Sym.Simp.Simproc := do
-  discard (isSimproc name)
+  guard (←isSimproc name)
   let .ok sproc := unsafe (←getEnv).evalConst Sym.Simp.Simproc {} name
     | throwError m!"Failed to evaluate: {name}"
   return sproc
+
+def methods? (name : Name) : MetaM (Option ConstantInfo) := do
+  ciOfName name `Lean.Meta.Sym.Simp.Methods
+
+def isMethods (name : Name) : MetaM Bool := return (←methods? name).isSome
+
+def getMethods (name : Name) : MetaM Sym.Simp.Methods := do
+  guard (←isMethods name)
+  let .ok methods := unsafe (←getEnv).evalConst Sym.Simp.Methods {} name
+    | throwError m!"Failed to evaluate: {name}"
+  return methods
+
+def methodsM? (name : Name) : MetaM (Option ConstantInfo) := do
+  let .some ci := (←getEnv).find? name | throwError m!"Undeclared constant: {name}"
+  let (``Lean.Meta.MetaM, #[type]) := ci.type.getAppFnArgs | return .none
+  return if type.isConstOf ``Sym.Simp.Methods
+         then .some ci
+         else .none
+
+def isMethodsM (name : Name) : MetaM Bool := return (←methodsM? name).isSome
+
+def getMethodsM (name : Name) : MetaM (MetaM Sym.Simp.Methods) := do
+  guard (←isMethodsM name)
+  let .ok methods := unsafe (←getEnv).evalConst (MetaM Sym.Simp.Methods) {} name
+    | throwError m!"Failed to evaluate: {name}"
+  return methods
 
 def orElse (names : Array Name) : MetaM Sym.Simp.Simproc := do
   let simprocs ← names.mapM getSimproc
