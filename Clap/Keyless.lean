@@ -259,13 +259,11 @@ def verifyJWTStructure (jwtRaw : JWTRawInput) (rsa : RSAInput) : Option (FString
   let paddedHash ← hashBytesToFieldWithLen jwtRaw.b64u_jwt_payload_sha2_padded.toVF jwtRaw.b64u_jwt_payload_sha2_padded.len
   assertIsSubstringFS (by decide) jwtRaw.b64u_jwt_payload_sha2_padded paddedHash jwtRaw.b64u_jwt_payload 0
   -- Step 5: Base64-decode the payload
-  let jwtPayload ← Base64Len.base64UrlDecode MAX_JWT_PAYLOAD_LEN jwtRaw.b64u_jwt_payload.toVF.toArray
+  -- n = MAX_B64U_JWT_PAYLOAD_SHA2_PADDED_LEN (1472) base64 chars → 1104 bytes = MAX_JWT_PAYLOAD_LEN
+  let jwtPayload ← Base64Len.base64UrlDecode MAX_B64U_JWT_PAYLOAD_SHA2_PADDED_LEN (by decide) (le_refl _) jwtRaw.b64u_jwt_payload.toVF
   -- Compute decoded length: floor(3 * encoded_len / 4)
   let jwtPayloadLen ← Base64Len.base64UrlDecodedLength 20 jwtRaw.b64u_jwt_payload.len
-  -- Build FString from decoded payload (may be shorter than MAX_JWT_PAYLOAD_LEN, pad with zeros)
-  let padded := jwtPayload ++ Array.replicate (MAX_JWT_PAYLOAD_LEN - jwtPayload.size) 0
-  let charsF : Vector (F bn254) MAX_JWT_PAYLOAD_LEN := ⟨padded.take MAX_JWT_PAYLOAD_LEN, by simp [padded]; omega⟩
-  let chars ← charsF.mapM F8.ofF
+  let chars ← jwtPayload.mapM F8.ofF
   return ⟨chars, jwtPayloadLen⟩
 
 /-- Compute JSON structural analysis from the decoded JWT payload.

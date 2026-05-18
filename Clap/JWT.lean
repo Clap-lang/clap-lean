@@ -585,7 +585,7 @@ private def strToFS (maxLen : ℕ) (s : String) (h : s.length ≤ maxLen := by d
   let padded := ascii ++ List.replicate (maxLen - ascii.length) (ch 0)
   ⟨⟨padded.toArray, by simp [padded, ascii, String.length_toList]; omega⟩, (s.length : ZMod p)⟩
 where
-  ch (n : ℕ) : FChar p := Clap.num2bitsLsbPure 8 n
+  ch (n : ℕ) : FChar p := Clap.num2bitsLsbPureV 8 (n : ZMod p)
 
 -- valid field "a":b,  (name="a", value="b", ending with ',')
 example : (do
