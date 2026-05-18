@@ -10,7 +10,7 @@ abbrev FChar := F8
 
 namespace FChar
 
-variable {p : ℕ} [Fact (Primes.fits p 8)]
+variable {p : ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)]
 
 def isWhitespace (c : FChar p) : Option (FB p) := do
   -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
@@ -34,7 +34,7 @@ structure FString (p : ℕ) [Fact (Primes.fits p 8)] (maxLen : ℕ) where
 
 namespace FString
 
-variable {p : ℕ} [Fact (Primes.fits p 8)]
+variable {p : ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)]
 
 def toVF {maxLen} (fs : FString p maxLen) : Vector (F p) maxLen :=
   fs.chars.map FBitVec.toF

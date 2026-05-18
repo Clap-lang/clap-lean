@@ -9,7 +9,7 @@ namespace Clap.Sha2.Circuit
 
 open Clap.Lang
 
-variable {p : ℕ} [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)]
+variable {p : ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)]
 
 /-
 Ch(x, y, z) =
@@ -186,7 +186,7 @@ instance : Coe UInt32 (F32 p) where
 
 namespace TestCompilation
 
-def test₁ {p:ℕ} [Fact (Primes.fits p 32)]
+def test₁ {p:ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 32)]
   (x y z : F32 p) : Option Unit := do
   F32.assert_eq (Clap.Sha2.Circuit.ch x y z) F32.default
   -- accept p

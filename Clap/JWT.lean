@@ -7,7 +7,7 @@ namespace JWT
 
 open Clap.Lang Primes
 
-variable {p : ℕ}
+variable {p : ℕ} [Fact (Nat.Prime p)]
 
 instance : Coe Char (F p) where
   coe c := c.toNat

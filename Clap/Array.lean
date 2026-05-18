@@ -5,7 +5,7 @@ namespace FArray
 
 open Clap.Lang
 
-variable {p : ℕ}
+variable {p : ℕ} [Fact (Nat.Prime p)]
 
 /-- Computes a candidate one-hot mask: position `i` is `isZero(idx - i)`. -/
 private def oneHotRaw (len : ℕ) (idx : F p) : Option (Vector (FB p) len) :=

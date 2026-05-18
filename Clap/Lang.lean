@@ -12,7 +12,7 @@ export Clap.Spec.Compiler (
   fpMul
   bits2numV)
 
-variable {p : ℕ}
+variable {p : ℕ} [Fact (Nat.Prime p)]
 
 abbrev F p := ZMod p
 abbrev FB p := F p
@@ -50,6 +50,9 @@ def true : FB p := 1
 
 def false : FB p := 0
 
+def ofBool (b:Bool) : FB p :=
+  if b then FB.true else FB.false
+
 instance : Inhabited (FB p) where
   default := false
 
@@ -84,23 +87,63 @@ def assert_eq (a b : FB p) : Option Unit := do
 
 end FB
 
+namespace Spec.FB
+
+def valid (a: ZMod p) : Prop := a = FB.false ∨ a = FB.true
+
+def toBool (f:ZMod p) : Bool :=
+  if f = FB.false then false else true
+
+def valid_ofBool (b:Bool) : valid (FB.ofBool (p:=p) b) := by
+  simp [valid,FB.ofBool,FB.false,FB.true]
+
+lemma right_inv (f: ZMod p) (h : valid f) : FB.ofBool (toBool f) = f := by
+  aesop (add simp [toBool,FB.ofBool,valid])
+
+lemma left_inv (b: Bool) : toBool (p:=p) (FB.ofBool b) = b := by
+  aesop (add simp [toBool,FB.ofBool,FB.true,FB.false])
+
+-- noncomputable def boolEquiv :
+--   Equiv Bool (ZMod p)
+-- where
+--   toFun := ofBool
+--   invFun := toBool
+--   left_inv := left_inv
+--   right_inv := right_inv
+
+lemma eq_equiv (a b : ZMod p) (ha : valid a) (hb : valid b) :
+  FB.eq a b = some (FB.ofBool ((toBool a) = (toBool b))) := by
+  unfold FB.eq F.eq
+  aesop (add simp [left_inv,right_inv,toBool,FB.and,FB.false,FB.true,valid,isZero])
+
+lemma and_equiv (a b : ZMod p) (ha : valid a) (hb : valid b) :
+  a &&& b = FB.ofBool (toBool a && toBool b) := by
+  aesop (add simp [HAnd.hAnd,FB.and,left_inv,right_inv,toBool,FB.false,FB.true,valid])
+
+lemma or_equiv (a b : ZMod p) (ha : valid a) (hb : valid b) :
+  a ||| b = FB.ofBool (toBool a || toBool b) := by
+  aesop (add simp [HOr.hOr,FB.or,left_inv,right_inv,toBool,FB.false,FB.true,valid])
+
+lemma not_equiv (a : ZMod p) (ha : valid a) :
+  FB.not a = FB.ofBool (not (toBool a)) := by
+  aesop (add simp [FB.not,left_inv,right_inv,toBool,FB.false,FB.true,valid])
+
+lemma xor_equiv (a b : ZMod p) (ha : valid a) (hb : valid b) :
+  a ^^^ b = FB.ofBool (toBool a ^^ toBool b) := by
+  aesop (add simp [HXor.hXor,FB.xor,left_inv,right_inv,toBool,FB.ofBool,FB.false,FB.true,valid])
+  grind
+
+def assertBool_spec (f : ZMod p) :
+  FB.assertBool f = some () ↔ valid f := by
+  aesop (add simp [FB.assertBool,eq0,sub_eq_zero,imp_iff_not_or,valid])
+
+def assertBool_ofBool_eq_some (b:Bool) : FB.assertBool (p:=p) (FB.ofBool b) = some () := by
+  aesop (add simp [assertBool_spec,FB.ofBool,valid,FB.true,FB.false])
+
+end Spec.FB
+
 namespace F
 
-/-
-requires:
-- a and b ∈ [0,2^w-1]
-- w+1 < p
-
-case a < b
-then a-b ∈ [-(2^w-1),-1]
-then a-b+2^w ∈ [1,2^w-1]
-which fits in w bits, so when converted to a (w+1)-bit number, its MSB is 0
-
-case a ≥ b
-then a-b ∈ [0,2^w-1]
-then a-b+2^w ∈ [2^w,2^(w+1)-1]
-which does not fit in w bits, so when converted to a (w+1)-bit number, its MSB is 1
--/
 def lessThan (w : ℕ) (a b : F p) : Option (FB p) := do
   let d := a - b + 2^w
   let d ← num2bits (w + 1) d
@@ -124,12 +167,14 @@ namespace FBitVec
 
 def default (w:ℕ) : FBitVec p w := Vector.replicate w FB.false
 
-def ofF (w:ℕ) (e:F p) : Option (FBitVec p w) :=
-  num2bits w e
+def ofBV {w} (bv : BitVec w) : FBitVec p w :=
+  let bv : Fin (2^w) := bv.toFin
+  num2bitsLsbPureV w bv
 
-abbrev toF {w} (v:FBitVec p w) : F p := bits2numV v
+abbrev ofF (w:ℕ) (e:ZMod p) : Option (FBitVec p w) := num2bits w e
 
--- if arguments are both n-bit long, result is n+1 bits
+abbrev toF {w} (v:FBitVec p w) : ZMod p := bits2numV v
+
 def binSum {w} (a b : FBitVec p w) : Option (FBitVec p (w+1)) :=
   let sum : F p := a.toF + b.toF
   num2bits (w + 1) sum
@@ -151,25 +196,153 @@ def greaterThan {w} (a b : FBitVec p w) : Option (FB p) :=
 
 end FBitVec
 
+namespace Spec.FBitVec
+
+-- We could model FBitVec as sequences of Bools like here, or as Fin like below.
+
+-- def BitVec.ofBoolVecLE {w} (bv : Vector Bool w) : BitVec w :=
+--   have h : bv.toArray.toList.length = w := by grind
+--   h ▸ BitVec.ofBoolListLE bv.toArray.toList
+
+-- def BitVec.toBoolVecLE {w} (bv : BitVec w) : Vector Bool w := sorry
+
+-- lemma BitVec.right_inv {w} (bv : Vector Bool w) : BitVec.toBoolVecLE (BitVec.ofBoolVecLE bv) = bv := sorry
+
+-- lemma BitVec.left_inv {w} (bv : BitVec w) : BitVec.ofBoolVecLE (BitVec.toBoolVecLE bv) = bv := sorry
+
+-- def boolVecEquiv {w}:
+--   Equiv (BitVec w) (Vector Bool w) where
+--   toFun := BitVec.toBoolVecLE
+--   invFun := BitVec.ofBoolVecLE
+--   left_inv := BitVec.left_inv
+--   right_inv := BitVec.right_inv
+
+-- def toBV {w} (fbv : FBitVec p w) : BitVec w :=
+--   let fbv := fbv.map Spec.FB.toBool
+--   BitVec.ofBoolVecLE fbv
+
+-- def ofBV {w} (bv : BitVec w) : FBitVec p w :=
+--   let bv : Vector Bool w := BitVec.toBoolVecLE bv
+--   bv.map Spec.FB.ofBool
+
+def valid {w} (fbv : FBitVec p w) : Prop := ∀ i : Fin w, Spec.FB.valid fbv[i]
+
+def toBV [NeZero p] {w} (fbv : FBitVec p w) : BitVec w :=
+  let res := (bits2numV fbv).val % (2^w)
+  BitVec.ofFin ⟨res, by aesop (add safe [Nat.mod_lt])⟩
+
+def left_inv {w} (fbv : FBitVec p w) (h : valid fbv): FBitVec.ofBV (toBV fbv) = fbv := sorry
+
+def right_inv {w} (bv : BitVec w) : toBV (p:=p) (FBitVec.ofBV bv) = bv := sorry
+
+lemma num2bits_equiv {w e} :
+  num2bits (p:=p) w e = if h : e.val < 2^w then some (FBitVec.ofBV (BitVec.ofFin ⟨e.val, h⟩)) else none := by
+  unfold num2bits FBitVec.ofBV
+  split
+  simp
+  simp
+
+-- proved in Clap.bits2num_bound
+lemma bits2num_bound {w} {bv : Vector (ZMod p) w} :
+    valid bv → (bits2numV bv).val < 2 ^ w := sorry
+
+lemma bits2num_equiv {w} {bv : FBitVec p w} {h : valid bv} :
+  bits2numV bv = BitVec.toFin (toBV bv) := by
+  unfold toBV
+  simp
+  have h : 2^w ≠ 0 := by grind
+  have h : (bits2numV bv).val < 2^w → (bits2numV bv).val % 2^w = (bits2numV bv).val := (Nat.mod_eq_iff_lt h).mpr
+  rw [h]
+  . aesop (add simp [eq_comm, ZMod.natCast_zmod_val])
+  . aesop (add safe [bits2num_bound])
+
+/-
+requires:
+- a and b ∈ [0,2^w-1]
+- w+1 < p
+
+case a < b
+then a-b ∈ [-(2^w-1),-1]
+then a-b+2^w ∈ [1,2^w-1]
+which fits in w bits, so when converted to a (w+1)-bit number, its MSB is 0
+
+case a ≥ b
+then a-b ∈ [0,2^w-1]
+then a-b+2^w ∈ [2^w,2^(w+1)-1]
+which does not fit in w bits, so when converted to a (w+1)-bit number, its MSB is 1
+-/
+def lessThan_equiv {w} (a b : FBitVec p w) :
+  FBitVec.lessThan a b = some (FB.ofBool ((toBV a) < (toBV b))) := by
+  unfold FBitVec.lessThan
+  -- TODO problems with the rewrites
+  -- generalize eq : (Vector.zip a b) = l
+  -- apply Vector.mk
+  -- apply Vector.zip_mk
+  -- induction
+
+  -- simp only [Spec.FB.and_equiv, Spec.FB.or_equiv,
+  --                  Spec.FB.eq_equiv,
+  --                  Spec.FB.not_equiv]
+  -- rw [Spec.FB.and_equiv]
+  -- rw [Spec.FB.or_equiv]
+  -- rw [Spec.FB.eq_equiv]
+  -- rw [Spec.FB.not_equiv]
+
+  -- conv =>
+  --   enter [1,1,acc,x,3,ai,bi]
+  --   rw [Spec.FB.eq_equiv]
+  --   rw [Spec.FB.not_equiv]
+  --   simp
+  --  -- enter [2,eqi]
+  --   rw [Spec.FB.and_equiv]
+  --   rw [Spec.FB.and_equiv]
+  --   rw [Spec.FB.or_equiv]
+  --   simp [Spec.FB.left_inv,Spec.FB.right_inv]
+
+  sorry
+
+end Spec.FBitVec
+
+
 abbrev F8 (p:ℕ) [Fact (Primes.fits p 8)] := FBitVec p 8
 
 namespace F8
 
 variable [Fact (Primes.fits p 8)]
 
+def ofUInt8 (u:UInt8) : F8 p :=
+  UInt8.toBitVec u |> FBitVec.ofBV
+
 def ofF (x:F p) : Option (F8 p) := do
   FBitVec.ofF 8 x
-
-def ofUInt8 (u:UInt8) : Option (F8 p) :=
-  num2bits 8 (u.toNat)
-
-def zero : F8 p := FBitVec.default 8
 
 def eq (a b : F8 p) : Option (FB p) := FBitVec.eq a b
 
 def assert_eq (a b : F8 p) := FBitVec.assert_eq a b
 
 end F8
+
+namespace Spec.F8
+
+variable [Fact (Primes.fits p 8)]
+
+def toUInt8 (x:F8 p) : UInt8 :=
+  Spec.FBitVec.toBV x |> UInt8.ofBitVec
+
+lemma left_inv (u:UInt8) : F8.toUInt8 (F8.ofUInt8 (p:=p) u) = u := by
+  unfold F8.toUInt8 F8.ofUInt8
+  rw [Spec.FBitVec.right_inv]
+
+lemma ofF_equiv (e:ZMod p) :
+  F8.ofF e = if h : e.val < 2^8 then some (F8.ofUInt8 (UInt8.ofFin ⟨e.val,h⟩)) else none := by
+  unfold F8.ofF FBitVec.ofF
+  apply Spec.FBitVec.num2bits_equiv
+
+lemma eq_equiv (a b : F8 p) :
+  F8.eq a b = some (FB.ofBool ((toUInt8 a) = (toUInt8 b))) := by
+  sorry
+
+end Spec.F8
 
 
 abbrev F32 (p:ℕ) [Fact (Primes.fits p 32)] := FBitVec p 32
@@ -182,6 +355,9 @@ def default : F32 p := FBitVec.default 32
 
 instance : Inhabited (F32 p) where
   default
+
+def ofUInt32 (u:UInt32) : F32 p :=
+  UInt32.toBitVec u |> FBitVec.ofBV
 
 def ofF (x:F p) : Option (F32 p) := do
   FBitVec.ofF 32 x
@@ -196,6 +372,37 @@ def add (a b : F32 p) : Option (F32 p) := do
 def assert_eq (a b : F32 p) := FBitVec.assert_eq a b
 
 end F32
+
+namespace Spec.F32
+
+variable [Fact (Primes.fits p 32)]
+
+def toUInt32 (x:F32 p) : UInt32 :=
+  Spec.FBitVec.toBV x |> UInt32.ofBitVec
+
+lemma add_equiv (a b : F32 p) (ha : Spec.FBitVec.valid a) (hb : Spec.FBitVec.valid b) :
+  F32.add a b = some (F32.ofUInt32 (UInt32.add (toUInt32 a) (toUInt32 b))) := by
+  unfold F32.add FBitVec.binSum FBitVec.toF
+  rw [Spec.FBitVec.bits2num_equiv]
+  rw [Spec.FBitVec.bits2num_equiv]
+  rw [Spec.FBitVec.num2bits_equiv]
+  --simp
+  split
+  . simp only [toUInt32,F32.ofUInt32]
+    by_cases h : (((FBitVec.toBV a).toNat : ZMod p) + ↑(FBitVec.toBV b).toNat).val < 2^32
+    . -- simp only [instHAdd, Add.add]
+      simp only [Option.bind_eq_bind, Option.bind_some]
+      erw [UInt32.toBitVec_add (a:={ toBitVec := FBitVec.toBV a }) (b:={ toBitVec := FBitVec.toBV b })]
+      simp only [BitVec.val_toFin]
+      have h2: ((FBitVec.toBV a).toNat : ZMod p).val + ((FBitVec.toBV b).toNat : ZMod p).val < p := sorry
+      -- erw [ZMod.val_add_of_lt (n:=p) (a:=((FBitVec.toBV a).toNat : ZMod p)) (b:=((FBitVec.toBV b).toNat :ZMod p)) h2]
+      sorry
+    . sorry
+  . sorry -- absurd
+  repeat assumption
+
+end Spec.F32
+
 
 abbrev F64 (p:ℕ) [Fact (Primes.fits p 64)] := FBitVec p 64
 

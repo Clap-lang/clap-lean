@@ -5,7 +5,7 @@ namespace Clap.RSA
 
 open Clap.Lang
 
-variable {p : ℕ}
+variable {p : ℕ} [Fact (Nat.Prime p)]
 
 /--
 `base^65537 mod modulus` on bignum operands.

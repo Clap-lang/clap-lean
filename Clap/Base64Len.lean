@@ -4,7 +4,7 @@ namespace Base64Len
 
 open Clap.Lang
 
-variable {p : ℕ} [Fact (Primes.fits p 8)]
+variable {p : ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)]
 
 instance : Coe Char (F p) where
   coe c := c.toNat
