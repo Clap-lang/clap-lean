@@ -217,6 +217,7 @@ def explodeVectorMap : Sym.Simp.Simproc := fun e ↦ do
 TODO: Proof. Viz. `abc'`.
 -/
 def explodeVectorMapM : Sym.Simp.Simproc := fun e ↦ do
+  let time ← IO.monoMsNow
   let_expr Vector.mapM _ _ _ _ _ f xs := e | return .rfl
   let xs ← toVectorSequence? xs
   match xs with
@@ -224,8 +225,23 @@ def explodeVectorMapM : Sym.Simp.Simproc := fun e ↦ do
   | .some xs => let map ← reducedAndSharedInc (←mkAppM ``Vector.mapM #[f, xs])
                 trace[Clap.Compile.simp.kaboom]
                   m!"\n{e}\n==>\n{map}"
+                logInfo m!"explodeVectorMapM took {(Float.ofNat (←IO.monoMsNow) - Float.ofNat time)/Float.ofNat 1000}s"
                 return .step map (←mkSorry (←mkEq e map) false)
 
+/--
+TODO: Proof. Viz. `abc'`.
+-/
+def explodeVectorZipWith : Sym.Simp.Simproc := fun e ↦ do
+  let_expr Vector.zipWith _ _ _ _ f a b := e | return .rfl
+
+  let a? ← toVectorSequence? a
+  let b? ← toVectorSequence? b
+  if a?.isNone && b?.isNone then return .rfl
+
+  let zipWith ← reducedAndSharedInc (← mkAppM ``Vector.zipWith #[f, a?.getD a, b?.getD b])
+  trace[Clap.Compile.simp.kaboom]
+    m!"\n{e}\n==>\n{zipWith}"
+  return .step zipWith (←mkSorry (←mkEq e zipWith) false)
 
 -- /--
 -- TODO: Thought experiment to explode on demand.

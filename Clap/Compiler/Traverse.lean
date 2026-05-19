@@ -903,6 +903,7 @@ Single step transformation. TODO: Does not play particularly nice with our top-l
 `f x₀ >>= fun row₀ ↦ f x₁ >>= fun row₁ ↦ ... fun rowₘ ↦ .some #v[row₀, row₁, ..., rowₘ]`
 -/
 def _root_.Vector.mapM_mk_cons : Sym.Simp.Simproc := fun e ↦ do
+  let time ← IO.monoMsNow
   let_expr _root_.Vector.mapM _ _ _ _ _ f vec := e | return .rfl
   let_expr _root_.Vector.mk t sz _ _ := vec | return .rfl
   let szSimped := (←Sym.simp sz).getResultExpr sz
@@ -938,6 +939,7 @@ def _root_.Vector.mapM_mk_cons : Sym.Simp.Simproc := fun e ↦ do
     let e' ← Sym.share (← unfoldReducible e')
     trace[Clap.Compile.simp.proc.vector_mapM_mk_cons]
       m!"\n{e}\n==>\n{e'}"
+    logInfo m!"Vector.mapM_mk_cons took {(Float.ofNat (←IO.monoMsNow) - Float.ofNat time)/Float.ofNat 1000}s"
     return .step e' (←mkSorry (←mkEq e e') false)
 
 /--
@@ -1034,11 +1036,20 @@ def mapM : MetaM Methods :=
     ``Vector.mapM_mk_cons, ``Vector.mapM_mk_empty,
 
     ``Compiler.explodeVectorMapM
-  ] ∪ append ∪ getElem
+  ]
 
-def mapM_test : MetaM Methods :=
+-- def mapM_test : MetaM Methods :=
+--   mkPostMethods #[
+--     ``Vector.mapM_mk_cons, ``Compiler.explodeVectorMapM
+--   ]
+
+def zipWith : MetaM Methods :=
   mkPostMethods #[
-    ``Vector.mapM_mk_cons, ``Compiler.explodeVectorMapM
+    ``Vector.mk_zipWith_mk, ``List.zipWith_toArray,
+    
+    ``List.zipWith_cons_cons, ``List.zipWith_nil_left, ``List.zipWith_nil_right,
+
+    ``Compiler.explodeVectorZipWith
   ]
 
 end Vector
@@ -1106,7 +1117,7 @@ set_option profiler.threshold 10
 -- /-- info: fun _vec => eq0 4 -/
 -- #guard_msgs in
 #eval spoon <| do compileExampleJustSym ``ex₁ (←getElem)
-set_option trace.Clap.Compile true
+-- set_option trace.Clap.Compile true
 
 def ex₂ (vec : Vector Nat 3) : Option Unit := do
   let x := (vec ++ vec)[0] -- `GetElem (Vector _ (3 + 3))`
@@ -1130,7 +1141,7 @@ def ex₃ (vec : Vector Nat 200) : Option Unit := do
 -- #guard_msgs in
 -- #eval spoon <| do compileExampleJustSym ``ex₃ (←(map ∪ zeta ∪ getElem))
 
-def ex₄ (vec : Vector Nat 2) : Option Unit := do
+def ex₄ (vec : Vector Nat 150) : Option Unit := do
   let x ← vec.mapM (fun x ↦ return x + 1)
   eq0 x[0]
 -- set_option trace.Clap.Compile true
@@ -1139,24 +1150,74 @@ set_option profiler true
 -- set_option trace.sym.issues true
 -- /-- info: fun vec => eq0 (vec[0] + 1) -/
 
-set_option trace.Clap.Compile.debug.simp true
--- set_option pp.exprSizes true
+set_option debug.skipKernelTC true
+-- set_option trace.Clap.Compile.debug.simp true
+set_option pp.exprSizes true
 -- set_option debug.skipKernelTC true in
-#eval spoon <| do compileExampleJustSym ``ex₄ (←(ground ∪ mapM ∪ getElem ∪ zeta))
+
+-- cache [0x1 ↦ id x]
+-- e₁ := (fun y ↦ f (id y) (id x)) x
+-- beta
+-- e₂ := f (id x) (0x1)
+-- share [e₃ := share e₂]
+-- e₃ := f 0x1 0x1
+-- lemma : f ?x ?x ==> 42
+-- 42
+
+-- set_option trace.Clap.Compile true in
+--  20 -   .1s |  .1 | 0   | simproc:  
+--  30 -   .2s |  .1 |  .1 | simproc: 
+--  40 -   .3s |  .2 |  .1 | simproc: 
+--  50 -   .5s |  .4 |  .2 | simproc: 
+--  60 -   .9s |  .4 |  .2 | simproc: 
+--  70 -  1.3s |  .6 |  .2 | simproc: 
+--  80 -  1.9s |  .5 |  .1 | simproc:  .3s
+--  90 -  2.4s |  .5 |  .1 | simproc:  .3s
+-- 100 -  3.5s | 1.0 |  .5 | simproc:  .4s
+-- 110 -  4.3s | 0.9 |  .5 | simproc:  .5s
+-- 120 -  5.7s | 1.4 |  .9 | simproc:  .6s
+-- 130 -  8.0s | 2.3 |  .2 | simproc:  .8s
+-- 140 - 10.5s | 2.5 |  .0 | simproc:  .9s
+-- 150 - 13.0s | 2.5 |  .0 | simproc: 1.1s
+-- 160 - 15.4s |     |     | simproc: 1.3s
+
+set_option trace.sym.issues true in
+set_option trace.Clap.Compile true in
+#eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM))
 
 
+#check Vector.mapM_mk_empty
 
 -- #eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM_test))
   
-example {vec : Vector Nat 2} : ex₄ vec = sorry := by
+example {vec : Vector Nat 20} : ex₄ vec = sorry := by
   unfold ex₄
   -- compile_just_sym []
-  compile_just_sym [ground, SymSets.Vector.mapM, SymSets.Vector.getElem, zeta, compilerSet]
+  compile_just_sym [ground, SymSets.Vector.mapM, SymSets.Vector.getElem, compilerSet]
   rw [List.getElem_toArray]
   simp
   -- simp only [Option.bind_some]
 
   compile_just_sym [compilerSet]
+
+def ex₅ (vec : Vector Nat 3) : Option Unit := do
+  eq0 ((vec ++ vec)[0])
+  eq0 0
+  let res := vec.zipWith (bs := vec.map (·+1)) fun x y ↦ x + y
+  eq0 res[0]
+  eq0 res[1]
+  eq0 res[2]
+
+example {vec : Vector Nat 3} : ex₅ vec = sorry := by
+  unfold ex₅
+  compile_just_sym [
+    SymSets.Vector.append,
+    SymSets.Vector.getElem,
+    SymSets.Vector.zipWith,
+    SymSets.Vector.map,
+    compilerSet,
+    zeta
+  ]
 
 #exit
 
@@ -1249,7 +1310,7 @@ def ex₁ (n : Nat) : Option Unit := do
 
 open CompileSets Vector Logic
 
-set_option trace.Clap.Compile true
+-- set_option trace.Clap.Compile true
 
 /--
 info: fun n => do
