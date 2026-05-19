@@ -216,6 +216,20 @@ def explodeVectorMap : Sym.Simp.Simproc := fun e ↦ do
 /--
 TODO: Proof. Viz. `abc'`.
 -/
+def explodeVectorMapIdx : Sym.Simp.Simproc := fun e ↦ do
+  let_expr Vector.mapIdx _ _ _ f xs := e | return .rfl
+
+  let xs ← toVectorSequence? xs
+  match xs with
+  | .none => return .rfl
+  | .some xs => let mapIdx ← reducedAndSharedInc (←mkAppM ``Vector.mapIdx #[f, xs])
+                trace[Clap.Compile.simp.kaboom]
+                  m!"\n{e}\n==>\n{mapIdx}"
+                return .step mapIdx (←mkSorry (←mkEq e mapIdx) false)
+
+/--
+TODO: Proof. Viz. `abc'`.
+-/
 def explodeVectorMapM : Sym.Simp.Simproc := fun e ↦ do
   let time ← IO.monoMsNow
   let_expr Vector.mapM _ _ _ _ _ f xs := e | return .rfl
@@ -242,6 +256,44 @@ def explodeVectorZipWith : Sym.Simp.Simproc := fun e ↦ do
   trace[Clap.Compile.simp.kaboom]
     m!"\n{e}\n==>\n{zipWith}"
   return .step zipWith (←mkSorry (←mkEq e zipWith) false)
+
+/--
+TODO: Proof. Viz. `abc'`.
+-/
+def explodeVectorDrop : Sym.Simp.Simproc := fun e ↦ do
+  let_expr Vector.drop _ _ xs k := e | return .rfl
+  let xs ← toVectorSequence? xs
+  match xs with
+  | .none => return .rfl
+  | .some xs => let drop ← reducedAndSharedInc (←mkAppM ``Vector.drop #[xs, k])
+                trace[Clap.Compile.simp.kaboom]
+                  m!"\n{e}\n==>\n{drop}"
+                return .step drop (←mkSorry (←mkEq e drop) false)
+
+/--
+TODO: Proof. Viz. `abc'`.
+-/
+def explodeVectorTake : Sym.Simp.Simproc := fun e ↦ do
+  let_expr Vector.take _ _ xs k := e | return .rfl
+  let xs ← toVectorSequence? xs
+  match xs with
+  | .none => return .rfl
+  | .some xs => let take ← reducedAndSharedInc (←mkAppM ``Vector.take #[xs, k])
+                trace[Clap.Compile.simp.kaboom]
+                  m!"\n{e}\n==>\n{take}"
+                return .step take (←mkSorry (←mkEq e take) false)
+/--
+TODO: Proof. Viz. `abc'`.
+-/
+def explodeVectorFoldr : Sym.Simp.Simproc := fun e ↦ do
+  let_expr Vector.foldr _ _ _ f init xs := e | return .rfl
+  let xs ← toVectorSequence? xs
+  match xs with
+  | .none => return .rfl
+  | .some xs => let foldr ← reducedAndSharedInc (←mkAppM ``Vector.foldr #[f, init, xs])
+                trace[Clap.Compile.simp.kaboom]
+                  m!"\n{e}\n==>\n{foldr}"
+                return .step foldr (←mkSorry (←mkEq e foldr) false)
 
 -- /--
 -- TODO: Thought experiment to explode on demand.

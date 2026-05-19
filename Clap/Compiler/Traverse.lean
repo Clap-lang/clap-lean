@@ -632,6 +632,11 @@ def ground : MetaM Methods := do
     post := evalGround
   }
 
+def control : MetaM Methods := do
+  return {
+    pre := simpControl
+  }
+
 -- private def dbgCompilerSet : Simproc := fun e ↦ do
 --   let_expr Option.bind _ _ m k := e | return .rfl
 --   logInfo m!"Compiler fallback.\n{e}"
@@ -883,12 +888,21 @@ def map : MetaM Methods :=
     
     ``List.map_cons, ``List.map_nil,
 
-    ``Compiler.explodeVectorMap,
+    ``Compiler.explodeVectorMap
     
-    ``mapDbg
+    -- ``mapDbg
   ] ∪ mapOptim
   where
     mapOptim : MetaM Methods := mkPreMethods #[``List.map_id]
+
+def mapIdx : MetaM Methods :=
+  mkPostMethods #[
+    ``Vector.mapIdx_mk, ``List.mapIdx_toArray,
+    
+    ``List.mapIdx_cons, ``List.mapIdx_nil,
+
+    ``Compiler.explodeVectorMapIdx
+  ]
 
 def listOfArray (e : Expr) : Option Expr :=
   if e.isAppOf ``List.toArray || e.isAppOf ``Array.mk
@@ -932,11 +946,9 @@ def _root_.Vector.mapM_mk_cons : Sym.Simp.Simproc := fun e ↦ do
     /-
     `unfoldReducible` apparently clamps (yet)-non-existant `.bvar` references if called on
     the initial `transformedVector`; ouch.
-
-    We could build the share incrementally, but it is ever so slightly annoying considering
-    we cannot `unfoldReducible` willy-nilly.
     -/
     let e' ← Sym.share (← unfoldReducible e')
+    e'.checkMaxShared
     trace[Clap.Compile.simp.proc.vector_mapM_mk_cons]
       m!"\n{e}\n==>\n{e'}"
     logInfo m!"Vector.mapM_mk_cons took {(Float.ofNat (←IO.monoMsNow) - Float.ofNat time)/Float.ofNat 1000}s"
@@ -1052,7 +1064,79 @@ def zipWith : MetaM Methods :=
     ``Compiler.explodeVectorZipWith
   ]
 
+def take : MetaM Methods :=
+  mkPostMethods #[
+    ``Vector.take_mk, ``List.take_toArray,
+
+    ``List.take_succ_cons, ``List.take_nil, ``List.take_zero,
+
+    ``Compiler.explodeVectorTake
+  ]
+
+def drop : MetaM Methods :=
+  mkPostMethods #[
+    ``Vector.drop_mk, ``_root_.List.drop_toArray,
+
+    ``List.drop_succ_cons, ``List.drop_zero, ``List.drop_nil, ``List.drop_zero,
+
+    ``Compiler.explodeVectorDrop
+  ]
+
+def extract : MetaM Methods :=
+  mkPostMethods #[
+    ``Vector.extract_mk, ``List.extract_toArray,
+    
+    ``List.extract_eq_take_drop
+  ] ∪ drop ∪ take ∪ General.ground
+
+
+def size : MetaM Methods :=
+  mkPostMethods #[
+   ``Vector.size_toArray, ``List.size_toArray,
+
+   ``List.length_cons, ``List.length_nil
+  ]
+
+def foldr : MetaM Methods :=
+  mkPostMethods #[
+    ``Vector.foldr_mk, ``List.foldr_toArray', ``List.foldr_toArray,
+
+    ``List.foldr_cons, ``List.foldr_nil,
+
+    ``Compiler.explodeVectorFoldr
+  ] ∪ size ∪ General.ground
+
+def sum : MetaM Methods :=
+  mkPostMethods #[
+    ``Vector.sum_eq_foldr
+  ] ∪ foldr
+
+def set : MetaM Methods :=
+  mkPostMethods #[
+    ``Vector.set_mk, ``List.set_toArray,
+    
+    ``List.set_cons_succ, ``List.set_cons_zero,
+  ]
+
 end Vector
+
+namespace List
+
+def reduceRange : Sym.Simp.Simproc := fun e ↦ do
+  let_expr _root_.List.range k ← e | return .rfl
+  match (←Sym.simp k).getResultExpr k |>.nat? with
+  | .none => logError m!"{(←Sym.simp k).getResultExpr k} is not ground"
+             return .rfl (done := true)
+  | .some n => let l := _root_.List.range n
+               let e' ← Simp.reducedAndSharedInc (Lean.toExpr l)
+               return .step e' (←mkSorry (←mkEq e e') false) -- This is just rfl.
+
+def range : MetaM Methods := do
+  return {
+    post := reduceRange
+  }
+
+end List
 
 end
 
@@ -1123,14 +1207,14 @@ def ex₂ (vec : Vector Nat 3) : Option Unit := do
   let x := (vec ++ vec)[0] -- `GetElem (Vector _ (3 + 3))`
   eq0 x
 
-example {vec : Vector Nat 3} : ex₂ vec = sorry := by
-  unfold ex₂
+-- example {vec : Vector Nat 3} : ex₂ vec = sorry := by
+--   unfold ex₂
 
 
 
-/-- info: fun vec => eq0 vec[0] -/
-#guard_msgs in
-#eval spoon <| do compileExampleJustSym ``ex₂ (←(append ∪ zeta ∪ getElem))
+-- /-- info: fun vec => eq0 vec[0] -/
+-- #guard_msgs in
+-- #eval spoon <| do compileExampleJustSym ``ex₂ (←(append ∪ zeta ∪ getElem))
 
 def ex₃ (vec : Vector Nat 200) : Option Unit := do
   let x := vec.map (·+1)
@@ -1141,7 +1225,7 @@ def ex₃ (vec : Vector Nat 200) : Option Unit := do
 -- #guard_msgs in
 -- #eval spoon <| do compileExampleJustSym ``ex₃ (←(map ∪ zeta ∪ getElem))
 
-def ex₄ (vec : Vector Nat 150) : Option Unit := do
+def ex₄ (vec : Vector Nat 15) : Option Unit := do
   let x ← vec.mapM (fun x ↦ return x + 1)
   eq0 x[0]
 -- set_option trace.Clap.Compile true
@@ -1181,24 +1265,22 @@ set_option pp.exprSizes true
 -- 150 - 13.0s | 2.5 |  .0 | simproc: 1.1s
 -- 160 - 15.4s |     |     | simproc: 1.3s
 
-set_option trace.sym.issues true in
 set_option trace.Clap.Compile true in
-#eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM))
-
+#eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ getElem))
 
 #check Vector.mapM_mk_empty
 
 -- #eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM_test))
   
-example {vec : Vector Nat 20} : ex₄ vec = sorry := by
-  unfold ex₄
-  -- compile_just_sym []
-  compile_just_sym [ground, SymSets.Vector.mapM, SymSets.Vector.getElem, compilerSet]
-  rw [List.getElem_toArray]
-  simp
-  -- simp only [Option.bind_some]
+-- example {vec : Vector Nat 20} : ex₄ vec = sorry := by
+--   unfold ex₄
+--   -- compile_just_sym []
+--   compile_just_sym [ground, SymSets.Vector.mapM, SymSets.Vector.getElem, compilerSet]
+--   rw [List.getElem_toArray]
+--   simp
+--   -- simp only [Option.bind_some]
 
-  compile_just_sym [compilerSet]
+--   compile_just_sym [compilerSet]
 
 def ex₅ (vec : Vector Nat 3) : Option Unit := do
   eq0 ((vec ++ vec)[0])
@@ -1215,9 +1297,91 @@ example {vec : Vector Nat 3} : ex₅ vec = sorry := by
     SymSets.Vector.getElem,
     SymSets.Vector.zipWith,
     SymSets.Vector.map,
-    compilerSet,
     zeta
   ]
+  sorry
+
+def ex₆ (vec : Vector Nat 3) : Option Unit := do
+  eq0 ((vec ++ vec)[0])
+  eq0 0
+  let res := (vec.drop 1).take 1
+  eq0 res[0]
+
+example {vec : Vector Nat 3} : ex₆ vec = sorry := by
+  unfold ex₆
+  compile_just_sym [
+    SymSets.Vector.append,
+    SymSets.Vector.getElem,
+    SymSets.Vector.drop,
+    SymSets.Vector.take,
+    zeta
+  ]
+  sorry
+
+def ex₇ (vec : Vector Nat 3) : Option Unit := do
+  eq0 ((vec ++ vec)[0])
+  eq0 0
+  let res := vec.sum
+  eq0 res
+
+-- TODO: Look into ground?
+-- Also careful: `List.foldr_toArray` doesn't trigger, `List.foldr_toArray'` does, huh.
+example {vec : Vector Nat 3} : ex₇ vec = sorry := by
+  unfold ex₇
+  compile_just_sym [
+    SymSets.Vector.append,
+    SymSets.Vector.getElem,
+    SymSets.Vector.sum,
+    zeta
+  ]
+  sorry
+
+def ex₈ (vec : Vector Nat 3) : Option Unit := do
+  let vec := vec.zipWith (·+·) #v[1, 5, 10]
+  eq0 42
+  let res ← vec.mapM (fun n ↦ return n + 1)
+  eq0 res[0]
+  eq0 res[1]
+  eq0 res[2]
+
+example {vec : Vector Nat 3} : ex₈ vec = sorry := by
+  unfold ex₈
+  compile_just_sym [
+    SymSets.Vector.zipWith,
+    SymSets.Vector.mapM,
+    SymSets.Vector.getElem,
+    zeta,
+    compilerSet
+  ]
+  sorry
+
+def ex₉ (vec : Vector Nat 3) : Option Unit := do
+  let res := (#v[0] ++ vec).extract 1 2
+  eq0 res[0]
+
+example {vec : Vector Nat 3} : ex₉ vec = sorry := by
+  unfold ex₉
+  compile_just_sym [
+    SymSets.Vector.extract,
+    SymSets.Vector.append,
+    SymSets.Vector.getElem,
+    zeta
+  ]
+  sorry
+
+def ex₁₀ (vec : Vector Nat 3) : Option Unit := do
+  let res := (#v[0] ++ vec).set 0 42
+  eq0 res[0]
+
+example {vec : Vector Nat 3} : ex₁₀ vec = sorry := by
+  unfold ex₁₀
+  compile_just_sym [
+    SymSets.Vector.set,
+    SymSets.Vector.append,
+    SymSets.Vector.getElem,
+    zeta
+  ]
+  sorry
 
 #exit
 
