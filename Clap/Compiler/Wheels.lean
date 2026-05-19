@@ -67,6 +67,8 @@ initialize Lean.registerTraceClass `Clap.Compile.simp.proc.evalGround (inherited
 
 initialize Lean.registerTraceClass `Clap.Compile.simp.proc.vector_getElem_mk (inherited := true)
 
+initialize Lean.registerTraceClass `Clap.Compile.simp.proc.vector_mapM_mk_cons (inherited := true)
+
 initialize Lean.registerTraceClass `Clap.Compile.simp.proc.seemsTotallySafeInDTT (inherited := true)
 
 initialize Lean.registerTraceClass `Clap.Compile.debug.simp (inherited := true)

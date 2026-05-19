@@ -25,6 +25,9 @@ namespace Clap.Compiler
 --   Sym.Simp.liftTermElabM Term.synthesizeSyntheticMVarsNoPostponing
 --   pure (Expr.app vectorSansProof proof) >>= instantiateMVars
 
+/--
+TODO: Bad API, no time. (can infer length)
+-/
 def getElemVectorOfIdx (coll : Expr) (len idx : Nat) : Sym.Simp.SimpM Expr := do
   let idxQ : Q(Nat) := ToExpr.toExpr idx
   let szQ : Q(Nat) := mkNatLit len
@@ -36,13 +39,16 @@ def inferVectorProof (vectorSansProof : Expr) : Sym.Simp.SimpM Expr := do
   -- logInfo m!"vectorSansProof: {vectorSansProof}\ntype: {←inferType vectorSansProof}"
   pure (Expr.app vectorSansProof (←mkSorry argT false)) -- >>= instantiateMVars
 
+/--
+TODO: Bad API, no time. (can infer length)
+-/
 def mkVecLit (l : Expr) (sz : Expr) : Sym.Simp.SimpM Expr := do
   let array ← mkAppM ``List.toArray #[l]
   let t := (←inferType array).getAppArgs[0]!
   let u ← getDecLevel t
   let vectorSansProof := mkAppN (.const ``_root_.Vector.mk [u]) #[t, sz, array]
   let vector ← inferVectorProof vectorSansProof
-  return vector
+  Sym.shareCommonInc vector -- TODO: Check if `...inc` is enough.
 
 /--
 TODO: Use mkVecLit
