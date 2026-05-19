@@ -632,17 +632,17 @@ def ground : MetaM Methods := do
     post := evalGround
   }
 
-private def dbgCompilerSet : Simproc := fun e ↦ do
-  let_expr Option.bind _ _ m k := e | return .rfl
-  logInfo m!"Compiler fallback.\n{e}"
-  let thm ← mkTheoremFromDecl ``Option.bind_some
-  let pat := thm.pattern
-  logInfo m!"PAT: {pat.pattern}"
-  match ←pat.match? e with
-  | .none => logInfo m!"NO MATCH"
-             return .rfl
-  | .some stuff => logInfo m!"YES MATCH: {stuff.args}"
-                   return .rfl
+-- private def dbgCompilerSet : Simproc := fun e ↦ do
+--   let_expr Option.bind _ _ m k := e | return .rfl
+--   logInfo m!"Compiler fallback.\n{e}"
+--   let thm ← mkTheoremFromDecl ``Option.bind_some
+--   let pat := thm.pattern
+--   logInfo m!"PAT: {pat.pattern}"
+--   match ←pat.match? e with
+--   | .none => logInfo m!"NO MATCH"
+--              return .rfl
+--   | .some stuff => logInfo m!"YES MATCH: {stuff.args}"
+--                    return .rfl
 
 def compilerSet : MetaM Sym.Simp.Methods :=
   mkPostMethods #[
@@ -651,7 +651,7 @@ def compilerSet : MetaM Sym.Simp.Methods :=
     ``Option.bind_eq_bind, ``Option.bind_fun_some, ``Option.bind_some, ``bind_pure, ``pure_bind,
     ``Option.map_eq_map, ``Option.map_some,
 
-    ``dbgCompilerSet
+    -- ``dbgCompilerSet
   ]
 
 -- private def seemsTotallySafeInDTT : Simproc := fun e ↦ do
@@ -827,34 +827,34 @@ def getElemDbg : Sym.Simp.Simproc := fun e ↦ do
 --   -- trace[Clap.Compile.simp.proc.getElem_mk] m!""
   -- _
 
-#check Vector.getElem_mk
-def getElem_mk : Sym.Simp.Simproc := fun e ↦ do
-  let_expr GetElem.getElem collT _ _ _ _ coll _ _ := e | return .rfl
-  let_expr Vector.mk _ sz arr _ := coll | return .rfl
-  let_expr Vector _ getElemSz := collT | return .rfl
-  logWarning m!"Doing.\nGetElem={getElemSz}\nVec.mk={sz}"
-  if isSameExpr getElemSz sz then -- `1 + 1 ≠ 2`
-    let thm ← mkTheoremFromDecl ``Vector.getElem_mk -- TODO: Don't do this lazily here.
-    let e' ← thm.rewrite e
-    trace[Clap.Compile.simp.proc.vector_getElem_mk]
-      m!"\n{e}\n==>\n{e'.getResultExpr e}"
-    return e'
-  let simpedSz := (←Sym.simp sz (←General.ground)).getResultExpr sz
-  match simpedSz.nat? with
-  | .none =>
-    throwError m!"{simpedSz} is not ground.\nMaybe this is ok."
-    return .rfl
-  | .some simpedSzN =>
-    logInfo m!"sz:{sz}\nsimpedSz: {(←Sym.simp sz (←General.ground)).getResultExpr sz}"
-    let e' ← inferVectorProof (←mkAppM ``GetElem.getElem #[arr, mkNatLit simpedSzN]) -- GetElem (Array Nat)
-    let e' ← Compiler.Simp.reducedAndSharedInc e'
-    trace[Clap.Compile.simp.proc.vector_getElem_mk]
-      m!"\n{e}\n==>\n{e'}\nCheating.\nIn {collT} we pretend that {getElemSz} = {simpedSzN}."
-    return .step e' (←mkSorry (←mkEq e e') false)
--- Vector.append : Vec m ++ Vec n ==> Vec (m + n) ==> Vec k where k = n + n
--- do let x := (vec ++ vec)[1] -- (vec ++ vec : Vector (m + n)) -- GetElem (Vector (3 + 3)) 
-#check Vector.append
-#check GetElem.getElem (coll := Vector ℕ 4) (Vector.mk (n := 2 + 2) #[1, 2, 3, 4] rfl) 0 (by decide)
+-- #check Vector.getElem_mk
+-- def getElem_mk : Sym.Simp.Simproc := fun e ↦ do
+--   let_expr GetElem.getElem collT _ _ _ _ coll _ _ := e | return .rfl
+--   let_expr Vector.mk _ sz arr _ := coll | return .rfl
+--   let_expr Vector _ getElemSz := collT | return .rfl
+--   logWarning m!"Doing.\nGetElem={getElemSz}\nVec.mk={sz}"
+--   if isSameExpr getElemSz sz then -- `1 + 1 ≠ 2`
+--     let thm ← mkTheoremFromDecl ``Vector.getElem_mk -- TODO: Don't do this lazily here.
+--     let e' ← thm.rewrite e
+--     trace[Clap.Compile.simp.proc.vector_getElem_mk]
+--       m!"\n{e}\n==>\n{e'.getResultExpr e}"
+--     return e'
+--   let simpedSz := (←Sym.simp sz (←General.ground)).getResultExpr sz
+--   match simpedSz.nat? with
+--   | .none =>
+--     throwError m!"{simpedSz} is not ground.\nMaybe this is ok."
+--     return .rfl
+--   | .some simpedSzN =>
+--     logInfo m!"sz:{sz}\nsimpedSz: {(←Sym.simp sz (←General.ground)).getResultExpr sz}"
+--     let e' ← inferVectorProof (←mkAppM ``GetElem.getElem #[arr, mkNatLit simpedSzN]) -- GetElem (Array Nat)
+--     let e' ← Compiler.Simp.reducedAndSharedInc e'
+--     trace[Clap.Compile.simp.proc.vector_getElem_mk]
+--       m!"\n{e}\n==>\n{e'}\nCheating.\nIn {collT} we pretend that {getElemSz} = {simpedSzN}."
+--     return .step e' (←mkSorry (←mkEq e e') false)
+-- -- Vector.append : Vec m ++ Vec n ==> Vec (m + n) ==> Vec k where k = n + n
+-- -- do let x := (vec ++ vec)[1] -- (vec ++ vec : Vector (m + n)) -- GetElem (Vector (3 + 3)) 
+-- #check Vector.append
+-- #check GetElem.getElem (coll := Vector ℕ 4) (Vector.mk (n := 2 + 2) #[1, 2, 3, 4] rfl) 0 (by decide)
 def getElem : MetaM Methods :=
   mkPostMethods #[
     -- ``getElem_t,
@@ -919,9 +919,7 @@ def _root_.Vector.mapM_mk_cons : Sym.Simp.Simproc := fun e ↦ do
     Prefix a single lambda in each iteration.
     -/
     let e' ← (List.range szSimpedNat).foldrM (init := transformedVector?) fun i e ↦ do
-      logInfo m!"acc: {e}"
       let elem ← getElemVectorOfIdx vec szSimpedNat i
-      -- Careful, do not reduce here, apparently this clamps (yet)-non-existant `.bvar` references
       mkAppM ``Option.bind #[
         ←reducedAndSharedInc (f.beta #[elem]), -- TODO?: Expr.app f hdVec
         .lam (binderInfo := .default)
@@ -930,7 +928,14 @@ def _root_.Vector.mapM_mk_cons : Sym.Simp.Simproc := fun e ↦ do
              (body := e) -- `f vec[i] >>= fun row_{i} ↦ e`
       -- Careful, `e` contains loose bvars until the very last iteration.
       ]
-    let e ← Sym.share e'
+    /-
+    `unfoldReducible` apparently clamps (yet)-non-existant `.bvar` references if called on
+    the initial `transformedVector`; ouch.
+
+    We could build the share incrementally, but it is ever so slightly annoying considering
+    we cannot `unfoldReducible` willy-nilly.
+    -/
+    let e' ← Sym.share (← unfoldReducible e')
     trace[Clap.Compile.simp.proc.vector_mapM_mk_cons]
       m!"\n{e}\n==>\n{e'}"
     return .step e' (←mkSorry (←mkEq e e') false)
@@ -1012,13 +1017,13 @@ def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
     -- -- TODO: Puh-ROOF!
     -- return .step consMapM (←mkSorry (←mkEq e mapM) false)
 
-def _root_.Vector.mapM_mk_eq_append' : Sym.Simp.Simproc := fun e ↦ do
-  let_expr _root_.Vector.mapM _ _ _ _ _ f vec := e | return .rfl
-  let_expr _root_.Vector.mk _ sz arr _ := vec | return .rfl
-  unless arr.isAppOf ``List.toArray || arr.isAppOf ``Array.mk do return .rfl
-  let l ← arr.getAppArgs[1]?.getDM (unreachable!)
-  let_expr List.cons t hd tl := l | return .rfl
-  _
+-- def _root_.Vector.mapM_mk_eq_append' : Sym.Simp.Simproc := fun e ↦ do
+--   let_expr _root_.Vector.mapM _ _ _ _ _ f vec := e | return .rfl
+--   let_expr _root_.Vector.mk _ sz arr _ := vec | return .rfl
+--   unless arr.isAppOf ``List.toArray || arr.isAppOf ``Array.mk do return .rfl
+--   let l ← arr.getAppArgs[1]?.getDM (unreachable!)
+--   let_expr List.cons t hd tl := l | return .rfl
+--   _
 
 /--
 `Vector.mapM_mk_singleton_append` is a part of `Vector.mapM_mk_append` to ensure that
@@ -1026,7 +1031,7 @@ the transformation `#v[a, b] ==> #v[a] ++ #v[b]` does not get undone by `Vector.
 -/
 def mapM : MetaM Methods :=
   mkPostMethods #[
-    ``Vector.mapM_mk_eq_append, ``Vector.mapM_nil,
+    ``Vector.mapM_mk_cons, ``Vector.mapM_mk_empty,
 
     ``Compiler.explodeVectorMapM
   ] ∪ append ∪ getElem
@@ -1141,17 +1146,13 @@ set_option trace.Clap.Compile.debug.simp true
 
 
 
-#eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM_test))
-
-example {vec : Vector Nat 2} : ex₄ vec = sorry := by
-  unfold ex₄
-  compile_just_sym [mapM_test]
+-- #eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM_test))
   
-
 example {vec : Vector Nat 2} : ex₄ vec = sorry := by
   unfold ex₄
   -- compile_just_sym []
   compile_just_sym [ground, SymSets.Vector.mapM, SymSets.Vector.getElem, zeta, compilerSet]
+  rw [List.getElem_toArray]
   simp
   -- simp only [Option.bind_some]
 
