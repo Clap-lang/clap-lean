@@ -174,6 +174,10 @@ def poseidonBN254 {n} (inputs : Vector (F bn254) n) : Option (F bn254) :=
   let P := Clap.PoseidonVec.Constant.P t
   poseidon inputs C S M P
 
+
+
+
+
 end Poseidon254
 
 end Clap.PoseidonVec
@@ -238,7 +242,7 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
     ``PoseidonVec.poseidonBN254.eq_def, ``poseidon.eq_def, ``poseidonEx.eq_def,
     ``liftVec.eq_def, ``liftMat.eq_def, ``ark.eq_def, ``sigma.eq_def, ``id.eq_def,  -- const.eq_def : some Sym.simp thing...
     ``Constant.C.eq_def, ``Constant.M.eq_def, ``Constant.P.eq_def, ``Constant.S.eq_def,
-
+    ``F.eq_def    
     -- ``Constant.C.C02.eq_def, ``Constant.C.C03.eq_def, ``Constant.C.C04.eq_def,``Constant.C.C05.eq_def, ``Constant.C.C06.eq_def, ``Constant.C.C07.eq_def, ``Constant.C.C08.eq_def, ``Constant.C.C09.eq_def, ``Constant.C.C10.eq_def, ``Constant.C.C11.eq_def, ``Constant.C.C12.eq_def, ``Constant.C.C13.eq_def, ``Constant.C.C14.eq_def, ``Constant.C.C15.eq_def, ``Constant.C.C16.eq_def, ``Constant.C.C17.eq_def,
     -- ``Constant.M.M02.eq_def, ``Constant.M.M03.eq_def, ``Constant.M.M04.eq_def,``Constant.M.M05.eq_def, ``Constant.M.M06.eq_def, ``Constant.M.M07.eq_def, ``Constant.M.M08.eq_def, ``Constant.M.M09.eq_def, ``Constant.M.M10.eq_def, ``Constant.M.M11.eq_def, ``Constant.M.M12.eq_def, ``Constant.M.M13.eq_def, ``Constant.M.M14.eq_def, ``Constant.M.M15.eq_def, ``Constant.M.M16.eq_def, ``Constant.M.M17.eq_def,
     -- ``Constant.P.P02.eq_def, ``Constant.P.P03.eq_def, ``Constant.P.P04.eq_def,``Constant.P.P05.eq_def, ``Constant.P.P06.eq_def, ``Constant.P.P07.eq_def, ``Constant.P.P08.eq_def, ``Constant.P.P09.eq_def, ``Constant.P.P10.eq_def, ``Constant.P.P11.eq_def, ``Constant.P.P12.eq_def, ``Constant.P.P13.eq_def, ``Constant.P.P14.eq_def, ``Constant.P.P15.eq_def, ``Constant.P.P16.eq_def, ``Constant.P.P17.eq_def,
@@ -254,12 +258,22 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
 --     ``Constant.S.S02, ``Constant.S.S03, ``Constant.S.S04, ``Constant.S.S05, ``Constant.S.S06, ``Constant.S.S07, ``Constant.S.S08, ``Constant.S.S09, ``Constant.S.S10, ``Constant.S.S11, ``Constant.S.S12, ``Constant.S.S13, ``Constant.S.S14, ``Constant.S.S15, ``Constant.S.S16, ``Constant.S.S17,
 --  ``mix, ``mixS, ``mixS.dotProduct, ``mixS.tail
   ]
-
+set_option trace.Clap.Compile true in
 open Clap.Compiler.SymSets Vector General in
 set_option maxRecDepth 8192 in
+set_option pp.proofs true in
 #eval spoon <| do
   compileExampleJustSym ``testPoseidon
-    (←(poseidonBN254' ∪ mapM ∪ foldlM ∪ mapIdx ∪ ground ∪ control ∪ SymSets.List.range)) -- + control flow
+    (←(
+      poseidonBN254' ∪
+      map ∪
+      getElem ∪
+      append ∪
+      mapM ∪
+      foldlM ∪ mapIdx ∪
+      ground ∪ control ∪
+      SymSets.List.range
+    ))
 
 -- set_option trace.Clap.Compile.simp.fail true
 -- set_option trace.Meta.Tactic.simp true

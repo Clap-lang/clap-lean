@@ -280,10 +280,10 @@ end Array
 
 namespace Vector
 
-def explode : SimpSet :=
-  {
-    pos := #[(``explodeVector, .Post), (``dontExplodeVector, .Pre)]
-  }
+-- def explode : SimpSet :=
+--   {
+--     pos := #[(``explodeVector, .Post), (``dontExplodeVector, .Pre)]
+--   }
 
 def foldlM : SimpSet :=
   SimpSet.withAllPost #[
@@ -620,18 +620,6 @@ def beta : MetaM Methods := do
     pre := betaReduce
   }
 
-private def evalGround : Simproc := fun e ↦ do
-  let e' ← Sym.Simp.evalGround {} e
-  unless isSameExpr e (e'.getResultExpr e) do
-    trace[Clap.Compile.simp.proc.evalGround]
-      m!"\n{e}\n==>\n{e'.getResultExpr e}"
-  return e'
-
-def ground : MetaM Methods := do
-  return {
-    post := evalGround
-  }
-
 def control : MetaM Methods := do
   return {
     pre := simpControl
@@ -706,24 +694,38 @@ private def mk_append_mk' : Simproc := fun e ↦ do
     -- TODO: I have a feeling this sometimes misbehaves for some reason, look into this.
     -- Notably, when using `Vector.getElem_mk` 'directly', it simps more things than this guy?
     -- TODO: Sharing
-    logWarning m!"{e} is an append of non-ground size (TODO: remove)"
+    -- logWarning m!"{e} is an append of non-ground size (TODO: remove)"
     let thm ← mkTheoremFromDecl ``Vector.getElem_mk
     thm.rewrite e
 
--- def appendDbg : Sym.Simp.Simproc := fun e ↦ do
+#check HAppend.hAppend
+
+def appendDbg : Sym.Simp.Simproc := fun e ↦ do
+  let_expr HAppend.hAppend _ _ _ _ xs ys := e | return .rfl
+  logInfo m!"DBG:\n{e}"
+  let thm ← mkTheoremFromDecl ``Vector.mk_append_mk
+  match ←thm.pattern.match? e with
+  | .none => logInfo m!"{bombEmoji} Pattern:\n{thm.pattern.pattern}"
+  | .some arr => logInfo m!"{checkEmoji} Matched:\n{arr.args}"
+  logInfo m!"TRY AGAIN: {(← Sym.unfoldReducible e)}"
+  match ←thm.pattern.match? (← Sym.unfoldReducible e) with
+  | .none => logInfo m!"{bombEmoji} Pattern:\n{thm.pattern.pattern}"
+  | .some arr => logInfo m!"{checkEmoji} Matched:\n{arr.args}"
+  return .rfl
+
+
+  -- let_expr Vector.mk _ _ arr _ := e | return .rfl
+  -- logInfo m!"{e} makes: {arr}"
   
---   let_expr Vector.mk _ _ arr _ := e | return .rfl
---   logInfo m!"{e} makes: {arr}"
+  -- let thm ← mkTheoremFromDecl ``List.append_toArray
   
---   let thm ← mkTheoremFromDecl ``List.append_toArray
-  
---   match ←thm.pattern.match? arr with
---   | .none => logInfo m!"{bombEmoji} Pattern:\n{thm.pattern.pattern}"
---   | .some arr => logInfo m!"{checkEmoji} Pattern:\n{arr.args}"
---   match ←thm.pattern.match? (←Compiler.Simp.preprocessExpr e) with
---   | .none => logInfo m!"{bombEmoji} Pattern:\n{thm.pattern.pattern}"
---   | .some arr => logInfo m!"{checkEmoji} Pattern:\n{arr.args}"
---   return .rfl
+  -- match ←thm.pattern.match? arr with
+  -- | .none => logInfo m!"{bombEmoji} Pattern:\n{thm.pattern.pattern}"
+  -- | .some arr => logInfo m!"{checkEmoji} Pattern:\n{arr.args}"
+  -- match ←thm.pattern.match? (←Compiler.Simp.preprocessExpr e) with
+  -- | .none => logInfo m!"{bombEmoji} Pattern:\n{thm.pattern.pattern}"
+  -- | .some arr => logInfo m!"{checkEmoji} Pattern:\n{arr.args}"
+  -- return .rfl
   
 
 def append : MetaM Methods :=
@@ -734,14 +736,14 @@ def append : MetaM Methods :=
 
     ``Compiler.explodeVectorAppend,
 
-    -- ``appendDbg
+    ``appendDbg
   ]
 
-def explode : MetaM Methods := do
-  return {
-    post := explodeVector
-    pre  := dontExplodeVector
-  }
+-- def explode : MetaM Methods := do
+--   return {
+--     post := explodeVector
+--     pre  := dontExplodeVector
+--   }
 
 def foldlM : MetaM Methods :=
   mkPostMethods #[
@@ -889,8 +891,6 @@ def map : MetaM Methods :=
     ``List.map_cons, ``List.map_nil,
 
     ``Compiler.explodeVectorMap
-    
-    -- ``mapDbg
   ] ∪ mapOptim
   where
     mapOptim : MetaM Methods := mkPreMethods #[``List.map_id]
@@ -902,7 +902,7 @@ def mapIdx : MetaM Methods :=
     ``List.mapIdx_cons, ``List.mapIdx_nil,
 
     ``Compiler.explodeVectorMapIdx
-  ]
+  ] ∪ General.ground
 
 def listOfArray (e : Expr) : Option Expr :=
   if e.isAppOf ``List.toArray || e.isAppOf ``Array.mk
@@ -920,8 +920,10 @@ def _root_.Vector.mapM_mk_cons : Sym.Simp.Simproc := fun e ↦ do
   let time ← IO.monoMsNow
   let_expr _root_.Vector.mapM _ _ _ _ _ f vec := e | return .rfl
   let_expr _root_.Vector.mk t sz _ _ := vec | return .rfl
-  let szSimped := (←Sym.simp sz).getResultExpr sz
-  if !isSameExpr sz szSimped then logWarning m!"TODO: Had to simp length in:\n{e}"
+  let szSimped := (←Sym.simp sz (←SymSets.General.ground)).getResultExpr sz
+  if !isSameExpr sz szSimped then
+    trace[Clap.Compile.simp.proc.vector_mapM_mk_cons]
+      m!"Info: Processing `Vector _ ({sz})` of ground length {szSimped}. Request:\n{e}"
   match szSimped.nat? with
   | .none => throwError m!"{sz} does not simplify to ground. Expr:\n{e} (TODO: Maybe this is ok.)"
   | .some szSimpedNat =>
@@ -934,7 +936,7 @@ def _root_.Vector.mapM_mk_cons : Sym.Simp.Simproc := fun e ↦ do
     Prefix a single lambda in each iteration.
     -/
     let e' ← (List.range szSimpedNat).foldrM (init := transformedVector?) fun i e ↦ do
-      let elem ← getElemVectorOfIdx vec szSimpedNat i
+      let elem ← getElemVectorOfIdx vec szSimped i
       mkAppM ``Option.bind #[
         ←reducedAndSharedInc (f.beta #[elem]), -- TODO?: Expr.app f hdVec
         .lam (binderInfo := .default)
@@ -1225,7 +1227,7 @@ def ex₃ (vec : Vector Nat 200) : Option Unit := do
 -- #guard_msgs in
 -- #eval spoon <| do compileExampleJustSym ``ex₃ (←(map ∪ zeta ∪ getElem))
 
-def ex₄ (vec : Vector Nat 15) : Option Unit := do
+def ex₄ (vec : Vector Nat 150) : Option Unit := do
   let x ← vec.mapM (fun x ↦ return x + 1)
   eq0 x[0]
 -- set_option trace.Clap.Compile true
@@ -1265,6 +1267,7 @@ set_option pp.exprSizes true
 -- 150 - 13.0s | 2.5 |  .0 | simproc: 1.1s
 -- 160 - 15.4s |     |     | simproc: 1.3s
 
+set_option debug.skipKernelTC true in
 set_option trace.Clap.Compile true in
 #eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ getElem))
 
@@ -1382,6 +1385,27 @@ example {vec : Vector Nat 3} : ex₁₀ vec = sorry := by
     zeta
   ]
   sorry
+
+def ex₁₁ (vec : Vector Nat 3) : Option Unit := do
+  let res := vec.mapIdx fun i x ↦ x + i
+  eq0 res[0]
+
+example {vec : Vector Nat 3} : ex₁₁ vec = sorry := by
+  unfold ex₁₁
+  compile_just_sym [
+    SymSets.Vector.mapIdx,
+    SymSets.Vector.getElem,
+    zeta
+  ]
+  sorry
+
+-- example {vec : Vector Nat 3} {inputs : Vector Nat 3} :
+--   Vector.mk { toList := [0] } (show #[0].size = #[0].size by rfl) ++
+--   Vector.mk { toList := [inputs[0], inputs[1]] } (show { toList := [inputs[0], inputs[1]] : Array _ }.size = 2 by rfl) = sorry := by
+--   compile_just_sym [
+--     SymSets.Vector.append
+--   ]
+--   done
 
 #exit
 
