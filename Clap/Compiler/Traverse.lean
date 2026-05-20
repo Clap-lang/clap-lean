@@ -912,7 +912,6 @@ def listOfArray (e : Expr) : Option Expr :=
 open Compiler.Simp in
 /--
 Single step transformation. TODO: Does not play particularly nice with our top-level driver.
-
 `Vector.mapM f #v[x₀, x₁, ..., xₘ]` ==>
 `f x₀ >>= fun row₀ ↦ f x₁ >>= fun row₁ ↦ ... fun rowₘ ↦ .some #v[row₀, row₁, ..., rowₘ]`
 -/
@@ -931,13 +930,15 @@ def _root_.Vector.mapM_mk_cons : Sym.Simp.Simproc := fun e ↦ do
     let transformedList ← mkListLit t <| (List.range szSimpedNat).reverse.map .bvar
     let transformedVector ← mkVecLit transformedList szSimped
     let transformedVector? ← mkAppM ``Option.some #[transformedVector]
+    let transformedVector? ← Sym.shareCommonInc transformedVector?
+    Dbg.timeSince time "Vector.mapM_mk_cons[BEFORE LOOP]"
     /-
     Start with `.some #[.bvar sz.pred, .bvar sz.pred.pred, ..., .bvar 0]`
     Prefix a single lambda in each iteration.
     -/
     let e' ← (List.range szSimpedNat).foldrM (init := transformedVector?) fun i e ↦ do
       let elem ← getElemVectorOfIdx vec szSimped i
-      mkAppM ``Option.bind #[
+      liftM ∘ Sym.shareCommonInc =<< mkAppM ``Option.bind #[
         ←reducedAndSharedInc (f.beta #[elem]), -- TODO?: Expr.app f hdVec
         .lam (binderInfo := .default)
              (binderName := .mkSimple s!"row_{i}")
@@ -945,15 +946,16 @@ def _root_.Vector.mapM_mk_cons : Sym.Simp.Simproc := fun e ↦ do
              (body := e) -- `f vec[i] >>= fun row_{i} ↦ e`
       -- Careful, `e` contains loose bvars until the very last iteration.
       ]
-    /-
-    `unfoldReducible` apparently clamps (yet)-non-existant `.bvar` references if called on
-    the initial `transformedVector`; ouch.
-    -/
-    let e' ← Sym.share (← unfoldReducible e')
-    e'.checkMaxShared
+    Dbg.timeSince time "Vector.mapM_mk_cons[AFTER LOOP]"
+    -- TODO(CHECK): Should no longer be necessary, `mkVecLit` now uses `Array.mk` instead of `List.toArray`.
+    -- /-
+    -- `unfoldReducible` apparently clamps (yet)-non-existant `.bvar` references if called on
+    -- the initial `transformedVector`; ouch.
+    -- -/
+    -- let e' ← unfoldReducible e'
     trace[Clap.Compile.simp.proc.vector_mapM_mk_cons]
       m!"\n{e}\n==>\n{e'}"
-    logInfo m!"Vector.mapM_mk_cons took {(Float.ofNat (←IO.monoMsNow) - Float.ofNat time)/Float.ofNat 1000}s"
+    Dbg.timeSince time "Vector.mapM_mk_cons took"
     return .step e' (←mkSorry (←mkEq e e') false)
 
 /--

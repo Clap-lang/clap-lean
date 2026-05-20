@@ -54,11 +54,11 @@ def inferVectorProof (vectorSansProof : Expr) : Sym.Simp.SimpM Expr := do
 TODO: Bad API, no time. (can infer length)
 -/
 def mkVecLit (l : Expr) (len : Expr) : Sym.Simp.SimpM Expr := do
-  let array ← mkAppM ``List.toArray #[l]
+  -- `List.toArray` is not fully-reduced, confuses `Sym` without `unfoldReducible`
+  let array ← mkAppM ``Array.mk #[l]
   let t := (←inferType array).getAppArgs[0]!
   let u ← getDecLevel t
   let vectorSansProof := mkAppN (.const ``_root_.Vector.mk [u]) #[t, len, array]
-  -- logWarning m!"mkVecLit[vectorSansProof] = {vectorSansProof}"
   let vector ← inferVectorProof vectorSansProof
   Sym.shareCommonInc vector -- TODO: Check if `...inc` is enough.
 
