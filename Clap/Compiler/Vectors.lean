@@ -61,7 +61,7 @@ def mkVecLit (l : Expr) (len : Expr) : Sym.Simp.SimpM Expr := do
   let vectorSansProof := mkAppN (.const ``_root_.Vector.mk [u]) #[t, len, array]
   let vector ← inferVectorProof vectorSansProof
   Sym.shareCommonInc vector -- TODO: Check if `...inc` is enough.
-
+  
 -- /--
 -- TODO: Use mkVecLit
 -- -/
@@ -279,7 +279,7 @@ def explodeVectorMapIdx : Sym.Simp.Simproc := fun e ↦ do
 TODO: Proof. Viz. `abc'`.
 -/
 def explodeVectorMapM : Sym.Simp.Simproc := fun e ↦ do
-  let time ← IO.monoMsNow
+  -- let time ← IO.monoMsNow
   let_expr Vector.mapM _ _ _ _ _ f xs := e | return .rfl
   let xs ← toVectorSequence? xs
   match xs with
@@ -287,7 +287,7 @@ def explodeVectorMapM : Sym.Simp.Simproc := fun e ↦ do
   | .some xs => let map ← reducedAndSharedInc (←mkAppM ``Vector.mapM #[f, xs])
                 trace[Clap.Compile.simp.kaboom]
                   m!"\n{e}\n==>\n{map}"
-                logInfo m!"explodeVectorMapM took {(Float.ofNat (←IO.monoMsNow) - Float.ofNat time)/Float.ofNat 1000}s"
+                -- logInfo m!"explodeVectorMapM took {(Float.ofNat (←IO.monoMsNow) - Float.ofNat time)/Float.ofNat 1000}s"
                 return .step map (←mkSorry (←mkEq e map) false)
 
 /--

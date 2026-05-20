@@ -686,6 +686,7 @@ private def mk_append_mk' : Simproc := fun e ↦ do
                 (.const ``Vector.mk [←getDecLevel t])
                 #[t, szAppend, append, szAppendProof]
     let e' ← Compiler.Simp.reducedAndSharedInc e'
+    -- let e' ← Sym.shareCommonInc e'
     let proof ← mkSorry (←mkEq e e') false -- Probably just `Vector.mk_append_mk` up to defeq
     trace[Clap.Compile.simp.proc.mk_append_mk]
       m!"\n{e}\n==>\n{e'}"
@@ -862,7 +863,47 @@ def getElemDbg : Sym.Simp.Simproc := fun e ↦ do
 -- -- do let x := (vec ++ vec)[1] -- (vec ++ vec : Vector (m + n)) -- GetElem (Vector (3 + 3)) 
 -- #check Vector.append
 -- #check GetElem.getElem (coll := Vector ℕ 4) (Vector.mk (n := 2 + 2) #[1, 2, 3, 4] rfl) 0 (by decide)
+
+partial def listElemsOfExpr (e : Expr) (res : Array Expr := #[]) : Option (Array Expr) :=
+  match_expr e with
+  | List.cons _ hd tl => listElemsOfExpr tl (res.push hd)
+  | List.nil  _       => .some res
+  | _                 => .none
+
+def arrayElemsOfExpr (e : Expr) : Option (Array Expr) := do
+  let_expr Array.mk _ l := e | .none
+  listElemsOfExpr l
+
+def vectorElemsOfExpr (e : Expr) : Option (Array Expr × Expr) := do
+  let_expr Vector.mk _ sz arr _ := e | .none
+  return (←arrayElemsOfExpr arr, sz)
+
+def getElem_mk : Sym.Simp.Simproc := fun e => do
+  -- In vector, we can optimise by not enumerating all elements first,
+  -- and then taking the size of the final list.
+
+  -- Instead, we can simply traverse the first `i` conses, as we have the length apriori for the proof.
+  -- Or some such.
+  let_expr GetElem.getElem _ _ _ _ _ vec n _ := e | return .rfl
+  let some (elems, sz) := vectorElemsOfExpr vec | return .rfl
+  let some i := Sym.getNatValue? n | return .rfl
+  trace[Clap.Compile.simp.proc.vector_getElem_mk]
+    m!"Info:\nVector size: {sz}\nElems size: {elems.size}"
+  if h : i < elems.size
+  then
+    let e' := elems[i]
+    trace[Clap.Compile.simp.proc.vector_getElem_mk]
+      m!"\n{e}\n==>\n{e'}"
+    return .step e' (←Sym.mkEqRefl e')
+  else
+    return .rfl
+
 def getElem : MetaM Methods :=
+  mkPostMethods #[
+    ``getElem_mk
+  ]
+
+def getElem_old : MetaM Methods :=
   mkPostMethods #[
     -- ``getElem_t,
     ``Vector.getElem_mk, ``List.getElem_toArray,
@@ -931,7 +972,6 @@ def _root_.Vector.mapM_mk_cons : Sym.Simp.Simproc := fun e ↦ do
     let transformedVector ← mkVecLit transformedList szSimped
     let transformedVector? ← mkAppM ``Option.some #[transformedVector]
     let transformedVector? ← Sym.shareCommonInc transformedVector?
-    Dbg.timeSince time "Vector.mapM_mk_cons[BEFORE LOOP]"
     /-
     Start with `.some #[.bvar sz.pred, .bvar sz.pred.pred, ..., .bvar 0]`
     Prefix a single lambda in each iteration.
@@ -939,14 +979,14 @@ def _root_.Vector.mapM_mk_cons : Sym.Simp.Simproc := fun e ↦ do
     let e' ← (List.range szSimpedNat).foldrM (init := transformedVector?) fun i e ↦ do
       let elem ← getElemVectorOfIdx vec szSimped i
       liftM ∘ Sym.shareCommonInc =<< mkAppM ``Option.bind #[
-        ←reducedAndSharedInc (f.beta #[elem]), -- TODO?: Expr.app f hdVec
+        ←Sym.shareCommonInc (f.beta #[elem]), -- TODO?: Expr.app f hdVec
+        -- ←reducedAndSharedInc (f.beta #[elem]), -- TODO?: Expr.app f hdVec
         .lam (binderInfo := .default)
              (binderName := .mkSimple s!"row_{i}")
              (binderType := t)
-             (body := e) -- `f vec[i] >>= fun row_{i} ↦ e`
+             (body       := e) -- `f vec[i] >>= fun row_{i} ↦ e`
       -- Careful, `e` contains loose bvars until the very last iteration.
       ]
-    Dbg.timeSince time "Vector.mapM_mk_cons[AFTER LOOP]"
     -- TODO(CHECK): Should no longer be necessary, `mkVecLit` now uses `Array.mk` instead of `List.toArray`.
     -- /-
     -- `unfoldReducible` apparently clamps (yet)-non-existant `.bvar` references if called on
@@ -955,8 +995,9 @@ def _root_.Vector.mapM_mk_cons : Sym.Simp.Simproc := fun e ↦ do
     -- let e' ← unfoldReducible e'
     trace[Clap.Compile.simp.proc.vector_mapM_mk_cons]
       m!"\n{e}\n==>\n{e'}"
+    let proof ← mkSorry (←mkEq e e') false
     Dbg.timeSince time "Vector.mapM_mk_cons took"
-    return .step e' (←mkSorry (←mkEq e e') false)
+    return .step e' proof
 
 /--
 0. Only for `Vector.mapM f xs`.
@@ -1132,7 +1173,8 @@ def reduceRange : Sym.Simp.Simproc := fun e ↦ do
   | .none => logError m!"{(←Sym.simp k).getResultExpr k} is not ground"
              return .rfl (done := true)
   | .some n => let l := _root_.List.range n
-               let e' ← Simp.reducedAndSharedInc (Lean.toExpr l)
+               let e' ← Sym.shareCommonInc (Lean.toExpr l)
+              --  let e' ← Simp.reducedAndSharedInc (Lean.toExpr l)
                return .step e' (←mkSorry (←mkEq e e') false) -- This is just rfl.
 
 def range : MetaM Methods := do
@@ -1151,8 +1193,10 @@ def compileExample (ex : Name) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM For
 
 def compileJustSym (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Format := do
   lambdaTelescope e fun args e ↦ do
+    let time ← IO.monoMsNow
     let compiled ← Compiler.Simp.simplify (simpset ∪ (←SymSets.General.compilerSet)) e
-    logInfo m!"Compiled: {compiled}"
+    logInfo m!"Compiled:\n{compiled}"
+    Dbg.timeSince time "Compilation took:"
     Sym.mkLambdaFVarsS args compiled >>= (liftM ∘ PrettyPrinter.ppExpr)
 
 def compileExampleJustSym (ex : Name) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Format := do
@@ -1229,10 +1273,30 @@ def ex₃ (vec : Vector Nat 200) : Option Unit := do
 -- #guard_msgs in
 -- #eval spoon <| do compileExampleJustSym ``ex₃ (←(map ∪ zeta ∪ getElem))
 
-def ex₄ (vec : Vector Nat 150) : Option Unit := do
+def ex₄ (vec : Vector Nat 160) : Option Unit := do
   let x ← vec.mapM (fun x ↦ return x + 1)
   eq0 x[0]
 -- set_option trace.Clap.Compile true
+-- set_option pp.deepTerms true in
+
+-- def ex₄'' (vec : Vector Nat 150) : Option Unit := do
+--   let x ← #v[vec[0], vec[1], vec[2], vec[3], vec[4], vec[5], vec[6], vec[7], vec[8], vec[9], vec[10],
+--   vec[11], vec[12], vec[13], vec[14], vec[15], vec[16], vec[17], vec[18], vec[19], vec[20],
+--   vec[21], vec[22], vec[23], vec[24], vec[25], vec[26], vec[27], vec[28], vec[29], vec[30],
+--   vec[31], vec[32], vec[33], vec[34], vec[35], vec[36], vec[37], vec[38], vec[39], vec[40],
+--   vec[41], vec[42], vec[43], vec[44], vec[45], vec[46], vec[47], vec[48], vec[49], vec[50],
+--   vec[51], vec[52], vec[53], vec[54], vec[55], vec[56], vec[57], vec[58], vec[59], vec[60],
+--   vec[61], vec[62], vec[63], vec[64], vec[65], vec[66], vec[67], vec[68], vec[69], vec[70],
+--   vec[71], vec[72], vec[73], vec[74], vec[75], vec[76], vec[77], vec[78], vec[79], vec[80],
+--   vec[81], vec[82], vec[83], vec[84], vec[85], vec[86], vec[87], vec[88], vec[89], vec[90],
+--   vec[91], vec[92], vec[93], vec[94], vec[95], vec[96], vec[97], vec[98], vec[99], vec[100],
+--   vec[101], vec[102], vec[103], vec[104], vec[105], vec[106], vec[107], vec[108], vec[109],
+--   vec[110], vec[111], vec[112], vec[113], vec[114], vec[115], vec[116], vec[117], vec[118],
+--   vec[119], vec[120], vec[121], vec[122], vec[123], vec[124], vec[125], vec[126], vec[127],
+--   vec[128], vec[129], vec[130], vec[131], vec[132], vec[133], vec[134], vec[135], vec[136],
+--   vec[137], vec[138], vec[139], vec[140], vec[141], vec[142], vec[143], vec[144], vec[145],
+--   vec[146], vec[147], vec[148], vec[149]].mapM (fun x ↦ return x + 1)
+--   eq0 x[0]
 
 set_option profiler true
 -- set_option trace.sym.issues true
@@ -1271,7 +1335,13 @@ set_option pp.exprSizes true
 
 set_option debug.skipKernelTC true in
 set_option trace.Clap.Compile true in
+set_option profiler true in
 #eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ getElem))
+
+-- set_option debug.skipKernelTC true in
+-- set_option trace.Clap.Compile true in
+-- set_option profiler true in
+-- #eval spoon <| do compileExampleJustSym ``ex₄'' (←(mapM))
 
 #check Vector.mapM_mk_empty
 
@@ -1295,6 +1365,7 @@ def ex₅ (vec : Vector Nat 3) : Option Unit := do
   eq0 res[1]
   eq0 res[2]
 
+set_option trace.Clap.Compile true in
 example {vec : Vector Nat 3} : ex₅ vec = sorry := by
   unfold ex₅
   compile_just_sym [

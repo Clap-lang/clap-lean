@@ -104,7 +104,7 @@ def Clap.Dbg.timeInSecondsOfMs (begin «end» : Nat) : Float :=
   (Float.ofNat «end» - Float.ofNat begin) / Float.ofNat 1000
 
 def Clap.Dbg.timeSince (begin : Nat) (msg := ""): Lean.Meta.Sym.Simp.SimpM Unit := do
-  Lean.logInfo m!"{msg}\n{(Float.ofNat (←IO.monoMsNow) - Float.ofNat begin) / Float.ofNat 1000}"
+  Lean.logInfo m!"{msg}\n{(Float.ofNat (←IO.monoMsNow) - Float.ofNat begin) / Float.ofNat 1000}s"
 
 register_simp_attr dbgSimp
 
