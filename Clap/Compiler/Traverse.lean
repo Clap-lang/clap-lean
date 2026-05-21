@@ -637,7 +637,7 @@ def control : MetaM Methods := do
 --   | .some stuff => logInfo m!"YES MATCH: {stuff.args}"
 --                    return .rfl
 
-def compilerSet : MetaM Sym.Simp.Methods :=
+def compilerSet_old : MetaM Sym.Simp.Methods :=
   mkPostMethods #[
     ``Option.bind_assoc, ``bind_assoc,
     ``Option.pure_def,
@@ -645,6 +645,60 @@ def compilerSet : MetaM Sym.Simp.Methods :=
     ``Option.map_eq_map, ``Option.map_some,
 
     -- ``dbgCompilerSet
+  ]
+
+def compilerSet : MetaM Sym.Simp.Methods :=
+  mkPostMethods #[
+    ``Option.pure_def,
+    -- ``Option.pure_def, ``Option.bind_some, ``Option.bind_eq_bind
+
+    -- ``dbgCompilerSet
+  ]
+
+def whatTheF : Sym.Simp.Simproc := fun e ↦ do
+  let_expr Pure.pure t _ _ _ := e | return .rfl
+  if !t.isConstOf ``Option then return .rfl
+  let thm ← mkTheoremFromDecl ``Option.pure_apply -- TODO: Probably cache this
+  let res ← thm.rewrite e
+  return res
+
+def compilerSetAlt : MetaM Sym.Simp.Methods :=
+  mkPostMethods (d := Sym.Simp.dischargeNone) #[
+    ``whatTheF
+  ]
+
+def heh : Sym.Simp.Simproc := fun e ↦ do
+  -- logInfo m!"heh: {e}"
+  -- let time ← IO.monoMsNow
+  match_expr e with
+  | Option.bind _ _ a f => 
+    let_expr Option.some _ a := a | return .rfl
+    let e' ← Sym.shareCommonInc (f.beta #[a])
+    return .step e' (←Sym.mkEqRefl e') -- `Option.bind_some`
+
+    -- let thm ← mkTheoremFromDecl ``Option.bind_some
+    -- let res ← thm.rewrite e
+    -- -- Dbg.timeSince time "heh: "
+    -- -- (res.getResultExpr e).checkMaxShared
+    -- return res
+
+  | Pure.pure m _ t x =>
+    if !m.isConstOf ``Option then return .rfl
+    -- let thm ← mkTheoremFromDecl ``Option.pure_apply -- TODO: Probably cache this
+    -- let res ← thm.rewrite e
+    -- (res.getResultExpr e).checkMaxShared
+    -- Dbg.timeSince time "heh: "
+    -- return res
+    logInfo m!"m: {m}\nt: {t}\nx: {x}"
+    let e' ← Sym.shareCommon (mkApp2 (.const ``Option.some [←Sym.getLevel t]) t x)
+    return .step e' (←Sym.mkEqRefl e')
+  | _ => return .rfl
+
+def compilerSetAlt2 : MetaM Sym.Simp.Methods :=
+  mkPostMethods (d := Sym.Simp.dischargeNone) #[
+    ``heh
+    -- ``Option.bind_some,
+    -- ``Option.pure_apply
   ]
 
 -- private def seemsTotallySafeInDTT : Simproc := fun e ↦ do
@@ -975,13 +1029,14 @@ def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
     let transformedVector ← mkVecLit transformedList szSimped
     let transformedVector? ← mkAppM ``Option.some #[transformedVector]
     let transformedVector? ← Sym.shareCommonInc transformedVector?
+    let .some (elems, _) := vectorElemsOfExpr vec | unreachable!
     /-
     Start with `.some #[.bvar sz.pred, .bvar sz.pred.pred, ..., .bvar 0]`
     Prefix a single lambda in each iteration.
     -/
     let e' ← (List.range szSimpedNat).foldrM (init := transformedVector?) fun i e ↦ do
-      let elem ← getElemVectorOfIdx vec szSimped i
-      
+      -- let elem ← getElemVectorOfIdx vec szSimped i
+      let elem := elems[i]!
       liftM ∘ Sym.shareCommonInc =<< mkAppM ``Option.bind #[
         ←Sym.shareCommonInc (f.beta #[elem]), -- TODO?: Expr.app f hdVec
         .lam (binderInfo := .default)
@@ -1206,8 +1261,12 @@ elab "compile_just_sym" "[" simps:ident,* "]" : tactic => do
   let methods ← simps.mapM (liftM ∘ Simp.API.getMethodsM)
   let methods ← liftM <| methods.foldl (fun method acc ↦ method ∪ acc) (pure {})
   Tactic.liftMetaTactic1 fun mvarId => Sym.SymM.run do
-    let mvarId ← Sym.preprocessMVar mvarId
-    (← Sym.simpGoal mvarId methods).toOption
+    let mvarId ← Sym.preprocessMVar mvarId    
+    let time ← IO.monoMsNow
+    let res ← (← Sym.simpGoal mvarId methods).toOption
+    logInfo m!"compile_just_sym took {Dbg.timeInSecondsOfMs time (←IO.monoMsNow)}s"
+    return res
+
 
 def eq0 (e : Nat) : Option Unit := .some ()
 
@@ -1333,7 +1392,24 @@ set_option pp.exprSizes true
 set_option debug.skipKernelTC true in
 set_option trace.Clap.Compile true in
 set_option profiler true in
-#eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ getElem))
+#eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerSetAlt2))
+-- set_option pp.exprSizes false in
+example {vec : Vector Nat 4} : ex₄ vec = sorry := by
+  unfold ex₄
+  compile_just_sym [Clap.Compiler.SymSets.Vector.mapM, compilerSetAlt2]
+  -- compile_just_sym [compilerSetAlt2]
+  
+  -- compile_just_sym [compilerSetAlt]
+  -- rw [Option.pure_def]
+  -- rw [Option.bind_eq_bind]
+  -- rw [Option.bind_some]
+  -- rw [Option.bind_some]
+  -- rw [Option.bind_some]
+  -- rw [Option.bind_some]
+  -- rw [Option.bind_some]
+  -- simp
+  -- simp only [Option.pure_def, Option.bind_some, Option.bind_eq_bind, Vector.getElem_mk,
+  --   List.getElem_toArray, List.getElem_cons_zero]
 
 -- set_option debug.skipKernelTC true in
 -- set_option trace.Clap.Compile true in
