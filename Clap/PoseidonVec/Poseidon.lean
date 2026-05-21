@@ -271,7 +271,7 @@ set_option pp.proofs true in
       append ∪
       mapM ∪
       foldlM ∪ mapIdx ∪
-      ground ∪ control ∪
+      control ∪
       SymSets.List.range
     ))
 

@@ -26,10 +26,10 @@ namespace Clap.Compiler
 --   pure (Expr.app vectorSansProof proof) >>= instantiateMVars
 
 def getElemVectorOfIdx (coll sz : Expr) (idx : ℕ) : Sym.Simp.SimpM Expr := do
-  let idxQ : Q(Nat) := ToExpr.toExpr idx
-  let szQ : Q(Nat) := sz
-  let getElemSansProof ← Sym.shareCommonInc (←Meta.mkAppM ``GetElem.getElem #[coll, idxQ])
-  Sym.shareCommonInc <| mkAppN getElemSansProof #[←mkSorry q($idxQ < $szQ) false]
+  let idx := mkNatLit idx
+  let getElemSansProof ← Sym.shareCommonInc (←Meta.mkAppM ``GetElem.getElem #[coll, idx])
+  let proof := mkApp2 (.const ``Nat.lt []) idx sz
+  Sym.shareCommonInc <| mkAppN getElemSansProof #[←mkSorry proof false]
 
 def inferVectorProof (vectorSansProof : Expr) : Sym.Simp.SimpM Expr := do
   let .forallE _ argT _ _ ← Sym.inferType vectorSansProof | unreachable!

@@ -960,17 +960,10 @@ Single step transformation. TODO: Does not play particularly nice with our top-l
 -/
 def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
   let time ← IO.monoMsNow
-  let_expr _root_.Vector.mapM _ _ _ _ _ f vec := e | return .rfl
-  -- let vec ← toVectorSequence? vec
-  -- match xs with
-  -- | .none => return .rfl
-  -- | .some xs => let map ← Sym.shareCommonInc (←mkAppM ``Vector.mapM #[f, xs])
-  --               trace[Clap.Compile.simp.kaboom]
-  --                 m!"\n{e}\n==>\n{map}"
-  --               return .step map (←mkSorry (←mkEq e map) false)
-
-
-  let_expr _root_.Vector.mk t sz _ _ := vec | return .rfl
+  let_expr _root_.Vector.mapM _ t _ sz _ f vec := e | return .rfl
+  -- Ultimately, only `Vector.mk` is permitted. Free variables are transformed first.
+  let vec ← if vec.isFVar then sequenceAsVecExpr vec t sz else pure vec
+  if !vec.isAppOf ``Vector.mk then return .rfl
   let szSimped := (←Sym.simpWithGround sz).getResultExpr sz
   if !isSameExpr sz szSimped then
     trace[Clap.Compile.simp.proc.vector_mapM_mk_cons]
@@ -988,6 +981,7 @@ def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
     -/
     let e' ← (List.range szSimpedNat).foldrM (init := transformedVector?) fun i e ↦ do
       let elem ← getElemVectorOfIdx vec szSimped i
+      
       liftM ∘ Sym.shareCommonInc =<< mkAppM ``Option.bind #[
         ←Sym.shareCommonInc (f.beta #[elem]), -- TODO?: Expr.app f hdVec
         .lam (binderInfo := .default)
@@ -1093,9 +1087,9 @@ the transformation `#v[a, b] ==> #v[a] ++ #v[b]` does not get undone by `Vector.
 -/
 def mapM : MetaM Methods :=
   mkPostMethods #[
-    ``Vector.mapM_mk,
+    ``Vector.mapM_mk
 
-    ``Compiler.explodeVectorMapM
+    -- ``Compiler.explodeVectorMapM
   ]
 
 -- def mapM_test : MetaM Methods :=
@@ -1197,7 +1191,7 @@ def compileExample (ex : Name) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM For
 def compileJustSym (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Format := do
   lambdaTelescope e fun args e ↦ do
     let time ← IO.monoMsNow
-    let compiled ← Compiler.Simp.simplify (simpset ∪ (←SymSets.General.compilerSet)) e
+    let compiled ← Compiler.Simp.simplify (simpset) e -- ∪ (←SymSets.General.compilerSet)) e
     logInfo m!"Compiled:\n{compiled}"
     Dbg.timeSince time "Compilation took:"
     Sym.mkLambdaFVarsS args compiled >>= (liftM ∘ PrettyPrinter.ppExpr)
