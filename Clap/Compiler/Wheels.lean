@@ -100,6 +100,28 @@ def Lean.Meta.forallTelescopeOne!.{u}
 open Lean Meta Sym Elab in
 def Lean.Meta.Sym.Simp.liftTermElabM {α} (m : TermElabM α) : Sym.Simp.SimpM α := liftM m.run'
 
+
+section
+
+open Lean.Meta
+
+private def evalGround : Sym.Simp.Simproc := fun e ↦ do
+  let e' ← Sym.Simp.evalGround {} e
+  unless Sym.isSameExpr e (e'.getResultExpr e) do
+    trace[Clap.Compile.simp.proc.evalGround]
+      m!"\n{e}\n==>\n{e'.getResultExpr e}"
+  return e'
+
+def Clap.SymSets.General.ground : MetaM Sym.Simp.Methods := do
+  return {
+    post := evalGround
+  }
+
+def Lean.Meta.Sym.simpWithGround (e : Expr) : SymM Sym.Simp.Result :=
+  Clap.SymSets.General.ground >>= (Sym.simp e ·)
+
+end
+
 def Clap.Dbg.timeInSecondsOfMs (begin «end» : Nat) : Float :=
   (Float.ofNat «end» - Float.ofNat begin) / Float.ofNat 1000
 

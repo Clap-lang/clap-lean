@@ -25,19 +25,15 @@ namespace Clap.Compiler
 --   Sym.Simp.liftTermElabM Term.synthesizeSyntheticMVarsNoPostponing
 --   pure (Expr.app vectorSansProof proof) >>= instantiateMVars
 
-/--
-TODO: Bad API, no time. (can infer length)
--/
-def getElemVectorOfIdx (coll len : Expr) (idx : Nat) : Sym.Simp.SimpM Expr := do
+def getElemVectorOfIdx (coll sz : Expr) (idx : ℕ) : Sym.Simp.SimpM Expr := do
   let idxQ : Q(Nat) := ToExpr.toExpr idx
-  let szQ : Q(Nat) := len
-  let getElemSansProof ← Meta.mkAppM ``GetElem.getElem #[coll, idxQ]
-  return mkAppN getElemSansProof #[←mkSorry q($idxQ < $szQ) false]
+  let szQ : Q(Nat) := sz
+  let getElemSansProof ← Sym.shareCommonInc (←Meta.mkAppM ``GetElem.getElem #[coll, idxQ])
+  Sym.shareCommonInc <| mkAppN getElemSansProof #[←mkSorry q($idxQ < $szQ) false]
 
 def inferVectorProof (vectorSansProof : Expr) : Sym.Simp.SimpM Expr := do
-  let .forallE _ argT _ _ ← inferType vectorSansProof | unreachable!
-  -- logInfo m!"vectorSansProof: {vectorSansProof}\ntype: {←inferType vectorSansProof}"
-  pure (Expr.app vectorSansProof (←mkSorry argT false)) -- >>= instantiateMVars
+  let .forallE _ argT _ _ ← Sym.inferType vectorSansProof | unreachable!
+  Sym.shareCommonInc <| .app vectorSansProof (←mkSorry argT false)
 
 -- /--
 -- TODO: Bad API, no time. (can infer length)
@@ -75,37 +71,23 @@ def mkVecLit (l : Expr) (len : Expr) : Sym.Simp.SimpM Expr := do
 --     m!"\n{name}[length = {len}][elemType = {t}]\n==>\n{e'}"
 --   Sym.shareCommonInc e'
 
-private def evalGround : Sym.Simp.Simproc := fun e ↦ do
-  let e' ← Sym.Simp.evalGround {} e
-  unless Sym.isSameExpr e (e'.getResultExpr e) do
-    trace[Clap.Compile.simp.proc.evalGround]
-      m!"\n{e}\n==>\n{e'.getResultExpr e}"
-  return e'
-
-def SymSets.General.ground : MetaM Sym.Simp.Methods := do
-  return {
-    post := evalGround
-  }
-
-def sequenceAsVecExpr (name : Expr) (t : Expr) : Sym.Simp.SimpM Expr := do
-  let_expr Vector _ len := ←inferType name | throwError m!"Must be of Vector type:\n{name}"
-  -- if len.nat? matches .none then logError m!"NOPE. name: {name} t: {t} len: {len}"
-  -- let lenN := len.nat?.get!
-  let lenSimped := (←Sym.simp len (←SymSets.General.ground)).getResultExpr len
+def sequenceAsVecExpr (name : Expr) (t sz : Expr) : Sym.Simp.SimpM Expr := do
+  let lenSimped := (←Sym.simpWithGround sz).getResultExpr sz
   match lenSimped.nat? with
   | .none => 
     let error := s!"Not ground:\n{lenSimped}\nExpr:\n{name}"
     throwError m!"Cannot sequence a vector of unknown length.\n{error}"
   | .some lenSimpedNat =>
-  if !Sym.isSameExpr lenSimped len then
+  if !Sym.isSameExpr lenSimped sz then
     trace[Clap.Compile.simp.proc.sequenceAsVecExpr]
-      m!"Info: Constructing `Vector _ ({len})` of ground length {lenSimped}. Request:\n{name}"
-  let e' ← mkVecLit
-             (←mkListLit t (←List.range lenSimpedNat |>.mapM (getElemVectorOfIdx name len)))
-             len
+      m!"Info: Constructing `Vector _ ({sz})` of ground length {lenSimped}. Request:\n{name}"
+  let elems ← Sym.shareCommonInc (
+                ←mkListLit t (←List.range lenSimpedNat |>.mapM (getElemVectorOfIdx name sz))
+              )
+  let e' ← mkVecLit elems sz
   trace[Clap.Compile.simp.proc.sequenceAsVecExpr]
-    m!"\n{name}[length = {len}][elemType = {t}]\n==>\n{e'}"
-  Sym.shareCommonInc e'
+    m!"[vec = \n{name}][length = {sz}][elemType = {t}]\n==>\n{e'}"
+  return e'
 
 -- def needsExploding (e : Expr) : SimpM Bool := do
 --   let t ← inferType e
@@ -212,10 +194,9 @@ lemma abc' : ∀ {α} {vec : Vector α 2}, vec = #v[vec[0], vec[1]] :=
 --                return .step explodedVec (←mkSorry (←mkEq e explodedVec) false)
 
 def toVectorSequence? (e : Expr) : Sym.Simp.SimpM (Option Expr) := do
-  -- logWarning m!"toVectorSequence?:\n{e}"
   unless e.isFVar do return .none
-  let_expr Vector t sz := ←inferType e | return .none
-  return .some (←sequenceAsVecExpr e t)
+  let_expr Vector t sz := ←Sym.inferType e | return .none
+  return .some (←sequenceAsVecExpr e t sz)
 
 /-
 Ideally, we'd just use `explodeVector` and `dontExplodeVector`
@@ -266,11 +247,10 @@ TODO: Proof. Viz. `abc'`.
 -/
 def explodeVectorMapIdx : Sym.Simp.Simproc := fun e ↦ do
   let_expr Vector.mapIdx _ _ _ f xs := e | return .rfl
-
   let xs ← toVectorSequence? xs
   match xs with
   | .none => return .rfl
-  | .some xs => let mapIdx ← reducedAndSharedInc (←mkAppM ``Vector.mapIdx #[f, xs])
+  | .some xs => let mapIdx ← Sym.shareCommonInc (←mkAppM ``Vector.mapIdx #[f, xs])
                 trace[Clap.Compile.simp.kaboom]
                   m!"\n{e}\n==>\n{mapIdx}"
                 return .step mapIdx (←mkSorry (←mkEq e mapIdx) false)
@@ -279,15 +259,13 @@ def explodeVectorMapIdx : Sym.Simp.Simproc := fun e ↦ do
 TODO: Proof. Viz. `abc'`.
 -/
 def explodeVectorMapM : Sym.Simp.Simproc := fun e ↦ do
-  -- let time ← IO.monoMsNow
   let_expr Vector.mapM _ _ _ _ _ f xs := e | return .rfl
   let xs ← toVectorSequence? xs
   match xs with
   | .none => return .rfl
-  | .some xs => let map ← reducedAndSharedInc (←mkAppM ``Vector.mapM #[f, xs])
+  | .some xs => let map ← Sym.shareCommonInc (←mkAppM ``Vector.mapM #[f, xs])
                 trace[Clap.Compile.simp.kaboom]
                   m!"\n{e}\n==>\n{map}"
-                -- logInfo m!"explodeVectorMapM took {(Float.ofNat (←IO.monoMsNow) - Float.ofNat time)/Float.ofNat 1000}s"
                 return .step map (←mkSorry (←mkEq e map) false)
 
 /--

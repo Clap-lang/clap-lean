@@ -898,6 +898,8 @@ def getElem_mk : Sym.Simp.Simproc := fun e => do
   else
     return .rfl
 
+open SymSets
+
 def getElem : MetaM Methods :=
   mkPostMethods #[
     ``getElem_mk
@@ -943,7 +945,7 @@ def mapIdx : MetaM Methods :=
     ``List.mapIdx_cons, ``List.mapIdx_nil,
 
     ``Compiler.explodeVectorMapIdx
-  ] ∪ General.ground
+  ] ∪ SymSets.General.ground
 
 def listOfArray (e : Expr) : Option Expr :=
   if e.isAppOf ``List.toArray || e.isAppOf ``Array.mk
@@ -956,18 +958,26 @@ Single step transformation. TODO: Does not play particularly nice with our top-l
 `Vector.mapM f #v[x₀, x₁, ..., xₘ]` ==>
 `f x₀ >>= fun row₀ ↦ f x₁ >>= fun row₁ ↦ ... fun rowₘ ↦ .some #v[row₀, row₁, ..., rowₘ]`
 -/
-def _root_.Vector.mapM_mk_cons : Sym.Simp.Simproc := fun e ↦ do
+def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
   let time ← IO.monoMsNow
   let_expr _root_.Vector.mapM _ _ _ _ _ f vec := e | return .rfl
+  -- let vec ← toVectorSequence? vec
+  -- match xs with
+  -- | .none => return .rfl
+  -- | .some xs => let map ← Sym.shareCommonInc (←mkAppM ``Vector.mapM #[f, xs])
+  --               trace[Clap.Compile.simp.kaboom]
+  --                 m!"\n{e}\n==>\n{map}"
+  --               return .step map (←mkSorry (←mkEq e map) false)
+
+
   let_expr _root_.Vector.mk t sz _ _ := vec | return .rfl
-  let szSimped := (←Sym.simp sz (←SymSets.General.ground)).getResultExpr sz
+  let szSimped := (←Sym.simpWithGround sz).getResultExpr sz
   if !isSameExpr sz szSimped then
     trace[Clap.Compile.simp.proc.vector_mapM_mk_cons]
       m!"Info: Processing `Vector _ ({sz})` of ground length {szSimped}. Request:\n{e}"
   match szSimped.nat? with
   | .none => throwError m!"{sz} does not simplify to ground. Expr:\n{e} (TODO: Maybe this is ok.)"
   | .some szSimpedNat =>
-    if szSimpedNat == 0 then return .rfl -- `Vector.mapM_mk_empty`
     let transformedList ← mkListLit t <| (List.range szSimpedNat).reverse.map .bvar
     let transformedVector ← mkVecLit transformedList szSimped
     let transformedVector? ← mkAppM ``Option.some #[transformedVector]
@@ -980,19 +990,12 @@ def _root_.Vector.mapM_mk_cons : Sym.Simp.Simproc := fun e ↦ do
       let elem ← getElemVectorOfIdx vec szSimped i
       liftM ∘ Sym.shareCommonInc =<< mkAppM ``Option.bind #[
         ←Sym.shareCommonInc (f.beta #[elem]), -- TODO?: Expr.app f hdVec
-        -- ←reducedAndSharedInc (f.beta #[elem]), -- TODO?: Expr.app f hdVec
         .lam (binderInfo := .default)
              (binderName := .mkSimple s!"row_{i}")
              (binderType := t)
              (body       := e) -- `f vec[i] >>= fun row_{i} ↦ e`
       -- Careful, `e` contains loose bvars until the very last iteration.
       ]
-    -- TODO(CHECK): Should no longer be necessary, `mkVecLit` now uses `Array.mk` instead of `List.toArray`.
-    -- /-
-    -- `unfoldReducible` apparently clamps (yet)-non-existant `.bvar` references if called on
-    -- the initial `transformedVector`; ouch.
-    -- -/
-    -- let e' ← unfoldReducible e'
     trace[Clap.Compile.simp.proc.vector_mapM_mk_cons]
       m!"\n{e}\n==>\n{e'}"
     let proof ← mkSorry (←mkEq e e') false
@@ -1090,7 +1093,7 @@ the transformation `#v[a, b] ==> #v[a] ++ #v[b]` does not get undone by `Vector.
 -/
 def mapM : MetaM Methods :=
   mkPostMethods #[
-    ``Vector.mapM_mk_cons, ``Vector.mapM_mk_empty,
+    ``Vector.mapM_mk,
 
     ``Compiler.explodeVectorMapM
   ]
@@ -1132,7 +1135,7 @@ def extract : MetaM Methods :=
     ``Vector.extract_mk, ``List.extract_toArray,
     
     ``List.extract_eq_take_drop
-  ] ∪ drop ∪ take ∪ General.ground
+  ] ∪ drop ∪ take ∪ SymSets.General.ground
 
 
 def size : MetaM Methods :=
@@ -1149,7 +1152,7 @@ def foldr : MetaM Methods :=
     ``List.foldr_cons, ``List.foldr_nil,
 
     ``Compiler.explodeVectorFoldr
-  ] ∪ size ∪ General.ground
+  ] ∪ size ∪ SymSets.General.ground
 
 def sum : MetaM Methods :=
   mkPostMethods #[
