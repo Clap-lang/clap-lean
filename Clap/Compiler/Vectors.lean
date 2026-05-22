@@ -278,7 +278,7 @@ def explodeVectorZipWith : Sym.Simp.Simproc := fun e ↦ do
   let b? ← toVectorSequence? b
   if a?.isNone && b?.isNone then return .rfl
 
-  let zipWith ← reducedAndSharedInc (← mkAppM ``Vector.zipWith #[f, a?.getD a, b?.getD b])
+  let zipWith ← Sym.shareCommonInc (← mkAppM ``Vector.zipWith #[f, a?.getD a, b?.getD b])
   trace[Clap.Compile.simp.kaboom]
     m!"\n{e}\n==>\n{zipWith}"
   return .step zipWith (←mkSorry (←mkEq e zipWith) false)
@@ -316,7 +316,7 @@ def explodeVectorFoldr : Sym.Simp.Simproc := fun e ↦ do
   let xs ← toVectorSequence? xs
   match xs with
   | .none => return .rfl
-  | .some xs => let foldr ← reducedAndSharedInc (←mkAppM ``Vector.foldr #[f, init, xs])
+  | .some xs => let foldr ← Sym.shareCommonInc (←mkAppM ``Vector.foldr #[f, init, xs])
                 trace[Clap.Compile.simp.kaboom]
                   m!"\n{e}\n==>\n{foldr}"
                 return .step foldr (←mkSorry (←mkEq e foldr) false)

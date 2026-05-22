@@ -39,16 +39,16 @@ partial def isGroundTerm (e : Expr) : Sym.Simp.SimpM (Option Expr) := do
   if let (``Pure.pure, ⟨_ :: _ :: _ :: e :: _⟩) := e.getAppFnArgs then
     isGroundTerm e
   else
-  if let (``Clap.Lang.Core.eq0, ⟨_ :: _ :: e :: _⟩) := e.getAppFnArgs then
+  if let (``Clap.Lang.eq0, ⟨_ :: _ :: e :: _⟩) := e.getAppFnArgs then
     isGroundTerm e
   else
-  if let (``Clap.Lang.Core.num2bits, ⟨_ :: _ :: _ :: e :: _⟩) := e.getAppFnArgs then
+  if let (``Clap.Lang.num2bits, ⟨_ :: _ :: _ :: e :: _⟩) := e.getAppFnArgs then
     isGroundTerm e
   else
-  if let (``Clap.Lang.Core.isZero, ⟨_ :: _ :: e :: _⟩) := e.getAppFnArgs then
+  if let (``Clap.Lang.isZero, ⟨_ :: _ :: e :: _⟩) := e.getAppFnArgs then
     isGroundTerm e
   else
-  if let (``Clap.Lang.Core.share, ⟨_ :: _ :: e :: _⟩) := e.getAppFnArgs then
+  if let (``Clap.Lang.share, ⟨_ :: _ :: e :: _⟩) := e.getAppFnArgs then
     isGroundTerm e
   else
   if let (``Vector.mk, ⟨_ :: _ :: e :: _ :: _⟩) := e.getAppFnArgs then
@@ -554,21 +554,21 @@ def mkPreMethods (declNames : Array Name)
   let procs ← andThen procs.toArray
   return { pre := (←mkSimprocFor thms.toArray d) >> procs }
 
-elab "sym_simp" "[" declNamesPre:ident,* "]" "[" declNamesPost:ident,* "]" : tactic => do
-  let rewritePre ← mkPreMethods (←declNamesPre.getElems.mapM fun s ↦ realizeGlobalConstNoOverload s.raw)
-  let rewritePost ← mkPostMethods (←declNamesPost.getElems.mapM fun s ↦ realizeGlobalConstNoOverload s.raw)
-  -- let rewrite ← Sym.mkSimprocFor (← declNames.getElems.mapM fun s => realizeGlobalConstNoOverload s.raw) Sym.Simp.dischargeSimpSelf
-  -- let methods : Sym.Simp.Methods := {
-  --   pre  := Sym.Simp.simpControl >> rewritePre.pre
-  --   post := Sym.Simp.evalGround >> rewritePost.post
-  -- }
-  let methods : Sym.Simp.Methods := {
-    pre  := rewritePre.pre
-    post := rewritePost.post
-  }
-  Tactic.liftMetaTactic1 fun mvarId => Sym.SymM.run do
-    let mvarId ← Sym.preprocessMVar mvarId
-    (← Sym.simpGoal mvarId methods).toOption
+-- elab "sym_simp" "[" declNamesPre:ident,* "]" "[" declNamesPost:ident,* "]" : tactic => do
+--   let rewritePre ← mkPreMethods (←declNamesPre.getElems.mapM fun s ↦ realizeGlobalConstNoOverload s.raw)
+--   let rewritePost ← mkPostMethods (←declNamesPost.getElems.mapM fun s ↦ realizeGlobalConstNoOverload s.raw)
+--   -- let rewrite ← Sym.mkSimprocFor (← declNames.getElems.mapM fun s => realizeGlobalConstNoOverload s.raw) Sym.Simp.dischargeSimpSelf
+--   -- let methods : Sym.Simp.Methods := {
+--   --   pre  := Sym.Simp.simpControl >> rewritePre.pre
+--   --   post := Sym.Simp.evalGround >> rewritePost.post
+--   -- }
+--   let methods : Sym.Simp.Methods := {
+--     pre  := rewritePre.pre
+--     post := rewritePost.post
+--   }
+--   Tactic.liftMetaTactic1 fun mvarId => Sym.SymM.run do
+--     let mvarId ← Sym.preprocessMVar mvarId
+--     (← Sym.simpGoal mvarId methods).toOption
 
 namespace Monad
 
@@ -696,9 +696,9 @@ def heh : Sym.Simp.Simproc := fun e ↦ do
 
 def compilerSetAlt2 : MetaM Sym.Simp.Methods :=
   mkPostMethods (d := Sym.Simp.dischargeNone) #[
-    ``heh
+    -- ``heh
     -- ``Option.bind_some,
-    -- ``Option.pure_apply
+    ``Option.pure_apply
   ]
 
 -- private def seemsTotallySafeInDTT : Simproc := fun e ↦ do
@@ -1267,6 +1267,18 @@ elab "compile_just_sym" "[" simps:ident,* "]" : tactic => do
     logInfo m!"compile_just_sym took {Dbg.timeInSecondsOfMs time (←IO.monoMsNow)}s"
     return res
 
+elab "sym_simp" "[" declNames:ident,* "]" : tactic => do
+  let rewrite ← Sym.mkSimprocFor (← declNames.getElems.mapM fun s => realizeGlobalConstNoOverload s.raw) Sym.Simp.dischargeNone
+  let methods : Sym.Simp.Methods := {
+    pre  := fun _ ↦ return .rfl
+    post := rewrite
+  }
+  Tactic.liftMetaTactic1 fun mvarId => Sym.SymM.run do
+    let mvarId ← Sym.preprocessMVar mvarId
+    let time ← IO.monoMsNow
+    let res ← (← Sym.simpGoal mvarId methods).toOption
+    logInfo m!"sym_simp took {Dbg.timeInSecondsOfMs time (←IO.monoMsNow)}s"
+    return res
 
 def eq0 (e : Nat) : Option Unit := .some ()
 
@@ -1329,7 +1341,7 @@ def ex₃ (vec : Vector Nat 200) : Option Unit := do
 -- #guard_msgs in
 -- #eval spoon <| do compileExampleJustSym ``ex₃ (←(map ∪ zeta ∪ getElem))
 
-def ex₄ (vec : Vector Nat 160) : Option Unit := do
+def ex₄ (vec : Vector Nat 100) : Option Unit := do
   let x ← vec.mapM (fun x ↦ return x + 1)
   eq0 x[0]
 -- set_option trace.Clap.Compile true
@@ -1394,7 +1406,8 @@ set_option trace.Clap.Compile true in
 set_option profiler true in
 #eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerSet ∪ getElem))
 -- set_option pp.exprSizes false in
-example {vec : Vector Nat 160} : ex₄ vec = sorry := by
+set_option pp.deepTerms true in
+example {vec : Vector Nat 100} : ex₄ vec = sorry := by
   unfold ex₄
   compile_just_sym [Clap.Compiler.SymSets.Vector.mapM]
   compile_just_sym [compilerSetAlt2]

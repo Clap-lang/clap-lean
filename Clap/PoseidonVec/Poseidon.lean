@@ -227,8 +227,8 @@ private def testPoseidon (inputs : Vector (ZMod p) 2) (expected : F p) : Option 
 -- process (poseidonBN254 inputs) | push 
 def poseidonBN254 : SimpSet :=
   SimpSet.withAllPost #[
-    ``PoseidonVec.poseidonBN254, ``poseidon, ``poseidonEx, ``liftVec, ``liftMat,
-    ``ark, ``sigma, ``const, ``id,
+    ``PoseidonVec.poseidonBN254, ``poseidon, ``poseidonEx,
+    ``ark, ``sigma, ``id,
     ``Constant.C, ``Constant.M, ``Constant.P, ``Constant.S,
     ``Constant.C.C02, ``Constant.C.C03, ``Constant.C.C04, ``Constant.C.C05, ``Constant.C.C06, ``Constant.C.C07, ``Constant.C.C08, ``Constant.C.C09, ``Constant.C.C10, ``Constant.C.C11, ``Constant.C.C12, ``Constant.C.C13, ``Constant.C.C14, ``Constant.C.C15, ``Constant.C.C16, ``Constant.C.C17,
     ``Constant.M.M02, ``Constant.M.M03, ``Constant.M.M04, ``Constant.M.M05, ``Constant.M.M06, ``Constant.M.M07, ``Constant.M.M08, ``Constant.M.M09, ``Constant.M.M10, ``Constant.M.M11, ``Constant.M.M12, ``Constant.M.M13, ``Constant.M.M14, ``Constant.M.M15, ``Constant.M.M16, ``Constant.M.M17,
@@ -240,11 +240,11 @@ def poseidonBN254 : SimpSet :=
 def poseidonBN254' : MetaM Sym.Simp.Methods :=
   SymSets.mkPostMethods #[
     ``PoseidonVec.poseidonBN254.eq_def, ``poseidon.eq_def, ``poseidonEx.eq_def,
-    ``liftVec.eq_def, ``liftMat.eq_def, ``ark.eq_def, ``sigma.eq_def, ``id.eq_def,  -- const.eq_def : some Sym.simp thing...
+    ``ark.eq_def, ``sigma.eq_def, ``id.eq_def,  -- const.eq_def : some Sym.simp thing...
     ``Constant.C.eq_def, ``Constant.M.eq_def, ``Constant.P.eq_def, ``Constant.S.eq_def,
-    ``F.eq_def    
+    ``F.eq_def, ``mix.eq_def,
     -- ``Constant.C.C02.eq_def, ``Constant.C.C03.eq_def, ``Constant.C.C04.eq_def,``Constant.C.C05.eq_def, ``Constant.C.C06.eq_def, ``Constant.C.C07.eq_def, ``Constant.C.C08.eq_def, ``Constant.C.C09.eq_def, ``Constant.C.C10.eq_def, ``Constant.C.C11.eq_def, ``Constant.C.C12.eq_def, ``Constant.C.C13.eq_def, ``Constant.C.C14.eq_def, ``Constant.C.C15.eq_def, ``Constant.C.C16.eq_def, ``Constant.C.C17.eq_def,
-    -- ``Constant.M.M02.eq_def, ``Constant.M.M03.eq_def, ``Constant.M.M04.eq_def,``Constant.M.M05.eq_def, ``Constant.M.M06.eq_def, ``Constant.M.M07.eq_def, ``Constant.M.M08.eq_def, ``Constant.M.M09.eq_def, ``Constant.M.M10.eq_def, ``Constant.M.M11.eq_def, ``Constant.M.M12.eq_def, ``Constant.M.M13.eq_def, ``Constant.M.M14.eq_def, ``Constant.M.M15.eq_def, ``Constant.M.M16.eq_def, ``Constant.M.M17.eq_def,
+    ``Constant.M.M02.eq_def, ``Constant.M.M03.eq_def, ``Constant.M.M04.eq_def,``Constant.M.M05.eq_def, ``Constant.M.M06.eq_def, ``Constant.M.M07.eq_def, ``Constant.M.M08.eq_def, ``Constant.M.M09.eq_def, ``Constant.M.M10.eq_def, ``Constant.M.M11.eq_def, ``Constant.M.M12.eq_def, ``Constant.M.M13.eq_def, ``Constant.M.M14.eq_def, ``Constant.M.M15.eq_def, ``Constant.M.M16.eq_def, ``Constant.M.M17.eq_def,
     -- ``Constant.P.P02.eq_def, ``Constant.P.P03.eq_def, ``Constant.P.P04.eq_def,``Constant.P.P05.eq_def, ``Constant.P.P06.eq_def, ``Constant.P.P07.eq_def, ``Constant.P.P08.eq_def, ``Constant.P.P09.eq_def, ``Constant.P.P10.eq_def, ``Constant.P.P11.eq_def, ``Constant.P.P12.eq_def, ``Constant.P.P13.eq_def, ``Constant.P.P14.eq_def, ``Constant.P.P15.eq_def, ``Constant.P.P16.eq_def, ``Constant.P.P17.eq_def,
     -- ``Constant.S.S02.eq_def, ``Constant.S.S03.eq_def, ``Constant.S.S04.eq_def,``Constant.S.S05.eq_def, ``Constant.S.S06.eq_def, ``Constant.S.S07.eq_def, ``Constant.S.S08.eq_def, ``Constant.S.S09.eq_def, ``Constant.S.S10.eq_def, ``Constant.S.S11.eq_def, ``Constant.S.S12.eq_def, ``Constant.S.S13.eq_def, ``Constant.S.S14.eq_def, ``Constant.S.S15.eq_def, ``Constant.S.S16.eq_def, ``Constant.S.S17.eq_def,
 
@@ -258,10 +258,10 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
 --     ``Constant.S.S02, ``Constant.S.S03, ``Constant.S.S04, ``Constant.S.S05, ``Constant.S.S06, ``Constant.S.S07, ``Constant.S.S08, ``Constant.S.S09, ``Constant.S.S10, ``Constant.S.S11, ``Constant.S.S12, ``Constant.S.S13, ``Constant.S.S14, ``Constant.S.S15, ``Constant.S.S16, ``Constant.S.S17,
 --  ``mix, ``mixS, ``mixS.dotProduct, ``mixS.tail
   ]
-set_option trace.Clap.Compile true in
+-- set_option trace.Clap.Compile true in
 open Clap.Compiler.SymSets Vector General in
-set_option maxRecDepth 8192 in
-set_option pp.proofs true in
+-- set_option maxRecDepth 8192 in
+-- set_option pp.proofs true in
 #eval spoon <| do
   compileExampleJustSym ``testPoseidon
     (←(
@@ -272,7 +272,10 @@ set_option pp.proofs true in
       mapM ∪
       foldlM ∪ mapIdx ∪
       control ∪
-      SymSets.List.range
+      SymSets.List.range ∪
+      sum ∪
+      zipWith ∪
+      zeta
     ))
 
 -- set_option trace.Clap.Compile.simp.fail true
