@@ -225,15 +225,14 @@ namespace Spec.FBitVec
 --   let bv : Vector Bool w := BitVec.toBoolVecLE bv
 --   bv.map Spec.FB.ofBool
 
-def valid {w} (fbv : FBitVec p w) : Prop := ∀ i : Fin w, Spec.FB.valid fbv[i]
+@[aesop safe cases]
+def valid {w} (fbv : FBitVec p w) : Prop :=
+  (∀ i : Fin w, Spec.FB.valid fbv[i]) ∧
+  (2 ^ w < p)
 
 def toBV [NeZero p] {w} (fbv : FBitVec p w) : BitVec w :=
   let res := (bits2numV fbv).val % (2^w)
   BitVec.ofFin ⟨res, by aesop (add safe [Nat.mod_lt])⟩
-
-def left_inv {w} (fbv : FBitVec p w) (h : valid fbv): FBitVec.ofBV (toBV fbv) = fbv := sorry
-
-def right_inv {w} (bv : BitVec w) : toBV (p:=p) (FBitVec.ofBV bv) = bv := sorry
 
 lemma num2bits_equiv {w e} :
   num2bits (p:=p) w e = if h : e.val < 2^w then some (FBitVec.ofBV (BitVec.ofFin ⟨e.val, h⟩)) else none := by
@@ -243,7 +242,7 @@ lemma num2bits_equiv {w e} :
   simp
 
 -- proved in Clap.bits2num_bound
-lemma bits2num_bound {w} {bv : Vector (ZMod p) w} :
+lemma bits2num_bound {w} {bv : FBitVec p w} :
     valid bv → (bits2numV bv).val < 2 ^ w := sorry
 
 lemma bits2num_equiv {w} {bv : FBitVec p w} {h : valid bv} :
@@ -255,6 +254,34 @@ lemma bits2num_equiv {w} {bv : FBitVec p w} {h : valid bv} :
   rw [h]
   . aesop (add simp [eq_comm, ZMod.natCast_zmod_val])
   . aesop (add safe [bits2num_bound])
+
+-- proved in Clap.num2bitsLsbPure_of_bits2num_eq for list
+lemma num2bitsLsbPure_of_bits2num_eq {w} {fbv : FBitVec p w}
+  (h: valid fbv) :
+num2bitsLsbPureV w (bits2numV fbv) = fbv := sorry
+
+-- proved in Clap.bits2num_of_num2bitsLsbPure_eq for list
+lemma bits2num_of_num2bitsLsbPure_eq {w : ℕ} {v : F p} :
+  v.val < 2 ^ w → bits2numV (num2bitsLsbPureV w v) = v := by
+  sorry
+
+def left_inv {w} (fbv : FBitVec p w) (h : valid fbv) :
+  FBitVec.ofBV (toBV fbv) = fbv := by
+  aesop (add simp [FBitVec.ofBV,toBV,num2bitsLsbPure_of_bits2num_eq,bits2num_bound,Nat.mod_eq_of_lt])
+
+def right_inv {w} (bv : BitVec w) (h: 2^w < p) :
+  toBV (p:=p) (FBitVec.ofBV bv) = bv := by
+  have hlt : bv.toNat < p := lt_trans bv.isLt h
+  have hv : (bv.toNat : ZMod p).val < 2 ^ w := by
+    rw [ZMod.val_natCast_of_lt hlt]; exact bv.isLt
+  have hbits : bits2numV (num2bitsLsbPureV w (bv.toNat : ZMod p)) = (bv.toNat : ZMod p) := by
+    rw [bits2num_of_num2bitsLsbPure_eq]
+    assumption
+  apply BitVec.toNat_inj.mp
+  unfold toBV FBitVec.ofBV
+  simp only [BitVec.toNat_ofFin]
+  change (bits2numV (num2bitsLsbPureV w (bv.toNat : ZMod p))).val % 2^w = bv.toNat
+  rw [hbits, ZMod.val_natCast_of_lt hlt, Nat.mod_eq_of_lt bv.isLt]
 
 /-
 requires:
@@ -326,12 +353,15 @@ namespace Spec.F8
 
 variable [Fact (Primes.fits p 8)]
 
+abbrev valid (x:F8 p) := FBitVec.valid x
+
 def toUInt8 (x:F8 p) : UInt8 :=
   Spec.FBitVec.toBV x |> UInt8.ofBitVec
 
-lemma left_inv (u:UInt8) : F8.toUInt8 (F8.ofUInt8 (p:=p) u) = u := by
+lemma left_inv (u:UInt8) (h : 2^8 < p):
+  F8.toUInt8 (F8.ofUInt8 (p:=p) u) = u := by
   unfold F8.toUInt8 F8.ofUInt8
-  rw [Spec.FBitVec.right_inv]
+  aesop (add simp [Spec.FBitVec.right_inv])
 
 lemma ofF_equiv (e:ZMod p) :
   F8.ofF e = if h : e.val < 2^8 then some (F8.ofUInt8 (UInt8.ofFin ⟨e.val,h⟩)) else none := by

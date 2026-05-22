@@ -36,7 +36,7 @@ lemma UInt8.left_inverse (u:UInt8): (Char.ofUInt8 u).toUInt8 = u := by
 
 open Clap.Lang.Spec
 
-lemma isWhitespace_equiv (c:FChar p) :
+lemma isWhitespace_equiv (c:FChar p) (h : Spec.F8.valid c) :
   FChar.isWhitespace c = some (FB.ofBool (isWhitespace_spec (Char.ofUInt8 $ UInt8.ofBitVec $ Spec.FBitVec.toBV c))) := by
   unfold FChar.isWhitespace isWhitespace_spec FBitVec.greaterThan
   simp [FBitVec.lessThan_equiv,Spec.F8.eq_equiv]
@@ -44,12 +44,12 @@ lemma isWhitespace_equiv (c:FChar p) :
   rw [FB.and_equiv]
   simp [FB.left_inv]
   congr
-  . simp [F8.ofUInt8,Spec.FBitVec.right_inv]
+  . aesop (add simp [F8.ofUInt8,Spec.FBitVec.right_inv])
   . rw [UInt8.left_inverse]
   . rw [UInt8.left_inverse]
-  . simp [F8.ofUInt8,Spec.FBitVec.right_inv]
+  . aesop (add simp [F8.ofUInt8,Spec.FBitVec.right_inv])
   . simp [UInt8.left_inverse,F8.toUInt8]
-  . apply Spec.F8.left_inv
+  . aesop (add simp [Spec.F8.left_inv])
   . apply Spec.FB.valid_ofBool
   . apply Spec.FB.valid_ofBool
   . rw [Spec.FB.and_equiv]
