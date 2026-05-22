@@ -649,8 +649,8 @@ def compilerSet_old : MetaM Sym.Simp.Methods :=
 
 def compilerSet : MetaM Sym.Simp.Methods :=
   mkPostMethods #[
-    ``Option.pure_def,
-    -- ``Option.pure_def, ``Option.bind_some, ``Option.bind_eq_bind
+    -- ``Option.pure_def,
+    ``Option.pure_def, ``Option.bind_some, ``Option.bind_eq_bind
 
     -- ``dbgCompilerSet
   ]
@@ -1392,12 +1392,13 @@ set_option pp.exprSizes true
 set_option debug.skipKernelTC true in
 set_option trace.Clap.Compile true in
 set_option profiler true in
-#eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerSetAlt2))
+#eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerSet ∪ getElem))
 -- set_option pp.exprSizes false in
-example {vec : Vector Nat 4} : ex₄ vec = sorry := by
+example {vec : Vector Nat 160} : ex₄ vec = sorry := by
   unfold ex₄
-  compile_just_sym [Clap.Compiler.SymSets.Vector.mapM, compilerSetAlt2]
-  -- compile_just_sym [compilerSetAlt2]
+  compile_just_sym [Clap.Compiler.SymSets.Vector.mapM]
+  compile_just_sym [compilerSetAlt2]
+  sorry
   
   -- compile_just_sym [compilerSetAlt]
   -- rw [Option.pure_def]
