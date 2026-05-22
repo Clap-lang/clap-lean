@@ -230,6 +230,9 @@ def valid {w} (fbv : FBitVec p w) : Prop :=
   (∀ i : Fin w, Spec.FB.valid fbv[i]) ∧
   (2 ^ w < p)
 
+lemma valid_ofBV {w} (bv : BitVec w) :
+  valid (FBitVec.ofBV (p:=p) bv) := sorry
+
 def toBV [NeZero p] {w} (fbv : FBitVec p w) : BitVec w :=
   let res := (bits2numV fbv).val % (2^w)
   BitVec.ofFin ⟨res, by aesop (add safe [Nat.mod_lt])⟩
@@ -282,6 +285,11 @@ def right_inv {w} (bv : BitVec w) (h: 2^w < p) :
   simp only [BitVec.toNat_ofFin]
   change (bits2numV (num2bitsLsbPureV w (bv.toNat : ZMod p))).val % 2^w = bv.toNat
   rw [hbits, ZMod.val_natCast_of_lt hlt, Nat.mod_eq_of_lt bv.isLt]
+
+lemma eq_equiv {w} (a b : FBitVec p w) (ha : valid a) (hb : valid b) :
+  FBitVec.eq a b = some (FB.ofBool ((toBV a) = (toBV b))) := by
+  aesop (add simp [FBitVec.eq,FBitVec.toBV])
+  sorry
 
 /-
 requires:
@@ -368,9 +376,9 @@ lemma ofF_equiv (e:ZMod p) :
   unfold F8.ofF FBitVec.ofF
   apply Spec.FBitVec.num2bits_equiv
 
-lemma eq_equiv (a b : F8 p) :
+lemma eq_equiv (a b : F8 p) (ha:FBitVec.valid a) (hb:FBitVec.valid b):
   F8.eq a b = some (FB.ofBool ((toUInt8 a) = (toUInt8 b))) := by
-  sorry
+  aesop (add simp [F8.eq,toUInt8,FBitVec.eq_equiv])
 
 end Spec.F8
 
