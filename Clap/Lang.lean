@@ -244,9 +244,44 @@ lemma num2bits_equiv {w e} :
   simp
   simp
 
--- proved in Clap.bits2num_bound
+private lemma bits2numV_eq_bits2num {w} (bv : Vector (ZMod p) w) :
+    bits2numV bv = bits2num bv.toList := by
+  simp only [bits2numV, bits2num, Vector.foldr, Vector.toList, ← Array.foldr_toList]
+
+private lemma num2bitsLsbPureV_aux_toList {w} (v : ZMod p) :
+    (num2bitsLsbPureV.aux w v).toList = (num2bitsLsbPure w v).reverse := by
+  induction w generalizing v with
+  | zero => simp [num2bitsLsbPureV.aux, num2bitsLsbPure]
+  | succ w ih =>
+    simp only [num2bitsLsbPureV.aux, num2bitsLsbPure, Vector.toList_push, List.reverse_cons, ih]
+
+private lemma num2bitsLsbPureV_toList {w} (v : ZMod p) :
+    (num2bitsLsbPureV w v).toList = num2bitsLsbPure w v := by
+  simp [num2bitsLsbPureV, Vector.toList_reverse, num2bitsLsbPureV_aux_toList]
+
+private lemma valid_list {w} {bv : FBitVec p w} (hvalid : ∀ i : Fin w, Spec.FB.valid bv[i]) :
+    ∀ i : Fin bv.toList.length, bv.toList[i] = 0 ∨ bv.toList[i] = 1 := by
+  intro i
+  have hi : i.val < w := i.isLt.trans_eq Vector.length_toList
+  have hv := hvalid ⟨i.val, hi⟩
+  simp only [Spec.FB.valid, FB.false, FB.true] at hv
+  rw [Fin.getElem_fin _ _ i.isLt, Vector.getElem_toList i.isLt]
+  exact hv
+
+--- also proved in Clap.bits2num_bound for lists
 lemma bits2num_bound {w} {bv : FBitVec p w} :
-    valid bv → (bits2numV bv).val < 2 ^ w := sorry
+    valid bv → (bits2numV bv).val < 2 ^ w := by
+  intro ⟨hvalid, hpow⟩
+  rcases Nat.eq_zero_or_pos w with rfl | hw
+  · simp [bits2numV, Vector.eq_empty, Vector.foldr]
+  · haveI : Fact (2 < p) := ⟨by
+        calc 2 = 2^1 := by norm_num
+             _ ≤ 2^w := Nat.pow_le_pow_right (by norm_num) hw
+             _ < p := hpow⟩
+    rw [bits2numV_eq_bits2num]
+    have hlen : bv.toList.length = w := Vector.length_toList
+    have key := Clap.bits2num_bound (valid_list hvalid)
+    rwa [hlen] at key
 
 lemma bits2num_equiv {w} {bv : FBitVec p w} {h : valid bv} :
   bits2numV bv = BitVec.toFin (toBV bv) := by
@@ -258,15 +293,43 @@ lemma bits2num_equiv {w} {bv : FBitVec p w} {h : valid bv} :
   . aesop (add simp [eq_comm, ZMod.natCast_zmod_val])
   . aesop (add safe [bits2num_bound])
 
--- proved in Clap.num2bitsLsbPure_of_bits2num_eq for list
+--- also proved in Clap.num2bitsLsbPure_of_bits2num_eq for list
 lemma num2bitsLsbPure_of_bits2num_eq {w} {fbv : FBitVec p w}
   (h: valid fbv) :
-num2bitsLsbPureV w (bits2numV fbv) = fbv := sorry
+num2bitsLsbPureV w (bits2numV fbv) = fbv := by
+  apply Vector.toList_inj.mp
+  rw [num2bitsLsbPureV_toList, bits2numV_eq_bits2num]
+  have hlen : fbv.toList.length = w := Vector.length_toList
+  rcases Nat.eq_zero_or_pos w with rfl | hw
+  · simp [Vector.eq_empty, num2bitsLsbPure]
+  · haveI : Fact (2 < p) := ⟨by
+        calc 2 = 2^1 := by norm_num
+             _ ≤ 2^w := Nat.pow_le_pow_right (by norm_num) hw
+             _ < p := h.2⟩
+    have key := Clap.num2bitsLsbPure_of_bits2num_eq (by rw [hlen]; exact h.2) (valid_list h.1)
+    rwa [hlen] at key
 
--- proved in Clap.bits2num_of_num2bitsLsbPure_eq for list
+--- also proved in Clap.bits2num_of_num2bitsLsbPure_eq for list
 lemma bits2num_of_num2bitsLsbPure_eq {w : ℕ} {v : F p} :
   v.val < 2 ^ w → bits2numV (num2bitsLsbPureV w v) = v := by
-  sorry
+  rw [bits2numV_eq_bits2num, num2bitsLsbPureV_toList]
+  revert v
+  induction w with
+  | zero =>
+    intro v h
+    simp only [pow_zero, Nat.lt_one_iff, ZMod.val_eq_zero] at h
+    simp [h, num2bitsLsbPure, bits2num]
+  | succ w ih =>
+    intro v h
+    unfold num2bitsLsbPure bits2num
+    simp only [List.foldr_cons]
+    unfold bits2num at ih
+    have h' : (((v.val / 2) : ℕ) : ZMod p).val < 2 ^ w := by
+      simp only [ZMod.val_natCast]
+      exact lt_of_le_of_lt (Nat.mod_le _ _) (Nat.nat_repr_len_aux v.val 2 w (by decide) h)
+    rw [ih h']
+    conv_rhs => rw [← ZMod.natCast_zmod_val v, ← Nat.mod_add_div v.val 2]
+    simp [Nat.cast_add, Nat.cast_mul]
 
 def left_inv {w} (fbv : FBitVec p w) (h : valid fbv) :
   FBitVec.ofBV (toBV fbv) = fbv := by
