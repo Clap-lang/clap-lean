@@ -1341,7 +1341,7 @@ def ex₃ (vec : Vector Nat 200) : Option Unit := do
 -- #guard_msgs in
 -- #eval spoon <| do compileExampleJustSym ``ex₃ (←(map ∪ zeta ∪ getElem))
 
-def ex₄ (vec : Vector Nat 100) : Option Unit := do
+def ex₄ (vec : Vector Nat 160) : Option Unit := do
   let x ← vec.mapM (fun x ↦ return x + 1)
   eq0 x[0]
 -- set_option trace.Clap.Compile true
@@ -1406,12 +1406,12 @@ set_option trace.Clap.Compile true in
 set_option profiler true in
 #eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerSet ∪ getElem))
 -- set_option pp.exprSizes false in
-set_option pp.deepTerms true in
-example {vec : Vector Nat 100} : ex₄ vec = sorry := by
-  unfold ex₄
-  compile_just_sym [Clap.Compiler.SymSets.Vector.mapM]
-  compile_just_sym [compilerSetAlt2]
-  sorry
+-- set_option pp.deepTerms true in
+-- example {vec : Vector Nat 100} : ex₄ vec = sorry := by
+--   unfold ex₄
+--   compile_just_sym [Clap.Compiler.SymSets.Vector.mapM]
+--   compile_just_sym [compilerSetAlt2]
+--   sorry
   
   -- compile_just_sym [compilerSetAlt]
   -- rw [Option.pure_def]

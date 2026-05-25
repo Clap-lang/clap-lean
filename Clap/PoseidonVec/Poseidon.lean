@@ -274,7 +274,6 @@ open Clap.Compiler.SymSets Vector General in
       control ∪
       SymSets.List.range ∪
       sum ∪
-      zipWith ∪
       zeta
     ))
 
