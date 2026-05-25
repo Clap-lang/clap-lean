@@ -31,7 +31,7 @@ YEEEEEHAAAAAAAAW, you rootin' tootin' cowboy.
 def cowboyCast (e : Expr) (yourDeepestDesire : ℕ) : Sym.SymM Expr := do
   let t ← Sym.inferType e
   let_expr Vector t sz := t | throwError m!"Not a true cowboy."
-  let proof ← mkEq t (←mkAppM ``Vector #[t, mkNatLit yourDeepestDesire])
+  let proof ← mkEq t (←mkAppM ``Vector #[t, mkNatLit yourDeepestDesire]) -- TODO: Nuke mapM
   let e' ← e.rewriteType (←mkSorry proof false)
   logInfo m!"Cowboy cast:\n{e}\n==>\n{e'}"
   return e'
@@ -235,6 +235,7 @@ end General
 namespace Vector
 
 -- Essentially `Vector.mk_append_mk`.
+-- currently unused, TODO nuke mkAppM
 private def mk_append_mk' : Simproc := fun e ↦ do
   let_expr HAppend.hAppend _ _ _ _ xs ys := e | return .rfl
   let_expr Vector t szXs := ←Sym.inferType xs | return .rfl
@@ -561,20 +562,16 @@ def mapM : MetaM Methods :=
 --   ]
 
 def mk_zipWith_mk : Sym.Simp.Simproc := fun e => do
-  let_expr Vector.zipWith α β γ n f xs ys := e | return .rfl
-  -- let_expr Vector.mk _ szXs xs _ := xs | return .rfl
-  -- let_expr Vector.mk _ szYs ys _ := ys | return .rfl
+  let_expr Vector.zipWith _ _ γ n f xs ys := e | return .rfl
 
-  logInfo m!"xs: {xs}\nys: {ys}"
-
-  let some (xs, szXs) := vectorElemsOfExpr xs | logError m!"unreachable - mk_zipWith_mk"; unreachable!
-  let some (ys, szYs) := vectorElemsOfExpr ys | logError m!"unreachable - mk_zipWith_mk"; unreachable!
+  let some (xs, szXs) := vectorElemsOfExpr xs | return .rfl
+  let some (ys, szYs) := vectorElemsOfExpr ys | return .rfl
 
   if !isSameExpr szXs szYs then
     trace[Clap.Compile.simp.proc.vector_mk_zipWith_mk]
       m!"Info:\nxs.size = {szXs}\nys.size = {szYs}"
 
-  let result ← Sym.mkListLit γ (xs.zipWith (mkApp2 f) ys).toList
+  let result ← Sym.mkListLit γ (xs.zipWith (f.beta #[·, ·]) ys).toList
 
   /-
   Doesn't matter which size we choose, we always have to check at consumption cast.
@@ -590,32 +587,12 @@ def mk_zipWith_mk : Sym.Simp.Simproc := fun e => do
   
   return .step e' (←mkSorry (←mkEq e e') false) 
 
-  -- let αu ← Sym.getLevel α
-  -- let βu ← Sym.getLevel β
-  -- let γu ← Sym.getLevel γ
-
-  -- let arr := mkAppN (.const ``Array.zipWith [αu, βu, γu]) #[α, β, γ, f, xs, ys]
-
-  -- /-
-  -- Doesn't matter which size we choose, we always have to check at consumption cast.
-  -- Here, we take `n`, which need not be _syntactically_ equal to `szXs` nor `szYs`.
-
-  -- TODO: Ideally, there would be a normalising step that would process all vector sizes,
-  -- but it gets really tricky with casts.
-  -- -/
-  -- let e' ← inferVectorProof <| mkAppN (.const ``Vector.mk [γu]) #[γ, n, arr]
-  -- trace[Clap.Compile.simp.proc.vector_mk_zipWith_mk]
-  --   m!"\n{e}\n==>\n{e'}"
-
-  -- let e' ← Sym.mkListLit γ []
-
-  -- return .step e' (←mkSorry (←mkEq e e') false) -- Vector.mk_zipWith_mk
-
 def zipWith : MetaM Methods :=
   mkPostMethods #[
-    ``Vector.mk_zipWith_mk, ``List.zipWith_toArray,
+    ``Vector.mk_zipWith_mk,
+    -- ``List.zipWith_toArray,
     
-    ``List.zipWith_cons_cons, ``List.zipWith_nil_left, ``List.zipWith_nil_right,
+    -- ``List.zipWith_cons_cons, ``List.zipWith_nil_left, ``List.zipWith_nil_right,
 
     -- ``Compiler.explodeVectorZipWith
   ]
@@ -810,15 +787,6 @@ fun vec => eq0 (vec[0] + 1)
 #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerSet_old ∪ getElem))
 
-example {vec : Vector Nat 160} : ex₄ vec = eq0 (vec[0] + 1) := by
-  unfold ex₄
-  compile_just_sym [SymSets.Vector.mapM, compilerSet_old, SymSets.Vector.getElem]
-  rfl
-  -- simp only [Option.pure_def, Option.bind_eq_bind]
-  -- erw [Option.bind_some]
-  -- simp
-  -- rfl
-
 def ex₅ (vec : Vector Nat 3) : Option Unit := do
   eq0 ((vec ++ vec)[0])
   eq0 0
@@ -836,11 +804,20 @@ fun vec =>
         (eq0 (vec[1] + (vec[1] + 1))).bind fun x => eq0 (vec[2] + (vec[2] + 1))
 -/
 #guard_msgs(info, whitespace := lax, drop warning) in
-#eval spoon <| do compileExampleJustSym ``ex₅ (←(append ∪ getElem ∪ zipWith ∪ zeta ∪ map ∪ compilerSet_old'))
+#eval spoon <| do
+  compileExampleJustSym
+    ``ex₅
+    (←(append ∪ explode ∪ getElem ∪ map ∪ zipWith ∪ zeta ∪ compilerSet_old))
 
+open SymSets Vector in
 example {vec : Vector Nat 3} : ex₅ vec = sorry := by
   unfold ex₅
-  compile_just_sym [SymSets.Vector.zipWith, SymSets.Vector.map]
+  compile_just_sym [
+    SymSets.Vector.append, explode,
+    SymSets.Vector.getElem, SymSets.Vector.map,
+    SymSets.Vector.zipWith,
+    zeta
+  ]
 
 def ex₆ (vec : Vector Nat 3) : Option Unit := do
   eq0 ((vec ++ vec)[0])
@@ -853,7 +830,7 @@ info: Compiled:
 fun vec => (eq0 vec[0]).bind fun x => (eq0 0).bind fun x => eq0 vec[1]
 -/
 #guard_msgs(info, whitespace := lax, drop warning) in
-#eval spoon <| do compileExampleJustSym ``ex₆ (←(append ∪ getElem ∪ drop ∪ take ∪ zeta ∪ compilerSet_old'))
+#eval spoon <| do compileExampleJustSym ``ex₆ (←(append ∪ getElem ∪ drop ∪ take ∪ zeta ∪ compilerSet_old ∪ explode))
 
 def ex₇ (vec : Vector Nat 3) : Option Unit := do
   eq0 ((vec ++ vec)[0])
@@ -869,7 +846,7 @@ fun vec =>
 eq0 (vec[0] + (vec[1] + (vec[2] + 0)))
 -/
 #guard_msgs(info, whitespace := lax, drop warning) in
-#eval spoon <| do compileExampleJustSym ``ex₇ (←(append ∪ getElem ∪ sum ∪ zeta ∪ compilerSet_old'))
+#eval spoon <| do compileExampleJustSym ``ex₇ (←(append ∪ getElem ∪ sum ∪ zeta ∪ compilerSet_old ∪ explode))
 
 def ex₈ (vec : Vector Nat 3) : Option Unit := do
   let vec := vec.zipWith (·+·) #v[1, 5, 10]
@@ -879,16 +856,16 @@ def ex₈ (vec : Vector Nat 3) : Option Unit := do
   eq0 res[1]
   eq0 res[2]
 
--- /--
--- info: Compiled:
--- fun vec =>
--- (eq0 42).bind fun x =>
--- (eq0 (vec[0] + 1 + 1)).bind fun x =>
--- (eq0 (vec[1] + 5 + 1)).bind fun x =>
--- eq0 (vec[2] + 10 + 1)
--- -/
--- #guard_msgs(info, whitespace := lax, drop warning) in
--- #eval spoon <| do compileExampleJustSym ``ex₈ (←(zipWith ∪ mapM ∪ getElem ∪ zeta ∪ compilerSet_old'))
+/--
+info: Compiled:
+fun vec =>
+(eq0 42).bind fun x =>
+(eq0 (vec[0] + 1 + 1)).bind fun x =>
+(eq0 (vec[1] + 5 + 1)).bind fun x =>
+eq0 (vec[2] + 10 + 1)
+-/
+#guard_msgs(info, whitespace := lax, drop warning) in
+#eval spoon <| do compileExampleJustSym ``ex₈ (←(zipWith ∪ mapM ∪ getElem ∪ zeta ∪ compilerSet_old ∪ explode))
 
 def ex₉ (vec : Vector Nat 3) : Option Unit := do
   let res := (#v[0] ++ vec).extract 1 2
@@ -899,7 +876,7 @@ info: Compiled:
 fun vec => eq0 vec[0]
 -/
 #guard_msgs(info, whitespace := lax, drop warning) in
-#eval spoon <| do compileExampleJustSym ``ex₉ (←(extract ∪ append ∪ getElem ∪ zeta ∪ compilerSet_old'))
+#eval spoon <| do compileExampleJustSym ``ex₉ (←(extract ∪ append ∪ getElem ∪ zeta ∪ compilerSet_old ∪ explode))
 
 def ex₁₀ (vec : Vector Nat 3) : Option Unit := do
   let res := (#v[0] ++ vec).set 0 42
@@ -910,7 +887,7 @@ info: Compiled:
 fun vec => eq0 42
 -/
 #guard_msgs(info, whitespace := lax, drop warning) in
-#eval spoon <| do compileExampleJustSym ``ex₁₀ (←(set ∪ append ∪ getElem ∪ zeta ∪ compilerSet_old'))
+#eval spoon <| do compileExampleJustSym ``ex₁₀ (←(set ∪ append ∪ getElem ∪ zeta ∪ compilerSet_old ∪ explode))
 
 def ex₁₁ (vec : Vector Nat 3) : Option Unit := do
   let res := vec.mapIdx fun i x ↦ x + i
@@ -921,7 +898,7 @@ info: Compiled:
 fun vec => eq0 (vec[0] + 0)
 -/
 #guard_msgs(info, whitespace := lax, drop warning) in
-#eval spoon <| do compileExampleJustSym ``ex₁₁ (←(mapIdx ∪ getElem ∪ zeta ∪ compilerSet_old'))
+#eval spoon <| do compileExampleJustSym ``ex₁₁ (←(mapIdx ∪ getElem ∪ zeta ∪ compilerSet_old ∪ explode))
 
 end ExampruSym
 

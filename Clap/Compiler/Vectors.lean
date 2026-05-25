@@ -9,36 +9,13 @@ open Lean Meta Elab Qq
 
 namespace Clap.Compiler
 
--- def getElemVectorOfIdx (coll : Expr) (len idx : Nat) : Sym.Simp.SimpM Expr := do
---   let idxQ : Q(Nat) := ToExpr.toExpr idx
---   let szQ : Q(Nat) := mkNatLit len
---   let getElemSansProof ← Meta.mkAppM ``GetElem.getElem #[coll, idxQ]
---   let proof ← Sym.Simp.liftTermElabM (
---                 Elab.Term.mkTacticMVar q($idxQ < $szQ) (←`(by get_elem_tactic)) .term
---               )
---   Sym.Simp.liftTermElabM Term.synthesizeSyntheticMVarsNoPostponing
---   instantiateMVars <| mkAppN getElemSansProof #[proof]
-
--- def inferVectorProof (vectorSansProof : Expr) : Sym.Simp.SimpM Expr := do
---   let .forallE _ argT _ _ ← inferType vectorSansProof | unreachable!
---   let proof ← Sym.Simp.liftTermElabM (Term.mkTacticMVar argT (←`(by simp)) .term)
---   Sym.Simp.liftTermElabM Term.synthesizeSyntheticMVarsNoPostponing
---   pure (Expr.app vectorSansProof proof) >>= instantiateMVars
-
 def _root_.Lean.Meta.Sym.getLevelInType (e : Expr) : Sym.SymM Level := do
   let .succ u ← Sym.getLevel e | throwError m!"getLevelInType - Prop unsupported. Request:\n{e}"
   return u
-#check Vector.instGetElemNatLt
+
 def getElemVectorOfIdx (coll t sz : Expr) (idx : ℕ) : Sym.Simp.SimpM Expr := do
   let idx := mkNatLit idx
-  -- instGetElemNatLt
-  -- let getElemSansProof ←
-  --   Sym.shareCommonInc (
-  --     ←Meta.mkAppM ``GetElem.getElem #[coll, idx]
-  --   )
-
   let collT ← Sym.inferType coll
-
   let u ← Sym.getLevelInType collT
   let v ← Sym.getLevelInType q(ℕ)
   let w ← Sym.getLevelInType t
@@ -50,8 +27,7 @@ def getElemVectorOfIdx (coll t sz : Expr) (idx : ℕ) : Sym.Simp.SimpM Expr := d
         (mkApp2 (.const ``Nat.lt []) (.bvar 0) sz) .default) .default
 
   -- `GetElem` instance
-  let inst :=
-    mkApp2 (.const ``Vector.instGetElemNatLt [w]) t sz
+  let inst := mkApp2 (.const ``Vector.instGetElemNatLt [w]) t sz
 
   -- `coll[idx]'?proofIsValid`
   let getElemSansProof ←
@@ -68,41 +44,13 @@ def inferVectorProof (vectorSansProof : Expr) : Sym.Simp.SimpM Expr := do
   let .forallE _ argT _ _ ← Sym.inferType vectorSansProof | unreachable!
   Sym.shareCommonInc <| .app vectorSansProof (←mkSorry argT false)
 
--- /--
--- TODO: Bad API, no time. (can infer length)
--- -/
--- def mkVecLit (l : Expr) (sz : Expr) : Sym.Simp.SimpM Expr := do
---   let array ← mkAppM ``List.toArray #[l]
---   let t := (←inferType array).getAppArgs[0]!
---   let u ← getDecLevel t
---   let vectorSansProof := mkAppN (.const ``_root_.Vector.mk [u]) #[t, sz, array]
---   let vector ← inferVectorProof vectorSansProof
---   Sym.shareCommonInc vector -- TODO: Check if `...inc` is enough.
-
-/--
-TODO: Bad API, no time. (can infer length)
--/
 def mkVecLit (t l len : Expr) : Sym.Simp.SimpM Expr := do
-  -- `List.toArray` is not fully-reduced, confuses `Sym` without `unfoldReducible`
   let u ← Sym.getLevelInType t
   let array := mkAppN (.const ``Array.mk [u]) #[t, l]
   let vectorSansProof := mkAppN (.const ``_root_.Vector.mk [u]) #[t, len, array]
   let vector ← inferVectorProof vectorSansProof
   Sym.shareCommonInc vector -- TODO: Check if `...inc` is enough.
   
--- /--
--- TODO: Use mkVecLit
--- -/
--- def sequenceAsVecExpr (name : Expr) (t : Expr) (len : Expr) : Sym.Simp.SimpM Expr := do
---   if len.nat? matches .none then logError m!"NOPE. name: {name} t: {t} len: {len}"
---   let lenN := len.nat?.get!
---   let e' ← mkVecLit
---              (←mkListLit t (←List.range lenN |>.mapM (getElemVectorOfIdx name len)))
---             --  len
---   trace[Clap.Compile.simp.proc.sequenceAsVecExpr]
---     m!"\n{name}[length = {len}][elemType = {t}]\n==>\n{e'}"
---   Sym.shareCommonInc e'
-
 private def mkListLitAux (nil : Expr) (cons : Expr) : List Expr → Expr
   | []    => nil
   | x::xs => mkApp (mkApp cons x) (mkListLitAux nil cons xs)
@@ -135,83 +83,79 @@ def sequenceAsVecExpr (name : Expr) (t sz : Expr) : Sym.Simp.SimpM Expr := do
     m!"[vec = {name}][length = {sz}][elemType = {t}]\n==>\n{e'}"
   return e'
 
--- def needsExploding (e : Expr) : SimpM Bool := do
---   let t ← inferType e
---   return t.isAppOf ``Vector
+-- lemma abc {α} {vec : Vector α 2} : vec = #v[vec[0], vec[1]] := by
+--   rcases vec with ⟨⟨_ | ⟨_, _ | ⟨_, _ | ⟨_, tl⟩⟩⟩⟩, h⟩
+--   · cases h
+--   · cases h
+--   · rfl
+--   · cases h
 
-lemma abc {α} {vec : Vector α 2} : vec = #v[vec[0], vec[1]] := by
-  rcases vec with ⟨⟨_ | ⟨_, _ | ⟨_, _ | ⟨_, tl⟩⟩⟩⟩, h⟩
-  · cases h
-  · cases h
-  · rfl
-  · cases h
-
-lemma abc' : ∀ {α} {vec : Vector α 2}, vec = #v[vec[0], vec[1]] :=
-  fun {α vec} ↦
-    vec.casesOn fun arr h ↦
-      arr.casesOn
-        (motive := fun x ↦ ∀ (h : x.size = 2), Vector.mk x h = #v[(Vector.mk x h)[0], (Vector.mk x h)[1]])
-        (
-          fun l h ↦
-            l.casesOn
-              (motive := fun x =>
-                ∀ (h : {toList := x : Array _}.size = 2),
-                  Vector.mk { toList := x } h =
-                  #v[(Vector.mk { toList := x } h)[0], (Vector.mk { toList := x } h)[1]])
-              (fun h ↦ h.casesOn
-                         (motive := fun a t ↦
-                           2 = a →
-                           h ≍ t →
-                           Vector.mk { toList := [] } h =
-                           #v[(Vector.mk { toList := [] } h)[0], (Vector.mk { toList := [] } h)[1]])
-              (fun h_1 ↦ False.elim (noConfusion_of_Nat Nat.ctorIdx h_1)) rfl HEq.rfl)
-              (
-                fun head tail ↦
-                  tail.casesOn
-                    (motive := fun x ↦
-                      ∀ (h : { toList := head :: x : Array _}.size = 2),
-                        Vector.mk { toList := head :: x } h =
-                        #v[(Vector.mk { toList := head :: x } h)[0], (Vector.mk { toList := head :: x } h)[1]])
-                    (
-                      fun h =>
-                        h.casesOn
-                          (motive := fun a t ↦
-                            2 = a →
-                            h ≍ t →
-                            Vector.mk { toList := [head] } h =
-                            #v[(Vector.mk { toList := [head] } h)[0], (Vector.mk { toList := [head] } h)[1]])
-                          (fun h_1 ↦
-                            Nat.elimOffset (0 + 1) [].length 1 h_1
-                            fun x ↦ False.elim (noConfusion_of_Nat Nat.ctorIdx x))
-                          rfl
-                          HEq.rfl
-                    )
-                    (
-                      fun head_1 tail h ↦
-                        tail.casesOn (motive := fun x ↦
-                          ∀ (h : { toList := head :: head_1 :: x : Array _ }.size = 2),
-                            Vector.mk { toList := head :: head_1 :: x } h =
-                              #v[(Vector.mk { toList := head :: head_1 :: x } h)[0],
-                                (Vector.mk { toList := head :: head_1 :: x } h)[1]])
-                          (fun h ↦ Eq.refl (Vector.mk { toList := [head, head_1] } h))
-                          (fun head_2 tl h ↦
-                            Eq.casesOn (motive := fun a t ↦
-                              2 = a →
-                                h ≍ t →
-                                  Vector.mk { toList := head :: head_1 :: head_2 :: tl } h =
-                                    #v[(Vector.mk { toList := head :: head_1 :: head_2 :: tl } h)[0],
-                                      (Vector.mk { toList := head :: head_1 :: head_2 :: tl } h)[1]])
-                              h
-                              (fun h_1 ↦
-                                Nat.elimOffset (0 + 1) (head_1 :: head_2 :: tl).length 1 h_1 fun x ↦
-                                  Nat.elimOffset 0 (head_2 :: tl).length 1 x fun x ↦
-                                    False.elim (noConfusion_of_Nat Nat.ctorIdx x))
-                              rfl HEq.rfl)
-                  h)
-              )     
-          h
-        )
-        h
+-- lemma abc' : ∀ {α} {vec : Vector α 2}, vec = #v[vec[0], vec[1]] :=
+--   fun {α vec} ↦
+--     vec.casesOn fun arr h ↦
+--       arr.casesOn
+--         (motive := fun x ↦ ∀ (h : x.size = 2), Vector.mk x h = #v[(Vector.mk x h)[0], (Vector.mk x h)[1]])
+--         (
+--           fun l h ↦
+--             l.casesOn
+--               (motive := fun x =>
+--                 ∀ (h : {toList := x : Array _}.size = 2),
+--                   Vector.mk { toList := x } h =
+--                   #v[(Vector.mk { toList := x } h)[0], (Vector.mk { toList := x } h)[1]])
+--               (fun h ↦ h.casesOn
+--                          (motive := fun a t ↦
+--                            2 = a →
+--                            h ≍ t →
+--                            Vector.mk { toList := [] } h =
+--                            #v[(Vector.mk { toList := [] } h)[0], (Vector.mk { toList := [] } h)[1]])
+--               (fun h_1 ↦ False.elim (noConfusion_of_Nat Nat.ctorIdx h_1)) rfl HEq.rfl)
+--               (
+--                 fun head tail ↦
+--                   tail.casesOn
+--                     (motive := fun x ↦
+--                       ∀ (h : { toList := head :: x : Array _}.size = 2),
+--                         Vector.mk { toList := head :: x } h =
+--                         #v[(Vector.mk { toList := head :: x } h)[0], (Vector.mk { toList := head :: x } h)[1]])
+--                     (
+--                       fun h =>
+--                         h.casesOn
+--                           (motive := fun a t ↦
+--                             2 = a →
+--                             h ≍ t →
+--                             Vector.mk { toList := [head] } h =
+--                             #v[(Vector.mk { toList := [head] } h)[0], (Vector.mk { toList := [head] } h)[1]])
+--                           (fun h_1 ↦
+--                             Nat.elimOffset (0 + 1) [].length 1 h_1
+--                             fun x ↦ False.elim (noConfusion_of_Nat Nat.ctorIdx x))
+--                           rfl
+--                           HEq.rfl
+--                     )
+--                     (
+--                       fun head_1 tail h ↦
+--                         tail.casesOn (motive := fun x ↦
+--                           ∀ (h : { toList := head :: head_1 :: x : Array _ }.size = 2),
+--                             Vector.mk { toList := head :: head_1 :: x } h =
+--                               #v[(Vector.mk { toList := head :: head_1 :: x } h)[0],
+--                                 (Vector.mk { toList := head :: head_1 :: x } h)[1]])
+--                           (fun h ↦ Eq.refl (Vector.mk { toList := [head, head_1] } h))
+--                           (fun head_2 tl h ↦
+--                             Eq.casesOn (motive := fun a t ↦
+--                               2 = a →
+--                                 h ≍ t →
+--                                   Vector.mk { toList := head :: head_1 :: head_2 :: tl } h =
+--                                     #v[(Vector.mk { toList := head :: head_1 :: head_2 :: tl } h)[0],
+--                                       (Vector.mk { toList := head :: head_1 :: head_2 :: tl } h)[1]])
+--                               h
+--                               (fun h_1 ↦
+--                                 Nat.elimOffset (0 + 1) (head_1 :: head_2 :: tl).length 1 h_1 fun x ↦
+--                                   Nat.elimOffset 0 (head_2 :: tl).length 1 x fun x ↦
+--                                     False.elim (noConfusion_of_Nat Nat.ctorIdx x))
+--                               rfl HEq.rfl)
+--                   h)
+--               )     
+--           h
+--         )
+--         h
 
 /--
 Use with `↓`.
