@@ -71,6 +71,10 @@ initialize Lean.registerTraceClass `Clap.Compile.simp.proc.vector_mk_zipWith_mk 
 
 initialize Lean.registerTraceClass `Clap.Compile.simp.proc.vector_mapM_mk (inherited := true)
 
+initialize Lean.registerTraceClass `Clap.Compile.simp.proc.vector_mapIdx_mk (inherited := true)
+
+initialize Lean.registerTraceClass `Clap.Compile.simp.proc.vector_mk_append_mk (inherited := true)
+
 initialize Lean.registerTraceClass `Clap.Compile.simp.proc.preprocess (inherited := true)
 
 initialize Lean.registerTraceClass `Clap.Compile.simp.proc.seemsTotallySafeInDTT (inherited := true)

@@ -179,9 +179,9 @@ def explodeVector : Sym.Simp.Simproc := fun e ↦ do
   let sz' ← Sym.simpWithGround sz
   match (sz'.getResultExpr sz).nat? with
   | .none => throwError m!"{sz} does not simplify to ground.\nExpr:\n{e}"
-  | .some n => let explodedVec ← (sequenceAsVecExpr e t (sz'.getResultExpr sz)).run'
-               trace[Clap.Compile.simp.kaboom] m!"Exploding:\n{e}\n==>\n{explodedVec}"
-               return .step explodedVec (←mkSorry (←mkEq e explodedVec) false)
+  | .some _n => let explodedVec ← (sequenceAsVecExpr e t (sz'.getResultExpr sz)).run'
+                trace[Clap.Compile.simp.kaboom] m!"Exploding:\n{e}\n==>\n{explodedVec}"
+                return .step explodedVec (←mkSorry (←mkEq e explodedVec) false)
 
 def toVectorSequence? (e : Expr) : Sym.Simp.SimpM (Option (Expr × Expr × Expr)) := do
   unless e.isFVar do return .none

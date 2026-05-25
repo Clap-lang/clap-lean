@@ -234,37 +234,75 @@ end General
 
 namespace Vector
 
--- Essentially `Vector.mk_append_mk`.
--- currently unused, TODO nuke mkAppM
-private def mk_append_mk' : Simproc := fun e ↦ do
+-- -- Essentially `Vector.mk_append_mk`.
+-- -- currently unused, TODO nuke mkAppM
+-- private def mk_append_mk' : Simproc := fun e ↦ do
+--   let_expr HAppend.hAppend _ _ _ _ xs ys := e | return .rfl
+--   let_expr Vector t szXs := ←Sym.inferType xs | return .rfl
+--   let_expr Vector _ szYs := ←Sym.inferType ys | return .rfl
+--   let_expr Vector.mk _ _ xs _ := xs | return .rfl
+--   let_expr Vector.mk _ _ ys _ := ys | return .rfl
+--   match szXs.nat?, szYs.nat? with
+--   | .some szXs, .some szYs =>
+--     -- The trick here is to enforce _syntactically_ that `szXs + szYs` for concrete values
+--     -- is evaluated. `Vector.mk_append_mk` leaves `q(szXs + szYs)`.
+--     let append ← mkAppM ``HAppend.hAppend #[xs, ys]
+--     let szAppend := toExpr (szXs + szYs)
+--     let szAppendProof ← mkSorry (←mkEq (←mkAppM ``Array.size #[append]) szAppend) false
+--     let e' := mkAppN
+--                 (.const ``Vector.mk [←getDecLevel t])
+--                 #[t, szAppend, append, szAppendProof]
+--     let e' ← Compiler.Simp.reducedAndSharedInc e'
+--     -- let e' ← Sym.shareCommonInc e'
+--     let proof ← mkSorry (←mkEq e e') false -- Probably just `Vector.mk_append_mk` up to defeq
+--     trace[Clap.Compile.simp.proc.mk_append_mk]
+--       m!"\n{e}\n==>\n{e'}"
+--     return .step e' proof
+--   | _ , _ =>
+--     -- TODO: I have a feeling this sometimes misbehaves for some reason, look into this.
+--     -- Notably, when using `Vector.getElem_mk` 'directly', it simps more things than this guy?
+--     -- TODO: Sharing
+--     -- logWarning m!"{e} is an append of non-ground size (TODO: remove)"
+--     let thm ← mkTheoremFromDecl ``Vector.getElem_mk
+--     thm.rewrite e
+
+partial def listElemsOfExpr (e : Expr) (res : Array Expr := #[]) : Option (Array Expr) :=
+  match_expr e with
+  | List.cons _ hd tl => listElemsOfExpr tl (res.push hd)
+  | List.nil  _       => .some res
+  | _                 => .none
+
+def arrayElemsOfExpr (e : Expr) : Option (Array Expr) := do
+  let_expr Array.mk _ l := e | .none
+  listElemsOfExpr l
+
+def vectorElemsOfMk (e : Expr) : Option (Array Expr × Expr × Expr) := do
+  let_expr Vector.mk t sz arr _ := e | .none
+  return (←arrayElemsOfExpr arr, t, sz)
+
+private def mk_append_mk : Simproc := fun e ↦ do
   let_expr HAppend.hAppend _ _ _ _ xs ys := e | return .rfl
-  let_expr Vector t szXs := ←Sym.inferType xs | return .rfl
-  let_expr Vector _ szYs := ←Sym.inferType ys | return .rfl
-  let_expr Vector.mk _ _ xs _ := xs | return .rfl
-  let_expr Vector.mk _ _ ys _ := ys | return .rfl
-  match szXs.nat?, szYs.nat? with
-  | .some szXs, .some szYs =>
-    -- The trick here is to enforce _syntactically_ that `szXs + szYs` for concrete values
-    -- is evaluated. `Vector.mk_append_mk` leaves `q(szXs + szYs)`.
-    let append ← mkAppM ``HAppend.hAppend #[xs, ys]
-    let szAppend := toExpr (szXs + szYs)
-    let szAppendProof ← mkSorry (←mkEq (←mkAppM ``Array.size #[append]) szAppend) false
-    let e' := mkAppN
-                (.const ``Vector.mk [←getDecLevel t])
-                #[t, szAppend, append, szAppendProof]
-    let e' ← Compiler.Simp.reducedAndSharedInc e'
-    -- let e' ← Sym.shareCommonInc e'
-    let proof ← mkSorry (←mkEq e e') false -- Probably just `Vector.mk_append_mk` up to defeq
-    trace[Clap.Compile.simp.proc.mk_append_mk]
-      m!"\n{e}\n==>\n{e'}"
-    return .step e' proof
-  | _ , _ =>
-    -- TODO: I have a feeling this sometimes misbehaves for some reason, look into this.
-    -- Notably, when using `Vector.getElem_mk` 'directly', it simps more things than this guy?
-    -- TODO: Sharing
-    -- logWarning m!"{e} is an append of non-ground size (TODO: remove)"
-    let thm ← mkTheoremFromDecl ``Vector.getElem_mk
-    thm.rewrite e
+
+  let some (xs, tXs, szXs) := vectorElemsOfMk xs | return .rfl
+  let some (ys, _tYs, szYs) := vectorElemsOfMk ys | return .rfl
+  -- `tXs = _tYs`
+  let result ← Sym.mkListLit tXs (xs.append ys).toList
+
+  -- instAddNat or some such | maybe instHAdd
+
+  /-
+  TODO: I wonder which size I want.
+  Current: `q(szXs + szYs)`
+  Maybe just take the ground?
+  -/
+  let e' ← mkVecLit tXs result (mkApp6 (.const ``HAdd.hAdd [0, 0, 0]) q(ℕ) q(ℕ) q(ℕ) _ szXs szYs)
+  -- let e' ← mkVecLit tXs result (mkApp2 (.const ``Nat.add []) szXs szYs)
+
+  trace[Clap.Compile.simp.proc.vector_mk_append_mk]
+    m!"\n{e}\n==>\n{e'}"
+  
+  return .step e' (←mkSorry (←mkEq e e') false)
+
 
 def appendDbg : Sym.Simp.Simproc := fun e ↦ do
   let_expr HAppend.hAppend _ _ _ _ xs ys := e | return .rfl
@@ -281,9 +319,9 @@ def appendDbg : Sym.Simp.Simproc := fun e ↦ do
 
 def append : MetaM Methods :=
   mkPostMethods #[
-    ``Vector.mk_append_mk, ``List.append_toArray,
+    ``Vector.mk_append_mk--, ``List.append_toArray,
 
-    ``List.cons_append, ``List.nil_append, ``List.append_nil,
+    -- ``List.cons_append, ``List.nil_append, ``List.append_nil,
 
     -- ``Compiler.explodeVectorAppend,
 
@@ -395,20 +433,6 @@ def getElemDbg : Sym.Simp.Simproc := fun e ↦ do
 -- #check Vector.append
 -- #check GetElem.getElem (coll := Vector ℕ 4) (Vector.mk (n := 2 + 2) #[1, 2, 3, 4] rfl) 0 (by decide)
 
-partial def listElemsOfExpr (e : Expr) (res : Array Expr := #[]) : Option (Array Expr) :=
-  match_expr e with
-  | List.cons _ hd tl => listElemsOfExpr tl (res.push hd)
-  | List.nil  _       => .some res
-  | _                 => .none
-
-def arrayElemsOfExpr (e : Expr) : Option (Array Expr) := do
-  let_expr Array.mk _ l := e | .none
-  listElemsOfExpr l
-
-def vectorElemsOfExpr (e : Expr) : Option (Array Expr × Expr) := do
-  let_expr Vector.mk _ sz arr _ := e | .none
-  return (←arrayElemsOfExpr arr, sz)
-
 def getElem_mk : Sym.Simp.Simproc := fun e => do
   -- In vector, we can optimise by not enumerating all elements first,
   -- and then taking the size of the final list.
@@ -416,7 +440,7 @@ def getElem_mk : Sym.Simp.Simproc := fun e => do
   -- Instead, we can simply traverse the first `i` conses, as we have the length apriori for the proof.
   -- Or some such.
   let_expr GetElem.getElem _ _ _ _ _ vec n _ := e | return .rfl
-  let some (elems, sz) := vectorElemsOfExpr vec | return .rfl
+  let some (elems, sz) := vectorElemsOfMk vec | return .rfl
   let some i := Sym.getNatValue? n | return .rfl
   trace[Clap.Compile.simp.proc.vector_getElem_mk]
     m!"Info:\nVector size: {sz}\nElems size: {elems.size}"
@@ -469,13 +493,21 @@ def map : MetaM Methods :=
   where
     mapOptim : MetaM Methods := mkPreMethods #[``List.map_id]
 
+def mapIdx_mk : Sym.Simp.Simproc := fun e => do
+  let_expr Vector.mapIdx _ β sz f xs := e | return .rfl
+  let some (xs, _) := vectorElemsOfMk xs | return .rfl
+
+  let result ← Sym.mkListLit β (xs.mapIdx (f.beta #[mkNatLit ·, ·])).toList
+  let e' ← mkVecLit β result sz
+
+  trace[Clap.Compile.simp.proc.vector_mapIdx_mk]
+    m!"\n{e}\n==>\n{e'}"
+  
+  return .step e' (←mkSorry (←mkEq e e') false) 
+
 def mapIdx : MetaM Methods :=
   mkPostMethods #[
-    ``Vector.mapIdx_mk, ``List.mapIdx_toArray,
-    
-    ``List.mapIdx_cons, ``List.mapIdx_nil,
-
-    -- ``Compiler.explodeVectorMapIdx
+    ``Vector.mapIdx_mk
   ] ∪ SymSets.General.ground
 
 def listOfArray (e : Expr) : Option Expr :=
@@ -509,7 +541,7 @@ def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
     let transformedVector? :=
       mkAppN (.const ``Option.some [v]) #[←Sym.inferType transformedVector, transformedVector]
     let transformedVector? ← Sym.shareCommonInc transformedVector?
-    let .some (elems, _) := vectorElemsOfExpr vec | unreachable!
+    let .some (elems, _) := vectorElemsOfMk vec | unreachable!
     let u ← Sym.getLevelInType β
     /-
     Start with `.some #[.bvar sz.pred, .bvar sz.pred.pred, ..., .bvar 0]`
@@ -564,8 +596,8 @@ def mapM : MetaM Methods :=
 def mk_zipWith_mk : Sym.Simp.Simproc := fun e => do
   let_expr Vector.zipWith _ _ γ n f xs ys := e | return .rfl
 
-  let some (xs, szXs) := vectorElemsOfExpr xs | return .rfl
-  let some (ys, szYs) := vectorElemsOfExpr ys | return .rfl
+  let some (xs, szXs) := vectorElemsOfMk xs | return .rfl
+  let some (ys, szYs) := vectorElemsOfMk ys | return .rfl
 
   if !isSameExpr szXs szYs then
     trace[Clap.Compile.simp.proc.vector_mk_zipWith_mk]
@@ -724,6 +756,8 @@ namespace ExampruSym
 
 open SymSets Monad General Vector
 
+set_option trace.Clap.Compile true
+
 def ex₀ : Option Unit := do
   eq0 0
   eq0 1
@@ -755,9 +789,6 @@ fun _vec => eq0 4
 def ex₂ (vec : Vector Nat 3) : Option Unit := do
   let x := (vec ++ vec)[0] -- `GetElem (Vector _ (3 + 3))`
   eq0 x
-
-set_option trace.Clap.Compile true
-
 /--
 info: Compiled:
 fun vec => eq0 vec[0]
