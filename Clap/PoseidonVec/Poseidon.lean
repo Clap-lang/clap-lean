@@ -210,7 +210,7 @@ open Clap Lang PoseidonVec
 
 section
 
-open Lean Meta Clap Compiler Simp API CompileSets
+open Lean Meta Clap Compiler Simp API
 
 -- example {inputs : Vector (F Primes.bn254) 2} : List.foldlM
 --   (fun state r => do
@@ -258,12 +258,12 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
 --     ``Constant.S.S02, ``Constant.S.S03, ``Constant.S.S04, ``Constant.S.S05, ``Constant.S.S06, ``Constant.S.S07, ``Constant.S.S08, ``Constant.S.S09, ``Constant.S.S10, ``Constant.S.S11, ``Constant.S.S12, ``Constant.S.S13, ``Constant.S.S14, ``Constant.S.S15, ``Constant.S.S16, ``Constant.S.S17,
 --  ``mix, ``mixS, ``mixS.dotProduct, ``mixS.tail
   ]
--- set_option trace.Clap.Compile true in
+set_option trace.Clap.Compile true in
 open Clap.Compiler.SymSets Vector General in
 -- set_option maxRecDepth 8192 in
 -- set_option pp.proofs true in
 #eval spoon <| do
-  compileExample ``testPoseidon
+  compileExampleJustSym ``testPoseidon
     (←(
       poseidonBN254' ∪
       map ∪
@@ -274,6 +274,7 @@ open Clap.Compiler.SymSets Vector General in
       control ∪
       SymSets.List.range ∪
       sum ∪
+      zipWith ∪
       zeta
     ))
 

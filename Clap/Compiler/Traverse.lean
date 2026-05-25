@@ -131,7 +131,7 @@ def compilerSet_old : MetaM Sym.Simp.Methods :=
     ``Option.bind_assoc, ``bind_assoc,
     ``Option.pure_def,
     ``Option.bind_eq_bind, ``Option.bind_fun_some, ``Option.bind_some, ``bind_pure, ``pure_bind,
-    ``Option.map_eq_map, ``Option.map_some,
+    ``Option.map_eq_map, ``Option.map_some, ``Option.pure_apply
   ]
 
 def compilerSet_old' : MetaM Sym.Simp.Methods :=
@@ -142,7 +142,8 @@ def compilerSet_old' : MetaM Sym.Simp.Methods :=
     ``Option.bind_some,
     ``Option.map_eq_map,
     ``Option.map_some,
-    ``Option.bind_eq_bind
+    ``Option.bind_eq_bind,
+    ``Option.pure_apply
   ]
 
 def compilerSet : MetaM Sym.Simp.Methods :=
@@ -173,7 +174,7 @@ def heh : Sym.Simp.Simproc := fun e ↦ do
     -- Dbg.timeSince time "heh: "
     -- return res
     logInfo m!"m: {m}\nt: {t}\nx: {x}"
-    let e' ← Sym.shareCommon (mkApp2 (.const ``Option.some [←Sym.getLevel t]) t x)
+    let e' ← Sym.shareCommon (mkApp2 (.const ``Option.some [←Sym.getLevelInType t]) t x)
     return .step e' (←Sym.mkEqRefl e')
   | _ => return .rfl
 
@@ -183,6 +184,34 @@ def compilerSetAlt2 : MetaM Sym.Simp.Methods :=
     -- ``Option.bind_some,
     ``Option.pure_apply
   ]
+
+-- /--
+-- TODO: Highly experimental.
+-- -/
+-- def castGround : Simproc := fun e ↦ do
+--   let t ← Sym.inferType e
+--   let normalForm ← simpWithGround t
+--   if isSameExpr t (normalForm.getResultExpr t)
+--   then return .rfl
+--   -- TODO: Probably not the best idea.
+--   -- We are using `.mp` to detect that a cast has already ocurred, which might not be so smart.
+--   if e.isAppOf ``Eq.mp then return .rfl
+--   let proof : SymM Expr :=
+--     match normalForm with
+--     | .rfl .. => Sym.mkEqRefl t
+--     | .step _ prf .. => return prf
+--   let univ ← Sym.getLevel (normalForm.getResultExpr t)
+--   let e' := mkApp4 (.const ``Eq.mp [univ]) t (normalForm.getResultExpr t) (←proof) e
+--   trace[Clap.Compile.simp.proc.preprocess]
+--     m!"\n{e}\n==>\n{e'}\n\n{t}\n=t=>\n{(normalForm.getResultExpr t)}"
+--   return .step e' (←mkSorry (←mkEq e e') false)
+
+-- def cast : MetaM Methods :=
+--   mkPostMethods #[
+--     ``castGround
+
+--     -- ``appendDbg
+--   ]
 
 -- private def seemsTotallySafeInDTT : Simproc := fun e ↦ do
 --   let_expr Vector _ n := ←Sym.inferType e | return .rfl
@@ -255,16 +284,16 @@ def append : MetaM Methods :=
 
     ``List.cons_append, ``List.nil_append, ``List.append_nil,
 
-    ``Compiler.explodeVectorAppend,
+    -- ``Compiler.explodeVectorAppend,
 
     -- ``appendDbg
   ]
 
--- def explode : MetaM Methods := do
---   return {
---     post := explodeVector
---     pre  := dontExplodeVector
---   }
+def explode : MetaM Methods := do
+  return {
+    post := explodeVector
+    pre  := dontExplodeVector
+  }
 
 def foldlM : MetaM Methods :=
   mkPostMethods #[
@@ -434,7 +463,7 @@ def map : MetaM Methods :=
     
     ``List.map_cons, ``List.map_nil,
 
-    ``Compiler.explodeVectorMap
+    -- ``Compiler.explodeVectorMap
   ] ∪ mapOptim
   where
     mapOptim : MetaM Methods := mkPreMethods #[``List.map_id]
@@ -445,7 +474,7 @@ def mapIdx : MetaM Methods :=
     
     ``List.mapIdx_cons, ``List.mapIdx_nil,
 
-    ``Compiler.explodeVectorMapIdx
+    -- ``Compiler.explodeVectorMapIdx
   ] ∪ SymSets.General.ground
 
 def listOfArray (e : Expr) : Option Expr :=
@@ -461,127 +490,59 @@ Single step transformation. TODO: Does not play particularly nice with our top-l
 -/
 def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
   let time ← IO.monoMsNow
-  let_expr _root_.Vector.mapM _ t _ sz _ f vec := e | return .rfl
+  let_expr _root_.Vector.mapM _ α β sz _ f vec := e | return .rfl
   -- Ultimately, only `Vector.mk` is permitted. Free variables are transformed first.
-  let vec ← if vec.isFVar then sequenceAsVecExpr vec t sz else pure vec
+  let vec ← if vec.isFVar then sequenceAsVecExpr vec α sz else pure vec
   if !vec.isAppOf ``Vector.mk then return .rfl
   let szSimped := (←Sym.simpWithGround sz).getResultExpr sz
   if !isSameExpr sz szSimped then
-    trace[Clap.Compile.simp.proc.vector_mapM_mk_cons]
+    trace[Clap.Compile.simp.proc.vector_mapM_mk]
       m!"Info: Processing `Vector _ ({sz})` of ground length {szSimped}. Request:\n{e}"
   match szSimped.nat? with
   | .none => throwError m!"{sz} does not simplify to ground. Expr:\n{e} (TODO: Maybe this is ok.)"
   | .some szSimpedNat =>
-    let transformedList ← mkListLit t <| (List.range szSimpedNat).reverse.map .bvar
-    let transformedVector ← mkVecLit transformedList szSimped
-    let transformedVector? ← mkAppM ``Option.some #[transformedVector]
+    let transformedList ← Sym.mkListLit β <| (List.range szSimpedNat).reverse.map .bvar
+    let transformedVector ← mkVecLit β transformedList szSimped
+    let transformedVectorT ← Sym.inferType transformedVector
+    let v ← Sym.getLevelInType transformedVectorT
+    let transformedVector? :=
+      mkAppN (.const ``Option.some [v]) #[←Sym.inferType transformedVector, transformedVector]
     let transformedVector? ← Sym.shareCommonInc transformedVector?
     let .some (elems, _) := vectorElemsOfExpr vec | unreachable!
+    let u ← Sym.getLevelInType β
     /-
     Start with `.some #[.bvar sz.pred, .bvar sz.pred.pred, ..., .bvar 0]`
     Prefix a single lambda in each iteration.
     -/
     let e' ← (List.range szSimpedNat).foldrM (init := transformedVector?) fun i e ↦ do
-      -- let elem ← getElemVectorOfIdx vec szSimped i
       let elem := elems[i]!
-      liftM ∘ Sym.shareCommonInc =<< mkAppM ``Option.bind #[
-        ←Sym.shareCommonInc (f.beta #[elem]), -- TODO?: Expr.app f hdVec
-        .lam (binderInfo := .default)
-             (binderName := .mkSimple s!"row_{i}")
-             (binderType := t)
-             (body       := e) -- `f vec[i] >>= fun row_{i} ↦ e`
+      -- logInfo m!"{mkAppN -- `f vec[i] >>= fun row_{i} ↦ e`
+      --     (.const ``Option.bind [u, u])
+      --     #[
+      --       β, β,                                      -- implicits
+      --       ←Sym.shareCommonInc (f.beta #[elem]),      -- `f vec[i]`
+      --       .lam (binderInfo := .default)
+      --            (binderName := .mkSimple s!"row_{i}")
+      --            (binderType := β)
+      --            (body       := e)                     -- `fun row_{i} ↦ e`
+      --     ]}"
+      liftM ∘ Sym.shareCommonInc <|
+        mkAppN -- `f vec[i] >>= fun row_{i} ↦ e`
+          (.const ``Option.bind [u, v])
+          #[
+            β, transformedVectorT,                     -- implicits
+            ←Sym.shareCommonInc (f.beta #[elem]),      -- `f vec[i]`
+            .lam (binderInfo := .default)
+                 (binderName := .mkSimple s!"row_{i}")
+                 (binderType := β)
+                 (body       := e)                     -- `fun row_{i} ↦ e`
+          ]
       -- Careful, `e` contains loose bvars until the very last iteration.
-      ]
     trace[Clap.Compile.simp.proc.vector_mapM_mk_cons]
       m!"\n{e}\n==>\n{e'}"
     let proof ← mkSorry (←mkEq e e') false
     Dbg.timeSince time "Vector.mapM_mk_cons took"
     return .step e' proof
-
-/--
-0. Only for `Vector.mapM f xs`.
-1. Vector.mapM f #v[a, b, c] → Vector.mapM f (#v[a] ++ #v[b, c])
-2. Vector.mapM f (#v[x] ++ v) = do
-     let __do_lift ← f x
-     let __do_lift_1 ← Vector.mapM f v
-     pure (#v[__do_lift] ++ __do_lift_1)
--/
-def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
-  -- logInfo m!"Nodes: {←e.numObjs}"
-  -- let α ← IO.monoMsNow
-  let_expr _root_.Vector.mapM _ _ _ _ _ f vec := e | return .rfl
-  let_expr _root_.Vector.mk _ sz arr _ := vec | return .rfl
-  unless arr.isAppOf ``List.toArray || arr.isAppOf ``Array.mk do return .rfl
-  let l ← arr.getAppArgs[1]?.getDM (unreachable!)
-  let_expr List.cons t hd tl := l | return .rfl
-  let sz' ← Sym.simp sz
-  match (sz'.getResultExpr sz).nat? with
-  | .none => throwError m!"{sz} does not simplify to ground. Expr:\n{e}"
-  | .some szN =>
-    if szN == 0 then return .rfl
-    let hdVec ← mkVecLit (←mkListLit t [hd]) (mkNatLit 1)
-    let tl ← mkVecLit tl (toExpr (szN - 1)) -- Doing `-1` feels scary
-    -- -- `let appendHdTl ← mkAppM ``HAppend.hAppend #[hdVec, tl]` makes a silly `k + 0` vector
-    -- TODO: This is just a WIP-test solution, it's clearly terrible.
-    let appendHdTl ← if szN == 1 then pure hdVec else mkAppM ``HAppend.hAppend #[hdVec, tl]
-    let_expr Vector _ szAppendHdTl := ←Sym.inferType appendHdTl | unreachable!
-    let szAppendHdTlQ : Q(ℕ) := szAppendHdTl
-    let szDesired : Q(ℕ) := toExpr szN
-    let proof ← mkSorry q($szAppendHdTlQ = $szDesired) false
-    -- logInfo m!"will try to cowboy cast: {appendHdTl}"
-    -- let thatGuy ← cowboyCast appendHdTl szN
-    let thatGuy := appendHdTl
-    let thisGuy := appendHdTl
-    let thisGuy := thatGuy
-    let mapM ← mkAppM ``_root_.Vector.mapM #[f, thisGuy]
-    let theMiddleBit ←
-      if szN == 1
-      then mkVecLit (←mkListLit t [.bvar 1]) (mkNatLit 1)
-      else pure <| mkAppN
-            (.const ``HAppend.hAppend [
-              ←getDecLevel (←Sym.inferType hdVec),
-              ←getDecLevel (←Sym.inferType tl),
-              ←getDecLevel (←Sym.inferType thisGuy)
-            ]) #[
-              ←Sym.inferType hdVec,
-              ←Sym.inferType tl,
-              ←Sym.inferType thisGuy,
-              -- ←Sym.inferType appendHdTl,
-              ←Sym.synthInstance (←mkAppM ``HAppend #[←Sym.inferType hdVec,←Sym.inferType tl,←Sym.inferType thisGuy,]),
-              ←mkVecLit (←mkListLit t [.bvar 1]) (mkNatLit 1),
-              .bvar 0
-            ]
-    let consMapM ←
-      mkAppM ``Option.bind #[
-        f.beta #[hd],
-        -- Expr.app f hdVec,
-        .lam `fst t
-          (←mkAppM ``Option.bind #[
-                     ←mkAppM ``Vector.mapM #[f, tl],
-                     .lam `snd (←Sym.inferType tl)
-                       (←mkAppM ``Option.some #[theMiddleBit])
-                       .default
-          ])
-          .default 
-      ]
-
-    trace[Clap.Compile.simp.proc.vector_mapM_mk_eq_append]
-      m!"\n{e}\n==>\n{consMapM}"
-    let consMapM ← Compiler.Simp.reducedAndSharedInc consMapM
-    return .step consMapM (←mkSorry (←mkEq e mapM) false)
-    
-    -- -- TODO: I am guessing this is... slow?
-    -- let consMapM ← mapM.runTactic (←`(tactic| rw[$(mkIdent ``Vector.mapM_mk_singleton_append):ident]))
-    -- -- TODO: Puh-ROOF!
-    -- return .step consMapM (←mkSorry (←mkEq e mapM) false)
-
--- def _root_.Vector.mapM_mk_eq_append' : Sym.Simp.Simproc := fun e ↦ do
---   let_expr _root_.Vector.mapM _ _ _ _ _ f vec := e | return .rfl
---   let_expr _root_.Vector.mk _ sz arr _ := vec | return .rfl
---   unless arr.isAppOf ``List.toArray || arr.isAppOf ``Array.mk do return .rfl
---   let l ← arr.getAppArgs[1]?.getDM (unreachable!)
---   let_expr List.cons t hd tl := l | return .rfl
---   _
 
 /--
 `Vector.mapM_mk_singleton_append` is a part of `Vector.mapM_mk_append` to ensure that
@@ -599,13 +560,64 @@ def mapM : MetaM Methods :=
 --     ``Vector.mapM_mk_cons, ``Compiler.explodeVectorMapM
 --   ]
 
+def mk_zipWith_mk : Sym.Simp.Simproc := fun e => do
+  let_expr Vector.zipWith α β γ n f xs ys := e | return .rfl
+  -- let_expr Vector.mk _ szXs xs _ := xs | return .rfl
+  -- let_expr Vector.mk _ szYs ys _ := ys | return .rfl
+
+  logInfo m!"xs: {xs}\nys: {ys}"
+
+  let some (xs, szXs) := vectorElemsOfExpr xs | logError m!"unreachable - mk_zipWith_mk"; unreachable!
+  let some (ys, szYs) := vectorElemsOfExpr ys | logError m!"unreachable - mk_zipWith_mk"; unreachable!
+
+  if !isSameExpr szXs szYs then
+    trace[Clap.Compile.simp.proc.vector_mk_zipWith_mk]
+      m!"Info:\nxs.size = {szXs}\nys.size = {szYs}"
+
+  let result ← Sym.mkListLit γ (xs.zipWith (mkApp2 f) ys).toList
+
+  /-
+  Doesn't matter which size we choose, we always have to check at consumption cast.
+  Here, we take `n`, which need not be _syntactically_ equal to `szXs` nor `szYs`.
+
+  TODO: Ideally, there would be a normalising step that would process all vector sizes,
+  but it gets really tricky with casts.
+  -/
+  let e' ← mkVecLit γ result n
+
+  trace[Clap.Compile.simp.proc.vector_mk_zipWith_mk]
+    m!"\n{e}\n==>\n{e'}"
+  
+  return .step e' (←mkSorry (←mkEq e e') false) 
+
+  -- let αu ← Sym.getLevel α
+  -- let βu ← Sym.getLevel β
+  -- let γu ← Sym.getLevel γ
+
+  -- let arr := mkAppN (.const ``Array.zipWith [αu, βu, γu]) #[α, β, γ, f, xs, ys]
+
+  -- /-
+  -- Doesn't matter which size we choose, we always have to check at consumption cast.
+  -- Here, we take `n`, which need not be _syntactically_ equal to `szXs` nor `szYs`.
+
+  -- TODO: Ideally, there would be a normalising step that would process all vector sizes,
+  -- but it gets really tricky with casts.
+  -- -/
+  -- let e' ← inferVectorProof <| mkAppN (.const ``Vector.mk [γu]) #[γ, n, arr]
+  -- trace[Clap.Compile.simp.proc.vector_mk_zipWith_mk]
+  --   m!"\n{e}\n==>\n{e'}"
+
+  -- let e' ← Sym.mkListLit γ []
+
+  -- return .step e' (←mkSorry (←mkEq e e') false) -- Vector.mk_zipWith_mk
+
 def zipWith : MetaM Methods :=
   mkPostMethods #[
     ``Vector.mk_zipWith_mk, ``List.zipWith_toArray,
     
     ``List.zipWith_cons_cons, ``List.zipWith_nil_left, ``List.zipWith_nil_right,
 
-    ``Compiler.explodeVectorZipWith
+    -- ``Compiler.explodeVectorZipWith
   ]
 
 def take : MetaM Methods :=
@@ -614,7 +626,7 @@ def take : MetaM Methods :=
 
     ``List.take_succ_cons, ``List.take_nil, ``List.take_zero,
 
-    ``Compiler.explodeVectorTake
+    -- ``Compiler.explodeVectorTake
   ]
 
 def drop : MetaM Methods :=
@@ -623,7 +635,7 @@ def drop : MetaM Methods :=
 
     ``List.drop_succ_cons, ``List.drop_zero, ``List.drop_nil, ``List.drop_zero,
 
-    ``Compiler.explodeVectorDrop
+    -- ``Compiler.explodeVectorDrop
   ]
 
 def extract : MetaM Methods :=
@@ -647,7 +659,7 @@ def foldr : MetaM Methods :=
 
     ``List.foldr_cons, ``List.foldr_nil,
 
-    ``Compiler.explodeVectorFoldr
+    -- ``Compiler.explodeVectorFoldr
   ] ∪ size ∪ SymSets.General.ground
 
 def sum : MetaM Methods :=
@@ -767,6 +779,15 @@ def ex₂ (vec : Vector Nat 3) : Option Unit := do
   let x := (vec ++ vec)[0] -- `GetElem (Vector _ (3 + 3))`
   eq0 x
 
+set_option trace.Clap.Compile true
+
+/--
+info: Compiled:
+fun vec => eq0 vec[0]
+-/
+#guard_msgs(info, whitespace := lax, drop warning) in
+#eval spoon <| do compileExampleJustSym ``ex₂ (←(getElem ∪ append ∪ zeta ∪ explode))
+
 def ex₃ (vec : Vector Nat 200) : Option Unit := do
   let x := vec.map (·+1)
   eq0 x[0]
@@ -776,7 +797,7 @@ info: Compiled:
 fun vec => eq0 (vec[0] + 1)
 -/
 #guard_msgs(info, whitespace := lax, drop warning) in
-#eval spoon <| do compileExampleJustSym ``ex₃ (←(map ∪ zeta ∪ getElem))
+#eval spoon <| do compileExampleJustSym ``ex₃ (←(map ∪ zeta ∪ getElem ∪ explode))
 
 def ex₄ (vec : Vector Nat 160) : Option Unit := do
   let x ← vec.mapM (fun x ↦ return x + 1)
@@ -787,7 +808,16 @@ info: Compiled:
 fun vec => eq0 (vec[0] + 1)
 -/
 #guard_msgs(info, whitespace := lax, drop warning) in
-#eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerSet ∪ getElem))
+#eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerSet_old ∪ getElem))
+
+example {vec : Vector Nat 160} : ex₄ vec = eq0 (vec[0] + 1) := by
+  unfold ex₄
+  compile_just_sym [SymSets.Vector.mapM, compilerSet_old, SymSets.Vector.getElem]
+  rfl
+  -- simp only [Option.pure_def, Option.bind_eq_bind]
+  -- erw [Option.bind_some]
+  -- simp
+  -- rfl
 
 def ex₅ (vec : Vector Nat 3) : Option Unit := do
   eq0 ((vec ++ vec)[0])
@@ -807,6 +837,10 @@ fun vec =>
 -/
 #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₅ (←(append ∪ getElem ∪ zipWith ∪ zeta ∪ map ∪ compilerSet_old'))
+
+example {vec : Vector Nat 3} : ex₅ vec = sorry := by
+  unfold ex₅
+  compile_just_sym [SymSets.Vector.zipWith, SymSets.Vector.map]
 
 def ex₆ (vec : Vector Nat 3) : Option Unit := do
   eq0 ((vec ++ vec)[0])
@@ -845,16 +879,16 @@ def ex₈ (vec : Vector Nat 3) : Option Unit := do
   eq0 res[1]
   eq0 res[2]
 
-/--
-info: Compiled:
-fun vec =>
-(eq0 42).bind fun x =>
-(eq0 (vec[0] + 1 + 1)).bind fun x =>
-(eq0 (vec[1] + 5 + 1)).bind fun x =>
-eq0 (vec[2] + 10 + 1)
--/
-#guard_msgs(info, whitespace := lax, drop warning) in
-#eval spoon <| do compileExampleJustSym ``ex₈ (←(zipWith ∪ mapM ∪ getElem ∪ zeta ∪ compilerSet_old'))
+-- /--
+-- info: Compiled:
+-- fun vec =>
+-- (eq0 42).bind fun x =>
+-- (eq0 (vec[0] + 1 + 1)).bind fun x =>
+-- (eq0 (vec[1] + 5 + 1)).bind fun x =>
+-- eq0 (vec[2] + 10 + 1)
+-- -/
+-- #guard_msgs(info, whitespace := lax, drop warning) in
+-- #eval spoon <| do compileExampleJustSym ``ex₈ (←(zipWith ∪ mapM ∪ getElem ∪ zeta ∪ compilerSet_old'))
 
 def ex₉ (vec : Vector Nat 3) : Option Unit := do
   let res := (#v[0] ++ vec).extract 1 2
