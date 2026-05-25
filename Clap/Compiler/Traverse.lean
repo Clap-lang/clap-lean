@@ -809,17 +809,7 @@ fun vec =>
     ``ex₅
     (←(append ∪ explode ∪ getElem ∪ map ∪ zipWith ∪ zeta ∪ compilerSet_old))
 
-open SymSets Vector in
-example {vec : Vector Nat 3} : ex₅ vec = sorry := by
-  unfold ex₅
-  compile_just_sym [
-    SymSets.Vector.append, explode,
-    SymSets.Vector.getElem, SymSets.Vector.map,
-    SymSets.Vector.zipWith,
-    zeta
-  ]
-
-def ex₆ (vec : Vector Nat 3) : Option Unit := do
+def ex₆ (vec : Vector Nat 160) : Option Unit := do
   eq0 ((vec ++ vec)[0])
   eq0 0
   let res := (vec.drop 1).take 1
@@ -867,7 +857,7 @@ eq0 (vec[2] + 10 + 1)
 #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₈ (←(zipWith ∪ mapM ∪ getElem ∪ zeta ∪ compilerSet_old ∪ explode))
 
-def ex₉ (vec : Vector Nat 3) : Option Unit := do
+def ex₉ (vec : Vector Nat 160) : Option Unit := do
   let res := (#v[0] ++ vec).extract 1 2
   eq0 res[0]
 
@@ -878,7 +868,7 @@ fun vec => eq0 vec[0]
 #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₉ (←(extract ∪ append ∪ getElem ∪ zeta ∪ compilerSet_old ∪ explode))
 
-def ex₁₀ (vec : Vector Nat 3) : Option Unit := do
+def ex₁₀ (vec : Vector Nat 160) : Option Unit := do
   let res := (#v[0] ++ vec).set 0 42
   eq0 res[0]
 
@@ -889,7 +879,7 @@ fun vec => eq0 42
 #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₁₀ (←(set ∪ append ∪ getElem ∪ zeta ∪ compilerSet_old ∪ explode))
 
-def ex₁₁ (vec : Vector Nat 3) : Option Unit := do
+def ex₁₁ (vec : Vector Nat 160) : Option Unit := do
   let res := vec.mapIdx fun i x ↦ x + i
   eq0 res[0]
 
