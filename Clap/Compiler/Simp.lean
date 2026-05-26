@@ -1,5 +1,6 @@
 import Lean
 import Lean.Meta.Sym.SymM
+import Clap.Compiler.Wheels
 
 open Lean Meta Elab
 
@@ -56,7 +57,7 @@ def SimpSet.toSimpSet (s : SimpSet) : Array Lemma :=
   s.pos.map (Function.uncurry Lemma.pos) ++
   s.neg.map Lemma.neg
 
-def SimpSet.union (s₁ s₂ : SimpSet) : SimpSet where
+def SimpSet.andThen (s₁ s₂ : SimpSet) : SimpSet where
   pos := s₁.pos ++ s₂.pos
   neg := s₁.neg ++ s₂.neg
 
@@ -125,11 +126,11 @@ def andThen (names : Array Name) : MetaM Sym.Simp.Simproc := do
 instance : Singleton Sym.Simp.Simproc Sym.Simp.Methods where
   singleton x := {post := x}
 
-instance : Union Sym.Simp.Methods := ⟨
+instance : AndThen Sym.Simp.Methods := ⟨
   fun m₁ m₂ =>
     {
-      pre := m₁.pre >> m₂.pre
-      post := m₁.post >> m₂.post
+      pre := m₁.pre >> (m₂ ()).pre
+      post := m₁.post >> (m₂ ()).post
     }
   ⟩
 
@@ -139,8 +140,8 @@ def SimpSet.toMethods (s : SimpSet) : Sym.SymM Sym.Simp.Methods := do
   let (preSimp, preThm) ← pre.toList.partitionM (liftM ∘ isSimproc)
   let (postSimp, postThm) ← post.toList.partitionM (liftM ∘ isSimproc)
   logInfo m!"preThm: {preThm}\npreSimp: {preSimp}\npostThm:{postThm}\npostSimp:{postSimp}"
-  let simprocsPre := (←Sym.mkSimprocFor preThm.toArray) <|> (←andThen preSimp.toArray)
-  let simprocsPost := (← Sym.mkSimprocFor postThm.toArray) <|> (←andThen postSimp.toArray)
+  let simprocsPre := (←Sym.mkSimprocFor preThm.toArray) <|> (←API.andThen preSimp.toArray)
+  let simprocsPost := (← Sym.mkSimprocFor postThm.toArray) <|> (←API.andThen postSimp.toArray)
   return {
     pre := simprocsPre
     post := simprocsPost
@@ -155,7 +156,7 @@ section Debug
 deriving instance Repr for Sym.Simp.Config
 end Debug
 
-instance : Union SimpSet := ⟨SimpSet.union⟩
+instance : AndThen SimpSet := ⟨fun a b ↦ SimpSet.andThen a (b ())⟩
 
 instance : Singleton Name SimpSet where
   singleton x := ⟨#[(x, .Post)], #[]⟩
@@ -210,11 +211,35 @@ def forceHeartbeats {α : Type} {m : Type → Type} [MonadWithReaderOf Core.Cont
                     (heartBeats : Nat) : m α → m α :=
   withTheReader Core.Context ({· with maxHeartbeats := heartBeats * 1000})
 
+opaque clapwrap {α : Type} (inner : Option α) : Option α
+
+def wrapper := Expr.const ``clapwrap []
+
+/--
+`Sym.simp` doesn't know when to stop!
+Even if `(done := true)`, we still get the fixpoint... ouch?
+
+This is a workaround. We return a wrapped expression that matches nothing to stop the recursion.
+Amazing...
+-/
+def wrapped (t e : Expr) : Expr :=
+  mkApp2 wrapper t e
+
+@[inherit_doc wrapped]
+def unwrapped (e : Expr) : Expr :=
+  if let (``clapwrap, #[_, inner]) := e.getAppFnArgs then inner else e
+
 set_option hygiene false in
 def simplify (simpset : Sym.Simp.Methods) (e : Expr) : Sym.Simp.SimpM Expr := do
-  let e ← preprocessExpr e
+  -- let e ← preprocessExpr e
   tryCatchRuntimeEx
-    do return (←Sym.simp e simpset config).getResultExpr e
+    do
+      -- let time ← IO.monoMsNow
+      -- logInfo m!"Compiling:\n{e}"
+      let res := (←Sym.simp e simpset config).getResultExpr e
+      -- Dbg.timeSince time "simplify took:"
+      -- unwrap _after_ simp, it is _not_ enough to put last in the simp chain
+      return unwrapped res
     fun exc =>
       throwError m!"***SIMP ERRROR***\nExpression:\n{e}\nInternal:\n{exc.toMessageData}"
 

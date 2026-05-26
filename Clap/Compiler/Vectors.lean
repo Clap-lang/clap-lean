@@ -41,7 +41,7 @@ def getElemVectorOfIdx (coll t sz : Expr) (idx : ℕ) : Sym.Simp.SimpM Expr := d
   Sym.shareCommonInc <| mkAppN getElemSansProof #[←mkSorry proofIsValid false]
 
 def inferVectorProof (vectorSansProof : Expr) : Sym.Simp.SimpM Expr := do
-  let .forallE _ argT _ _ ← Sym.inferType vectorSansProof | unreachable!
+  let .forallE _ argT _ _ ← Sym.inferType vectorSansProof | logError m!"inferVectorProof"; unreachable!
   Sym.shareCommonInc <| .app vectorSansProof (←mkSorry argT false)
 
 def mkVecLit (t l len : Expr) : Sym.Simp.SimpM Expr := do
@@ -51,9 +51,16 @@ def mkVecLit (t l len : Expr) : Sym.Simp.SimpM Expr := do
   let vector ← inferVectorProof vectorSansProof
   Sym.shareCommonInc vector -- TODO: Check if `...inc` is enough.
   
-private def mkListLitAux (nil : Expr) (cons : Expr) : List Expr → Expr
+private def mkListLitAux' (nil : Expr) (cons : Expr) : List Expr → Expr
   | []    => nil
-  | x::xs => mkApp (mkApp cons x) (mkListLitAux nil cons xs)
+  | x::xs => mkApp (mkApp cons x) (mkListLitAux' nil cons xs)
+
+private def mkListLitAux (nil : Expr) (cons : Expr) (l : List Expr) : Expr :=
+  go nil nil cons l.reverse
+  where
+    go (res nil cons : Expr) : List Expr → Expr
+    | []    => res
+    | x::xs => go (mkApp (mkApp cons x) res) nil cons xs
 
 open Lean Meta Sym in
 def _root_.Lean.Meta.Sym.mkListLit (type : Expr) (xs : List Expr) : SymM Expr := do
@@ -79,8 +86,8 @@ def sequenceAsVecExpr (name : Expr) (t sz : Expr) : Sym.Simp.SimpM Expr := do
                 ←mkListLit t (←List.range lenSimpedNat |>.mapM (getElemVectorOfIdx name t sz))
               )
   let e' ← mkVecLit t elems sz
-  trace[Clap.Compile.simp.proc.sequenceAsVecExpr]
-    m!"[vec = {name}][length = {sz}][elemType = {t}]\n==>\n{e'}"
+  -- trace[Clap.Compile.simp.proc.sequenceAsVecExpr]
+  --   m!"[vec = {name}][length = {sz}][elemType = {t}]\n==>\n{e'}"
   return e'
 
 -- lemma abc {α} {vec : Vector α 2} : vec = #v[vec[0], vec[1]] := by
@@ -163,7 +170,7 @@ Use with `↓`.
 def dontExplodeVector : Sym.Simp.Simproc := fun e ↦ do
   let_expr GetElem.getElem _ _ _ _ _ coll _ _ := e | return .rfl
   unless coll.isFVar && (←inferType coll).isAppOf ``Vector do return .rfl
-  -- trace[Clap.Compile.simp.kaboom] m!"Marked done:\n{e}"
+  trace[Clap.Compile.simp.proc.kaboom] m!"Marked done:\n{e}"
   return .rfl (done := true)
 
 /--
@@ -172,7 +179,7 @@ Use with ↑.
 TODO: The proof is not `rfl`. One can prove all of these `by aesop (add cases [Vector, Array, List])`,
       but I'd rather not lift to `aesop` and build the proof by hand (viz. `abc'` above).
 -/
-def explodeVector : Sym.Simp.Simproc := fun e ↦ do
+def explodeVector (who : String := "") : Sym.Simp.Simproc := fun e ↦ do
   let t ← Sym.inferType e
   let_expr Vector t sz := t | return .rfl
   unless e.isFVar do return .rfl
@@ -180,7 +187,8 @@ def explodeVector : Sym.Simp.Simproc := fun e ↦ do
   match (sz'.getResultExpr sz).nat? with
   | .none => throwError m!"{sz} does not simplify to ground.\nExpr:\n{e}"
   | .some _n => let explodedVec ← (sequenceAsVecExpr e t (sz'.getResultExpr sz)).run'
-                trace[Clap.Compile.simp.kaboom] m!"Exploding:\n{e}\n==>\n{explodedVec}"
+                trace[Clap.Compile.simp.proc.kaboom] m!"{who}"
+                -- trace[Clap.Compile.simp.proc.kaboom] m!"Exploding:\n{e}\n==>\n{explodedVec}"
                 return .step explodedVec (←mkSorry (←mkEq e explodedVec) false)
 
 def toVectorSequence? (e : Expr) : Sym.Simp.SimpM (Option (Expr × Expr × Expr)) := do
@@ -230,7 +238,7 @@ TODO: Generalise.
 --     Sym.shareCommonInc
 --       (mkAppN (.const ``HAppend.hAppend [u, v, w]) #[α, β, γ, inst, a, b])
 
---   trace[Clap.Compile.simp.kaboom]
+--   trace[Clap.Compile.simp.proc.kaboom]
 --     m!"\n{e}\n==>\n{append}"
 
 --   return .step append (←mkSorry (←mkEq e append) false)
@@ -246,7 +254,7 @@ TODO: Generalise.
 --   match xs with
 --   | .none => return .rfl
 --   | .some xs => let map ← reducedAndSharedInc (←mkAppM ``Vector.map #[f, xs])
---                 trace[Clap.Compile.simp.kaboom]
+--                 trace[Clap.Compile.simp.proc.kaboom]
 --                   m!"\n{e}\n==>\n{map}"
 --                 return .step map (←mkSorry (←mkEq e map) false)
 
@@ -259,7 +267,7 @@ TODO: Generalise.
 --   match xs with
 --   | .none => return .rfl
 --   | .some xs => let mapIdx ← Sym.shareCommonInc (←mkAppM ``Vector.mapIdx #[f, xs])
---                 trace[Clap.Compile.simp.kaboom]
+--                 trace[Clap.Compile.simp.proc.kaboom]
 --                   m!"\n{e}\n==>\n{mapIdx}"
 --                 return .step mapIdx (←mkSorry (←mkEq e mapIdx) false)
 
@@ -272,7 +280,7 @@ TODO: Generalise.
 --   match xs with
 --   | .none => return .rfl
 --   | .some xs => let map ← Sym.shareCommonInc (←mkAppM ``Vector.mapM #[f, xs])
---                 trace[Clap.Compile.simp.kaboom]
+--                 trace[Clap.Compile.simp.proc.kaboom]
 --                   m!"\n{e}\n==>\n{map}"
 --                 return .step map (←mkSorry (←mkEq e map) false)
 
@@ -287,7 +295,7 @@ TODO: Generalise.
 --   if a?.isNone && b?.isNone then return .rfl
 
 --   let zipWith ← Sym.shareCommonInc (← mkAppM ``Vector.zipWith #[f, a?.getD a, b?.getD b])
---   trace[Clap.Compile.simp.kaboom]
+--   trace[Clap.Compile.simp.proc.kaboom]
 --     m!"\n{e}\n==>\n{zipWith}"
 --   return .step zipWith (←mkSorry (←mkEq e zipWith) false)
 
@@ -300,7 +308,7 @@ TODO: Generalise.
 --   match xs with
 --   | .none => return .rfl
 --   | .some xs => let drop ← reducedAndSharedInc (←mkAppM ``Vector.drop #[xs, k])
---                 trace[Clap.Compile.simp.kaboom]
+--                 trace[Clap.Compile.simp.proc.kaboom]
 --                   m!"\n{e}\n==>\n{drop}"
 --                 return .step drop (←mkSorry (←mkEq e drop) false)
 
@@ -313,7 +321,7 @@ TODO: Generalise.
 --   match xs with
 --   | .none => return .rfl
 --   | .some xs => let take ← reducedAndSharedInc (←mkAppM ``Vector.take #[xs, k])
---                 trace[Clap.Compile.simp.kaboom]
+--                 trace[Clap.Compile.simp.proc.kaboom]
 --                   m!"\n{e}\n==>\n{take}"
 --                 return .step take (←mkSorry (←mkEq e take) false)
 -- /--
@@ -325,7 +333,7 @@ TODO: Generalise.
 --   match xs with
 --   | .none => return .rfl
 --   | .some xs => let foldr ← Sym.shareCommonInc (←mkAppM ``Vector.foldr #[f, init, xs])
---                 trace[Clap.Compile.simp.kaboom]
+--                 trace[Clap.Compile.simp.proc.kaboom]
 --                   m!"\n{e}\n==>\n{foldr}"
 --                 return .step foldr (←mkSorry (←mkEq e foldr) false)
 
@@ -350,7 +358,7 @@ TODO: Generalise.
 --       logInfo m!"This.\nbinder[{arg}] in: {body}\nt:{t}\nn:{n}\n"
 --       let explodedVec ← (sequenceAsVecExpr arg t n).run' -- Ideally `(.bvar 0)`.
 --       logInfo m!"exploded: {explodedVec}"
---       trace[Clap.Compile.simp.kaboom] m!"Exploding:\n{e}\n==>\n{explodedVec}"
+--       trace[Clap.Compile.simp.proc.kaboom] m!"Exploding:\n{e}\n==>\n{explodedVec}"
 --       let body ← Sym.replaceS body fun e _ ↦ do
 --         if !Sym.isSameExpr e arg then return .none -- Does this even trigger?
 --         return .some explodedVec

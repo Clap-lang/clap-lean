@@ -66,15 +66,16 @@ def mixLast {t : ℕ} (state : Vector (F p) t) (M : Vector (Vector (F p) t) t) (
 def mixS {t s : ℕ} (r : ℕ) (state : Vector (F p) t) (S : Vector (F p) s) : Vector (F p) t :=
 --  let t : ℕ := state.length
   let base : ℕ := (2 * t - 1) * r
-  ⟨#[dotProduct base] ++ (tail base).toArray, sorry⟩
+  state
+  -- ⟨#[dotProduct base] ++ (tail base).toArray, sorry⟩
 where
   /-- `out[0] = Σᵢ S[base + i] · in[i]` — full dot product for element 0 -/
-  dotProduct (base : ℕ) : F p :=
-    let s' : Vector _ t := ⟨S.extract base (base+t) |>.toArray, sorry⟩
-    (state.zipWith (· * ·) s').sum
+  dotProduct (base : ℕ) : F p := 0
+    -- let s' : Vector _ t := ⟨S.extract base (base+t) |>.toArray, sorry⟩
+    -- (state.zipWith (· * ·) s').sum
   /-- `out[i] = in[i] + in[0] · S[base + t + i − 1]` for `i ∈ [1, t)` -/
-  tail (base : ℕ) : Vector (F p) (t-1) :=
-    (state.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state[0]'sorry * S[base + t + i]'sorry)
+  tail (base : ℕ) : Vector (F p) (t-1) := state.drop 1
+    -- (state.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state[0]'sorry * S[base + t + i]'sorry)
 
 -- TODO: Imperative or functional style?
 -- def mixS (r : ℕ) (state : Array (F p)) (s : Array (F p)) : Array (F p) := Id.run do
@@ -123,7 +124,9 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := 1 + n
   let nRoundsF : ℕ := 8
-  let nRoundsP : ℕ := N_ROUNDS_P[t - 2]'sorry
+  let nRoundsP : ℕ := 20
+  -- let nRoundsF : ℕ := 8
+  -- let nRoundsP : ℕ := N_ROUNDS_P[t - 2]'sorry
   let half : ℕ := nRoundsF / 2
 
   let state : Vector (F p) t := #v[initState] ++ inputs
@@ -131,28 +134,31 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
   let state := ark state C 0
 
-  -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
-  let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
-    let l ← state.mapM sigma
-    mix (ark l C ((r + 1) * t)) M) state
+  -- -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
+  -- let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
+  --   let l ← state.mapM sigma
+  --   mix (ark l C ((r + 1) * t)) M) state
 
-  -- Boundary round (r = half−1): sigma → ark → mix with P
-  let state := mix (ark (← state.mapM sigma) C (half * t)) P
+  -- -- Boundary round (r = half−1): sigma → ark → mix with P
+  -- let state := mix (ark (← state.mapM sigma) C (half * t)) P
 
   -- Phase 2: partial rounds
   let state ← (List.range nRoundsP).foldlM (fun state r ↦ do
-    let s0 := (← sigma state[0]) + C[(half + 1) * t + r]'sorry
-    mixS r (state.set 0 s0) S) state
+    let s0  ← sigma state[0]
+    -- let s0 := (← sigma state[0]) + C[(half + 1) * t + r]'sorry
+    mixS r (state.set 0 s0) S
+    ) state
+    -- mixS r (state.set 0 s0) S) state
 
-  state[0]
   -- -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
   -- let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
   --   let l ← state.mapM sigma
   --   mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
 
-  -- -- Final round: sigma on all, then extract nOuts elements via MixLast
+  -- Final round: sigma on all, then extract nOuts elements via MixLast
   -- let state ← state.mapM sigma
   -- mixLast state M 0
+  state[0]
 
 /-- **Poseidon:** Single-output Poseidon hash. Wraps `poseidonEx` with
     `nOuts = 1` and `initialState = 0`, returning the first element of
@@ -173,10 +179,6 @@ def poseidonBN254 {n} (inputs : Vector (F bn254) n) : Option (F bn254) :=
   let M := Clap.PoseidonVec.Constant.M t
   let P := Clap.PoseidonVec.Constant.P t
   poseidon inputs C S M P
-
-
-
-
 
 end Poseidon254
 
@@ -224,7 +226,7 @@ private def testPoseidon (inputs : Vector (ZMod p) 2) (expected : F p) : Option 
   let res ← poseidonBN254 inputs
   F.assert_eq res expected
 -- bind (poseidonBN254 inputs) >>= fun res ↦ F.assert_eq res expected
--- process (poseidonBN254 inputs) | push 
+-- process (poseidonBN254 inputs) | push
 def poseidonBN254 : SimpSet :=
   SimpSet.withAllPost #[
     ``PoseidonVec.poseidonBN254, ``poseidon, ``poseidonEx,
@@ -242,9 +244,9 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
     ``PoseidonVec.poseidonBN254.eq_def, ``poseidon.eq_def, ``poseidonEx.eq_def,
     ``ark.eq_def, ``sigma.eq_def, ``id.eq_def,  -- const.eq_def : some Sym.simp thing...
     ``Constant.C.eq_def, ``Constant.M.eq_def, ``Constant.P.eq_def, ``Constant.S.eq_def,
-    ``F.eq_def, ``mix.eq_def, ``mixS.eq_def, ``mixS.dotProduct.eq_def, ``mixS.tail.eq_def,
+    ``F.eq_def, ``mix.eq_def, ``mixS.eq_def, ``mixS.dotProduct.eq_def, ``mixS.tail.eq_def, ``mixLast.eq_def,
     -- ``Constant.C.C02.eq_def, ``Constant.C.C03.eq_def, ``Constant.C.C04.eq_def,``Constant.C.C05.eq_def, ``Constant.C.C06.eq_def, ``Constant.C.C07.eq_def, ``Constant.C.C08.eq_def, ``Constant.C.C09.eq_def, ``Constant.C.C10.eq_def, ``Constant.C.C11.eq_def, ``Constant.C.C12.eq_def, ``Constant.C.C13.eq_def, ``Constant.C.C14.eq_def, ``Constant.C.C15.eq_def, ``Constant.C.C16.eq_def, ``Constant.C.C17.eq_def,
-    ``Constant.M.M02.eq_def, ``Constant.M.M03.eq_def, ``Constant.M.M04.eq_def,``Constant.M.M05.eq_def, ``Constant.M.M06.eq_def, ``Constant.M.M07.eq_def, ``Constant.M.M08.eq_def, ``Constant.M.M09.eq_def, ``Constant.M.M10.eq_def, ``Constant.M.M11.eq_def, ``Constant.M.M12.eq_def, ``Constant.M.M13.eq_def, ``Constant.M.M14.eq_def, ``Constant.M.M15.eq_def, ``Constant.M.M16.eq_def, ``Constant.M.M17.eq_def,
+    -- ``Constant.M.M02.eq_def, ``Constant.M.M03.eq_def, ``Constant.M.M04.eq_def,``Constant.M.M05.eq_def, ``Constant.M.M06.eq_def, ``Constant.M.M07.eq_def, ``Constant.M.M08.eq_def, ``Constant.M.M09.eq_def, ``Constant.M.M10.eq_def, ``Constant.M.M11.eq_def, ``Constant.M.M12.eq_def, ``Constant.M.M13.eq_def, ``Constant.M.M14.eq_def, ``Constant.M.M15.eq_def, ``Constant.M.M16.eq_def, ``Constant.M.M17.eq_def,
     -- ``Constant.P.P02.eq_def, ``Constant.P.P03.eq_def, ``Constant.P.P04.eq_def,``Constant.P.P05.eq_def, ``Constant.P.P06.eq_def, ``Constant.P.P07.eq_def, ``Constant.P.P08.eq_def, ``Constant.P.P09.eq_def, ``Constant.P.P10.eq_def, ``Constant.P.P11.eq_def, ``Constant.P.P12.eq_def, ``Constant.P.P13.eq_def, ``Constant.P.P14.eq_def, ``Constant.P.P15.eq_def, ``Constant.P.P16.eq_def, ``Constant.P.P17.eq_def,
     -- ``Constant.S.S02.eq_def, ``Constant.S.S03.eq_def, ``Constant.S.S04.eq_def,``Constant.S.S05.eq_def, ``Constant.S.S06.eq_def, ``Constant.S.S07.eq_def, ``Constant.S.S08.eq_def, ``Constant.S.S09.eq_def, ``Constant.S.S10.eq_def, ``Constant.S.S11.eq_def, ``Constant.S.S12.eq_def, ``Constant.S.S13.eq_def, ``Constant.S.S14.eq_def, ``Constant.S.S15.eq_def, ``Constant.S.S16.eq_def, ``Constant.S.S17.eq_def,
 
@@ -259,33 +261,113 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
 --  ``mix, ``mixS, ``mixS.dotProduct, ``mixS.tail
   ]
 
-set_option trace.Clap.Compile.simp.proc.vector_mk_zipWith_mk true in
-open Clap.Compiler.SymSets Vector General in
+/-
+Timings:
+  `nRoundsF = 1, nRoundsP = 2` | `  1.083000s`
+  `nRoundsF = 1, nRoundsP = 4` | `  1.645000s`
+  `nRoundsF = 1, nRoundsP = 6` | ` 10.588000s`
+  `nRoundsF = 1, nRoundsP = 8` | `366.672000s`
+  -------------------------------------------
+  `nRoundsF = 8, nRoundsP = 2` | `  4.653000s`
+  `nRoundsF = 8, nRoundsP = 4` | `  6.060000s`
+  `nRoundsF = 8, nRoundsP = 6` | ` 16.021000s`
+  `nRoundsF = 8, nRoundsP = 8` | `?`
+-/
+
+/-
+Minimised:
+  `nRoundsF = 1, nRoundsP = 2 | 0.203000s`
+  `nRoundsF = 1, nRoundsP = 4 | 0.265000s`
+  `nRoundsF = 1, nRoundsP = 8 | 0.555000s`
+  `nRoundsF = 1, nRoundsP = 16 | 6.779000s`
+-/
+
+-- set_option debug.skipKernelTC true in
+-- set_option trace.Clap.Compile true in
+-- set_option trace.Clap.Compile.simp.proc.vector_mk_zipWith_mk true in
+-- set_option trace.Clap.Compile.simp.proc.monad true in
+open Clap.Compiler.SymSets General in
 -- set_option pp.exprSizes true in
--- set_option maxRecDepth 8192 in
--- set_option pp.proofs true in
-#eval spoon <| do
+set_option maxRecDepth 1000000 in
+set_option maxHeartbeats 0 in
+-- set_option maxHeartbeats 100000 in
+
+-- set_option trace.Clap.Compile.simp.proc.vector_getElem_mk true in
+-- set_option trace.Clap.Compile.simp.proc.kaboom true in
+-- set_option trace.Clap.Compile.simp.proc.vector_mapIdx_mk true in
+-- set_option trace.Clap.Compile.simp.proc.vector_mk_append_mk true in
+-- set_option trace.Clap.Compile.dbg true in
+-- set_option trace.Clap.Compile true in
+#eval spoon (pretty := false) <| do
   compileExampleJustSym ``testPoseidon
     (←(
-      poseidonBN254' ∪
-      map ∪
-      getElem ∪
-      append ∪
-      mapM ∪
-      foldlM ∪ mapIdx ∪
-      control ∪
-      SymSets.List.range ∪
-      sum ∪
-      zipWith ∪
-      zeta ∪
-      explode ∪
-      set ∪
-      drop ∪
-      extract ∪
-      toArray
-      -- ∪
-      -- compilerSet_whatever
+      poseidonBN254'
+      ∪ Clap.Compiler.ExampruSym.NewTraversal.Dom.flattenBindsAny_pre
+      ∪ Clap.Compiler.ExampruSym.NewTraversal.Dom.bindPureMany_pre
+      ∪ Clap.Compiler.SymSets.Vector.unfold_generic_collection_functions_pre
+      ∪ SymSets.General.beta
+      ∪ SymSets.General.zeta
+      ∪ control
+      -- ∪ Vector.explode
+      -- ∪ Clap.Compiler.SymSets.Vector.map
+      -- ∪ Clap.Compiler.SymSets.Vector.getElem
+      ∪ Clap.Compiler.SymSets.Vector.append
+      -- ∪ Clap.Compiler.SymSets.Vector.mapM
+      -- ∪ Clap.Compiler.SymSets.Vector.foldlM_post
+      ∪ Clap.Compiler.SymSets.Vector.mapIdx
+      ∪ SymSets.List.range
+      -- ∪ Clap.Compiler.SymSets.Vector.zipWith
+      -- ∪ Clap.Compiler.SymSets.Vector.sum
+      ∪ Clap.Compiler.SymSets.Vector.set
+      -- ∪ Clap.Compiler.SymSets.Vector.drop
+      -- ∪ Clap.Compiler.SymSets.Vector.extract
+      -- ∪ Clap.Compiler.SymSets.Vector.toArray
+      -- ∪ monads
+      -- compilerAssoc
+      -- bindMyAssoc_set
     ))
+
+#exit
+
+namespace DownTest
+
+open Clap.Compiler.SymSets General in
+set_option pp.exprSizes true in
+set_option maxRecDepth 1000000 in
+#eval spoon <| do
+  compileExample ``testPoseidon (←(
+    poseidonBN254' ∪
+    SymSets.General.ground ∪
+    control ∪
+    (return default)
+  ))
+
+-- `test = poseidonBN254`
+-- def poseidonBN254 {n} (inputs : Vector (F bn254) n) : Option (F bn254)
+set_option autoImplicit true in
+def testExample (test: Name) : MetaM Bool := do
+  let compiled ← liftExpr (Clap.Compiler.compileExample test (←(
+    poseidonBN254' ∪
+    SymSets.General.ground ∪
+    Clap.Compiler.SymSets.General.control ∪
+    (return default)
+  )))
+  logInfo m!"compiled:\n{compiled}"
+  let raw := ((←getEnv).find? test).get!.value!
+  logInfo m!"raw: {raw}"
+  -- `q((n : ℕ) → Vector (F p) n → Option (F p))`
+  let typeExpr := ((←getEnv).find? test).get!.type
+  let stuff ← unsafe evalExpr ((n : ℕ) → Vector (F p) n → Option (F p)) typeExpr raw
+  let stuffEvald := stuff _ #v[1, 2]
+  logInfo m!"stuffEvald: {repr stuffEvald}"
+  let stuff' ← unsafe evalExpr ((n : ℕ) → Vector (F p) n → Option (F p)) typeExpr compiled
+  let stuff'Evald := stuff' _ #v[1, 2]
+  logInfo m!"stuff'Evald: {repr stuff'Evald}"
+  return stuffEvald == stuff'Evald
+
+#eval! testExample ``Clap.PoseidonVec.poseidonBN254
+
+end DownTest
 
 -- set_option trace.Clap.Compile.simp.fail true
 -- set_option trace.Meta.Tactic.simp true
@@ -310,7 +392,7 @@ set_option maxHeartbeats 400000
 --      CompileSets.Nat.arith ∪
 --      CompileSets.Array.range ∪
 --      CompileSets.List.range ∪
---      CompileSets.Logic.cases ∪ 
+--      CompileSets.Logic.cases ∪
 --     --  CompileSets.Vector.getElem! ∪
 --      CompileSets.Vector.sum ∪
 --      CompileSets.Vector.explode ∪
