@@ -263,7 +263,7 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
 -- set_option trace.Clap.Compile.simp.proc.vector_mk_zipWith_mk true in
 -- set_option trace.Clap.Compile.simp.proc.monad true in
 open Clap.Compiler.SymSets Vector General in
--- set_option pp.exprSizes true in
+set_option pp.exprSizes true in
 set_option maxRecDepth 8192 in
 -- set_option pp.proofs true in
 #eval spoon <| do
@@ -285,7 +285,7 @@ set_option maxRecDepth 8192 in
       drop ∪
       extract ∪
       toArray
-      -- ∪ compilerWtf
+      ∪ compilerWtf
       -- ∪ compilerSet_bind_eq_bind
       -- ∪ compilerSet_bind_assoc
       -- ∪ compilerWtf

@@ -177,33 +177,33 @@ def compilerSet : MetaM Sym.Simp.Methods :=
 def compilerWat : Sym.Simp.Simproc := fun e ↦ do
   match_expr e with
   | Bind.bind _ _ α β x f =>
-    let time ← IO.monoMsNow
+    -- let time ← IO.monoMsNow
     let u ← Sym.getLevelInType α
     let v ← Sym.getLevelInType β
     let e' ← shareCommonInc <| mkApp4 (.const ``Option.bind [u, v]) α β x f
     trace[Clap.Compile.simp.proc.monad.bind_eq_bind]
       m!"\n{e}\n==>\n{e'}"
-    Dbg.timeSince time "bind_eq_bind took:"
+    -- Dbg.timeSince time "bind_eq_bind took:"
     return .step e' (←Sym.mkEqRefl e')
   | Pure.pure _ _ α x =>
-    let time ← IO.monoMsNow
+    -- let time ← IO.monoMsNow
     let u ← Sym.getLevelInType α
     let e' ← shareCommonInc <| mkApp2 (.const ``Option.some [u]) α x
     trace[Clap.Compile.simp.proc.monad.pure_apply]
       m!"\n{e}\n==>\n{e'}"
-    Dbg.timeSince time "pure_apply took:"
+    -- Dbg.timeSince time "pure_apply took:"
     return .step e' (←Sym.mkEqRefl e')
   | Option.bind _ γ x g =>
     match_expr x with
     | Option.some _ x =>
-      let time ← IO.monoMsNow
+      -- let time ← IO.monoMsNow
       let e' ← shareCommonInc (g.beta #[x])
       trace[Clap.Compile.simp.proc.monad.bind_some]
         m!"\n{e}\n==>\n{e'}"
-      Dbg.timeSince time "bind_some took:"
+      -- Dbg.timeSince time "bind_some took:"
       return .step e' (←Sym.mkEqRefl e')
     | Option.bind α β x f => 
-      let time ← IO.monoMsNow
+      -- let time ← IO.monoMsNow
       let u ← Sym.getLevelInType α
       let v ← Sym.getLevelInType β
       let w ← Sym.getLevelInType γ
@@ -214,7 +214,7 @@ def compilerWat : Sym.Simp.Simproc := fun e ↦ do
       let e' ← shareCommonInc <| mkApp4 (.const ``Option.bind [u, w]) α γ x cont
       trace[Clap.Compile.simp.proc.monad.bind_assoc]
         m!"\n{e}\n==>\n{e'}"
-      Dbg.timeSince time "bind_assoc took:"
+      -- Dbg.timeSince time "bind_assoc took:"
       return .step e' (←mkSorry (←mkEq e e') false)
     | _ => return .rfl
   | _ =>
@@ -535,7 +535,7 @@ def getElem_mk : Sym.Simp.Simproc := fun e => do
 
   -- Instead, we can simply traverse the first `i` conses, as we have the length apriori for the proof.
   -- Or some such.
-  let time ← IO.monoMsNow
+  -- let time ← IO.monoMsNow
   let_expr GetElem.getElem _ _ _ _ _ vec n _ := e | return .rfl
   let some (elems, _, sz) := elemsOfColl vec | return .rfl
   let some i := Sym.getNatValue? n | return .rfl
@@ -546,7 +546,7 @@ def getElem_mk : Sym.Simp.Simproc := fun e => do
     let e' := elems[i]
     trace[Clap.Compile.simp.proc.vector_getElem_mk]
       m!"\n{e}\n==>\n{e'}"
-    Dbg.timeSince time "getElem_mk took:"
+    -- Dbg.timeSince time "getElem_mk took:"
     return .step e' (←Sym.mkEqRefl e')
   else
     return .rfl
@@ -625,7 +625,7 @@ Single step transformation. TODO: Does not play particularly nice with our top-l
 `f x₀ >>= fun row₀ ↦ f x₁ >>= fun row₁ ↦ ... fun rowₘ ↦ .some #v[row₀, row₁, ..., rowₘ]`
 -/
 def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
-  let time ← IO.monoMsNow
+  -- let time ← IO.monoMsNow
   let_expr _root_.Vector.mapM _ α β sz _ f vec := e | return .rfl
   -- Ultimately, only `Vector.mk` is permitted. Free variables are transformed first.
   let vec ← if vec.isFVar then sequenceAsVecExpr vec α sz else pure vec
@@ -667,7 +667,7 @@ def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
     trace[Clap.Compile.simp.proc.vector_mapM_mk_cons]
       m!"\n{e}\n==>\n{e'}"
     let proof ← mkSorry (←mkEq e e') false
-    Dbg.timeSince time "mapM_mk_cons took:"
+    -- Dbg.timeSince time "mapM_mk_cons took:"
     return .step e' proof
 
 /--
@@ -821,7 +821,7 @@ def compileJustSym (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr
     let time ← IO.monoMsNow
     let compiled ← Compiler.Simp.simplify (simpset) e -- ∪ (←SymSets.General.compilerSet)) e
     -- logInfo m!"Compiled:\n{compiled}"
-    Dbg.timeSince time "Compilation took:"
+    -- Dbg.timeSince time "Compilation took:"
     Sym.mkLambdaFVarsS args compiled -- >>= (liftM ∘ PrettyPrinter.ppExpr)
 
 def compileExampleJustSym (ex : Name) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
@@ -914,16 +914,18 @@ fun vec => eq0 (vec[0] + 1)
 #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₃ (←(map ∪ zeta ∪ getElem ∪ explode))
 
-def ex₄ (vec : Vector Nat 160) : Option Unit := do
+def ex₄ (vec : Vector Nat 297) : Option Unit := do
   let x ← vec.mapM (fun x ↦ return x + 1)
   eq0 x[0]
 
--- /--
--- info: Compiled:
--- fun vec => eq0 (vec[0] + 1)
--- -/
--- #guard_msgs(info, whitespace := lax, drop warning) in
-#eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerWtf ∪ getElem))
+-- -- /--
+-- -- info: Compiled:
+-- -- fun vec => eq0 (vec[0] + 1)
+-- -- -/
+-- -- #guard_msgs(info, whitespace := lax, drop warning) in
+-- #eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerWtf ∪ getElem))
+
+def profileThis := spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerWtf ∪ getElem))
 
 def ex₅ (vec : Vector Nat 3) : Option Unit := do
   eq0 ((vec ++ vec)[0])
