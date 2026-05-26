@@ -259,8 +259,9 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
 --  ``mix, ``mixS, ``mixS.dotProduct, ``mixS.tail
   ]
 
--- set_option trace.Clap.Compile true in
+set_option trace.Clap.Compile.simp.proc.vector_mk_zipWith_mk true in
 open Clap.Compiler.SymSets Vector General in
+-- set_option pp.exprSizes true in
 -- set_option maxRecDepth 8192 in
 -- set_option pp.proofs true in
 #eval spoon <| do
@@ -280,7 +281,8 @@ open Clap.Compiler.SymSets Vector General in
       explode ∪
       set ∪
       drop ∪
-      extract
+      extract ∪
+      toArray
       -- ∪
       -- compilerSet_whatever
     ))

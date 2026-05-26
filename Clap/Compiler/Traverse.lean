@@ -318,8 +318,8 @@ def elemsOfColl (e : Expr) : Option (Array Expr × Expr × Expr) :=
 def mk_append_mk : Simproc := fun e ↦ do
   let_expr HAppend.hAppend _ _ _ _ xs ys := e | return .rfl
 
-  let some (xs, tXs, szXs) := vectorElemsOfMk xs | return .rfl
-  let some (ys, _tYs, szYs) := vectorElemsOfMk ys | return .rfl
+  let some (xs, tXs, szXs) := elemsOfColl xs | return .rfl
+  let some (ys, _tYs, szYs) := elemsOfColl ys | return .rfl
   -- `tXs = _tYs`
   let result ← Sym.mkListLit tXs (xs.append ys).toList
 
@@ -484,6 +484,11 @@ def getElem_mk : Sym.Simp.Simproc := fun e => do
     return .rfl
 
 open SymSets
+
+def toArray : MetaM Methods :=
+  mkPostMethods #[
+    ``Vector.toArray_mk
+  ]
 
 def getElem : MetaM Methods :=
   mkPostMethods #[
