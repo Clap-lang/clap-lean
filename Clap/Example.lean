@@ -1,46 +1,58 @@
 import Clap.Primes
 import Clap.Spec
 import Clap.BitVec
+import Clap.Lang
 
-open Clap.Spec.Compiler
+open Clap.Lang
 
-variable {p:ℕ}
+variable {p:ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)]
 
-structure FString (p : ℕ) (maxLen : ℕ) where
-  chars : Vector (ZMod p) maxLen
-  len : ZMod p
+structure RawPoint (p : ℕ) where
+  x : F p
+  y : F p
 
-def check (x : FString p 3) : Option Unit := do
-  let l ← share x.len
-  let v ← num2bits 2 l
-  eq0 v.sum
+structure Point (p : ℕ) [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] where
+  x : F8 p
+  y : F8 p
 
-def keyless (x y: FString p 3) : Option Unit := do
-  check x
-  check y
+def RawPoint.validate (a: RawPoint p) : Option (Point p) := do
+  let x ← F8.ofF a.x
+  let y ← F8.ofF a.y
+  some {x, y}
 
--- These two functions can be done independently in parallel
+def check (x y: F8 p) : Option Unit := do
+  F8.assertEq x y
 
-def keyless1 (x y: FString p 3) : Option Unit := do
-  check x
 
-def keyless2 (x y: FString p 3) : Option Unit := do
-  check y
+def PrivateInput (α : Type) := α
+def PublicInput (α : Type) := α
 
--- and recomposed in this new function that is defEq with the original (just need some beta)
+/-
+- the two check instances can be done independently in parallel
+- the same function check can be re-used
+-/
 
-def keyless' (x y : FString p 3) : Option Unit := do
-  keyless1 x y
-  keyless2 x y
+def circuit
+  (pub_p : PublicInput (Point p))
+  (pri_p : PrivateInput (RawPoint p)) : Option Unit := do
+  let pri_p ← pri_p.validate
+  check pub_p.x pri_p.x
+  check pub_p.y pri_p.y
 
-def check1 (x : FString p 3) : Option Unit := do
-  eq0 x.len
+-- -- and recomposed in this new function that is defEq with the original (just need some beta)
 
-def check2 (x : FString p 3) : Option Unit := do
-  let l ← share x.len
-  let v ← num2bits 2 l
-  eq0 v.sum
-  eq0 l
+-- def keyless' (x y : FString p 3) : Option Unit := do
+--   keyless1 x y
+--   keyless2 x.len y.len
+
+-- def check1 (x : FString p 3) : Option Unit := do
+--   eq0 x.len
+
+-- def check2 (x : FString p 3) : Option Unit := do
+--   let l ← share x.len
+--   let v ← num2bits 2 l
+--   eq0 v.sum
+--   eq0 l
 
 /- This is the result of compiler. A program fully reduced to a flat sequence of basic operands. -/
 namespace Circuit
