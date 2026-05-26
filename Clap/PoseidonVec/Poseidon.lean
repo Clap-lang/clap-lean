@@ -276,7 +276,8 @@ open Clap.Compiler.SymSets Vector General in
       sum ∪
       zipWith ∪
       zeta ∪
-      explode
+      explode ∪
+      compilerSet_whatever
     ))
 
 -- set_option trace.Clap.Compile.simp.fail true

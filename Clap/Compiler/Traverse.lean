@@ -126,6 +126,14 @@ def control : MetaM Methods := do
     pre := simpControl
   }
 
+def compilerSet_whatever : MetaM Sym.Simp.Methods :=
+  mkPostMethods #[
+    ``Option.bind_assoc, ``bind_assoc,
+    ``Option.pure_def,
+    ``Option.bind_eq_bind, ``Option.bind_fun_some, ``Option.bind_some, ``bind_pure, ``pure_bind,
+    ``Option.map_eq_map, ``Option.map_some, ``Option.pure_apply
+  ]
+
 def compilerSet_old : MetaM Sym.Simp.Methods :=
   mkPostMethods #[
     ``Option.bind_assoc, ``bind_assoc,
