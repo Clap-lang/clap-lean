@@ -285,7 +285,7 @@ set_option maxRecDepth 8192 in
       drop ∪
       extract ∪
       toArray
-      ∪ compilerWtf
+      -- ∪ compilerWtf
       -- ∪ compilerSet_bind_eq_bind
       -- ∪ compilerSet_bind_assoc
       -- ∪ compilerWtf
