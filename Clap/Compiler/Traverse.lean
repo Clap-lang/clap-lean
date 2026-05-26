@@ -173,6 +173,27 @@ def compilerSet : MetaM Sym.Simp.Methods :=
   mkPostMethods #[
     ``Option.pure_def, ``Option.bind_some, ``Option.bind_eq_bind
   ]
+#check Option.bind_assoc
+def compilerWat : Sym.Simp.Simproc := fun e ↦ do
+  match_expr e with
+  | Bind.bind _ _ α β x f =>
+    let u ← Sym.getLevelInType α
+    let v ← Sym.getLevelInType β
+    let e' ← shareCommonInc <| mkApp4 (.const ``Option.bind [u, v]) α β x f
+    return .step e' (←Sym.mkEqRefl e')
+  | Option.bind _ _ x f =>
+    match_expr x with
+    | Option.some _ x =>
+      let e' ← shareCommonInc (f.beta #[x])
+      return .step e' (←Sym.mkEqRefl e')
+    | _ => return .rfl
+  | _ =>
+    return .rfl
+  
+def compilerWtf : MetaM Sym.Simp.Methods :=
+  mkPostMethods #[
+    ``compilerWat
+  ]
 
 def heh : Sym.Simp.Simproc := fun e ↦ do
   -- logInfo m!"heh: {e}"
@@ -339,9 +360,10 @@ def mk_append_mk : Simproc := fun e ↦ do
   let result ← Sym.mkListLit tXs (xs.append ys).toList
 
   let instAdd := Expr.const ``instAddNat []
-  let inst := mkApp2 (.const ``instHAdd [0]) q(ℕ) instAdd
+  let inst ← shareCommonInc <| mkApp2 (.const ``instHAdd [0]) q(ℕ) instAdd
 
-  let e' ← mkVecLit tXs result (mkApp6 (.const ``HAdd.hAdd [0, 0, 0]) q(ℕ) q(ℕ) q(ℕ) inst szXs szYs)
+  let e' ← liftM ∘ shareCommonInc =<<
+    mkVecLit tXs result (mkApp6 (.const ``HAdd.hAdd [0, 0, 0]) q(ℕ) q(ℕ) q(ℕ) inst szXs szYs)
 
   trace[Clap.Compile.simp.proc.vector_mk_append_mk]
     m!"\n{e}\n==>\n{e'}"

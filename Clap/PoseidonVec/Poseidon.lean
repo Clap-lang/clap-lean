@@ -123,7 +123,6 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := 1 + n
   let nRoundsF : ℕ := 8
-  -- let nRoundsP : ℕ := 2
   let nRoundsP : ℕ := N_ROUNDS_P[t - 2]'sorry
   let half : ℕ := nRoundsF / 2
 
@@ -259,8 +258,10 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
 --     ``Constant.S.S02, ``Constant.S.S03, ``Constant.S.S04, ``Constant.S.S05, ``Constant.S.S06, ``Constant.S.S07, ``Constant.S.S08, ``Constant.S.S09, ``Constant.S.S10, ``Constant.S.S11, ``Constant.S.S12, ``Constant.S.S13, ``Constant.S.S14, ``Constant.S.S15, ``Constant.S.S16, ``Constant.S.S17,
 --  ``mix, ``mixS, ``mixS.dotProduct, ``mixS.tail
   ]
+
 -- set_option debug.skipKernelTC true in
 -- set_option trace.Clap.Compile.simp.proc.vector_mk_zipWith_mk true in
+-- set_option trace.Clap.Compile.simp.proc.monad true in
 open Clap.Compiler.SymSets Vector General in
 -- set_option pp.exprSizes true in
 set_option maxRecDepth 8192 in
@@ -283,9 +284,10 @@ set_option maxRecDepth 8192 in
       set ∪
       drop ∪
       extract ∪
-      toArray ∪
-      compilerSet_bind_eq_bind ∪
-      compilerSet_bind_assoc
+      toArray
+      -- ∪ compilerSet_bind_eq_bind
+      -- ∪ compilerSet_bind_assoc
+      ∪ compilerWtf
       -- compilerSet_bind_pure
 
       -- ∪
