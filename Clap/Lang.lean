@@ -42,6 +42,9 @@ def guardedEq0 (guard : FB p) (constraint : F p) : Option Unit :=
 def guardedAssertEq (guard : FB p) (a b : F p) : Option Unit :=
   guardedEq0 guard (a - b)
 
+def conditionalSwap (sel : FB p) (a b : F p) : F p :=
+  (a - b) * sel + b
+
 end F
 
 namespace FB

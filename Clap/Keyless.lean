@@ -178,9 +178,8 @@ structure JSONStructure where
 
 /-- Multiplexer for FString: `if sel = 1 then a else b`. CIRCOM: `out[i] = (a[i] - b[i]) * sel + b[i]` -/
 def muxFString {maxLen : ℕ} (sel : F bn254) (a b : FString bn254 maxLen) : FString bn254 maxLen :=
-  { chars := a.chars.zipWith
-      (fun ai bi ↦ ai.zipWith (fun abit bbit ↦ (abit - bbit) * sel + bbit) bi) b.chars
-    len := (a.len - b.len) * sel + b.len }
+  { chars := a.chars.zipWith (F.conditionalSwap sel) b.chars
+    len := F.conditionalSwap sel a.len b.len }
 
 -- Sub-circuits
 
