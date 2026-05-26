@@ -280,7 +280,7 @@ def vectorElemsOfMk (e : Expr) : Option (Array Expr × Expr × Expr) := do
   let_expr Vector.mk t sz arr _ := e | .none
   return (←arrayElemsOfExpr arr, t, sz)
 
-private def mk_append_mk : Simproc := fun e ↦ do
+def mk_append_mk : Simproc := fun e ↦ do
   let_expr HAppend.hAppend _ _ _ _ xs ys := e | return .rfl
 
   let some (xs, tXs, szXs) := vectorElemsOfMk xs | return .rfl
@@ -288,21 +288,15 @@ private def mk_append_mk : Simproc := fun e ↦ do
   -- `tXs = _tYs`
   let result ← Sym.mkListLit tXs (xs.append ys).toList
 
-  -- instAddNat or some such | maybe instHAdd
+  let instAdd := Expr.const ``instAddNat []
+  let inst := mkApp2 (.const ``instHAdd [0]) q(ℕ) instAdd
 
-  /-
-  TODO: I wonder which size I want.
-  Current: `q(szXs + szYs)`
-  Maybe just take the ground?
-  -/
-  let e' ← mkVecLit tXs result (mkApp6 (.const ``HAdd.hAdd [0, 0, 0]) q(ℕ) q(ℕ) q(ℕ) _ szXs szYs)
-  -- let e' ← mkVecLit tXs result (mkApp2 (.const ``Nat.add []) szXs szYs)
+  let e' ← mkVecLit tXs result (mkApp6 (.const ``HAdd.hAdd [0, 0, 0]) q(ℕ) q(ℕ) q(ℕ) inst szXs szYs)
 
   trace[Clap.Compile.simp.proc.vector_mk_append_mk]
     m!"\n{e}\n==>\n{e'}"
   
   return .step e' (←mkSorry (←mkEq e e') false)
-
 
 def appendDbg : Sym.Simp.Simproc := fun e ↦ do
   let_expr HAppend.hAppend _ _ _ _ xs ys := e | return .rfl
@@ -596,8 +590,8 @@ def mapM : MetaM Methods :=
 def mk_zipWith_mk : Sym.Simp.Simproc := fun e => do
   let_expr Vector.zipWith _ _ γ n f xs ys := e | return .rfl
 
-  let some (xs, szXs) := vectorElemsOfMk xs | return .rfl
-  let some (ys, szYs) := vectorElemsOfMk ys | return .rfl
+  let some (xs, _, szXs) := vectorElemsOfMk xs | return .rfl
+  let some (ys, _, szYs) := vectorElemsOfMk ys | return .rfl
 
   if !isSameExpr szXs szYs then
     trace[Clap.Compile.simp.proc.vector_mk_zipWith_mk]
