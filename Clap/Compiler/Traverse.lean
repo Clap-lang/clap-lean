@@ -274,6 +274,9 @@ namespace Vector
 --     let thm ← mkTheoremFromDecl ``Vector.getElem_mk
 --     thm.rewrite e
 
+/--
+We're already doing O(n) work here anyway, maybe yield the length as well.
+-/
 partial def listElemsOfExpr (e : Expr) (res : Array Expr := #[]) : Option (Array Expr) :=
   match_expr e with
   | List.cons _ hd tl => listElemsOfExpr tl (res.push hd)
@@ -287,6 +290,30 @@ def arrayElemsOfExpr (e : Expr) : Option (Array Expr) := do
 def vectorElemsOfMk (e : Expr) : Option (Array Expr × Expr × Expr) := do
   let_expr Vector.mk t sz arr _ := e | .none
   return (←arrayElemsOfExpr arr, t, sz)
+
+/--
+We're already doing O(n) work in `listElemsOfExpr` anyway, maybe yield the goodies as well.
+-/
+partial def listElemsOfExpr' (e : Expr) (res : Array Expr × ℕ := (#[], 0)) :
+                             Option (Array Expr × Expr × ℕ) :=
+  match_expr e with
+  | List.cons _ hd tl => listElemsOfExpr' tl (res.1.push hd, res.2.succ)
+  | List.nil  α       => .some (res.1, α, res.2)
+  | _                 => .none
+
+def arrayElemsOfExpr' (e : Expr) : Option (Array Expr × Expr × ℕ) := do
+  let_expr Array.mk _ l := e | .none
+  listElemsOfExpr' l
+
+/--
+Currently separate from the `vectorElemsOfMk` chain.
+-/
+def elemsOfColl (e : Expr) : Option (Array Expr × Expr × Expr) :=
+  match_expr e with
+  | Vector.mk _ _ _ _ => vectorElemsOfMk e
+  | Array.mk _ _      => spoon <$> arrayElemsOfExpr' e
+  | _                 => spoon <$> listElemsOfExpr' e
+  where spoon := fun (arr, t, sz) ↦ (arr, t, toExpr sz)
 
 def mk_append_mk : Simproc := fun e ↦ do
   let_expr HAppend.hAppend _ _ _ _ xs ys := e | return .rfl
@@ -442,7 +469,8 @@ def getElem_mk : Sym.Simp.Simproc := fun e => do
   -- Instead, we can simply traverse the first `i` conses, as we have the length apriori for the proof.
   -- Or some such.
   let_expr GetElem.getElem _ _ _ _ _ vec n _ := e | return .rfl
-  let some (elems, sz) := vectorElemsOfMk vec | return .rfl
+  let some (elems, _, sz) := elemsOfColl vec | return .rfl
+  -- let some (elems, _, sz) := vectorElemsOfMk vec | return .rfl
   let some i := Sym.getNatValue? n | return .rfl
   trace[Clap.Compile.simp.proc.vector_getElem_mk]
     m!"Info:\nVector size: {sz}\nElems size: {elems.size}"
@@ -551,18 +579,8 @@ def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
     -/
     let e' ← (List.range szSimpedNat).foldrM (init := transformedVector?) fun i e ↦ do
       let elem := elems[i]!
-      -- logInfo m!"{mkAppN -- `f vec[i] >>= fun row_{i} ↦ e`
-      --     (.const ``Option.bind [u, u])
-      --     #[
-      --       β, β,                                      -- implicits
-      --       ←Sym.shareCommonInc (f.beta #[elem]),      -- `f vec[i]`
-      --       .lam (binderInfo := .default)
-      --            (binderName := .mkSimple s!"row_{i}")
-      --            (binderType := β)
-      --            (body       := e)                     -- `fun row_{i} ↦ e`
-      --     ]}"
       liftM ∘ Sym.shareCommonInc <|
-        mkAppN -- `f vec[i] >>= fun row_{i} ↦ e`
+        mkAppN                                         -- `f vec[i] >>= fun row_{i} ↦ e`
           (.const ``Option.bind [u, v])
           #[
             β, transformedVectorT,                     -- implicits
@@ -678,11 +696,26 @@ def sum : MetaM Methods :=
     ``Vector.sum_eq_foldr
   ] ∪ foldr
 
+def set_mk : Sym.Simp.Simproc := fun e => do
+  let_expr Vector.set t sz xs i x h := e | return .rfl
+  let some (xs, _, _) := vectorElemsOfMk xs | return .rfl
+  let iGround := (←simpWithGround i).getResultExpr i
+  match Sym.getNatValue? iGround with
+  | .none => throwError m!"Not ground: {iGround}. Request:\n{e}"
+  | .some iNat =>
+    -- TODO: I guess we can `Vector.set` with `h`.
+    let result ← Sym.mkListLit t (xs.set! iNat x).toList
+    let e' ← mkVecLit t result sz
+    trace[Clap.Compile.simp.proc.vector_set_mk]
+      m!"\n{e}\n==>\n{e'}"
+    return .step e' (←mkSorry (←mkEq e e') false)
+
 def set : MetaM Methods :=
   mkPostMethods #[
-    ``Vector.set_mk, ``List.set_toArray,
+    ``Vector.set_mk
+    -- ``List.set_toArray,
     
-    ``List.set_cons_succ, ``List.set_cons_zero,
+    -- ``List.set_cons_succ, ``List.set_cons_zero,
   ]
 
 end Vector
@@ -693,7 +726,7 @@ def reduceRange : Sym.Simp.Simproc := fun e ↦ do
   let_expr _root_.List.range k ← e | return .rfl
   match (←Sym.simp k).getResultExpr k |>.nat? with
   | .none => logError m!"{(←Sym.simp k).getResultExpr k} is not ground"
-             return .rfl (done := true)
+             return .rfl -- (done := true)
   | .some n => let l := _root_.List.range n
                let e' ← Sym.shareCommonInc (Lean.toExpr l)
               --  let e' ← Simp.reducedAndSharedInc (Lean.toExpr l)

@@ -136,13 +136,13 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
     let l ← state.mapM sigma
     mix (ark l C ((r + 1) * t)) M) state
 
-  -- -- Boundary round (r = half−1): sigma → ark → mix with P
-  -- let state := mix (ark (← state.mapM sigma) C (half * t)) P
+  -- Boundary round (r = half−1): sigma → ark → mix with P
+  let state := mix (ark (← state.mapM sigma) C (half * t)) P
 
   -- Phase 2: partial rounds
-  -- let state ← (List.range nRoundsP).foldlM (fun state r ↦ do
-  --   let s0 := (← sigma state[0]) + C[(half + 1) * t + r]'sorry
-  --   mixS r (state.set 0 s0) S) state
+  let state ← (List.range nRoundsP).foldlM (fun state r ↦ do
+    let s0 := (← sigma state[0]) + C[(half + 1) * t + r]'sorry
+    mixS r (state.set 0 s0) S) state
 
   state[0]
   -- -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
@@ -234,7 +234,7 @@ def poseidonBN254 : SimpSet :=
     ``Constant.M.M02, ``Constant.M.M03, ``Constant.M.M04, ``Constant.M.M05, ``Constant.M.M06, ``Constant.M.M07, ``Constant.M.M08, ``Constant.M.M09, ``Constant.M.M10, ``Constant.M.M11, ``Constant.M.M12, ``Constant.M.M13, ``Constant.M.M14, ``Constant.M.M15, ``Constant.M.M16, ``Constant.M.M17,
     ``Constant.P.P02, ``Constant.P.P03, ``Constant.P.P04, ``Constant.P.P05, ``Constant.P.P06, ``Constant.P.P07, ``Constant.P.P08, ``Constant.P.P09, ``Constant.P.P10, ``Constant.P.P11, ``Constant.P.P12, ``Constant.P.P13, ``Constant.P.P14, ``Constant.P.P15, ``Constant.P.P16, ``Constant.P.P17,
     ``Constant.S.S02, ``Constant.S.S03, ``Constant.S.S04, ``Constant.S.S05, ``Constant.S.S06, ``Constant.S.S07, ``Constant.S.S08, ``Constant.S.S09, ``Constant.S.S10, ``Constant.S.S11, ``Constant.S.S12, ``Constant.S.S13, ``Constant.S.S14, ``Constant.S.S15, ``Constant.S.S16, ``Constant.S.S17,
-    ``mix.eq_def, ``mixS.eq_def, ``mixS.dotProduct.eq_def, ``mixS.tail.eq_def
+    ``mix.eq_def, ``mixS.eq_def, ``mixS.dotProduct.eq_def
   ]
 
 def poseidonBN254' : MetaM Sym.Simp.Methods :=
@@ -242,7 +242,7 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
     ``PoseidonVec.poseidonBN254.eq_def, ``poseidon.eq_def, ``poseidonEx.eq_def,
     ``ark.eq_def, ``sigma.eq_def, ``id.eq_def,  -- const.eq_def : some Sym.simp thing...
     ``Constant.C.eq_def, ``Constant.M.eq_def, ``Constant.P.eq_def, ``Constant.S.eq_def,
-    ``F.eq_def, ``mix.eq_def,
+    ``F.eq_def, ``mix.eq_def, ``mixS.eq_def, ``mixS.dotProduct.eq_def, ``mixS.tail.eq_def,
     -- ``Constant.C.C02.eq_def, ``Constant.C.C03.eq_def, ``Constant.C.C04.eq_def,``Constant.C.C05.eq_def, ``Constant.C.C06.eq_def, ``Constant.C.C07.eq_def, ``Constant.C.C08.eq_def, ``Constant.C.C09.eq_def, ``Constant.C.C10.eq_def, ``Constant.C.C11.eq_def, ``Constant.C.C12.eq_def, ``Constant.C.C13.eq_def, ``Constant.C.C14.eq_def, ``Constant.C.C15.eq_def, ``Constant.C.C16.eq_def, ``Constant.C.C17.eq_def,
     ``Constant.M.M02.eq_def, ``Constant.M.M03.eq_def, ``Constant.M.M04.eq_def,``Constant.M.M05.eq_def, ``Constant.M.M06.eq_def, ``Constant.M.M07.eq_def, ``Constant.M.M08.eq_def, ``Constant.M.M09.eq_def, ``Constant.M.M10.eq_def, ``Constant.M.M11.eq_def, ``Constant.M.M12.eq_def, ``Constant.M.M13.eq_def, ``Constant.M.M14.eq_def, ``Constant.M.M15.eq_def, ``Constant.M.M16.eq_def, ``Constant.M.M17.eq_def,
     -- ``Constant.P.P02.eq_def, ``Constant.P.P03.eq_def, ``Constant.P.P04.eq_def,``Constant.P.P05.eq_def, ``Constant.P.P06.eq_def, ``Constant.P.P07.eq_def, ``Constant.P.P08.eq_def, ``Constant.P.P09.eq_def, ``Constant.P.P10.eq_def, ``Constant.P.P11.eq_def, ``Constant.P.P12.eq_def, ``Constant.P.P13.eq_def, ``Constant.P.P14.eq_def, ``Constant.P.P15.eq_def, ``Constant.P.P16.eq_def, ``Constant.P.P17.eq_def,
@@ -258,7 +258,8 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
 --     ``Constant.S.S02, ``Constant.S.S03, ``Constant.S.S04, ``Constant.S.S05, ``Constant.S.S06, ``Constant.S.S07, ``Constant.S.S08, ``Constant.S.S09, ``Constant.S.S10, ``Constant.S.S11, ``Constant.S.S12, ``Constant.S.S13, ``Constant.S.S14, ``Constant.S.S15, ``Constant.S.S16, ``Constant.S.S17,
 --  ``mix, ``mixS, ``mixS.dotProduct, ``mixS.tail
   ]
-set_option trace.Clap.Compile true in
+
+-- set_option trace.Clap.Compile true in
 open Clap.Compiler.SymSets Vector General in
 -- set_option maxRecDepth 8192 in
 -- set_option pp.proofs true in
@@ -277,7 +278,11 @@ open Clap.Compiler.SymSets Vector General in
       zipWith ∪
       zeta ∪
       explode ∪
-      compilerSet_whatever
+      set ∪
+      drop ∪
+      extract
+      -- ∪
+      -- compilerSet_whatever
     ))
 
 -- set_option trace.Clap.Compile.simp.fail true
