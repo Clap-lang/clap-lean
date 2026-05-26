@@ -126,6 +126,21 @@ def control : MetaM Methods := do
     pre := simpControl
   }
 
+def compilerSet_bind_eq_bind : MetaM Sym.Simp.Methods :=
+  mkPostMethods #[
+    ``Option.bind_eq_bind
+  ]
+
+def compilerSet_bind_assoc : MetaM Sym.Simp.Methods :=
+  mkPostMethods #[
+    ``Option.bind_assoc, ``bind_assoc
+  ]
+def compilerSet_bind_pure : MetaM Sym.Simp.Methods :=
+  mkPostMethods #[
+    ``Option.bind_some, ``bind_pure, ``pure_bind
+  ]
+
+
 def compilerSet_whatever : MetaM Sym.Simp.Methods :=
   mkPostMethods #[
     ``Option.bind_assoc, ``bind_assoc,
@@ -557,7 +572,7 @@ Single step transformation. TODO: Does not play particularly nice with our top-l
 `f x₀ >>= fun row₀ ↦ f x₁ >>= fun row₁ ↦ ... fun rowₘ ↦ .some #v[row₀, row₁, ..., rowₘ]`
 -/
 def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
-  let time ← IO.monoMsNow
+  -- let time ← IO.monoMsNow
   let_expr _root_.Vector.mapM _ α β sz _ f vec := e | return .rfl
   -- Ultimately, only `Vector.mk` is permitted. Free variables are transformed first.
   let vec ← if vec.isFVar then sequenceAsVecExpr vec α sz else pure vec
@@ -599,7 +614,7 @@ def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
     trace[Clap.Compile.simp.proc.vector_mapM_mk_cons]
       m!"\n{e}\n==>\n{e'}"
     let proof ← mkSorry (←mkEq e e') false
-    Dbg.timeSince time "Vector.mapM_mk_cons took"
+    -- Dbg.timeSince time "Vector.mapM_mk_cons took"
     return .step e' proof
 
 /--

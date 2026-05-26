@@ -123,6 +123,7 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := 1 + n
   let nRoundsF : ℕ := 8
+  -- let nRoundsP : ℕ := 2
   let nRoundsP : ℕ := N_ROUNDS_P[t - 2]'sorry
   let half : ℕ := nRoundsF / 2
 
@@ -144,15 +145,15 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
     let s0 := (← sigma state[0]) + C[(half + 1) * t + r]'sorry
     mixS r (state.set 0 s0) S) state
 
-  state[0]
-  -- -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
-  -- let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
-  --   let l ← state.mapM sigma
-  --   mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
+  -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
+  let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
+    let l ← state.mapM sigma
+    mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
 
-  -- -- Final round: sigma on all, then extract nOuts elements via MixLast
-  -- let state ← state.mapM sigma
-  -- mixLast state M 0
+  -- state[0]
+  -- Final round: sigma on all, then extract nOuts elements via MixLast
+  let state ← state.mapM sigma
+  mixLast state M 0
 
 /-- **Poseidon:** Single-output Poseidon hash. Wraps `poseidonEx` with
     `nOuts = 1` and `initialState = 0`, returning the first element of
@@ -242,9 +243,9 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
     ``PoseidonVec.poseidonBN254.eq_def, ``poseidon.eq_def, ``poseidonEx.eq_def,
     ``ark.eq_def, ``sigma.eq_def, ``id.eq_def,  -- const.eq_def : some Sym.simp thing...
     ``Constant.C.eq_def, ``Constant.M.eq_def, ``Constant.P.eq_def, ``Constant.S.eq_def,
-    ``F.eq_def, ``mix.eq_def, ``mixS.eq_def, ``mixS.dotProduct.eq_def, ``mixS.tail.eq_def,
+    ``F.eq_def, ``mix.eq_def, ``mixS.eq_def, ``mixS.dotProduct.eq_def, ``mixS.tail.eq_def, ``mixLast.eq_def,
     -- ``Constant.C.C02.eq_def, ``Constant.C.C03.eq_def, ``Constant.C.C04.eq_def,``Constant.C.C05.eq_def, ``Constant.C.C06.eq_def, ``Constant.C.C07.eq_def, ``Constant.C.C08.eq_def, ``Constant.C.C09.eq_def, ``Constant.C.C10.eq_def, ``Constant.C.C11.eq_def, ``Constant.C.C12.eq_def, ``Constant.C.C13.eq_def, ``Constant.C.C14.eq_def, ``Constant.C.C15.eq_def, ``Constant.C.C16.eq_def, ``Constant.C.C17.eq_def,
-    ``Constant.M.M02.eq_def, ``Constant.M.M03.eq_def, ``Constant.M.M04.eq_def,``Constant.M.M05.eq_def, ``Constant.M.M06.eq_def, ``Constant.M.M07.eq_def, ``Constant.M.M08.eq_def, ``Constant.M.M09.eq_def, ``Constant.M.M10.eq_def, ``Constant.M.M11.eq_def, ``Constant.M.M12.eq_def, ``Constant.M.M13.eq_def, ``Constant.M.M14.eq_def, ``Constant.M.M15.eq_def, ``Constant.M.M16.eq_def, ``Constant.M.M17.eq_def,
+    -- ``Constant.M.M02.eq_def, ``Constant.M.M03.eq_def, ``Constant.M.M04.eq_def,``Constant.M.M05.eq_def, ``Constant.M.M06.eq_def, ``Constant.M.M07.eq_def, ``Constant.M.M08.eq_def, ``Constant.M.M09.eq_def, ``Constant.M.M10.eq_def, ``Constant.M.M11.eq_def, ``Constant.M.M12.eq_def, ``Constant.M.M13.eq_def, ``Constant.M.M14.eq_def, ``Constant.M.M15.eq_def, ``Constant.M.M16.eq_def, ``Constant.M.M17.eq_def,
     -- ``Constant.P.P02.eq_def, ``Constant.P.P03.eq_def, ``Constant.P.P04.eq_def,``Constant.P.P05.eq_def, ``Constant.P.P06.eq_def, ``Constant.P.P07.eq_def, ``Constant.P.P08.eq_def, ``Constant.P.P09.eq_def, ``Constant.P.P10.eq_def, ``Constant.P.P11.eq_def, ``Constant.P.P12.eq_def, ``Constant.P.P13.eq_def, ``Constant.P.P14.eq_def, ``Constant.P.P15.eq_def, ``Constant.P.P16.eq_def, ``Constant.P.P17.eq_def,
     -- ``Constant.S.S02.eq_def, ``Constant.S.S03.eq_def, ``Constant.S.S04.eq_def,``Constant.S.S05.eq_def, ``Constant.S.S06.eq_def, ``Constant.S.S07.eq_def, ``Constant.S.S08.eq_def, ``Constant.S.S09.eq_def, ``Constant.S.S10.eq_def, ``Constant.S.S11.eq_def, ``Constant.S.S12.eq_def, ``Constant.S.S13.eq_def, ``Constant.S.S14.eq_def, ``Constant.S.S15.eq_def, ``Constant.S.S16.eq_def, ``Constant.S.S17.eq_def,
 
@@ -258,11 +259,11 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
 --     ``Constant.S.S02, ``Constant.S.S03, ``Constant.S.S04, ``Constant.S.S05, ``Constant.S.S06, ``Constant.S.S07, ``Constant.S.S08, ``Constant.S.S09, ``Constant.S.S10, ``Constant.S.S11, ``Constant.S.S12, ``Constant.S.S13, ``Constant.S.S14, ``Constant.S.S15, ``Constant.S.S16, ``Constant.S.S17,
 --  ``mix, ``mixS, ``mixS.dotProduct, ``mixS.tail
   ]
-
-set_option trace.Clap.Compile.simp.proc.vector_mk_zipWith_mk true in
+-- set_option debug.skipKernelTC true in
+-- set_option trace.Clap.Compile.simp.proc.vector_mk_zipWith_mk true in
 open Clap.Compiler.SymSets Vector General in
 -- set_option pp.exprSizes true in
--- set_option maxRecDepth 8192 in
+set_option maxRecDepth 8192 in
 -- set_option pp.proofs true in
 #eval spoon <| do
   compileExampleJustSym ``testPoseidon
@@ -282,7 +283,11 @@ open Clap.Compiler.SymSets Vector General in
       set ∪
       drop ∪
       extract ∪
-      toArray
+      toArray ∪
+      compilerSet_bind_eq_bind ∪
+      compilerSet_bind_assoc
+      -- compilerSet_bind_pure
+
       -- ∪
       -- compilerSet_whatever
     ))
