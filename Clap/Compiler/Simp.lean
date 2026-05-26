@@ -1,5 +1,6 @@
 import Lean
 import Lean.Meta.Sym.SymM
+import Clap.Compiler.Wheels
 
 open Lean Meta Elab
 
@@ -214,7 +215,11 @@ set_option hygiene false in
 def simplify (simpset : Sym.Simp.Methods) (e : Expr) : Sym.Simp.SimpM Expr := do
   let e ← preprocessExpr e
   tryCatchRuntimeEx
-    do return (←Sym.simp e simpset config).getResultExpr e
+    do
+      let time ← IO.monoMsNow
+      let res := (←Sym.simp e simpset config).getResultExpr e
+      Dbg.timeSince time "simplify took:"
+      return res
     fun exc =>
       throwError m!"***SIMP ERRROR***\nExpression:\n{e}\nInternal:\n{exc.toMessageData}"
 

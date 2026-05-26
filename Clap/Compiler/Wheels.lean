@@ -79,6 +79,14 @@ initialize Lean.registerTraceClass `Clap.Compile.simp.proc.vector_set_mk (inheri
 
 initialize Lean.registerTraceClass `Clap.Compile.simp.proc.monad (inherited := true)
 
+initialize Lean.registerTraceClass `Clap.Compile.simp.proc.monad.bind_assoc (inherited := true)
+
+initialize Lean.registerTraceClass `Clap.Compile.simp.proc.monad.bind_eq_bind (inherited := true)
+
+initialize Lean.registerTraceClass `Clap.Compile.simp.proc.monad.bind_some (inherited := true)
+
+initialize Lean.registerTraceClass `Clap.Compile.simp.proc.monad.pure_apply (inherited := true)
+
 initialize Lean.registerTraceClass `Clap.Compile.simp.proc.preprocess (inherited := true)
 
 initialize Lean.registerTraceClass `Clap.Compile.simp.proc.seemsTotallySafeInDTT (inherited := true)

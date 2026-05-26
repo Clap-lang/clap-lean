@@ -123,7 +123,7 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := 1 + n
   let nRoundsF : ℕ := 8
-  let nRoundsP : ℕ := N_ROUNDS_P[t - 2]'sorry
+  let nRoundsP : ℕ :=  N_ROUNDS_P[t - 2]'sorry
   let half : ℕ := nRoundsF / 2
 
   let state : Vector (F p) t := #v[initState] ++ inputs
@@ -285,9 +285,10 @@ set_option maxRecDepth 8192 in
       drop ∪
       extract ∪
       toArray
+      -- ∪ compilerWtf
       -- ∪ compilerSet_bind_eq_bind
       -- ∪ compilerSet_bind_assoc
-      ∪ compilerWtf
+      -- ∪ compilerWtf
       -- compilerSet_bind_pure
 
       -- ∪
