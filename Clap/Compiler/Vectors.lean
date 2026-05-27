@@ -41,7 +41,7 @@ def getElemVectorOfIdx (coll t sz : Expr) (idx : ℕ) : Sym.Simp.SimpM Expr := d
   Sym.shareCommonInc <| mkAppN getElemSansProof #[←mkSorry proofIsValid false]
 
 def inferVectorProof (vectorSansProof : Expr) : Sym.Simp.SimpM Expr := do
-  let .forallE _ argT _ _ ← Sym.inferType vectorSansProof | unreachable!
+  let .forallE _ argT _ _ ← Sym.inferType vectorSansProof | logError m!"inferVectorProof"; unreachable!
   Sym.shareCommonInc <| .app vectorSansProof (←mkSorry argT false)
 
 def mkVecLit (t l len : Expr) : Sym.Simp.SimpM Expr := do

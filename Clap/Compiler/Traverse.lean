@@ -195,7 +195,7 @@ def compilerWat : Sym.Simp.Simproc := fun e ↦ do
       m!"\n{e}\n==>\n{e'}"
     -- Dbg.timeSince time "pure_apply took:"
     return .step e' (←Sym.mkEqRefl e')
-  | Option.bind _ γ x g =>
+  | Option.bind α γ x g =>
     match_expr x with
     | Option.bind α β x f => 
       -- let time ← IO.monoMsNow
@@ -221,7 +221,18 @@ def compilerWat : Sym.Simp.Simproc := fun e ↦ do
         m!"\n{e}\n==>\n{e'}"
       -- Dbg.timeSince time "bind_some took:"
       return .step e' (←Sym.mkEqRefl e')
-    | _ => return .rfl
+    | _ =>
+      let x' := (←Sym.simp x (←read).toMethods).getResultExpr x
+      if isSameExpr x x' then
+        trace[Clap.Compile.simp.proc.monad.top_level]
+          m!"{checkEmoji} {x'}"
+        return .rfl
+      -- let f' ← Sym.simp g
+      let e' ← shareCommonInc <|
+        mkApp4 (.const ``Option.bind [←Sym.getLevelInType α, ←Sym.getLevelInType γ]) α γ x' g
+      trace[Clap.Compile.simp.proc.monad.top_level]
+        m!"\n{e}\n==>\n{e'}"
+      return .step e' (←mkSorry (←mkEq e e') false)
   | _ =>
     return .rfl
   
@@ -362,6 +373,8 @@ def vectorElemsOfMk (e : Expr) : Option (Array Expr × Expr × Expr) := do
   let_expr Vector.mk t sz arr _ := e | .none
   return (←arrayElemsOfExpr arr, t, sz)
 
+inductive Collection where | Vector (t : Expr) (sz : Expr) | Array (t : Expr) | List
+-- TODO NEXT: FInish the collection stuff, go perf again?
 /--
 We're already doing O(n) work in `listElemsOfExpr` anyway, maybe yield the goodies as well.
 -/
@@ -376,21 +389,27 @@ def arrayElemsOfExpr' (e : Expr) : Option (Array Expr × Expr × ℕ) := do
   let_expr Array.mk _ l := e | .none
   listElemsOfExpr' l
 
+def Collection.ofListLit (coll : Collection) (e : Expr) : Sym.Simp.SimpM Expr := do
+  match coll with
+  | .List => return e
+  | .Array t => shareCommonInc <| mkAppN (.const ``Array.mk [←Sym.getLevelInType t]) #[t, e]
+  | .Vector t sz => shareCommonInc (←mkVecLit t e sz)
+
 /--
 Currently separate from the `vectorElemsOfMk` chain.
 -/
-def elemsOfColl (e : Expr) : Option (Array Expr × Expr × Expr) :=
+def elemsOfColl (e : Expr) : Option (Collection × Array Expr × Expr × Expr) :=
   match_expr e with
-  | Vector.mk _ _ _ _ => vectorElemsOfMk e
-  | Array.mk _ _      => spoon <$> arrayElemsOfExpr' e
-  | _                 => spoon <$> listElemsOfExpr' e
+  | Vector.mk _ _ _ _ => (.Vector, ·) <$> (vectorElemsOfMk e)
+  | Array.mk _ _      => arrayElemsOfExpr' e >>= fun res ↦ .some (.Array, spoon res)
+  | _                 => listElemsOfExpr' e >>= fun res ↦ .some (.List, spoon res)
   where spoon := fun (arr, t, sz) ↦ (arr, t, toExpr sz)
 
 def mk_append_mk : Simproc := fun e ↦ do
   let_expr HAppend.hAppend _ _ _ _ xs ys := e | return .rfl
 
-  let some (xs, tXs, szXs) := elemsOfColl xs | return .rfl
-  let some (ys, _tYs, szYs) := elemsOfColl ys | return .rfl
+  let some (collXs, xs, tXs, szXs) := elemsOfColl xs | return .rfl
+  let some (collYs, ys, _tYs, szYs) := elemsOfColl ys | return .rfl
   -- `tXs = _tYs`
   let result ← Sym.mkListLit tXs (xs.append ys).toList
 
@@ -635,7 +654,9 @@ def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
   -- let time ← IO.monoMsNow
   let_expr _root_.Vector.mapM _ α β sz _ f vec := e | return .rfl
   -- Ultimately, only `Vector.mk` is permitted. Free variables are transformed first.
+  logInfo m!"vec: {vec}"
   let vec ← if vec.isFVar then sequenceAsVecExpr vec α sz else pure vec
+  logInfo m!"vec: {vec}"
   if !vec.isAppOf ``Vector.mk then return .rfl
   let szSimped := (←Sym.simpWithGround sz).getResultExpr sz
   if !isSameExpr sz szSimped then
@@ -651,7 +672,7 @@ def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
     let transformedVector? :=
       mkAppN (.const ``Option.some [v]) #[←Sym.inferType transformedVector, transformedVector]
     let transformedVector? ← Sym.shareCommonInc transformedVector?
-    let .some (elems, _) := vectorElemsOfMk vec | unreachable!
+    let .some (elems, _) := elemsOfColl vec | logError m!"Vector.mapM_mk\nVec:\n{vec}\nE:\n{e}"; unreachable!
     let u ← Sym.getLevelInType β
     /-
     Start with `.some #[.bvar sz.pred, .bvar sz.pred.pred, ..., .bvar 0]`
@@ -872,7 +893,7 @@ namespace ExampruSym
 
 open SymSets Monad General Vector
 
-set_option maxRecDepth 500000
+-- set_option maxRecDepth 500000
 -- set_option trace.Clap.Compile true
 
 def ex₀ : Option Unit := do
@@ -936,6 +957,7 @@ def ex₄ (vec : Vector Nat 160) : Option Unit :=
 -- set_option trace.Clap.Compile.simp.proc.vector_mapM_mk true in
 -- set_option trace.profiler true in
 -- set_option profiler true in
+set_option trace.Clap.Compile true in
 #eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerWtf ∪ getElem))
 
 def profileThis := spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerWtf ∪ getElem))
@@ -1000,17 +1022,17 @@ def ex₈ (vec : Vector Nat 3) : Option Unit := do
   let z := (List.range y)[0]'sorry
   eq0 res[1]
   eq0 res[2]
-set_option trace.Clap.Compile true in
-/--
-info: Compiled:
-fun vec =>
-  (eq0 42).bind fun x =>
-    (eq0 (vec[0] + 1 + 1)).bind fun x =>
-      (eq0 4).bind fun _assoc =>
-        (eq0 (1 + 42)).bind fun _assoc => (eq0 (vec[1] + 5 + 1)).bind fun x => eq0 (vec[2] + 10 + 1)
--/
-#guard_msgs(info, whitespace := lax, drop warning) in
-#eval spoon <| do compileExampleJustSym ``ex₈ (←(zipWith ∪ mapM ∪ getElem ∪ zeta ∪ compilerWtf ∪ explode))
+-- set_option trace.Clap.Compile true in
+-- /--
+-- info: Compiled:
+-- fun vec =>
+--   (eq0 42).bind fun x =>
+--     (eq0 (vec[0] + 1 + 1)).bind fun x =>
+--       (eq0 4).bind fun _assoc =>
+--         (eq0 (1 + 42)).bind fun _assoc => (eq0 (vec[1] + 5 + 1)).bind fun x => eq0 (vec[2] + 10 + 1)
+-- -/
+-- #guard_msgs(info, whitespace := lax, drop warning) in
+-- #eval spoon <| do compileExampleJustSym ``ex₈ (←(zipWith ∪ mapM ∪ getElem ∪ zeta ∪ compilerWtf ∪ explode))
 
 def ex₉ (vec : Vector Nat 160) : Option Unit := do
   let res := (#v[0] ++ vec).extract 1 2
@@ -1044,6 +1066,44 @@ fun vec => eq0 (vec[0] + 0)
 -/
 #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₁₁ (←(mapIdx ∪ getElem ∪ zeta ∪ compilerSet_old ∪ explode))
+
+-- def mixLast {t : ℕ} (state : Vector (F p) t) (M : Vector (Vector (F p) t) t) (s : ℕ) : F p :=
+--   (state.zipWith (fun (sj : F p) (row : Vector (F p) t) ↦ row[s]'sorry * sj) M).sum
+
+def ex₁₂ (vec : Vector Nat 4) : Option Unit := do
+  let state : Vector Nat 2 := #v[1, 2]
+  let M : Vector (Vector ℕ 2) 2 := #v[#v[1, 2], #v[3, 4]]
+  let res :=
+    (state.zipWith (fun (sj : ℕ) (row : Vector ℕ 2) ↦ row[0]'sorry * sj) M).sum
+  eq0 res
+
+/--
+info: Compiled:
+fun vec => eq0 7
+-/
+#guard_msgs(info, whitespace := lax, drop warning) in
+#eval spoon <| do compileExampleJustSym ``ex₁₂ (←(zeta ∪ compilerWtf ∪ explode ∪ zipWith ∪ sum ∪ getElem))
+
+
+def ex₁₃ (vec : Vector Nat 4) : Option Unit := do
+  let t := 2
+  let state : Vector Nat t := #v[1, 2]
+  let S : Vector Nat 6 := #v[3, 4, 5, 6, 7, 8]
+  let base : ℕ := (2 * 2 - 1) * 1
+  let s' : Vector _ t := ⟨S.extract base (base+t) |>.toArray, sorry⟩
+  let dotProduct := (state.zipWith (· * ·) s').sum
+  let tail := (state.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state[0]'sorry * S[base + t + i]'sorry)
+  let res : Vector Nat 2 := ⟨#[dotProduct] ++ tail.toArray, sorry⟩
+  eq0 res[0]
+set_option trace.Clap.Compile true in
+/--
+info: Compiled:
+fun vec => eq0 7
+-/
+#guard_msgs(info, whitespace := lax, drop warning) in
+#eval spoon <| do
+  compileExampleJustSym ``ex₁₃
+    (←(zeta ∪ compilerWtf ∪ explode ∪ zipWith ∪ sum ∪ extract ∪ toArray ∪ mapIdx ∪ append))
 
 end ExampruSym
 

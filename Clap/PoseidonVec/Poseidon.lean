@@ -130,29 +130,30 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
 
   let state : Vector (F p) t := #v[initState] ++ inputs
 
-  -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
-  let state := ark state C 0
+  -- -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
+  -- let state := ark state C 0
 
-  -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
-  let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
-    let l ← state.mapM sigma
-    mix (ark l C ((r + 1) * t)) M) state
-
-  -- Boundary round (r = half−1): sigma → ark → mix with P
-  let state := mix (ark (← state.mapM sigma) C (half * t)) P
+  -- -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
+  -- let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
+  --   let l ← state.mapM sigma
+  --   mix (ark l C ((r + 1) * t)) M) state
+  
+  -- -- Boundary round (r = half−1): sigma → ark → mix with P
+  -- let state := mix (ark (← state.mapM sigma) C (half * t)) P
 
   -- Phase 2: partial rounds
   let state ← (List.range nRoundsP).foldlM (fun state r ↦ do
     let s0 := (← sigma state[0]) + C[(half + 1) * t + r]'sorry
     mixS r (state.set 0 s0) S) state
 
-  -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
-  let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
-    let l ← state.mapM sigma
-    mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
-  -- state[0]
 
-  -- Final round: sigma on all, then extract nOuts elements via MixLast
+  -- -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
+  -- let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
+  --   let l ← state.mapM sigma
+  --   mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
+  -- -- state[0]
+
+  -- -- Final round: sigma on all, then extract nOuts elements via MixLast
   let state ← state.mapM sigma
   mixLast state M 0
 
@@ -267,8 +268,8 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
 -- set_option trace.Clap.Compile.simp.proc.monad true in
 open Clap.Compiler.SymSets Vector General in
 -- set_option pp.exprSizes true in
-set_option maxRecDepth 1000000 in
-set_option maxHeartbeats 0 in
+-- set_option maxRecDepth 1000000 in
+-- set_option maxHeartbeats 0 in
 -- set_option pp.proofs true in
 #eval spoon <| do
   compileExampleJustSym ``testPoseidon

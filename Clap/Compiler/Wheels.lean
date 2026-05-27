@@ -87,6 +87,8 @@ initialize Lean.registerTraceClass `Clap.Compile.simp.proc.monad.bind_some (inhe
 
 initialize Lean.registerTraceClass `Clap.Compile.simp.proc.monad.pure_apply (inherited := true)
 
+initialize Lean.registerTraceClass `Clap.Compile.simp.proc.monad.top_level (inherited := true)
+
 initialize Lean.registerTraceClass `Clap.Compile.simp.proc.preprocess (inherited := true)
 
 initialize Lean.registerTraceClass `Clap.Compile.simp.proc.seemsTotallySafeInDTT (inherited := true)
