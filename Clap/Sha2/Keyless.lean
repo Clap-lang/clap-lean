@@ -157,15 +157,14 @@ def sha256VerifiedDigest
   -- CIRCOM (PaddingVerify.circom):
   --   signal in_hash <== HashBytesToFieldWithLen(MAX_INPUT_LEN)(in, num_blocks*64);
   -- The length argument is the total padded byte count (= num_blocks * 64 bytes).
-  let dataHash ← hashBytesToFieldWithLen data.toVF (sha2NumBlocks * 64)
+  let dataHash ← hashBytesToFieldWithLen data.chars (sha2NumBlocks * 64)
 
   -- RFC 4634 §4.1.a: The padding bytes (0x80 followed by K/8 zero bytes) appear
   -- at position `paddingStart` in the data.
   -- CIRCOM (PaddingVerify.circom):
   --   AssertIsSubstring(MAX_INPUT_LEN, 64)(in, in_hash, padding_without_len, (1+K)/8, padding_start);
   -- We wrap sha2Padding as an FString for the substring check.
-  let paddingChars ← sha2Padding.mapM F8.ofF
-  let paddingFStr : FString bn254 SHA2_PADDING_LEN := ⟨paddingChars, KPlus1Div8⟩
+  let paddingFStr : FString bn254 SHA2_PADDING_LEN := ⟨sha2Padding, KPlus1Div8⟩
   assertIsSubstringFS (by decide) data dataHash paddingFStr paddingStart
 
   -- RFC 4634 §4.1.a: First padding byte must be 0x80 (binary: 10000000).
@@ -181,8 +180,7 @@ def sha256VerifiedDigest
   -- after the zero-padded bytes.
   -- CIRCOM (PaddingVerify.circom):
   --   AssertIsSubstring(MAX_INPUT_LEN, 8)(in, in_hash, L_byte_encoded, 8, padding_start+(K+1)/8);
-  let numBitsChars ← sha2NumBits.mapM F8.ofF
-  let numBitsFStr : FString bn254 SHA2_NUM_BITS_LEN := ⟨numBitsChars, 8⟩
+  let numBitsFStr : FString bn254 SHA2_NUM_BITS_LEN := ⟨sha2NumBits, 8⟩
   assertIsSubstringFS (by decide) data dataHash numBitsFStr (paddingStart + KPlus1Div8)
 
   -- RFC 4634 §4.1.c: The decoded length must equal 8 * paddingStart (message length in bits).
@@ -205,7 +203,9 @@ def sha256VerifiedDigest
   --       in <== Bytes2BigEndianBits(MAX_B64U_JWT_NO_SIG_LEN)(b64u_jwt_no_sig_sha2_padded),
   --       tBlock <== sha2_num_blocks - 1);
 
-  let blocks := (@parse_blocks (Circuit.t bn254) Circuit.instSha 24 data.chars).toArray
+  -- TODO can we get rid of this conversion?
+  let data_as_vec : FByteArray p MAX_B64U_JWT_NO_SIG_LEN ← data.chars.mapM F8.ofF
+  let blocks := (@parse_blocks (Circuit.t bn254) Circuit.instSha 24 data_as_vec).toArray
   -- Process all blocks and collect intermediate hash states.
   let allStates ← processAllBlocks blocks (@initial_hash (Circuit.t bn254) Circuit.instSha) 0 #[]
   let tBlock := sha2NumBlocks - 1
@@ -289,16 +289,13 @@ namespace TestSha256VerifiedDigest
 -- (0x80 at position 3, then 52 zero bytes, then 8-byte big-endian length = 24 bits)
 -- Remaining bytes up to MAX_B64U_JWT_NO_SIG_LEN (1536) are zeros.
 
-private def natToF8 (n : Nat) : F8 bn254 := F8.ofF! (n : F bn254)
-
 private def mkTestData : FString bn254 MAX_B64U_JWT_NO_SIG_LEN :=
-  let msgBytes : Array Nat := #[97, 98, 99]  -- "abc"
-  let paddingByte : Array Nat := #[128]       -- 0x80
-  let zeros52 : Array Nat := Array.replicate 52 0
-  let lenBytes : Array Nat := #[0, 0, 0, 0, 0, 0, 0, 24]  -- 24 bits = 3 bytes
+  let msgBytes : Array (F bn254) := #[97, 98, 99]  -- "abc"
+  let paddingByte : Array (F bn254) := #[128]       -- 0x80
+  let zeros52 : Array (F bn254) := Array.replicate 52 0
+  let lenBytes : Array (F bn254) := #[0, 0, 0, 0, 0, 0, 0, 24]  -- 24 bits = 3 bytes
   let padded := msgBytes ++ paddingByte ++ zeros52 ++ lenBytes
-  let fullPadded := padded ++ Array.replicate (MAX_B64U_JWT_NO_SIG_LEN - padded.size) 0
-  let chars : Array (F8 bn254) := fullPadded.map natToF8
+  let chars := padded ++ Array.replicate (MAX_B64U_JWT_NO_SIG_LEN - padded.size) 0
   ⟨⟨chars, by native_decide⟩, 64⟩
 
 private def testPaddingStart : F bn254 := 3
@@ -321,18 +318,15 @@ namespace TestMultiBlock
 -- Padding: msg(56) ++ [0x80] ++ zeros(63) ++ length(8) = 128 bytes = 2 blocks
 -- Length = 56 * 8 = 448 bits = 0x01C0
 
-private def natToF8 (n : Nat) : F8 bn254 := F8.ofF! (n : F bn254)
-
-private def msg56 : Array Nat :=
+private def msg56 : Array (F bn254) :=
   "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".toUTF8.data.map (·.toNat)
 
 private def mkTestData56 : FString bn254 MAX_B64U_JWT_NO_SIG_LEN :=
-  let paddingByte : Array Nat := #[128]
-  let zeros63 : Array Nat := Array.replicate 63 0
-  let lenBytes : Array Nat := #[0, 0, 0, 0, 0, 0, 1, 0xC0]
-  let padded := msg56 ++ paddingByte ++ zeros63 ++ lenBytes
-  let fullPadded := padded ++ Array.replicate (MAX_B64U_JWT_NO_SIG_LEN - padded.size) 0
-  let chars : Array (F8 bn254) := fullPadded.map natToF8
+  let paddingByte : Array (F bn254) := #[128]
+  let zeros63 : Array (F bn254) := Array.replicate 63 0
+  let lenBytes : Array (F bn254) := #[0, 0, 0, 0, 0, 0, 1, 0xC0]
+  let padded : Array (F bn254) := msg56 ++ paddingByte ++ zeros63 ++ lenBytes
+  let chars := padded ++ Array.replicate (MAX_B64U_JWT_NO_SIG_LEN - padded.size) 0
   ⟨⟨chars, by native_decide⟩, 128⟩
 
 private def testPaddingStart56 : F bn254 := 56
@@ -370,11 +364,9 @@ The output conversion chain (F32 → big-endian bits → 64-bit limbs → LE ord
 private instance : Sha (Circuit.t bn254) := Circuit.instSha
 private instance : U32Monadic Option (F32 bn254) := Circuit.instU32Monadic
 
-private def natToF8 (n : Nat) : F8 bn254 := F8.ofF! (n : F bn254)
-
 -- Helper: run digest on raw bytes and convert to RSA limbs (Path A)
-private def digestToLimbs (msg : Array Nat) : Option (Vector (F bn254) 4) := do
-  let f8Msg : Array (F8 bn254) := msg.map natToF8
+private def digestToLimbs (msg : Array (F bn254)) : Option (Vector (F bn254) 4) := do
+  let f8Msg : Array (F8 bn254) ← msg.mapM F8.ofF
   let hash ← Clap.Sha2.digest (t := Circuit.t bn254) ⟨f8Msg, rfl⟩
   pure (hashToRSALimbs hash.toArray)
 
@@ -387,7 +379,7 @@ private def pathA_abc := digestToLimbs #[97, 98, 99]
 private def mkPaddedAbc : FString bn254 MAX_B64U_JWT_NO_SIG_LEN :=
   let padded := #[97, 98, 99, 128] ++ Array.replicate 52 0 ++ #[0, 0, 0, 0, 0, 0, 0, 24]
   let fullPadded := padded ++ Array.replicate (MAX_B64U_JWT_NO_SIG_LEN - padded.size) 0
-  ⟨⟨fullPadded.map natToF8, by native_decide⟩, 64⟩
+  ⟨⟨fullPadded, by native_decide⟩, 64⟩
 
 private def pathB_abc :=
   sha256VerifiedDigest mkPaddedAbc 3 1 #v[0, 0, 0, 0, 0, 0, 0, 24]
@@ -398,7 +390,7 @@ example : pathA_abc = pathB_abc := by native_decide
 
 -- (2): 56-byte message (2 blocks)
 
-private def msg56Bytes : Array Nat :=
+private def msg56Bytes  : Array (F bn254) :=
   "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".toUTF8.data.map (·.toNat)
 
 -- digest on raw 56-byte message
@@ -406,9 +398,9 @@ private def pathA_56 := digestToLimbs msg56Bytes
 
 -- sha256VerifiedDigest on padded 56-byte message
 private def mkPadded56 : FString bn254 MAX_B64U_JWT_NO_SIG_LEN :=
-  let padded := msg56Bytes ++ #[128] ++ Array.replicate 63 0 ++ #[0, 0, 0, 0, 0, 0, 1, 0xC0]
-  let fullPadded := padded ++ Array.replicate (MAX_B64U_JWT_NO_SIG_LEN - padded.size) 0
-  ⟨⟨fullPadded.map natToF8, by native_decide⟩, 128⟩
+  let padded : Array (F bn254) := msg56Bytes ++ #[(128 : F bn254)] ++ Array.replicate 63 (0 : F bn254) ++ #[(0 : F bn254), 0, 0, 0, 0, 0, 1, 0xC0]
+  let fullPadded : Array (F bn254) := padded ++ Array.replicate (MAX_B64U_JWT_NO_SIG_LEN - padded.size) 0
+  ⟨⟨fullPadded, by native_decide⟩, 128⟩
 
 private def pathB_56 :=
   sha256VerifiedDigest mkPadded56 56 2 #v[0, 0, 0, 0, 0, 0, 1, 0xC0]

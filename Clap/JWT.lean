@@ -230,24 +230,24 @@ private def parseJWTFieldSharedLogic
   -- Check 2: field_len > name_len + value_len
   F.guardedEq0 perform (FB.not (← F.greaterThan w field.len (name.len + value.len)))
   -- Pre-compute hash of field for Fiat-Shamir substring checks
-  let fieldHash ← hashBytesToFieldWithLen (field.chars.map FBitVec.toF) field.len
+  let fieldHash ← hashBytesToFieldWithLen field.chars field.len
   -- Check 3: field[0] == '"' (ASCII 34)
-  let firstChar ← selectArrayValue (field.chars.map FBitVec.toF) 0
+  let firstChar ← selectArrayValue field.chars 0
   F.guardedAssertEq perform firstChar '\"'
   -- Check 4: name is a substring of field starting at index 1
   let nameOk ← isSubstringFS h_name field fieldHash name 1
   F.guardedEq0 perform (FB.not nameOk)
   -- Check 5: field[name_len + 1] == '"' (ASCII 34)
-  let nameClosingQuote ← selectArrayValue (field.chars.map FBitVec.toF) (name.len + 1)
+  let nameClosingQuote ← selectArrayValue field.chars (name.len + 1)
   F.guardedAssertEq perform nameClosingQuote '\"'
   -- Check 6: field[colon_index] == ':' (ASCII 58)
-  let colonChar ← selectArrayValue (field.chars.map FBitVec.toF) colon_index
+  let colonChar ← selectArrayValue field.chars colon_index
   F.guardedAssertEq perform colonChar ':'
   -- Check 7: value is a substring of field starting at value_index
   let valueOk ← isSubstringFS h_value field fieldHash value value_index
   F.guardedEq0 perform (FB.not valueOk)
   -- Check 8: field[field_len - 1] == ',' (44) or '}' (125)
-  let lastChar ← selectArrayValue (field.chars.map FBitVec.toF) (field.len - 1)
+  let lastChar ← selectArrayValue field.chars (field.len - 1)
   -- Enforce (lastChar - 44) * (lastChar - 125) == 0
   F.guardedEq0 perform ((lastChar - (',' : F _)) &&& (lastChar - ('}' : F _)))
 
@@ -282,7 +282,6 @@ def parseJWTFieldWithUnquotedValue
   -- Delegate shared structural checks
   parseJWTFieldSharedLogic h_name h_value field name value colon_index value_index skipChecks
   let perform : FB bn254 := FB.not skipChecks
-  let fieldChars := field.chars.map FBitVec.toF
   -- Check 1: whitespace in three zones
   -- Zone A: [name_len + 2, colon_index)  — between closing name-quote and colon
   -- Zone B: [colon_index + 1, value_index)  — between colon and value (no quote around value)
@@ -299,7 +298,7 @@ def parseJWTFieldWithUnquotedValue
   -- Check 2: value must not contain ',', '}', or '"'
   -- valueSelector: 1s at [value_index, value_index + value_len)
   let valueSel ← arraySelector maxKVPairLen value_index (value_index + value.len)
-  (valueSel.zip fieldChars).toList.forM fun (sel, c) ↦ do
+  (valueSel.zip field.chars).toList.forM fun (sel, c) ↦ do
     let isForbidden := (←F.eq c ',') ||| (←F.eq c '}') ||| (←F.eq c '\"')
     -- If in value range, character must not be forbidden
     F.guardedEq0 perform (sel &&& isForbidden)
@@ -339,12 +338,11 @@ def parseJWTFieldWithQuotedValue
   -- Delegate shared structural checks
   parseJWTFieldSharedLogic h_name h_value field name value colon_index value_index skipChecks
   let perform : FB bn254 := FB.not skipChecks
-  let fieldChars := field.chars.map FBitVec.toF
   -- Check 0: field[value_index - 1] == '"' (opening quote around value)
-  let valueFirstQuote ← selectArrayValue fieldChars (value_index - 1)
+  let valueFirstQuote ← selectArrayValue field.chars (value_index - 1)
   F.guardedAssertEq perform valueFirstQuote 34
   -- Check 1: field[value_index + value_len] == '"' (closing quote around value)
-  let valueSecondQuote ← selectArrayValue fieldChars (value_index + value.len)
+  let valueSecondQuote ← selectArrayValue field.chars (value_index + value.len)
   F.guardedAssertEq perform valueSecondQuote 34
   -- Check 2: whitespace zones + string bodies
   -- Zone A: [name_len + 2, colon_index)  — between closing name-quote and colon
@@ -406,18 +404,17 @@ def parseEmailVerifiedField
     : Option Unit := do
   -- Delegate shared structural checks
   parseJWTFieldSharedLogic h_name h_value field name value colonIndex valueIndex
-  let fieldChars := field.chars.map FBitVec.toF
   -- Char before value
-  let charBeforeValue ← selectArrayValue fieldChars (valueIndex - 1)
+  let charBeforeValue ← selectArrayValue field.chars (valueIndex - 1)
   let beforeIsQuote      : FB bn254 ← F.eq charBeforeValue '\"'
-  let beforeIsWhitespace : FB bn254 ← FChar.isWhitespace (← F8.ofF charBeforeValue)
+  let beforeIsWhitespace : FB bn254 ← FChar.isWhitespace charBeforeValue
   let beforeIsWsOrQuote := FB.or beforeIsQuote beforeIsWhitespace
   -- Check: char before value is quote/whitespace, OR it is the colon (valueIndex - 1 == colonIndex)
   eq0 ((1 - beforeIsWsOrQuote) &&& (valueIndex - 1 - colonIndex))
   -- Char after value
-  let charAfterValue ← selectArrayValue fieldChars (valueIndex + value.len)
+  let charAfterValue ← selectArrayValue field.chars (valueIndex + value.len)
   let afterIsQuote      : FB bn254 ← F.eq charAfterValue '\"'
-  let afterIsWhitespace : FB bn254 ← FChar.isWhitespace (← F8.ofF charAfterValue)
+  let afterIsWhitespace : FB bn254 ← FChar.isWhitespace charAfterValue
   let afterIsWsOrQuote := FB.or afterIsQuote afterIsWhitespace
   -- Check: char after value is quote/whitespace, OR it is the field delimiter (fieldLen - 1 == valueIndex + valueLen)
   eq0 ((1 - afterIsWsOrQuote) &&& (field.len - 1 - valueIndex - value.len))
@@ -583,11 +580,9 @@ example : -- uid is not «email», the rest doesn't matter
 
 /-- Build an `FString p maxLen` from a Lean `String`, zero-padding to `maxLen`. -/
 private def strToFS (maxLen : ℕ) (s : String) (h : s.length ≤ maxLen := by decide) : FString p maxLen :=
-  let ascii := s.toList.map (fun c ↦ ch c.toNat)
-  let padded := ascii ++ List.replicate (maxLen - ascii.length) (ch 0)
+  let ascii := s.toList.map (fun c ↦ (c.toNat:F p))
+  let padded := ascii ++ List.replicate (maxLen - ascii.length) 0
   ⟨⟨padded.toArray, by simp [padded, ascii, String.length_toList]; omega⟩, (s.length : ZMod p)⟩
-where
-  ch (n : ℕ) : FChar p := Clap.num2bitsLsbPureV 8 (n : ZMod p)
 
 -- valid field "a":b,  (name="a", value="b", ending with ',')
 example : (do
