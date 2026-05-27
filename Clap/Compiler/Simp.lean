@@ -217,6 +217,7 @@ def simplify (simpset : Sym.Simp.Methods) (e : Expr) : Sym.Simp.SimpM Expr := do
   tryCatchRuntimeEx
     do
       let time ← IO.monoMsNow
+      -- logInfo m!"Compiling:\n{e}"
       let res := (←Sym.simp e simpset config).getResultExpr e
       Dbg.timeSince time "simplify took:"
       return res

@@ -175,6 +175,8 @@ def compilerSet : MetaM Sym.Simp.Methods :=
   ]
 
 def compilerWat : Sym.Simp.Simproc := fun e ↦ do
+  -- withTraceNode `Clap.Compile.simp.proc.monad (fun _ ↦ return m!"") do
+  -- trace[Clap.Compile.simp.proc.monad] m!"{e}"
   match_expr e with
   | Bind.bind _ _ α β x f =>
     -- let time ← IO.monoMsNow
@@ -195,15 +197,11 @@ def compilerWat : Sym.Simp.Simproc := fun e ↦ do
     return .step e' (←Sym.mkEqRefl e')
   | Option.bind _ γ x g =>
     match_expr x with
-    | Option.some _ x =>
-      -- let time ← IO.monoMsNow
-      let e' ← shareCommonInc (g.beta #[x])
-      trace[Clap.Compile.simp.proc.monad.bind_some]
-        m!"\n{e}\n==>\n{e'}"
-      -- Dbg.timeSince time "bind_some took:"
-      return .step e' (←Sym.mkEqRefl e')
     | Option.bind α β x f => 
       -- let time ← IO.monoMsNow
+      let subtree := (←Sym.simp f).getResultExpr f
+      trace[Clap.Compile.simp.proc.monad.bind_assoc]
+        m!"Subtree.\n{f}\n==>\n{subtree}"
       let u ← Sym.getLevelInType α
       let v ← Sym.getLevelInType β
       let w ← Sym.getLevelInType γ
@@ -216,12 +214,19 @@ def compilerWat : Sym.Simp.Simproc := fun e ↦ do
         m!"\n{e}\n==>\n{e'}"
       -- Dbg.timeSince time "bind_assoc took:"
       return .step e' (←mkSorry (←mkEq e e') false)
+    | Option.some _ x =>
+      -- let time ← IO.monoMsNow
+      let e' ← shareCommonInc (g.beta #[x])
+      trace[Clap.Compile.simp.proc.monad.bind_some]
+        m!"\n{e}\n==>\n{e'}"
+      -- Dbg.timeSince time "bind_some took:"
+      return .step e' (←Sym.mkEqRefl e')
     | _ => return .rfl
   | _ =>
     return .rfl
   
 def compilerWtf : MetaM Sym.Simp.Methods :=
-  mkPostMethods #[
+  mkPreMethods #[
     ``compilerWat
   ]
 
@@ -530,6 +535,7 @@ def getElemDbg : Sym.Simp.Simproc := fun e ↦ do
 -- #check GetElem.getElem (coll := Vector ℕ 4) (Vector.mk (n := 2 + 2) #[1, 2, 3, 4] rfl) 0 (by decide)
 
 def getElem_mk : Sym.Simp.Simproc := fun e => do
+  -- withTraceNode `Clap.Compile.simp.proc.vector_getElem_mk (fun _ ↦ return m!"") do
   -- In vector, we can optimise by not enumerating all elements first,
   -- and then taking the size of the final list.
 
@@ -625,6 +631,7 @@ Single step transformation. TODO: Does not play particularly nice with our top-l
 `f x₀ >>= fun row₀ ↦ f x₁ >>= fun row₁ ↦ ... fun rowₘ ↦ .some #v[row₀, row₁, ..., rowₘ]`
 -/
 def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
+  -- withTraceNode `Clap.Compile.simp.proc.vector_mapM_mk (fun _ ↦ return m!"") do
   -- let time ← IO.monoMsNow
   let_expr _root_.Vector.mapM _ α β sz _ f vec := e | return .rfl
   -- Ultimately, only `Vector.mk` is permitted. Free variables are transformed first.
@@ -664,7 +671,7 @@ def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
                  (body       := e)                     -- `fun row_{i} ↦ e`
           ]
       -- Careful, `e` contains loose bvars until the very last iteration.
-    trace[Clap.Compile.simp.proc.vector_mapM_mk_cons]
+    trace[Clap.Compile.simp.proc.vector_mapM_mk]
       m!"\n{e}\n==>\n{e'}"
     let proof ← mkSorry (←mkEq e e') false
     -- Dbg.timeSince time "mapM_mk_cons took:"
@@ -818,13 +825,14 @@ end SymSets
 
 def compileJustSym (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
   lambdaTelescope e fun args e ↦ do
-    let time ← IO.monoMsNow
+    -- let time ← IO.monoMsNow
     let compiled ← Compiler.Simp.simplify (simpset) e -- ∪ (←SymSets.General.compilerSet)) e
     -- logInfo m!"Compiled:\n{compiled}"
     -- Dbg.timeSince time "Compilation took:"
     Sym.mkLambdaFVarsS args compiled -- >>= (liftM ∘ PrettyPrinter.ppExpr)
 
 def compileExampleJustSym (ex : Name) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
+  -- withTraceNode `Clap.Compile.simp.proc (fun e ↦ return m!"") do
   let e := ((←getEnv).find? ex).get!.value!
   compileJustSym e simpset
 
@@ -864,6 +872,7 @@ namespace ExampruSym
 
 open SymSets Monad General Vector
 
+set_option maxRecDepth 500000
 -- set_option trace.Clap.Compile true
 
 def ex₀ : Option Unit := do
@@ -893,14 +902,14 @@ fun _vec => eq0 4
 #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₁ (←getElem)
 
-def ex₂ (vec : Vector Nat 3) : Option Unit := do
+def ex₂ (vec : Vector Nat 160) : Option Unit := do
   let x := (vec ++ vec)[0] -- `GetElem (Vector _ (3 + 3))`
   eq0 x
-/--
-info: Compiled:
-fun vec => eq0 vec[0]
--/
-#guard_msgs(info, whitespace := lax, drop warning) in
+-- /--
+-- info: Compiled:
+-- fun vec => eq0 vec[0]
+-- -/
+-- #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₂ (←(getElem ∪ append ∪ zeta ∪ explode))
 
 def ex₃ (vec : Vector Nat 200) : Option Unit := do
@@ -914,15 +923,19 @@ fun vec => eq0 (vec[0] + 1)
 #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₃ (←(map ∪ zeta ∪ getElem ∪ explode))
 
-def ex₄ (vec : Vector Nat 160) : Option Unit := do
-  let x ← vec.mapM (fun x ↦ return x + 1)
-  eq0 x[0]
+def ex₄ (vec : Vector Nat 160) : Option Unit :=
+  vec.mapM (fun x ↦ Option.some <| x + 1) |>.bind fun x ↦ eq0 x[0]
 
--- /--
--- info: Compiled:
--- fun vec => eq0 (vec[0] + 1)
--- -/
--- #guard_msgs(info, whitespace := lax, drop warning) in
+-- -- /--
+-- -- info: Compiled:
+-- -- fun vec => eq0 (vec[0] + 1)
+-- -- -/
+-- -- #guard_msgs(info, whitespace := lax, drop warning) in
+-- set_option pp.exprSizes true in
+-- -- set_option trace.Clap.Compile true in
+-- set_option trace.Clap.Compile.simp.proc.vector_mapM_mk true in
+-- set_option trace.profiler true in
+-- set_option profiler true in
 #eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerWtf ∪ getElem))
 
 def profileThis := spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerWtf ∪ getElem))
@@ -983,19 +996,21 @@ def ex₈ (vec : Vector Nat 3) : Option Unit := do
   eq0 42
   let res ← vec.mapM (fun n ↦ return n + 1)
   eq0 res[0]
+  let y ← (do eq0 4; let y ← pure 4; let z ← #v[1, 2].mapM (return·+42); eq0 z[0]; return y)
+  let z := (List.range y)[0]'sorry
   eq0 res[1]
   eq0 res[2]
-
+set_option trace.Clap.Compile true in
 /--
 info: Compiled:
 fun vec =>
-(eq0 42).bind fun x =>
-(eq0 (vec[0] + 1 + 1)).bind fun x =>
-(eq0 (vec[1] + 5 + 1)).bind fun x =>
-eq0 (vec[2] + 10 + 1)
+  (eq0 42).bind fun x =>
+    (eq0 (vec[0] + 1 + 1)).bind fun x =>
+      (eq0 4).bind fun _assoc =>
+        (eq0 (1 + 42)).bind fun _assoc => (eq0 (vec[1] + 5 + 1)).bind fun x => eq0 (vec[2] + 10 + 1)
 -/
 #guard_msgs(info, whitespace := lax, drop warning) in
-#eval spoon <| do compileExampleJustSym ``ex₈ (←(zipWith ∪ mapM ∪ getElem ∪ zeta ∪ compilerSet_old ∪ explode))
+#eval spoon <| do compileExampleJustSym ``ex₈ (←(zipWith ∪ mapM ∪ getElem ∪ zeta ∪ compilerWtf ∪ explode))
 
 def ex₉ (vec : Vector Nat 160) : Option Unit := do
   let res := (#v[0] ++ vec).extract 1 2
