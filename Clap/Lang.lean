@@ -147,6 +147,10 @@ end Spec.FB
 
 namespace F
 
+lemma isZero_def (e:F p) :
+  isZero e = some (if e = 0 then 1 else 0) := by
+  aesop (add simp [isZero])
+
 def lessThan (w : ℕ) (a b : F p) : Option (FB p) := do
   let d := a - b + 2^w
   let d ← num2bits (w + 1) d
@@ -162,21 +166,6 @@ def greaterEqThan (w : ℕ) (a b : F p) : Option (FB p) :=
   lessThan w b (a + 1)
 
 end F
-
-abbrev F8 := F
-
-namespace F8
-
-abbrev eq (a b : F8 p) := F.eq a b
-
-def lessThan (a b : F8 p) : Option (FB p) := do
-  F.lessThan 8 a b
-
-def greaterThan (a b : F8 p) : Option (FB p) :=
-  F.lessThan 8 b a
-
-end F8
-
 
 namespace Spec.F
 
@@ -283,6 +272,38 @@ def lessThan_equiv {w} (a b : F p)
             decide_eq_false_iff_not.mpr (Nat.not_lt.mpr hab)]
 
 end Spec.F
+
+
+abbrev F8 := F
+
+namespace F8
+
+abbrev eq (a b : F8 p) := F.eq a b
+
+def lessThan (a b : F8 p) : Option (FB p) := do
+  F.lessThan 8 a b
+
+def greaterThan (a b : F8 p) : Option (FB p) :=
+  lessThan b a
+
+end F8
+
+namespace Spec.F8
+
+def valid (x: F p) : Prop := x.val < 2^8
+
+def ofUInt8 (u:UInt8) : F8 p := UInt8.toFin u
+def toUInt8 (f:F8 p) : UInt8 := UInt8.ofNat f.val
+
+def lessThan_equiv (a b : F p)
+    (ha : valid a)
+    (hb : valid b)
+    (hw : 2^(8+1) < p) :
+    F8.lessThan a b = some (FB.ofBool (toUInt8 a < toUInt8 b)) := by
+  unfold F8.lessThan
+  aesop (add simp [F8.lessThan,F.lessThan_equiv,toUInt8,valid, UInt8.lt_iff_toNat_lt, Nat.mod_eq_of_lt])
+
+end Spec.F8
 
 
 /-- LSB first, like the output of num2bits -/
@@ -473,11 +494,9 @@ lemma eq_equiv {w} (a b : FBitVec p w) (ha : valid a) (hb : valid b) :
 end Spec.FBitVec
 
 
-abbrev FBV8 (p:ℕ) [Fact (Primes.fits p 8)] := FBitVec p 8
+abbrev FBV8 (p:ℕ) := FBitVec p 8
 
 namespace FBV8
-
-variable [Fact (Primes.fits p 8)]
 
 def ofUInt8 (u:UInt8) : FBV8 p :=
   UInt8.toBitVec u |> FBitVec.ofBV
@@ -485,15 +504,9 @@ def ofUInt8 (u:UInt8) : FBV8 p :=
 def ofF (x:F p) : Option (FBV8 p) := do
   FBitVec.ofF 8 x
 
-def eq (a b : FBV8 p) : Option (FB p) := FBitVec.eq a b
-
-def assert_eq (a b : FBV8 p) := FBitVec.assert_eq a b
-
 end FBV8
 
 namespace Spec.FBV8
-
-variable [Fact (Primes.fits p 8)]
 
 abbrev valid (x:FBV8 p) := FBitVec.valid x
 
@@ -509,10 +522,6 @@ lemma ofF_equiv (e:ZMod p) :
   FBV8.ofF e = if h : e.val < 2^8 then some (FBV8.ofUInt8 (UInt8.ofFin ⟨e.val,h⟩)) else none := by
   unfold FBV8.ofF FBitVec.ofF
   apply Spec.FBitVec.num2bits_equiv
-
-lemma eq_equiv (a b : FBV8 p) (ha:FBitVec.valid a) (hb:FBitVec.valid b):
-  FBV8.eq a b = some (FB.ofBool ((toUInt8 a) = (toUInt8 b))) := by
-  aesop (add simp [FBV8.eq,toUInt8,FBitVec.eq_equiv])
 
 end Spec.FBV8
 

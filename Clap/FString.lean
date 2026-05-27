@@ -25,40 +25,39 @@ namespace Spec.F8
 
 variable {p : ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)]
 
-def isWhitespace_spec (c:Char) : Bool :=
-  let c := c.toUInt8
+def isWhitespace_spec (c:UInt8) : Bool :=
   (c > 8 && c < 14) || c = 32
 
-lemma UInt8.left_inverse (u:UInt8): (Char.ofUInt8 u).toUInt8 = u := by
-  aesop (add simp [Char.ofUInt8, Char.toUInt8])
+open Clap.Lang.Spec in
+lemma isWhitespace_equiv (c:F8 p) (h : Spec.F8.valid c) (h : 2^(8+1) < p) :
+  F8.isWhitespace c = some (FB.ofBool (isWhitespace_spec (F8.toUInt8 c))) := by
+  unfold F8.isWhitespace isWhitespace_spec F8.greaterThan
+  rw [F8.lessThan_equiv] <;> try (first | assumption | aesop (add simp [F8.valid]) ; erw [ZMod.val_natCast_of_lt] <;> grind)
+  rw [F8.lessThan_equiv] <;> try (first | assumption | aesop (add simp [F8.valid]) ; erw [ZMod.val_natCast_of_lt] <;> grind)
+  simp only [F8.eq,F.eq,F.isZero_def]
+  simp [Option.bind_some]
+  rw [FB.and_equiv] <;> try apply Spec.FB.valid_ofBool
+  rw [FB.or_equiv] <;> try apply Spec.FB.valid_ofBool
+  . simp only [Spec.FB.left_inv]
+    unfold F8.toUInt8
+    erw [ZMod.val_natCast_of_lt] <;> try grind
+    erw [ZMod.val_natCast_of_lt] <;> try grind
+    congr
+    aesop (add simp [sub_eq_zero,F8.valid])
+    . erw [ZMod.val_natCast_of_lt] <;> try grind
+      aesop (add simp [FB.toBool,FB.false])
+    . aesop (add simp [FB.toBool,FB.false])
+      erw [UInt8.ofNat_eq_iff_mod_eq_toNat] at a
+      rw [Nat.mod_eq_of_lt] at a
+      simp at a
+      have hc : c = ((c.val : ℕ) : ZMod p) := (ZMod.natCast_zmod_val c).symm
+      rw [a] at hc
+      contradiction
+      assumption
+  . aesop (add simp [Spec.FB.left_inv,Spec.FB.valid_ofBool,FB.valid])
 
--- open Clap.Lang.Spec in
--- lemma isWhitespace_equiv (c:F8 p) (h : Spec.F8.valid c) :
---   F8.isWhitespace c = some (FB.ofBool (isWhitespace_spec (Char.ofUInt8 $ UInt8.ofBitVec $ Spec.FBitVec.toBV c))) := by
---   unfold F8.isWhitespace isWhitespace_spec FBitVec.greaterThan
---   rw [Spec.F8.eq_equiv]
---   simp [FBitVec.lessThan_equiv]
---   rw [FB.or_equiv]
---   rw [FB.and_equiv]
---   simp [FB.left_inv]
---   congr
---   . aesop (add simp [F8.ofUInt8,Spec.FBitVec.right_inv])
---   . rw [UInt8.left_inverse]
---   . rw [UInt8.left_inverse]
---   . aesop (add simp [F8.ofUInt8,Spec.FBitVec.right_inv])
---   . simp [UInt8.left_inverse,F8.toUInt8]
---   . aesop (add simp [Spec.F8.left_inv])
---   . apply Spec.FB.valid_ofBool
---   . apply Spec.FB.valid_ofBool
---   . rw [Spec.FB.and_equiv]
---     repeat apply Spec.FB.valid_ofBool
---   . apply Spec.FB.valid_ofBool
---   assumption
---   simp [F8.ofUInt8]
---   apply FBitVec.valid_ofBV
-
-def isWhitespace_spec' (c:Char) : Bool :=
-  c ∈ ['\t',   -- tab
+def isWhitespace_spec' (c:UInt8) : Bool :=
+  Char.ofUInt8 c ∈ ['\t',   -- tab
         '\n',   -- line feed
         '\x0B', -- \∨ vertical tab
         '\x0C', -- \f form feed
