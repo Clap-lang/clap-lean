@@ -914,16 +914,16 @@ fun vec => eq0 (vec[0] + 1)
 #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₃ (←(map ∪ zeta ∪ getElem ∪ explode))
 
-def ex₄ (vec : Vector Nat 297) : Option Unit := do
+def ex₄ (vec : Vector Nat 160) : Option Unit := do
   let x ← vec.mapM (fun x ↦ return x + 1)
   eq0 x[0]
 
--- -- /--
--- -- info: Compiled:
--- -- fun vec => eq0 (vec[0] + 1)
--- -- -/
--- -- #guard_msgs(info, whitespace := lax, drop warning) in
--- #eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerWtf ∪ getElem))
+-- /--
+-- info: Compiled:
+-- fun vec => eq0 (vec[0] + 1)
+-- -/
+-- #guard_msgs(info, whitespace := lax, drop warning) in
+#eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerWtf ∪ getElem))
 
 def profileThis := spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerWtf ∪ getElem))
 
