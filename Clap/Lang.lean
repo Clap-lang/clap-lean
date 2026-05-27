@@ -165,6 +165,46 @@ end F
 
 namespace Spec.F
 
+private lemma num2bitsLsbPureV_aux_toList_eq {p : ℕ} (w : ℕ) (v : ZMod p) :
+    (num2bitsLsbPureV.aux w v).toList = (num2bitsLsbPure w v).reverse := by
+  induction w generalizing v with
+  | zero => simp [num2bitsLsbPureV.aux, num2bitsLsbPure]
+  | succ w ih =>
+    simp only [num2bitsLsbPureV.aux, num2bitsLsbPure, Vector.toList_push, List.reverse_cons, ih]
+
+private lemma num2bitsLsbPureV_toList_eq {p : ℕ} (w : ℕ) (v : ZMod p) :
+    (num2bitsLsbPureV w v).toList = num2bitsLsbPure w v := by
+  simp [num2bitsLsbPureV, Vector.toList_reverse, num2bitsLsbPureV_aux_toList_eq]
+
+-- The i-th bit of the LSB-first representation of f is (f.val / 2^i) % 2
+private lemma num2bitsLsbPure_getElem_val {p : ℕ} [NeZero p] (f : ZMod p)
+    (n i : ℕ) (hi : i < n) :
+    (num2bitsLsbPure n f)[i]'(num2bitsLsbPure_length ▸ hi) =
+    ((f.val / 2^i % 2 : ℕ) : ZMod p) := by
+  induction n generalizing f i with
+  | zero => exact absurd hi (Nat.not_lt_zero _)
+  | succ n ih =>
+    simp only [num2bitsLsbPure]
+    cases i with
+    | zero => simp
+    | succ i' =>
+      have hi' : i' < n := Nat.lt_of_succ_lt_succ hi
+      simp only [List.getElem_cons_succ]
+      have hrem : ((f.val / 2 : ℕ) : ZMod p).val = f.val / 2 :=
+        ZMod.val_cast_of_lt (Nat.lt_of_le_of_lt (Nat.div_le_self _ _) (ZMod.val_lt f))
+      rw [ih ((f.val / 2 : ℕ) : ZMod p) i' hi', hrem, pow_succ,
+          show 2 ^ i' * 2 = 2 * 2 ^ i' from mul_comm _ _, ← Nat.div_div_eq_div_mul]
+
+private lemma num2bitsLsbPureV_getElem_val {p : ℕ} [NeZero p] (f : ZMod p)
+    (w i : ℕ) (hi : i < w) :
+    (num2bitsLsbPureV w f)[i]'hi = ((f.val / 2^i % 2 : ℕ) : ZMod p) := by
+  have hval := num2bitsLsbPureV_toList_eq w f
+  have hlen : i < (num2bitsLsbPureV w f).toList.length := Vector.length_toList ▸ hi
+  calc (num2bitsLsbPureV w f)[i]'hi
+      = (num2bitsLsbPureV w f).toList[i]'hlen := (Vector.getElem_toList hlen).symm
+    _ = (num2bitsLsbPure w f)[i]'(hval ▸ hlen) := List.getElem_of_eq hval hlen
+    _ = ((f.val / 2^i % 2 : ℕ) : ZMod p) := num2bitsLsbPure_getElem_val f w i hi
+
 /-
 requires:
 - a and b ∈ [0,2^w-1]
@@ -181,11 +221,51 @@ then a-b+2^w ∈ [2^w,2^(w+1)-1]
 which does not fit in w bits, so when converted to a (w+1)-bit number, its MSB is 1
 -/
 def lessThan_equiv {w} (a b : F p)
-  (ha : a.val < 2^w)
-  (hb : b.val < 2^w)
-  (hw : 2^(w+1) < p) : -- ??
-  F.lessThan w a b = some (FB.ofBool (a.val < b.val)) := by
-  sorry
+    (ha : a.val < 2^w)
+    (hb : b.val < 2^w)
+    (hw : 2^(w+1) < p) :
+    F.lessThan w a b = some (FB.ofBool (a.val < b.val)) := by
+  have hp : p ≠ 0 := Nat.pos_iff_ne_zero.mp (Nat.Prime.pos Fact.out)
+  haveI : NeZero p := ⟨hp⟩
+  have h2w_lt_p : 2^w < p :=
+    lt_trans (Nat.pow_lt_pow_right (by norm_num) (Nat.lt_succ_self w)) hw
+  have h2w_val : (2^w : ZMod p).val = 2^w := by
+    have : (2^w : ZMod p) = ((2^w : ℕ) : ZMod p) := by norm_cast
+    rw [this]; exact ZMod.val_cast_of_lt h2w_lt_p
+  have h_a_plus_2w : (a + (2^w : ZMod p)).val = a.val + 2^w := by
+    have h := ZMod.val_add_of_lt (a := a) (b := (2^w : ZMod p)) (by rw [h2w_val]; omega)
+    rw [h2w_val] at h; exact h
+  have hd_val : (a - b + (2^w : ZMod p)).val = a.val + 2^w - b.val := by
+    have heq : a - b + (2^w : ZMod p) = a + (2^w : ZMod p) - b := by ring
+    rw [heq, ZMod.val_sub (by rw [h_a_plus_2w]; omega), h_a_plus_2w]
+  have hd_lt : (a - b + (2^w : ZMod p)).val < 2^(w+1) := by
+    rw [hd_val]
+    have h : 2^(w+1) = 2^w + 2^w := by ring
+    omega
+  have hnum2bits : num2bits (w+1) (a - b + (2^w : ZMod p)) =
+      some (num2bitsLsbPureV (w+1) (a - b + (2^w : ZMod p))) := by
+    unfold num2bits; simp [hd_lt]
+  unfold F.lessThan
+  show Option.bind (num2bits (w+1) (a - b + 2^w)) (fun d => some (FB.not d[w]!)) =
+       some (FB.ofBool (a.val < b.val))
+  rw [hnum2bits, Option.bind_some]
+  rw [getElem!_pos (num2bitsLsbPureV (w+1) (a - b + (2^w : ZMod p))) w (Nat.lt_succ_self w),
+      num2bitsLsbPureV_getElem_val (a - b + (2^w : ZMod p)) (w+1) w (Nat.lt_succ_self w)]
+  by_cases hab : a.val < b.val
+  · have hzero : (a - b + (2^w : ZMod p)).val / 2^w = 0 :=
+      Nat.div_eq_of_lt (by rw [hd_val]; omega)
+    simp [hzero, FB.not, FB.ofBool, FB.true,
+          show (decide (a.val < b.val) : Bool) = true from decide_eq_true_eq.mpr hab]
+  · push_neg at hab
+    have hone : (a - b + (2^w : ZMod p)).val / 2^w = 1 := by
+      apply Nat.div_eq_of_lt_le
+      · simp; rw [hd_val]; omega
+      · rw [hd_val]
+        have h : 2 * 2^w = 2^(w+1) := by ring
+        omega
+    simp [hone, FB.not, FB.ofBool, FB.false,
+          show (decide (a.val < b.val) : Bool) = false from
+            decide_eq_false_iff_not.mpr (Nat.not_lt.mpr hab)]
 
 end Spec.F
 
