@@ -163,6 +163,33 @@ def greaterEqThan (w : ℕ) (a b : F p) : Option (FB p) :=
 
 end F
 
+namespace Spec.F
+
+/-
+requires:
+- a and b ∈ [0,2^w-1]
+- w+1 < p
+
+case a < b
+then a-b ∈ [-(2^w-1),-1]
+then a-b+2^w ∈ [1,2^w-1]
+which fits in w bits, so when converted to a (w+1)-bit number, its MSB is 0
+
+case a ≥ b
+then a-b ∈ [0,2^w-1]
+then a-b+2^w ∈ [2^w,2^(w+1)-1]
+which does not fit in w bits, so when converted to a (w+1)-bit number, its MSB is 1
+-/
+def lessThan_equiv {w} (a b : F p)
+  (ha : a.val < 2^w)
+  (hb : b.val < 2^w)
+  (hw : 2^(w+1) < p) : -- ??
+  F.lessThan w a b = some (FB.ofBool (a.val < b.val)) := by
+  sorry
+
+end Spec.F
+
+
 /-- LSB first, like the output of num2bits -/
 abbrev FBitVec (p w : ℕ) := Vector (FB p) w
 
@@ -187,15 +214,6 @@ def assert_eq {w} (a b : FBitVec p w) : Option Unit :=
 
 def eq {w} (a b : FBitVec p w) : Option (FB p) :=
   (a.zip b).foldlM (fun acc (a,b) => do FB.and acc (←FB.eq a b)) FB.true
-
-def lessThan {w} (a b : FBitVec p w) : Option (FB p) :=
-  (a.zip b).foldlM (fun acc (aᵢ, bᵢ) ↦ do
-    let eqᵢ ← FB.eq aᵢ bᵢ
-    (eqᵢ &&& acc) ||| ((FB.not eqᵢ) &&& (FB.not aᵢ))
-  ) FB.false
-
-def greaterThan {w} (a b : FBitVec p w) : Option (FB p) :=
-  lessThan b a
 
 end FBitVec
 
@@ -355,51 +373,6 @@ def right_inv {w} (bv : BitVec w) (h: 2^w < p) :
 lemma eq_equiv {w} (a b : FBitVec p w) (ha : valid a) (hb : valid b) :
   FBitVec.eq a b = some (FB.ofBool ((toBV a) = (toBV b))) := by
   aesop (add simp [FBitVec.eq,FBitVec.toBV])
-  sorry
-
-/-
-requires:
-- a and b ∈ [0,2^w-1]
-- w+1 < p
-
-case a < b
-then a-b ∈ [-(2^w-1),-1]
-then a-b+2^w ∈ [1,2^w-1]
-which fits in w bits, so when converted to a (w+1)-bit number, its MSB is 0
-
-case a ≥ b
-then a-b ∈ [0,2^w-1]
-then a-b+2^w ∈ [2^w,2^(w+1)-1]
-which does not fit in w bits, so when converted to a (w+1)-bit number, its MSB is 1
--/
-def lessThan_equiv {w} (a b : FBitVec p w) :
-  FBitVec.lessThan a b = some (FB.ofBool ((toBV a) < (toBV b))) := by
-  unfold FBitVec.lessThan
-  -- TODO problems with the rewrites
-  -- generalize eq : (Vector.zip a b) = l
-  -- apply Vector.mk
-  -- apply Vector.zip_mk
-  -- induction
-
-  -- simp only [Spec.FB.and_equiv, Spec.FB.or_equiv,
-  --                  Spec.FB.eq_equiv,
-  --                  Spec.FB.not_equiv]
-  -- rw [Spec.FB.and_equiv]
-  -- rw [Spec.FB.or_equiv]
-  -- rw [Spec.FB.eq_equiv]
-  -- rw [Spec.FB.not_equiv]
-
-  -- conv =>
-  --   enter [1,1,acc,x,3,ai,bi]
-  --   rw [Spec.FB.eq_equiv]
-  --   rw [Spec.FB.not_equiv]
-  --   simp
-  --  -- enter [2,eqi]
-  --   rw [Spec.FB.and_equiv]
-  --   rw [Spec.FB.and_equiv]
-  --   rw [Spec.FB.or_equiv]
-  --   simp [Spec.FB.left_inv,Spec.FB.right_inv]
-
   sorry
 
 end Spec.FBitVec
@@ -568,16 +541,5 @@ instance (n:ℕ) : OfNat (F32 p) n where
 example :
   letI a : UInt32 := 2^32 - 1
   (F32.add (a : F32 p) (1 : F32 p)) = ((UInt32.add a 1) : F32 p) := by native_decide
-
-def F8.ofF! {p:ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] : F p → F8 p := Clap.num2bitsLsbPureV 8
-
-example : FBitVec.lessThan (p := p) (F8.ofF! 0) (F8.ofF! 1) == some 1 := by native_decide
-example : FBitVec.lessThan (p := p) (F8.ofF! 1) (F8.ofF! 0) == some 0 := by native_decide
-example : FBitVec.lessThan (p := p) (F8.ofF! 5) (F8.ofF! 5) == some 0 := by native_decide
-example : FBitVec.lessThan (p := p) (F8.ofF! 42) (F8.ofF! 255) == some 1 := by native_decide
-example : FBitVec.lessThan (p := p) (F8.ofF! 255) (F8.ofF! 42) == some 0 := by native_decide
-example : FBitVec.greaterThan (p := p) (F8.ofF! 1) (F8.ofF! 0) == some 1 := by native_decide
-example : FBitVec.greaterThan (p := p) (F8.ofF! 0) (F8.ofF! 1) == some 0 := by native_decide
-example : FBitVec.greaterThan (p := p) (F8.ofF! 5) (F8.ofF! 5) == some 0 := by native_decide
 
 end Test
