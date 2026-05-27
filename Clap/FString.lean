@@ -27,7 +27,7 @@ namespace Spec.FChar
 
 variable {p : ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)]
 
-def isWhitespace_spec (c:Char) : Bool :=
+def isWhitespace_spec (c : Char) (_ : c.val < 256) : Bool :=
   let c := c.toUInt8
   (c > 8 && c < 14) || c = 32
 
@@ -35,8 +35,9 @@ lemma UInt8.left_inverse (u:UInt8): (Char.ofUInt8 u).toUInt8 = u := by
   aesop (add simp [Char.ofUInt8, Char.toUInt8])
 
 open Clap.Lang.Spec in
-lemma isWhitespace_equiv (c:FChar p) (h : Spec.F8.valid c) :
-  FChar.isWhitespace c = some (FB.ofBool (isWhitespace_spec (Char.ofUInt8 $ UInt8.ofBitVec $ Spec.FBitVec.toBV c))) := by
+lemma isWhitespace_equiv (c : FChar p) (h : Spec.F8.valid c) :
+  FChar.isWhitespace c = some (FB.ofBool (isWhitespace_spec (Char.ofUInt8 $ UInt8.ofBitVec $ Spec.FBitVec.toBV c) sorry))
+:= by
   unfold FChar.isWhitespace isWhitespace_spec FBitVec.greaterThan
   rw [Spec.F8.eq_equiv]
   simp [FBitVec.lessThan_equiv]
@@ -59,7 +60,7 @@ lemma isWhitespace_equiv (c:FChar p) (h : Spec.F8.valid c) :
   simp [F8.ofUInt8]
   apply FBitVec.valid_ofBV
 
-def isWhitespace_spec' (c:Char) : Bool :=
+def isWhitespace_spec' (c : Char) (_ : c.val < 256) : Bool :=
   c ∈ ['\t',   -- tab
         '\n',   -- line feed
         '\x0B', -- \∨ vertical tab
@@ -69,7 +70,58 @@ def isWhitespace_spec' (c:Char) : Bool :=
 
 lemma high : isWhitespace_spec = isWhitespace_spec' := by
   unfold isWhitespace_spec isWhitespace_spec'
-  sorry
+  ext x x_lt
+  simp
+  by_cases eqx₁ : x = '\t' <;> (unfold Char.toUInt8; simp [eqx₁])
+  by_cases eqx₂ : x = '\n' <;> (unfold Char.toUInt8; simp [eqx₂])
+  by_cases eqx₃ : x = '\x0b' <;> (unfold Char.toUInt8; simp [eqx₃])
+  by_cases eqx₄ : x = '\x0c' <;> (unfold Char.toUInt8; simp [eqx₄])
+  by_cases eqx₅ : x = '\x0d' <;> (unfold Char.toUInt8; simp [eqx₅])
+  by_cases eqx₆ : x = ' ' <;> (unfold Char.toUInt8; simp [eqx₆])
+  have x_ne₁ : x.val ≠ '\t'.val := Char.val_ne_of_ne eqx₁
+  have x_ne₂ : x.val ≠ '\n'.val := Char.val_ne_of_ne eqx₂
+  have x_ne₃ : x.val ≠ '\x0b'.val := Char.val_ne_of_ne eqx₃
+  have x_ne₄ : x.val ≠ '\x0c'.val := Char.val_ne_of_ne eqx₄
+  have x_ne₅ : x.val ≠ '\x0d'.val := Char.val_ne_of_ne eqx₅
+  have x_ne₆ : x.val ≠ ' '.val := Char.val_ne_of_ne eqx₆
+  have x_val_ne : x.val.toNat ≠ ' '.val.toNat := by
+    by_contra
+    rw [UInt32.toNat_inj] at this
+    contradiction
+  have lt_UInt8_size : x.val.toNat % 256 = x.val.toNat :=
+    (Nat.mod_eq_iff_lt (by simp)).2 x_lt
+  constructor
+  · intro x_gt_eight
+    have : 9 < x.toUInt8 := by
+      apply UInt8.lt_of_le_of_ne <;> try assumption
+      intro eq_; symm at eq_
+      simp only [Char.toUInt8, UInt32.toUInt8, UInt8.ofNat_eq_iff_mod_eq_toNat] at eq_
+      simp_all [←UInt32.toNat_inj]
+    have : 10 < x.toUInt8 := by
+      apply UInt8.lt_of_le_of_ne <;> try assumption
+      intro eq_; symm at eq_
+      simp only [Char.toUInt8, UInt32.toUInt8, UInt8.ofNat_eq_iff_mod_eq_toNat] at eq_
+      simp_all [←UInt32.toNat_inj]
+    have : 11 < x.toUInt8 := by
+      apply UInt8.lt_of_le_of_ne <;> try assumption
+      intro eq_; symm at eq_
+      simp only [Char.toUInt8, UInt32.toUInt8, UInt8.ofNat_eq_iff_mod_eq_toNat] at eq_
+      simp_all [←UInt32.toNat_inj]
+    have : 12 < x.toUInt8 := by
+      apply UInt8.lt_of_le_of_ne <;> try assumption
+      intro eq_; symm at eq_
+      simp only [Char.toUInt8, UInt32.toUInt8, UInt8.ofNat_eq_iff_mod_eq_toNat] at eq_
+      simp_all [←UInt32.toNat_inj]
+    have : 13 < x.toUInt8 := by
+      apply UInt8.lt_of_le_of_ne <;> try assumption
+      intro eq_; symm at eq_
+      simp only [Char.toUInt8, UInt32.toUInt8, UInt8.ofNat_eq_iff_mod_eq_toNat] at eq_
+      simp_all [←UInt32.toNat_inj]
+    exact this
+  · intro eq_
+    unfold Char.toUInt8 UInt32.toUInt8 Nat.toUInt8 at eq_
+    simp only [UInt8.ofNat_eq_iff_mod_eq_toNat] at eq_
+    grind
 
 end Spec.FChar
 
