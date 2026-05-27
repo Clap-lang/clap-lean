@@ -87,25 +87,6 @@ variable {p : ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)]
 def toVF {maxLen} (fs : FString p maxLen) : Vector (F p) maxLen :=
   fs.chars.map FBitVec.toF
 
-private def countTrailingZeros {maxLen : ℕ} (fs : Vector (F p) maxLen) : Option (F p) := do
-  let res : F p × F p ← Vector.foldlM (fun (len,keepCounting) f ↦ do
-    let b ← F.eq f 0
-    let len := len + (b * keepCounting)
-    let keepCounting := FB.and keepCounting b
-    return (len, keepCounting)
-  ) (0, FB.true) fs.reverse
-  res.1
-
-/--
-  Takes an arbitrary vector of field elements and returns a MyString.
-  Fails if the input contains an element that is not a byte.
--/
-def ofFs {maxLen : ℕ} (fs : Vector (F p) maxLen) : Option (FString p maxLen) := do
-  let zeros ← countTrailingZeros fs
-  let len := maxLen - zeros
-  let chars ← Vector.mapM F8.ofF fs
-  some ⟨chars, len⟩
-
 open FB in
 /-- Asserts that every value in `inp` is a valid ASCII digit (i.e., in the range [48, 57]). -/
 def assertIsAsciiDigits {maxDigits : ℕ} (inp : FString p maxDigits) : Option Unit := do
@@ -299,6 +280,25 @@ open FChar FString
 
 abbrev p := Primes.babybear
 
+private def countTrailingZeros {maxLen : ℕ} (fs : Vector (F p) maxLen) : Option (F p) := do
+  let res : F p × F p ← Vector.foldlM (fun (len,keepCounting) f ↦ do
+    let b ← F.eq f 0
+    let len := len + (b * keepCounting)
+    let keepCounting := FB.and keepCounting b
+    return (len, keepCounting)
+  ) (0, FB.true) fs.reverse
+  res.1
+
+/--
+  Takes an arbitrary vector of field elements and returns a MyString.
+  Fails if the input contains an element that is not a byte.
+-/
+def ofFs {maxLen : ℕ} (fs : Vector (F p) maxLen) : Option (FString p maxLen) := do
+  let zeros ← countTrailingZeros fs
+  let len := maxLen - zeros
+  let chars ← Vector.mapM F8.ofF fs
+  some ⟨chars, len⟩
+
 /-
 we could not use `deriving DecidableEq` when we defined FString, because there is no DecidableEq over F.
 deriving instance DecidableEq for (FString p 5).
@@ -318,8 +318,8 @@ example : countTrailingZeros #v[1,0] = some (1: F p) := by native_decide
 example : countTrailingZeros #v[0,1,0,0] = some (2: F p) := by native_decide
 example : countTrailingZeros #v[0,0,1,0] = some (1: F p) := by native_decide
 
-example : (do FString.ofFs #v[]) = some {chars := #v[], len:= (0:F p)} := by native_decide
-example : (do FString.ofFs #v[(0:F p),1,0,0]) = some { chars := #v[#v[0,0,0,0,0,0,0,0],#v[1,0,0,0,0,0,0,0],#v[0,0,0,0,0,0,0,0],#v[0,0,0,0,0,0,0,0]],len := 2 } := by native_decide
+example : (do ofFs #v[]) = some {chars := #v[], len:= (0:F p)} := by native_decide
+example : (do ofFs #v[(0:F p),1,0,0]) = some { chars := #v[#v[0,0,0,0,0,0,0,0],#v[1,0,0,0,0,0,0,0],#v[0,0,0,0,0,0,0,0],#v[0,0,0,0,0,0,0,0]],len := 2 } := by native_decide
 
 def F8.ofF! {p:ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] : F p → F8 p := Clap.num2bitsLsbPureV 8
 
