@@ -6,24 +6,22 @@ import Clap.Poseidon.Poseidon
 
 open Clap.Lang
 
-abbrev FChar := F
-
-namespace FChar
+namespace F8
 
 variable {p : ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)]
 
 -- https://en.wikipedia.org/wiki/ASCII#Table_of_codes
-def isWhitespace (c : FChar p) : Option (FB p) := do
+def isWhitespace (c : F8 p) : Option (FB p) := do
   -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
-  let gt8 ← F.greaterThan 8 c 8
-  let lt14 ← F.lessThan 8 c 14
+  let gt8 ← F8.greaterThan c 8
+  let lt14 ← F8.lessThan c 14
   let isLineBreak : FB p := gt8 &&& lt14
-  let isSpace ← F.eq c 32 -- ASCII 32 is space
+  let isSpace ← F8.eq c 32 -- ASCII 32 is space
   isLineBreak ||| isSpace
 
-end FChar
+end F8
 
-namespace Spec.FChar
+namespace Spec.F8
 
 variable {p : ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)]
 
@@ -35,9 +33,9 @@ lemma UInt8.left_inverse (u:UInt8): (Char.ofUInt8 u).toUInt8 = u := by
   aesop (add simp [Char.ofUInt8, Char.toUInt8])
 
 -- open Clap.Lang.Spec in
--- lemma isWhitespace_equiv (c:FChar p) (h : Spec.F8.valid c) :
---   FChar.isWhitespace c = some (FB.ofBool (isWhitespace_spec (Char.ofUInt8 $ UInt8.ofBitVec $ Spec.FBitVec.toBV c))) := by
---   unfold FChar.isWhitespace isWhitespace_spec FBitVec.greaterThan
+-- lemma isWhitespace_equiv (c:F8 p) (h : Spec.F8.valid c) :
+--   F8.isWhitespace c = some (FB.ofBool (isWhitespace_spec (Char.ofUInt8 $ UInt8.ofBitVec $ Spec.FBitVec.toBV c))) := by
+--   unfold F8.isWhitespace isWhitespace_spec FBitVec.greaterThan
 --   rw [Spec.F8.eq_equiv]
 --   simp [FBitVec.lessThan_equiv]
 --   rw [FB.or_equiv]
@@ -71,13 +69,13 @@ lemma high : isWhitespace_spec = isWhitespace_spec' := by
   unfold isWhitespace_spec isWhitespace_spec'
   sorry
 
-end Spec.FChar
+end Spec.F8
 
 /--
   Zero-padded vector of bytes of length `len`. `len` can at most be `maxLen`.
 -/
 structure FString (p : ℕ) [Fact (Primes.fits p 8)] (maxLen : ℕ) where
-  chars : Vector (FChar p) maxLen
+  chars : Vector (F8 p) maxLen
   len : F p
 
 namespace FString
@@ -271,7 +269,7 @@ end FString
 namespace TestString
 
 open Clap.Lang Clap.Spec
-open FChar FString
+open F8 FString
 
 abbrev p := Primes.babybear
 
@@ -300,7 +298,7 @@ Even after we open ZMod we still don't have it
 #synth DecidableEq (FString p 2)
 So we define it by hand here.
 -/
-instance {p m :ℕ} [Fact (Primes.fits p 8)] [DecidableEq (F p)] [DecidableEq (FChar p)]: DecidableEq (FString p m) := by
+instance {p m :ℕ} [Fact (Primes.fits p 8)] [DecidableEq (F p)] [DecidableEq (F8 p)]: DecidableEq (FString p m) := by
   intros a b
   rcases a
   rcases b
@@ -316,14 +314,14 @@ example : (do ofFs #v[]) = some {chars := #v[], len:= (0:F p)} := by native_deci
 example : (do ofFs #v[(0:F p),1,0,0]) = some { chars := #v[0,1,0,0],len := 2 } := by native_decide
 
 -- isWhitespace tests
-example : FChar.isWhitespace ( 9 : F p) = some FB.true := by native_decide -- TAB
-example : FChar.isWhitespace (10 : F p) = some FB.true := by native_decide -- LF
-example : FChar.isWhitespace (11 : F p) = some FB.true := by native_decide -- VT
-example : FChar.isWhitespace (12 : F p) = some FB.true := by native_decide -- FF
-example : FChar.isWhitespace (13 : F p) = some FB.true := by native_decide -- CR
-example : FChar.isWhitespace (32 : F p) = some FB.true := by native_decide -- SPACE
-example : FChar.isWhitespace (65 : F p) = some FB.false := by native_decide -- 'A'
-example : FChar.isWhitespace ( 0 : F p) = some FB.false := by native_decide -- NUL
+example : F8.isWhitespace ( 9 : F p) = some FB.true := by native_decide -- TAB
+example : F8.isWhitespace (10 : F p) = some FB.true := by native_decide -- LF
+example : F8.isWhitespace (11 : F p) = some FB.true := by native_decide -- VT
+example : F8.isWhitespace (12 : F p) = some FB.true := by native_decide -- FF
+example : F8.isWhitespace (13 : F p) = some FB.true := by native_decide -- CR
+example : F8.isWhitespace (32 : F p) = some FB.true := by native_decide -- SPACE
+example : F8.isWhitespace (65 : F p) = some FB.false := by native_decide -- 'A'
+example : F8.isWhitespace ( 0 : F p) = some FB.false := by native_decide -- NUL
 
 /-- Construct an `FString` from a char vector and a length for use in tests.
     Notably this allows to construct a "wrong" FString that FString.ofFs would not return. -/

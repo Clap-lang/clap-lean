@@ -293,7 +293,7 @@ def parseJWTFieldWithUnquotedValue
   let inZone := (zoneA.zipWith FB.or zoneB).zipWith FB.or zoneC
   -- For each position in a whitespace zone, the character must be whitespace
   (inZone.zip field.chars).toList.forM fun (z, c) ↦ do
-    let ws ← FChar.isWhitespace c
+    let ws ← F8.isWhitespace c
     F.guardedEq0 perform (z &&& FB.not ws)
   -- Check 2: value must not contain ',', '}', or '"'
   -- valueSelector: 1s at [value_index, value_index + value_len)
@@ -361,7 +361,7 @@ def parseJWTFieldWithQuotedValue
   -- and string bodies must match name/value selectors exactly
   (inZone.zip (nameOrValue.zip (field_string_bodies.zip field.chars))).toList.forM fun (z, nv, sb, c) ↦ do
     -- Whitespace check: if in a whitespace zone, the character must be whitespace
-    let ws ← FChar.isWhitespace c
+    let ws ← F8.isWhitespace c
     F.guardedEq0 perform (z &&& FB.not ws)
     -- String bodies forward: name/value positions must be inside string bodies
     F.guardedEq0 perform (nv &&& FB.not sb)
@@ -407,14 +407,14 @@ def parseEmailVerifiedField
   -- Char before value
   let charBeforeValue ← selectArrayValue field.chars (valueIndex - 1)
   let beforeIsQuote      : FB bn254 ← F.eq charBeforeValue '\"'
-  let beforeIsWhitespace : FB bn254 ← FChar.isWhitespace charBeforeValue
+  let beforeIsWhitespace : FB bn254 ← F8.isWhitespace charBeforeValue
   let beforeIsWsOrQuote := FB.or beforeIsQuote beforeIsWhitespace
   -- Check: char before value is quote/whitespace, OR it is the colon (valueIndex - 1 == colonIndex)
   eq0 ((1 - beforeIsWsOrQuote) &&& (valueIndex - 1 - colonIndex))
   -- Char after value
   let charAfterValue ← selectArrayValue field.chars (valueIndex + value.len)
   let afterIsQuote      : FB bn254 ← F.eq charAfterValue '\"'
-  let afterIsWhitespace : FB bn254 ← FChar.isWhitespace charAfterValue
+  let afterIsWhitespace : FB bn254 ← F8.isWhitespace charAfterValue
   let afterIsWsOrQuote := FB.or afterIsQuote afterIsWhitespace
   -- Check: char after value is quote/whitespace, OR it is the field delimiter (fieldLen - 1 == valueIndex + valueLen)
   eq0 ((1 - afterIsWsOrQuote) &&& (field.len - 1 - valueIndex - value.len))
@@ -432,7 +432,7 @@ def parseEmailVerifiedField
   let inZone := (zoneA.zipWith FB.or zoneB).zipWith FB.or zoneC
   -- For each position in a whitespace zone, the character must be whitespace
   (inZone.zip field.chars).toList.forM fun (z, c) ↦ do
-    let ws ← FChar.isWhitespace c
+    let ws ← F8.isWhitespace c
     eq0 (z &&& FB.not ws)
 
 end JWT

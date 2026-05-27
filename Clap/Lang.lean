@@ -163,6 +163,21 @@ def greaterEqThan (w : ℕ) (a b : F p) : Option (FB p) :=
 
 end F
 
+abbrev F8 := F
+
+namespace F8
+
+abbrev eq (a b : F8 p) := F.eq a b
+
+def lessThan (a b : F8 p) : Option (FB p) := do
+  F.lessThan 8 a b
+
+def greaterThan (a b : F8 p) : Option (FB p) :=
+  F.lessThan 8 b a
+
+end F8
+
+
 namespace Spec.F
 
 private lemma num2bitsLsbPureV_aux_toList_eq {p : ℕ} (w : ℕ) (v : ZMod p) :
