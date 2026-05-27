@@ -230,24 +230,24 @@ private def parseJWTFieldSharedLogic
   -- Check 2: field_len > name_len + value_len
   F.guardedEq0 perform (FB.not (← F.greaterThan w field.len (name.len + value.len)))
   -- Pre-compute hash of field for Fiat-Shamir substring checks
-  let fieldHash ← hashBytesToFieldWithLen field.chars field.len
+  let fieldHash ← hashBytesToField field
   -- Check 3: field[0] == '"' (ASCII 34)
-  let firstChar ← selectArrayValue field.chars 0
+  let firstChar ← selectArrayValue field.data 0
   F.guardedAssertEq perform firstChar '\"'
   -- Check 4: name is a substring of field starting at index 1
   let nameOk ← isSubstringFS h_name field fieldHash name 1
   F.guardedEq0 perform (FB.not nameOk)
   -- Check 5: field[name_len + 1] == '"' (ASCII 34)
-  let nameClosingQuote ← selectArrayValue field.chars (name.len + 1)
+  let nameClosingQuote ← selectArrayValue field.data (name.len + 1)
   F.guardedAssertEq perform nameClosingQuote '\"'
   -- Check 6: field[colon_index] == ':' (ASCII 58)
-  let colonChar ← selectArrayValue field.chars colon_index
+  let colonChar ← selectArrayValue field.data colon_index
   F.guardedAssertEq perform colonChar ':'
   -- Check 7: value is a substring of field starting at value_index
   let valueOk ← isSubstringFS h_value field fieldHash value value_index
   F.guardedEq0 perform (FB.not valueOk)
   -- Check 8: field[field_len - 1] == ',' (44) or '}' (125)
-  let lastChar ← selectArrayValue field.chars (field.len - 1)
+  let lastChar ← selectArrayValue field.data (field.len - 1)
   -- Enforce (lastChar - 44) * (lastChar - 125) == 0
   F.guardedEq0 perform ((lastChar - (',' : F _)) &&& (lastChar - ('}' : F _)))
 
@@ -292,13 +292,13 @@ def parseJWTFieldWithUnquotedValue
   -- Merge zones: inZone[i] = zoneA[i] ∨ zoneB[i] ∨ zoneC[i]
   let inZone := (zoneA.zipWith FB.or zoneB).zipWith FB.or zoneC
   -- For each position in a whitespace zone, the character must be whitespace
-  (inZone.zip field.chars).toList.forM fun (z, c) ↦ do
+  (inZone.zip field.data).toList.forM fun (z, c) ↦ do
     let ws ← F8.isWhitespace c
     F.guardedEq0 perform (z &&& FB.not ws)
   -- Check 2: value must not contain ',', '}', or '"'
   -- valueSelector: 1s at [value_index, value_index + value_len)
   let valueSel ← arraySelector maxKVPairLen value_index (value_index + value.len)
-  (valueSel.zip field.chars).toList.forM fun (sel, c) ↦ do
+  (valueSel.zip field.data).toList.forM fun (sel, c) ↦ do
     let isForbidden := (←F.eq c ',') ||| (←F.eq c '}') ||| (←F.eq c '\"')
     -- If in value range, character must not be forbidden
     F.guardedEq0 perform (sel &&& isForbidden)
@@ -339,10 +339,10 @@ def parseJWTFieldWithQuotedValue
   parseJWTFieldSharedLogic h_name h_value field name value colon_index value_index skipChecks
   let perform : FB bn254 := FB.not skipChecks
   -- Check 0: field[value_index - 1] == '"' (opening quote around value)
-  let valueFirstQuote ← selectArrayValue field.chars (value_index - 1)
+  let valueFirstQuote ← selectArrayValue field.data (value_index - 1)
   F.guardedAssertEq perform valueFirstQuote 34
   -- Check 1: field[value_index + value_len] == '"' (closing quote around value)
-  let valueSecondQuote ← selectArrayValue field.chars (value_index + value.len)
+  let valueSecondQuote ← selectArrayValue field.data (value_index + value.len)
   F.guardedAssertEq perform valueSecondQuote 34
   -- Check 2: whitespace zones + string bodies
   -- Zone A: [name_len + 2, colon_index)  — between closing name-quote and colon
@@ -359,7 +359,7 @@ def parseJWTFieldWithQuotedValue
   let nameOrValue := nameSel.zipWith FB.or valueSel
   -- For each position: whitespace zone chars must be whitespace,
   -- and string bodies must match name/value selectors exactly
-  (inZone.zip (nameOrValue.zip (field_string_bodies.zip field.chars))).toList.forM fun (z, nv, sb, c) ↦ do
+  (inZone.zip (nameOrValue.zip (field_string_bodies.zip field.data))).toList.forM fun (z, nv, sb, c) ↦ do
     -- Whitespace check: if in a whitespace zone, the character must be whitespace
     let ws ← F8.isWhitespace c
     F.guardedEq0 perform (z &&& FB.not ws)
@@ -405,14 +405,14 @@ def parseEmailVerifiedField
   -- Delegate shared structural checks
   parseJWTFieldSharedLogic h_name h_value field name value colonIndex valueIndex
   -- Char before value
-  let charBeforeValue ← selectArrayValue field.chars (valueIndex - 1)
+  let charBeforeValue ← selectArrayValue field.data (valueIndex - 1)
   let beforeIsQuote      : FB bn254 ← F.eq charBeforeValue '\"'
   let beforeIsWhitespace : FB bn254 ← F8.isWhitespace charBeforeValue
   let beforeIsWsOrQuote := FB.or beforeIsQuote beforeIsWhitespace
   -- Check: char before value is quote/whitespace, OR it is the colon (valueIndex - 1 == colonIndex)
   eq0 ((1 - beforeIsWsOrQuote) &&& (valueIndex - 1 - colonIndex))
   -- Char after value
-  let charAfterValue ← selectArrayValue field.chars (valueIndex + value.len)
+  let charAfterValue ← selectArrayValue field.data (valueIndex + value.len)
   let afterIsQuote      : FB bn254 ← F.eq charAfterValue '\"'
   let afterIsWhitespace : FB bn254 ← F8.isWhitespace charAfterValue
   let afterIsWsOrQuote := FB.or afterIsQuote afterIsWhitespace
@@ -431,7 +431,7 @@ def parseEmailVerifiedField
   let zoneC ← arraySelectorComplex maxKVPairLen (valueIndex + value.len + 1) (field.len - 1)
   let inZone := (zoneA.zipWith FB.or zoneB).zipWith FB.or zoneC
   -- For each position in a whitespace zone, the character must be whitespace
-  (inZone.zip field.chars).toList.forM fun (z, c) ↦ do
+  (inZone.zip field.data).toList.forM fun (z, c) ↦ do
     let ws ← F8.isWhitespace c
     eq0 (z &&& FB.not ws)
 

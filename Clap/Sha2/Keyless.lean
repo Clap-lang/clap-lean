@@ -157,7 +157,7 @@ def sha256VerifiedDigest
   -- CIRCOM (PaddingVerify.circom):
   --   signal in_hash <== HashBytesToFieldWithLen(MAX_INPUT_LEN)(in, num_blocks*64);
   -- The length argument is the total padded byte count (= num_blocks * 64 bytes).
-  let dataHash ← hashBytesToFieldWithLen data.chars (sha2NumBlocks * 64)
+  let dataHash ← hashBytesToField {data with len := sha2NumBlocks * 64}
 
   -- RFC 4634 §4.1.a: The padding bytes (0x80 followed by K/8 zero bytes) appear
   -- at position `paddingStart` in the data.
@@ -204,7 +204,7 @@ def sha256VerifiedDigest
   --       tBlock <== sha2_num_blocks - 1);
 
   -- TODO can we get rid of this conversion?
-  let data_as_vec : FByteArray p MAX_B64U_JWT_NO_SIG_LEN ← data.chars.mapM FBV8.ofF
+  let data_as_vec : FByteArray p MAX_B64U_JWT_NO_SIG_LEN ← data.data.mapM FBV8.ofF
   let blocks := (@parse_blocks (Circuit.t bn254) Circuit.instSha 24 data_as_vec).toArray
   -- Process all blocks and collect intermediate hash states.
   let allStates ← processAllBlocks blocks (@initial_hash (Circuit.t bn254) Circuit.instSha) 0 #[]

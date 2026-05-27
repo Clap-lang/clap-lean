@@ -6,18 +6,23 @@ namespace HashToField
 
 open Clap.Lang
 
+structure PaddedVector (α : ℕ → Type) (p w : ℕ) where
+  data : Vector (α p) w
+  len : F p
+
 abbrev p := Clap.Poseidon.p
 
 /-
   `inputMaxbits` corresponds to the `{maxbits}` tag. Circom tags are assigned
   values known at compile time.
 -/
-def hash64BitLimbsToFieldWithLen {numLimbs : ℕ}
-  (input : Vector (F p) numLimbs)
-  (inputMaxbits : ℕ)
-  (len : F p) :
+def hash64BitLimbsToField {numLimbs : ℕ}
+  (input : PaddedVector F p numLimbs)
+  (inputMaxbits : ℕ) :
   Option (F p)
 :=
+  let len := input.len
+  let input := input.data
   assert! inputMaxbits <= 64 && numLimbs != 0
   let w := (numLimbs + 2) / 3
   let padded : Vector (F p) (w * 3) :=
@@ -37,11 +42,12 @@ def hashElemsToField (input : Array (F p)) : Option (F p) := do
   let leaves ← inputs.mapM (fun x ↦ Clap.Poseidon.poseidonBN254 x.toList)
   Clap.Poseidon.poseidonBN254 leaves.toList
 
-def hashBytesToFieldWithLen {numBytes : ℕ}
-  (input : Vector (F p) numBytes)
-  (len : F p) :
+def hashBytesToField {numBytes : ℕ}
+  (input : PaddedVector F p numBytes) :
   Option (F p)
 := do
+  let len := input.len
+  let input := input.data
   assert! numBytes != 0
   Packing.assertIsBytes input
   let w := (numBytes + 30) / 31
@@ -66,13 +72,13 @@ private def chunk31BytesZero : Vector (F p) 31 :=
 private def chunk31BytesOne : Vector (F p) 31 :=
   Vector.append #v[1] (Vector.replicate 30 0)
 
-example : hashBytesToFieldWithLen (chunk31BytesZero ++ chunk31BytesOne) (31 + 31) ==
+example : hashBytesToField ⟨chunk31BytesZero ++ chunk31BytesOne, 31 + 31⟩ ==
   /- poseidon [poseidon [0, 1, 62]] -/
   some 13543697266444247423540702028286854389932495956928457586471762601092527495754
 := by
   native_decide
 
-example : hashBytesToFieldWithLen (chunk31BytesZero ++ chunk31BytesZero) (31 + 31) ==
+example : hashBytesToField ⟨chunk31BytesZero ++ chunk31BytesZero, 31 + 31⟩ ==
   /- poseidon [poseidon [0, 0, 62]] -/
   some 15333809665951811835835529849636018646388422529532753098753027230583179992115
 := by
@@ -97,14 +103,14 @@ example :
 
 example :
   -- poseidon [1, 2, 48]
-  hash64BitLimbsToFieldWithLen #v[1,0,0, 2,0,0] 64 48 == some
+  hash64BitLimbsToField ⟨#v[1,0,0, 2,0,0],48⟩ 64 == some
     9279947276585799077805428108942311632594603656807751900699542466687045499453
 := by
   native_decide
 
 example :
   -- poseidon [2^64, 24]
-  hash64BitLimbsToFieldWithLen #v[0,1,0] 64 24 == some
+  hash64BitLimbsToField ⟨#v[0,1,0],24⟩ 64 == some
     7782062960914706371652872958958905637393708115140004884697710811622618759288
 := by
   native_decide

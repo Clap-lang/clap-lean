@@ -73,9 +73,7 @@ end Spec.F8
 /--
   Zero-padded vector of bytes of length `len`. `len` can at most be `maxLen`.
 -/
-structure FString (p : ℕ) [Fact (Primes.fits p 8)] (maxLen : ℕ) where
-  chars : Vector (F8 p) maxLen
-  len : F p
+abbrev FString (p maxLen : ℕ) := HashToField.PaddedVector F8 p maxLen
 
 namespace FString
 
@@ -86,7 +84,7 @@ open FB in
 def assertIsAsciiDigits {maxDigits : ℕ} (inp : FString p maxDigits) : Option Unit := do
   let selector ← FArray.arraySelector maxDigits 0 inp.len
   for i in List.finRange maxDigits do
-    let c := inp.chars[i]
+    let c := inp.data[i]
     let gt ← F.greaterThan 8 c 47
     let lt ← F.lessThan 8 c 58
     let isAsciiDigit := FB.and gt lt
@@ -102,7 +100,7 @@ def asciiDigitsToScalar {maxLen : ℕ} (inp : FString p maxLen) : Option (F p) :
   assert! 0 < maxLen
   assertIsAsciiDigits inp
   -- accumulators[0] = digits[0] - 48
-  let acc₀ : F p := inp.chars[0]! - 48
+  let acc₀ : F p := inp.data[0]! - 48
   -- Fold over positions i = 1 .. maxLen-1.
   -- State: (s, ieq_sum, acc)
   --   s       : starts at 1, decremented to 0 at position `inp.len`
@@ -113,7 +111,7 @@ def asciiDigitsToScalar {maxLen : ℕ} (inp : FString p maxLen) : Option (F p) :
       let (s, ieq_sum, acc) := state
       let ieq       : F p ← share (← F.eq inp.len i.1)
       let s'        : F p ← share (← s - ieq)
-      let acc_shift : F p ← share (10 * acc + (inp.chars[i] - 48))
+      let acc_shift : F p ← share (10 * acc + (inp.data[i] - 48))
       let acc'      : F p ← share ((acc_shift - acc) * s' + acc)
       return (s', ieq_sum + ieq, acc'))
     (1, 0, acc₀)
@@ -141,12 +139,12 @@ def isSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (subs
     -- Σ_k  hot[k] * str.chars[k + j] = str.chars[startIndex + j]
     let extracted : F p ← share $ (List.finRange maxStrLen).foldl (fun sum (k : Fin maxStrLen) ↦
       if h : k.val + j.val < maxStrLen then
-        sum + hot[k] * str.chars[k.val + j.val]
+        sum + hot[k] * str.data[k.val + j.val]
       else
         sum
     ) 0
     -- Compare extracted value with substr char
-    let matched ← F.eq extracted substr.chars[j]
+    let matched ← F.eq extracted substr.data[j]
     -- position beyond substr.len → automatically true:
     -- If this position is part of the substring, check the match. If it's padding, skip it (always true)
     let gated := FB.or (FB.not substrSel[j]) matched
@@ -179,7 +177,7 @@ def isSubstringFS {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLe
     (startIndex : F bn254)
     : Option (FB bn254) := do
   -- Step 1: hash substr and derive the random challenge α
-  let substrHash ← hashBytesToFieldWithLen substr.chars substr.len
+  let substrHash ← hashBytesToField substr
   -- random_challenge = H(str_hash, substr_hash, substr_len, start_index)
   let α ← Clap.Poseidon.poseidonBN254 [strHash, substrHash, substr.len, startIndex]
   -- Step 2: build challenge powers α⁰, α¹, …, α^{maxStrLen-1}
@@ -191,11 +189,11 @@ def isSubstringFS {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLe
   -- Step 4: selected_str[i] = selector[i] * str[i]; ŝ(α) = Σᵢ selected_str[i] · powers[i]
   let mut strPolyEval : F bn254 := 0
   for l : i in [0:maxStrLen] do
-    strPolyEval := strPolyEval + selector[i] * str.chars[i] * powers[i]
+    strPolyEval := strPolyEval + selector[i] * str.data[i] * powers[i]
   -- Step 5: t(α) = Σⱼ substr[j] · powers[j]
   let mut substrPolyEval : F bn254 := 0
   for l : j in [0:maxSubstrLen] do
-    substrPolyEval := substrPolyEval + substr.chars[j] * powers[j]!
+    substrPolyEval := substrPolyEval + substr.data[j] * powers[j]!
   -- Step 6: α^startIndex = SelectArrayValue(powers, startIndex)
   let distinguishingValue ← FArray.selectArrayValue powers startIndex
   -- Step 7: success = NOT(isZero(ŝ(α))) AND isEqual(ŝ(α), α^startIndex · t(α))
@@ -231,33 +229,33 @@ def assertIsConcatenation
     (right   : FString bn254 maxRightLen)
     : Option Unit := do
   -- Step 1: hash all three strings and derive the random challenge
-  let leftHash  ← hashBytesToFieldWithLen left.chars left.len
-  let rightHash ← hashBytesToFieldWithLen right.chars right.len
-  let fullHash  ← hashBytesToFieldWithLen fullStr.chars (left.len + right.len)
+  let leftHash  ← hashBytesToField left
+  let rightHash ← hashBytesToField right
+  let fullHash  ← hashBytesToField {fullStr with len := left.len + right.len}
   let α ← Clap.Poseidon.poseidonBN254 [leftHash, rightHash, fullHash, left.len]
   -- Step 2: enforce that left is 0-padded after left.len
   -- rightArraySelector(left_len - 1) gives 1s at positions > left_len - 1, i.e. at [left_len, maxLeftLen)
   let leftSelector ← FArray.rightArraySelector maxLeftLen (left.len - 1)
   for l : i in [0:maxLeftLen] do
-    eq0 (leftSelector[i] * left.chars[i])
+    eq0 (leftSelector[i] * left.data[i])
   -- Step 2b: enforce that right is 0-padded after right.len
   let rightSelector ← FArray.rightArraySelector maxRightLen (right.len - 1)
   for l : i in [0:maxRightLen] do
-    eq0 (rightSelector[i] * right.chars[i])
+    eq0 (rightSelector[i] * right.data[i])
   -- Step 3: build challenge powers α⁰, α¹, …, α^{maxFullLen-1}
   let powers : Vector (F bn254) maxFullLen ← powers α maxFullLen
   -- Step 4: left_poly_eval = Σᵢ left[i] · powers[i]
   let mut leftPolyEval : F bn254 := 0
   for l : i in [0:maxLeftLen] do
-    leftPolyEval := leftPolyEval + left.chars[i] * powers[i]!
+    leftPolyEval := leftPolyEval + left.data[i] * powers[i]!
   -- Step 5: right_poly_eval = Σⱼ right[j] · powers[j]
   let mut rightPolyEval : F bn254 := 0
   for l : j in [0:maxRightLen] do
-    rightPolyEval := rightPolyEval + right.chars[j] * powers[j]!
+    rightPolyEval := rightPolyEval + right.data[j] * powers[j]!
   -- Step 6: full_poly_eval = Σₖ fullStr[k] · powers[k]
   let mut fullPolyEval : F bn254 := 0
   for l : k in [0:maxFullLen] do
-    fullPolyEval := fullPolyEval + fullStr.chars[k] * powers[k]
+    fullPolyEval := fullPolyEval + fullStr.data[k] * powers[k]
   -- Step 7: distinguishing_value = α^left_len = SelectArrayValue(powers, left_len)
   let distinguishingValue ← FArray.selectArrayValue powers left.len
   -- Step 8: assert full_poly_eval = left_poly_eval + α^left_len · right_poly_eval
@@ -309,8 +307,8 @@ example : countTrailingZeros #v[1,0] = some (1: F p) := by native_decide
 example : countTrailingZeros #v[0,1,0,0] = some (2: F p) := by native_decide
 example : countTrailingZeros #v[0,0,1,0] = some (1: F p) := by native_decide
 
-example : (do ofFs #v[]) = some {chars := #v[], len:= (0:F p)} := by native_decide
-example : (do ofFs #v[(0:F p),1,0,0]) = some { chars := #v[0,1,0,0],len := 2 } := by native_decide
+example : (do ofFs #v[]) = some {data := #v[], len:= (0:F p)} := by native_decide
+example : (do ofFs #v[(0:F p),1,0,0]) = some { data := #v[0,1,0,0],len := 2 } := by native_decide
 
 -- isWhitespace tests
 example : F8.isWhitespace ( 9 : F p) = some FB.true := by native_decide -- TAB
@@ -405,7 +403,7 @@ private def mkFStrQ {n : ℕ} (chars : Vector (F q) n) (len : F q) : FString q n
 
 /-- Compute `strHash` for an `FString` via `hashBytesToFieldWithLen`. -/
 private def strHashOf {n : ℕ} (s : FString q n) : Option (F q) :=
-  HashToField.hashBytesToFieldWithLen s.chars s.len
+  HashToField.hashBytesToField s
 
 -- "hel" in "hello" at 0
 example : (do
