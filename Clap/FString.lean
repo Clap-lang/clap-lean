@@ -35,8 +35,15 @@ lemma UInt8.left_inverse (u:UInt8): (Char.ofUInt8 u).toUInt8 = u := by
   aesop (add simp [Char.ofUInt8, Char.toUInt8])
 
 open Clap.Lang.Spec in
+private lemma valid_val {u : UInt8} : (Char.ofUInt8 u).val < 256 := by
+  unfold Char.ofUInt8 OfNat.ofNat UInt32.instOfNat
+  have : u.toUInt32 ≤ (255 : UInt8).toUInt32 := by grind [UInt8.toUInt32_le]
+  simp_all only [Nat.lt_add_one, UInt8.toUInt32_ofNat]
+  grind
+
+open Clap.Lang.Spec in
 lemma isWhitespace_equiv (c : FChar p) (h : Spec.F8.valid c) :
-  FChar.isWhitespace c = some (FB.ofBool (isWhitespace_spec (Char.ofUInt8 $ UInt8.ofBitVec $ Spec.FBitVec.toBV c) sorry))
+  FChar.isWhitespace c = some (FB.ofBool (isWhitespace_spec (Char.ofUInt8 $ UInt8.ofBitVec $ Spec.FBitVec.toBV c) valid_val))
 := by
   unfold FChar.isWhitespace isWhitespace_spec FBitVec.greaterThan
   rw [Spec.F8.eq_equiv]
