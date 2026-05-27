@@ -458,48 +458,48 @@ lemma eq_equiv {w} (a b : FBitVec p w) (ha : valid a) (hb : valid b) :
 end Spec.FBitVec
 
 
-abbrev F8 (p:ℕ) [Fact (Primes.fits p 8)] := FBitVec p 8
+abbrev FBV8 (p:ℕ) [Fact (Primes.fits p 8)] := FBitVec p 8
 
-namespace F8
+namespace FBV8
 
 variable [Fact (Primes.fits p 8)]
 
-def ofUInt8 (u:UInt8) : F8 p :=
+def ofUInt8 (u:UInt8) : FBV8 p :=
   UInt8.toBitVec u |> FBitVec.ofBV
 
-def ofF (x:F p) : Option (F8 p) := do
+def ofF (x:F p) : Option (FBV8 p) := do
   FBitVec.ofF 8 x
 
-def eq (a b : F8 p) : Option (FB p) := FBitVec.eq a b
+def eq (a b : FBV8 p) : Option (FB p) := FBitVec.eq a b
 
-def assert_eq (a b : F8 p) := FBitVec.assert_eq a b
+def assert_eq (a b : FBV8 p) := FBitVec.assert_eq a b
 
-end F8
+end FBV8
 
-namespace Spec.F8
+namespace Spec.FBV8
 
 variable [Fact (Primes.fits p 8)]
 
-abbrev valid (x:F8 p) := FBitVec.valid x
+abbrev valid (x:FBV8 p) := FBitVec.valid x
 
-def toUInt8 (x:F8 p) : UInt8 :=
+def toUInt8 (x:FBV8 p) : UInt8 :=
   Spec.FBitVec.toBV x |> UInt8.ofBitVec
 
 lemma left_inv (u:UInt8) (h : 2^8 < p):
-  F8.toUInt8 (F8.ofUInt8 (p:=p) u) = u := by
-  unfold F8.toUInt8 F8.ofUInt8
+  FBV8.toUInt8 (FBV8.ofUInt8 (p:=p) u) = u := by
+  unfold FBV8.toUInt8 FBV8.ofUInt8
   aesop (add simp [Spec.FBitVec.right_inv])
 
 lemma ofF_equiv (e:ZMod p) :
-  F8.ofF e = if h : e.val < 2^8 then some (F8.ofUInt8 (UInt8.ofFin ⟨e.val,h⟩)) else none := by
-  unfold F8.ofF FBitVec.ofF
+  FBV8.ofF e = if h : e.val < 2^8 then some (FBV8.ofUInt8 (UInt8.ofFin ⟨e.val,h⟩)) else none := by
+  unfold FBV8.ofF FBitVec.ofF
   apply Spec.FBitVec.num2bits_equiv
 
-lemma eq_equiv (a b : F8 p) (ha:FBitVec.valid a) (hb:FBitVec.valid b):
-  F8.eq a b = some (FB.ofBool ((toUInt8 a) = (toUInt8 b))) := by
-  aesop (add simp [F8.eq,toUInt8,FBitVec.eq_equiv])
+lemma eq_equiv (a b : FBV8 p) (ha:FBitVec.valid a) (hb:FBitVec.valid b):
+  FBV8.eq a b = some (FB.ofBool ((toUInt8 a) = (toUInt8 b))) := by
+  aesop (add simp [FBV8.eq,toUInt8,FBitVec.eq_equiv])
 
-end Spec.F8
+end Spec.FBV8
 
 
 abbrev F32 (p:ℕ) [Fact (Primes.fits p 32)] := FBitVec p 32
@@ -519,7 +519,7 @@ def ofUInt32 (u:UInt32) : F32 p :=
 def ofF (x:F p) : Option (F32 p) := do
   FBitVec.ofF 32 x
 
-def ofF8 [Fact (Primes.fits p 8)] (u8 : F8 p) : F32 p :=
+def ofFBV8 [Fact (Primes.fits p 8)] (u8 : FBV8 p) : F32 p :=
   u8 ++ (Vector.replicate 24 (0:FB p))
 
 def add (a b : F32 p) : Option (F32 p) := do
@@ -572,7 +572,7 @@ def ofF (x:F p) : Option (F64 p) :=
 
 end F64
 
-def FByteArray (p w : ℕ) [Fact (Primes.fits p 8)] := Vector (F8 p) w
+def FByteArray (p w : ℕ) [Fact (Primes.fits p 8)] := Vector (FBV8 p) w
 
 namespace FByteArray
 

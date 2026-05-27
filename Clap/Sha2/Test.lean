@@ -25,7 +25,7 @@ abbrev p := Primes.goldilocks
 open Clap.Sha2 Circuit
 open Clap.Lang
 
-def stringToU8s (s:String) : Vector (F8 p) s.length :=
+def stringToU8s (s:String) : Vector (FBV8 p) s.length :=
   let bs : Vector UInt8 s.length := ⟨s.toUTF8.data, sorry⟩
   bs.map fun b =>
     let b : F p := (b.toNat : F p)

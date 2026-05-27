@@ -17,13 +17,13 @@ def assertIsBytes [Fact (Primes.fits p 8)] {numBytes : ℕ}
   (a : Vector (F p) numBytes) :
   Option Unit
 := do
-  _ ← a.mapM F8.ofF
+  _ ← a.mapM FBV8.ofF
   pure ()
 
 def bigEndianBits2Num {w} : FBitVec p w → F p := bits2numV ∘ .reverse
 
 def bytes2BigEndianBits [Fact (Primes.fits p 8)] {n : ℕ} (bytes : Vector (F p) n) : Option (FBitVec p (n*8)) := do
-  bytes.flatMapM (fun byte ↦ Vector.reverse <$> F8.ofF byte)
+  bytes.flatMapM (fun byte ↦ Vector.reverse <$> FBV8.ofF byte)
 
 def chunksToFieldElem {w : ℕ}
   (bitsPerChunk : ℕ)

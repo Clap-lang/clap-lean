@@ -204,7 +204,7 @@ def sha256VerifiedDigest
   --       tBlock <== sha2_num_blocks - 1);
 
   -- TODO can we get rid of this conversion?
-  let data_as_vec : FByteArray p MAX_B64U_JWT_NO_SIG_LEN ← data.chars.mapM F8.ofF
+  let data_as_vec : FByteArray p MAX_B64U_JWT_NO_SIG_LEN ← data.chars.mapM FBV8.ofF
   let blocks := (@parse_blocks (Circuit.t bn254) Circuit.instSha 24 data_as_vec).toArray
   -- Process all blocks and collect intermediate hash states.
   let allStates ← processAllBlocks blocks (@initial_hash (Circuit.t bn254) Circuit.instSha) 0 #[]
@@ -229,7 +229,7 @@ open Clap.Sha2.Keyless
 open Clap.Sha2
 open Clap.Lang Primes
 
-def F8.ofF! {p:ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] : F p → F8 p := Clap.num2bitsLsbPureV 8
+def FBV8.ofF! {p:ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] : F p → FBV8 p := Clap.num2bitsLsbPureV 8
 
 namespace TestKPlus1Div8
 
@@ -271,7 +271,7 @@ private instance : Clap.Sha2.Sha (Clap.Sha2.Circuit.t bn254) := Clap.Sha2.Circui
 private instance : Clap.Sha2.U32Monadic Option (F32 bn254) := Clap.Sha2.Circuit.instU32Monadic
 
 private def abcHash : Option (Hash (F32 bn254)) :=
-  let bytes : Array (F8 bn254) := (#[97, 98, 99] : Array Nat).map (fun (n : Nat) => F8.ofF! (n : F bn254))
+  let bytes : Array (FBV8 bn254) := (#[97, 98, 99] : Array Nat).map (fun (n : Nat) => FBV8.ofF! (n : F bn254))
   Clap.Sha2.digest (t := Clap.Sha2.Circuit.t bn254) ⟨bytes, rfl⟩
 
 example : (do
@@ -366,7 +366,7 @@ private instance : U32Monadic Option (F32 bn254) := Circuit.instU32Monadic
 
 -- Helper: run digest on raw bytes and convert to RSA limbs (Path A)
 private def digestToLimbs (msg : Array (F bn254)) : Option (Vector (F bn254) 4) := do
-  let f8Msg : Array (F8 bn254) ← msg.mapM F8.ofF
+  let f8Msg : Array (FBV8 bn254) ← msg.mapM FBV8.ofF
   let hash ← Clap.Sha2.digest (t := Circuit.t bn254) ⟨f8Msg, rfl⟩
   pure (hashToRSALimbs hash.toArray)
 

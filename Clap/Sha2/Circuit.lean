@@ -87,7 +87,7 @@ def shiftRight (n : ℕ) (x : F32 p) : F32 p :=
   else x
 
 abbrev t p [Fact (Primes.fits p 8)] [Fact (Primes.fits p 32)] : Clap.Sha2.T := {
-  U8  := F8  (p:=p),
+  U8  := FBV8  (p:=p),
   U32 := F32 (p:=p)
 }
 
@@ -101,20 +101,20 @@ def to_nat_be (bs : FByteArray p 4) : F32 p :=
   let litteEndian := bs.reverse
   Vector.flatten litteEndian
 
-instance i₁ : Coe ℕ (F8 p) where
+instance i₁ : Coe ℕ (FBV8 p) where
   coe n := (Clap.nat2bitsLsbV 8 n).map (fun (x:ℕ) ↦ (x:ZMod p))
 
 instance i₂ : Coe ℕ (F32 p) where
   coe n := (Clap.nat2bitsLsbV 32 n).map (fun (x:ℕ) ↦ (x:ZMod p))
 
-instance i₃ : Coe (F8 p) (F32 p) where
-  coe := F32.ofF8
+instance i₃ : Coe (FBV8 p) (F32 p) where
+  coe := F32.ofFBV8
 
 def toString {w} (f : FBitVec p w) : String :=
   let n : F p := (f.foldl (fun (pow,sum) i => (pow * 2, sum + (i * pow))) (1,0)).2
   n.val
 
-instance (priority := high) i₅ : ToString (F8 p) where
+instance (priority := high) i₅ : ToString (FBV8 p) where
   toString f := toString f
 
 instance (priority := high) i₆ : ToString (F32 p) where
@@ -152,7 +152,7 @@ open Clap.Lang
 instance : Coe ℕ (F p) where
   coe n := n
 
-instance : Coe UInt8 (F8 p) where
+instance : Coe UInt8 (FBV8 p) where
   coe n := Clap.num2bitsLsbPureV 8 n.toNat
 
 instance (n:ℕ) : OfNat (F32 p) n where
