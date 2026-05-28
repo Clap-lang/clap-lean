@@ -712,6 +712,28 @@ def listOfArray (e : Expr) : Option Expr :=
   then .none
   else .some e.getAppArgs[1]!
 
+open Collection in
+/--
+We permit any free variable of type vector with size we can reduce to ground nat.
+Unsized collections better enumerate their elements in the first place.
+-/
+def sequenced (e : Expr) : Sym.Simp.SimpM (Option (Array Expr × Collection)) := do
+  match_expr e with
+  | List.cons _ _ _ => return elemsOfExpr e
+  | List.nil  _     => return elemsOfExpr e
+  | Array.mk  _ _   => return elemsOfExpr e
+  | _ =>
+    if !e.isFVar then return .none
+    let_expr Vector t sz := ←Sym.inferType e | return .none
+    elemsOfExpr <$> sequenceAsVecExpr e t sz
+
+def mapM? (e : Expr) : Option (List Expr) :=
+  match_expr e with
+  | Vector.mapM _ α β _ _ f xs => return [f, α, β, xs]
+  | Array.mapM α β _ _ f xs    => return [f, α, β, xs]
+  | List.mapM _ _ α β f xs     => return [f, α, β, xs]
+  | _                          => .none
+
 open Compiler.Simp in
 /--
 Single step transformation. TODO: Does not play particularly nice with our top-level driver.
@@ -721,6 +743,10 @@ Single step transformation. TODO: Does not play particularly nice with our top-l
 def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
   -- withTraceNode `Clap.Compile.simp.proc.vector_mapM_mk (fun _ ↦ return m!"") do
   -- let time ← IO.monoMsNow
+  let .some [f, α, β, xs] := mapM? e | return .rfl
+  let .some (xs, coll) ← sequenced e | throwError m!"Cannot sequence: {e}"
+  
+
   let_expr _root_.Vector.mapM _ α β sz _ f vec := e | return .rfl
   -- Ultimately, only 'sized' collections are permitted. Free variables are transformed first.
   let vec ← if vec.isFVar then sequenceAsVecExpr vec α sz else pure vec
