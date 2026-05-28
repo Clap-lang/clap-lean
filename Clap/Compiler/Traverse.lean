@@ -235,7 +235,32 @@ def compilerWat : Sym.Simp.Simproc := fun e ↦ do
       return .step e' (←mkSorry (←mkEq e e') false)
   | _ =>
     return .rfl
-  
+
+-- def compilerWatPost : Sym.Simp.Simproc := fun e ↦ do
+--   match_expr e with
+--   | Option.bind α γ x g =>
+--     match_expr x with
+--     | Option.bind α β x f => 
+--       -- let time ← IO.monoMsNow
+--       let subtree := (←Sym.simp f).getResultExpr f
+--       trace[Clap.Compile.simp.proc.monad.bind_assoc]
+--         m!"Subtree.\n{f}\n==>\n{subtree}"
+--       let u ← Sym.getLevelInType α
+--       let v ← Sym.getLevelInType β
+--       let w ← Sym.getLevelInType γ
+--       -- `f : α → m β | g : β → m γ | x : m α`
+--       let bind ← shareCommonInc <|
+--         mkApp4 (.const ``Option.bind [v, w]) β γ (←shareCommonInc (f.beta #[.bvar 0])) g
+--       let cont := Expr.lam `_assoc α bind .default
+--       let e' ← shareCommonInc <| mkApp4 (.const ``Option.bind [u, w]) α γ x cont
+--       trace[Clap.Compile.simp.proc.monad.bind_assoc]
+--         m!"\n{e}\n==>\n{e'}"
+--       -- Dbg.timeSince time "bind_assoc took:"
+--       return .step e' (←mkSorry (←mkEq e e') false)
+--     | _ =>
+--       return .rfl
+--   | _ => return .rfl
+
 def compilerWtf : MetaM Sym.Simp.Methods :=
   mkPreMethods #[
     ``compilerWat

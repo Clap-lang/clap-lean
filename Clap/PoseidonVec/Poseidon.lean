@@ -135,7 +135,7 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
     let l ← state.mapM sigma
     mix (ark l C ((r + 1) * t)) M) state
-  
+
   -- Boundary round (r = half−1): sigma → ark → mix with P
   let state := mix (ark (← state.mapM sigma) C (half * t)) P
 
@@ -264,7 +264,7 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
 -- set_option trace.Clap.Compile.simp.proc.vector_mk_zipWith_mk true in
 -- set_option trace.Clap.Compile.simp.proc.monad true in
 open Clap.Compiler.SymSets Vector General in
--- set_option pp.exprSizes true in
+set_option pp.exprSizes true in
 set_option maxRecDepth 1000000 in
 set_option maxHeartbeats 0 in
 -- set_option pp.proofs true in
