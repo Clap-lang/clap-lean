@@ -378,12 +378,14 @@ TODO: Maybe generalise this to `GetElem` supporting collections, but it's not re
 for the current project.
 -/
 inductive CollectionKind where | Vector | Array | List
+  deriving Repr
 
 structure CollectionType where
   private _mk ::
   t  : Expr
   k  : CollectionKind
   sz : Option Expr
+  deriving Repr
 
 def CollectionType.cast (c : CollectionType) (t : CollectionKind) : Option CollectionType :=
   match t with
@@ -404,6 +406,7 @@ def CollectionType.mkVec (elem : Expr) (sz : Expr) :=
 structure Collection where
   type     : CollectionType
   listExpr : Expr
+  deriving Repr
 
 def Collection.setSize (coll : Collection) (sz : Expr) : Collection :=
   {coll with type := coll.type.setSize sz}
@@ -635,7 +638,7 @@ def getElem_mk : Sym.Simp.Simproc := fun e => do
   let .some (elems, t) := Collection.elemsOfExpr vec | return .rfl
   let .some sz := t.type.sz | unreachable!
   let n := (←Sym.simpWithGround n).getResultExpr n
-  let .some i := Sym.getNatValue? n | throwError m!"{sz} does not simplify to ground. Expr:\n{e}" -- return .rfl
+  let .some i := Sym.getNatValue? n | return .rfl
   if h : i < elems.size
   then
     let e' := elems[i]
@@ -719,9 +722,10 @@ Unsized collections better enumerate their elements in the first place.
 -/
 def sequenced (e : Expr) : Sym.Simp.SimpM (Option (Array Expr × Collection)) := do
   match_expr e with
-  | List.cons _ _ _ => return elemsOfExpr e
-  | List.nil  _     => return elemsOfExpr e
-  | Array.mk  _ _   => return elemsOfExpr e
+  | List.cons _ _ _   => return elemsOfExpr e
+  | List.nil  _       => return elemsOfExpr e
+  | Array.mk  _ _     => return elemsOfExpr e
+  | Vector.mk _ _ _ _ => return elemsOfExpr e
   | _ =>
     if !e.isFVar then return .none
     let_expr Vector t sz := ←Sym.inferType e | return .none
@@ -743,14 +747,8 @@ Single step transformation. TODO: Does not play particularly nice with our top-l
 def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
   -- withTraceNode `Clap.Compile.simp.proc.vector_mapM_mk (fun _ ↦ return m!"") do
   -- let time ← IO.monoMsNow
-  let .some [f, α, β, xs] := mapM? e | return .rfl
-  let .some (xs, coll) ← sequenced e | throwError m!"Cannot sequence: {e}"
-  
-
-  let_expr _root_.Vector.mapM _ α β sz _ f vec := e | return .rfl
-  -- Ultimately, only 'sized' collections are permitted. Free variables are transformed first.
-  let vec ← if vec.isFVar then sequenceAsVecExpr vec α sz else pure vec
-  if !vec.isAppOf ``Vector.mk then return .rfl
+  let .some [f, _, β, xs] := mapM? e | return .rfl
+  let .some (elems, ⟨⟨_, k, .some sz⟩, _⟩) ← sequenced xs | return .rfl
   let szSimped := (←Sym.simpWithGround sz).getResultExpr sz
   if !isSameExpr sz szSimped then
     trace[Clap.Compile.simp.proc.vector_mapM_mk]
@@ -759,25 +757,28 @@ def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
   | .none => throwError m!"{sz} does not simplify to ground. Expr:\n{e} (TODO: Maybe this is ok.)"
   | .some szSimpedNat =>
     let transformedList ← Sym.mkListLit β <| (List.range szSimpedNat).reverse.map .bvar
-    let transformedVector ← mkVecLit β transformedList szSimped
-    let transformedVectorT ← Sym.inferType transformedVector
-    let v ← Sym.getLevelInType transformedVectorT
-    let transformedVector? :=
-      mkAppN (.const ``Option.some [v]) #[←Sym.inferType transformedVector, transformedVector]
-    let transformedVector? ← Sym.shareCommonInc transformedVector?
-    let .some (elems, _) := Collection.elemsOfExpr vec | logError m!"Vector.mapM_mk\nVec:\n{vec}\nE:\n{e}"; unreachable!
+    let .some transformedColl :=
+      Collection.ofExpr transformedList <&>
+      Collection.setSize (sz := szSimped) >>=
+      Collection.cast (t := k) | unreachable!
+    let transformedColl ← transformedColl.toExpr
+    let transformedCollT ← Sym.inferType transformedColl
+    let v ← Sym.getLevelInType transformedCollT
+    let transformedColl? :=
+      mkAppN (.const ``Option.some [v]) #[transformedCollT, transformedColl]
+    let transformedColl? ← Sym.shareCommonInc transformedColl?
     let u ← Sym.getLevelInType β
     /-
     Start with `.some #[.bvar sz.pred, .bvar sz.pred.pred, ..., .bvar 0]`
     Prefix a single lambda in each iteration.
     -/
-    let e' ← (List.range szSimpedNat).foldrM (init := transformedVector?) fun i e ↦ do
+    let e' ← (List.range szSimpedNat).foldrM (init := transformedColl?) fun i e ↦ do
       let elem := elems[i]!
       liftM ∘ Sym.shareCommonInc <|
         mkAppN                                         -- `f vec[i] >>= fun row_{i} ↦ e`
           (.const ``Option.bind [u, v])
           #[
-            β, transformedVectorT,                     -- implicits
+            β, transformedCollT,                       -- implicits
             ←Sym.shareCommonInc (f.beta #[elem]),      -- `f vec[i]`
             .lam (binderInfo := .default)
                  (binderName := .mkSimple s!"row_{i}")
@@ -1050,7 +1051,8 @@ def ex₄ (vec : Vector Nat 160) : Option Unit :=
 -- set_option trace.Clap.Compile.simp.proc.vector_mapM_mk true in
 -- set_option trace.profiler true in
 -- set_option profiler true in
-set_option trace.Clap.Compile true in
+-- set_option trace.Clap.Compile true in
+set_option trace.Clap.Compile false in
 #eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerWtf ∪ getElem))
 
 def profileThis := spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerWtf ∪ getElem))
@@ -1188,15 +1190,15 @@ def ex₁₃ (vec : Vector Nat 4) : Option Unit := do
   let tail := (state.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state[0]'sorry * S[base + t + i]'sorry)
   let res : Vector Nat 2 := ⟨#[dotProduct] ++ tail.toArray, sorry⟩
   eq0 res[0]
-set_option trace.Clap.Compile true in
+
 /--
 info: Compiled:
-fun vec => eq0 7
+fun vec => eq0 20
 -/
 #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do
   compileExampleJustSym ``ex₁₃
-    (←(zeta ∪ compilerWtf ∪ explode ∪ zipWith ∪ sum ∪ extract ∪ toArray ∪ mapIdx ∪ append))
+    (←(zeta ∪ compilerWtf ∪ explode ∪ zipWith ∪ sum ∪ extract ∪ toArray ∪ mapIdx ∪ append ∪ getElem ∪ drop ∪ extract))
 
 end ExampruSym
 

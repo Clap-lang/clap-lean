@@ -122,24 +122,24 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   -- N_ROUNDS_P[t-2] for t ∈ [2, 17]
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := 1 + n
-  let nRoundsF : ℕ := 2
   -- let nRoundsF : ℕ := 8
-  let nRoundsP : ℕ := 1
+  let nRoundsF : ℕ := 2
+  let nRoundsP : ℕ := 2
   -- let nRoundsP : ℕ := N_ROUNDS_P[t - 2]'sorry
   let half : ℕ := nRoundsF / 2
 
   let state : Vector (F p) t := #v[initState] ++ inputs
 
-  -- -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
-  -- let state := ark state C 0
+  -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
+  let state := ark state C 0
 
-  -- -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
-  -- let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
-  --   let l ← state.mapM sigma
-  --   mix (ark l C ((r + 1) * t)) M) state
+  -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
+  let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
+    let l ← state.mapM sigma
+    mix (ark l C ((r + 1) * t)) M) state
   
-  -- -- Boundary round (r = half−1): sigma → ark → mix with P
-  -- let state := mix (ark (← state.mapM sigma) C (half * t)) P
+  -- Boundary round (r = half−1): sigma → ark → mix with P
+  let state := mix (ark (← state.mapM sigma) C (half * t)) P
 
   -- Phase 2: partial rounds
   let state ← (List.range nRoundsP).foldlM (fun state r ↦ do
@@ -147,13 +147,12 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
     mixS r (state.set 0 s0) S) state
 
 
-  -- -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
-  -- let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
-  --   let l ← state.mapM sigma
-  --   mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
-  -- -- state[0]
+  -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
+  let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
+    let l ← state.mapM sigma
+    mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
 
-  -- -- Final round: sigma on all, then extract nOuts elements via MixLast
+  -- Final round: sigma on all, then extract nOuts elements via MixLast
   let state ← state.mapM sigma
   mixLast state M 0
 
@@ -291,13 +290,6 @@ open Clap.Compiler.SymSets Vector General in
       extract ∪
       toArray ∪
       compilerWtf
-      -- ∪ compilerSet_bind_eq_bind
-      -- ∪ compilerSet_bind_assoc
-      -- ∪ compilerWtf
-      -- compilerSet_bind_pure
-
-      -- ∪
-      -- compilerSet_whatever
     ))
 
 -- set_option trace.Clap.Compile.simp.fail true
