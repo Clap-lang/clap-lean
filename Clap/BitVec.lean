@@ -94,6 +94,64 @@ lemma num2bitsLsbPure_bits {w : ℕ} {v : ZMod p} : ∀ i : Fin _, (num2bitsLsbP
 #guard num2bitsLsbPure (p := Primes.babybear) 3 4 = [0,0,1]
 #guard num2bitsLsbPure (p := Primes.babybear) 4 1 = [1,0,0,0]
 
+lemma num2bitsLsbPureV_aux_toList {n : ℕ} {f : ZMod p} :
+    (num2bitsLsbPureV.aux n f).toList = (num2bitsLsbPure n f).reverse := by
+  induction n generalizing f with
+  | zero => rfl
+  | succ n ih =>
+    -- ⚠ iterate: unfold one step of aux + num2bitsLsbPure and match via reverse_cons
+    simp only [num2bitsLsbPureV.aux, Vector.toList_push, ih, num2bitsLsbPure, List.reverse_cons]
+
+lemma num2bitsLsbPureV_toList {w : ℕ} {e : ZMod p} :
+    (num2bitsLsbPureV w e).toList = num2bitsLsbPure w e := by
+  unfold num2bitsLsbPureV
+  rw [Vector.toList_reverse, num2bitsLsbPureV_aux_toList, List.reverse_reverse]
+
+/-- The `i`-th LSB of `num2bitsLsbPure w e` is bit `i` of `e.val`. -/
+lemma num2bitsLsbPure_getElem [NeZero p] {w : ℕ} {e : ZMod p} :
+    ∀ i : Fin (num2bitsLsbPure w e).length,
+      (num2bitsLsbPure w e)[i] = ((e.val / 2 ^ (i : ℕ) % 2 : ℕ) : ZMod p) := by
+  revert e
+  induction w with
+  | zero => intro e i; erw [List.length_nil] at i; exact Fin.elim0 i
+  | succ w ih =>
+    intro e
+    rw! (castMode := .all) [num2bitsLsbPure_length]
+    intro i
+    simp only [num2bitsLsbPure]
+    by_cases h : i = 0
+    · simp only [h, Fin.getElem_fin, Fin.val_zero, List.getElem_cons_zero, pow_zero, Nat.div_one]
+    · have hsucc : ∃ i' : Fin w, i'.succ = i := by
+        use ⟨i.val - 1, by omega⟩
+        have heq : i.val - 1 + 1 = i.val := by
+          apply Nat.sub_add_cancel
+          by_contra h'
+          apply h
+          simpa using h'
+        simp only [Fin.succ_mk, heq]
+      rcases hsucc with ⟨i', rfl⟩
+      simp only [Fin.getElem_fin, Fin.val_succ, List.getElem_cons_succ]
+      specialize @ih ((e.val / 2 : ℕ) : ZMod p)
+      rw! (castMode := .all) [num2bitsLsbPure_length] at ih
+      have hih := ih i'
+      rw [Fin.getElem_fin] at hih
+      rw [hih]
+      congr 1
+      have hlt : (e.val / 2 : ℕ) < p := lt_of_le_of_lt (Nat.div_le_self _ _) (ZMod.val_lt e)
+      rw [ZMod.val_natCast, Nat.mod_eq_of_lt hlt, Nat.div_div_eq_div_mul, ← pow_succ']
+
+/-- Vector form of `num2bitsLsbPure_getElem`, via the `toList` bridge. -/
+lemma num2bitsLsbPureV_getElem [NeZero p] {n : ℕ} {e : ZMod p} (i : Fin n) :
+    (num2bitsLsbPureV n e)[i] = ((e.val / 2 ^ (i : ℕ) % 2 : ℕ) : ZMod p) := by
+  have h := num2bitsLsbPure_getElem (w := n) (e := e)
+              ⟨i, by rw [num2bitsLsbPure_length]; exact i.isLt⟩
+  simpa [← num2bitsLsbPureV_toList, Fin.getElem_fin] using h
+
+lemma num2bitsLsbPureV_bits [NeZero p] {n : ℕ} {e : ZMod p} (i : Fin n) :
+    (num2bitsLsbPureV n e)[i] = 0 ∨ (num2bitsLsbPureV n e)[i] = 1 := by
+  rw [num2bitsLsbPureV_getElem]
+  rcases Nat.mod_two_eq_zero_or_one (e.val / 2 ^ (i : ℕ)) with h | h <;> simp [h]
+
 def num2bitsMsbPure (n : ℕ) (f : ZMod p) : List (ZMod p) :=
   num2bitsLsbPure n f |> List.reverse
 
@@ -187,6 +245,16 @@ lemma bits2num_spec {bits : List (ZMod p)} : bits2num bits = ∑ i : Fin bits.le
       simp only [h₁ h, Nat.cast_ofNat, List.foldr_cons, LeftDistribClass.left_distrib, ←mul_assoc, this]
       erw [ih]
 
+lemma bits2numV_toList {w : ℕ} {v : Vector (ZMod p) w} :
+    bits2numV v = bits2num v.toList := by
+  obtain ⟨arr, rfl⟩ := v
+  simp [bits2numV, bits2num, Vector.foldr, Array.foldr_toList, Vector.toList]
+
+theorem bits2numV_spec {w : ℕ} (v : Vector (ZMod p) w) : bits2numV v = ∑ i : Fin w, 2 ^ (i : ℕ) * v[i] := by
+  rw [bits2numV_toList, bits2num_spec]
+  refine Fintype.sum_equiv (finCongr (by simp)) _ _ (fun i => ?_)
+  simp [Vector.getElem_toList, Fin.getElem_fin]
+
 variable [inst : Fact (Nat.Prime p)]  [inst' : Fact (2 < p)]
 
 lemma sum_pow_2_eq {w : ℕ} {f : Fin w → ZMod p} :
@@ -248,6 +316,17 @@ lemma bits2num_bound {bits : List (ZMod p)} :
       simp
   · rw [not_lt] at h'
     exact lt_of_lt_of_le (ZMod.val_lt _) h'
+
+theorem bits2numV_bound {w : ℕ} {v : Vector (ZMod p) w}
+    (h : ∀ i : Fin w, v[i] = 0 ∨ v[i] = 1) : (bits2numV v).val < 2 ^ w := by
+  rw [bits2numV_toList]
+  have hlen : v.toList.length = w := by simp
+  have hb : ∀ i : Fin v.toList.length, v.toList[i] = 0 ∨ v.toList[i] = 1 := by
+    intro i
+    have := h (Fin.cast hlen i)
+    simpa [Fin.getElem_fin, Vector.getElem_toList] using this
+  have := bits2num_bound hb
+  rwa [hlen] at this
 
 lemma num2bitsLsbPure_of_bits2num_eq {ls : List (ZMod p)} :
   2 ^ ls.length < p →

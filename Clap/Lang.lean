@@ -1,5 +1,7 @@
 import Clap.Primes
 import Clap.Spec
+import Std.Do
+import Std.Tactic.Do
 
 namespace Clap.Lang
 
@@ -142,6 +144,136 @@ def assertBool_ofBool_eq_some (b:Bool) : FB.assertBool (p:=p) (FB.ofBool b) = so
 
 end Spec.FB
 
+section FSpecs
+set_option mvcgen.warning false
+
+open Std.Do
+
+def isBinary (x : F p) : Prop := x = 0 ∨ x = 1
+
+def isBinaryVec {len : ℕ} (v : Vector (FB p) len) : Prop :=
+  ∀ i : Fin len, isBinary v[i]
+
+@[spec]
+theorem isZero_spec (e : F p) :
+    ⦃⌜True⌝⦄ isZero e ⦃⇓ v => ⌜v = (if e = 0 then 1 else 0)⌝⦄ := by
+  have isZero_def : isZero e = pure (if e = 0 then 1 else 0 : F p) := by
+    unfold isZero
+    split <;> rfl
+  rw [isZero_def]
+  mvcgen
+
+@[spec]
+theorem eq0_spec (e : F p) :
+    ⦃⌜True⌝⦄ eq0 e ⦃ post⟨ fun _ => ⌜e = 0⌝, fun _ => ⌜e ≠ 0⌝ ⟩ ⦄ := by
+  unfold eq0
+  mvcgen
+
+@[spec]
+theorem F.assert_eq_spec (a b : F p) :
+    ⦃⌜True⌝⦄ F.assert_eq a b ⦃ post⟨ fun _ => ⌜a = b⌝, fun _ => ⌜a ≠ b⌝ ⟩ ⦄ := by
+  unfold F.assert_eq
+  mvcgen [eq0_spec]
+  all_goals simp [sub_eq_zero]
+
+@[spec]
+theorem F.eq_spec (a b : F p) :
+    ⦃⌜True⌝⦄ F.eq a b ⦃⇓ v => ⌜v = (if a = b then 1 else 0)⌝⦄ := by
+  unfold F.eq
+  mvcgen [isZero_spec]
+  all_goals simp [sub_eq_zero]
+
+/-- `F.guardedEq0 guard c`: under the convention `isBinary guard`, accepts iff
+`guard = 0` (constraint disabled) or `constraint = 0` (constraint satisfied). -/
+@[spec]
+theorem F.guardedEq0_spec (guard : FB p) (constraint : F p) (hg : isBinary guard) :
+    ⦃⌜True⌝⦄ F.guardedEq0 guard constraint
+      ⦃ post⟨ fun _ => ⌜guard = 0 ∨ (guard = 1 ∧ constraint = 0)⌝,
+              fun _ => ⌜guard = 1 ∧ constraint ≠ 0⌝ ⟩ ⦄ := by
+  unfold F.guardedEq0
+  mvcgen [eq0_spec]
+  all_goals rcases hg with rfl | rfl <;> simp_all
+
+/-- `F.guardedAssertEq guard a b`: under `isBinary guard`, accepts iff
+`guard = 0` (gated off) or `a = b` (equality holds when gated on). -/
+@[spec]
+theorem F.guardedAssertEq_spec (guard : FB p) (a b : F p) (hg : isBinary guard) :
+    ⦃⌜True⌝⦄ F.guardedAssertEq guard a b
+      ⦃ post⟨ fun _ => ⌜guard = 0 ∨ (guard = 1 ∧ a = b)⌝,
+              fun _ => ⌜guard = 1 ∧ a ≠ b⌝ ⟩ ⦄ := by
+  unfold F.guardedAssertEq
+  mvcgen [F.guardedEq0_spec]
+  all_goals simp_all [sub_eq_zero]
+
+private theorem foldl_add_ofFn_sum {α : Type*} [AddCommMonoid α] {n : ℕ} (f : Fin n → α) :
+    (Vector.ofFn f).foldl (· + ·) 0 = ∑ i : Fin n, f i := by
+  induction n with
+  | zero => rfl
+  | succ k ih =>
+    rw [Vector.ofFn_succ, Vector.foldl_push, ih, Fin.sum_univ_castSucc]
+    rfl
+
+theorem F.dotProduct_eq {w : ℕ} (a b : Vector (F p) w) :
+    F.dotProduct a b = ∑ i : Fin w, a[i] * b[i] := by
+  unfold F.dotProduct
+  rw [show a.zipWith (· * ·) b = Vector.ofFn (fun i : Fin w => a[i.val] * b[i.val]) from by ext j hj; simp, foldl_add_ofFn_sum]
+  rfl
+
+end FSpecs
+
+section FBSpecs
+set_option mvcgen.warning false
+
+open Std.Do
+
+@[spec]
+theorem FB.eq_spec (a b : FB p) :
+    ⦃⌜True⌝⦄ FB.eq a b ⦃⇓ v => ⌜v = (if a = b then FB.true else FB.false)⌝⦄ := by
+  unfold FB.eq
+  mvcgen [F.eq_spec]
+
+@[spec]
+theorem FB.assertBool_spec (f : FB p) :
+    ⦃⌜True⌝⦄ FB.assertBool f ⦃ post⟨ fun _ => ⌜f = FB.false ∨ f = FB.true⌝, fun _ => ⌜f ≠ FB.false ∧ f ≠ FB.true⌝ ⟩ ⦄ := by
+  unfold FB.assertBool
+  mvcgen [eq0_spec]
+  all_goals (simp [FB.true, FB.false, mul_eq_zero, sub_eq_zero]; tauto)
+
+theorem FB.and_eq (a b : FB p) (ha : isBinary a) (hb : isBinary b) :
+    FB.and a b = if a = FB.true ∧ b = FB.true then FB.true else FB.false := by
+  unfold FB.and
+  rcases ha with rfl | rfl <;> rcases hb with rfl | rfl <;> simp [FB.true, FB.false]
+
+theorem FB.or_eq (a b : FB p) (ha : isBinary a) (hb : isBinary b) :
+    FB.or a b = if a = FB.true ∨ b = FB.true then FB.true else FB.false := by
+  unfold FB.or
+  rcases ha with rfl | rfl <;> rcases hb with rfl | rfl <;> simp [FB.true, FB.false]
+
+theorem FB.not_eq (a : FB p) (ha : isBinary a) :
+    FB.not a = if a = FB.true then FB.false else FB.true := by
+  unfold FB.not
+  rcases ha with rfl | rfl <;> simp [FB.true, FB.false]
+
+/-- `FB.xor a b = FB.true` iff the inputs differ -/
+theorem FB.xor_eq (a b : FB p) (ha : isBinary a) (hb : isBinary b) :
+    FB.xor a b = if a = b then FB.false else FB.true := by
+  unfold FB.xor
+  rcases ha with rfl | rfl <;> rcases hb with rfl | rfl <;> simp [FB.true, FB.false]; ring
+@[spec]
+theorem FB.assert_spec (a : FB p) :
+    ⦃⌜True⌝⦄ FB.assert a ⦃ post⟨ fun _ => ⌜a = FB.true⌝, fun _ => ⌜a ≠ FB.true⌝ ⟩ ⦄ := by
+  unfold FB.assert FB.not
+  mvcgen [eq0_spec]
+  all_goals (simp [FB.true, sub_eq_zero]; tauto)
+
+@[spec]
+theorem FB.assert_eq_spec (a b : FB p) :
+    ⦃⌜True⌝⦄ FB.assert_eq a b ⦃ post⟨ fun _ => ⌜a = b⌝, fun _ => ⌜a ≠ b⌝ ⟩ ⦄ := by
+  unfold FB.assert_eq
+  mvcgen [F.assert_eq_spec]
+
+end FBSpecs
+
 namespace F
 
 def lessThan (w : ℕ) (a b : F p) : Option (FB p) := do
@@ -242,6 +374,35 @@ lemma num2bits_equiv {w e} :
   simp
   simp
 
+set_option mvcgen.warning false in
+open Std.Do in
+/-- `num2bits w e` accepts iff `e.val < 2^w`; on success the output is the LSB-first
+binary decomposition of `e` (every entry `0`/`1`, recombining via `bits2numV` to `e`). -/
+@[spec]
+theorem num2bits_spec (w : ℕ) (e : F p) [Fact (2 < p)] :
+    ⦃⌜True⌝⦄ num2bits w e
+    ⦃ post⟨ fun v => ⌜v = num2bitsLsbPureV w e ∧ isBinaryVec v ∧ bits2numV v = e⌝,
+            fun _ => ⌜2 ^ w ≤ e.val⌝ ⟩ ⦄ := by
+  have hbody : num2bits w e = if e.val < 2 ^ w then pure (num2bitsLsbPureV w e) else none := by
+    unfold num2bits; rfl
+  rw [hbody]
+  rcases lt_or_ge e.val (2 ^ w) with h | h
+  · rw [if_pos h]
+    mvcgen
+    try simp only [true_and]
+    refine ⟨fun i => num2bitsLsbPureV_bits i, ?_⟩
+    rw [bits2numV_toList, num2bitsLsbPureV_toList]
+    exact bits2num_of_num2bitsLsbPure_eq h
+  · rw [if_neg (not_lt.mpr h)]
+    mvcgen
+
+omit [Fact (Nat.Prime p)] in
+/-- `num2bits` accepts exactly the in-range inputs. -/
+theorem num2bits_isSome_iff (w : ℕ) (e : F p) :
+    (num2bits w e).isSome ↔ e.val < 2 ^ w := by
+  unfold num2bits
+  split <;> simp_all
+
 -- proved in Clap.bits2num_bound
 lemma bits2num_bound {w} {bv : Vector (ZMod p) w} :
     valid bv → (bits2numV bv).val < 2 ^ w := sorry
@@ -302,6 +463,127 @@ def lessThan_equiv {w} (a b : FBitVec p w) :
   sorry
 
 end Spec.FBitVec
+
+section FLessThanSpecs
+
+set_option mvcgen.warning false
+open Std.Do
+
+theorem F.lessThan_correct (w : ℕ) (a b : F p)
+    (ha : a.val < 2 ^ w) (hb : b.val < 2 ^ w) (hp : 2 ^ (w + 1) < p) :
+    F.lessThan w a b = some (if a.val < b.val then FB.true else FB.false) := by
+  have hsplit : (2 : ℕ) ^ (w + 1) = 2 ^ w + 2 ^ w := by rw [pow_succ]; ring
+  have hble : b.val ≤ a.val + 2 ^ w := by omega
+  have hNp : a.val + 2 ^ w - b.val < p := by omega
+  have hdval : (a - b + 2 ^ w : F p).val = a.val + 2 ^ w - b.val := by
+    have hcast : (a - b + 2 ^ w : F p) = ((a.val + 2 ^ w - b.val : ℕ) : F p) := by
+      rw [Nat.cast_sub hble, Nat.cast_add, Nat.cast_pow, Nat.cast_ofNat,
+          ZMod.natCast_zmod_val, ZMod.natCast_zmod_val]
+      ring
+    rw [hcast, ZMod.val_natCast, Nat.mod_eq_of_lt hNp]
+  have hd2 : (a - b + 2 ^ w : F p).val < 2 ^ (w + 1) := by rw [hdval]; omega
+  have hnum : num2bits (w + 1) (a - b + 2 ^ w)
+            = some (num2bitsLsbPureV (w + 1) (a - b + 2 ^ w)) := by
+    unfold num2bits; rw [if_pos hd2]
+  have hlt : F.lessThan w a b
+           = some (FB.not (num2bitsLsbPureV (w + 1) (a - b + 2 ^ w))[w]!) := by
+    simp only [F.lessThan, hnum]; rfl
+  rw [hlt, Option.some_inj]
+  have hbit : (num2bitsLsbPureV (w + 1) (a - b + 2 ^ w))[w]!
+            = (((a - b + 2 ^ w : F p).val / 2 ^ w % 2 : ℕ) : F p) := by
+    rw [getElem!_pos _ w (by omega)]
+    have hi := num2bitsLsbPureV_getElem (n := w + 1) (e := a - b + 2 ^ w) ⟨w, by omega⟩
+    simpa [Fin.getElem_fin] using hi
+  rw [hbit, hdval]
+  have hdiv : (a.val + 2 ^ w - b.val) / 2 ^ w % 2 = if b.val ≤ a.val then 1 else 0 := by
+    split
+    · have h1 : (a.val + 2 ^ w - b.val) / 2 ^ w = 1 := Nat.div_eq_of_lt_le (by omega) (by omega)
+      rw [h1]
+    · have h0 : (a.val + 2 ^ w - b.val) / 2 ^ w = 0 := Nat.div_eq_of_lt (by omega)
+      rw [h0]
+  rw [hdiv]
+  by_cases hcmp : b.val ≤ a.val
+  · rw [if_pos hcmp, if_neg (not_lt.mpr hcmp)]
+    simp [FB.not, FB.false]
+  · rw [if_neg hcmp, if_pos (not_le.mp hcmp)]
+    simp [FB.not, FB.true]
+
+@[spec]
+theorem F.lessThan_spec (w : ℕ) (a b : F p)
+    (ha : a.val < 2 ^ w) (hb : b.val < 2 ^ w) (hp : 2 ^ (w + 1) < p) :
+    ⦃⌜True⌝⦄ F.lessThan w a b ⦃⇓ r => ⌜r = (if a.val < b.val then FB.true else FB.false)⌝⦄ := by
+  rw [F.lessThan_correct w a b ha hb hp]
+  mvcgen
+
+theorem F.lessThan_isSome_iff (w : ℕ) (a b : F p) :
+    (F.lessThan w a b).isSome ↔ (a - b + 2 ^ w).val < 2 ^ (w + 1) := by
+  rw [← Spec.FBitVec.num2bits_isSome_iff (w + 1) (a - b + 2 ^ w)]
+  simp only [F.lessThan]
+  cases hx : num2bits (w + 1) (a - b + 2 ^ w) <;> simp
+
+theorem F.lessThan_eq_none_iff (w : ℕ) (a b : F p) :
+    F.lessThan w a b = none ↔ 2 ^ (w + 1) ≤ (a - b + 2 ^ w).val := by
+  rw [← not_lt, ← F.lessThan_isSome_iff]
+  cases hx : F.lessThan w a b <;> simp
+
+theorem F.greaterThan_correct (w : ℕ) (a b : F p)
+    (ha : a.val < 2 ^ w) (hb : b.val < 2 ^ w) (hp : 2 ^ (w + 1) < p) :
+    F.greaterThan w a b = some (if b.val < a.val then FB.true else FB.false) := by
+  unfold F.greaterThan
+  exact F.lessThan_correct w b a hb ha hp
+
+theorem F.lessEqThan_correct (w : ℕ) (a b : F p)
+    (ha : a.val < 2 ^ w) (hb1 : b.val + 1 < 2 ^ w) (hp : 2 ^ (w + 1) < p) :
+    F.lessEqThan w a b = some (if a.val ≤ b.val then FB.true else FB.false) := by
+  have hppow : (2 : ℕ) ^ w < p := by
+    have h2 : (2 : ℕ) ^ (w + 1) = 2 ^ w + 2 ^ w := by rw [pow_succ]; ring
+    have hpos : 0 < (2 : ℕ) ^ w := by positivity
+    omega
+  have hb1' : (b + 1 : F p).val = b.val + 1 := by
+    have hbc : (b + 1 : F p) = ((b.val + 1 : ℕ) : F p) := by
+      rw [Nat.cast_add, Nat.cast_one, ZMod.natCast_zmod_val]
+    rw [hbc, ZMod.val_natCast, Nat.mod_eq_of_lt (by omega)]
+  unfold F.lessEqThan
+  rw [F.lessThan_correct w a (b + 1) ha (by rw [hb1']; exact hb1) hp, hb1']
+  simp only [Nat.lt_succ_iff]
+
+theorem F.greaterEqThan_correct (w : ℕ) (a b : F p)
+    (hb : b.val < 2 ^ w) (ha1 : a.val + 1 < 2 ^ w) (hp : 2 ^ (w + 1) < p) :
+    F.greaterEqThan w a b = some (if b.val ≤ a.val then FB.true else FB.false) := by
+  have hppow : (2 : ℕ) ^ w < p := by
+    have h2 : (2 : ℕ) ^ (w + 1) = 2 ^ w + 2 ^ w := by rw [pow_succ]; ring
+    have hpos : 0 < (2 : ℕ) ^ w := by positivity
+    omega
+  have ha1' : (a + 1 : F p).val = a.val + 1 := by
+    have hac : (a + 1 : F p) = ((a.val + 1 : ℕ) : F p) := by
+      rw [Nat.cast_add, Nat.cast_one, ZMod.natCast_zmod_val]
+    rw [hac, ZMod.val_natCast, Nat.mod_eq_of_lt (by omega)]
+  unfold F.greaterEqThan
+  rw [F.lessThan_correct w b (a + 1) hb (by rw [ha1']; exact ha1) hp, ha1']
+  simp only [Nat.lt_succ_iff]
+
+@[spec]
+theorem F.greaterThan_spec (w : ℕ) (a b : F p)
+    (ha : a.val < 2 ^ w) (hb : b.val < 2 ^ w) (hp : 2 ^ (w + 1) < p) :
+    ⦃⌜True⌝⦄ F.greaterThan w a b ⦃⇓ r => ⌜r = (if b.val < a.val then FB.true else FB.false)⌝⦄ := by
+  rw [F.greaterThan_correct w a b ha hb hp]
+  mvcgen
+
+@[spec]
+theorem F.lessEqThan_spec (w : ℕ) (a b : F p)
+    (ha : a.val < 2 ^ w) (hb1 : b.val + 1 < 2 ^ w) (hp : 2 ^ (w + 1) < p) :
+    ⦃⌜True⌝⦄ F.lessEqThan w a b ⦃⇓ r => ⌜r = (if a.val ≤ b.val then FB.true else FB.false)⌝⦄ := by
+  rw [F.lessEqThan_correct w a b ha hb1 hp]
+  mvcgen
+
+@[spec]
+theorem F.greaterEqThan_spec (w : ℕ) (a b : F p)
+    (hb : b.val < 2 ^ w) (ha1 : a.val + 1 < 2 ^ w) (hp : 2 ^ (w + 1) < p) :
+    ⦃⌜True⌝⦄ F.greaterEqThan w a b ⦃⇓ r => ⌜r = (if b.val ≤ a.val then FB.true else FB.false)⌝⦄ := by
+  rw [F.greaterEqThan_correct w a b hb ha1 hp]
+  mvcgen
+
+end FLessThanSpecs
 
 
 abbrev F8 (p:ℕ) [Fact (Primes.fits p 8)] := FBitVec p 8
