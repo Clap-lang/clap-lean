@@ -373,56 +373,127 @@ def vectorElemsOfMk (e : Expr) : Option (Array Expr × Expr × Expr) := do
   let_expr Vector.mk t sz arr _ := e | .none
   return (←arrayElemsOfExpr arr, t, sz)
 
-inductive Collection where | Vector (t : Expr) (sz : Expr) | Array (t : Expr) | List
--- TODO NEXT: FInish the collection stuff, go perf again?
+/--
+TODO: Maybe generalise this to `GetElem` supporting collections, but it's not relevant
+for the current project.
+-/
+inductive CollectionKind where | Vector | Array | List
+
+structure CollectionType where
+  private _mk ::
+  t  : Expr
+  k  : CollectionKind
+  sz : Option Expr
+
+def CollectionType.cast (c : CollectionType) (t : CollectionKind) : Option CollectionType :=
+  match t with
+  | .Vector => if c.sz.isNone then .none else go c t
+  | _       => go c t
+  where go (c : CollectionType) (k : CollectionKind) : CollectionType := {c with k := k}
+
+def CollectionType.setSize (c : CollectionType) (sz : Expr) : CollectionType :=
+  {c with sz := .some sz}
+
+def CollectionType.mkList (elem : Expr) := CollectionType._mk elem .List .none
+
+def CollectionType.mkArray (elem : Expr) := CollectionType.mkList elem |>.cast .Array
+
+def CollectionType.mkVec (elem : Expr) (sz : Expr) :=
+  CollectionType.mkList elem |>.setSize sz |>.cast .Vector
+
+structure Collection where
+  type     : CollectionType
+  listExpr : Expr
+
+def Collection.setSize (coll : Collection) (sz : Expr) : Collection :=
+  {coll with type := coll.type.setSize sz}
+
 /--
 We're already doing O(n) work in `listElemsOfExpr` anyway, maybe yield the goodies as well.
 -/
-partial def listElemsOfExpr' (e : Expr) (res : Array Expr × ℕ := (#[], 0)) :
-                             Option (Array Expr × Expr × ℕ) :=
+partial def elemsOfListExpr (e : Expr) (elems : Array Expr := #[]) (sz : ℕ := 0) : Array Expr × ℕ :=
   match_expr e with
-  | List.cons _ hd tl => listElemsOfExpr' tl (res.1.push hd, res.2.succ)
-  | List.nil  α       => .some (res.1, α, res.2)
-  | _                 => .none
+  | List.cons _ hd tl => elemsOfListExpr tl (elems.push hd) sz.succ
+  | _                 => (elems, sz) -- `List.nil` and `_`
 
-def arrayElemsOfExpr' (e : Expr) : Option (Array Expr × Expr × ℕ) := do
-  let_expr Array.mk _ l := e | .none
-  listElemsOfExpr' l
+def Collection.elems (c : Collection) : Array Expr × Collection :=
+  let (elems, sz) := elemsOfListExpr c.listExpr
+  ⟨elems, c.setSize (toExpr sz)⟩
 
-def Collection.ofListLit (coll : Collection) (e : Expr) : Sym.Simp.SimpM Expr := do
-  match coll with
-  | .List => return e
-  | .Array t => shareCommonInc <| mkAppN (.const ``Array.mk [←Sym.getLevelInType t]) #[t, e]
-  | .Vector t sz => shareCommonInc (←mkVecLit t e sz)
+def Collection.toExpr (c : Collection) : Sym.Simp.SimpM Expr := do
+  match c.type.k with
+  | .List => return c.listExpr
+  | .Array => shareCommonInc <| mkAppN (.const ``Array.mk [←Sym.getLevelInType c.type.t])
+                                       #[c.type.t, c.listExpr]
+  | .Vector => shareCommonInc (←mkVecLit c.type.t c.listExpr (←c.type.sz.getDM (unreachable!)))
 
-/--
-Currently separate from the `vectorElemsOfMk` chain.
--/
-def elemsOfColl (e : Expr) : Option (Collection × Array Expr × Expr × Expr) :=
+def Collection.ofExpr (e : Expr) : Option Collection :=
   match_expr e with
-  | Vector.mk _ _ _ _ => (.Vector, ·) <$> (vectorElemsOfMk e)
-  | Array.mk _ _      => arrayElemsOfExpr' e >>= fun res ↦ .some (.Array, spoon res)
-  | _                 => listElemsOfExpr' e >>= fun res ↦ .some (.List, spoon res)
-  where spoon := fun (arr, t, sz) ↦ (arr, t, toExpr sz)
+  | Vector.mk t sz xs _ => do return ⟨←CollectionType.mkVec t sz, ←listExprOfArrayExpr xs⟩
+  | Array.mk  t    _    => do return ⟨←CollectionType.mkArray t, ←listExprOfArrayExpr e⟩
+  | List.cons t    _  _ => do return ⟨←CollectionType.mkList t, e⟩
+  | List.nil  t         => do return ⟨←CollectionType.mkList t, e⟩
+  | _                   => .none
+  where
+    listExprOfArrayExpr (e : Expr) : Option Expr := do
+      let_expr Array.mk _ l := e | .none
+      .some l
+
+def Collection.cast (coll : Collection) (t : CollectionKind) : Option Collection := do
+  return {coll with type := ←coll.type.cast t}
+
+-- /--
+-- Currently separate from the `vectorElemsOfMk` chain.
+-- -/
+-- def elemsOfColl (e : Expr) : Option (Collection × Array Expr × Expr) :=
+--   match_expr e with
+--   | Vector.mk t sz _ _ => (.Vector t sz, ·) <$> (vectorElemsOfMk e)
+--   | Array.mk t _      => arrayElemsOfExpr' e >>= fun res ↦ .some (.Array t, spoon res)
+--   | _                 => listElemsOfExpr' e >>= fun res ↦ .some (.List, spoon res)
+--   where spoon := fun (arr, t, sz) ↦ (arr, t, toExpr sz)
+
+def Collection.elemsOfExpr (e : Expr) : Option (Array Expr × Collection) :=
+  Collection.elems <$> Collection.ofExpr e
 
 def mk_append_mk : Simproc := fun e ↦ do
   let_expr HAppend.hAppend _ _ _ _ xs ys := e | return .rfl
 
-  let some (collXs, xs, tXs, szXs) := elemsOfColl xs | return .rfl
-  let some (collYs, ys, _tYs, szYs) := elemsOfColl ys | return .rfl
-  -- `tXs = _tYs`
-  let result ← Sym.mkListLit tXs (xs.append ys).toList
+  let .some ⟨xsElems, xs⟩ := Collection.elemsOfExpr xs | return .rfl
+  let .some ⟨ysElems, ys⟩ := Collection.elemsOfExpr ys | return .rfl
+
+  let append := xsElems.append ysElems
+
+  -- `xs.type.t = ys.type.t` ∧ `xs.type.k = ys.type.k`
+  let .some appendListColl := Collection.ofExpr (←Sym.mkListLit xs.type.t append.toList) | unreachable!
 
   let instAdd := Expr.const ``instAddNat []
   let inst ← shareCommonInc <| mkApp2 (.const ``instHAdd [0]) q(ℕ) instAdd
-
-  let e' ← liftM ∘ shareCommonInc =<<
-    mkVecLit tXs result (mkApp6 (.const ``HAdd.hAdd [0, 0, 0]) q(ℕ) q(ℕ) q(ℕ) inst szXs szYs)
+  let .some szXs := xs.type.sz | unreachable!
+  let .some szYs := ys.type.sz | unreachable!
+  let sz := mkApp6 (.const ``HAdd.hAdd [0, 0, 0]) q(ℕ) q(ℕ) q(ℕ) inst szXs szYs
+  let .some appendVecColl := appendListColl.setSize sz |>.cast xs.type.k | unreachable!
+  let e' ← appendVecColl.toExpr
 
   trace[Clap.Compile.simp.proc.vector_mk_append_mk]
     m!"\n{e}\n==>\n{e'}"
-  
+
   return .step e' (←mkSorry (←mkEq e e') false)
+
+  -- let some (collXs, xs, tXs, szXs) := elemsOfColl xs | return .rfl
+  -- let some (collYs, ys, _tYs, szYs) := elemsOfColl ys | return .rfl
+  -- -- `tXs = _tYs`
+  -- let result ← Sym.mkListLit tXs (xs.append ys).toList
+
+  -- let instAdd := Expr.const ``instAddNat []
+  -- let inst ← shareCommonInc <| mkApp2 (.const ``instHAdd [0]) q(ℕ) instAdd
+
+  -- let e' ← liftM ∘ shareCommonInc =<<
+  --   mkVecLit tXs result (mkApp6 (.const ``HAdd.hAdd [0, 0, 0]) q(ℕ) q(ℕ) q(ℕ) inst szXs szYs)
+
+  -- trace[Clap.Compile.simp.proc.vector_mk_append_mk]
+  --   m!"\n{e}\n==>\n{e'}"
+  
+  -- return .step e' (←mkSorry (←mkEq e e') false)
 
 def appendDbg : Sym.Simp.Simproc := fun e ↦ do
   let_expr HAppend.hAppend _ _ _ _ xs ys := e | return .rfl
@@ -560,18 +631,16 @@ def getElem_mk : Sym.Simp.Simproc := fun e => do
 
   -- Instead, we can simply traverse the first `i` conses, as we have the length apriori for the proof.
   -- Or some such.
-  -- let time ← IO.monoMsNow
   let_expr GetElem.getElem _ _ _ _ _ vec n _ := e | return .rfl
-  let some (elems, _, sz) := elemsOfColl vec | return .rfl
-  let some i := Sym.getNatValue? n | return .rfl
-  trace[Clap.Compile.simp.proc.vector_getElem_mk]
-    m!"Info:\nVector size: {sz}\nElems size: {elems.size}"
+  let .some (elems, t) := Collection.elemsOfExpr vec | return .rfl
+  let .some sz := t.type.sz | unreachable!
+  let n := (←Sym.simpWithGround n).getResultExpr n
+  let .some i := Sym.getNatValue? n | throwError m!"{sz} does not simplify to ground. Expr:\n{e}" -- return .rfl
   if h : i < elems.size
   then
     let e' := elems[i]
     trace[Clap.Compile.simp.proc.vector_getElem_mk]
       m!"\n{e}\n==>\n{e'}"
-    -- Dbg.timeSince time "getElem_mk took:"
     return .step e' (←Sym.mkEqRefl e')
   else
     return .rfl
@@ -653,10 +722,8 @@ def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
   -- withTraceNode `Clap.Compile.simp.proc.vector_mapM_mk (fun _ ↦ return m!"") do
   -- let time ← IO.monoMsNow
   let_expr _root_.Vector.mapM _ α β sz _ f vec := e | return .rfl
-  -- Ultimately, only `Vector.mk` is permitted. Free variables are transformed first.
-  logInfo m!"vec: {vec}"
+  -- Ultimately, only 'sized' collections are permitted. Free variables are transformed first.
   let vec ← if vec.isFVar then sequenceAsVecExpr vec α sz else pure vec
-  logInfo m!"vec: {vec}"
   if !vec.isAppOf ``Vector.mk then return .rfl
   let szSimped := (←Sym.simpWithGround sz).getResultExpr sz
   if !isSameExpr sz szSimped then
@@ -672,7 +739,7 @@ def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
     let transformedVector? :=
       mkAppN (.const ``Option.some [v]) #[←Sym.inferType transformedVector, transformedVector]
     let transformedVector? ← Sym.shareCommonInc transformedVector?
-    let .some (elems, _) := elemsOfColl vec | logError m!"Vector.mapM_mk\nVec:\n{vec}\nE:\n{e}"; unreachable!
+    let .some (elems, _) := Collection.elemsOfExpr vec | logError m!"Vector.mapM_mk\nVec:\n{vec}\nE:\n{e}"; unreachable!
     let u ← Sym.getLevelInType β
     /-
     Start with `.some #[.bvar sz.pred, .bvar sz.pred.pred, ..., .bvar 0]`
