@@ -304,6 +304,10 @@ def ofUInt8 (u:UInt8) : F8 p := UInt8.toFin u
 
 def ofChar (c:Char) : F8 p := ofUInt8 c.toUInt8
 
+def validate (x : F8 p) : Option Unit := do
+  let _ ← num2bits 8 x
+  ()
+
 abbrev eq (a b : F8 p) := F.eq a b
 
 def lessThan (a b : F8 p) : Option (FB p) := do
@@ -369,6 +373,21 @@ private lemma toChar_ofChar [NeZero p] {c : Char}
   unfold F8.ofChar F8.toChar
   rw [ofUInt8_toUInt8 _ hp]
   exact Char.ofUInt8_toUInt8 hc
+
+lemma num2bits_some (x : F p) w :
+  (∃ v, num2bits w x = some v) ↔ x.val < 2^w := by
+  constructor
+  . unfold num2bits
+    split
+    . aesop
+    . aesop
+  . intro
+    unfold num2bits
+    aesop
+
+def validate_valid (x : F p) :
+  F8.validate x = some () ↔ valid x := by
+  aesop (add simp [F8.validate,Option.bind_eq_some_iff,num2bits_some])
 
 def lessThan_equiv [Fact (Nat.Prime p)] (a b : F p)
     (ha : valid a)
