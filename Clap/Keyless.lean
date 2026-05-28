@@ -314,7 +314,7 @@ def verifyExtraField (json : JSONStructure) (extra : ExtraFieldInput) : Option U
     `nonceValue` (from JWT) must equal `Poseidon(epk[0..2], epkLen, expDate, epkBlinder)`. -/
 def verifyNonce (nonceValue : FString bn254 MAX_NONCE_VALUE_LEN) (commit : CommitmentInput) : Option Unit := do
   -- Compute expected nonce: Poseidon(epk[0], epk[1], epk[2], epkLen, expDate, epkBlinder)
-  let expectedNonce ← Clap.Poseidon.poseidonBN254 [ commit.epk[0], commit.epk[1], commit.epk[2], commit.epkLen, commit.expDate, commit.epkBlinder ]
+  let expectedNonce ← Clap.Poseidon.poseidonBN254 #v[ commit.epk[0], commit.epk[1], commit.epk[2], commit.epkLen, commit.expDate, commit.epkBlinder ]
   -- Convert nonce value (ASCII digits) to scalar
   let nonceScalar ← FString.asciiDigitsToScalar nonceValue
   -- Assert equality
@@ -345,7 +345,7 @@ def computeIdentityCommitment (pepper : F bn254) (privateAudValue : FString bn25
   let privateAudValHashed ← hashBytesToField {data := hashableAud,  len := privateAudValue.len * performAudChecks}
   let uidValueHashed ← hashBytesToField uidValue
   let uidNameHashed ← hashBytesToField uidName
-  Clap.Poseidon.poseidonBN254 [pepper, privateAudValHashed, uidValueHashed, uidNameHashed]
+  Clap.Poseidon.poseidonBN254 #v[pepper, privateAudValHashed, uidValueHashed, uidNameHashed]
 
 /-- Phase 7: Compute and verify the public inputs hash.
     Collects all verifier-facing data and checks it matches `declaredHash`. -/
@@ -369,7 +369,7 @@ def verifyPublicInputsHash
   let overrideAudValHashed ← hashBytesToField audOverride.overrideAudValue
   -- Poseidon(14 inputs) in the exact order from CIRCOM
   let computed ← Clap.Poseidon.poseidonBN254
-    [ commit.epk[0], commit.epk[1], commit.epk[2], commit.epkLen
+    #v[ commit.epk[0], commit.epk[1], commit.epk[2], commit.epkLen
     , idc
     , commit.expDate
     , commit.expHorizon

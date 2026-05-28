@@ -197,7 +197,7 @@ def isSubstringFS {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLe
   -- Step 1: hash substr and derive the random challenge α
   let substrHash ← hashBytesToField substr
   -- random_challenge = H(str_hash, substr_hash, substr_len, start_index)
-  let α ← Clap.Poseidon.poseidonBN254 [strHash, substrHash, substr.len, startIndex]
+  let α ← Clap.Poseidon.poseidonBN254 #v[strHash, substrHash, substr.len, startIndex]
   -- Step 2: build challenge powers α⁰, α¹, …, α^{maxStrLen-1}
   -- powers[0] = 1, powers[i] = α^i
   let powers : Vector (F bn254) maxStrLen ← powers α maxStrLen
@@ -255,7 +255,7 @@ def assertIsConcatenation
   let leftHash  ← hashBytesToField left
   let rightHash ← hashBytesToField right
   let fullHash  ← hashBytesToField {fullStr with len := left.len + right.len}
-  let α ← Clap.Poseidon.poseidonBN254 [leftHash, rightHash, fullHash, left.len]
+  let α ← Clap.Poseidon.poseidonBN254 #v[leftHash, rightHash, fullHash, left.len]
   -- Step 2: enforce that left is 0-padded after left.len
   -- rightArraySelector(left_len - 1) gives 1s at positions > left_len - 1, i.e. at [left_len, maxLeftLen)
   let leftSelector ← FArray.rightArraySelector maxLeftLen (left.len - 1)

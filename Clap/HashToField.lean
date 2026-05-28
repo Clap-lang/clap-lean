@@ -1,7 +1,6 @@
 import Clap.Lang
 import Clap.Packing
 import Clap.Poseidon.Poseidon
-import Clap.PoseidonVec.Poseidon
 
 namespace HashToField
 
@@ -25,27 +24,27 @@ def hash64BitLimbsToField {numLimbs : ℕ}
     Nat.add_sub_cancel' h ▸ (input ++ Vector.replicate (w * 3 - numLimbs) (0 : F p))
   let elems := Packing.chunksToFieldElems (p := p) 3 64 padded
   let elems := elems.push len
-  Clap.PoseidonVec.poseidonBN254 elems
+  Clap.Poseidon.poseidonBN254 elems
 
 -- TODO keyless requires n ≤ 64, why?
 def hashElemsToField {n : ℕ} (input : Vector (F p) n) : Option (F p) := do
   if n ≤ 16 then
-    Clap.PoseidonVec.poseidonBN254 input
+    Clap.Poseidon.poseidonBN254 input
   else if n ≤ 32 then
-    let h1 ← Clap.PoseidonVec.poseidonBN254 (input.extract  0 16)
-    let h2 ← Clap.PoseidonVec.poseidonBN254 (input.extract 16 32)
-    Clap.PoseidonVec.poseidonBN254 #v[h1,h2]
+    let h1 ← Clap.Poseidon.poseidonBN254 (input.extract  0 16)
+    let h2 ← Clap.Poseidon.poseidonBN254 (input.extract 16 32)
+    Clap.Poseidon.poseidonBN254 #v[h1,h2]
   else if n ≤ 48 then
-    let h1 ← Clap.PoseidonVec.poseidonBN254 (input.extract  0 16)
-    let h2 ← Clap.PoseidonVec.poseidonBN254 (input.extract 16 32)
-    let h3 ← Clap.PoseidonVec.poseidonBN254 (input.extract 32 48)
-    Clap.PoseidonVec.poseidonBN254 #v[h1,h2,h3]
+    let h1 ← Clap.Poseidon.poseidonBN254 (input.extract  0 16)
+    let h2 ← Clap.Poseidon.poseidonBN254 (input.extract 16 32)
+    let h3 ← Clap.Poseidon.poseidonBN254 (input.extract 32 48)
+    Clap.Poseidon.poseidonBN254 #v[h1,h2,h3]
   else if n ≤ 64 then
-    let h1 ← Clap.PoseidonVec.poseidonBN254 (input.extract  0 16)
-    let h2 ← Clap.PoseidonVec.poseidonBN254 (input.extract 16 32)
-    let h3 ← Clap.PoseidonVec.poseidonBN254 (input.extract 32 48)
-    let h4 ← Clap.PoseidonVec.poseidonBN254 (input.extract 48 64)
-    Clap.PoseidonVec.poseidonBN254 #v[h1,h2,h3,h4]
+    let h1 ← Clap.Poseidon.poseidonBN254 (input.extract  0 16)
+    let h2 ← Clap.Poseidon.poseidonBN254 (input.extract 16 32)
+    let h3 ← Clap.Poseidon.poseidonBN254 (input.extract 32 48)
+    let h4 ← Clap.Poseidon.poseidonBN254 (input.extract 48 64)
+    Clap.Poseidon.poseidonBN254 #v[h1,h2,h3,h4]
   else (0:F p)
 
 /-
