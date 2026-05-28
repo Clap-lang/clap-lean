@@ -40,7 +40,7 @@ lemma isWhitespace_equiv [Fact (Nat.Prime p)] (c:F8 p) (h : Spec.F8.valid c) (h 
   unfold F8.isWhitespace isWhitespace_spec F8.greaterThan
   rw [F8.lessThan_equiv] <;> try (first | assumption | aesop (add simp [F8.valid]) ; erw [ZMod.val_natCast_of_lt] <;> grind)
   rw [F8.lessThan_equiv] <;> try (first | assumption | aesop (add simp [F8.valid]) ; erw [ZMod.val_natCast_of_lt] <;> grind)
-  simp only [F8.eq,F.eq,F.isZero_def]
+  simp only [F8.eq,F.eq,Spec.F.isZero_def]
   simp [Option.bind_some]
   rw [FB.and_equiv] <;> try apply Spec.FB.valid_ofBool
   rw [FB.or_equiv] <;> try apply Spec.FB.valid_ofBool

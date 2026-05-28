@@ -169,10 +169,6 @@ end Spec.FB
 
 namespace F
 
-lemma isZero_def (e:F p) :
-  isZero e = some (if e = 0 then 1 else 0) := by
-  aesop (add simp [isZero])
-
 def lessThan (w : ℕ) (a b : F p) : Option (FB p) := do
   let d := a - b + 2^w
   let d ← num2bits (w + 1) d
@@ -191,7 +187,9 @@ end F
 
 namespace Spec.F
 
-variable [Fact (Nat.Prime p)]
+lemma isZero_def (e:F p) :
+  isZero e = some (if e = 0 then 1 else 0) := by
+  aesop (add simp [isZero])
 
 private lemma num2bitsLsbPureV_aux_toList_eq {p : ℕ} (w : ℕ) (v : ZMod p) :
     (num2bitsLsbPureV.aux w v).toList = (num2bitsLsbPure w v).reverse := by
@@ -248,7 +246,7 @@ then a-b ∈ [0,2^w-1]
 then a-b+2^w ∈ [2^w,2^(w+1)-1]
 which does not fit in w bits, so when converted to a (w+1)-bit number, its MSB is 1
 -/
-def lessThan_equiv {w} (a b : F p)
+def lessThan_equiv [Fact (Nat.Prime p)] {w} (a b : F p)
     (ha : a.val < 2^w)
     (hb : b.val < 2^w)
     (hw : 2^(w+1) < p) :
