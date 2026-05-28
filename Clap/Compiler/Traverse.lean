@@ -197,23 +197,23 @@ def compilerWat : Sym.Simp.Simproc := fun e ↦ do
     return .step e' (←Sym.mkEqRefl e')
   | Option.bind α γ x g =>
     match_expr x with
-    | Option.bind α β x f => 
-      -- let time ← IO.monoMsNow
-      let subtree := (←Sym.simp f).getResultExpr f
-      trace[Clap.Compile.simp.proc.monad.bind_assoc]
-        m!"Subtree.\n{f}\n==>\n{subtree}"
-      let u ← Sym.getLevelInType α
-      let v ← Sym.getLevelInType β
-      let w ← Sym.getLevelInType γ
-      -- `f : α → m β | g : β → m γ | x : m α`
-      let bind ← shareCommonInc <|
-        mkApp4 (.const ``Option.bind [v, w]) β γ (←shareCommonInc (f.beta #[.bvar 0])) g
-      let cont := Expr.lam `_assoc α bind .default
-      let e' ← shareCommonInc <| mkApp4 (.const ``Option.bind [u, w]) α γ x cont
-      trace[Clap.Compile.simp.proc.monad.bind_assoc]
-        m!"\n{e}\n==>\n{e'}"
-      -- Dbg.timeSince time "bind_assoc took:"
-      return .step e' (←mkSorry (←mkEq e e') false)
+    -- | Option.bind α β x f => 
+    --   -- let time ← IO.monoMsNow
+    --   let subtree := (←Sym.simp f).getResultExpr f
+    --   trace[Clap.Compile.simp.proc.monad.bind_assoc]
+    --     m!"Subtree.\n{f}\n==>\n{subtree}"
+    --   let u ← Sym.getLevelInType α
+    --   let v ← Sym.getLevelInType β
+    --   let w ← Sym.getLevelInType γ
+    --   -- `f : α → m β | g : β → m γ | x : m α`
+    --   let bind ← shareCommonInc <|
+    --     mkApp4 (.const ``Option.bind [v, w]) β γ (←shareCommonInc (f.beta #[.bvar 0])) g
+    --   let cont := Expr.lam `_assoc α bind .default
+    --   let e' ← shareCommonInc <| mkApp4 (.const ``Option.bind [u, w]) α γ x cont
+    --   trace[Clap.Compile.simp.proc.monad.bind_assoc]
+    --     m!"\n{e}\n==>\n{e'}"
+    --   -- Dbg.timeSince time "bind_assoc took:"
+    --   return .step e' (←mkSorry (←mkEq e e') false)
     | Option.some _ x =>
       -- let time ← IO.monoMsNow
       let e' ← shareCommonInc (g.beta #[x])
@@ -227,7 +227,7 @@ def compilerWat : Sym.Simp.Simproc := fun e ↦ do
         trace[Clap.Compile.simp.proc.monad.top_level]
           m!"{checkEmoji} {x'}"
         return .rfl
-      -- let f' ← Sym.simp g
+      -- let g' ← Sym.simp g
       let e' ← shareCommonInc <|
         mkApp4 (.const ``Option.bind [←Sym.getLevelInType α, ←Sym.getLevelInType γ]) α γ x' g
       trace[Clap.Compile.simp.proc.monad.top_level]
@@ -1108,16 +1108,16 @@ eq0 (vec[0] + (vec[1] + (vec[2] + 0)))
 #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₇ (←(append ∪ getElem ∪ sum ∪ zeta ∪ compilerSet_old ∪ explode))
 
-def ex₈ (vec : Vector Nat 3) : Option Unit := do
-  let vec := vec.zipWith (·+·) #v[1, 5, 10]
-  eq0 42
-  let res ← vec.mapM (fun n ↦ return n + 1)
-  eq0 res[0]
-  let y ← (do eq0 4; let y ← pure 4; let z ← #v[1, 2].mapM (return·+42); eq0 z[0]; return y)
-  let z := (List.range y)[0]'sorry
-  eq0 res[1]
-  eq0 res[2]
--- set_option trace.Clap.Compile true in
+-- def ex₈ (vec : Vector Nat 3) : Option Unit := do
+--   let vec := vec.zipWith (·+·) #v[1, 5, 10]
+--   eq0 42
+--   let res ← vec.mapM (fun n ↦ return n + 1)
+--   eq0 res[0]
+--   let y ← (do eq0 4; let y ← pure 4; let z ← #v[1, 2].mapM (return·+42); eq0 z[0]; return y)
+--   let z := (List.range y)[0]'sorry
+--   eq0 res[1]
+--   eq0 res[2]
+
 -- /--
 -- info: Compiled:
 -- fun vec =>
@@ -1178,8 +1178,6 @@ fun vec => eq0 7
 -/
 #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₁₂ (←(zeta ∪ compilerWtf ∪ explode ∪ zipWith ∪ sum ∪ getElem))
-
-
 def ex₁₃ (vec : Vector Nat 4) : Option Unit := do
   let t := 2
   let state : Vector Nat t := #v[1, 2]
