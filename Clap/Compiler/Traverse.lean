@@ -30,7 +30,6 @@ Thoughts and prayers:
    changing every simp lemma to a simproc
 -/
 
-
 instance {m} [Monad m] : Union (m Sym.Simp.Methods) where
   union a b := do return (←a) ∪ (←b)
 
@@ -192,25 +191,19 @@ def compilerSet : MetaM Sym.Simp.Methods :=
   ]
 
 def compilerWat : Sym.Simp.Simproc := fun e ↦ do
-  -- withTraceNode `Clap.Compile.simp.proc.monad (fun _ ↦ return m!"") do
-  -- trace[Clap.Compile.simp.proc.monad] m!"{e}"
   match_expr e with
   | Bind.bind _ _ α β x f =>
-    -- let time ← IO.monoMsNow
     let u ← Sym.getLevelInType α
     let v ← Sym.getLevelInType β
     let e' ← shareCommonInc <| mkApp4 (.const ``Option.bind [u, v]) α β x f
     trace[Clap.Compile.simp.proc.monad.bind_eq_bind]
       m!"\n{e}\n==>\n{e'}"
-    -- Dbg.timeSince time "bind_eq_bind took:"
     return .step e' (←Sym.mkEqRefl e')
   | Pure.pure _ _ α x =>
-    -- let time ← IO.monoMsNow
     let u ← Sym.getLevelInType α
     let e' ← shareCommonInc <| mkApp2 (.const ``Option.some [u]) α x
     trace[Clap.Compile.simp.proc.monad.pure_apply]
       m!"\n{e}\n==>\n{e'}"
-    -- Dbg.timeSince time "pure_apply took:"
     return .step e' (←Sym.mkEqRefl e')
   | Option.bind α γ x g =>
     match_expr x with
@@ -232,11 +225,9 @@ def compilerWat : Sym.Simp.Simproc := fun e ↦ do
     --   -- Dbg.timeSince time "bind_assoc took:"
     --   return .step e' (←mkSorry (←mkEq e e') false)
     | Option.some _ x =>
-      -- let time ← IO.monoMsNow
       let e' ← shareCommonInc (g.beta #[x])
       trace[Clap.Compile.simp.proc.monad.bind_some]
         m!"\n{e}\n==>\n{e'}"
-      -- Dbg.timeSince time "bind_some took:"
       return .step e' (←Sym.mkEqRefl e')
     | _ =>
       let x' := (←Sym.simp x (←read).toMethods).getResultExpr x
@@ -253,34 +244,49 @@ def compilerWat : Sym.Simp.Simproc := fun e ↦ do
   | _ =>
     return .rfl
 
--- def compilerWatPost : Sym.Simp.Simproc := fun e ↦ do
---   match_expr e with
---   | Option.bind α γ x g =>
---     match_expr x with
---     | Option.bind α β x f => 
---       -- let time ← IO.monoMsNow
---       let subtree := (←Sym.simp f).getResultExpr f
---       trace[Clap.Compile.simp.proc.monad.bind_assoc]
---         m!"Subtree.\n{f}\n==>\n{subtree}"
---       let u ← Sym.getLevelInType α
---       let v ← Sym.getLevelInType β
---       let w ← Sym.getLevelInType γ
---       -- `f : α → m β | g : β → m γ | x : m α`
---       let bind ← shareCommonInc <|
---         mkApp4 (.const ``Option.bind [v, w]) β γ (←shareCommonInc (f.beta #[.bvar 0])) g
---       let cont := Expr.lam `_assoc α bind .default
---       let e' ← shareCommonInc <| mkApp4 (.const ``Option.bind [u, w]) α γ x cont
---       trace[Clap.Compile.simp.proc.monad.bind_assoc]
---         m!"\n{e}\n==>\n{e'}"
---       -- Dbg.timeSince time "bind_assoc took:"
---       return .step e' (←mkSorry (←mkEq e e') false)
---     | _ =>
---       return .rfl
---   | _ => return .rfl
+def compilerBindAssoc : Sym.Simp.Simproc := fun e ↦ do
+  match_expr e with
+  | Option.bind _ γ x g =>
+    match_expr x with
+    | Option.bind α β x f => 
+      -- let subtree := (←Sym.simp f).getResultExpr f
+      -- trace[Clap.Compile.simp.proc.monad.bind_assoc]
+      --   m!"Subtree.\n{f}\n==>\n{subtree}"
+      let u ← Sym.getLevelInType α
+      let v ← Sym.getLevelInType β
+      let w ← Sym.getLevelInType γ
+      -- `f : α → m β | g : β → m γ | x : m α`
+      let bind ← shareCommonInc <|
+        mkApp4 (.const ``Option.bind [v, w]) β γ (←shareCommonInc (f.beta #[.bvar 0])) g
+      let cont := Expr.lam `_assoc α bind .default
+      let e' ← shareCommonInc <| mkApp4 (.const ``Option.bind [u, w]) α γ x cont
+      trace[Clap.Compile.simp.proc.monad.bind_assoc]
+        m!"\n{e}\n==>\n{e'}"
+      return .step e' (←mkSorry (←mkEq e e') false)
+    | _ =>
+      return .rfl
+  | _ => return .rfl
+
+def compilerBindAssocSimple : MetaM Sym.Simp.Methods :=
+  mkPreMethods #[
+    ``Option.bind_assoc
+  ]
 
 def compilerWtf : MetaM Sym.Simp.Methods :=
   mkPreMethods #[
     ``compilerWat
+  ]
+
+def compilerAssoc : MetaM Sym.Simp.Methods :=
+  mkPreMethods #[
+    ``compilerBindAssoc
+  ]
+
+def bind_eq_bind_sym {α} {β} := (Option.bind_eq_bind (α := α) (β := β)).symm
+
+def compilerBindEqBind : MetaM Sym.Simp.Methods :=
+  mkPostMethods #[
+    ``bind_eq_bind_sym
   ]
 
 def heh : Sym.Simp.Simproc := fun e ↦ do
@@ -904,6 +910,15 @@ def drop : MetaM Methods :=
     -- ``Compiler.explodeVectorDrop
   ]
 
+def _root_.List.replicate_toArray {α : Type} {n} {v} := (List.toArray_replicate (α := α) n v).symm
+
+def replicate : MetaM Methods :=
+  mkPostMethods #[
+    ``Vector.replicate_eq_mk_replicate, ``List.replicate_toArray,
+
+    ``List.replicate_succ, ``List.replicate_zero
+  ]
+
 def extract : MetaM Methods :=
   mkPostMethods #[
     ``Vector.extract_mk, ``List.extract_toArray,
@@ -1150,26 +1165,47 @@ eq0 (vec[0] + (vec[1] + (vec[2] + 0)))
 #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₇ (←(append ∪ getElem ∪ sum ∪ zeta ∪ compilerSet_old ∪ explode))
 
--- def ex₈ (vec : Vector Nat 3) : Option Unit := do
---   let vec := vec.zipWith (·+·) #v[1, 5, 10]
---   eq0 42
---   let res ← vec.mapM (fun n ↦ return n + 1)
---   eq0 res[0]
---   let y ← (do eq0 4; let y ← pure 4; let z ← #v[1, 2].mapM (return·+42); eq0 z[0]; return y)
---   let z := (List.range y)[0]'sorry
---   eq0 res[1]
---   eq0 res[2]
+def ex₈ (vec : Vector Nat 100) : Option Unit := do
+  let _ ← (do let _ ← eq0 2; vec.mapM (fun x ↦ (eq0 (x + 42) : Option _)))
+  eq0 42
+  -- let res ← vec.mapM (fun n ↦ return n + 1)
+  -- eq0 res[0]
+  -- let y ← (do eq0 4; let y ← pure 4; let z ← #v[1, 2].mapM (return·+42); eq0 z[0]; return y)
+  -- let z := (List.range y)[0]'sorry
+  -- eq0 res[1]
+  -- eq0 res[2]
 
+-- set_option trace.Clap.Compile true in
+set_option maxRecDepth 4000 in
 -- /--
 -- info: Compiled:
 -- fun vec =>
 --   (eq0 42).bind fun x =>
 --     (eq0 (vec[0] + 1 + 1)).bind fun x =>
---       (eq0 4).bind fun _assoc =>
---         (eq0 (1 + 42)).bind fun _assoc => (eq0 (vec[1] + 5 + 1)).bind fun x => eq0 (vec[2] + 10 + 1)
+--       ((eq0 4).bind fun x => (eq0 (1 + 42)).bind fun x => some 4).bind fun y =>
+--         (eq0 (vec[1] + 5 + 1)).bind fun x => eq0 (vec[2] + 10 + 1)
 -- -/
 -- #guard_msgs(info, whitespace := lax, drop warning) in
--- #eval spoon <| do compileExampleJustSym ``ex₈ (←(zipWith ∪ mapM ∪ getElem ∪ zeta ∪ compilerWtf ∪ explode))
+#eval spoon <| do
+  let e ← compileExampleJustSym ``ex₈
+    (←(zipWith ∪ mapM ∪ getElem ∪ zeta ∪ compilerWtf ∪ explode
+    ∪ compilerAssoc
+    ))
+  -- Pretty print (i.e. go back to `Bind.bind`)
+  return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
+set_option trace.Clap.Compile true in
+example {vec : Vector Nat 100} : ex₈ vec = sorry := by
+  unfold ex₈
+  compile_just_sym [SymSets.Vector.mapM]
+  rw [Option.bind_eq_bind]
+  rw [Option.bind_eq_bind]
+  compile_just_sym [compilerAssoc]
+  compile_just_sym [compilerBindEqBind]
+  
+
+
+-- def ex₈' (vec : Vector Nat 3) : Option Unit := do
+--   let x ← (do let _ )
 
 def ex₉ (vec : Vector Nat 160) : Option Unit := do
   let res := (#v[0] ++ vec).extract 1 2
