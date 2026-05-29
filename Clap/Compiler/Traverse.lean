@@ -235,9 +235,14 @@ def compilerWat : Sym.Simp.Simproc := fun e ↦ do
         trace[Clap.Compile.simp.proc.monad.top_level]
           m!"{checkEmoji} {x'}"
         return .rfl
-      let g' ← Sym.simp g
+      else
+        trace[Clap.Compile.simp.proc.monad.top_level]
+          m!"\n{x}\n==>ₗ\n{x'}"
+      let g' := (←Sym.simp g).getResultExpr g
+      trace[Clap.Compile.simp.proc.monad.top_level]
+        m!"\n{g}\n==>ᵣ\n{g'}"
       let e' ← shareCommonInc <|
-        mkApp4 (.const ``Option.bind [←Sym.getLevelInType α, ←Sym.getLevelInType γ]) α γ x' g
+        mkApp4 (.const ``Option.bind [←Sym.getLevelInType α, ←Sym.getLevelInType γ]) α γ x' g'
       trace[Clap.Compile.simp.proc.monad.top_level]
         m!"\n{e}\n==>\n{e'}"
       return .step e' (←mkSorry (←mkEq e e') false)
@@ -288,8 +293,6 @@ def compilerBindEqBind : MetaM Sym.Simp.Methods :=
   mkPostMethods #[
     ``bind_eq_bind_sym
   ]
-
-#check Lean.Meta.Sym.Simp.simpLambda
 
 def heh : Sym.Simp.Simproc := fun e ↦ do
   -- logInfo m!"heh: {e}"
@@ -1047,7 +1050,7 @@ namespace ExampruSym
 open SymSets Monad General Vector
 
 -- set_option maxRecDepth 500000
--- set_option trace.Clap.Compile true
+set_option trace.Clap.Compile true
 
 def ex₀ : Option Unit := do
   eq0 0
@@ -1208,12 +1211,12 @@ set_option maxHeartbeats 0 in
     ))
   -- Pretty print (i.e. go back to `Bind.bind`)
   return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
-set_option trace.Clap.Compile true in
-example {vec : Vector Nat 10} : ex₈ vec = .none := by
-  unfold ex₈
+-- set_option trace.Clap.Compile true in
+-- example {vec : Vector Nat 10} : ex₈ vec = .none := by
+--   unfold ex₈
   
-  cbv
-  -- compile_just_sym [SymSets.Vector.mapM]
+--   cbv
+--   -- compile_just_sym [SymSets.Vector.mapM]
   -- rw [Option.bind_eq_bind]
   -- rw [Option.bind_eq_bind]
   -- -- rw [Option.bind_assoc]
@@ -1226,15 +1229,15 @@ example {vec : Vector Nat 10} : ex₈ vec = .none := by
   -- compile_just_sym [compilerAssoc]
   -- rw [bind_assoc]
   
-  #check bind_assoc
-set_option trace.Clap.Compile true in
-example {vec : Vector Nat 10} : ex₈' vec = sorry := by
-  unfold ex₈'
-  compile_just_sym [SymSets.Vector.foldlM, explode]
-  rw [Option.bind_eq_bind]
-  rw [Option.bind_eq_bind]
-  compile_just_sym [compilerAssoc]
-  compile_just_sym [compilerBindEqBind]
+  -- #check bind_assoc
+-- set_option trace.Clap.Compile true in
+-- example {vec : Vector Nat 10} : ex₈' vec = sorry := by
+--   unfold ex₈'
+--   compile_just_sym [SymSets.Vector.foldlM, explode]
+--   rw [Option.bind_eq_bind]
+--   rw [Option.bind_eq_bind]
+--   compile_just_sym [compilerAssoc]
+--   compile_just_sym [compilerBindEqBind]
 
 -- def ex₈' (vec : Vector Nat 3) : Option Unit := do
 --   let x ← (do let _ )

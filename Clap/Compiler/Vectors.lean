@@ -79,8 +79,8 @@ def sequenceAsVecExpr (name : Expr) (t sz : Expr) : Sym.Simp.SimpM Expr := do
                 ←mkListLit t (←List.range lenSimpedNat |>.mapM (getElemVectorOfIdx name t sz))
               )
   let e' ← mkVecLit t elems sz
-  trace[Clap.Compile.simp.proc.sequenceAsVecExpr]
-    m!"[vec = {name}][length = {sz}][elemType = {t}]\n==>\n{e'}"
+  -- trace[Clap.Compile.simp.proc.sequenceAsVecExpr]
+  --   m!"[vec = {name}][length = {sz}][elemType = {t}]\n==>\n{e'}"
   return e'
 
 -- lemma abc {α} {vec : Vector α 2} : vec = #v[vec[0], vec[1]] := by
