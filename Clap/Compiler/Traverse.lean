@@ -14,6 +14,23 @@ namespace Clap.Compiler
 
 open Lean Meta Qq Elab
 
+/-
+Thoughts and prayers:
+1. e.g. `#v[a1, a2, ...].mapM f → #v[f a1, f a2, f ...]`
+   to   `↓f a1 >>= res ↦ #v[f a2, f ...].mapM f`
+
+2. Top level:
+   `a >>= b >>= c`
+   `↓a >>=`
+      `↓b >>=`
+        `↓c`
+
+3. All exprs can be made smaller by sacrificing proofs.
+   This needs hand-crafting an alternate `rewrite` function /
+   changing every simp lemma to a simproc
+-/
+
+
 instance {m} [Monad m] : Union (m Sym.Simp.Methods) where
   union a b := do return (←a) ∪ (←b)
 
