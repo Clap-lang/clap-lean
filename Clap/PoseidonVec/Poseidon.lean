@@ -259,6 +259,13 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
 --  ``mix, ``mixS, ``mixS.dotProduct, ``mixS.tail
   ]
 
+-- #v[1, 2].mapM f ==> bind (f 1) >>=
+--                       fun x1 ↦
+--                         bind (f 2) >>=
+--                           fun x2 ↦
+--                             return #v[x1, x2]
+-- f (fun a1 => f (fun a2 => ... a1 ... an ...))
+
 -- set_option debug.skipKernelTC true in
 -- set_option trace.Clap.Compile true in
 -- set_option trace.Clap.Compile.simp.proc.vector_mk_zipWith_mk true in

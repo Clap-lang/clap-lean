@@ -235,7 +235,7 @@ def compilerWat : Sym.Simp.Simproc := fun e ↦ do
         trace[Clap.Compile.simp.proc.monad.top_level]
           m!"{checkEmoji} {x'}"
         return .rfl
-      -- let g' ← Sym.simp g
+      let g' ← Sym.simp g
       let e' ← shareCommonInc <|
         mkApp4 (.const ``Option.bind [←Sym.getLevelInType α, ←Sym.getLevelInType γ]) α γ x' g
       trace[Clap.Compile.simp.proc.monad.top_level]
@@ -288,6 +288,8 @@ def compilerBindEqBind : MetaM Sym.Simp.Methods :=
   mkPostMethods #[
     ``bind_eq_bind_sym
   ]
+
+#check Lean.Meta.Sym.Simp.simpLambda
 
 def heh : Sym.Simp.Simproc := fun e ↦ do
   -- logInfo m!"heh: {e}"
@@ -850,7 +852,7 @@ def mapM : MetaM Methods :=
 
     -- ``Compiler.explodeVectorMapM
   ]
-
+#check List.map_cons
 -- def mapM_test : MetaM Methods :=
 --   mkPostMethods #[
 --     ``Vector.mapM_mk_cons, ``Compiler.explodeVectorMapM
@@ -1095,7 +1097,7 @@ fun vec => eq0 (vec[0] + 1)
 #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₃ (←(map ∪ zeta ∪ getElem ∪ explode))
 
-def ex₄ (vec : Vector Nat 160) : Option Unit :=
+def ex₄ (vec : Vector Nat 5) : Option Unit :=
   vec.mapM (fun x ↦ Option.some <| x + 1) |>.bind fun x ↦ eq0 x[0]
 
 -- -- /--
@@ -1109,7 +1111,7 @@ def ex₄ (vec : Vector Nat 160) : Option Unit :=
 -- set_option trace.profiler true in
 -- set_option profiler true in
 -- set_option trace.Clap.Compile true in
-set_option trace.Clap.Compile false in
+set_option trace.Clap.Compile true in
 #eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerWtf ∪ getElem))
 
 def profileThis := spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerWtf ∪ getElem))
@@ -1155,19 +1157,20 @@ def ex₇ (vec : Vector Nat 3) : Option Unit := do
   let res := vec.sum
   eq0 res
 
-/--
-info: Compiled:
-fun vec =>
-(eq0 vec[0]).bind fun x =>
-(eq0 0).bind fun x =>
-eq0 (vec[0] + (vec[1] + (vec[2] + 0)))
--/
-#guard_msgs(info, whitespace := lax, drop warning) in
+set_option trace.Clap.Compile true
+-- -- /--
+-- -- info: Compiled:
+-- -- fun vec =>
+-- -- (eq0 vec[0]).bind fun x =>
+-- -- (eq0 0).bind fun x =>
+-- -- eq0 (vec[0] + (vec[1] + (vec[2] + 0)))
+-- -- -/
+-- #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₇ (←(append ∪ getElem ∪ sum ∪ zeta ∪ compilerSet_old ∪ explode))
 
-def ex₈ (vec : Vector Nat 100) : Option Unit := do
-  let _ ← (do let _ ← eq0 2; vec.mapM (fun x ↦ (eq0 (x + 42) : Option _)))
-  eq0 42
+def ex₈ (vec : Vector Nat 10) : Option Unit := do
+  let x ← (do let _ ← eq0 2; let _ ← vec.mapM (fun x ↦ (eq0 (x + 42) : Option _)); return 4) 
+  eq0 x
   -- let res ← vec.mapM (fun n ↦ return n + 1)
   -- eq0 res[0]
   -- let y ← (do eq0 4; let y ← pure 4; let z ← #v[1, 2].mapM (return·+42); eq0 z[0]; return y)
@@ -1175,8 +1178,20 @@ def ex₈ (vec : Vector Nat 100) : Option Unit := do
   -- eq0 res[1]
   -- eq0 res[2]
 
+-- def ex₈' (vec : Vector Nat 100) : Option Unit := do
+--   let x ← (do let _ ← eq0 2; let _ ← vec.foldlM (fun acc x ↦ (eq0 (x + 42) : Option _)) (()); return 4)
+--   eq0 x
+--   -- let res ← vec.mapM (fun n ↦ return n + 1)
+--   -- eq0 res[0]
+--   -- let y ← (do eq0 4; let y ← pure 4; let z ← #v[1, 2].mapM (return·+42); eq0 z[0]; return y)
+--   -- let z := (List.range y)[0]'sorry
+--   -- eq0 res[1]
+--   -- eq0 res[2]
+#check bind_assoc
+
 -- set_option trace.Clap.Compile true in
 set_option maxRecDepth 4000 in
+set_option maxHeartbeats 0 in
 -- /--
 -- info: Compiled:
 -- fun vec =>
@@ -1189,20 +1204,37 @@ set_option maxRecDepth 4000 in
 #eval spoon <| do
   let e ← compileExampleJustSym ``ex₈
     (←(zipWith ∪ mapM ∪ getElem ∪ zeta ∪ compilerWtf ∪ explode
-    ∪ compilerAssoc
+    -- ∪ compilerAssoc
     ))
   -- Pretty print (i.e. go back to `Bind.bind`)
   return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
 set_option trace.Clap.Compile true in
-example {vec : Vector Nat 100} : ex₈ vec = sorry := by
+example {vec : Vector Nat 10} : ex₈ vec = .none := by
   unfold ex₈
-  compile_just_sym [SymSets.Vector.mapM]
+  
+  cbv
+  -- compile_just_sym [SymSets.Vector.mapM]
+  -- rw [Option.bind_eq_bind]
+  -- rw [Option.bind_eq_bind]
+  -- -- rw [Option.bind_assoc]
+  -- compile_just_sym [compilerBindEqBind]
+  -- rw [bind_assoc]
+  -- rw [bind_assoc]
+  -- rw [bind_assoc]
+  
+
+  -- compile_just_sym [compilerAssoc]
+  -- rw [bind_assoc]
+  
+  #check bind_assoc
+set_option trace.Clap.Compile true in
+example {vec : Vector Nat 10} : ex₈' vec = sorry := by
+  unfold ex₈'
+  compile_just_sym [SymSets.Vector.foldlM, explode]
   rw [Option.bind_eq_bind]
   rw [Option.bind_eq_bind]
   compile_just_sym [compilerAssoc]
   compile_just_sym [compilerBindEqBind]
-  
-
 
 -- def ex₈' (vec : Vector Nat 3) : Option Unit := do
 --   let x ← (do let _ )
