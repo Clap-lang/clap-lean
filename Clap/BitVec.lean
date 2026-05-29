@@ -14,6 +14,17 @@ def nat2bitsLsb (n : ℕ) (f : ℕ) : List ℕ :=
     let rem := f / 2
     bit::(nat2bitsLsb n rem)
 
+def nat2bitsLsbV (n : ℕ) (f : ℕ) : Vector ℕ n :=
+  (aux n f).reverse
+where
+  aux (n : ℕ) (f : ℕ) : Vector ℕ n :=
+  match n with
+  | 0 => #v[]
+  | n+1 =>
+    let bit := f % 2
+    let rem := f / 2
+    (aux n rem).push bit
+
 variable {p : ℕ}
 
 /-- Computes the `n` bit binary representation of `f`.
@@ -28,6 +39,17 @@ def num2bitsLsbPure (n : ℕ) (f : ZMod p) : List (ZMod p) :=
     let bit := f.val % 2
     let rem := f.val / 2
     bit::(num2bitsLsbPure n rem)
+
+def num2bitsLsbPureV (n : ℕ) (f : ZMod p) : Vector (ZMod p) n :=
+  (aux n f).reverse
+where
+  aux (n : ℕ) (f : ZMod p) : Vector (ZMod p) n :=
+  match n with
+  | 0 => #v[]
+  | n+1 =>
+    let bit := f.val % 2
+    let rem := f.val / 2
+    (aux n rem).push bit
 
 lemma num2bitsLsbPure_length {w : ℕ} {v : ZMod p} : (num2bitsLsbPure w v).length = w := by
   revert v
@@ -78,8 +100,11 @@ def num2bitsMsbPure (n : ℕ) (f : ZMod p) : List (ZMod p) :=
 #guard num2bitsMsbPure (p := Primes.babybear) 3 1 = [0,0,1]
 #guard num2bitsMsbPure (p := Primes.babybear) 4 1 = [0,0,0,1]
 
-def bits2num (bits : List (ZMod p)) : (ZMod p) :=
+def bits2num (bits : List (ZMod p)) : ZMod p :=
   List.foldr (fun b acc => b + 2 * acc) 0 bits
+
+def bits2numV {w} (bits : Vector (ZMod p) w) : ZMod p :=
+  Vector.foldr (fun b acc => b + 2 * acc) 0 bits
 
 lemma bits2num_spec {bits : List (ZMod p)} : bits2num bits = ∑ i : Fin bits.length, 2 ^ i.1 * bits[i] := by
   unfold bits2num

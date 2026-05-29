@@ -26,7 +26,7 @@ commitment, identity commitment, and produces a public inputs hash.
 
 namespace Keyless
 
-open Clap.Lang Core Primes Clap.RSA
+open Clap.Lang Primes Clap.RSA
 
 -- Constants (from main.circom)
 
@@ -84,8 +84,6 @@ abbrev EV_NAME_LEN    := 14   -- "email_verified"
 -- ============================================================================
 -- Stubs for WIP components
 -- ============================================================================
-
-variable [Core bn254]
 
 -- Input structures
 
@@ -180,51 +178,18 @@ structure JSONStructure where
 
 /-- Multiplexer for FString: `if sel = 1 then a else b`. CIRCOM: `out[i] = (a[i] - b[i]) * sel + b[i]` -/
 def muxFString {maxLen : ℕ} (sel : F bn254) (a b : FString bn254 maxLen) : FString bn254 maxLen :=
-  { chars := a.chars.zipWith
-      (fun ai bi ↦ ai.zipWith (fun abit bbit ↦ (abit - bbit) * sel + bbit) bi) b.chars
-    len := (a.len - b.len) * sel + b.len }
+  { data := a.data.zipWith (F.conditionalSwap sel) b.data
+    len := F.conditionalSwap sel a.len b.len }
 
 -- Sub-circuits
 
 open FString FArray HashToField
 
-/-- Assert that `substrBits` appears in `strBits` at `startIndex`, using the
-    Fiat-Shamir substring check. Both inputs are binary vectors (0/1 field elements)
-    from `StringBodies`; they are temporarily wrapped into FStrings for the
-    `assertIsSubstringFS` call (0 and 1 are valid bytes).
-    `strHash` is the pre-computed hash of the *payload* (reused as the Fiat-Shamir
-    seed, matching the CIRCOM convention). -/
-def assertStringBodiesSubstring {maxStrLen maxSubstrLen : ℕ} (h : maxSubstrLen ≤ maxStrLen)
-    (strBits : Vector (FB bn254) maxStrLen) (strLen : F bn254)
-    (strHash : F bn254)
-    (substrBits : Vector (FB bn254) maxSubstrLen) (substrLen : F bn254)
-    (startIndex : F bn254)
-    : Option Unit := do
-  let sb_chars ← strBits.mapM F8.ofF
-  let sb_fstr : FString bn254 maxStrLen := ⟨sb_chars, strLen⟩
-  let fsb_chars ← substrBits.mapM F8.ofF
-  let fsb_fstr : FString bn254 maxSubstrLen := ⟨fsb_chars, substrLen⟩
-  FString.assertIsSubstringFS h sb_fstr strHash fsb_fstr startIndex
-
-/-- Non-asserting variant: returns whether `substrBits` appears in `strBits`
-    at `startIndex`. See `assertStringBodiesSubstring` for details. -/
-def isStringBodiesSubstring {maxStrLen maxSubstrLen : ℕ} (h : maxSubstrLen ≤ maxStrLen)
-    (strBits : Vector (FB bn254) maxStrLen) (strLen : F bn254)
-    (strHash : F bn254)
-    (substrBits : Vector (FB bn254) maxSubstrLen) (substrLen : F bn254)
-    (startIndex : F bn254)
-    : Option (FB bn254) := do
-  let sb_chars ← strBits.mapM F8.ofF
-  let sb_fstr : FString bn254 maxStrLen := ⟨sb_chars, strLen⟩
-  let fsb_chars ← substrBits.mapM F8.ofF
-  let fsb_fstr : FString bn254 maxSubstrLen := ⟨fsb_chars, substrLen⟩
-  FString.isSubstringFS h sb_fstr strHash fsb_fstr startIndex
-
 /-- Assert that the first characters of a field name match `expected` ASCII values.
     When `guard = 1` (default), checks are unconditional. When `guard = 0`, all
     assertions are bypassed (used for conditionally-checked fields like `aud`). -/
 def assertFieldName {n : ℕ} (name : FString bn254 n) (expected : Array (F bn254)) (guard : FB bn254 := 1) : Option Unit :=
-  name.toVF.toArray.zip expected |>.forM fun (actual, exp) ↦ F.guardedAssertEq guard actual exp
+  name.data.toArray.zip expected |>.forM fun (actual, exp) ↦ F.guardedAssertEq guard actual exp
 
 /-- Verify JWT structural integrity.
     Concatenation, SHA2 padding, SHA2 hash, RSA signature, and base64 decode.
@@ -236,7 +201,7 @@ def verifyJWTStructure (jwtRaw : JWTRawInput) (rsa : RSAInput) : Option (FString
   -- Assert the last character of header_w_dot is '.' (ASCII 46)
   -- This prevents the circuit from being tricked about where the payload starts.
   -- CIRCOM: dot === 46
-  let dot ← selectArrayValue jwtRaw.b64u_jwt_no_sig_sha2_padded.toVF (jwtRaw.b64u_jwt_header_w_dot.len - 1)
+  let dot ← selectArrayValue jwtRaw.b64u_jwt_no_sig_sha2_padded.data (jwtRaw.b64u_jwt_header_w_dot.len - 1)
   F.assert_eq dot 46
   -- Steps 2–3: SHA2-256 padding verification + hash computation
   -- Unified into a single call that verifies RFC 4634 padding and computes
@@ -256,26 +221,23 @@ def verifyJWTStructure (jwtRaw : JWTRawInput) (rsa : RSAInput) : Option (FString
   -- Step 4b: Assert b64u_jwt_payload is a valid prefix of b64u_jwt_payload_sha2_padded
   -- This removes SHA2 padding and ensures consistency.
   -- CIRCOM: AssertIsSubstring(b64u_jwt_payload_sha2_padded, ..., b64u_jwt_payload, ..., 0)
-  let paddedHash ← hashBytesToFieldWithLen jwtRaw.b64u_jwt_payload_sha2_padded.toVF jwtRaw.b64u_jwt_payload_sha2_padded.len
+  let paddedHash ← hashBytesToField jwtRaw.b64u_jwt_payload_sha2_padded
   assertIsSubstringFS (by decide) jwtRaw.b64u_jwt_payload_sha2_padded paddedHash jwtRaw.b64u_jwt_payload 0
   -- Step 5: Base64-decode the payload
-  let jwtPayload ← Base64Len.base64UrlDecode MAX_JWT_PAYLOAD_LEN jwtRaw.b64u_jwt_payload.toVF.toArray
+  -- n = MAX_B64U_JWT_PAYLOAD_SHA2_PADDED_LEN (1472) base64 chars → 1104 bytes = MAX_JWT_PAYLOAD_LEN
+  let jwtPayload ← Base64Len.base64UrlDecode MAX_B64U_JWT_PAYLOAD_SHA2_PADDED_LEN (by decide) (le_refl _) jwtRaw.b64u_jwt_payload.data
   -- Compute decoded length: floor(3 * encoded_len / 4)
   let jwtPayloadLen ← Base64Len.base64UrlDecodedLength 20 jwtRaw.b64u_jwt_payload.len
-  -- Build FString from decoded payload (may be shorter than MAX_JWT_PAYLOAD_LEN, pad with zeros)
-  let padded := jwtPayload ++ Array.replicate (MAX_JWT_PAYLOAD_LEN - jwtPayload.size) 0
-  let charsF : Vector (F bn254) MAX_JWT_PAYLOAD_LEN := ⟨padded.take MAX_JWT_PAYLOAD_LEN, by simp [padded]; omega⟩
-  let chars ← charsF.mapM F8.ofF
-  return ⟨chars, jwtPayloadLen⟩
+  return ⟨jwtPayload, jwtPayloadLen⟩
 
 /-- Compute JSON structural analysis from the decoded JWT payload.
     Returns the payload with its hash, string bodies, and brackets depth map. -/
 def computeJSONStructure (payload : FString bn254 MAX_JWT_PAYLOAD_LEN) : Option JSONStructure := do
   -- Compute payload hash
-  let payloadHash ← hashBytesToFieldWithLen payload.toVF payload.len
+  let payloadHash ← hashBytesToField payload
   -- JSON structural analysis on raw field elements
-  let payloadList := payload.toVF.toList
-  let stringBodies ← JWT.stringBodies payloadList
+  let payloadList := payload.data.toList
+  let stringBodies := JWT.stringBody payloadList
   let inverted := stringBodies.map FB.not
   let brackets_map ← JWT.bracketsMap payloadList
   let unquoted_brackets := inverted.zipWith (· * ·) brackets_map
@@ -292,7 +254,7 @@ def verifyQuotedField {maxPairLen maxNameLen maxValueLen : ℕ}
   FString.assertIsSubstringFS h_pair json.payload json.payloadHash inp.field inp.nameIndex
   -- Assert fieldStringBodies is a substring of stringBodies at the same index
   -- CIRCOM: AssertIsSubstring(stringBodies, jwt_payload_hash, x_field_string_bodies, x_field_len, x_index)
-  assertStringBodiesSubstring h_pair json.stringBodies json.payload.len json.payloadHash inp.fieldStringBodies inp.field.len inp.nameIndex
+  FString.assertIsSubstringFS h_pair {data := json.stringBodies, len := json.payload.len} json.payloadHash {data := inp.fieldStringBodies, len := inp.field.len} inp.nameIndex
   -- Assert field is not inside nested brackets
   JWT.enforceNotNested MAX_JWT_PAYLOAD_LEN inp.nameIndex inp.field.len json.bracketsDepthMap
   -- Parse the field structure with quoted value
@@ -320,8 +282,8 @@ def verifyAudField (json : JSONStructure)
     (audOverride : AudOverrideInput)
     : Option Unit := do
   -- Validate boolean flags
-  F.assertBinary audOverride.useAudOverride
-  F.assertBinary audOverride.skipAudChecks
+  FB.assertBool audOverride.useAudOverride
+  FB.assertBool audOverride.skipAudChecks
   -- Cannot skip aud checks while using override
   eq0 (audOverride.skipAudChecks * audOverride.useAudOverride)
   let performAudChecks : FB bn254 := FB.not audOverride.skipAudChecks
@@ -335,7 +297,7 @@ def verifyAudField (json : JSONStructure)
   eq0 (performAudChecks * FB.not field_passes)
   -- Assert fieldStringBodies matches stringBodies (conditioned on performAudChecks)
   -- CIRCOM: AssertIsSubstring(stringBodies, jwt_payload_hash, aud_field_string_bodies, aud_field_len, aud_index)
-  let sb_passes ← isStringBodiesSubstring (by decide) json.stringBodies json.payload.len json.payloadHash audEff.fieldStringBodies audEff.field.len audEff.nameIndex
+  let sb_passes ← FString.isSubstringFS (by decide) {data := json.stringBodies, len := json.payload.len} json.payloadHash {data := audEff.fieldStringBodies, len := audEff.field.len} audEff.nameIndex
   eq0 (performAudChecks * FB.not sb_passes)
   -- Assert field is not inside nested brackets
   JWT.enforceNotNested MAX_JWT_PAYLOAD_LEN audEff.nameIndex audEff.field.len json.bracketsDepthMap
@@ -357,7 +319,7 @@ def verifyEvField (json : JSONStructure)
     (uidName : FString bn254 MAX_UID_NAME_LEN)
     : Option Unit := do
   -- Cross-check: get uidIsEmail from emailVerifiedCheck
-  let uidIsEmail ← JWT.emailVerifiedCheck uidName.toVF.toList ev.name.toVF.toList ev.value.toVF.toList
+  let uidIsEmail ← JWT.emailVerifiedCheck uidName.data.toList ev.name.data.toList ev.value.data.toList
   -- Check if ev field is in JWT (non-asserting)
   let evInJwt ← FString.isSubstringFS (by decide) json.payload json.payloadHash ev.field ev.nameIndex
   -- Fail if uidIsEmail = 1 AND evInJwt = 0
@@ -376,7 +338,7 @@ def verifyEvField (json : JSONStructure)
 /-- Verify the extra field (optional). -/
 def verifyExtraField (json : JSONStructure) (extra : ExtraFieldInput) : Option Unit := do
   -- useExtraField must be boolean
-  F.assertBinary extra.useExtraField
+  FB.assertBool extra.useExtraField
   -- Check substring
   let efPasses ← FString.isSubstringFS (by decide) json.payload json.payloadHash extra.extraField extra.extraFieldIndex
   -- Assert not inside nested brackets
@@ -418,10 +380,10 @@ def computeIdentityCommitment (pepper : F bn254) (privateAudValue : FString bn25
     (performAudChecks : FB bn254) (uidValue : FString bn254 MAX_UID_VALUE_LEN) (uidName : FString bn254 MAX_UID_NAME_LEN)
     : Option (F bn254) := do
   -- Conditionally zero privateAudValue: hashable[i] = privateAudValue[i] * performAudChecks
-  let hashableAud : Vector (F bn254) MAX_AUD_VALUE_LEN := privateAudValue.chars.map (fun c ↦ FBitVec.toF c * performAudChecks)
-  let privateAudValHashed ← hashBytesToFieldWithLen hashableAud (privateAudValue.len * performAudChecks)
-  let uidValueHashed ← hashBytesToFieldWithLen uidValue.toVF uidValue.len
-  let uidNameHashed ← hashBytesToFieldWithLen uidName.toVF uidName.len
+  let hashableAud : Vector (F bn254) MAX_AUD_VALUE_LEN := privateAudValue.data.map (· * performAudChecks)
+  let privateAudValHashed ← hashBytesToField {data := hashableAud,  len := privateAudValue.len * performAudChecks}
+  let uidValueHashed ← hashBytesToField uidValue
+  let uidNameHashed ← hashBytesToField uidName
   Clap.Poseidon.poseidonBN254 [pepper, privateAudValHashed, uidValueHashed, uidNameHashed]
 
 /-- Phase 7: Compute and verify the public inputs hash.
@@ -437,13 +399,13 @@ def verifyPublicInputsHash
     (declaredHash : F bn254)
     : Option Unit := do
   -- Hash components
-  let hashedIssValue ← hashBytesToFieldWithLen issValue.toVF issValue.len
-  let hashedExtraField ← hashBytesToFieldWithLen extra.extraField.toVF extra.extraField.len
-  let hashedJwtHeader ← hashBytesToFieldWithLen jwtHeader.toVF jwtHeader.len
+  let hashedIssValue ← hashBytesToField issValue
+  let hashedExtraField ← hashBytesToField extra.extraField
+  let hashedJwtHeader ← hashBytesToField jwtHeader
   -- CIRCOM: Hash64BitLimbsToFieldWithLen(32)(pubkey_modulus_tagged, 256)
   -- 256 = RSA_KEY_BYTES = 32 limbs * 8 bytes/limb
-  let hashedPubkeyModulus ← hash64BitLimbsToFieldWithLen rsa.pubkeyModulus 64 RSA_KEY_BYTES
-  let overrideAudValHashed ← hashBytesToFieldWithLen audOverride.overrideAudValue.toVF audOverride.overrideAudValue.len
+  let hashedPubkeyModulus ← hash64BitLimbsToField {data := rsa.pubkeyModulus, len := RSA_KEY_BYTES} 64
+  let overrideAudValHashed ← hashBytesToField audOverride.overrideAudValue
   -- Poseidon(14 inputs) in the exact order from CIRCOM
   let computed ← Clap.Poseidon.poseidonBN254
     [ commit.epk[0], commit.epk[1], commit.epk[2], commit.epkLen

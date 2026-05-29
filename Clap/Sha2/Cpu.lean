@@ -6,8 +6,8 @@ namespace Clap.Sha2.Cpu
 instance : Coe UInt8 UInt32 where
   coe u8 := UInt32.ofNat u8.toNat
 
-def to_nat_be (bs:Array UInt8) : UInt32 :=
-  Array.foldl (fun acc (b:UInt8) => acc * 256 + (b:UInt32)) (0:UInt32) bs
+def to_nat_be (bs : Vector UInt8 4) : UInt32 :=
+  bs.foldl (fun acc (b:UInt8) => acc * 256 + (b:UInt32)) (0:UInt32)
 
 -- Ch(x, y, z) = (x && y) XOR ( !x && z)
 def ch (x y z : UInt32) : UInt32 :=

@@ -3,9 +3,9 @@ import Clap.Wheels
 
 namespace Clap.RSA
 
-open Clap.Lang Core
+open Clap.Lang
 
-variable {p : ℕ} [Core p]
+variable {p : ℕ} [Fact (Nat.Prime p)]
 
 /--
 `base^65537 mod modulus` on bignum operands.
@@ -44,7 +44,7 @@ end Clap.RSA
 
 namespace Clap.RSA.Test
 
-open Clap.Lang Core ZMod Clap.RSA
+open Clap.Lang RSA
 
 /-- encode `a^65537 mod b` (computed in `ℕ`) into `k` little-endian limbs of width `w`. -/
 private def refPow65537 (p : ℕ) (w k : ℕ) (a b : ℕ) : List (ZMod p) :=

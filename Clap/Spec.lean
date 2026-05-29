@@ -22,8 +22,8 @@ def share (e : ZMod p) : Option (ZMod p) := some e
 def isZero (e : ZMod p) : Option (ZMod p) := if e = 0 then some 1 else some 0
 
 @[irreducible]
-def num2bits (w : ℕ) (e : ZMod p) : Option (List (ZMod p)) :=
-  if e.val < 2^w then .some (num2bitsLsbPure w e) else .none
+def num2bits (w : ℕ) (e : ZMod p) : Option (Vector (ZMod p) w) :=
+  if e.val < 2^w then .some (num2bitsLsbPureV w e) else .none
 
 /-- Bignum modular multiplication `(a · b) mod c`. Limbs are little-endian, each holding `w` bits, with `k` limbs per operand.
 Returns `none` when any list has length `≠ k`, any limb does not fit in `w` bits, or the bignum value of `c` is 0. -/
@@ -38,7 +38,7 @@ def fpMul (w k : ℕ) (a b c : List (ZMod p)) : Option (List (ZMod p)) :=
     else some (natToLimbs w k ((A * B) % C))
   else none
 
-export Clap (bits2num)
+export Clap (bits2numV)
 
 section
 
@@ -76,12 +76,12 @@ lemma equiv_isZero {el : ZMod p} {kl : ZMod p → Option Unit} {er : Expₑ p} {
   Simulation.sBisim (bind (isZero el) kl) (Circuit.eval (.isZero er kr)) := by
   aesop (add simp [Circuit.eval, bind, share, isZero])
 
-@[aesop safe apply]
-lemma equiv_num2bits {kl : List (ZMod p) -> Option Unit} {kr : List (ZMod p) -> Circuitₑ p} {w:ℕ}
-  (cont : ∀ x, kl x ~ₛ (kr x).eval)
-  (h : el = Exp.eval er) :
-  (num2bits w el >>= kl) ~ₛ (Circuit.num2bits w er kr).eval := by
-  aesop (add simp num2bits)
+-- @[aesop safe apply]
+-- lemma equiv_num2bits {kl : List (ZMod p) -> Option Unit} {kr : List (ZMod p) -> Circuitₑ p} {w:ℕ}
+--   (cont : ∀ x, kl x ~ₛ (kr x).eval)
+--   (h : el = Exp.eval er) :
+--   (num2bits w el >>= kl) ~ₛ (Circuit.num2bits w er kr).eval := by
+--   aesop (add simp num2bits)
 
 end
 

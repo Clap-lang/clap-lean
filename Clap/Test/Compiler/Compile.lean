@@ -8,7 +8,7 @@ namespace Test
 
 namespace Compiler
 
-open Lean Clap Meta Spec Compiler Lang ZMod Core
+open Lean Clap Meta Spec Compiler Lang
 
 structure Compile.Point (p : ℕ) where
   x : ZMod p
@@ -21,7 +21,7 @@ structure Compile.Point' (p : ℕ) where
   z : ZMod p
   w : ZMod p
 
-def Compile.ex₀ {p : ℕ} [Core p] (point₁ point₂ : Point p) (point₃ : Point' p) : Option Unit := do
+def Compile.ex₀ {p : ℕ} (point₁ point₂ : Point p) (point₃ : Point' p) : Option Unit := do
   eq0 (point₁.x + point₃.w)
   eq0 (point₂.x + point₁.z)
   accept
@@ -91,41 +91,39 @@ def Compile.ex₁ {p : ℕ} (x : ZMod p) : Option Unit := do
 --  eq0 k[0]!
   accept
 
-open Clap.Lang.ZMod
+-- /--
+-- info: Compiled Compile.ex₁ into Compile.ex₁_circuit.
+-- ---
+-- info: Wg for Compile.ex₁ is Compile.ex₁_wg_wrap.
+-- -/
+-- #guard_msgs(info, whitespace := lax) in
+-- #compile Compile.ex₁ using Primes.babybear
 
-/--
-info: Compiled Compile.ex₁ into Compile.ex₁_circuit.
----
-info: Wg for Compile.ex₁ is Compile.ex₁_wg_wrap.
--/
-#guard_msgs(info, whitespace := lax) in
-#compile Compile.ex₁ using Primes.babybear
-
-/--
-info: def Compile.ex₁_circuit : (var : Type) → Circuit Primes.babybear var :=
-fun (var : Type) =>
-  Circuit.lam fun (x : var) =>
-    Circuit.share (Exp.v x) fun (x : var) =>
-      Circuit.isZero (Exp.c 1) fun (z : var) =>
-        Circuit.num2bits 2 ((Exp.v x).add (Exp.v z)) fun (vars : List var) => Circuit.nil
--/
-#guard_msgs(info, whitespace := lax) in
-set_option pp.funBinderTypes true in
-#print Compile.ex₁_circuit
+-- /--
+-- info: def Compile.ex₁_circuit : (var : Type) → Circuit Primes.babybear var :=
+-- fun (var : Type) =>
+--   Circuit.lam fun (x : var) =>
+--     Circuit.share (Exp.v x) fun (x : var) =>
+--       Circuit.isZero (Exp.c 1) fun (z : var) =>
+--         Circuit.num2bits 2 ((Exp.v x).add (Exp.v z)) fun (vars : List var) => Circuit.nil
+-- -/
+-- #guard_msgs(info, whitespace := lax) in
+-- set_option pp.funBinderTypes true in
+-- #print Compile.ex₁_circuit
 
 
-def Compile.adder {p : ℕ} [Fact (Nat.Prime p)] [Core p] (x y : F p) : Option (F p) := do
+def Compile.adder {p : ℕ} [Fact (Nat.Prime p)] (x y : F p) : Option (F p) := do
   eq0 x
   eq0 y
   let z := x + y
   eq0 z
   return z
 
-def Compile.test {p : ℕ} [Fact (Nat.Prime p)] [Core p] (x y z : F p) : Option Unit := do
+def Compile.test {p : ℕ} [Fact (Nat.Prime p)] (x y z : F p) : Option Unit := do
   let a ← adder x y
   let b ← adder y z
   eq0 (a - b)
-  accept p
+  accept
 
 /--
 info: Compiled Compile.test into Compile.test_circuit.

@@ -158,3 +158,18 @@ def limbsToNat {p : ℕ} (w : ℕ) : List (ZMod p) → ℕ
 def natToLimbs {p : ℕ} (w : ℕ) : ℕ → ℕ → List (ZMod p)
     | 0,     _ => []
     | k + 1, n => ((n % 2^w : ℕ) : ZMod p) :: natToLimbs w k (n / 2^w)
+
+def toChunks {w} {α:Type} (size : ℕ) (bits : Vector α (w*size)) : Vector (Vector α size) w :=
+  step 0 (by omega) #v[]
+where
+  step (cnt:ℕ) (h:cnt<=w) (res : Vector (Vector α size) cnt) : Vector (Vector α size) w :=
+    if h : cnt = w
+    then
+      h ▸ res
+    else
+      let word : Vector α size :=
+        have h : (min ((cnt + 1) * size) (w * size) - cnt * size) = size := by
+          grind [Nat.mul_le_mul_right]
+        h ▸ bits.extract (cnt*size) ((cnt+1)*size)
+      let res := res.push word
+      step (cnt+1) (by omega) res
