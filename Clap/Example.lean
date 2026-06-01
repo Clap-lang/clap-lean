@@ -112,7 +112,7 @@ namespace Cs
 def num2bits (w:ℕ) (e:F p) : Vector (F p) w → Option Unit :=
   fun bits ↦ do
   eq0 (bits2numV bits - e)
-  bits.foldlM (fun () b ↦ eq0 (b * ((1:F p) - b))) ()
+  bits.foldrM (fun b () ↦ eq0 (b * ((1:F p) - b))) ()
 
 -- manual
 def isZero (e : F p) : (inv o : (F p)) → Option Unit :=
@@ -191,43 +191,35 @@ lemma equiv_reduced_cs :
   apply isZeroWrExt ; intro
   apply wrExt.same
 
--- lemma shareWrExt {tl tr : Type}
---   (kl : ZMod p → Option tl)
---   (kr : ZMod p → Option tr)
---   (e : ZMod p)
---   (h : ∀ x, wrExt (kl x) (kr x)) :
---   wrExt
---     (bind (share e) kl)
---     (some (fun s ↦ do eq0 (e - s) ; kr s))
--- := by
---   simp +zeta only [share]
---   constructor
---   intro s
---   by_cases he : e - s = 0
---   · have h0 : eq0 (p:=p) 0 = some () := by simp [eq0]
---     rw [he]
---     rw [sub_eq_zero] at he
---     rw [<-he]
---     simp [h0]
---     apply h
---   · have hn0 e : e≠0 → eq0 (p:=p) e = none := by simp [eq0]
---     apply hn0 (e-s) at he
---     rw [he]
---     simp
---     constructor
+lemma shareWrExt {tl tr : Type}
+  (kl : F p → Option tl)
+  (kr : F p → Option tr)
+  (e s : F p)
+  (h : ∀ x, wrExt (kl x) (kr x)) :
+  wrExt
+    (do let e ← share e ; kl e)
+    (do do eq0 (e - s) ; kr s)
+:= by
+  aesop (add simp [share,eq0,sub_eq_zero])
+  constructor
 
--- lemma num2bitsWrExt {tl tr : Type} {w:ℕ}
---   (kl : List (ZMod p) → Option tl)
---   (kr : List (ZMod p) → Option tr)
---   (e : ZMod p)
---   (h : ∀ x, wrExt (kl x) (kr x)) :
---   wrExt
---     (bind (num2bits w e) (fun x ↦ kl x))
---     (some (fun bits ↦ do
---        eq0 (Clap.bits2num bits - e)
---        List.foldlM (fun () b ↦ eq0 (b * ((1:ZMod p) - b))) () bits
---        kr bits))
--- := by sorry
+lemma num2bitsWrExt {tl tr : Type} {w:ℕ}
+  (kl : Vector (F p) w → Option tl)
+  (kr : Vector (F p) w → Option tr)
+  (e : F p)
+  (bits : Vector (F p) w)
+  (h : ∀ x, wrExt (kl x) (kr x)) :
+  wrExt
+    (do let bs ← num2bits w e ; kl bs)
+    (do Cs.num2bits w e bits ; kr bits)
+  := by
+  unfold num2bits Cs.num2bits eq0
+  have h : (bits2numV bits).val < 2^w → (Vector.foldrM (fun b x => if b = 0 ∨ 1 - b = 0 then some () else none) () bits) = some () := sorry
+  have h : ¬ (bits2numV bits).val < 2^w → (Vector.foldrM (fun b x => if b = 0 ∨ 1 - b = 0 then some () else none) () bits) = none := sorry
+  have h : Clap.num2bitsLsbPureV w (bits2numV bits) = bits := sorry
+  aesop (add simp [sub_eq_zero])
+  repeat constructor
+
 
 -- lemma equiv_circuit_cs :
 --   wrExt
