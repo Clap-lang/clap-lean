@@ -19,7 +19,7 @@ def eq0 (e : ZMod p) : Option Unit := if e = 0 then .some () else .none
 def share (e : ZMod p) : Option (ZMod p) := some e
 
 @[irreducible]
-def isZero (e : ZMod p) : Option (ZMod p) := if e = 0 then some 1 else some 0
+def isZero (e : ZMod p) : Option (ZMod p) := some (if e = 0 then 1 else 0)
 
 @[irreducible]
 def num2bits (w : ℕ) (e : ZMod p) : Option (Vector (ZMod p) w) :=
