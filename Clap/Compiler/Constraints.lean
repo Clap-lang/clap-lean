@@ -8,10 +8,15 @@ structure ConstraintsState where
   constraints : Array Expr := #[]
   deriving Inhabited, Repr
 
-builtin_initialize constraints : EnvExtension ConstraintsState ←
+initialize constraints : EnvExtension ConstraintsState ←
   registerEnvExtension (pure {}) -- (asyncMode := .local)
 
-public def getConstraints : MetaM (Array Expr) := do
+def addConstraint (c : Expr) : MetaM Unit := do
+  modifyEnv fun e ↦
+    constraints.modifyState e fun σ ↦
+      ⟨σ.constraints.push c⟩
+
+def getConstraints : MetaM (Array Expr) := do
   let env ← getEnv
   return (constraints.getState env).constraints
 

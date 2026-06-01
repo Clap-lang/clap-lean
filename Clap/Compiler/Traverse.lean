@@ -238,8 +238,8 @@ def compilerWat : Sym.Simp.Simproc := fun e ↦ do
         m!"\n{e}\n==>\n{e'}"
       return .step e' (←Sym.mkEqRefl e')
     | _ =>
-      -- let res ← getConstraints
-      -- logInfo m!"res: {res}"
+      -- addConstraint q(Nat)
+      -- logInfo m!"res: {←getConstraints}"
       let x' := (←Sym.simp x (←read).toMethods).getResultExpr x
       if isSameExpr x x' then
         trace[Clap.Compile.simp.proc.monad.top_level]
@@ -1009,6 +1009,138 @@ end List
 end
 
 end SymSets
+
+abbrev Simplifier := Expr → Sym.Simp.SimpM Expr
+
+/--
+- `a : Option α` = `⟨uα, α, a⟩`
+-/
+structure Action where
+  u : Level
+  α : Expr
+  a : Expr
+  deriving Repr
+
+def Action.simplifyUsing (a : Action) (simp : Simplifier) : Sym.Simp.SimpM Action :=
+  let ⟨u, α, a⟩ := a
+  simp a >>= (return ⟨u, α, ·⟩)
+
+/--
+- `f : α → Option β` = `⟨uα, uβ, α, β, f⟩`
+-/
+structure Cont where
+  u : Level
+  v : Level
+  α : Expr
+  β : Expr
+  f : Expr
+  deriving Repr
+
+/--
+- `Option.bind.{u, v} α β a f`
+-/
+structure Bind where
+  u : Level
+  v : Level
+  α : Expr
+  β : Expr
+  a : Expr
+  f : Expr
+  deriving Repr
+
+def Bind.toExpr (bind : Bind) : Expr :=
+  let ⟨u, v, α, β, a, f⟩ := bind
+  mkApp4 (.const ``Option.bind [u, v]) α β a f
+
+def Bind.toCont (bind : Bind) : Cont :=
+  let ⟨u, v, α, β, _, f⟩ := bind
+  ⟨u, v, α, β, f⟩
+
+def Bind.explode (bind : Bind) : Action × Cont :=
+  let ⟨u, v, α, β, a, f⟩ := bind
+  (⟨u, α, a⟩, ⟨u, v, α, β, f⟩)
+
+/--
+NB: `Bind.bind` better be instantiating `Option`.
+-/
+private def _root_.Lean.Expr.matchBinds (e : Expr) : Sym.SymM (Option Bind) := do
+  match_expr e with
+  | Bind.bind _ _ α β a f => return .some ⟨←Sym.getLevelInType α, ←Sym.getLevelInType β, α, β, a, f⟩
+  | Option.bind   α β a f => return .some ⟨←Sym.getLevelInType α, ←Sym.getLevelInType β, α, β, a, f⟩
+  | _                     => return .none
+
+private def _root_.Lean.Expr.isUnital (e : Expr) : Bool :=
+  match_expr e with
+  | Unit  => true
+  | PUnit => true
+  | _     => false
+
+abbrev Subexpr := Action ⊕ Cont
+
+mutual
+
+private partial def down (reduce reduceOuter : Simplifier)
+                         (stack : List Subexpr) (todo : Action) : Sym.Simp.SimpM Expr := do
+  if let .some bind ← todo.a.matchBinds
+  then
+    let (a, f) := bind.explode
+    trace[Clap.Compile.down] "\npush [→]:\n{f.f}\ngo [↓]:\n{a.a}"
+    down reduce reduceOuter (.inr f :: stack) a
+  else
+    let simped ← todo.simplifyUsing reduce
+    if !Sym.isSameExpr simped.a todo.a
+    then
+      trace[Clap.Compile.simp] "[↓] {checkEmoji}\n{todo.a}\n==>\n{simped.a}"
+      trace[Clap.Compile.down] "\ngo [↓]:\n{simped.a}"
+      down reduce reduceOuter stack simped
+    else
+      trace[Clap.Compile.simp.fail] "[↓] {crossEmoji}\n{todo.a}"
+      trace[Clap.Compile.down] "\ngo [↑]:\n{todo.a}"
+      -- match ←isGroundTerm todo with
+      -- | .some e => trace[Clap.Compile.simp.warnDownNotGround] "{stopEmoji} [↓] stopped:\n{e}"
+      -- | .none => pure ()
+      up reduce reduceOuter stack todo
+
+private partial def up (reduce reduceOuter : Simplifier)
+                       (stack : List ExprS) (done : Expr) : Sym.Simp.SimpM Expr := do
+  match stack with
+  | [] =>
+    trace[Clap.Compile.up] "Done"
+    -- trace[Clap.Compile.up]
+    --   "This should go to debug tracing. Simped done:\n{←reduce done}"
+    return done
+  | .inr r :: stack =>
+    lambdaTelescopeOne! r fun arg body ↦ do
+      --TODO(perf): Where do we compute this?
+      let argT ← arg.fvarId!.getType
+      let_expr Option t := argT | throwError m!"Argument not in `Option. Shouldn't be happening."
+      let u ← Sym.getLevelInType t
+      let bodyT ← Sym.inferType body
+      let_expr Option t' := bodyT | throwError m!"Body return not in `Option. Shouldn't be happening."
+      let v ← Sym.getLevelInType t'
+      trace[Clap.Compile.up] "\npush [←]:\n{(done, arg)}\ngo [↓]:\n{body}"
+      down reduce reduceOuter (.inl (done, arg) :: stack) body
+  | .inl l :: stack => do
+    let bind ← mkBindWith l done
+    let up := up reduce reduceOuter stack
+    let lamArgT ← Sym.inferType l.2 -- TODO(perf): Needs computing here?
+    if lamArgT.isUnital
+    then trace[Clap.Compile.up] "\ngo [↑]:\n{bind}"
+         up bind
+    else trace[Clap.Compile.simp] "Binding value: {l.2} {bind}"
+         let simped ← reduceOuter bind
+         -- TODO(semantics): Ok we simped, so what?
+         if !Sym.isSameExpr simped bind
+         then trace[Clap.Compile.simp] "[↑] {checkEmoji}\n{bind}\n==>\n{simped}"
+         else trace[Clap.Compile.simp.fail] "[↑] {crossEmoji}\n{bind}"
+         trace[Clap.Compile.up] "\ngo [↑]:\n{simped}"
+         up simped
+  where mkBindWith (stackEntry : Expr × Expr) (cont : Expr)
+                   (m? : Name := ``Option.bind) : Sym.Simp.SimpM Expr := do
+    Sym.shareCommonInc <| Sym.mkLambdaFVarsS #[stackEntry.2] cont >>= stackEntry.1.mkBind (m? := m?)
+
+end
+
 
 def compileJustSym (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
   lambdaTelescope e fun args e ↦ do
