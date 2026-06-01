@@ -6,6 +6,7 @@ import Lean.Meta.Tactic.Cbv.Main
 
 import Clap.Lang
 import Clap.Spec
+import Clap.Compiler.Constraints
 import Clap.Compiler.Simp
 import Clap.Compiler.Vectors
 import Clap.Compiler.Wheels
@@ -190,6 +191,13 @@ def compilerSet : MetaM Sym.Simp.Methods :=
     ``Option.pure_def, ``Option.bind_some, ``Option.bind_eq_bind
   ]
 
+/--
+TODO: Account for `PUnit` and such.
+-/
+def isOptionUnit (e : Expr) : Bool := Id.run do
+  let_expr Option x := e | return false
+  return x.isConstOf ``Unit
+
 def compilerWat : Sym.Simp.Simproc := fun e ↦ do
   match_expr e with
   | Bind.bind _ _ α β x f =>
@@ -230,6 +238,8 @@ def compilerWat : Sym.Simp.Simproc := fun e ↦ do
         m!"\n{e}\n==>\n{e'}"
       return .step e' (←Sym.mkEqRefl e')
     | _ =>
+      -- let res ← getConstraints
+      -- logInfo m!"res: {res}"
       let x' := (←Sym.simp x (←read).toMethods).getResultExpr x
       if isSameExpr x x' then
         trace[Clap.Compile.simp.proc.monad.top_level]
@@ -1062,13 +1072,15 @@ def ex₀ : Option Unit := do
 /--
 info: Compiled:
 (eq0 0).bind fun x =>
-(eq0 1).bind fun x =>
-(eq0 2).bind fun y =>
-(eq0 2).bind fun _res =>
-(eq0 3).bind fun x => some PUnit.unit
+  (eq0 1).bind fun x =>
+    ((eq0 2).bind fun init => (eq0 2).bind fun init => some init).bind fun _res => (eq0 3).bind fun x => some PUnit.unit
 -/
 #guard_msgs(info, whitespace := lax, drop warning) in
-#eval spoon <| do compileExampleJustSym ``ex₀ (←(foldlM ∪ compilerSet_old'))
+#eval spoon <| do compileExampleJustSym ``ex₀ (←(foldlM ∪ compilerWtf))
+
+
+#exit
+
 
 def ex₁ (_vec : Vector Nat 3) : Option Unit := do
   eq0 #v[4, 5][0]
@@ -1139,7 +1151,7 @@ fun vec =>
 #eval spoon <| do
   compileExampleJustSym
     ``ex₅
-    (←(append ∪ explode ∪ getElem ∪ map ∪ zipWith ∪ zeta ∪ compilerSet_old))
+    (←(append ∪ explode ∪ getElem ∪ map ∪ zipWith ∪ zeta ∪ compilerWtf))
 
 def ex₆ (vec : Vector Nat 160) : Option Unit := do
   eq0 ((vec ++ vec)[0])
@@ -1152,7 +1164,7 @@ info: Compiled:
 fun vec => (eq0 vec[0]).bind fun x => (eq0 0).bind fun x => eq0 vec[1]
 -/
 #guard_msgs(info, whitespace := lax, drop warning) in
-#eval spoon <| do compileExampleJustSym ``ex₆ (←(append ∪ getElem ∪ drop ∪ take ∪ zeta ∪ compilerSet_old ∪ explode))
+#eval spoon <| do compileExampleJustSym ``ex₆ (←(append ∪ getElem ∪ drop ∪ take ∪ zeta ∪ compilerWtf ∪ explode))
 
 def ex₇ (vec : Vector Nat 3) : Option Unit := do
   eq0 ((vec ++ vec)[0])
@@ -1169,7 +1181,7 @@ set_option trace.Clap.Compile true
 -- -- eq0 (vec[0] + (vec[1] + (vec[2] + 0)))
 -- -- -/
 -- #guard_msgs(info, whitespace := lax, drop warning) in
-#eval spoon <| do compileExampleJustSym ``ex₇ (←(append ∪ getElem ∪ sum ∪ zeta ∪ compilerSet_old ∪ explode))
+#eval spoon <| do compileExampleJustSym ``ex₇ (←(append ∪ getElem ∪ sum ∪ zeta ∪ compilerWtf ∪ explode))
 
 def ex₈ (vec : Vector Nat 10) : Option Unit := do
   let x ← (do let _ ← eq0 2; let _ ← vec.mapM (fun x ↦ (eq0 (x + 42) : Option _)); return 4) 
@@ -1251,7 +1263,7 @@ info: Compiled:
 fun vec => eq0 vec[0]
 -/
 #guard_msgs(info, whitespace := lax, drop warning) in
-#eval spoon <| do compileExampleJustSym ``ex₉ (←(extract ∪ append ∪ getElem ∪ zeta ∪ compilerSet_old ∪ explode))
+#eval spoon <| do compileExampleJustSym ``ex₉ (←(extract ∪ append ∪ getElem ∪ zeta ∪ compilerWtf ∪ explode))
 
 def ex₁₀ (vec : Vector Nat 160) : Option Unit := do
   let res := (#v[0] ++ vec).set 0 42
@@ -1262,7 +1274,7 @@ info: Compiled:
 fun vec => eq0 42
 -/
 #guard_msgs(info, whitespace := lax, drop warning) in
-#eval spoon <| do compileExampleJustSym ``ex₁₀ (←(set ∪ append ∪ getElem ∪ zeta ∪ compilerSet_old ∪ explode))
+#eval spoon <| do compileExampleJustSym ``ex₁₀ (←(set ∪ append ∪ getElem ∪ zeta ∪ compilerWtf ∪ explode))
 
 def ex₁₁ (vec : Vector Nat 160) : Option Unit := do
   let res := vec.mapIdx fun i x ↦ x + i
@@ -1273,7 +1285,7 @@ info: Compiled:
 fun vec => eq0 (vec[0] + 0)
 -/
 #guard_msgs(info, whitespace := lax, drop warning) in
-#eval spoon <| do compileExampleJustSym ``ex₁₁ (←(mapIdx ∪ getElem ∪ zeta ∪ compilerSet_old ∪ explode))
+#eval spoon <| do compileExampleJustSym ``ex₁₁ (←(mapIdx ∪ getElem ∪ zeta ∪ compilerWtf ∪ explode))
 
 -- def mixLast {t : ℕ} (state : Vector (F p) t) (M : Vector (Vector (F p) t) t) (s : ℕ) : F p :=
 --   (state.zipWith (fun (sj : F p) (row : Vector (F p) t) ↦ row[s]'sorry * sj) M).sum
