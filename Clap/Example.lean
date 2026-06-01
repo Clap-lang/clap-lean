@@ -76,23 +76,23 @@ end Reduced
 namespace Wg
 
 -- manual
-def isZero (e: F p) : List (F p) × List (F p) :=
+def isZero (e: F p) : List (F p) :=
   let a := e⁻¹
   let o := if e = 0 then 1 else 0
-  ([a],[o])
+  a :: o :: []
 
 -- manual
-def num2bits (w:ℕ) (e : F p) : Vector (F p) w :=
-  Clap.num2bitsLsbPureV w e
+def num2bits (w:ℕ) (e : F p) : List (F p) :=
+  Clap.num2bitsLsbPure w e
 
 -- compiled
-def check (a: Data) : Vector (F p) (2+2) :=
+def check (a: Data) : List (F p) :=
   isZero a.vec[0] ++ isZero a.vec[1]
 
 -- compiled
 def circuit
   (pub_p : PublicInput Data)
-  (pri_p : PrivateInput Data) : Vector (F p) (8+2+2+2+2) :=
+  (pri_p : PrivateInput Data) : List (F p) :=
   num2bits 8 pri_p.n
   ++
   check pub_p
@@ -179,9 +179,7 @@ lemma isZeroWrExt {tl tr : Type}
   aesop (add simp [isZero, Cs.isZero,eq0,sub_eq_zero,wrExt.none])
 
 lemma equiv_reduced_cs :
-  wrExt
-    (Reduced.check)
-    (Cs.check)
+  wrExt Reduced.check Cs.check
 := by
   unfold Reduced.check Cs.check
   apply wrExt.lam ; intro
@@ -262,38 +260,83 @@ def ex : HList ([Bool, String, Nat]) := .cons true (.cons "" (.cons 1 .nil))
 namespace Completeness
 
 inductive wrapExt : {tc tcs: Type} → {twg : Type} → tc → twg → tcs → Prop where
-  | none {t : Type} : wrapExt none      _         none
-  | same {t : Type} : wrapExt (some ()) [] (some ())
+  | none : wrapExt none      _         none
+  | same : wrapExt (some ()) [] (some ())
   | lam {α tl tr : Type} {twg} {kl : α → tl} {wg : α → twg} {kr : α → tr}
         (h : ∀ x, wrapExt (kl x) (wg x) (kr x)) : wrapExt kl wg kr
-  | right {l : Option Unit} {x: List (F p) × List (F p)} {wg : List (List (F p) × List (F p))} {kr : List (F p) → Option Unit}
-        (h : wrapExt l wg (kr x.snd)) : wrapExt l (x :: wg) (kr x.snd)
+  | right {tkr : Type} {l : Option Unit} {x : F p} {wg : List (F p)} {kr : F p → tkr}
+        (h : wrapExt l wg (kr x)) : wrapExt l (x :: wg) kr
 
 lemma wrapExtIsZero
   (kl : F p → Option Unit)
-  (kr : List (F p) → Option Unit)
-  (wgK : List (List (F p) × List (F p)))
+  (kr : F p → Option Unit)
+  (wgK : List (F p))
   (e : ZMod p)
-  (aux out : F p)
-  (hwg : Wg.isZero e = ([aux],[out]))
-  (h : wrapExt (kl out) wgK (kr [out])) :
+  (inv out : F p)
+  (hwg : Wg.isZero e = [inv, out])
+  (h : wrapExt (kl out) wgK (kr out)) :
   wrapExt
     (do let o ← isZero e ; kl o)
-    (([aux],[out]) :: wgK)
-    (do Cs.isZero e aux out ; kr [out])
+    wgK
+    (do Cs.isZero e inv out ; kr out)
 := by
-  simp [isZero,Cs.isZero,Wg.isZero,eq0] at *
-  aesop (add simp [wrapExt.right])
+  aesop (add simp [isZero,Cs.isZero,Wg.isZero,eq0,wrapExt.right])
 
+
+lemma completeness :
   wrapExt
-    (bind (share e) kl)
-    (HList.cons e wg)
-    (some (fun s ↦ do eq0 (e - s) ; kr s))
+    Reduced.check
+    Wg.check
+    Cs.check
 := by
-  simp [share,eq0]
-  constructor
-  simp
-  assumption
+  unfold Reduced.check Cs.check
+  constructor ; intro x
+  apply wrapExt.right
+  apply wrapExt.right
+  apply wrapExt.right
+  apply wrapExt.right
+  aesop (add simp [isZero,Cs.isZero,Wg.isZero,eq0,wrapExt.right])
+  apply wrapExt.same
+  apply wrapExt.none
+  apply wrapExt.none
+
+ --  apply wrapExtIsZero (e:=x.vec[0]) (inv:=x.vec[0]⁻¹) (out := (if x.vec[0] = 0 then 1 else 0)) (wgK := [])
+ -- -- apply wrapExtNum2bits
+ --  sorry
+
+-- lemma wrapExtShare {tl tr : Type} {twg : List Type}
+--   (kl : ZMod p → Option tl)
+--   (kr : ZMod p → Option tr)
+--   (wg : HList twg)
+--   (e : ZMod p)
+--   (h : wrapExt (kl e) wg (kr e)) :
+--   wrapExt
+--     (bind (share e) kl)
+--     (HList.cons e wg)
+--     (some (fun s ↦ do eq0 (e - s) ; kr s))
+-- := by
+--   simp [share,eq0]
+--   constructor
+--   simp
+--   assumption
+
+
+-- aesop (add simp [sub_eq_zero])
+--   constructor
+--   simp
+--   assumption
+
+-- def isZero (e: F p) : Vector (F p) 2 :=
+--   let a := e⁻¹
+--   let o := if e = 0 then 1 else 0
+--   #v[a,o]
+
+-- def check (a: Data) : (aux0 aux1 : Vector (F p) 2) → Option Unit :=
+--   fun aux0 aux1 ↦ do
+--   isZero a.vec[0] aux0
+--   isZero a.vec[1] aux1
+--   eq0 (1 - aux0[1] * aux1[1])
+
 
 lemma wrapExtNum2bits [Fact (2 < p)] [Fact (Nat.Prime p)] {tl tr : Type} {twg : List Type}
   (kl : List (ZMod p) → Option tl)
