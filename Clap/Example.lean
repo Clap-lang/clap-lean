@@ -2,27 +2,22 @@ import Clap.Primes
 import Clap.Spec
 import Clap.BitVec
 import Clap.Lang
+import Clap.HashToField
 
 open Clap.Lang
 
-variable {p:ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)]
+abbrev p := Primes.bn254
 
-structure RawPoint (p : ℕ) where
-  x : F p
-  y : F p
+structure Data where
+  vec : Vector (F p) 2
+  n : F8 p
 
-structure Point (p : ℕ) [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] where
-  x : F8 p
-  y : F8 p
+def check (a: Data) : Option Unit := do
+  let allZeros ← a.vec.foldlM (fun (acc x:F p) ↦ do acc &&& (←isZero x)) FB.true
+  FB.assert allZeros
 
-def RawPoint.validate (a: RawPoint p) : Option (Point p) := do
-  let x ← F8.ofF a.x
-  let y ← F8.ofF a.y
-  some {x, y}
-
-def check (x y: F8 p) : Option Unit := do
-  F8.assertEq x y
-
+def Data.validate (d : Data) : Option Unit :=
+  F8.validate d.n
 
 def PrivateInput (α : Type) := α
 def PublicInput (α : Type) := α
@@ -33,11 +28,12 @@ def PublicInput (α : Type) := α
 -/
 
 def circuit
-  (pub_p : PublicInput (Point p))
-  (pri_p : PrivateInput (RawPoint p)) : Option Unit := do
-  let pri_p ← pri_p.validate
-  check pub_p.x pri_p.x
-  check pub_p.y pri_p.y
+  (pub_p : PublicInput Data)
+  (pri_p : PrivateInput Data) : Option Unit := do
+  pri_p.validate
+  check pub_p
+  check pri_p
+  F.assert_eq pub_p.n pri_p.n
 
 -- -- and recomposed in this new function that is defEq with the original (just need some beta)
 
@@ -55,14 +51,201 @@ def circuit
 --   eq0 l
 
 /- This is the result of compiler. A program fully reduced to a flat sequence of basic operands. -/
-namespace Circuit
+namespace Reduced
 
-def check (x : FString p 3) : Option Unit := do
-  let l ← share x.len
-  let v ← num2bits 2 l
-  eq0 (v[0]! + v[1]!)
+-- TODO trivial for Unit return type
+def check (a: Data) : Option Unit := do
+  let a0 ← isZero a.vec[0]
+  let a1 ← isZero a.vec[1]
+  eq0 (1 - a0 * a1)
 
-end Circuit
+def circuit
+  (pub_p : PublicInput Data)
+  (pri_p : PrivateInput Data) : Option Unit := do
+  let _ ← num2bits 8 pri_p.n
+  check pub_p
+  check pri_p
+  eq0 (pub_p.n - pri_p.n)
+
+end Reduced
+
+/-
+  A Witness Generator is a function that takes the same inputs as the circuit
+  (even if some may be unused) and returns a heterogeneous list.
+-/
+namespace Wg
+
+-- manual
+def isZero (e: F p) : List (F p) × List (F p) :=
+  let a := e⁻¹
+  let o := if e = 0 then 1 else 0
+  ([a],[o])
+
+-- manual
+def num2bits (w:ℕ) (e : F p) : Vector (F p) w :=
+  Clap.num2bitsLsbPureV w e
+
+-- compiled
+def check (a: Data) : Vector (F p) (2+2) :=
+  isZero a.vec[0] ++ isZero a.vec[1]
+
+-- compiled
+def circuit
+  (pub_p : PublicInput Data)
+  (pri_p : PrivateInput Data) : Vector (F p) (8+2+2+2+2) :=
+  num2bits 8 pri_p.n
+  ++
+  check pub_p
+  ++
+  check pri_p
+
+end Wg
+
+/-
+  The Constraint System takes the same inputs as the circuit. It returns a
+  series of Option values that can either be functions to receive any auxiliary
+  input or ().
+-/
+namespace Cs
+
+-- manual
+def num2bits (w:ℕ) (e:F p) : Vector (F p) w → Option Unit :=
+  fun bits ↦ do
+  eq0 (bits2numV bits - e)
+  bits.foldlM (fun () b ↦ eq0 (b * ((1:F p) - b))) ()
+
+-- manual
+def isZero (e : F p) : (inv o : (F p)) → Option Unit :=
+  fun inv o ↦ do
+  eq0 (1 - inv * e - o)
+  eq0 (o * e)
+-- def isZero (e : F p) : (inv o : List (F p)) → Option Unit :=
+--   fun inv o ↦ do
+--   let inv := inv[0]!
+--   let o := o[0]!
+--   eq0 (1 - inv * e - o)
+--   eq0 (o * e)
+
+-- compiled
+def check (a: Data) : (inv0 o0 inv1 o1 : F p) → Option Unit :=
+  fun inv0 a0 inv1 a1 ↦ do
+  isZero a.vec[0] inv0 a0
+  isZero a.vec[1] inv1 a1
+  eq0 (1 - a0 * a1)
+
+-- -- compiled
+-- def circuit
+--   (pub_p : PublicInput Data)
+--   (pri_p : PrivateInput Data) : (v : Vector (F p) 8) → (pub_p_inv0 pub_p_a0 pub_p_inv1 pri_p_a1 pri_p_inv0 pri_p_a0 pri_p_inv1 pri_p_a1 : F p) → Option Unit :=
+--   fun (v : Vector (F p) 8) (pub_p_inv0 pub_p_a0 pub_p_inv1 pub_p_a1 pri_p_inv0 pri_p_a0 pri_p_inv1 pri_p_a1 : F p) ↦ do
+--   num2bits 8 pri_p.n v
+--   check pub_p pub_p_inv0 pub_p_a0 pub_p_inv1 pub_p_a1
+--   check pri_p pri_p_inv0 pri_p_a0 pri_p_inv1 pri_p_a1
+--   eq0 (pub_p.n - pri_p.n)
+
+-- def isZero (e : F p) : (aux : Vector (F p) 1) → (out : Vector (F p) 1) → Option Unit :=
+--   fun aux out ↦ do
+--   eq0 ((1:F p) - aux[0] * e - out[0])
+--   eq0 (out[0] * e)
+
+-- def check (a: Data) : (aux0 aux1 : Vector (F p) 2) → Option Unit :=
+--   fun aux0 aux1 ↦ do
+--   isZero a.vec[0] aux0
+--   isZero a.vec[1] aux1
+--   eq0 ((1:F p) - aux0[1] * aux1[1])
+
+
+end Cs
+
+namespace Soundness
+
+inductive wrExt : Π {tl tr: Type}, tl → tr → Prop where
+  | same {t : Type} {c : t} : wrExt c c
+  | lam {α tl tr : Type} {kl : α → tl} {kr : α → tr}
+        (h : ∀ x, wrExt (kl x) (kr x)) : wrExt kl kr
+  | none {t : Type} {c : t} : wrExt c none
+  | right {α tl tr : Type} {l : tl} {kr : α → tr}
+        (h : ∀ x, wrExt l (kr x)) : wrExt l kr
+
+lemma isZeroWrExt {tl tr : Type}
+  (kl : ZMod p → Option tl)
+  (kr : ZMod p → Option tr)
+  (e inv o : ZMod p)
+  (h : ∀ x, wrExt (kl x) (kr x)) :
+  wrExt
+    (do let o ← isZero e  ; kl o)
+    (do Cs.isZero e inv o ; kr o)
+:= by
+  aesop (add simp [isZero, Cs.isZero,eq0,sub_eq_zero,wrExt.none])
+
+lemma equiv_reduced_cs :
+  wrExt
+    (Reduced.check)
+    (Cs.check)
+:= by
+  unfold Reduced.check Cs.check
+  apply wrExt.lam ; intro
+  apply wrExt.right ; intro
+  apply wrExt.right ; intro
+  apply wrExt.right ; intro
+  apply wrExt.right ; intro
+  apply isZeroWrExt ; intro
+  apply isZeroWrExt ; intro
+  apply wrExt.same
+
+-- lemma shareWrExt {tl tr : Type}
+--   (kl : ZMod p → Option tl)
+--   (kr : ZMod p → Option tr)
+--   (e : ZMod p)
+--   (h : ∀ x, wrExt (kl x) (kr x)) :
+--   wrExt
+--     (bind (share e) kl)
+--     (some (fun s ↦ do eq0 (e - s) ; kr s))
+-- := by
+--   simp +zeta only [share]
+--   constructor
+--   intro s
+--   by_cases he : e - s = 0
+--   · have h0 : eq0 (p:=p) 0 = some () := by simp [eq0]
+--     rw [he]
+--     rw [sub_eq_zero] at he
+--     rw [<-he]
+--     simp [h0]
+--     apply h
+--   · have hn0 e : e≠0 → eq0 (p:=p) e = none := by simp [eq0]
+--     apply hn0 (e-s) at he
+--     rw [he]
+--     simp
+--     constructor
+
+-- lemma num2bitsWrExt {tl tr : Type} {w:ℕ}
+--   (kl : List (ZMod p) → Option tl)
+--   (kr : List (ZMod p) → Option tr)
+--   (e : ZMod p)
+--   (h : ∀ x, wrExt (kl x) (kr x)) :
+--   wrExt
+--     (bind (num2bits w e) (fun x ↦ kl x))
+--     (some (fun bits ↦ do
+--        eq0 (Clap.bits2num bits - e)
+--        List.foldlM (fun () b ↦ eq0 (b * ((1:ZMod p) - b))) () bits
+--        kr bits))
+-- := by sorry
+
+-- lemma equiv_circuit_cs :
+--   wrExt
+--     (Circuit.check : FString p 3 → Option Unit)
+--     (Cs.check : FString p 3 → Option (ZMod p → Option (Vector (ZMod p) 2 → Option Unit)))
+-- := by
+--   unfold Circuit.check Cs.check
+--   constructor
+--   intro x
+--   apply shareWrExt
+--   intro l
+--   -- need vector in num2bits to simp
+--   -- aesop (add simp [Circuit.check,ToCs.check,num2bits,share,eq0,accept,shareWrSim,num2bitsWrSim]) (add unsafe constructors wrBisimLean)
+--   sorry
+
+end Soundness
 
 /- Heterogeneous lists -/
 inductive HList : List Type → Type 1 where
@@ -76,99 +259,32 @@ def append {α β} (x : HList α) (y : HList β) : HList (α ++ β) :=
 
 def ex : HList ([Bool, String, Nat]) := .cons true (.cons "" (.cons 1 .nil))
 
-/-
-  A Witness Generator is a function that takes the same inputs as the circuit
-  (even if some may be unused) and returns a heterogeneous list.
--/
-namespace Wg
-
-def check (x : FString p 3) : HList [(ZMod p), List (ZMod p)] :=
-  let l := x.len
-  HList.cons l (
-  let v := Clap.num2bitsLsbPure 2 x.len
-  HList.cons v
-  HList.nil)
-
-end Wg
-
-/-
-  The Constraint System takes the same inputs as the circuit. It returns a
-  series of Option values that can either be functions to receive any auxiliary
-  input or ().
--/
-namespace Cs
-
-def check (x : FString p 3) : Option (ZMod p → Option (Vector (ZMod p) 2 → Option Unit)) :=
-  some (fun (l:ZMod p) ↦ do
-  eq0 (x.len - l)
-  some (fun (v:Vector (ZMod p) 2) ↦ do
-  eq0 (v[0] + (2:ZMod p) * v[1] - l)
-  eq0 (v[0] * ((1:ZMod p) - v[0]))
-  eq0 (v[1] * ((1:ZMod p) - v[1]))
-  eq0 (v[0] + v[1])
-  some ()))
-
-end Cs
-
-namespace CsInputsFirst'
-
-def check (x : FString p 3) : Option (ZMod p → Option (Vector (ZMod p) 2 → Option Unit)) :=
-  some (fun (l:ZMod p) ↦
-  some (fun (v:Vector (ZMod p) 2) ↦ do
-  eq0 (x.len - l)
-  eq0 (v[0] + (2:ZMod p) * v[1] - l)
-  eq0 (v[0] * ((1:ZMod p) - v[0]))
-  eq0 (v[1] * ((1:ZMod p) - v[1]))
-  eq0 (v[0] + v[1])
-  some ()))
-
-end CsInputsFirst'
-
-namespace CsInputsFirst
-
-def check (x : FString p 3) : ZMod p → Vector (ZMod p) 2 → Option Unit :=
-  fun (l:ZMod p) ↦
-  fun (v:Vector (ZMod p) 2) ↦ do
-  eq0 (x.len - l)
-  eq0 (v[0] + (2:ZMod p) * v[1] - l)
-  eq0 (v[0] * ((1:ZMod p) - v[0]))
-  eq0 (v[1] * ((1:ZMod p) - v[1]))
-  eq0 (v[0] + v[1])
-  some ()
-
-end CsInputsFirst
-
-namespace CsList
-
-def check (x : FString p 3) : ZMod p → Vector (ZMod p) 2 → List (ZMod p) :=
-  fun (l:ZMod p) ↦
-  fun (v:Vector (ZMod p) 2) ↦
-  [
-    x.len - l,
-    v[0] + (2:ZMod p) * v[1] - l,
-    v[0] * ((1:ZMod p) - v[0]),
-    v[1] * ((1:ZMod p) - v[1]),
-    v[0] + v[1]
-  ]
-
-end CsList
-
 namespace Completeness
 
-inductive wrapExt : {tc tcs: Type} → {twg : Type 1} → tc → twg → tcs → Prop where
+inductive wrapExt : {tc tcs: Type} → {twg : Type} → tc → twg → tcs → Prop where
   | none {t : Type} : wrapExt none      _         none
-  | same {t : Type} : wrapExt (some ()) HList.nil (some ())
+  | same {t : Type} : wrapExt (some ()) [] (some ())
   | lam {α tl tr : Type} {twg} {kl : α → tl} {wg : α → twg} {kr : α → tr}
         (h : ∀ x, wrapExt (kl x) (wg x) (kr x)) : wrapExt kl wg kr
-  | right {α tl tr : Type} {l : tl} {x:α} {wg} {kr : α → tr}
-        (h : wrapExt l wg (kr x)) : wrapExt l (HList.cons x wg) (some kr)
+  | right {l : Option Unit} {x: List (F p) × List (F p)} {wg : List (List (F p) × List (F p))} {kr : List (F p) → Option Unit}
+        (h : wrapExt l wg (kr x.snd)) : wrapExt l (x :: wg) (kr x.snd)
 
-lemma wrapExtShare {tl tr : Type} {twg : List Type}
-  (kl : ZMod p → Option tl)
-  (kr : ZMod p → Option tr)
-  (wg : HList twg)
+lemma wrapExtIsZero
+  (kl : F p → Option Unit)
+  (kr : List (F p) → Option Unit)
+  (wgK : List (List (F p) × List (F p)))
   (e : ZMod p)
-  (h : wrapExt (kl e) wg (kr e)) :
+  (aux out : F p)
+  (hwg : Wg.isZero e = ([aux],[out]))
+  (h : wrapExt (kl out) wgK (kr [out])) :
+  wrapExt
+    (do let o ← isZero e ; kl o)
+    (([aux],[out]) :: wgK)
+    (do Cs.isZero e aux out ; kr [out])
+:= by
+  simp [isZero,Cs.isZero,Wg.isZero,eq0] at *
+  aesop (add simp [wrapExt.right])
+
   wrapExt
     (bind (share e) kl)
     (HList.cons e wg)
