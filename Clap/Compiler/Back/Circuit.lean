@@ -263,6 +263,9 @@ lemma nat2words_list_len {w k n : ℕ} : (Array.mk (nat2words_list (p := p) w k 
 def nat2words (p : ℕ) [Fact (Nat.Prime p)] (w k n : ℕ) : Vector (ZMod p) k :=
   ⟨Array.mk (nat2words_list w k n), nat2words_list_len⟩
 
+lemma nat2words_spec (p : ℕ) [Fact (Nat.Prime p)] (w k n : ℕ) :
+  2 ^ w < p → n < 2 ^ (w * k) → ∑ i : Fin k, (nat2words p w k n)[i].val * 2 ^ i.1 = n := by sorry
+
 def eval : Circuitₑ p → denotation (ZMod p)
   | .nil =>
       .u
@@ -285,7 +288,7 @@ def eval : Circuitₑ p → denotation (ZMod p)
       let a_val : ℕ := ∑ i : Fin k, a[i].eval.val * (2 ^ w) ^ i.1
       let b_val : ℕ := ∑ i : Fin k, b[i].eval.val * (2 ^ w) ^ i.1
       let p_val : ℕ := ∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1
-      let res_val : ℕ := (a_val * b_val) % p
+      let res_val : ℕ := (a_val * b_val) % p_val
       (cont (nat2words p w k res_val)).eval
     else .n
 
