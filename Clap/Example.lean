@@ -245,18 +245,6 @@ lemma equiv_reduced_cs :
 
 end Soundness
 
-/- Heterogeneous lists -/
-inductive HList : List Type → Type 1 where
-  | nil : HList []
-  | cons : {α : Type} → {ts : List Type} → α → HList ts → HList (α :: ts)
-
-def append {α β} (x : HList α) (y : HList β) : HList (α ++ β) :=
-  match x with
-  | .nil => y
-  | .cons x l => .cons x (append l y)
-
-def ex : HList ([Bool, String, Nat]) := .cons true (.cons "" (.cons 1 .nil))
-
 namespace Completeness
 
 inductive wrapExt : {tc tcs: Type} → {twg : Type} → tc → twg → tcs → Prop where
