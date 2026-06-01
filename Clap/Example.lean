@@ -271,14 +271,14 @@ lemma wrapExtIsZero
   (kl : F p → Option Unit)
   (kr : F p → Option Unit)
   (wgK : List (F p))
-  (e : ZMod p)
-  (inv out : F p)
-  (hwg : Wg.isZero e = [inv, out])
-  (h : wrapExt (kl out) wgK (kr out)) :
+  (e : F p)
+  -- (e inv out : F p)
+  -- (hwg : Wg.isZero e = [inv, out])
+  (h : ∀ x, wrapExt (kl x) wgK (kr x)) :
   wrapExt
     (do let o ← isZero e ; kl o)
     wgK
-    (do Cs.isZero e inv out ; kr out)
+    (do Cs.isZero e e⁻¹ (if e = 0 then 1 else 0) ; kr (if e = 0 then 1 else 0))
 := by
   aesop (add simp [isZero,Cs.isZero,Wg.isZero,eq0,wrapExt.right])
 
@@ -289,20 +289,17 @@ lemma completeness :
     Wg.check
     Cs.check
 := by
-  unfold Reduced.check Cs.check
+  unfold Reduced.check Wg.check Cs.check
   constructor ; intro x
   apply wrapExt.right
   apply wrapExt.right
   apply wrapExt.right
   apply wrapExt.right
-  aesop (add simp [isZero,Cs.isZero,Wg.isZero,eq0,wrapExt.right])
-  apply wrapExt.same
-  apply wrapExt.none
-  apply wrapExt.none
+  -- TODO this lemma does not unify w/o suggesting kr, and we can just skip the proof goes anyway
+  apply wrapExtIsZero
+      (kr := fun o0 => do Cs.isZero x.vec[1] x.vec[1]⁻¹ (if x.vec[1] = 0 then 1 else 0) ; eq0 (1 - o0 * if x.vec[1] = 0 then 1 else 0))
+  aesop (add simp [isZero,Cs.isZero,Wg.isZero,eq0,wrapExt.same,wrapExt.none])
 
- --  apply wrapExtIsZero (e:=x.vec[0]) (inv:=x.vec[0]⁻¹) (out := (if x.vec[0] = 0 then 1 else 0)) (wgK := [])
- -- -- apply wrapExtNum2bits
- --  sorry
 
 -- lemma wrapExtShare {tl tr : Type} {twg : List Type}
 --   (kl : ZMod p → Option tl)
