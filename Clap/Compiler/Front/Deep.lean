@@ -35,6 +35,7 @@ partial def compileExp (p : Expr) (var : Expr) (e : Expr) : MetaM Expr := do
     mkAppOptM ``Clap.Exp.sub #[p,var,l,r]
   else throwError m!"compileExp: no match for {e}"
 
+
 def typeZModp (p:Expr) : Expr := .app (mkConst ``ZMod) p
 def typeCircuit (p var : Expr) : Expr := .app (.app (mkConst ``Clap.Circuit) p) var
 def typeCircuit' (p : Expr) : Expr := .app (mkConst ``Clap.Circuit') p

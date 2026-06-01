@@ -3,7 +3,7 @@ import Clap.Sha2.Basic
 import Clap.Sha2.Cpu
 import Clap.Wheels
 
-import Clap.Compiler.Basic
+import Clap.Compiler.Front.Basic
 
 namespace Clap.Sha2.Circuit
 

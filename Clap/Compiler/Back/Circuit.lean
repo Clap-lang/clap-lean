@@ -62,6 +62,12 @@ instance : Mul (Exp p var) where
 instance : Sub (Exp p var) where
   sub a b := .sub a b
 
+instance : HOr (Exp p var) (Exp p var) (Exp p var) where
+  hOr e₀ e₁ := e₀ + e₁ - e₀ * e₁
+
+instance : HAnd (Exp p var) (Exp p var) (Exp p var) where
+  hAnd e₀ e₁ := e₀ * e₁
+
 -- The typeclasses above add an abstraction layer,
 -- these lemmas show how to go through it
 section
@@ -219,7 +225,7 @@ def repr [Repr var] [Index var]
   | .share e k => s!"share {_root_.repr e} {go l k}"
   | .isZero e k => s!"isZero {_root_.repr e} {go l k}"
   | .num2bits w e k => s!"num2bits {w} {_root_.repr e} {gos w l k}"
-  | .fpmul w k a b p' cont => s!"num2bits {w} {k} {_root_.repr  a} {_root_.repr  b} {_root_.repr  p'}"
+  | .fpmul w k a b p' _ => s!"num2bits {w} {k} {_root_.repr  a} {_root_.repr  b} {_root_.repr  p'}"
     -- TODO figure out what to do with continuation `cont`.
 
 instance [Repr var] [Index var] : Repr (Circuit p var) where

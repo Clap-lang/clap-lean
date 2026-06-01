@@ -1,5 +1,5 @@
-import Clap.Circuit
-import Clap.Simulation
+import Clap.Compiler.Back.Circuit
+import Clap.Compiler.Back.Simulation
 import Mathlib.Tactic.Cases
 
 namespace Clap

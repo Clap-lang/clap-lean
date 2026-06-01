@@ -2,7 +2,7 @@ import Lean
 import Qq
 import Clap.Spec
 import Clap.Lang
-import Clap.Compiler.Wheels
+import Clap.Compiler.Front.Wheels
 
 open Lean Qq Meta
 
@@ -188,7 +188,7 @@ def reduceStep (e : Expr) : MetaM Expr := do
   trace[Clap.Compiler.reduce.letSome] m!"[letSome]:\n{skipIdentity foldProjsS letSomeS}"
 
   return letSomeS
-  where 
+  where
     _sansOuterBinders (e : Expr) : Expr :=
       match e with
       | .lam (body := body) .. | .forallE (body := body) .. =>

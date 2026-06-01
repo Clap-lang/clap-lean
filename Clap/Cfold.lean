@@ -1,4 +1,4 @@
-import Clap.Circuit
+import Clap.Compiler.Back.Circuit
 
 namespace Clap
 

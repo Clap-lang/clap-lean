@@ -3,11 +3,11 @@ import Mathlib.Data.ZMod.Basic
 import Lean
 import Qq
 
-import Clap.Compilation
-import Clap.Compiler.Deep
-import Clap.Compiler.AddLets
+import Clap.Compiler.Back.Compilation
+import Clap.Compiler.Front.Deep
+import Clap.Compiler.Front.AddLets
 import Clap.Lang
-import Clap.Compiler.Reduce
+import Clap.Compiler.Front.Reduce
 
 namespace Clap
 
