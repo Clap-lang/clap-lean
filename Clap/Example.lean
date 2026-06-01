@@ -82,8 +82,8 @@ def isZero (e: F p) : List (F p) :=
   a :: o :: []
 
 -- manual
-def num2bits (w:ℕ) (e : F p) : List (F p) :=
-  Clap.num2bitsLsbPure w e
+def num2bits (w:ℕ) (e : F p) : Vector (F p) w :=
+  Clap.num2bitsLsbPureV w e
 
 -- compiled
 def check (a: Data) : List (F p) :=
@@ -93,7 +93,7 @@ def check (a: Data) : List (F p) :=
 def circuit
   (pub_p : PublicInput Data)
   (pri_p : PrivateInput Data) : List (F p) :=
-  num2bits 8 pri_p.n
+  (num2bits 8 pri_p.n).toList
   ++
   check pub_p
   ++
@@ -272,84 +272,45 @@ lemma completeness :
   apply wrapExtIsZero
   rfl
 
--- lemma wrapExtShare {tl tr : Type} {twg : List Type}
---   (kl : ZMod p → Option tl)
---   (kr : ZMod p → Option tr)
---   (wg : HList twg)
---   (e : ZMod p)
---   (h : wrapExt (kl e) wg (kr e)) :
---   wrapExt
---     (bind (share e) kl)
---     (HList.cons e wg)
---     (some (fun s ↦ do eq0 (e - s) ; kr s))
--- := by
---   simp [share,eq0]
---   constructor
---   simp
---   assumption
-
-
--- aesop (add simp [sub_eq_zero])
---   constructor
---   simp
---   assumption
-
--- def isZero (e: F p) : Vector (F p) 2 :=
---   let a := e⁻¹
---   let o := if e = 0 then 1 else 0
---   #v[a,o]
-
--- def check (a: Data) : (aux0 aux1 : Vector (F p) 2) → Option Unit :=
---   fun aux0 aux1 ↦ do
---   isZero a.vec[0] aux0
---   isZero a.vec[1] aux1
---   eq0 (1 - aux0[1] * aux1[1])
-
-
-lemma wrapExtNum2bits [Fact (2 < p)] [Fact (Nat.Prime p)] {tl tr : Type} {twg : List Type}
-  (kl : List (ZMod p) → Option tl)
-  (kr : List (ZMod p) → Option tr)
-  (wg : HList twg)
-  (w:ℕ) (e : ZMod p)
-  (bits : List (ZMod p))
-  (hbits : bits = Clap.num2bitsLsbPure w e)
-  (h : wrapExt (kl bits) wg (kr bits)) :
-  wrapExt
-    (bind (num2bits w e) kl)
-    (HList.cons bits wg)
-    (some (fun (v:List (ZMod p)) ↦ do
-       eq0 (Clap.bits2num v - e)
-       List.foldrM (fun b () ↦ eq0 (b * ((1:ZMod p) - b))) () v
-       kr v))
+lemma wrapExtShare
+  (kl : F p → Option Unit)
+  (kr : F p → Option Unit)
+  (e : F p)
+  (h : kl = kr) :
+    (do let e ← share e ; kl e) = (do eq0 (e - e) ; kr e)
 := by
-  simp [num2bits]
-  split
-  case _ ebound =>
-    simp
-    apply wrapExt.right
-    rw [hbits]
-    rw [Clap.bits2num_of_num2bitsLsbPure_eq]
-    simp [eq0]
-    sorry
-    sorry
-  case _ ebound =>
-    simp
-    apply wrapExt.right
-    sorry
+  aesop (add simp [share,eq0,sub_eq_zero])
 
-lemma completeness :
-  wrapExt
-    (Circuit.check : FString p 3 → Option Unit)
-    (Wg.check : FString p 3 → HList [(ZMod p), List (ZMod p)])
-    (Cs.check : FString p 3 → Option (ZMod p → Option (Vector (ZMod p) 2 → Option Unit)))
-:= by
-  unfold Circuit.check Wg.check Cs.check
-  constructor ; intro
-  apply wrapExtShare
- -- apply wrapExtNum2bits
-  sorry
+lemma wrapExtNum2bits [Fact (2 < p)] [Fact (Nat.Prime p)]
+  (w:ℕ)
+  (kl : Vector (F p) w → Option Unit)
+  (kr : Vector (F p) w → Option Unit)
+  (e : F p)
+  (h : kl = kr) :
+    (do let bs ← num2bits w e ; kl bs) =
+    (do Cs.num2bits w e (Wg.num2bits w e); kr (Wg.num2bits w e))
+  := by
+  have h : Vector.foldrM (fun b x => if b = 0 ∨ 1 = b then some () else none) () (Clap.num2bitsLsbPureV w e) = some () := sorry
+  have h : ZMod.val e < 2 ^ w → bits2numV (Clap.num2bitsLsbPureV w e) = e := sorry
+  have h : ¬ ZMod.val e < 2 ^ w → ¬ bits2numV (Clap.num2bitsLsbPureV w e) = e := sorry
+  aesop (add simp [sub_eq_zero,num2bits,Cs.num2bits,Wg.num2bits,eq0])
 
 end Completeness
+
+namespace CsList
+
+def check (x : FString p 3) : ZMod p → Vector (ZMod p) 2 → List (ZMod p) :=
+  fun (l:ZMod p) ↦
+  fun (v:Vector (ZMod p) 2) ↦
+  [
+    x.len - l,
+    v[0] + (2:ZMod p) * v[1] - l,
+    v[0] * ((1:ZMod p) - v[0]),
+    v[1] * ((1:ZMod p) - v[1]),
+    v[0] + v[1]
+  ]
+
+end CsList
 
 namespace Soundness
 
