@@ -248,8 +248,7 @@ end Soundness
 namespace Completeness
 
 inductive wrapExt : {tc tcs: Type} → {twg : Type} → tc → twg → tcs → Prop where
-  | none : wrapExt none      _         none
-  | same : wrapExt (some ()) [] (some ())
+  | same {kl kr : Option Unit} (h : kl = kr) : wrapExt kl [] kr
   | lam {α tl tr : Type} {twg} {kl : α → tl} {wg : α → twg} {kr : α → tr}
         (h : ∀ x, wrapExt (kl x) (wg x) (kr x)) : wrapExt kl wg kr
   | right {tkr : Type} {l : Option Unit} {x : F p} {wg : List (F p)} {kr : F p → tkr}
@@ -257,19 +256,12 @@ inductive wrapExt : {tc tcs: Type} → {twg : Type} → tc → twg → tcs → P
 
 lemma wrapExtIsZero
   (kl : F p → Option Unit)
-  (kr : F p → Option Unit)
-  (wgK : List (F p))
+  (kr : Option Unit)
   (e : F p)
-  -- (e inv out : F p)
-  -- (hwg : Wg.isZero e = [inv, out])
-  (h : ∀ x, wrapExt (kl x) wgK (kr x)) :
-  wrapExt
-    (do let o ← isZero e ; kl o)
-    wgK
-    (do Cs.isZero e e⁻¹ (if e = 0 then 1 else 0) ; kr (if e = 0 then 1 else 0))
+  (h : kl (if e = 0 then 1 else 0) = kr) :
+    (do let o ← isZero e ; kl o) = (do Cs.isZero e (Wg.isZero e)[0]! (Wg.isZero e)[1]! ; kr)
 := by
-  aesop (add simp [isZero,Cs.isZero,Wg.isZero,eq0,wrapExt.right])
-
+  aesop (add simp [isZero,Cs.isZero,Wg.isZero,eq0])
 
 lemma completeness :
   wrapExt
@@ -278,16 +270,15 @@ lemma completeness :
     Cs.check
 := by
   unfold Reduced.check Wg.check Cs.check
-  constructor ; intro x
+  apply wrapExt.lam ; intro x
   apply wrapExt.right
   apply wrapExt.right
   apply wrapExt.right
   apply wrapExt.right
-  -- TODO this lemma does not unify w/o suggesting kr, and we can just skip the proof goes anyway
+  apply wrapExt.same
   apply wrapExtIsZero
-      (kr := fun o0 => do Cs.isZero x.vec[1] x.vec[1]⁻¹ (if x.vec[1] = 0 then 1 else 0) ; eq0 (1 - o0 * if x.vec[1] = 0 then 1 else 0))
-  aesop (add simp [isZero,Cs.isZero,Wg.isZero,eq0,wrapExt.same,wrapExt.none])
-
+  apply wrapExtIsZero
+  rfl
 
 -- lemma wrapExtShare {tl tr : Type} {twg : List Type}
 --   (kl : ZMod p → Option tl)
