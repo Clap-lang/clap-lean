@@ -69,9 +69,12 @@ def check_lt' {k : ℕ} (w : ℕ) (isLt : Exp p var) (t₀ : Vector (Exp p var) 
   match k with
   | .zero => .eq0 (isLt - 1) cont
   | .succ k =>
-    Num2Bits.num2bits_circuit w (t₀[0] - t₁[0] + (.c ((2 ^ w : ZMod p) - 1)))
+    -- Process the MSB (highest index `k`), then recurse on the first `k` elements
+    -- (which drops the MSB via `i.castSucc`). This walks from MSB to LSB so that
+    -- each position is visited exactly once.
+    Num2Bits.num2bits_circuit w (t₀[Fin.last k] - t₁[Fin.last k] + (.c ((2 ^ w : ZMod p) - 1)))
       (fun _ =>
-        IsZero.isZero_circuit (t₀[0] - t₁[0])
+        IsZero.isZero_circuit (t₀[Fin.last k] - t₁[Fin.last k])
         (fun iz =>
           let isLt' : Exp p var :=
             isLt ||| (1 - .v iz)
