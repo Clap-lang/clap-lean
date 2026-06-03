@@ -12,7 +12,7 @@ export Clap.Spec.Compiler (
   fpMul
   bits2numV)
 
-variable {p : ℕ} [Fact (Nat.Prime p)]
+variable {p : ℕ}
 
 abbrev F p := ZMod p
 abbrev FB p := F p
@@ -92,6 +92,8 @@ end FB
 
 namespace Spec.FB
 
+variable [Fact (Nat.Prime p)]
+
 def valid (a: ZMod p) : Prop := a = FB.false ∨ a = FB.true
 
 def toBool (f:ZMod p) : Bool :=
@@ -168,6 +170,8 @@ def greaterEqThan (w : ℕ) (a b : F p) : Option (FB p) :=
 end F
 
 namespace Spec.F
+
+variable [Fact (Nat.Prime p)]
 
 private lemma num2bitsLsbPureV_aux_toList_eq {p : ℕ} (w : ℕ) (v : ZMod p) :
     (num2bitsLsbPureV.aux w v).toList = (num2bitsLsbPure w v).reverse := by
@@ -278,6 +282,10 @@ abbrev F8 := F
 
 namespace F8
 
+def ofUInt8 (u:UInt8) : F8 p := UInt8.toFin u
+
+def ofChar (c:Char) : F8 p := ofUInt8 c.toUInt8
+
 abbrev eq (a b : F8 p) := F.eq a b
 
 def lessThan (a b : F8 p) : Option (FB p) := do
@@ -292,10 +300,59 @@ namespace Spec.F8
 
 def valid (x: F p) : Prop := x.val < 2^8
 
-def ofUInt8 (u:UInt8) : F8 p := UInt8.toFin u
 def toUInt8 (f:F8 p) : UInt8 := UInt8.ofNat f.val
 
-def lessThan_equiv (a b : F p)
+private lemma ofUInt8_toUInt8 [NeZero p] (u : UInt8) (hp : 2^8 < p) :
+    Spec.F8.toUInt8 (F8.ofUInt8 (p := p) u) = u := by
+  unfold F8.ofUInt8 Spec.F8.toUInt8
+  show UInt8.ofNat ((((UInt8.toFin u).val : ℕ) : ZMod p).val) = u
+  rw [ZMod.val_natCast]
+  have h_toFin : (UInt8.toFin u).val = u.toNat := rfl
+  have hu : u.toNat < 256 := u.toNat_lt
+  have h_lt_p : (UInt8.toFin u).val < p := by rw [h_toFin]; omega
+  rw [Nat.mod_eq_of_lt h_lt_p]
+  apply UInt8.toNat_inj.mp
+  rw [UInt8.toNat_ofNat', h_toFin]
+  exact Nat.mod_eq_of_lt hu
+
+private lemma Char.toUInt8_ofUInt8 (n : UInt8) : Char.toUInt8 (Char.ofUInt8 n) = n := by
+  show (Char.ofUInt8 n).val.toUInt8 = n
+  show n.toUInt32.toUInt8 = n
+  exact UInt8.toUInt8_toUInt32 n
+
+private lemma Char.ofUInt8_toUInt8 {c : Char} (hc : c.toNat < 256) :
+    Char.ofUInt8 (Char.toUInt8 c) = c := by
+  apply Char.ext
+  apply UInt32.toNat.inj
+  show (Char.toUInt8 c).toUInt32.toNat = c.val.toNat
+  rw [UInt8.toNat_toUInt32]
+  show (c.val).toUInt8.toNat = c.val.toNat
+  rw [UInt32.toNat_toUInt8]
+  exact Nat.mod_eq_of_lt hc
+
+def toChar (c:F8 p) : Char := Char.ofUInt8 (F8.toUInt8 c)
+
+private lemma ofChar_toChar [NeZero p] {f : F p} (h : f.val < 2^8) :
+    F8.ofChar (F8.toChar f) = f := by
+  unfold F8.ofChar F8.toChar
+  rw [Char.toUInt8_ofUInt8]
+  show ((Spec.F8.toUInt8 f).toFin.val : ZMod p) = f
+  unfold Spec.F8.toUInt8
+  rw [UInt8.toFin.ofNat]
+  show ((f.val % 256 : ℕ) : ZMod p) = f
+  have h256 : f.val < 256 := by
+    have : (2:ℕ)^8 = 256 := by norm_num
+    omega
+  rw [Nat.mod_eq_of_lt h256, ZMod.natCast_zmod_val]
+
+private lemma toChar_ofChar [NeZero p] {c : Char}
+    (hc : c.toNat < 256) (hp : 2^8 < p) :
+    F8.toChar (F8.ofChar (p:=p) c) = c := by
+  unfold F8.ofChar F8.toChar
+  rw [ofUInt8_toUInt8 _ hp]
+  exact Char.ofUInt8_toUInt8 hc
+
+def lessThan_equiv [Fact (Nat.Prime p)] (a b : F p)
     (ha : valid a)
     (hb : valid b)
     (hw : 2^(8+1) < p) :
@@ -334,6 +391,8 @@ def eq {w} (a b : FBitVec p w) : Option (FB p) :=
 end FBitVec
 
 namespace Spec.FBitVec
+
+variable [Fact (Nat.Prime p)]
 
 -- We could model FBitVec as sequences of Bools like here, or as Fin like below.
 
@@ -494,6 +553,181 @@ lemma eq_equiv {w} (a b : FBitVec p w) (ha : valid a) (hb : valid b) :
 end Spec.FBitVec
 
 
+structure PaddedVector (α : ℕ → Type) (p w : ℕ) where
+  data : Vector (α p) w
+  len : F p
+
+abbrev FString (p maxLen : ℕ) := PaddedVector F8 p maxLen
+
+namespace FString
+
+def ofString {w:ℕ} (s:String) : FString p w :=
+  let l := s.toList.map (F8.ofChar (p:=p))
+  let a := l.toArray.toVector
+  if h : a.size < w
+  then
+    have h : l.toArray.size + (w - a.size) = w := by grind
+    let data := h ▸ (a ++ Vector.replicate (w - a.size) (0:F p))
+    {data, len := a.size}
+  else
+    let h : min w l.toArray.size = w := by grind
+    let data := h ▸ a.take w
+    {data, len := w}
+
+end FString
+
+namespace Spec.FString
+
+def toString {w:ℕ} (fs : FString p w) : String :=
+  let v := fs.data.take fs.len.val
+  String.ofList (v.toArray.toList.map F8.toChar)
+
+def valid {w} (fs : FString p w) : Prop :=
+  (∀ i : Fin w, F8.valid fs.data[i]) ∧ fs.len.val < w ∧
+  (∀ i : Fin w, fs.len.val ≤ i.val → fs.data[i] = 0)
+
+private theorem eqRec_toList {α} {n m : ℕ} (h : n = m) (v : Vector α n) :
+    (h ▸ v).toList = v.toList := by
+  cases h; rfl
+
+def ofString_toString {w} [NeZero p] (fs : FString p w) (h : valid fs) :
+    FString.ofString (toString fs) = fs := by
+  obtain ⟨hvalid, hlen, hpad⟩ := h
+  rcases fs with ⟨data, len⟩
+  simp only at hlen hvalid hpad
+  -- Per-element F8↔Char round trip
+  have hmap : ∀ i : Fin w, F8.ofChar (F8.toChar data[i]) = data[i] :=
+    fun i => F8.ofChar_toChar (hvalid i)
+  -- Zero-padding consequence as a List equality
+  have hdrop : data.toList.drop len.val = List.replicate (w - len.val) 0 := by
+    apply List.ext_get
+    · simp
+    · intro i hi₁ hi₂
+      have hlen_drop : i < w - len.val := by
+        simpa [List.length_drop, Vector.length_toList] using hi₁
+      have hi_lt_w : len.val + i < w := by omega
+      simp only [List.get_eq_getElem, List.getElem_drop, List.getElem_replicate,
+                 Vector.getElem_toList]
+      exact hpad ⟨len.val + i, hi_lt_w⟩ (Nat.le_add_right len.val i)
+  -- The mapped list equals data.toList.take len.val
+  have hlist : (toString { data := data, len := len : FString p w}).toList.map
+                  (F8.ofChar (p := p)) = data.toList.take len.val := by
+    unfold toString
+    rw [String.toList_ofList, List.map_map, Vector.toList_toArray, Vector.toList_take]
+    apply List.ext_get
+    · simp
+    · intro i hi₁ hi₂
+      have hi_lt_take : i < min len.val w := by
+        simpa [List.length_take, Vector.length_toList] using hi₂
+      have hi_lt_w : i < w := by omega
+      simp only [List.get_eq_getElem, List.getElem_map, List.getElem_take, Function.comp_apply,
+                 Vector.getElem_toList]
+      exact hmap ⟨i, hi_lt_w⟩
+  -- Length and size of the mapped list = len.val
+  have hLlen : ((toString { data := data, len := len : FString p w}).toList.map
+                  (F8.ofChar (p := p))).length = len.val := by
+    rw [hlist, List.length_take, Vector.length_toList, min_eq_left hlen.le]
+  have hLsize : ((toString { data := data, len := len : FString p w}).toList.map
+                  (F8.ofChar (p := p))).toArray.size = len.val := by
+    rw [List.size_toArray]; exact hLlen
+  show FString.ofString (toString { data := data, len := len : FString p w}) =
+       { data := data, len := len }
+  unfold FString.ofString
+  -- The if condition is true since len.val < w
+  have hcond : (((toString { data := data, len := len : FString p w}).toList.map
+                  (F8.ofChar (p := p))).toArray.toVector.size < w) := by
+    change (((toString { data := data, len := len : FString p w}).toList.map _).toArray.size < w)
+    omega
+  rw [dif_pos hcond]
+  -- Goal: { data := h ▸ (a ++ Vector.replicate (w - a.size) 0), len := ↑a.size } = { data, len }
+  refine PaddedVector.mk.injEq .. |>.mpr ⟨?_, ?_⟩
+  · -- data equality
+    apply Vector.toList_inj.mp
+    rw [eqRec_toList, Vector.toList_append, Vector.toList_replicate]
+    change ((toString { data := data, len := len : FString p w}).toList.map
+              (F8.ofChar (p := p))).toArray.toList ++
+           List.replicate (w - ((toString { data := data, len := len : FString p w}).toList.map
+                                  (F8.ofChar (p := p))).toArray.size) 0
+           = data.toList
+    rw [hLsize, List.toList_toArray, hlist, ← hdrop, List.take_append_drop]
+  · -- len equality: (↑a.size : F p) = len, with a.size = len.val
+    change ((((toString { data := data, len := len : FString p w}).toList.map
+              (F8.ofChar (p := p))).toArray.size : ℕ) : F p) = len
+    rw [hLsize]
+    exact ZMod.natCast_zmod_val len
+
+def toString_ofString {w} [NeZero p] (s : String) (hlen : s.length ≤ w)
+    (hchars : ∀ c ∈ s.toList, c.toNat < 256) (hp : 2^8 < p) (hpw : w < p) :
+    toString (p:=p) (FString.ofString (w:=w) s) = s := by
+  -- The mapped list has length s.length
+  have hL_length : (s.toList.map (F8.ofChar (p := p))).length = s.length := by
+    rw [List.length_map, String.length_toList]
+  have hLsize : (s.toList.map (F8.ofChar (p := p))).toArray.size = s.length := by
+    rw [List.size_toArray]; exact hL_length
+  -- Final character-level identity used in both branches
+  have hroundtrip : ∀ c ∈ s.toList,
+      F8.toChar (F8.ofChar (p := p) c) = c :=
+    fun c hc => F8.toChar_ofChar (hchars c hc) hp
+  have hmap_eq : (s.toList.map (F8.ofChar (p := p))).map F8.toChar = s.toList := by
+    rw [List.map_map]
+    conv_rhs => rw [← List.map_id s.toList]
+    apply List.map_congr_left
+    intro c hc
+    exact hroundtrip c hc
+  show toString (FString.ofString (p := p) (w := w) s) = s
+  unfold FString.ofString
+  by_cases hsize : s.length < w
+  · -- if-then branch: data := h ▸ (a ++ replicate (w - a.size) 0), len := ↑a.size
+    have hcond : ((s.toList.map (F8.ofChar (p := p))).toArray.toVector.size < w) := by
+      change ((s.toList.map (F8.ofChar (p := p))).toArray.size < w)
+      omega
+    rw [dif_pos hcond]
+    unfold toString
+    apply String.toList_inj.mp
+    rw [String.toList_ofList]
+    -- a.size = s.length, len = (s.length : F p), len.val = s.length
+    have hsize_eq : ((s.toList.map (F8.ofChar (p := p))).toArray.toVector.size : ℕ) = s.length := hLsize
+    have h_lenval : ((((s.toList.map (F8.ofChar (p := p))).toArray.toVector.size : ℕ) : F p).val) = s.length := by
+      rw [hsize_eq, ZMod.val_natCast, Nat.mod_eq_of_lt (lt_of_le_of_lt hlen hpw)]
+    rw [h_lenval]
+    rw [Vector.toList_toArray, Vector.toList_take, eqRec_toList,
+        Vector.toList_append, Vector.toList_replicate]
+    change List.map F8.toChar
+             (List.take s.length
+                ((s.toList.map (F8.ofChar (p := p))).toArray.toList ++
+                 List.replicate (w - (s.toList.map (F8.ofChar (p := p))).toArray.size) 0))
+             = s.toList
+    rw [List.toList_toArray]
+    -- Goal: List.map F8.toChar ((mapped ++ List.replicate ... 0).take s.length) = s.toList
+    rw [List.take_append_of_le_length (le_of_eq hL_length.symm)]
+    rw [List.take_of_length_le (le_of_eq hL_length)]
+    exact hmap_eq
+  · -- else branch: data := h ▸ a.take w, len := ↑w; combined with hlen gives s.length = w
+    push_neg at hsize
+    have heq : s.length = w := le_antisymm hlen hsize
+    have hcond : ¬ ((s.toList.map (F8.ofChar (p := p))).toArray.toVector.size < w) := by
+      change ¬ ((s.toList.map (F8.ofChar (p := p))).toArray.size < w)
+      omega
+    rw [dif_neg hcond]
+    unfold toString
+    apply String.toList_inj.mp
+    rw [String.toList_ofList]
+    have h_lenval : ((w : ℕ) : F p).val = w := by
+      rw [ZMod.val_natCast, Nat.mod_eq_of_lt hpw]
+    rw [h_lenval]
+    rw [Vector.toList_toArray, Vector.toList_take, eqRec_toList, Vector.toList_take]
+    change List.map F8.toChar
+             (List.take w
+                ((s.toList.map (F8.ofChar (p := p))).toArray.toList.take w))
+           = s.toList
+    rw [List.toList_toArray]
+    -- Goal: List.map F8.toChar ((mapped.take w).take w) = s.toList
+    rw [List.take_take, min_self]
+    rw [List.take_of_length_le (by rw [hL_length]; omega)]
+    exact hmap_eq
+
+end Spec.FString
+
 abbrev FBV8 (p:ℕ) := FBitVec p 8
 
 namespace FBV8
@@ -507,6 +741,8 @@ def ofF (x:F p) : Option (FBV8 p) := do
 end FBV8
 
 namespace Spec.FBV8
+
+variable [Fact (Nat.Prime p)]
 
 abbrev valid (x:FBV8 p) := FBitVec.valid x
 
@@ -526,11 +762,9 @@ lemma ofF_equiv (e:ZMod p) :
 end Spec.FBV8
 
 
-abbrev F32 (p:ℕ) [Fact (Primes.fits p 32)] := FBitVec p 32
+abbrev F32 (p:ℕ) := FBitVec p 32
 
 namespace F32
-
-variable [Fact (Primes.fits p 32)]
 
 def default : F32 p := FBitVec.default 32
 
@@ -556,7 +790,7 @@ end F32
 
 namespace Spec.F32
 
-variable [Fact (Primes.fits p 32)]
+variable [Fact (Nat.Prime p)]
 
 def toUInt32 (x:F32 p) : UInt32 :=
   Spec.FBitVec.toBV x |> UInt32.ofBitVec

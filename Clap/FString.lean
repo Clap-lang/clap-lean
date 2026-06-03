@@ -70,11 +70,6 @@ lemma high : isWhitespace_spec = isWhitespace_spec' := by
 
 end Spec.F8
 
-/--
-  Zero-padded vector of bytes of length `len`. `len` can at most be `maxLen`.
--/
-abbrev FString (p maxLen : ℕ) := HashToField.PaddedVector F8 p maxLen
-
 namespace FString
 
 variable {p : ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)]

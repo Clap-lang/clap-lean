@@ -6,10 +6,6 @@ namespace HashToField
 
 open Clap.Lang
 
-structure PaddedVector (α : ℕ → Type) (p w : ℕ) where
-  data : Vector (α p) w
-  len : F p
-
 abbrev p := Clap.Poseidon.p
 
 /-
