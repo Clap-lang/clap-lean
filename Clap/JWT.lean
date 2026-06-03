@@ -136,45 +136,21 @@ def enforceNotNested (len : ℕ)
   let o := escalarProduct bracketsDepthMap bracketsSelector
   eq0 o
 
-private def email : List (F p) := [101, 109, 97, 105, 108] -- «email»
-private def requiredEvName : List (F p) :=
-    -- «email_verified»
-    [101, 109, 97, 105, 108, 95, 118, 101, 114, 105, 102, 105, 101, 100]
-private def requiredEvValLen4 : List (F p) := [116, 114, 117, 101] -- «true»
-private def requiredEvValLen6 : List (F p) :=
-  -- «"true"»
-  [34, 116, 114, 117, 101, 34]
-
-def FList.eq (a b : List (F p)) : Option (FB p) := (a.zip b).foldlM (fun acc (a,b) ↦ do  acc * (←F.eq a b)) 1
-
 /--
   Enforce that if uid name is "email", the email verified field is either true or "true"
 -/
 def emailVerifiedCheck
-  (uidNameLen : F p)
-  (uidName : List (F p))
-  (evName : List (F p))
-  (evValueLen : F p)
-  (evValue : List (F p))
+  {MAX_UID_NAME_LEN MAX_EV_NAME_LEN MAX_EV_VALUE_LEN : ℕ}
+  (uidName : FString p MAX_UID_NAME_LEN)
+  (evName : FString p MAX_EV_NAME_LEN)
+  (evValue : FString p MAX_EV_VALUE_LEN)
   : Option (FB p)
 := do
-  let uidIsEmail := (←F.eq uidNameLen 5) &&& (←FList.eq uidName email)
-  conditionallyAssert uidIsEmail (←FList.eq evName requiredEvName)
-  let evValLenIs4 ← F.eq evValueLen 4
-  let evValLenIs6 ← F.eq evValueLen 6
-  let evValLenOk := evValLenIs4 ||| evValLenIs6
-  conditionallyAssert uidIsEmail evValLenOk
-
-  let checkEvValBool := evValLenIs4 &&& uidIsEmail
-  conditionallyAssert checkEvValBool (←FList.eq evValue requiredEvValLen4)
-
-  let checkEvValString := evValLenIs6 &&& uidIsEmail
-  conditionallyAssert checkEvValString (←FList.eq evValue requiredEvValLen6)
+  let uidIsEmail ← uidName.isPaddedOf "email"
+  FB.conditionallyAssert uidIsEmail (←evName.isPaddedOf "email_verified")
+  let evValueTrue := ((←evValue.isPaddedOf "true") ||| (←evValue.isPaddedOf "\"true\""))
+  FB.conditionallyAssert uidIsEmail evValueTrue
   return uidIsEmail
- where
-  conditionallyAssert (antecedent consequent : FB p) : Option Unit :=
-    -- a → c ≡ ¬(a ∧ ¬c)
-    eq0 (antecedent * FB.not consequent)
 
 open Primes HashToField FString FArray in
 /--
@@ -235,7 +211,7 @@ private def parseJWTFieldSharedLogic
   let firstChar ← selectArrayValue field.data 0
   F.guardedAssertEq perform firstChar '\"'
   -- Check 4: name is a substring of field starting at index 1
-  let nameOk ← isSubstringFS h_name field fieldHash name 1
+  let nameOk ← FString.isSubstringFS h_name field fieldHash name 1
   F.guardedEq0 perform (FB.not nameOk)
   -- Check 5: field[name_len + 1] == '"' (ASCII 34)
   let nameClosingQuote ← selectArrayValue field.data (name.len + 1)
@@ -244,7 +220,7 @@ private def parseJWTFieldSharedLogic
   let colonChar ← selectArrayValue field.data colon_index
   F.guardedAssertEq perform colonChar ':'
   -- Check 7: value is a substring of field starting at value_index
-  let valueOk ← isSubstringFS h_value field fieldHash value value_index
+  let valueOk ← FString.isSubstringFS h_value field fieldHash value value_index
   F.guardedEq0 perform (FB.not valueOk)
   -- Check 8: field[field_len - 1] == ',' (44) or '}' (125)
   let lastChar ← selectArrayValue field.data (field.len - 1)
@@ -543,38 +519,68 @@ example : enforceNotNested
 := by
   native_decide
 
+private def max_UID_name_len : ℕ := 6
+private def max_EV_value_len : ℕ := 7
+private def uidEmailFString : FString p max_UID_name_len := FString.ofString "email"
+private def evTrue₁FString  : FString p max_EV_value_len := FString.ofString "true"
+private def evTrue₂FString  : FString p max_EV_value_len := FString.ofString "\"true\""
+private def evBadFString : FString p max_EV_value_len := { evTrue₂FString with len := 4 }
+
+private def requiredEvName : FString p 14 := FString.ofString "email_verified"
+
 example :
   enforceNotNested (p := p) 10 2 4 [0, 0, 1, 2, 3, 3, 2, 1, 0, 0] == .none
 :=
   by native_decide
 
 example : -- uid is «email»; «email_verified» is «true»
-  emailVerifiedCheck (p := p) 5 email requiredEvName 4 requiredEvValLen4  == .some 1
-:= by
-  native_decide
+  emailVerifiedCheck (p := p)
+    uidEmailFString
+    requiredEvName
+    evTrue₁FString
+  == .some 1
+:= by native_decide
 
 example : -- uid is «email»; «email_verified» is «"true"»
-  emailVerifiedCheck (p := p) 5 email requiredEvName 6 requiredEvValLen6 == .some 1
-:= by
-  native_decide
+  emailVerifiedCheck (p := p)
+    uidEmailFString
+    requiredEvName
+    evTrue₂FString
+  == .some 1
+:= by native_decide
 
 example : -- uid is «email», but there is no «email_verified»
-  emailVerifiedCheck (p := p) 5 email [1,2,3] 6 requiredEvValLen6 == .none
-:= by
-  native_decide
+  emailVerifiedCheck (p := p)
+    uidEmailFString
+    (FString.ofString (w:=3) "abc")
+    evTrue₂FString
+  == .none
+:= by native_decide
 
 example : -- uid is «email», but «email_verified» is neither «true» nor «"true"»
-  emailVerifiedCheck (p := p) 5 email requiredEvName 3 [4, 5, 6] == .none
-:= by
-  native_decide
+  emailVerifiedCheck (p := p)
+    uidEmailFString
+    requiredEvName
+    evBadFString
+  == .none
+:= by native_decide
 
 example : -- uid is not «email»
-  emailVerifiedCheck (p := p) 0 [] requiredEvName 6 requiredEvValLen6 == .some 0
+  emailVerifiedCheck (p := p)
+    {uidEmailFString with len := 0}
+    requiredEvName
+    evTrue₂FString
+  == .some 0
 := by native_decide
 
 example : -- uid is not «email», the rest doesn't matter
-  emailVerifiedCheck (p := p) 0 [] [1, 2, 3] 3 [4, 5, 6] == .some 0
+  emailVerifiedCheck (p := p)
+    {uidEmailFString with len := 0}
+    (FString.ofString (w:=3) "abc")
+    evBadFString
+  == .some 0
 := by native_decide
+
 
 -- parseJWTFieldSharedLogic tests
 

@@ -319,7 +319,11 @@ def verifyEvField (json : JSONStructure)
     (uidName : FString bn254 MAX_UID_NAME_LEN)
     : Option Unit := do
   -- Cross-check: get uidIsEmail from emailVerifiedCheck
-  let uidIsEmail ← JWT.emailVerifiedCheck uidName.len uidName.data.toList ev.name.data.toList ev.value.len ev.value.data.toList
+  let uidIsEmail ←
+    JWT.emailVerifiedCheck
+      uidName
+      ev.name
+      ev.value
   -- Check if ev field is in JWT (non-asserting)
   let evInJwt ← FString.isSubstringFS (by decide) json.payload json.payloadHash ev.field ev.nameIndex
   -- Fail if uidIsEmail = 1 AND evInJwt = 0
