@@ -38,6 +38,11 @@ def hashElemsToField (input : Array (F p)) : Option (F p) := do
   let leaves ← inputs.mapM (fun x ↦ Clap.Poseidon.poseidonBN254 x.toList)
   Clap.Poseidon.poseidonBN254 leaves.toList
 
+/-
+TODO it's unclear if the Packing.assertIsBytes is always needed, we could move it to a precondition
+TODO Comment in keyless says "Only input.len bytes are actually hashed". How/why?
+TODO In keyless ChinksToFieldElems can return numBytes or numBytes+1
+-/
 def hashBytesToField {numBytes : ℕ}
   (input : PaddedVector F p numBytes) :
   Option (F p)

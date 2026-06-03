@@ -34,7 +34,10 @@ def chunksToFieldElem {w : ℕ}
   let base := 2^bitsPerChunk
   chunks.reverse.foldl (fun acc x ↦ acc * base + x) 0
 
--- TODO is this function even used?
+/-
+ in keyless this is used in RSA_2048_e_65537_PKCS1_V1_5_Verify
+ in our RSA it's not used, why?
+-/
 def bigEndianBitsToScalars {w} (bitsPerScalar : ℕ) (bits : FBitVec p (w * bitsPerScalar)) : Vector (F p) w:=
   assert! Primes.fits p bitsPerScalar
   assert! 0 < bitsPerScalar
