@@ -90,7 +90,7 @@ def assert_eq (a b : FB p) : Option Unit := do
 
 def conditionallyAssert (antecedent consequent : FB p) : Option Unit :=
     -- a → c ≡ ¬(a ∧ ¬c)
-    eq0 (antecedent * FB.not consequent)
+    eq0 (antecedent &&& FB.not consequent)
 
 end FB
 
@@ -148,6 +148,22 @@ def assertBool_spec (f : ZMod p) :
 
 def assertBool_ofBool_eq_some (b:Bool) : FB.assertBool (p:=p) (FB.ofBool b) = some () := by
   aesop (add simp [assertBool_spec,FB.ofBool,valid,FB.true,FB.false])
+
+def assert (b : Bool) : Option Unit :=
+  if b then some () else none
+
+lemma assert_equiv (b : FB p) (h : valid b) :
+  Lang.FB.assert b = assert (FB.toBool b) := by
+  unfold Lang.FB.assert assert
+  aesop (add simp [eq0,toBool,FB.not,FB.false,FB.true,FB.valid])
+
+def conditionallyAssert (a b : Bool) : Option Unit :=
+  if a then assert b else some ()
+
+lemma conditionallyAssert_equiv (a b : FB p) (h : valid a) (h : valid b) :
+  Lang.FB.conditionallyAssert a b = conditionallyAssert (FB.toBool a) (FB.toBool b) := by
+  unfold Lang.FB.conditionallyAssert conditionallyAssert
+  aesop (add simp [eq0,toBool,HAnd.hAnd,FB.and,FB.not,FB.false,FB.true,FB.valid])
 
 end Spec.FB
 

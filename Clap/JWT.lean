@@ -142,7 +142,7 @@ def enforceNotNested (len : ℕ)
 def emailVerifiedCheck
   {MAX_UID_NAME_LEN MAX_EV_NAME_LEN MAX_EV_VALUE_LEN : ℕ}
   (uidName : FString p MAX_UID_NAME_LEN)
-  (evName : FString p MAX_EV_NAME_LEN)
+  (evName  : FString p MAX_EV_NAME_LEN)
   (evValue : FString p MAX_EV_VALUE_LEN)
   : Option (FB p)
 := do
@@ -151,6 +151,45 @@ def emailVerifiedCheck
   let evValueTrue := ((←evValue.isPaddedOf "true") ||| (←evValue.isPaddedOf "\"true\""))
   FB.conditionallyAssert uidIsEmail evValueTrue
   return uidIsEmail
+
+namespace Spec.JWT
+
+def emailVerifiedCheck (uidName evName evValue : String) : Option Bool := do
+  let uidIsEmail := uidName = "email"
+  Spec.FB.conditionallyAssert uidIsEmail (evName = "email_verified")
+  Spec.FB.conditionallyAssert uidIsEmail (evValue = "true" || evValue = "\"true\"")
+  return uidIsEmail
+
+lemma evailVeririedCheck_equiv {wa wb wc}
+  (h : 2^8 < p)
+  (a : FString p wa) (ha: Spec.FString.valid a)
+  (b : FString p wb) (hb: Spec.FString.valid b)
+  (c : FString p wc) (hc: Spec.FString.valid c) :
+  _root_.JWT.emailVerifiedCheck a b c =
+    Option.map FB.ofBool
+    (emailVerifiedCheck (Spec.FString.toString a)
+                        (Spec.FString.toString b)
+                        (Spec.FString.toString c)) := by
+  unfold _root_.JWT.emailVerifiedCheck emailVerifiedCheck
+  rw [Spec.FString.isPaddedOf_equiv]
+  rw [Spec.FString.isPaddedOf_equiv]
+  simp
+  rw [Spec.FB.conditionallyAssert_equiv]
+  rw [Spec.FString.isPaddedOf_equiv]
+  rw [Spec.FString.isPaddedOf_equiv]
+  simp [Spec.FB.left_inv]
+  rw [Spec.FB.conditionallyAssert_equiv]
+  simp [Spec.FB.left_inv]
+  rw [Spec.FB.or_equiv]
+  simp [Spec.FB.left_inv]
+  all_goals try apply Spec.FB.valid_ofBool
+  rw [Spec.FB.or_equiv] ; apply Spec.FB.valid_ofBool
+  all_goals try apply Spec.FB.valid_ofBool
+  all_goals try assumption
+  all_goals try (simp [String.length] ; omega)
+  all_goals try decide
+
+end Spec.JWT
 
 open Primes HashToField FString FArray in
 /--
