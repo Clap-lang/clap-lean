@@ -1046,43 +1046,43 @@ def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
 
 #check HAppend.hAppend
 
-/--
-0. Only for `Vector.mapM f xs`.
-1. Vector.mapM f #v[a, b, c] → Vector.mapM f (#v[a] ++ #v[b, c])
-2. Vector.mapM f (#v[x] ++ v) = do
-     let __do_lift ← f x
-     let __do_lift_1 ← Vector.mapM f v
-     pure (#v[__do_lift] ++ __do_lift_1)
--/
-def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
-  let_expr _root_.Vector.mapM _ _ β _ _ f vec := e | return .rfl
-  let_expr _root_.Vector.mk _ sz arr _ := vec | return .rfl
-  let l ← arr.getAppArgs[1]?.getDM (unreachable!)
-  let_expr List.cons t hd tl := l | return .rfl
-  let sz' ← Sym.simpWithGround sz
-  match (sz'.getResultExpr sz).nat? with
-  | .none => throwError m!"{sz} does not simplify to ground. Expr:\n{e}"
-  | .some szN =>
-    let hdVec ← mkVecLit β (←Sym.mkListLit t [hd]) (mkNatLit 1)
-    let tlVec ← mkVecLit β tl (toExpr (szN - 1))
-    let hdVecElemLevel ← Sym.getLevelInType β
-    let u := hdVecElemLevel -- `Vector.{u} {α : Type u}... : Vector.{u}`
-    /-
-    No universe bump along the way
-    -/
-    let v := hdVecElemLevel
-    let w := hdVecElemLevel
-    let append :=
-      mkAppN
-        (.const ``HAppend.hAppend [u, v, w]) #[
-          (mkApp2 (.const ``Vector [u]) β (mkNatLit 1)),
-          (mkApp2 (.const ``Vector [u]) β (toExpr (szN - 1))),
-          (mkApp2 (.const ``Vector [u]) β (toExpr szN)),
-          (mkApp3 (.const ``Vector.instHAppendHAddNat [u]) β (mkNatLit 1) (toExpr (szN - 1))),
-          ←mkVecLit t (←Sym.mkListLit t [.bvar 1]) (mkNatLit 1),
-          _,
-          _
-        ]
+-- /--
+-- 0. Only for `Vector.mapM f xs`.
+-- 1. Vector.mapM f #v[a, b, c] → Vector.mapM f (#v[a] ++ #v[b, c])
+-- 2. Vector.mapM f (#v[x] ++ v) = do
+--      let __do_lift ← f x
+--      let __do_lift_1 ← Vector.mapM f v
+--      pure (#v[__do_lift] ++ __do_lift_1)
+-- -/
+-- def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
+--   let_expr _root_.Vector.mapM _ _ β _ _ f vec := e | return .rfl
+--   let_expr _root_.Vector.mk _ sz arr _ := vec | return .rfl
+--   let l ← arr.getAppArgs[1]?.getDM (unreachable!)
+--   let_expr List.cons t hd tl := l | return .rfl
+--   let sz' ← Sym.simpWithGround sz
+--   match (sz'.getResultExpr sz).nat? with
+--   | .none => throwError m!"{sz} does not simplify to ground. Expr:\n{e}"
+--   | .some szN =>
+--     let hdVec ← mkVecLit β (←Sym.mkListLit t [hd]) (mkNatLit 1)
+--     let tlVec ← mkVecLit β tl (toExpr (szN - 1))
+--     let hdVecElemLevel ← Sym.getLevelInType β
+--     let u := hdVecElemLevel -- `Vector.{u} {α : Type u}... : Vector.{u}`
+--     /-
+--     No universe bump along the way
+--     -/
+--     let v := hdVecElemLevel
+--     let w := hdVecElemLevel
+--     let append :=
+--       mkAppN
+--         (.const ``HAppend.hAppend [u, v, w]) #[
+--           (mkApp2 (.const ``Vector [u]) β (mkNatLit 1)),
+--           (mkApp2 (.const ``Vector [u]) β (toExpr (szN - 1))),
+--           (mkApp2 (.const ``Vector [u]) β (toExpr szN)),
+--           (mkApp3 (.const ``Vector.instHAppendHAddNat [u]) β (mkNatLit 1) (toExpr (szN - 1))),
+--           ←mkVecLit t (←Sym.mkListLit t [.bvar 1]) (mkNatLit 1),
+--           mkApp2 (.const ``Vector.mk [u]) _ _,
+--           _
+--         ]
 
 
   -- -- logInfo m!"Nodes: {←e.numObjs}"
@@ -1159,12 +1159,12 @@ def mapM : MetaM Methods :=
     -- ``Compiler.explodeVectorMapM
   ]
 
-def mapM_alt : MetaM Methods :=
-  mkPostMethods #[
-    ``_root_.Vector.mapM_mk_eq_append
+-- def mapM_alt : MetaM Methods :=
+--   mkPostMethods #[
+--     ``_root_.Vector.mapM_mk_eq_append
 
-    -- ``Compiler.explodeVectorMapM
-  ]
+--     -- ``Compiler.explodeVectorMapM
+--   ]
 
 #check List.map_cons
 -- def mapM_test : MetaM Methods :=
@@ -1728,7 +1728,7 @@ def ex₄ (vec : Vector Nat 5) : Option Unit :=
 -- set_option profiler true in
 -- set_option trace.Clap.Compile true in
 set_option trace.Clap.Compile true in
-#eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM_alt ∪ compilerWtf ∪ getElem))
+#eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerWtf ∪ getElem))
 
 def profileThis := spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerWtf ∪ getElem))
 
@@ -1821,7 +1821,7 @@ set_option maxHeartbeats 0 in
 -- #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do
   let e ← compileExampleJustSym ``ex₈
-    (←(zipWith ∪ mapM_alt ∪ getElem ∪ zeta ∪ compilerWtf ∪ explode
+    (←(zipWith ∪ mapM ∪ getElem ∪ zeta ∪ compilerWtf ∪ explode
     -- ∪ compilerAssoc
     ∪ bindMyAssoc_set
     ))
