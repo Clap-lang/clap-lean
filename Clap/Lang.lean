@@ -594,6 +594,16 @@ def ofString {w:ℕ} (s:String) : FString p w :=
     let data := h ▸ a.take w
     {data, len := w}
 
+def isPaddedOf {wa} (a : FString p wa) (b : String) : Option (FB p) := do
+  let b : List (F8 p) := b.toList.map F8.ofChar
+  (← aux a.data.toArray.toList b)
+  &&&
+  (← F.eq a.len b.length)
+where
+  aux : List (F p) → List (F p) → Option (FB p)
+  | x :: xs, y :: ys => return (←F.eq x y) &&& (← aux xs ys)
+  | _, _ => return 1
+
 end FString
 
 namespace Spec.FString
