@@ -279,6 +279,44 @@ def assertIsConcatenation
 
 end FString
 
+namespace Spec.FString
+
+variable {p : ℕ}
+
+/--
+  discards the `[len, maxDigits)` padding. This is the actual string content the circuit reasons about.
+-/
+def content {n : ℕ} (inp : FString p n) : List Char := (inp.data.toList.take inp.len.val).map Spec.F8.toChar
+
+def assertIsAsciiDigits_spec (cs : List Char) : Bool := cs.all fun c => 48 ≤ c.toNat && c.toNat ≤ 57
+
+def assertIsAsciiDigits_high (cs : List Char) : Bool := cs.all Char.isDigit
+
+/--
+  * `hn`      : the buffer is non-empty             — `arraySelector` needs `startIdx 0 < n`
+  * `hlen`    : the length is positive              — `arraySelector` needs `0 < endIdx`
+  * `hlenfit` : the length fits the selector width  — `Num2Bits (minBits n)` on `endIdx`
+  * `hbytes`  : every stored value is a byte        — `F.lessThan 8` constrains *all* positions, not just `[0, len)`
+  * `hp`      : field large enough for 8-bit compares (`2^9 < p`)
+  * `hpn`     : field large enough for `minBits n`-bit compares (selector)
+-/
+lemma assertIsAsciiDigits_equiv {n : ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)]
+    (inp : FString p n)
+    (hn      : 0 < n)
+    (hlen    : 0 < inp.len.val)
+    (hlenfit : inp.len.val < 2 ^ Clap.minBits n)
+    (hbytes  : ∀ i : Fin n, Spec.F8.valid inp.data[i])
+    (hp      : 2 ^ (8 + 1) < p)
+    (hpn     : 2 ^ (Clap.minBits n + 1) < p) :
+    FString.assertIsAsciiDigits inp = if assertIsAsciiDigits_spec (content inp) then some () else none := by
+  sorry
+
+/-- The two levels agree: the ASCII range `[48, 57]` is exactly the decimal digits. -/
+lemma assertIsAsciiDigits_eq_high : assertIsAsciiDigits_spec = assertIsAsciiDigits_high := by
+  sorry
+
+end Spec.FString
+
 namespace TestString
 
 open Clap.Lang Clap.Spec
