@@ -139,9 +139,8 @@ lemma ZMod.val_sum {n : ℕ} [NeZero n] {α : Type} [Fintype α] {f : α → ZMo
   let g := exists_bij.toFun
   let g_inv := exists_bij.invFun
   have h₁ {β : Type} [Semiring β] {f : α → β} : ∑ i, f i = ∑ i, f (g_inv i) := by
-    refine Function.Bijective.finset_sum g (Equiv.bijective exists_bij) f (fun x => f (g_inv x)) ?_
-    intros x
-    simp only
+    refine Function.Bijective.finsetSum g (Equiv.bijective exists_bij) f (fun x => f (g_inv x)) ?_
+    intros x    
     congr
     dsimp [g, g_inv]
     exact (Equiv.apply_eq_iff_eq_symm_apply exists_bij).mp rfl

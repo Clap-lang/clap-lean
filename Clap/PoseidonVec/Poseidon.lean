@@ -136,6 +136,10 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
     let l ← state.mapM sigma
     mix (ark l C ((r + 1) * t)) M) state
 
+  -- `let state ← #v[1, 2].mapM f; tail` ==>
+  -- `let state ← f 1 >>= fun a1 ↦ f 2 >>= fun a2 ↦ pure #v[a1, a2]; tail`
+  -- 
+
   -- Boundary round (r = half−1): sigma → ark → mix with P
   let state := mix (ark (← state.mapM sigma) C (half * t)) P
 
@@ -274,7 +278,7 @@ open Clap.Compiler.SymSets Vector General in
 set_option pp.exprSizes true in
 set_option maxRecDepth 1000000 in
 set_option maxHeartbeats 0 in
--- set_option pp.proofs true in
+
 #eval spoon <| do
   compileExampleJustSym ``testPoseidon
     (←(
