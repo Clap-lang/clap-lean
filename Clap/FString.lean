@@ -172,10 +172,12 @@ def isSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (subs
 def assertIsSubstring {maxStrLen maxSubstrLen : ℕ} (str : FString p maxStrLen) (substr : FString p maxSubstrLen) (startIndex : F p) : Option Unit := do
   FB.assert (← isSubstring str substr startIndex)
 
-def powers (α : F p) (len : ℕ) : Option (Vector (F p) len) := do
-  let l : List (F p) ← (List.range len).foldlM (fun pows _ ↦ do let last := List.head! pows ; let p ← share (last * α) ; p::pows) [1]
-  some ⟨l.reverse.toArray, by sorry⟩
-
+def powers (α : F p) : (len : ℕ) → Option (Vector (F p) len)
+  | 0 => some #v[]
+  | n + 1 => do
+    let prev ← powers α n
+    let pow_n ← if h : n = 0 then pure (1 : F p) else share (prev[n - 1]'(by omega) * α)
+    pure (prev.push pow_n)
 
 open Primes HashToField in
 /--
