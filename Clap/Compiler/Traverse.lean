@@ -719,7 +719,6 @@ run_meta do
 We pass along the types instead of inferring them from expressions. I guess that's faster :).
 -/
 def bindActions (a₁ a₁type a₂ a₂type: Expr) : Sym.Simp.SimpM (Expr × Expr) := do
-  logInfo m!"a₁: {a₁}\na₁type: {a₁type}\na₂: {a₂}\na₂type: {a₂type}"
   let cont := Expr.lam `a a₁type a₂ default
   let bind :=
     mkApp4 (.const ``Option.bind [←Sym.getLevelInType a₁type, ←Sym.getLevelInType a₂type])
@@ -727,6 +726,7 @@ def bindActions (a₁ a₁type a₂ a₂type: Expr) : Sym.Simp.SimpM (Expr × Ex
            a₁
            cont
   return (bind, a₂type)
+
 -- (bind (bind (b : Option α) (g : α → Option β) : Option β) (f : β → Option γ) : Option γ)
 def bindMyAssoc : Sym.Simp.Simproc := fun e ↦ do
   let_expr Option.bind β γ a f := e | return .rfl
@@ -735,23 +735,10 @@ def bindMyAssoc : Sym.Simp.Simproc := fun e ↦ do
   if actions.isEmpty then throwError m!"empty nested do block"
   let actions := actions.modify actions.size.pred fun (e, _) ↦ (e, γ)
   let .lam _ _ body _ := f | throwError m!"expected lambda"
-  let (e', _) ←
-    actions.foldrM
-      (init := (body, γ))
-      fun (a₁, ta₁) (a₂, ta₂) ↦ do bindActions a₁ ta₁ a₂ ta₂
+  let (e', _) ← actions.foldrM (init := (body, γ)) fun (a₁, ta₁) (a₂, ta₂) ↦
+    bindActions a₁ ta₁ a₂ ta₂
+  let e' ← Sym.shareCommon e'
   return .step e' (←mkSorry (←mkEq e e') false)
-
-  -- bindTelescope a fun actions t ↦ do
-    -- if actions.isEmpty then throwError m!"empty nested do block"
-    -- logInfo m!"actions: {actions}"
-    -- let (e', _) ←
-    --   actions.foldrM
-    --     (init := (mkApp2 (.const ``Option.some [←Sym.getLevelInType γ]) γ (.bvar 0), γ))
-    --     fun (a₁, α) (a₂, β) ↦ do
-    --       let x ← bindActions a₁ α a₂ β
-    --       return x
-    -- logInfo m!"e': {e'}"
-    -- return .step e' (←mkSorry (←mkEq e e') false)
 
 def bindMyAssoc_set : MetaM Methods :=
   mkPostMethods #[
@@ -1428,24 +1415,23 @@ def tt' : Option Unit :=
   Option.bind (.some <| y + 2) fun y ↦
   eq0 y
 
-example : tt = tt' := by
-  unfold tt
-  compile_just_sym [SymSets.Vector.bindMyAssoc_set]
-  simp only [←Option.bind_eq_bind]
-  simp only [bind_assoc]
-  unfold tt'
+-- example : tt = tt' := by
+--   unfold tt
+--   compile_just_sym [SymSets.Vector.bindMyAssoc_set]
+--   simp only [←Option.bind_eq_bind]
+--   simp only [bind_assoc]
+--   unfold tt'
 
-  rw [Option.bind_assoc]
-  rw [Option.bind_assoc]
-  rw [Option.bind_some]
-  rw [Option.bind_some]
-  rw [Option.bind_some]
-  rw [Option.bind_some]
-  rw [Option.bind_some]
-  rw [Option.bind_some]
-  rfl
-#exit
-  -- compile_just_sym [SymSets.Vector.bindMyAssoc_set]
+--   rw [Option.bind_assoc]
+--   rw [Option.bind_assoc]
+--   rw [Option.bind_some]
+--   rw [Option.bind_some]
+--   rw [Option.bind_some]
+--   rw [Option.bind_some]
+--   rw [Option.bind_some]
+--   rw [Option.bind_some]
+--   rfl
+--   -- compile_just_sym [SymSets.Vector.bindMyAssoc_set]
 
 def spoon (m : Sym.Simp.SimpM Expr) : MetaM Unit := do
   let compiled ← m.run' {} |>.run
@@ -1483,27 +1469,27 @@ where
       let e' ← shareCommon (← mkLambdaFVars xs b')
       return .step e' (←mkSorry (←mkEq e e') false) (contextDependent := cd)
 
-def f := fun x : Nat => (x, fun x₁ : Nat => (x₁, fun x₂ : Nat => x₂))
+-- def f := fun x : Nat => (x, fun x₁ : Nat => (x₁, fun x₂ : Nat => x₂))
 
--- `def f := fun x : Nat ↦ fun y : Nat ↦ ...`
-#check Sym.AlphaKey
-def inst : Hashable Nat := ⟨fun _ ↦ 0⟩
-#check Prod.mk
-def abc : Sym.Simp.SimpM Unit := do
-  -- let m : @Std.HashMap Nat Nat inferInstance inst :=
-  --   @Std.HashMap.ofArray _ _ _ inst #[(0, 1), (1, 2), (2, 3)]
-  -- for (k, v) in m do
-  --   logInfo m!"{k} → {v}"
-  let env ← getEnv
-  let .some stuff := env.find? ``Clap.Compiler.f | unreachable!
-  let val := stuff.value!
-  let σ ← get
-  let σ := σ.transientCache
-  for (k, v) in σ do
-    logInfo m!"{k.expr} → {v.getResultExpr default}"
-  return ()
+-- -- `def f := fun x : Nat ↦ fun y : Nat ↦ ...`
+-- #check Sym.AlphaKey
+-- def inst : Hashable Nat := ⟨fun _ ↦ 0⟩
+-- #check Prod.mk
+-- def abc : Sym.Simp.SimpM Unit := do
+--   -- let m : @Std.HashMap Nat Nat inferInstance inst :=
+--   --   @Std.HashMap.ofArray _ _ _ inst #[(0, 1), (1, 2), (2, 3)]
+--   -- for (k, v) in m do
+--   --   logInfo m!"{k} → {v}"
+--   let env ← getEnv
+--   let .some stuff := env.find? ``Clap.Compiler.f | unreachable!
+--   let val := stuff.value!
+--   let σ ← get
+--   let σ := σ.transientCache
+--   for (k, v) in σ do
+--     logInfo m!"{k.expr} → {v.getResultExpr default}"
+--   return ()
   
-#eval abc.run' {} |>.run
+-- #eval abc.run' {} |>.run
   
 -- #exit
   -- let σshare₁ := σ.share
@@ -1536,7 +1522,7 @@ namespace ExampruSym
 open SymSets Monad General Vector
 
 -- set_option maxRecDepth 500000
-set_option trace.Clap.Compile true
+-- set_option trace.Clap.Compile true
 
 def ex₀ : Option Unit := do
   eq0 0
@@ -1663,7 +1649,7 @@ def ex₇ (vec : Vector Nat 3) : Option Unit := do
   let res := vec.sum
   eq0 res
 
-set_option trace.Clap.Compile true
+-- set_option trace.Clap.Compile true
 -- -- /--
 -- -- info: Compiled:
 -- -- fun vec =>
@@ -1674,7 +1660,7 @@ set_option trace.Clap.Compile true
 -- #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₇ (←(append ∪ getElem ∪ sum ∪ zeta ∪ compilerWtf ∪ explode))
 
-def ex₈ (vec : Vector Nat 100) : Option Unit := do
+def ex₈ (vec : Vector Nat 70) : Option Unit := do
   let x ← (do let _ ← eq0 2; let _ ← vec.mapM (fun x ↦ (eq0 (x + 42) : Option _)); return 4) 
   eq0 x
 
@@ -1713,6 +1699,7 @@ set_option maxHeartbeats 0 in
   let e ← compileExampleJustSym ``ex₈
     (←(zipWith ∪ mapM ∪ getElem ∪ zeta ∪ compilerWtf ∪ explode
     -- ∪ compilerAssoc
+    ∪ bindMyAssoc_set
     ))
   -- Pretty print (i.e. go back to `Bind.bind`)
   return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
