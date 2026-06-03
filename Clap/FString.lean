@@ -8,7 +8,7 @@ open Clap.Lang
 
 namespace F8
 
-variable {p : ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)]
+variable {p : ℕ}
 
 -- https://en.wikipedia.org/wiki/ASCII#Table_of_codes
 def isWhitespace (c : F8 p) : Option (FB p) := do
@@ -23,14 +23,20 @@ end F8
 
 namespace Spec.F8
 
-variable {p : ℕ} [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)]
+variable {p : ℕ}
 
-def isWhitespace_spec (c:UInt8) : Bool :=
-  (c > 8 && c < 14) || c = 32
+def isWhitespace_spec (c:Char) : Bool :=
+  (c.toNat > 8 && c.toNat < 14) || c.toNat = 32
+
+lemma toChar_toNat (c : ZMod p) (h : Spec.F8.valid c) : (Spec.F8.toChar c).toNat = c.val := by
+  unfold Spec.F8.toChar Spec.F8.toUInt8
+  show (UInt8.ofNat c.val).toUInt32.toNat = c.val
+  rw [UInt8.toNat_toUInt32, UInt8.toNat_ofNat']
+  exact Nat.mod_eq_of_lt h
 
 open Clap.Lang.Spec in
-lemma isWhitespace_equiv (c:F8 p) (h : Spec.F8.valid c) (h : 2^(8+1) < p) :
-  F8.isWhitespace c = some (FB.ofBool (isWhitespace_spec (F8.toUInt8 c))) := by
+lemma isWhitespace_equiv [Fact (Nat.Prime p)] (c:F8 p) (h : Spec.F8.valid c) (h : 2^(8+1) < p) :
+  F8.isWhitespace c = some (FB.ofBool (isWhitespace_spec (F8.toChar c))) := by
   unfold F8.isWhitespace isWhitespace_spec F8.greaterThan
   rw [F8.lessThan_equiv] <;> try (first | assumption | aesop (add simp [F8.valid]) ; erw [ZMod.val_natCast_of_lt] <;> grind)
   rw [F8.lessThan_equiv] <;> try (first | assumption | aesop (add simp [F8.valid]) ; erw [ZMod.val_natCast_of_lt] <;> grind)
@@ -38,35 +44,50 @@ lemma isWhitespace_equiv (c:F8 p) (h : Spec.F8.valid c) (h : 2^(8+1) < p) :
   simp [Option.bind_some]
   rw [FB.and_equiv] <;> try apply Spec.FB.valid_ofBool
   rw [FB.or_equiv] <;> try apply Spec.FB.valid_ofBool
-  . simp only [Spec.FB.left_inv]
+  . rw [toChar_toNat] <;> try assumption
+    simp only [Spec.FB.left_inv]
     unfold F8.toUInt8
     erw [ZMod.val_natCast_of_lt] <;> try grind
     erw [ZMod.val_natCast_of_lt] <;> try grind
-    congr
-    aesop (add simp [sub_eq_zero,F8.valid])
-    . erw [ZMod.val_natCast_of_lt] <;> try grind
-      aesop (add simp [FB.toBool,FB.false])
-    . aesop (add simp [FB.toBool,FB.false])
-      erw [UInt8.ofNat_eq_iff_mod_eq_toNat] at a
-      rw [Nat.mod_eq_of_lt] at a
-      simp at a
-      have hc : c = ((c.val : ℕ) : ZMod p) := (ZMod.natCast_zmod_val c).symm
-      rw [a] at hc
-      contradiction
-      assumption
+    congr 4
+    . aesop (add simp [sub_eq_zero,F8.valid,UInt8.lt_iff_toNat_lt]) <;> grind
+    . aesop (add simp [sub_eq_zero,F8.valid,UInt8.lt_iff_toNat_lt]) <;> grind
+    . aesop (add simp [FB.toBool,FB.false,sub_eq_zero,F8.valid])
+      . apply ZMod.val_cast_of_lt
+        grind
+      . rw [← ZMod.natCast_zmod_val c, a]; rfl
   . aesop (add simp [Spec.FB.left_inv,Spec.FB.valid_ofBool,FB.valid])
 
-def isWhitespace_spec' (c:UInt8) : Bool :=
-  Char.ofUInt8 c ∈ ['\t',   -- tab
+def isWhitespace_high (c:Char) : Bool :=
+  c ∈ ['\t',   -- tab
         '\n',   -- line feed
         '\x0B', -- \∨ vertical tab
         '\x0C', -- \f form feed
         '\x0D', -- \r carriage return
         ' ']    -- space
 
-lemma high : isWhitespace_spec = isWhitespace_spec' := by
-  unfold isWhitespace_spec isWhitespace_spec'
-  sorry
+lemma isWhitespace_eq_isWhitespace_high : isWhitespace_spec = isWhitespace_high := by
+  funext c
+  unfold isWhitespace_spec isWhitespace_high
+  simp only [List.mem_cons, List.not_mem_nil, or_false]
+  have char_to_nat : ∀ (k : Char) (n : ℕ), k.toNat = n → ((c = k) ↔ c.toNat = n) := by
+    intros k n hkn
+    constructor
+    · intro h; rw [h]; exact hkn
+    · intro h
+      apply Char.ext
+      apply UInt32.toNat.inj
+      change c.toNat = k.toNat
+      rw [h, ← hkn]
+  simp only [char_to_nat '\t' 9 (by decide),
+             char_to_nat '\n' 10 (by decide),
+             char_to_nat '\x0B' 11 (by decide),
+             char_to_nat '\x0C' 12 (by decide),
+             char_to_nat '\x0D' 13 (by decide),
+             char_to_nat ' ' 32 (by decide)]
+  simp only [← Bool.decide_and, ← Bool.decide_or]
+  apply decide_eq_decide.mpr
+  omega
 
 end Spec.F8
 
