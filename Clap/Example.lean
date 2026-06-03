@@ -9,10 +9,10 @@ open Clap.Lang
 abbrev p := Primes.bn254
 
 structure Data where
-  vec : Vector (F p) 2
+  vec : Vector (F8 p) 2
   n : F8 p
 
-def check (a: Data) : Option Unit := do
+def check (a : Data) : Option Unit := do
   let allZeros ← a.vec.foldlM (fun (acc x:F p) ↦ do acc &&& (←isZero x)) FB.true
   FB.assert allZeros
 
