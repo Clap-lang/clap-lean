@@ -122,8 +122,10 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   -- N_ROUNDS_P[t-2] for t ∈ [2, 17]
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := 1 + n
-  let nRoundsF : ℕ := 8
-  let nRoundsP : ℕ := N_ROUNDS_P[t - 2]'sorry
+  -- let nRoundsF : ℕ := 8
+  -- let nRoundsP : ℕ := N_ROUNDS_P[t - 2]'sorry
+  let nRoundsF : ℕ := 6
+  let nRoundsP : ℕ := 2
   let half : ℕ := nRoundsF / 2
 
   let state : Vector (F p) t := #v[initState] ++ inputs
@@ -278,7 +280,7 @@ open Clap.Compiler.SymSets Vector General in
 set_option pp.exprSizes true in
 set_option maxRecDepth 1000000 in
 set_option maxHeartbeats 0 in
-
+-- set_option maxHeartbeats 100000 in
 #eval spoon <| do
   compileExampleJustSym ``testPoseidon
     (←(
@@ -287,7 +289,8 @@ set_option maxHeartbeats 0 in
       getElem ∪
       append ∪
       mapM ∪
-      foldlM ∪ mapIdx ∪
+      foldlM ∪
+      mapIdx ∪
       control ∪
       SymSets.List.range ∪
       sum ∪
@@ -298,7 +301,9 @@ set_option maxHeartbeats 0 in
       drop ∪
       extract ∪
       toArray ∪
-      compilerWtf
+      compilerWtf ∪
+      -- compilerAssoc
+      bindMyAssoc_set
     ))
 
 -- set_option trace.Clap.Compile.simp.fail true
