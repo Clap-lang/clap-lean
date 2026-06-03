@@ -266,6 +266,91 @@ def nat2words (p : ℕ) [Fact (Nat.Prime p)] (w k n : ℕ) : Vector (ZMod p) k :
 lemma nat2words_spec (p : ℕ) [Fact (Nat.Prime p)] (w k n : ℕ) :
   2 ^ w < p → n < 2 ^ (w * k) → ∑ i : Fin k, (nat2words p w k n)[i].val * 2 ^ i.1 = n := by sorry
 
+/-- Pointwise unfolding of `nat2words` at index 0. -/
+private lemma nat2words_getElem_zero {p : ℕ} [Fact (Nat.Prime p)] (w k n : ℕ) :
+    (nat2words p w (k + 1) n)[0] = (OfNat.ofNat (n % 2 ^ w) : ZMod p) := by
+  rfl
+
+/-- Pointwise unfolding of `nat2words` at a successor index. -/
+private lemma nat2words_getElem_succ {p : ℕ} [Fact (Nat.Prime p)] (w k n i : ℕ)
+    (h : i + 1 < k + 1) :
+    (nat2words p w (k + 1) n)[i + 1]'h =
+      (nat2words p w k (n / 2 ^ w))[i]'(by omega) := by
+  rfl
+
+/-- `OfNat.ofNat val : ZMod p` matches `Nat.cast val`. -/
+private lemma ofNat_eq_natCast_zmod {p : ℕ} (val : ℕ) :
+    (OfNat.ofNat val : ZMod p) = ((val : ℕ) : ZMod p) :=
+  Lean.Grind.Semiring.ofNat_eq_natCast val
+
+/--
+  `nat2words` is a left inverse of base-`2^w` recomposition: given any vector `r`
+  whose entries are bounded by `2^w` (and with `2^w < p` so the `ZMod p` digits
+  reflect their natural values), reconstructing `r` from the sum
+  `∑ i, r[i].val * (2^w)^i` recovers `r` itself.
+-/
+lemma nat2words_of_sum (p : ℕ) [Fact (Nat.Prime p)] {w k : ℕ} (r : Vector (ZMod p) k)
+    (_h_w : 2 ^ w < p)
+    (h_r : ∀ i : Fin k, r[i].val < 2 ^ w) :
+    nat2words p w k (∑ i : Fin k, r[i].val * (2 ^ w) ^ i.1) = r := by
+  have hp_pos : 0 < p := (Fact.out (p := Nat.Prime p)).pos
+  have h2w_pos : 0 < 2 ^ w := pow_pos (by norm_num) _
+  haveI : NeZero p := ⟨Nat.pos_iff_ne_zero.mp hp_pos⟩
+  induction k with
+  | zero =>
+    apply Vector.ext
+    intro i hi
+    exact absurd hi (Nat.not_lt_zero i)
+  | succ k ih =>
+    -- Decompose the sum: S = r[0].val + 2^w * T
+    have hr0 : r[0].val < 2 ^ w := h_r ⟨0, by omega⟩
+    have hsum :
+        ∑ i : Fin (k + 1), r[i].val * (2 ^ w) ^ i.1 =
+          r[0].val + 2 ^ w * ∑ i : Fin k, r[i.succ].val * (2 ^ w) ^ i.1 := by
+      rw [Fin.sum_univ_succ]
+      simp only [Fin.val_zero, pow_zero, mul_one, Fin.val_succ, pow_succ]
+      rw [Finset.mul_sum]
+      congr 1
+      apply Finset.sum_congr rfl
+      intros j _
+      ring
+    set T : ℕ := ∑ i : Fin k, r[i.succ].val * (2 ^ w) ^ i.1 with hT_def
+    set S : ℕ := ∑ i : Fin (k + 1), r[i].val * (2 ^ w) ^ i.1 with hS_def
+    have hS_eq : S = r[0].val + 2 ^ w * T := hsum
+    -- Modular arithmetic facts
+    have hS_mod : S % 2 ^ w = r[0].val := by
+      rw [hS_eq, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hr0]
+    have hS_div : S / 2 ^ w = T := by
+      rw [hS_eq, Nat.add_mul_div_left _ _ h2w_pos, Nat.div_eq_of_lt hr0, zero_add]
+    -- Apply IH to the tail
+    have ih_tail :
+        nat2words p w k T = Vector.ofFn (fun i : Fin k => r[i.succ]) := by
+      have h_r_tail : ∀ i : Fin k,
+          (Vector.ofFn (fun j : Fin k => r[j.succ]))[i].val < 2 ^ w := by
+        intro i
+        have h := h_r i.succ
+        simp only [Fin.getElem_fin, Vector.getElem_ofFn] at *
+        exact h
+      have h_sum_eq :
+          T = ∑ i : Fin k,
+            (Vector.ofFn (fun j : Fin k => r[j.succ]))[i].val * (2 ^ w) ^ i.1 := by
+        apply Finset.sum_congr rfl
+        intros i _
+        simp only [Fin.getElem_fin, Vector.getElem_ofFn]
+      rw [h_sum_eq]
+      exact ih (Vector.ofFn (fun i : Fin k => r[i.succ])) h_r_tail
+    -- Now establish elementwise equality
+    apply Vector.ext
+    intro i hi
+    match i, hi with
+    | 0, _ =>
+      rw [nat2words_getElem_zero, hS_mod, ofNat_eq_natCast_zmod]
+      exact ZMod.natCast_zmod_val r[0]
+    | j + 1, hj =>
+      rw [nat2words_getElem_succ _ _ _ _ hj, hS_div, ih_tail]
+      simp only [Fin.getElem_fin, Vector.getElem_ofFn]
+      congr 1
+
 def eval : Circuitₑ p → denotation (ZMod p)
   | .nil =>
       .u

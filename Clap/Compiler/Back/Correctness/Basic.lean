@@ -252,3 +252,13 @@ lemma foldr_eq0_wrBisim {d : denotation (ZMod p)} {rest : Csₑ p}
         induction' l with i l ih generalizing d rest <;> simp_all +decide [ Cs.eval ];
         split_ifs <;> simp_all;
         exact ih
+
+omit inst inst' in
+lemma eq0_wrBisim_cont {d : denotation (ZMod p)} {e : Expₑ p} (cont : Csₑ p) :
+  (e.eval = 0 → wrBisim d cont.eval)
+    → wrBisim d (Cs.eq0 e cont).eval := by
+  intros hbisim
+  unfold Cs.eval
+  split_ifs with h
+  · exact hbisim h
+  · exact wrBisim.none

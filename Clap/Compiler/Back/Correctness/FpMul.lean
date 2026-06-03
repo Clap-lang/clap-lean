@@ -235,14 +235,58 @@ lemma assert_poly_eq_prod_spec {k : ℕ} {a b : Vector (Expₑ p) k}
   · unfold assert_poly_eq_prod;
     induction ( List.range ( 2 * k - 1 ) ) <;> aesop
 
-lemma eq_check_spec {k : ℕ} {t ab : Vector (Expₑ p) (2*k - 1)} {q r p' : Vector (Expₑ p) k} {cont : Csₑ p} {d : denotation (ZMod p)}  :
-  (toCompPoly (t.map Exp.eval) = toCompPoly (ab.map Exp.eval) + (toCompPoly (p'.map Exp.eval)) * (toCompPoly (q.map Exp.eval)) + toCompPoly (r.map Exp.eval) → wrBisim d cont.eval) →
+omit inst' in
+/-- CPolynomial.eval distributes over subtraction. -/
+private lemma cpoly_eval_sub (x : ZMod p) (f g : CPolynomial (ZMod p)) :
+    CPolynomial.eval x (f - g) = CPolynomial.eval x f - CPolynomial.eval x g := by
+  rw [eval_toPoly, eval_toPoly, eval_toPoly, toPoly_sub, Polynomial.eval_sub]
+
+omit inst' in
+lemma eq_check_spec {k : ℕ} {t ab : Vector (Expₑ p) (2*k - 1)} {q r p' : Vector (Expₑ p) k} {cont : Csₑ p} {d : denotation (ZMod p)} (hp : 2 * k - 1 < p) :
+  (toCompPoly (t.map Exp.eval) = toCompPoly (ab.map Exp.eval) - (toCompPoly (p'.map Exp.eval)) * (toCompPoly (q.map Exp.eval)) - toCompPoly (r.map Exp.eval) → wrBisim d cont.eval) →
     wrBisim d
       (List.foldr
-        (fun i ↦ Cs.eq0 (eval_poly t i - (eval_poly ab i - ((eval_poly p' i) * (eval_poly q i) + eval_poly r i))))
+        (fun (i : ZMod p) ↦ Cs.eq0 (eval_poly t i - (eval_poly ab i - ((eval_poly p' i) * (eval_poly q i) + eval_poly r i))))
         cont
         (List.range (2*k - 1))
-      ).eval := by sorry
+      ).eval := by
+  intro h
+  convert foldr_eq0_wrBisim _
+  any_goals assumption
+  rotate_left
+  exact fun i => eval_poly t i - (eval_poly ab i - (eval_poly p' i * eval_poly q i + eval_poly r i))
+  exact List.range (2 * k - 1)
+  · intro h'
+    apply h
+    apply cpoly_eq_of_eval_range
+    · exact toCompPoly_degree_lt (t.map Exp.eval)
+    · -- (toCompPoly ab - toCompPoly p' * toCompPoly q - toCompPoly r).degree < 2*k-1
+      -- Convert via toPoly and use Polynomial.degreeLT submodule
+      rw [CPolynomial.degree_toPoly, toPoly_sub, toPoly_sub, toPoly_mul]
+      apply Polynomial.mem_degreeLT.mp
+      apply Submodule.sub_mem
+      · apply Submodule.sub_mem
+        · apply Polynomial.mem_degreeLT.mpr
+          rw [← CPolynomial.degree_toPoly]
+          exact toCompPoly_degree_lt (ab.map Exp.eval)
+        · apply Polynomial.mem_degreeLT.mpr
+          rw [← toPoly_mul, ← CPolynomial.degree_toPoly]
+          exact toCompPoly_mul_degree_lt (p'.map Exp.eval) (q.map Exp.eval)
+      · apply Polynomial.degreeLT_mono (by omega : k ≤ 2 * k - 1)
+        apply Polynomial.mem_degreeLT.mpr
+        rw [← CPolynomial.degree_toPoly]
+        exact toCompPoly_degree_lt (r.map Exp.eval)
+    · exact hp
+    · intro i hi
+      specialize h' i (List.mem_range.mpr hi)
+      -- h' : (eval_poly t i - (eval_poly ab i - (eval_poly p' i * eval_poly q i + eval_poly r i))).eval = 0
+      simp only [Exp.eval, eval_poly_eval_eq] at h'
+      rw [cpoly_eval_sub, cpoly_eval_sub, cpoly_eval_mul]
+      linear_combination h'
+  · -- foldr structural equality: bridge do-notation list to map then apply foldr_flatMap.
+    simp only [List.flatMap, pure, bind]
+    rw [← List.flatMap_def, List.foldr_flatMap]
+    simp
 
 omit inst' in
 private lemma carry_partial_sum_aux {m w : ℕ}
@@ -485,12 +529,6 @@ lemma check_carry_spec {k w : ℕ} {t_pol : Vector (ZMod p) (2 * k - 1)} {cont :
   strict inequality at some more-significant position (tracked in `isLt`) AND
   the current `(r_pol, p')` is multi-prec_≤ (which the recursion will enforce
   limb-wise), OR (b) the current `(r_pol, p')` is itself multi-prec_<.
-
-  Tracking multi-prec_≤ in the `isLt = 1` case is essential: in the inductive
-  step, the case where `isLt' = 1` originates from `o = 0` at the current MSB
-  (so we have MSB strict-`<`) needs lower-limb `≤` info to derive multi-prec_<
-  on the full vectors — and that info arrives via the `≤` component of the
-  inductive call's hypothesis.
 -/
 private lemma check_lt'_wrBisim {k w : ℕ}
     {isLt : Expₑ p}
@@ -502,59 +540,42 @@ private lemma check_lt'_wrBisim {k w : ℕ}
     (hr_rc : ∀ i : Fin k, r_pol[i].val < 2 ^ w)
     (hp_rc : ∀ i : Fin k, p'[i].eval.val < 2 ^ w) :
     (((isLt.eval = 1 ∧
-          ∑ i : Fin k, r_pol[i].val * 2 ^ i.1 ≤ ∑ i : Fin k, p'[i].eval.val * 2 ^ i.1) ∨
-        ∑ i : Fin k, r_pol[i].val * 2 ^ i.1 < ∑ i : Fin k, p'[i].eval.val * 2 ^ i.1) →
+          ∑ i : Fin k, r_pol[i].val * (2 ^ w) ^ i.1 ≤
+            ∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1) ∨
+        ∑ i : Fin k, r_pol[i].val * (2 ^ w) ^ i.1 <
+          ∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1) →
       wrBisim d cont.eval) →
     wrBisim d (check_lt' w isLt (Vector.map Exp.v r_pol) p' cont).eval := by
   induction k generalizing isLt with
   | zero =>
     intro hbisim
-    -- `check_lt'` reduces to `.eq0 (isLt - 1) cont`.
     unfold check_lt'
     simp only [Cs.eval, Exp.eval_sub, Exp.eval_ofNat]
     split_ifs with h
-    · -- The constraint `isLt - 1 = 0` is satisfied, so we enter the continuation.
-      apply hbisim
+    · apply hbisim
       left
       refine ⟨?_, ?_⟩
-      · -- From `isLt.eval - 1 = 0` deduce `isLt.eval = 1`.
-        have := sub_eq_zero.mp h
+      · have := sub_eq_zero.mp h
         simpa using this
-      · -- Empty sums are equal.
-        simp
-    · -- The constraint fails, so `.eval` is `.n`.
-      exact wrBisim.none
+      · simp
+    · exact wrBisim.none
   | succ k ih =>
-    -- The recursive case: process the MSB (index `Fin.last k`) via num2bits + isZero,
-    -- then recurse on the first `k` elements (which drops the MSB via `i.castSucc`).
     intro hbisim
     unfold check_lt'
-    -- Step 1: absorb the num2bits gadget. After this, we have `h_nb` saying the
-    -- num2bits witness exists, i.e., `(r_pol[last] - p'[last] + (2^w - 1)).val < 2^w`.
     apply num2bits_wrBisim_cont
     intro h_nb
-    -- Set up abbreviations for the MSB values.
     set a : ℕ := r_pol[Fin.last k].val with ha_def
     set b : ℕ := p'[Fin.last k].eval.val with hb_def
     have ha_rc : a < 2 ^ w := hr_rc (Fin.last k)
     have hb_rc : b < 2 ^ w := hp_rc (Fin.last k)
-    -- KEY ALGEBRAIC FACT: the num2bits witness forces the MSB inequality `a ≤ b`.
-    -- (Proof: in `ZMod p` with `2^(w+1) ≤ p`, no wraparound; suppose `a > b` and
-    -- derive `.val ≥ 2^w`, contradicting `h_nb`.)
     have h_msb_le : a ≤ b := by
       by_contra h_not_le
-      push Not at h_not_le  -- h_not_le : b < a
-      -- Unfold `h_nb` to a clean expression in `ZMod p`.
+      push Not at h_not_le
       have h_eval : ((Vector.map Exp.v r_pol)[Fin.last k] - p'[Fin.last k] +
           Exp.c (2 ^ w - 1)).eval = r_pol[Fin.last k] - p'[Fin.last k].eval +
           ((2 ^ w - 1 : ZMod p)) := by
         simp [Exp.eval, Vector.getElem_map]
       rw [h_eval] at h_nb
-      -- The value `r - pp + (2^w - 1)` in `ZMod p`, where `r.val = a`, `pp.val = b`.
-      -- With `b < a` and both `< 2^w`, `r - pp` has `.val = a - b`. Adding `(2^w - 1)`
-      -- (which has `.val = 2^w - 1` since `2^w - 1 < p`) gives `.val = a - b + 2^w - 1`
-      -- (since the sum is `< 2^(w+1) - 1 ≤ p - 1 < p`, no wrap). But `a > b` gives
-      -- `a - b ≥ 1`, so this `.val ≥ 2^w`, contradicting `h_nb`.
       have hp_gt_1 : 1 < p := by have := inst'.out; omega
       haveI : Fact (1 < p) := ⟨hp_gt_1⟩
       have h_pow_two_pos : (1 : ℕ) ≤ 2 ^ w := Nat.one_le_two_pow
@@ -562,24 +583,20 @@ private lemma check_lt'_wrBisim {k w : ℕ}
         have : 2 ^ w < 2 ^ (w + 1) := by
           apply Nat.pow_lt_pow_right (by norm_num); omega
         omega
-      -- `((2 : ZMod p) ^ w).val = 2 ^ w`.
       have h_pow_cast : ((2 : ZMod p) ^ w) = ((2 ^ w : ℕ) : ZMod p) := by push_cast; ring
       have h_2pw_val : ((2 : ZMod p) ^ w).val = 2 ^ w := by
         rw [h_pow_cast, ZMod.val_natCast_of_lt h_2pw_lt_p]
       have h_one_val : (1 : ZMod p).val = 1 := ZMod.val_one p
-      -- `((2 ^ w : ZMod p) - 1).val = 2 ^ w - 1`.
       have h_2pw_sub_one_val : ((2 ^ w : ZMod p) - 1).val = 2 ^ w - 1 := by
         rw [ZMod.val_sub]
         · rw [h_2pw_val, h_one_val]
         · rw [h_2pw_val, h_one_val]; exact h_pow_two_pos
-      -- `(r_pol[Fin.last k] - p'[Fin.last k].eval).val = a - b` (since `b < a`).
       have h_pp_le_r : p'[Fin.last k].eval.val ≤ r_pol[Fin.last k].val :=
         Nat.le_of_lt h_not_le
       have h_sub_val :
           (r_pol[Fin.last k] - p'[Fin.last k].eval).val =
             r_pol[Fin.last k].val - p'[Fin.last k].eval.val :=
         ZMod.val_sub h_pp_le_r
-      -- The sum stays `< p`, so the additive `.val` is just the integer sum.
       have h_sum_lt_p :
           (r_pol[Fin.last k] - p'[Fin.last k].eval).val + ((2 ^ w : ZMod p) - 1).val < p := by
         rw [h_sub_val, h_2pw_sub_one_val, ← ha_def, ← hb_def]
@@ -591,21 +608,15 @@ private lemma check_lt'_wrBisim {k w : ℕ}
             (r_pol[Fin.last k].val - p'[Fin.last k].eval.val) + (2 ^ w - 1) := by
         rw [ZMod.val_add_of_lt h_sum_lt_p, h_sub_val, h_2pw_sub_one_val]
       rw [h_total_val, ← ha_def, ← hb_def] at h_nb
-      -- `h_nb : (a - b) + (2 ^ w - 1) < 2 ^ w` with `b < a`. Contradiction.
       omega
-    -- Step 2: unfold the isZero gadget. It is `.lam fun inv => .lam fun o => ...`
     unfold IsZero.isZero_circuit
     apply wrBisim.right
     intro inv
     simp only [Cs.eval]
     apply wrBisim.right
     intro o
-    -- Now we have the two `.eq0` constraints from isZero.
     split_ifs with h_iz1 h_iz2
-    · -- Both isZero constraints satisfied.
-      -- From `h_iz2 : (o * e_msb).eval = 0` and ZMod p being a field, either
-      -- `o = 0` or `e_msb.eval = 0` (i.e. `r_pol[last] = p'[last].eval`).
-      have h_o_or_eq :
+    · have h_o_or_eq :
           o = 0 ∨ r_pol[Fin.last k] = p'[Fin.last k].eval := by
         have h := h_iz2
         simp only [Vector.getElem_map, Exp.eval,
@@ -616,9 +627,6 @@ private lemma check_lt'_wrBisim {k w : ℕ}
           have he' : r_pol[Fin.last k] - p'[Fin.last k].eval = 0 := by
             simpa using he
           exact sub_eq_zero.mp he'
-      -- Apply `ih` to the recursive `check_lt'` call. `hp_bound` is shared with
-      -- the outer goal and isn't part of `ih`. Bridge `Vector.ofFn ∘ Vector.map`
-      -- to `Vector.map ∘ Vector.ofFn` so the call matches `ih`'s shape.
       have h_map_ofFn :
           Vector.ofFn (fun i : Fin k ↦ (Vector.map Exp.v r_pol)[i.castSucc]) =
             Vector.map (Exp.v (p := p) (var := ZMod p))
@@ -634,28 +642,19 @@ private lemma check_lt'_wrBisim {k w : ℕ}
         (fun i => by simp [Vector.getElem_ofFn]; exact hp_rc i.castSucc)
         ?_
       rintro (⟨h_isLt', h_le'⟩ | h_lt')
-      · -- `isLt' = isLt ||| (1 - .v o)` and `h_isLt' : isLt'.eval = 1`.
-        -- Reshape `h_le'` so its index form matches the decomposed full sums.
-        have h_le'' :
-            ∑ x : Fin k, r_pol[x.castSucc].val * 2 ^ x.val ≤
-              ∑ x : Fin k, p'[x.castSucc].eval.val * 2 ^ x.val := by
+      · have h_le'' :
+            ∑ x : Fin k, r_pol[x.castSucc].val * (2 ^ w) ^ x.val ≤
+              ∑ x : Fin k, p'[x.castSucc].eval.val * (2 ^ w) ^ x.val := by
           simpa using h_le'
-        -- Algebra: `(e₀ ||| e₁).eval = e₀.eval + e₁.eval - e₀.eval * e₁.eval`.
-        -- From `isLt'.eval = 1` and unfolding `|||`, factor to `o * (isLt.eval - 1) = 0`.
         have h_unfold_or : isLt.eval + (1 - o) - isLt.eval * (1 - o) = 1 := by
           have h := h_isLt'
           change (isLt + (1 - Exp.v o) - isLt * (1 - Exp.v o)).eval = 1 at h
           simpa [Exp.eval] using h
         have h_or_zero : o * (isLt.eval - 1) = 0 := by linear_combination h_unfold_or
         rcases mul_eq_zero.mp h_or_zero with ho | hisLt
-        · -- `o = 0`: from `h_iz1`, this forces `r_pol[last] ≠ p'[last].eval`, hence
-          -- `a < b`. Combined with `h_le''` (lower bits ≤), derive multi-prec_<(full).
-          apply hbisim
+        · apply hbisim
           right
-          -- Show `a < b` at the MSB.
           have h_a_lt : a < b := by
-            -- Suppose `a = b`; then in `ZMod p` (since `.val < 2^w < p` for both),
-            -- `r_pol[last] = p'[last].eval`. Then by `h_iz1`, `o = 1`, contradicting `ho`.
             rcases lt_or_eq_of_le h_msb_le with h | h_a_eq
             · exact h
             · exfalso
@@ -663,48 +662,42 @@ private lemma check_lt'_wrBisim {k w : ℕ}
                 rw [← ha_def, ← hb_def]; exact h_a_eq
               have h_e_eq : r_pol[Fin.last k] = p'[Fin.last k].eval :=
                 ZMod.val_injective p h_val_eq
-              -- From `h_iz1`: `1 - inv * (r - p) - o = 0`. Substituting `r = p`: `1 - o = 0`.
               have h_simp : (1 : ZMod p) - inv * (r_pol[Fin.last k] - p'[Fin.last k].eval) - o = 0 := by
                 have := h_iz1
                 simp only [Vector.getElem_map,
                   Fin.getElem_fin, Fin.val_last, Exp.eval] at this
                 convert this using 2
               rw [h_e_eq, sub_self, MulZeroClass.mul_zero, sub_zero] at h_simp
-              -- h_simp : 1 - o = 0
               have h_o_one : o = 1 := (sub_eq_zero.mp h_simp).symm
               rw [ho] at h_o_one
               exact zero_ne_one h_o_one
           rw [Fin.sum_univ_castSucc (n := k), Fin.sum_univ_castSucc (n := k)]
           simp only [Fin.val_last, Fin.val_castSucc, ← ha_def, ← hb_def]
-          have h_pow_pos : (0 : ℕ) < 2 ^ k := Nat.two_pow_pos k
-          have h_msb_mul_strict : a * 2 ^ k < b * 2 ^ k := by
-            have : (a + 1) * 2 ^ k ≤ b * 2 ^ k := Nat.mul_le_mul_right _ h_a_lt
-            linarith [this, Nat.add_mul a 1 (2 ^ k), h_pow_pos]
+          have h_pow_pos : (0 : ℕ) < (2 ^ w) ^ k := by
+            exact Nat.pos_of_neZero ((2 ^ w) ^ k)
+          have h_msb_mul_strict : a * (2 ^ w) ^ k < b * (2 ^ w) ^ k := by
+            have : (a + 1) * (2 ^ w) ^ k ≤ b * (2 ^ w) ^ k := Nat.mul_le_mul_right _ h_a_lt
+            linarith [this, Nat.add_mul a 1 ((2 ^ w) ^ k), h_pow_pos]
           exact Nat.add_lt_add_of_le_of_lt h_le'' h_msb_mul_strict
-        · -- `isLt.eval - 1 = 0`, i.e., `isLt.eval = 1`. Take left disjunct of outer.
-          have h_isLt_eq : isLt.eval = 1 := by linear_combination hisLt
+        · have h_isLt_eq : isLt.eval = 1 := by linear_combination hisLt
           apply hbisim
           left
           refine ⟨h_isLt_eq, ?_⟩
-          -- multi-prec_≤(full) from `h_le''` + `h_msb_le`.
           rw [Fin.sum_univ_castSucc (n := k), Fin.sum_univ_castSucc (n := k)]
           simp only [Fin.val_last, Fin.val_castSucc, ← ha_def, ← hb_def]
-          have h_msb_mul : a * 2 ^ k ≤ b * 2 ^ k :=
-            Nat.mul_le_mul_right (2 ^ k) h_msb_le
+          have h_msb_mul : a * (2 ^ w) ^ k ≤ b * (2 ^ w) ^ k :=
+            Nat.mul_le_mul_right ((2 ^ w) ^ k) h_msb_le
           linarith [h_le'', h_msb_mul]
-      · -- `multi-prec_<` on the truncated vectors. Use `Fin.sum_univ_castSucc` to
-        -- decompose; combined with `h_msb_le`, derive multi-prec_< on the full vectors.
-        apply hbisim
+      · apply hbisim
         right
-        -- Reshape `h_lt'` so its index form matches the post-`Fin.sum_univ_castSucc` goal.
         have h_lt'' :
-            ∑ x : Fin k, r_pol[x.castSucc].val * 2 ^ x.val <
-              ∑ x : Fin k, p'[x.castSucc].eval.val * 2 ^ x.val := by
+            ∑ x : Fin k, r_pol[x.castSucc].val * (2 ^ w) ^ x.val <
+              ∑ x : Fin k, p'[x.castSucc].eval.val * (2 ^ w) ^ x.val := by
           simpa using h_lt'
         rw [Fin.sum_univ_castSucc (n := k), Fin.sum_univ_castSucc (n := k)]
         simp only [Fin.val_last, Fin.val_castSucc, ← ha_def, ← hb_def]
-        have h_msb_mul : a * 2 ^ k ≤ b * 2 ^ k :=
-          Nat.mul_le_mul_right (2 ^ k) h_msb_le
+        have h_msb_mul : a * (2 ^ w) ^ k ≤ b * (2 ^ w) ^ k :=
+          Nat.mul_le_mul_right ((2 ^ w) ^ k) h_msb_le
         linarith [h_lt'', h_msb_mul]
     · exact wrBisim.none
     · exact wrBisim.none
@@ -714,7 +707,7 @@ lemma check_lt_spec {k w : ℕ} {r_pol : Vector (ZMod p) k} {p' : Vector (Expₑ
     (hp_bound : 2 ^ (w + 1) ≤ p)
     (hr_rc : ∀ i : Fin k, r_pol[i].val < 2 ^ w)
     (hp_rc : ∀ i : Fin k, p'[i].eval.val < 2 ^ w) :
-  (∑ i : Fin _, r_pol[i].val * 2 ^ i.1 < ∑ i : Fin _, p'[i].eval.val * 2 ^ i.1 → wrBisim d cont.eval) →
+  (∑ i : Fin _, r_pol[i].val * (2 ^ w) ^ i.1 < ∑ i : Fin _, p'[i].eval.val * (2 ^ w) ^ i.1 → wrBisim d cont.eval) →
     wrBisim d ((check_lt w (Vector.map Exp.v r_pol) p' cont).eval) := by
   intro hbisim
   unfold check_lt
@@ -744,14 +737,13 @@ lemma fpmul_soundness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : Vect
     intros p'_rc
     apply rw_bisim_uncurry
     intros ab_pol
-    apply assert_poly_eq_prod_spec
-      (by
-        have : k ≤ 2 ^ Nat.clog 2 k := Nat.le_pow_clog (b := 2) (by omega) k
-        have : 4 * k ≤ 4 * 2 ^ (2 * w + Nat.clog 2 k) := by
-          calc 4 * k ≤ 4 * 2 ^ Nat.clog 2 k := by omega
-          _ ≤ 4 * 2 ^ (2 * w + Nat.clog 2 k) := by apply Nat.mul_le_mul_left; apply Nat.pow_le_pow_right <;> omega
-        omega
-      )
+    have k_bound : 2 * k - 1 < p := by
+      have : k ≤ 2 ^ Nat.clog 2 k := Nat.le_pow_clog (b := 2) (by omega) k
+      have : 4 * k ≤ 4 * 2 ^ (2 * w + Nat.clog 2 k) := by
+        calc 4 * k ≤ 4 * 2 ^ Nat.clog 2 k := by omega
+        _ ≤ 4 * 2 ^ (2 * w + Nat.clog 2 k) := by apply Nat.mul_le_mul_left; apply Nat.pow_le_pow_right <;> omega
+      omega
+    apply assert_poly_eq_prod_spec k_bound
     intros ab_honest
     apply rw_bisim_uncurry
     intros q_pol
@@ -763,7 +755,7 @@ lemma fpmul_soundness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : Vect
     intros r_rc
     apply rw_bisim_uncurry
     intros t_pol
-    apply eq_check_spec
+    apply eq_check_spec k_bound
     intros t_honest
     apply check_carry_spec invariant
     intros t_carry
@@ -783,8 +775,26 @@ lemma fpmul_soundness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : Vect
       Circuit.nat2words p w k
         (((∑ x : Fin k, a[x].eval.val * (2 ^ w) ^ x.1) * ∑ x : Fin k, b[↑x].eval.val * (2 ^ w) ^ x.1) %
           ∑ x : Fin k, p'[x].eval.val * (2 ^ w) ^ x.1) = r_pol := by
+      generalize a_eq : ∑ x : Fin k, a[x].eval.val * (2 ^ w) ^ x.1 = a_val
+      generalize b_eq : ∑ x : Fin k, b[x].eval.val * (2 ^ w) ^ x.1 = b_val
+      generalize p'_eq : ∑ x : Fin k, p'[x].eval.val * (2 ^ w) ^ x.1 = p'_val
+      generalize r_eq : ∑ x : Fin k, r_pol[x].val * (2 ^ w) ^ x.1 = r_val
+      have : a_val * b_val % p'_val = r_val % p'_val := by
 
-      sorry
+        sorry
+      rw [r_eq, p'_eq] at r_lt_p'
+      rw [this, Nat.mod_eq_of_lt r_lt_p']
+      rw [←r_eq]
+      apply Circuit.nat2words_of_sum
+      · -- `2 ^ w < p` from `invariant : 4 * 2 ^ (2 * w + Nat.clog 2 k) < p`
+        have h1 : (2 : ℕ) ^ w ≤ 4 * 2 ^ (2 * w + Nat.clog 2 k) := by
+          have : (2 : ℕ) ^ w ≤ 2 ^ (2 * w + Nat.clog 2 k) :=
+            Nat.pow_le_pow_right (by norm_num) (by omega)
+          omega
+        omega
+      · intro i
+        have := r_rc i
+        simpa using this
     simp at this
     rw [this]
     exact (ih r_pol ∘ fun a => h r_pol) p
