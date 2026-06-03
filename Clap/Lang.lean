@@ -740,6 +740,193 @@ def toString_ofString {w} [NeZero p] (s : String) (hlen : s.length ≤ w)
     rw [List.take_of_length_le (by rw [hL_length]; omega)]
     exact hmap_eq
 
+private lemma isPaddedOf_aux_eq (as bs : List (F p)) :
+    FString.isPaddedOf.aux as bs =
+      some (FB.ofBool ((as.zip bs).all (fun q => decide (q.1 = q.2)))) := by
+  induction as generalizing bs with
+  | nil => simp [FString.isPaddedOf.aux, FB.ofBool, FB.true]
+  | cons x xs ih =>
+    cases bs with
+    | nil => simp [FString.isPaddedOf.aux, FB.ofBool, FB.true]
+    | cons y ys =>
+      show (do let e ← F.eq x y; let r ← FString.isPaddedOf.aux xs ys; pure (e &&& r))
+              = some (FB.ofBool _)
+      rw [F.eq, F.isZero_def, ih]
+      simp only [sub_eq_zero, List.zip_cons_cons, List.all_cons]
+      simp only [bind, Option.bind]
+      by_cases hxy : x = y
+      · simp only [hxy, decide_true, Bool.true_and, if_true, pure, HAnd.hAnd, FB.and, one_mul]
+      · simp [hxy, FB.ofBool, FB.false, FB.and, HAnd.hAnd]
+
+lemma isPaddedOf_equiv {w} [NeZero p] (fs : FString p w) (s : String)
+    (hf : valid fs)
+    (hchars : ∀ c ∈ s.toList, c.toNat < 256)
+    (hp : 2^8 < p) (hps : s.length < p) :
+    fs.isPaddedOf s = FB.ofBool (p:=p) (toString fs = s) := by
+  obtain ⟨hvalid, hlen, hpad⟩ := hf
+  rcases fs with ⟨data, len⟩
+  simp only at hvalid hlen hpad
+  -- shortcuts
+  set b : List (F p) := s.toList.map F8.ofChar with hb_def
+  have hb_length : b.length = s.length := by simp [hb_def, String.length_toList]
+  set as : List (F p) := data.toArray.toList with has_def
+  have has_length : as.length = w := by
+    rw [has_def, Array.length_toList, Vector.size_toArray]
+  unfold FString.isPaddedOf
+  simp only [hb_def.symm, has_def.symm]
+  rw [isPaddedOf_aux_eq, F.eq, F.isZero_def]
+  simp only [bind, Option.bind, sub_eq_zero]
+  -- Now combine the FB.ofBool's
+  have hand : ∀ (P Q : Bool), (FB.ofBool (p:=p) P) &&& (FB.ofBool (p:=p) Q) =
+      FB.ofBool (P && Q) := by
+    intros P Q
+    cases P <;> cases Q <;>
+      simp [FB.ofBool, FB.true, FB.false, FB.and, HAnd.hAnd]
+  -- Express the F.eq result as FB.ofBool
+  have h_len_eq : (if len = (↑b.length : F p) then (1 : FB p) else 0) =
+      FB.ofBool (decide (len = (↑b.length : F p))) := by
+    by_cases h : len = (↑b.length : F p)
+    · simp [h, FB.ofBool, FB.true]
+    · simp [h, FB.ofBool, FB.false]
+  rw [h_len_eq, hand]
+  -- Goal: some (FB.ofBool (P && Q)) = some (FB.ofBool (toString fs = s))
+  congr 1
+  congr 1
+  -- ((as.zip b).all ... && decide (len = ↑b.length)) = decide (toString fs = s)
+  -- Helper: len = ↑b.length in F p ↔ len.val = s.length
+  have h_len_iff : (len = (↑b.length : F p)) ↔ (len.val = s.length) := by
+    rw [hb_length]
+    constructor
+    · intro h
+      have hval : len.val = ((s.length : ℕ) : F p).val := by rw [h]
+      rwa [ZMod.val_natCast, Nat.mod_eq_of_lt hps] at hval
+    · intro h
+      conv_lhs => rw [← ZMod.natCast_zmod_val len]
+      rw [h]
+  -- Helper: toString = s ↔ list equality
+  have h_toStr_iff : toString { data := data, len := len : FString p w } = s ↔
+      (data.toList.take len.val).map F8.toChar = s.toList := by
+    unfold toString
+    simp only [Vector.toList_toArray, Vector.toList_take]
+    rw [← String.toList_inj, String.toList_ofList]
+  -- Helper: b[i] = F8.ofChar s.toList[i]
+  have h_b_get : ∀ i (hi : i < s.toList.length),
+      b[i]'(by rw [hb_length, ← String.length_toList]; exact hi) =
+        F8.ofChar (s.toList[i]'hi) := by
+    intro i hi
+    show (s.toList.map F8.ofChar)[i]'(by rw [List.length_map]; exact hi) =
+        F8.ofChar (s.toList[i]'hi)
+    exact List.getElem_map _
+  -- Helper: data round trip
+  have h_data_val : ∀ i (hi : i < w),
+      F8.ofChar (F8.toChar (data[i]'hi)) = data[i]'hi :=
+    fun i hi => F8.ofChar_toChar (hvalid ⟨i, hi⟩)
+  -- Helper: as[i] = data[i]
+  have h_as_data : ∀ i (hi : i < w),
+      as[i]'(by rw [has_length]; exact hi) = data[i]'hi := by
+    intro i hi
+    show data.toArray.toList[i]'(by rw [Array.length_toList, Vector.size_toArray]; exact hi)
+      = data[i]'hi
+    rw [Array.getElem_toList, Vector.getElem_toArray]
+  -- Now case-split on toString = s
+  by_cases htoStr : toString { data := data, len := len : FString p w } = s
+  · -- toString = s: show LHS bool = true
+    rw [decide_eq_true htoStr]
+    rw [h_toStr_iff] at htoStr
+    have hL_len : (List.map F8.toChar (data.toList.take len.val)).length = s.toList.length := by
+      rw [htoStr]
+    rw [List.length_map, List.length_take, Vector.length_toList,
+        String.length_toList, min_eq_left hlen.le] at hL_len
+    -- hL_len : len.val = s.length
+    rw [Bool.and_eq_true]
+    refine ⟨?_, ?_⟩
+    · -- all elements match
+      rw [List.all_eq_true]
+      intro q hq
+      rw [decide_eq_true_eq]
+      rcases List.mem_iff_getElem.mp hq with ⟨n, hn_lt, hn_eq⟩
+      rw [List.getElem_zip] at hn_eq
+      subst hn_eq
+      simp only
+      have hn_lt_zip : n < (as.zip b).length := hn_lt
+      rw [List.length_zip] at hn_lt_zip
+      have hn_lt_as : n < as.length := lt_of_lt_of_le hn_lt_zip (min_le_left _ _)
+      have hn_lt_b : n < b.length := lt_of_lt_of_le hn_lt_zip (min_le_right _ _)
+      have hn_lt_w : n < w := has_length ▸ hn_lt_as
+      have hn_lt_slen : n < s.length := hb_length ▸ hn_lt_b
+      have hn_lt_sl : n < s.toList.length := by rw [String.length_toList]; exact hn_lt_slen
+      have hn_lt_lv : n < len.val := by omega
+      rw [h_as_data n hn_lt_w, h_b_get n hn_lt_sl]
+      have hi_mapped : n < ((data.toList.take len.val).map F8.toChar).length := by
+        rw [List.length_map, List.length_take, Vector.length_toList,
+            min_eq_left hlen.le]; exact hn_lt_lv
+      have h_at_n := List.getElem_of_eq htoStr hi_mapped
+      rw [List.getElem_map, List.getElem_take, Vector.getElem_toList] at h_at_n
+      have hcombined : F8.ofChar (p:=p) (F8.toChar (data[n]'hn_lt_w)) =
+             F8.ofChar (p:=p) (s.toList[n]'hn_lt_sl) := by
+        rw [h_at_n]
+      rw [h_data_val] at hcombined
+      exact hcombined
+    · rw [decide_eq_true_eq, h_len_iff]
+      exact hL_len
+  · -- toString ≠ s: show LHS bool = false
+    rw [decide_eq_false htoStr]
+    rw [Bool.and_eq_false_iff]
+    rw [h_toStr_iff] at htoStr
+    by_cases hLen : len.val = s.length
+    · -- Case B: lengths match, lists differ at some position
+      left
+      have h_lengths : ((data.toList.take len.val).map F8.toChar).length = s.toList.length := by
+        rw [List.length_map, List.length_take, Vector.length_toList,
+            min_eq_left hlen.le, String.length_toList]
+        exact hLen
+      -- ∃ i where the lists differ
+      have h_diff : ∃ i : ℕ, ∃ (hi : i < s.toList.length),
+          ((data.toList.take len.val).map F8.toChar)[i]'(by rw [h_lengths]; exact hi) ≠
+            s.toList[i] := by
+        by_contra hall
+        push_neg at hall
+        apply htoStr
+        apply List.ext_getElem h_lengths
+        intro j hj₁ hj₂
+        exact hall j hj₂
+      obtain ⟨i, hi_slen, hi_neq⟩ := h_diff
+      rw [String.length_toList] at hi_slen
+      have hi_lv : i < len.val := by
+        have := hi_slen
+        omega
+      have hi_w : i < w := by omega
+      -- The pair (as[i], b[i]) is in as.zip b, and they don't match
+      have h_zip_len : (as.zip b).length = min as.length b.length := List.length_zip
+      have hi_zip : i < (as.zip b).length := by
+        rw [h_zip_len, has_length, hb_length]
+        omega
+      rw [← Bool.not_eq_true]
+      rw [List.all_eq_true]
+      push_neg
+      refine ⟨(as.zip b)[i]'hi_zip, ?_, ?_⟩
+      · exact List.getElem_mem hi_zip
+      · simp only [ne_eq, decide_eq_true_eq]
+        rw [List.getElem_zip]
+        simp only
+        have hi_sl' : i < s.toList.length := by rw [String.length_toList]; exact hi_slen
+        rw [h_as_data i hi_w, h_b_get i hi_sl']
+        intro habs
+        apply hi_neq
+        -- habs : data[i] = F8.ofChar s.toList[i]
+        have hi_dat_take : i < (data.toList.take len.val).length := by
+          rw [List.length_take, Vector.length_toList, min_eq_left hlen.le]; exact hi_lv
+        have hi_dat_map : i < ((data.toList.take len.val).map F8.toChar).length := by
+          rw [List.length_map]; exact hi_dat_take
+        show ((data.toList.take len.val).map F8.toChar)[i]'hi_dat_map = s.toList[i]'(by
+          rw [String.length_toList]; exact hi_slen)
+        rw [List.getElem_map, List.getElem_take, Vector.getElem_toList, habs]
+        exact F8.toChar_ofChar (hchars _ (s.toList.getElem_mem hi_sl')) hp
+    · -- Case A: len.val ≠ s.length, so F.eq returns false
+      right
+      rw [decide_eq_false_iff_not, h_len_iff]
+      exact hLen
+
 end Spec.FString
 
 abbrev FBV8 (p:ℕ) := FBitVec p 8
