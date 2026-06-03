@@ -159,22 +159,18 @@ def emailVerifiedCheck
   : Option (FB p)
 := do
   let uidIsEmail := (←F.eq uidNameLen 5) &&& (←FList.eq uidName email)
-  conditionallyAssert uidIsEmail (←FList.eq evName requiredEvName)
+  FB.conditionallyAssert uidIsEmail (←FList.eq evName requiredEvName)
   let evValLenIs4 ← F.eq evValueLen 4
   let evValLenIs6 ← F.eq evValueLen 6
   let evValLenOk := evValLenIs4 ||| evValLenIs6
-  conditionallyAssert uidIsEmail evValLenOk
+  FB.conditionallyAssert uidIsEmail evValLenOk
 
   let checkEvValBool := evValLenIs4 &&& uidIsEmail
-  conditionallyAssert checkEvValBool (←FList.eq evValue requiredEvValLen4)
+  FB.conditionallyAssert checkEvValBool (←FList.eq evValue requiredEvValLen4)
 
   let checkEvValString := evValLenIs6 &&& uidIsEmail
-  conditionallyAssert checkEvValString (←FList.eq evValue requiredEvValLen6)
+  FB.conditionallyAssert checkEvValString (←FList.eq evValue requiredEvValLen6)
   return uidIsEmail
- where
-  conditionallyAssert (antecedent consequent : FB p) : Option Unit :=
-    -- a → c ≡ ¬(a ∧ ¬c)
-    eq0 (antecedent * FB.not consequent)
 
 open Primes HashToField FString FArray in
 /--
