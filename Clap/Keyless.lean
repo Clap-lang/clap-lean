@@ -408,7 +408,7 @@ def verifyPublicInputsHash
   let hashedJwtHeader ← hashBytesToField jwtHeader
   -- CIRCOM: Hash64BitLimbsToFieldWithLen(32)(pubkey_modulus_tagged, 256)
   -- 256 = RSA_KEY_BYTES = 32 limbs * 8 bytes/limb
-  let hashedPubkeyModulus ← hash64BitLimbsToField {data := rsa.pubkeyModulus, len := RSA_KEY_BYTES} 64
+  let hashedPubkeyModulus ← hash64BitLimbsToField {data := rsa.pubkeyModulus, len := RSA_KEY_BYTES}
   let overrideAudValHashed ← hashBytesToField audOverride.overrideAudValue
   -- Poseidon(14 inputs) in the exact order from CIRCOM
   let computed ← Clap.Poseidon.poseidonBN254
