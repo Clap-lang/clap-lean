@@ -1,6 +1,7 @@
 import Clap.Lang
 import Clap.Packing
 import Clap.Poseidon.Poseidon
+import Clap.PoseidonVec.Poseidon
 
 namespace HashToField
 
@@ -24,17 +25,28 @@ def hash64BitLimbsToField {numLimbs : ℕ}
     Nat.add_sub_cancel' h ▸ (input ++ Vector.replicate (w * 3 - numLimbs) (0 : F p))
   let elems := Packing.chunksToFieldElems (p := p) 3 64 padded
   let elems := elems.push len
-  Clap.Poseidon.poseidonBN254 elems.toList
+  Clap.PoseidonVec.poseidonBN254 elems
 
-def hashElemsToField (input : Array (F p)) : Option (F p) := do
-  assert! input.size <= 64
-  let inputs₁ := input.extract 0 16
-  let inputs₂ := input.extract 16 32
-  let inputs₃ := input.extract 32 48
-  let inputs₄ := input.extract 48 64
-  let inputs := #[inputs₁, inputs₂, inputs₃, inputs₄].filter (not ·.isEmpty)
-  let leaves ← inputs.mapM (fun x ↦ Clap.Poseidon.poseidonBN254 x.toList)
-  Clap.Poseidon.poseidonBN254 leaves.toList
+-- TODO keyless requires n ≤ 64, why?
+def hashElemsToField {n : ℕ} (input : Vector (F p) n) : Option (F p) := do
+  if n ≤ 16 then
+    Clap.PoseidonVec.poseidonBN254 input
+  else if n ≤ 32 then
+    let h1 ← Clap.PoseidonVec.poseidonBN254 (input.extract  0 16)
+    let h2 ← Clap.PoseidonVec.poseidonBN254 (input.extract 16 32)
+    Clap.PoseidonVec.poseidonBN254 #v[h1,h2]
+  else if n ≤ 48 then
+    let h1 ← Clap.PoseidonVec.poseidonBN254 (input.extract  0 16)
+    let h2 ← Clap.PoseidonVec.poseidonBN254 (input.extract 16 32)
+    let h3 ← Clap.PoseidonVec.poseidonBN254 (input.extract 32 48)
+    Clap.PoseidonVec.poseidonBN254 #v[h1,h2,h3]
+  else if n ≤ 64 then
+    let h1 ← Clap.PoseidonVec.poseidonBN254 (input.extract  0 16)
+    let h2 ← Clap.PoseidonVec.poseidonBN254 (input.extract 16 32)
+    let h3 ← Clap.PoseidonVec.poseidonBN254 (input.extract 32 48)
+    let h4 ← Clap.PoseidonVec.poseidonBN254 (input.extract 48 64)
+    Clap.PoseidonVec.poseidonBN254 #v[h1,h2,h3,h4]
+  else (0:F p)
 
 /-
 TODO it's unclear if the Packing.assertIsBytes is always needed, we could move it to a precondition
@@ -55,7 +67,7 @@ def hashBytesToField {numBytes : ℕ}
     Nat.add_sub_cancel' h ▸ (input ++ Vector.replicate (w * 31 - numBytes) (0 : F p))
   let elems := Packing.chunksToFieldElems (p := p) 31 8 padded
   let elems := elems.push len
-  hashElemsToField elems.toArray
+  hashElemsToField elems
 
 end HashToField
 
@@ -84,14 +96,14 @@ example : hashBytesToField ⟨chunk31BytesZero ++ chunk31BytesZero, 31 + 31⟩ =
   native_decide
 
 example :
-  hashElemsToField #[0, 0, 0] ==
+  hashElemsToField #v[0, 0, 0] ==
     /- poseidon [poseidon [0,0,0]] -/
     some 9681385400934385481936708565543908657554561955376652473066345310499027876660
 := by
   native_decide
 
 example :
-  hashElemsToField (Array.replicate (3*16 + 3) 1) ==
+  hashElemsToField (Vector.replicate (3*16 + 3) 1) ==
     /-
       poseidon
         [poseidon [1..1], poseidon [1..1], poseidon [1..1], poseidon [1,1,1]]
