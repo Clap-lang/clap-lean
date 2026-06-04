@@ -181,8 +181,9 @@ open FString FArray HashToField
 /-- Assert that the first characters of a field name match `expected` ASCII values.
     When `guard = 1` (default), checks are unconditional. When `guard = 0`, all
     assertions are bypassed (used for conditionally-checked fields like `aud`). -/
-def assertFieldName {n : ℕ} (name : FString bn254 n) (expected : Array (F bn254)) (guard : FB bn254 := 1) : Option Unit :=
-  name.data.toArray.zip expected |>.forM fun (actual, exp) ↦ F.guardedAssertEq guard actual exp
+def assertFieldName {n : ℕ} (name : FString bn254 n) (expected : String) (guard : FB bn254 := 1) : Option Unit := do
+  let isEq ← name.isPaddedOf expected
+  FB.conditionallyAssert guard isEq
 
 /-- Verify JWT structural integrity.
     Concatenation, SHA2 padding, SHA2 hash, RSA signature, and base64 decode.
@@ -302,7 +303,7 @@ def verifyAudField (json : JSONStructure)
     audEff.colonIndex audEff.valueIndex audOverride.skipAudChecks
   -- Verify aud name is literally "aud" (conditioned on performAudChecks)
   -- CIRCOM: aud_name[i] * performAudChecks === EXPECTED[i] * performAudChecks
-  assertFieldName aud.name #[97, 117, 100] performAudChecks -- "aud"
+  assertFieldName aud.name "aud" performAudChecks
 
 /-- Verify the email_verified field and cross-check with uid name.
     CIRCOM truth table: fail only if uidIsEmail AND NOT evInJwt. -/
@@ -424,14 +425,11 @@ def keyless (input : KeylessInput) : Option Unit := do
   verifyAudField json input.aud input.audOverride
   verifyQuotedField (by decide) (by decide) (by decide) json input.uid
   verifyQuotedField (by decide) (by decide) (by decide) json input.iss
-  -- Verify iss name is "iss" — CIRCOM: iss_name[i] === EXPECTED_ISS_NAME[i]
-  assertFieldName input.iss.name #[105, 115, 115] -- "iss"
+  assertFieldName input.iss.name "iss"
   verifyUnquotedField (by decide) (by decide) (by decide) json input.iat
-  -- Verify iat name is "iat" — CIRCOM: iat_name[i] === EXPECTED_IAT_NAME[i]
-  assertFieldName input.iat.name #[105, 97, 116] -- "iat"
+  assertFieldName input.iat.name "iat"
   verifyQuotedField (by decide) (by decide) (by decide) json input.nonce
-  -- Verify nonce name is "nonce" — CIRCOM: nonce_name[i] === EXPECTED_NONCE_NAME[i]
-  assertFieldName input.nonce.name #[110, 111, 110, 99, 101] -- "nonce"
+  assertFieldName input.nonce.name "nonce"
 
   verifyEvField json input.ev input.uid.name
   verifyExtraField json input.extra
