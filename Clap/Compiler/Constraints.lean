@@ -20,4 +20,14 @@ def getConstraints : MetaM (Array Expr) := do
   let env ← getEnv
   return (constraints.getState env).constraints
 
+initialize counter : EnvExtension Nat ←
+  registerEnvExtension (pure 0)
+
+def bump : MetaM Unit := do
+  modifyEnv fun e ↦ counter.modifyState e Nat.succ
+
+def getCounter : MetaM Nat := do
+  let env ← getEnv
+  return counter.getState env
+
 end Clap.Compiler

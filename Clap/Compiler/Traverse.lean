@@ -248,25 +248,26 @@ def compilerWat : Sym.Simp.Simproc := fun e ↦ do
       trace[Clap.Compile.simp.proc.monad.bind_some]
         m!"\n{e}\n==>\n{e'}"
       return .step e' (←Sym.mkEqRefl e')
-    | _ =>
-      -- addConstraint q(Nat)
-      -- logInfo m!"res: {←getConstraints}" -- x >>= f
-      let x' := (←Sym.simp x (←read).toMethods).getResultExpr x
-      if isSameExpr x x' then
-        trace[Clap.Compile.simp.proc.monad.top_level]
-          m!"{checkEmoji} {x'}"
-        return .rfl
-      else
-        trace[Clap.Compile.simp.proc.monad.top_level]
-          m!"\n{x}\n==>ₗ\n{x'}"
-      let g' := (←Sym.simp g).getResultExpr g
-      trace[Clap.Compile.simp.proc.monad.top_level]
-        m!"\n{g}\n==>ᵣ\n{g'}"
-      let e' ← shareCommonInc <|
-        mkApp4 (.const ``Option.bind [←Sym.getLevelInType α, ←Sym.getLevelInType γ]) α γ x' g'
-      trace[Clap.Compile.simp.proc.monad.top_level]
-        m!"\n{e}\n==>\n{e'}"
-      return .step e' (←mkSorry (←mkEq e e') false)
+    | _ => return .rfl
+    -- | _ =>
+    --   -- addConstraint q(Nat)
+    --   -- logInfo m!"res: {←getConstraints}" -- x >>= f
+    --   let x' := (←Sym.simp x (←read).toMethods).getResultExpr x
+    --   if isSameExpr x x' then
+    --     trace[Clap.Compile.simp.proc.monad.top_level]
+    --       m!"{checkEmoji} {x'}"
+    --     return .rfl
+    --   else
+    --     trace[Clap.Compile.simp.proc.monad.top_level]
+    --       m!"\n{x}\n==>ₗ\n{x'}"
+    --   let g' := (←Sym.simp g).getResultExpr g
+    --   trace[Clap.Compile.simp.proc.monad.top_level]
+    --     m!"\n{g}\n==>ᵣ\n{g'}"
+    --   let e' ← shareCommonInc <|
+    --     mkApp4 (.const ``Option.bind [←Sym.getLevelInType α, ←Sym.getLevelInType γ]) α γ x' g'
+    --   trace[Clap.Compile.simp.proc.monad.top_level]
+    --     m!"\n{e}\n==>\n{e'}"
+    --   return .step e' (←mkSorry (←mkEq e e') false)
   | _ =>
     return .rfl
 
@@ -495,8 +496,8 @@ def append : MetaM Methods :=
 
 def explode : MetaM Methods := do
   return {
-    post := explodeVector
-    pre  := dontExplodeVector
+    -- post := explodeVector
+    pre  := dontExplodeVector >> explodeVector
   }
 
 open Collection in
@@ -760,10 +761,17 @@ def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
     -- Dbg.timeSince time "mapM_mk_cons took:"
     return .step e' proof
 
+def reportMaxShared (e : Expr) (descr : String := "") : Sym.Simp.SimpM Unit := do
+  try
+    e.checkMaxShared
+    logInfo m!"Is max shared.\n{descr}"
+  catch _ =>
+    logInfo m!"Not max shared.\n{descr}"
+
 /--
 Currently for vectors only.
 
-`Vector.mapM f #v[a, b, c] = do`
+`Vector.mapM f #v[x, ..v] = do`
   `let __do_lift ← f x`
   `let __do_lift_1 ← Vector.mapM f v`
   `pure (#v[__do_lift] ++ __do_lift_1)`
@@ -771,6 +779,7 @@ Currently for vectors only.
 def _root_.Vector.mapM_mk_single : Sym.Simp.Simproc := fun e ↦ do
   let_expr _root_.Vector.mapM m α β n mInst f vec := e | return .rfl
   let_expr _root_.Vector.mk _ sz arr _ := vec | return .rfl
+  reportMaxShared e (descr := "BEGIN[mapM_mk_single]")
   let l ← arr.getAppArgs[1]?.getDM (unreachable!)
   let u ← Sym.getLevelInType β
   let_expr List.cons t hd tl := l |
@@ -828,6 +837,9 @@ def _root_.Vector.mapM_mk_single : Sym.Simp.Simproc := fun e ↦ do
     TODO: Check the second universe, it's what `append : Vector.{u} (#[#1] ++ #0)` lives in, I think.
           Hence `u`. Or so I think.
     -/
+    /-
+      `let __do_lift ← f x >>= inner`
+    -/
     let bind :=
       mkApp4
         (.const ``Option.bind [u, u])
@@ -836,8 +848,11 @@ def _root_.Vector.mapM_mk_single : Sym.Simp.Simproc := fun e ↦ do
         (←Sym.shareCommonInc (f.beta #[hd])) -- TODO(?): `Expr.app f hdVec` without reducing here?
         (.lam `fst t innerBind .default )
       
-    let e' ← Sym.shareCommonInc bind
+    let (e', time) ← timeS (Sym.shareCommonInc bind)
 
+    logInfo m!"END[mapM_mk_single] Sym.shareCommonInc took {time}s"
+
+    reportMaxShared e' (descr := "END[mapM_mk_single]")
     trace[Clap.Compile.simp.proc.mapM_mk_single]
       m!"\n{e}\n==>\n{e'}"
 
@@ -1218,12 +1233,12 @@ def compileExample (ex : Name) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Exp
   compile e simpset
 
 def compileJustSym (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
-  lambdaTelescope e fun args e ↦ do
+  Sym.shareCommonInc (←lambdaTelescope e fun args e ↦ do
     -- let time ← IO.monoMsNow
     let compiled ← Compiler.Simp.simplify (simpset) e -- ∪ (←SymSets.General.compilerSet)) e
     -- logInfo m!"Compiled:\n{compiled}"
     -- Dbg.timeSince time "Compilation took:"
-    Sym.mkLambdaFVarsS args compiled -- >>= (liftM ∘ PrettyPrinter.ppExpr)
+    Sym.mkLambdaFVarsS args compiled) -- >>= (liftM ∘ PrettyPrinter.ppExpr)
     -- [k, m + 12, m]
     -- [k, m,]
 
@@ -1511,6 +1526,15 @@ def ex₆ (vec : Vector Nat 160) : Option Unit := do
   let res := (vec.drop 1).take 1
   eq0 res[0]
 
+def reportAttempt : Sym.Simp.Simproc := fun e ↦ do
+  discard bump
+  return .rfl
+
+def reportSet : MetaM Sym.Simp.Methods :=
+  mkPostMethods #[
+    ``reportAttempt
+  ]
+
 /--
 info: Compiled:
 fun vec => (eq0 vec[0]).bind fun x => (eq0 0).bind fun x => eq0 vec[1]
@@ -1535,8 +1559,8 @@ def ex₇ (vec : Vector Nat 3) : Option Unit := do
 -- #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₇ (←(append ∪ getElem ∪ sum ∪ zeta ∪ monads ∪ explode))
 
-def ex₈ (vec : Vector Nat 20) : Option Unit := do
-  let x ← (do let _ ← eq0 2; let _ ← vec.mapM (fun x ↦ (eq0 (x + 42) : Option _)); return 4) 
+def ex₈ (vec : Vector Nat 10) : Option Unit := do
+  let x ← (do let _ ← eq0 2; let X ← vec.mapM (fun x ↦ (eq0 (x + 42) : Option _)); return 4) 
   eq0 x
 
 
@@ -1557,10 +1581,11 @@ def ex₈ (vec : Vector Nat 20) : Option Unit := do
 --   -- eq0 res[1]
 --   -- eq0 res[2]
 #check bind_assoc
-
+set_option pp.exprSizes true in
 set_option trace.Clap.Compile true in
 set_option maxRecDepth 4000 in
 set_option maxHeartbeats 0 in
+-- set_option pp.exprSizes true in
 -- /--
 -- info: Compiled:
 -- fun vec =>
@@ -1572,12 +1597,32 @@ set_option maxHeartbeats 0 in
 -- #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do
   let e ← compileExampleJustSym ``ex₈
-    (←(zipWith ∪ mapM_alt ∪ getElem ∪ zeta ∪ monads ∪ explode
+    (←(reportSet ∪ mapM_alt ∪ zeta ∪ monads ∪ explode
     -- ∪ compilerAssoc
     ∪ bindMyAssoc_set
+    -- mapM_alt
+    ))
+  logInfo m!"this many times: {←getCounter}"
+  -- Pretty print (i.e. go back to `Bind.bind`)
+  return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
+-- 10 vec, [size 1409/272/272] of compiled
+opaque share : Nat → Option Nat
+
+def ex₉ (vec : Vector Nat 40) : Option Unit := do
+  let x ← (do let _ ← eq0 2; let x ← vec.mapM (fun x ↦ (share (x + 42) : Option _)); return x[4]) 
+  eq0 x
+#exit
+set_option trace.Clap.Compile true in
+#eval spoon <| do
+  let e ← compileExampleJustSym ``ex₉
+    (←(mapM_alt ∪ zeta ∪ monads ∪ explode ∪ getElem ∪ append
+    -- ∪ compilerAssoc
+    ∪ bindMyAssoc_set
+    -- mapM_alt
     ))
   -- Pretty print (i.e. go back to `Bind.bind`)
   return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
+
 -- set_option trace.Clap.Compile true in
 -- example {vec : Vector Nat 10} : ex₈ vec = .none := by
 --   unfold ex₈
