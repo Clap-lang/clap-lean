@@ -1828,7 +1828,7 @@ def ex₇ (vec : Vector Nat 3) : Option Unit := do
 -- #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do compileExampleJustSym ``ex₇ (←(append ∪ getElem ∪ sum ∪ zeta ∪ compilerWtf ∪ explode))
 
-def ex₈ (vec : Vector Nat 70) : Option Unit := do
+def ex₈ (vec : Vector Nat 5) : Option Unit := do
   let x ← (do let _ ← eq0 2; let _ ← vec.mapM (fun x ↦ (eq0 (x + 42) : Option _)); return 4) 
   eq0 x
 
@@ -1851,7 +1851,7 @@ def ex₈ (vec : Vector Nat 70) : Option Unit := do
 --   -- eq0 res[2]
 #check bind_assoc
 
--- set_option trace.Clap.Compile true in
+set_option trace.Clap.Compile true in
 set_option maxRecDepth 4000 in
 set_option maxHeartbeats 0 in
 -- /--
@@ -1865,7 +1865,7 @@ set_option maxHeartbeats 0 in
 -- #guard_msgs(info, whitespace := lax, drop warning) in
 #eval spoon <| do
   let e ← compileExampleJustSym ``ex₈
-    (←(zipWith ∪ mapM ∪ getElem ∪ zeta ∪ compilerWtf ∪ explode
+    (←(zipWith ∪ mapM_alt ∪ getElem ∪ zeta ∪ compilerWtf ∪ explode
     -- ∪ compilerAssoc
     ∪ bindMyAssoc_set
     ))
