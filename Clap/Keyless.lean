@@ -80,16 +80,6 @@ abbrev EPK_NUM_FIELDS := 3
 
 -- Input structures
 
-/-- JWT field with a quoted value (aud, uid, iss, nonce). -/
-structure QuotedFieldInput (maxPairLen maxNameLen maxValueLen : ℕ) where
-  field             : FString bn254 maxPairLen
-  name              : FString bn254 maxNameLen
-  value             : FString bn254 maxValueLen
-  fieldStringBodies : Vector (FB bn254) maxPairLen
-  nameIndex         : F bn254
-  colonIndex        : F bn254
-  valueIndex        : F bn254
-
 /-- JWT field with an unquoted value (iat). -/
 structure UnquotedFieldInput (maxPairLen maxNameLen maxValueLen : ℕ) where
   field      : FString bn254 maxPairLen
@@ -149,12 +139,12 @@ structure CommitmentInput where
 structure KeylessInput where
   jwtRaw           : JWTRawInput
   rsa              : RSAInput
-  aud              : QuotedFieldInput MAX_AUD_KV_PAIR_LEN MAX_AUD_NAME_LEN MAX_AUD_VALUE_LEN
+  aud              : JWT.QuotedFieldInput MAX_AUD_KV_PAIR_LEN MAX_AUD_NAME_LEN MAX_AUD_VALUE_LEN
   audOverride      : AudOverrideInput
-  uid              : QuotedFieldInput MAX_UID_KV_PAIR_LEN MAX_UID_NAME_LEN MAX_UID_VALUE_LEN
-  iss              : QuotedFieldInput MAX_ISS_KV_PAIR_LEN MAX_ISS_NAME_LEN MAX_ISS_VALUE_LEN
+  uid              : JWT.QuotedFieldInput MAX_UID_KV_PAIR_LEN MAX_UID_NAME_LEN MAX_UID_VALUE_LEN
+  iss              : JWT.QuotedFieldInput MAX_ISS_KV_PAIR_LEN MAX_ISS_NAME_LEN MAX_ISS_VALUE_LEN
   iat              : UnquotedFieldInput MAX_IAT_KV_PAIR_LEN MAX_IAT_NAME_LEN MAX_IAT_VALUE_LEN
-  nonce            : QuotedFieldInput MAX_NONCE_KV_PAIR_LEN MAX_NONCE_NAME_LEN MAX_NONCE_VALUE_LEN
+  nonce            : JWT.QuotedFieldInput MAX_NONCE_KV_PAIR_LEN MAX_NONCE_NAME_LEN MAX_NONCE_VALUE_LEN
   ev               : EvFieldInput MAX_EV_KV_PAIR_LEN MAX_EV_NAME_LEN MAX_EV_VALUE_LEN
   extra            : ExtraFieldInput
   commit           : CommitmentInput
@@ -237,7 +227,7 @@ def computeJSONStructure (payload : FString bn254 MAX_JWT_PAYLOAD_LEN) : Option 
 /-- Verify a quoted JWT field: substring check, not-nested check, field parsing. -/
 def verifyQuotedField {maxPairLen maxNameLen maxValueLen : ℕ}
     (h_name : maxNameLen ≤ maxPairLen) (h_value : maxValueLen ≤ maxPairLen) (h_pair : maxPairLen ≤ MAX_JWT_PAYLOAD_LEN)
-    (json : JSONStructure) (inp : QuotedFieldInput maxPairLen maxNameLen maxValueLen)
+    (json : JSONStructure) (inp : JWT.QuotedFieldInput maxPairLen maxNameLen maxValueLen)
     : Option Unit := do
   -- Assert field is a substring of the decoded JWT payload
   FString.assertIsSubstringFS h_pair json.payload json.payloadHash inp.field inp.nameIndex
@@ -247,7 +237,7 @@ def verifyQuotedField {maxPairLen maxNameLen maxValueLen : ℕ}
   -- Assert field is not inside nested brackets
   JWT.enforceNotNested MAX_JWT_PAYLOAD_LEN inp.nameIndex inp.field.len json.bracketsDepthMap
   -- Parse the field structure with quoted value
-  JWT.parseJWTFieldWithQuotedValue h_name h_value inp.field inp.name inp.value inp.fieldStringBodies inp.colonIndex inp.valueIndex
+  JWT.parseJWTFieldWithQuotedValue inp h_name h_value
 
 /-- Verify an unquoted JWT field: substring check, not-nested check, field parsing.
     Unlike `verifyQuotedField`, this does NOT perform a full string_bodies substring
@@ -267,7 +257,7 @@ def verifyUnquotedField {maxPairLen maxNameLen maxValueLen : ℕ}
     CIRCOM: the `ParseJWTFieldWithQuotedValue` takes a `skip_checks` flag;
     in Lean we handle this by conditionally running the verification. -/
 def verifyAudField (json : JSONStructure)
-    (aud : QuotedFieldInput MAX_AUD_KV_PAIR_LEN MAX_AUD_NAME_LEN MAX_AUD_VALUE_LEN)
+    (aud : JWT.QuotedFieldInput MAX_AUD_KV_PAIR_LEN MAX_AUD_NAME_LEN MAX_AUD_VALUE_LEN)
     (audOverride : AudOverrideInput)
     : Option Unit := do
   -- Validate boolean flags
@@ -279,7 +269,7 @@ def verifyAudField (json : JSONStructure)
   -- Mux the effective aud value: if useAudOverride then override else private
   let audValue := muxFString audOverride.useAudOverride audOverride.overrideAudValue audOverride.privateAudValue
   -- Construct the effective field input with muxed value
-  let audEff : QuotedFieldInput _ _ _ := { aud with value := audValue }
+  let audEff : JWT.QuotedFieldInput _ _ _ := { aud with value := audValue }
   -- Assert field is a substring of the decoded JWT payload (conditioned on performAudChecks)
   let field_passes ← FString.isSubstringFS (by decide) json.payload json.payloadHash audEff.field audEff.nameIndex
   FB.conditionallyAssert performAudChecks field_passes
@@ -293,9 +283,7 @@ def verifyAudField (json : JSONStructure)
   -- CIRCOM: `succeed = checks_pass OR skip_checks; succeed === 1`
   -- We model this by passing skipChecks to the parser, which gates each constraint
   -- with `perform * constraint === 0` where `perform = NOT(skipChecks)`.
-  JWT.parseJWTFieldWithQuotedValue (by decide) (by decide)
-    audEff.field audEff.name audEff.value audEff.fieldStringBodies
-    audEff.colonIndex audEff.valueIndex audOverride.skipAudChecks
+  JWT.parseJWTFieldWithQuotedValue audEff (by decide) (by decide) audOverride.skipAudChecks
   -- Verify aud name is literally "aud" (conditioned on performAudChecks)
   -- CIRCOM: aud_name[i] * performAudChecks === EXPECTED[i] * performAudChecks
   assertFieldName aud.name "aud" performAudChecks

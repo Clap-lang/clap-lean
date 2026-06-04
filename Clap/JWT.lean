@@ -318,6 +318,16 @@ def parseJWTFieldWithUnquotedValue
     -- If in value range, character must not be forbidden
     F.guardedEq0 perform (sel &&& isForbidden)
 
+/-- JWT field with a quoted value (aud, uid, iss, nonce). -/
+structure QuotedFieldInput (maxPairLen maxNameLen maxValueLen : ℕ) where
+  field             : FString bn254 maxPairLen
+  name              : FString bn254 maxNameLen
+  value             : FString bn254 maxValueLen
+  fieldStringBodies : Vector (FB bn254) maxPairLen
+  nameIndex         : F bn254
+  colonIndex        : F bn254
+  valueIndex        : F bn254
+
 open Primes HashToField FString FArray in
 /--
   Asserts structural correctness of a JWT key-value pair field with a **quoted** value.
@@ -340,41 +350,36 @@ open Primes HashToField FString FArray in
 -/
 def parseJWTFieldWithQuotedValue
     {maxKVPairLen maxNameLen maxValueLen : ℕ}
+    (fi              : QuotedFieldInput maxKVPairLen maxNameLen maxValueLen)
     (h_name  : maxNameLen  ≤ maxKVPairLen)
     (h_value : maxValueLen ≤ maxKVPairLen)
-    (field              : FString bn254 maxKVPairLen)
-    (name               : FString bn254 maxNameLen)
-    (value              : FString bn254 maxValueLen)
-    (field_string_bodies : Vector (FB bn254) maxKVPairLen)
-    (colon_index        : F bn254)
-    (value_index        : F bn254)
     (skipChecks         : FB bn254 := 0)
     : Option Unit := do
   -- Delegate shared structural checks
-  parseJWTFieldSharedLogic h_name h_value field name value colon_index value_index skipChecks
+  parseJWTFieldSharedLogic h_name h_value fi.field fi.name fi.value fi.colonIndex fi.valueIndex skipChecks
   let perform : FB bn254 := FB.not skipChecks
   -- Check 0: field[value_index - 1] == '"' (opening quote around value)
-  let valueFirstQuote ← selectArrayValue field.data (value_index - 1)
+  let valueFirstQuote ← selectArrayValue fi.field.data (fi.valueIndex - 1)
   F.guardedAssertEq perform valueFirstQuote 34
   -- Check 1: field[value_index + value_len] == '"' (closing quote around value)
-  let valueSecondQuote ← selectArrayValue field.data (value_index + value.len)
+  let valueSecondQuote ← selectArrayValue fi.field.data (fi.valueIndex + fi.value.len)
   F.guardedAssertEq perform valueSecondQuote 34
   -- Check 2: whitespace zones + string bodies
   -- Zone A: [name_len + 2, colon_index)  — between closing name-quote and colon
   -- Zone B: [colon_index + 1, value_index - 1)  — between colon and opening value-quote
   -- Zone C: [value_index + value_len + 1, field_len - 1)  — after closing value-quote, before terminator
-  let zoneA ← arraySelectorComplex maxKVPairLen (name.len + 2) colon_index
-  let zoneB ← arraySelectorComplex maxKVPairLen (colon_index + 1) (value_index - 1)
-  let zoneC ← arraySelectorComplex maxKVPairLen (value_index + value.len + 1) (field.len - 1)
+  let zoneA ← arraySelectorComplex maxKVPairLen (fi.name.len + 2) fi.colonIndex
+  let zoneB ← arraySelectorComplex maxKVPairLen (fi.colonIndex + 1) (fi.valueIndex - 1)
+  let zoneC ← arraySelectorComplex maxKVPairLen (fi.valueIndex + fi.value.len + 1) (fi.field.len - 1)
   let inZone := (zoneA.zipWith FB.or zoneB).zipWith FB.or zoneC
   -- Name selector: [1, name_len + 1) — name content inside its quotes
-  let nameSel ← arraySelector maxKVPairLen 1 (name.len + 1)
-  -- Value selector: [value_index, value_index + value_len) — value content inside its quotes
-  let valueSel ← arraySelector maxKVPairLen value_index (value_index + value.len)
+  let nameSel ← arraySelector maxKVPairLen 1 (fi.name.len + 1)
+  -- Value selector: [valueIndex, valueIndex + value_len) — value content inside its quotes
+  let valueSel ← arraySelector maxKVPairLen fi.valueIndex (fi.valueIndex + fi.value.len)
   let nameOrValue := nameSel.zipWith FB.or valueSel
   -- For each position: whitespace zone chars must be whitespace,
   -- and string bodies must match name/value selectors exactly
-  (inZone.zip (nameOrValue.zip (field_string_bodies.zip field.data))).toList.forM fun (z, nv, sb, c) ↦ do
+  (inZone.zip (nameOrValue.zip (fi.fieldStringBodies.zip fi.field.data))).toList.forM fun (z, nv, sb, c) ↦ do
     -- Whitespace check: if in a whitespace zone, the character must be whitespace
     let ws ← F8.isWhitespace c
     F.guardedEq0 perform (z &&& FB.not ws)
@@ -952,19 +957,19 @@ example : (do
 -- string_bodies:                    0   1   0   0   0   1   0   0
 example : (do
   let field := strToFS 8 "\"a\":\"b\","
-  let bodies : Vector (ZMod p) 8 := #v[0,1,0,0,0,1,0,0]
+  let fieldStringBodies : Vector (ZMod p) 8 := #v[0,1,0,0,0,1,0,0]
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3,valueIndex:=5} (by omega) (by omega)
   ) = some () := by native_decide
 
 -- valid: "a":"b"}  (ending with '}')
 example : (do
   let field := strToFS 8 "\"a\":\"b\"}"
-  let bodies : Vector (ZMod p) 8 := #v[0,1,0,0,0,1,0,0]
+  let fieldStringBodies : Vector (ZMod p) 8 := #v[0,1,0,0,0,1,0,0]
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega)
   ) = some () := by native_decide
 
 -- valid: "sub":"abc",  (multi-char name and value)
@@ -972,10 +977,10 @@ example : (do
 -- string_bodies:             0   1   1   1   0   0   0   1   1   1    0    0
 example : (do
   let field := strToFS 12 "\"sub\":\"abc\","
-  let bodies : Vector (ZMod p) 12 := #v[0,1,1,1,0,0,0,1,1,1,0,0]
+  let fieldStringBodies : Vector (ZMod p) 12 := #v[0,1,1,1,0,0,0,1,1,1,0,0]
   let name  := strToFS 3 "sub"
   let value := strToFS 3 "abc"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 5 7
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=5, valueIndex:=7} (by omega) (by omega)
   ) = some () := by native_decide
 
 -- valid: "email":"ab@c",  (value with special char)
@@ -983,10 +988,10 @@ example : (do
 -- string_bodies:               0   1   1   1   1   1   0   0   0   1    1    1    1    0    0    0
 example : (do
   let field := strToFS 16 "\"email\":\"ab@c\","
-  let bodies : Vector (ZMod p) 16 := #v[0,1,1,1,1,1,0,0,0,1,1,1,1,0,0,0]
+  let fieldStringBodies : Vector (ZMod p) 16 := #v[0,1,1,1,1,1,0,0,0,1,1,1,1,0,0,0]
   let name  := strToFS 5 "email"
   let value := strToFS 4 "ab@c"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 7 9
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=7, valueIndex:=9} (by omega) (by omega)
   ) = some () := by native_decide
 
 -- valid: "k": "v" ,  (spaces around quoted value and after)
@@ -994,121 +999,121 @@ example : (do
 -- string_bodies:          0    1   0   0   0    0   1   0   0    0
 example : (do
   let field := strToFS 10 "\"k\": \"v\" ,"
-  let bodies : Vector (ZMod p) 10 := #v[0,1,0,0,0,0,1,0,0,0]
+  let fieldStringBodies : Vector (ZMod p) 10 := #v[0,1,0,0,0,0,1,0,0,0]
   let name  := strToFS 1 "k"
   let value := strToFS 1 "v"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 6
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=6} (by omega) (by omega)
   ) = some () := by native_decide
 
 -- valid: "k":"v"}  (ending with '}')
 example : (do
   let field := strToFS 8 "\"k\":\"v\"}"
-  let bodies : Vector (ZMod p) 8 := #v[0,1,0,0,0,1,0,0]
+  let fieldStringBodies : Vector (ZMod p) 8 := #v[0,1,0,0,0,1,0,0]
   let name  := strToFS 1 "k"
   let value := strToFS 1 "v"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega)
   ) = some () := by native_decide
 
 -- Reject: opening value quote missing — "a":b",
 -- field[value_index - 1] = field[3] = ':' ≠ '"'
 example : (do
   let field := strToFS 7 "\"a\":b\","
-  let bodies : Vector (ZMod p) 7 := #v[0,1,0,0,1,0,0]
+  let fieldStringBodies : Vector (ZMod p) 7 := #v[0,1,0,0,1,0,0]
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 4
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=4} (by omega) (by omega)
   ) = none := by native_decide
 
 -- Reject: closing value quote missing — "a":"b,
 -- field[value_index + value_len] = field[5] = ',' ≠ '"'
 example : (do
   let field := strToFS 7 "\"a\":\"b,"
-  let bodies : Vector (ZMod p) 7 := #v[0,1,0,0,0,1,0]
+  let fieldStringBodies : Vector (ZMod p) 7 := #v[0,1,0,0,0,1,0]
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega)
   ) = none := by native_decide
 
 -- Reject: non-whitespace between name-quote and colon — "a"X:"b",
 -- string_bodies: 0 1 0 0 0 0 1 0 0
 example : (do
   let field := strToFS 9 "\"a\"X:\"b\","
-  let bodies : Vector (ZMod p) 9 := #v[0,1,0,0,0,0,1,0,0]
+  let fieldStringBodies : Vector (ZMod p) 9 := #v[0,1,0,0,0,0,1,0,0]
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 4 6
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=4, valueIndex:=6} (by omega) (by omega)
   ) = none := by native_decide
 
 -- Reject: non-whitespace between colon and opening value quote — "a":X"b",
 -- string_bodies: 0 1 0 0 0 0 1 0 0
 example : (do
   let field := strToFS 9 "\"a\":X\"b\","
-  let bodies : Vector (ZMod p) 9 := #v[0,1,0,0,0,0,1,0,0]
+  let fieldStringBodies : Vector (ZMod p) 9 := #v[0,1,0,0,0,0,1,0,0]
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 6
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=6} (by omega) (by omega)
   ) = none := by native_decide
 
 -- Reject: wrong string bodies — all zeros (should have 1s at name and value positions)
 example : (do
   let field := strToFS 8 "\"a\":\"b\","
-  let bodies : Vector (ZMod p) 8 := #v[0,0,0,0,0,0,0,0]
+  let fieldStringBodies : Vector (ZMod p) 8 := #v[0,0,0,0,0,0,0,0]
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega)
   ) = none := by native_decide
 
 -- Reject: wrong string bodies — all ones
 example : (do
   let field := strToFS 8 "\"a\":\"b\","
-  let bodies : Vector (ZMod p) 8 := #v[1,1,1,1,1,1,1,1]
+  let fieldStringBodies : Vector (ZMod p) 8 := #v[1,1,1,1,1,1,1,1]
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega)
   ) = none := by native_decide
 
 example : (do
   let field := strToFS 8 "\"a\":\"b\","
-  let bodies : Vector (ZMod p) 8 := #v[1,1,1,1,1,1,1,1]
+  let fieldStringBodies : Vector (ZMod p) 8 := #v[1,1,1,1,1,1,1,1]
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5 (skipChecks := 1)
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega) (skipChecks := 1)
   ) = some () := by native_decide
 
 -- Reject: non-whitespace after closing value quote — "a":"b"X,
 -- string_bodies: 0 1 0 0 0 1 0 0 0
 example : (do
   let field := strToFS 9 "\"a\":\"b\"X,"
-  let bodies : Vector (ZMod p) 9 := #v[0,1,0,0,0,1,0,0,0]
+  let fieldStringBodies : Vector (ZMod p) 9 := #v[0,1,0,0,0,1,0,0,0]
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega)
   ) = none := by native_decide
 
 example : (do
   let field := strToFS 9 "\"a\":\"b\"X,"
-  let bodies : Vector (ZMod p) 9 := #v[0,1,0,0,0,1,0,0,0]
+  let fieldStringBodies : Vector (ZMod p) 9 := #v[0,1,0,0,0,1,0,0,0]
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5 (skipChecks := 1)
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega) (skipChecks := 1)
   ) = some () := by native_decide
 
 example : (do
   let field := strToFS 9 "\"a\":\"b\"X,"
-  let bodies : Vector (ZMod p) 9 := #v[0,1,0,0,0,1,0,0,0]
+  let fieldStringBodies : Vector (ZMod p) 9 := #v[0,1,0,0,0,1,0,0,0]
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5 (skipChecks := 1)
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega) (skipChecks := 1)
   ) = some () := by native_decide
 
 -- skipChecks = 1 does NOT bypass sub-template constraints: out-of-range indices still fail,
 -- matching CIRCOM where sub-template constraints (one-hot encoding) always apply.
 example : (do
   let field := strToFS 6 "\"a\":b,"
-  let bodies : Vector (ZMod p) 6 := #v[0,0,0,0,0,0]
+  let fieldStringBodies : Vector (ZMod p) 6 := #v[0,0,0,0,0,0]
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 100 200 (skipChecks := 1)
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=100, valueIndex:=200} (by omega) (by omega) (skipChecks := 1)
   ) = none := by native_decide
 
 -- valid: "k":"ab cd",  (whitespace inside quoted value)
@@ -1116,10 +1121,10 @@ example : (do
 -- string_bodies:            0    1   0   0   0   1   1   1    1   1    0    0
 example : (do
   let field := strToFS 12 "\"k\":\"ab cd\","
-  let bodies : Vector (ZMod p) 12 := #v[0,1,0,0,0,1,1,1,1,1,0,0]
+  let fieldStringBodies : Vector (ZMod p) 12 := #v[0,1,0,0,0,1,1,1,1,1,0,0]
   let name  := strToFS 1 "k"
   let value := strToFS 5 "ab cd"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega)
   ) = some () := by native_decide
 
 -- valid: "k":"a\"b",  (escaped quote inside quoted value)
@@ -1129,10 +1134,10 @@ example : (do
 -- value = a\"b (4 chars), value_index=5, value_sel=[5,9)
 example : (do
   let field := strToFS 11 "\"k\":\"a\\\"b\","
-  let bodies : Vector (ZMod p) 11 := #v[0,1,0,0,0,1,1,1,1,0,0]
+  let fieldStringBodies : Vector (ZMod p) 11 := #v[0,1,0,0,0,1,1,1,1,0,0]
   let name  := strToFS 1 "k"
   let value := strToFS 4 "a\\\"b"
-  parseJWTFieldWithQuotedValue (by omega) (by omega) field name value bodies 3 5
+  parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega)
   ) = some () := by native_decide
 
 -- parseEmailVerifiedField tests
