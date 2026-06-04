@@ -74,13 +74,6 @@ abbrev SHA2_NUM_BITS_LEN := 8
 -- EPK constants
 abbrev EPK_NUM_FIELDS := 3
 
--- Known field name lengths
-abbrev AUD_NAME_LEN   := 3   -- "aud"
-abbrev ISS_NAME_LEN   := 3   -- "iss"
-abbrev IAT_NAME_LEN   := 3   -- "iat"
-abbrev NONCE_NAME_LEN := 5 -- "nonce"
-abbrev EV_NAME_LEN    := 14   -- "email_verified"
-
 -- ============================================================================
 -- Stubs for WIP components
 -- ============================================================================
