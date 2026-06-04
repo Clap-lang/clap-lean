@@ -1044,45 +1044,80 @@ def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
     -- Dbg.timeSince time "mapM_mk_cons took:"
     return .step e' proof
 
-#check HAppend.hAppend
+/--
+0. Only for `Vector.mapM f xs`.
+1. Vector.mapM f #v[a, b, c] → Vector.mapM f (#v[a] ++ #v[b, c])
+2. Vector.mapM f (#v[x] ++ v) = do
+     let __do_lift ← f x
+     let __do_lift_1 ← Vector.mapM f v
+     pure (#v[__do_lift] ++ __do_lift_1)
+-/
+def _root_.Vector.mapM_single : Sym.Simp.Simproc := fun e ↦ do
+  let_expr _root_.Vector.mapM m α β n mInst f vec := e | return .rfl
+  let_expr _root_.Vector.mk _ sz arr _ := vec | return .rfl
+  let l ← arr.getAppArgs[1]?.getDM (unreachable!)
+  let_expr List.cons t hd tl := l | return .rfl
+  let sz' ← Sym.simpWithGround sz
+  match (sz'.getResultExpr sz).nat? with
+  | .none => throwError m!"{sz} does not simplify to ground. Expr:\n{e}"
+  | .some szN =>
+    let hdVecElemLevel ← Sym.getLevelInType β
+    let u := hdVecElemLevel -- `Vector.{u} {α : Type u}... : Vector.{u}`
+    /-
+    No universe bump along the way
+    -/
+    let v := hdVecElemLevel
+    let w := hdVecElemLevel
 
--- /--
--- 0. Only for `Vector.mapM f xs`.
--- 1. Vector.mapM f #v[a, b, c] → Vector.mapM f (#v[a] ++ #v[b, c])
--- 2. Vector.mapM f (#v[x] ++ v) = do
---      let __do_lift ← f x
---      let __do_lift_1 ← Vector.mapM f v
---      pure (#v[__do_lift] ++ __do_lift_1)
--- -/
--- def _root_.Vector.mapM_mk_eq_append : Sym.Simp.Simproc := fun e ↦ do
---   let_expr _root_.Vector.mapM _ _ β _ _ f vec := e | return .rfl
---   let_expr _root_.Vector.mk _ sz arr _ := vec | return .rfl
---   let l ← arr.getAppArgs[1]?.getDM (unreachable!)
---   let_expr List.cons t hd tl := l | return .rfl
---   let sz' ← Sym.simpWithGround sz
---   match (sz'.getResultExpr sz).nat? with
---   | .none => throwError m!"{sz} does not simplify to ground. Expr:\n{e}"
---   | .some szN =>
---     let hdVec ← mkVecLit β (←Sym.mkListLit t [hd]) (mkNatLit 1)
---     let tlVec ← mkVecLit β tl (toExpr (szN - 1))
---     let hdVecElemLevel ← Sym.getLevelInType β
---     let u := hdVecElemLevel -- `Vector.{u} {α : Type u}... : Vector.{u}`
---     /-
---     No universe bump along the way
---     -/
---     let v := hdVecElemLevel
---     let w := hdVecElemLevel
---     let append :=
---       mkAppN
---         (.const ``HAppend.hAppend [u, v, w]) #[
---           (mkApp2 (.const ``Vector [u]) β (mkNatLit 1)),
---           (mkApp2 (.const ``Vector [u]) β (toExpr (szN - 1))),
---           (mkApp2 (.const ``Vector [u]) β (toExpr szN)),
---           (mkApp3 (.const ``Vector.instHAppendHAddNat [u]) β (mkNatLit 1) (toExpr (szN - 1))),
---           ←mkVecLit t (←Sym.mkListLit t [.bvar 1]) (mkNatLit 1),
---           mkApp2 (.const ``Vector.mk [u]) _ _,
---           _
---         ]
+    let hdSz := mkNatLit 1
+    let tlSz := mkNatLit szN.pred
+    
+    -- `#v[__do_lift] ++ __do_lift_1`
+    let append :=
+      mkAppN
+        (.const ``HAppend.hAppend [u, v, w]) #[
+          (mkApp2 (.const ``Vector [u]) β hdSz),
+          (mkApp2 (.const ``Vector [u]) β tlSz),
+          (mkApp2 (.const ``Vector [u]) β (toExpr szN)),
+          (mkApp3 (.const ``Vector.instHAppendHAddNat [u]) β hdSz tlSz),
+          ←mkVecLit β (←Sym.mkListLit β [.bvar 1]) hdSz,
+          .bvar 0
+        ]
+
+    let tlVec ← mkVecLit α tl tlSz
+
+    -- TODO: Check universes. `Vector` construction should preserve `u`.
+    let v := u
+    let w ← Sym.getLevelInType α
+    let mapM := mkApp7 (.const ``Vector.mapM [u, v, w]) m α β tlSz mInst f tlVec
+    -- TODO(perf): Hand write the type if helps, least of my problems
+    let mapMT ← Sym.inferType mapM
+    let appendT ← Sym.inferType append
+    let v ← Sym.getLevelInType mapMT
+    
+    let someAppend := mkApp2 (.const ``Option.some [u]) appendT append
+
+    -- `Vector.mapM f tl >>= fun __do_lift_1 ↦ pure (#v[__do_lift] ++ __do_lift_1)`
+    let innerBind := 
+      mkApp4
+        (.const ``Option.bind [u, v]) mapMT appendT mapM
+        (.lam `_snd mapMT someAppend .default)
+
+    /-
+    TODO: Check the second universe, it's what `append : Vector.{u} (#[#1] ++ #0)` lives in, I think.
+          Hence `u`. Or so I think.
+    -/
+    let bind :=
+      mkApp4
+        (.const ``Option.bind [u, u])
+        β
+        appendT 
+        (←Sym.shareCommonInc (f.beta #[hd])) -- TODO(?): `Expr.app f hdVec` without reducing here?
+        (.lam `fst t innerBind .default )
+      
+    let e' := bind
+
+    return .step e' (←mkSorry (←mkEq e e') false)
 
 
   -- -- logInfo m!"Nodes: {←e.numObjs}"
@@ -1159,12 +1194,12 @@ def mapM : MetaM Methods :=
     -- ``Compiler.explodeVectorMapM
   ]
 
--- def mapM_alt : MetaM Methods :=
---   mkPostMethods #[
---     ``_root_.Vector.mapM_mk_eq_append
+def mapM_alt : MetaM Methods :=
+  mkPostMethods #[
+    ``Vector.mapM_single
 
---     -- ``Compiler.explodeVectorMapM
---   ]
+    -- ``Compiler.explodeVectorMapM
+  ]
 
 #check List.map_cons
 -- def mapM_test : MetaM Methods :=
