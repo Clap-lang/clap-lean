@@ -287,11 +287,11 @@ def verifyAudField (json : JSONStructure)
   let audEff : QuotedFieldInput _ _ _ := { aud with value := { audValue with len := audValueLen } }
   -- Assert field is a substring of the decoded JWT payload (conditioned on performAudChecks)
   let field_passes ← FString.isSubstringFS (by decide) json.payload json.payloadHash audEff.field audEff.nameIndex
-  eq0 (performAudChecks * FB.not field_passes)
+  FB.conditionallyAssert performAudChecks field_passes
   -- Assert fieldStringBodies matches stringBodies (conditioned on performAudChecks)
   -- CIRCOM: AssertIsSubstring(stringBodies, jwt_payload_hash, aud_field_string_bodies, aud_field_len, aud_index)
   let sb_passes ← FString.isSubstringFS (by decide) {data := json.stringBodies, len := json.payload.len} json.payloadHash {data := audEff.fieldStringBodies, len := audEff.field.len} audEff.nameIndex
-  eq0 (performAudChecks * FB.not sb_passes)
+  FB.conditionallyAssert performAudChecks sb_passes
   -- Assert field is not inside nested brackets
   JWT.enforceNotNested MAX_JWT_PAYLOAD_LEN audEff.nameIndex audEff.field.len json.bracketsDepthMap
   -- Parse the field structure, gated by skipAudChecks.
@@ -319,14 +319,7 @@ def verifyEvField (json : JSONStructure)
       ev.value
   -- Check if ev field is in JWT (non-asserting)
   let evInJwt ← FString.isSubstringFS (by decide) json.payload json.payloadHash ev.field ev.nameIndex
-  -- Fail if uidIsEmail = 1 AND evInJwt = 0
-  -- CIRCOM truth table:
-  --   uidIsEmail | evInJwt | fail?
-  --        1       |     1     |  no
-  --        1       |     0     |  yes
-  --        0       |     1     |  no
-  --        0       |     0     |  no
-  eq0 (uidIsEmail * FB.not evInJwt)
+  FB.conditionallyAssert uidIsEmail evInJwt
   -- Assert not inside nested brackets
   JWT.enforceNotNested MAX_JWT_PAYLOAD_LEN ev.nameIndex ev.field.len json.bracketsDepthMap
   -- Parse the email_verified field (allows both quoted and unquoted true/false)
@@ -340,8 +333,7 @@ def verifyExtraField (json : JSONStructure) (extra : ExtraFieldInput) : Option U
   let efPasses ← FString.isSubstringFS (by decide) json.payload json.payloadHash extra.extraField extra.extraFieldIndex
   -- Assert not inside nested brackets
   JWT.enforceNotNested MAX_JWT_PAYLOAD_LEN extra.extraFieldIndex extra.extraField.len json.bracketsDepthMap
-  -- If useExtraField = 1 then efPasses must be 1
-  eq0 (extra.useExtraField * FB.not efPasses)
+  FB.conditionallyAssert extra.useExtraField efPasses
   -- Assert extra field does not start inside a string body
   -- CIRCOM: ef_start_char === 0
   eq0 (← selectArrayValue json.stringBodies extra.extraFieldIndex)
