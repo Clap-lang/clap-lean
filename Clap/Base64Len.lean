@@ -103,33 +103,28 @@ def base64UrlLookup (i : F p) : Option (F p) := do
 
   pure sum_underscore
 
-def base64UrlDecode₀ {w} (h:8 ∣ w * 6) (input : Vector (F p) w) : Option (Vector (F p) (w*6/8)) := do
-  let tmp : Vector (FBitVec p 6) w ← input.mapM (num2bits 6)
-  let tmp : Vector (FBitVec p 6) w := tmp.map Vector.reverse
-  let tmp : FBitVec p (w*6) := tmp.flatten
-  let tmp : Vector (FBitVec p 8) (w*6/8) :=
-    have h : (w * 6) = (w * 6 / 8 * 8) := by
-      rw [eq_comm]
-      aesop (add safe [Nat.div_mul_cancel])
+def base64UrlDecode₀ {w} (h:3 ∣ w) (input : Vector (F p) (w*4/3)) : Option (Vector (F p) w) := do
+  let tmp : Vector (FBitVec p 6) _ ← input.mapM (num2bits 6)
+  let tmp : Vector (FBitVec p 6) _ := tmp.map Vector.reverse
+  let tmp : FBitVec p ((w*4/3)*6) := tmp.flatten
+  let tmp : Vector (FBitVec p 8) w :=
+    have h : (w*4/3)*6 = w * 8 := by
+      have h1 : w * 4 / 3 * 6 = w * 8 / 6 * 6 := by grind
+      have h2 : w * 8 / 6 * 6 = w * 8 := by grind
+      aesop (add safe [h1,h2,Nat.div_mul_cancel])
     toChunks 8 (h ▸ tmp)
   some (tmp.map (fun b ↦ bits2numV b.reverse))
 
-
--- def base64UrlDecode₀ (n : ℕ) (input : Array (F p)) : Option (Array (F p)) := do
---   if h : n > 0 then
---     let seq4Times6Bits ← input.take 4 |>.mapM (num2bits 6)
---     let seq3Times8Bits := seq4Times6Bits.reverse.toList.flatten.toChunks 8
---     let out := seq3Times8Bits.reverse.map bits2num
---     return Array.append ⟨out.take n⟩ (←base64UrlDecode₀ (n - 3) (input.drop 4))
---   else
---     return .empty
-
-def base64UrlDecode {w} (n : ℕ) (h:8 ∣ n * 6) (hn : n ≤ w) (input : Vector (F p) w) : Option (Vector (F p) (n * 6 / 8)) := do
-  let input : Vector (F p) n :=
-    have h : min n w = n := by omega
-    h ▸ input.take n
-  let input : Vector (F p) n ← input.mapM base64UrlLookup
-  base64UrlDecode₀ h input
+/-
+  This function works a bit backward.
+  If we know the length of the expected decoded output, then we know the length of the encoded input and also its padding.
+  However base64UrlDecodedLength does not support padding base64 `=`
+-/
+def base64UrlDecode {w} (h:3 ∣ w) (input : FString p (w*4/3)) : Option (FString p w) := do
+  let lookedup ← input.data.mapM base64UrlLookup
+  let payload ← base64UrlDecode₀ h lookedup
+  let len ← base64UrlDecodedLength w input.len
+  return ⟨payload, len⟩
 
 end Base64Len
 
@@ -140,23 +135,17 @@ open Base64Len
 
 abbrev p := Primes.goldilocks
 
-private def testBase64UrlDecode (n : ℕ) (s : String) : Option String := do
-  let m := (n * 4 + 2) / 3  -- number of base64 chars that encode n decoded bytes
-  let input : List (ZMod p) := s.toList.map Char.toNat |>.map (fun n ↦ (ofNat(n) : ZMod p))
-  let input : Vector (F p) input.length := ⟨input.toArray, by grind⟩
-  let output ← base64UrlDecode (p := p) m (by sorry) (by sorry) input
-  return String.ofList <| output.toList.map (fun z => Char.ofNat z.val)
+private def testBase64UrlDecode (input expected : String) (h: 3 ∣ expected.length) : Option (FB p) := do
+  let n_input := expected.length * 4 / 3
+  let fsinput : FString p n_input := FString.ofString input
+  let output : FString p expected.length ← base64UrlDecode (p := p) h fsinput
+  output.isPaddedOf expected
 
-example : testBase64UrlDecode 13 "T3JpZ2luYWwgdGV4dA==" == "Original text" := by
-  native_decide
-example : testBase64UrlDecode  8 "T3JpZ2luYWwgdGV4dA==" == "Original" := by
-  native_decide
-example : testBase64UrlDecode  0 "T3JpZ2luYWwgdGV4dA==" == "" := by
-  native_decide
-example : testBase64UrlDecode  3 "YWJj" == "abc" := by
-  native_decide
-example : testBase64UrlDecode  5 "YWJjZGU=" == "abcde" := by
-  native_decide
+example : testBase64UrlDecode "T3JpZ2luYWwgdGV4"     "Original tex" (by decide) = some FB.true := by native_decide
+example : testBase64UrlDecode "T3JpZ2luYWwg"         "Original "    (by decide) = some FB.true := by native_decide
+example : testBase64UrlDecode "T3JpZ2luYWwgdGV4dA==" ""             (by decide) = some FB.true := by native_decide
+example : testBase64UrlDecode "YWJj"     "abc"    (by decide) = some FB.true := by native_decide
+example : testBase64UrlDecode "YWJjZGVm" "abcdef" (by decide) = some FB.true := by native_decide
 
 example : base64UrlLookup (p := p) 'A' == some 0 := by native_decide
 example : base64UrlLookup (p := p) 'T' == some 19 := by native_decide

@@ -218,11 +218,7 @@ def verifyJWTStructure (jwtRaw : JWTRawInput) (rsa : RSAInput) : Option (FString
   let paddedHash ← hashBytesToField jwtRaw.b64u_jwt_payload_sha2_padded
   assertIsSubstringFS (by decide) jwtRaw.b64u_jwt_payload_sha2_padded paddedHash jwtRaw.b64u_jwt_payload 0
   -- Step 5: Base64-decode the payload
-  -- n = MAX_B64U_JWT_PAYLOAD_SHA2_PADDED_LEN (1472) base64 chars → 1104 bytes = MAX_JWT_PAYLOAD_LEN
-  let jwtPayload ← Base64Len.base64UrlDecode MAX_B64U_JWT_PAYLOAD_SHA2_PADDED_LEN (by decide) (le_refl _) jwtRaw.b64u_jwt_payload.data
-  -- Compute decoded length: floor(3 * encoded_len / 4)
-  let jwtPayloadLen ← Base64Len.base64UrlDecodedLength 20 jwtRaw.b64u_jwt_payload.len
-  return ⟨jwtPayload, jwtPayloadLen⟩
+  Base64Len.base64UrlDecode (by decide) jwtRaw.b64u_jwt_payload
 
 /-- Compute JSON structural analysis from the decoded JWT payload.
     Returns the payload with its hash, string bodies, and brackets depth map. -/
