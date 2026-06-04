@@ -20,7 +20,7 @@ def singleOneArray (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
 
 /-- (SingleNegOneArray) Returns a one-hot bit mask of length `len` with a 1 at index `idx` and 0s elsewhere.
     Returns all zeros when `idx ≥ len`. -/
-def singleEndArray (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
+private def singleEndArray (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
   let out ← oneHotRaw len idx
   let s : F p := out.foldl (fun acc b ↦ acc + b) 0
   F.assert_eq s (s * s) -- s² = s (at most one-hot)
@@ -45,7 +45,7 @@ def selectArrayValue {len : ℕ} (arr : Vector (F p) len) (idx : F p) : Option (
   return F.dotProduct hot arr
 
 /-- Outputs a bit array with 1s at `[0, idx)` and 0s at `[idx, len)`. Only satisfiable when `0 ≤ idx < len`. Requires `len > 0`. -/
-def leftArraySelector (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
+private def leftArraySelector (len : ℕ) (idx : F p) : Option (Vector (FB p) len) := do
   let bits ← singleOneArray len idx
   return bits.scanr (· + ·) 0
 
