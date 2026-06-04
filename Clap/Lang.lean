@@ -295,6 +295,11 @@ def lessThan_equiv {w} (a b : F p)
           show (decide (a.val < b.val) : Bool) = false from
             decide_eq_false_iff_not.mpr (Nat.not_lt.mpr hab)]
 
+lemma conditionalSwap_equiv (sel : FB p) (a b : F p) (ha : FB.valid sel) :
+  F.conditionalSwap sel a b = if FB.toBool sel then a else b
+:= by
+  sorry
+
 end Spec.F
 
 

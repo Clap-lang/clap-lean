@@ -429,3 +429,29 @@ def keyless (input : KeylessInput) : Option Unit := do
     input.publicInputsHash
 
 end Keyless
+
+namespace Spec.Keyless
+
+open Keyless Clap Lang Primes Spec
+
+abbrev p := bn254
+abbrev F p := ZMod p
+abbrev FB p := F p
+
+def muxFString_spec (sel : Bool) (a b : String) : String := if sel then a else b
+
+lemma muxFString_equiv {maxLen : ℕ} (sel : FB p) (a b : FString bn254 maxLen)
+  (hsel : FB.valid sel)
+  (ha : FString.valid a)
+  (ha : FString.valid b) :
+  Keyless.muxFString sel a b =
+    FString.ofString
+      (muxFString_spec
+        (FB.toBool sel)
+        (Spec.FString.toString a)
+        (Spec.FString.toString b)
+      )
+:= by sorry
+
+
+end Spec.Keyless
