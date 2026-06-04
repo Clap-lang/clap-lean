@@ -448,10 +448,27 @@ lemma muxFString_equiv {maxLen : ℕ} (sel : FB p) (a b : FString bn254 maxLen)
     FString.ofString
       (muxFString_spec
         (FB.toBool sel)
-        (Spec.FString.toString a)
-        (Spec.FString.toString b)
+        (FString.toString a)
+        (FString.toString b)
       )
 := by sorry
 
+def assertFieldName_spec
+  (name expected : String)
+  (guard : Bool := true) :
+  Option Unit
+:=
+  Spec.FB.conditionallyAssert guard (name == expected)
+
+lemma assertFieldName_equiv {n : ℕ}
+  (name : FString bn254 n)
+  (hname : FString.valid name)
+  (expected : String)
+  (guard : FB bn254)
+  (hguard : FB.valid guard):
+  Keyless.assertFieldName name expected guard =
+    assertFieldName_spec (FString.toString name) expected (FB.toBool guard)
+:= by
+  sorry
 
 end Spec.Keyless
