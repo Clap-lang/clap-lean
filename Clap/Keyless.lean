@@ -194,9 +194,8 @@ def verifyJWTStructure (jwtRaw : JWTRawInput) (rsa : RSAInput) : Option (FString
     jwtRaw.b64u_jwt_no_sig_sha2_padded jwtRaw.b64u_jwt_header_w_dot jwtRaw.b64u_jwt_payload_sha2_padded
   -- Assert the last character of header_w_dot is '.' (ASCII 46)
   -- This prevents the circuit from being tricked about where the payload starts.
-  -- CIRCOM: dot === 46
   let dot ← selectArrayValue jwtRaw.b64u_jwt_no_sig_sha2_padded.data (jwtRaw.b64u_jwt_header_w_dot.len - 1)
-  F.assert_eq dot 46
+  F.assert_eq dot (F8.ofChar '.')
   -- Steps 2–3: SHA2-256 padding verification + hash computation
   -- Unified into a single call that verifies RFC 4634 padding and computes
   -- the SHA2-256 hash, returning 4 × 64-bit limbs for RSA.
