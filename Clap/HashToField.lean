@@ -78,27 +78,52 @@ open Clap.Lang
 
 abbrev p := Primes.bn254
 
+-- from circuit/src/hash_to_field.rs `print_hashtofield_vectors`
+-- run with `cargo test -p aptos-keyless-circuit print_hashtofield_vectors -- --nocapture`
+-- (preserved generator: Clap/HashToField_rust/)
+
+private def bytes5PadTo62 : Vector (F p) 62 := Vector.append #v[1, 2, 3, 4, 5] (Vector.replicate 57 (0 : F p))
+private def bytes1to40PadTo62 : Vector (F p) 62 :=
+  Vector.append
+    #v[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40]
+    (Vector.replicate 22 (0 : F p))
+
+-- msg=[147,139,223,159,166,20] cap = 6 len = 6 -> elems = [pack(msg), 6]
+example : hashBytesToField ⟨#v[147,139,223,159,166,20], 6⟩ ==
+  some 13994610850800277351346694935735956205500166458544915277495466551921036587172
+:= by native_decide
+
+-- msg=[1,2,3,4,5] cap = 62 len = 5 -> 2 scalars (2nd from padding = 0), elems = [pack(msg,0..), 0, 5]
+example : hashBytesToField ⟨bytes5PadTo62, 5⟩ ==
+  some 17891043070668315820315565801110254287516103649870519663767767541403051744030
+:= by native_decide
+
+-- msg=bytes 1..40 cap = 62 len = 40 -> elems = [pack(1..31), pack(32..40,0..), 40]
+example : hashBytesToField ⟨bytes1to40PadTo62, 40⟩ ==
+  some 19364146746416071195829466169360764847138059406444764150757486565697969237878
+:= by native_decide
+
 private def chunk31BytesZero : Vector (F p) 31 :=
   Vector.replicate 31 0
 private def chunk31BytesOne : Vector (F p) 31 :=
   Vector.append #v[1] (Vector.replicate 30 0)
 
 example : hashBytesToField ⟨chunk31BytesZero ++ chunk31BytesOne, 31 + 31⟩ ==
-  /- poseidon [poseidon [0, 1, 62]] -/
-  some 13543697266444247423540702028286854389932495956928457586471762601092527495754
+  /- poseidon [0, 1, 62] -/
+  some 15108995961371611790528033672782068063008181353996387970156202240921543829585
 := by
   native_decide
 
 example : hashBytesToField ⟨chunk31BytesZero ++ chunk31BytesZero, 31 + 31⟩ ==
-  /- poseidon [poseidon [0, 0, 62]] -/
-  some 15333809665951811835835529849636018646388422529532753098753027230583179992115
+  /- poseidon [0, 0, 62] -/
+  some 18955193024213499903276022608734737644948951344086434322069232702331459314690
 := by
   native_decide
 
 example :
   hashElemsToField #v[0, 0, 0] ==
-    /- poseidon [poseidon [0,0,0]] -/
-    some 9681385400934385481936708565543908657554561955376652473066345310499027876660
+    /- poseidon [0,0,0] -/
+    some 5317387130258456662214331362918410991734007599705406860481038345552731150762
 := by
   native_decide
 
@@ -112,18 +137,21 @@ example :
 := by
   native_decide
 
-example :
-  -- poseidon [1, 2, 48]
-  hash64BitLimbsToField ⟨#v[1,0,0, 2,0,0],48⟩ == some
-    9279947276585799077805428108942311632594603656807751900699542466687045499453
-:= by
-  native_decide
+-- from circuit/src/hash_to_field.rs `print_hashtofield_vectors`
+-- keyless appends len = numLimbs (the number of limbs), not numLimbs*8
+-- limbs = [1,0,0, 2,0,0] cap = 6 len = 6 -> elems = [1, 2, 6]
+example : hash64BitLimbsToField ⟨#v[1,0,0, 2,0,0], 6⟩ ==
+  some 12357238260310637995943135375585171688556280490812423735142467946729167059695
+:= by native_decide
 
-example :
-  -- poseidon [2^64, 24]
-  hash64BitLimbsToField ⟨#v[0,1,0],24⟩ == some
-    7782062960914706371652872958958905637393708115140004884697710811622618759288
-:= by
-  native_decide
+-- limbs = [0,1,0] cap = 3 len = 3 -> elems = [2^64, 3]
+example : hash64BitLimbsToField ⟨#v[0,1,0], 3⟩ ==
+  some 14123858125510765373592556917469506021879873191038230502015132317060124997248
+:= by native_decide
+
+-- limbs = [1,2] cap = 6 len = 2 -> 2 scalars (2nd from padding = 0), elems = [1+2*2^64, 0, 2]
+example : hash64BitLimbsToField ⟨#v[1,2,0,0,0,0], 2⟩ ==
+  some 8309192594278154676795975429535953516065089753051187486831405226925285963049
+:= by native_decide
 
 end TestHashToField
