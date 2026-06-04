@@ -1056,18 +1056,23 @@ def _root_.Vector.mapM_single : Sym.Simp.Simproc := fun e ↦ do
   let_expr _root_.Vector.mapM m α β n mInst f vec := e | return .rfl
   let_expr _root_.Vector.mk _ sz arr _ := vec | return .rfl
   let l ← arr.getAppArgs[1]?.getDM (unreachable!)
-  let_expr List.cons t hd tl := l | return .rfl
+  let u ← Sym.getLevelInType β
+  let_expr List.cons t hd tl := l |
+    -- `#v[].mapM f ==> pure #v[]`
+    let e' := mkApp2 (.const ``Option.some [u]) β (←mkVecLit β (←Sym.mkListLit β []) q(0))
+    trace[Clap.Compile.simp.proc.mapM_single]
+      m!"\n{e}\n==>\n{e'}"
+    return .step e' (←mkSorry (←mkEq e e') false)
   let sz' ← Sym.simpWithGround sz
   match (sz'.getResultExpr sz).nat? with
   | .none => throwError m!"{sz} does not simplify to ground. Expr:\n{e}"
   | .some szN =>
-    let hdVecElemLevel ← Sym.getLevelInType β
-    let u := hdVecElemLevel -- `Vector.{u} {α : Type u}... : Vector.{u}`
     /-
     No universe bump along the way
+    `Vector.{u} {α : Type u}... : Vector.{u}`
     -/
-    let v := hdVecElemLevel
-    let w := hdVecElemLevel
+    let v := u
+    let w := u
 
     let hdSz := mkNatLit 1
     let tlSz := mkNatLit szN.pred
@@ -1116,6 +1121,9 @@ def _root_.Vector.mapM_single : Sym.Simp.Simproc := fun e ↦ do
         (.lam `fst t innerBind .default )
       
     let e' := bind
+
+    trace[Clap.Compile.simp.proc.mapM_single]
+      m!"\n{e}\n==>\n{e'}"
 
     return .step e' (←mkSorry (←mkEq e e') false)
 
@@ -1197,7 +1205,6 @@ def mapM : MetaM Methods :=
 def mapM_alt : MetaM Methods :=
   mkPostMethods #[
     ``Vector.mapM_single
-
     -- ``Compiler.explodeVectorMapM
   ]
 
@@ -1763,7 +1770,9 @@ def ex₄ (vec : Vector Nat 5) : Option Unit :=
 -- set_option profiler true in
 -- set_option trace.Clap.Compile true in
 set_option trace.Clap.Compile true in
-#eval spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerWtf ∪ getElem))
+#eval spoon <| do
+  compileExampleJustSym ``ex₄
+    (←(mapM_alt ∪ compilerWtf ∪ getElem ∪ explode ∪ bindMyAssoc_set ∪ append))
 
 def profileThis := spoon <| do compileExampleJustSym ``ex₄ (←(mapM ∪ compilerWtf ∪ getElem))
 
