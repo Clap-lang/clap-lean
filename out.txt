@@ -58,8 +58,8 @@ info: Clap/PoseidonVec/Poseidon.lean:269:0: [Clap.Compile] 💥️
                  (`List.foldlM_nil, Post), (`Vector.mapIdx_mk, Post), (`List.mapIdx_toArray, Post),
                  (`List.mapIdx_cons, Post), (`List.mapIdx_nil, Post), (`Vector.map_mk, Post), (`List.map_toArray, Post),
                  (`List.map_cons, Post), (`List.map_nil, Post), (`List.map_id, Pre),
-                 (`Vector.mapM_mk_singleton_append, Post), (`Vector.mapM_mk_eq_append, Post),
-                 (`Vector.mapM_singleton, Post), (`Clap.Compiler.CompileSets.Vector.rwMk_append_mk, Post),
+                 (`Vector.ton_append, Post), (`Vector.mapM_mk_eq_append, Post),
+                 (`Vector.mapM_mk_singleton, Post), (`Clap.Compiler.CompileSets.Vector.rwMk_append_mk, Post),
                  (`List.append_toArray, Post), (`List.cons_append, Post), (`List.nil_append, Post),
                  (`Vector.getElem_mk, Post), (`List.getElem_toArray, Post), (`List.getElem_cons_zero, Post),
                  (`List.getElem_cons_succ, Post), (`Nat.reduceMul, Post), (`Nat.reduceDiv, Post),
@@ -97,8 +97,8 @@ info: Clap/PoseidonVec/Poseidon.lean:269:0: [Clap.Compile] 💥️
                  (`List.foldlM_toArray, Post), (`List.foldlM_cons, Post), (`List.foldlM_nil, Post),
                  (`Vector.mapIdx_mk, Post), (`List.mapIdx_toArray, Post), (`List.mapIdx_cons, Post),
                  (`List.mapIdx_nil, Post), (`Vector.map_mk, Post), (`List.map_toArray, Post), (`List.map_cons, Post),
-                 (`List.map_nil, Post), (`List.map_id, Pre), (`Vector.mapM_mk_singleton_append, Post),
-                 (`Vector.mapM_mk_eq_append, Post), (`Vector.mapM_singleton, Post),
+                 (`List.map_nil, Post), (`List.map_id, Pre), (`Vector.ton_append, Post),
+                 (`Vector.mapM_mk_eq_append, Post), (`Vector.mapM_mk_singleton, Post),
                  (`Clap.Compiler.CompileSets.Vector.rwMk_append_mk, Post), (`List.append_toArray, Post),
                  (`List.cons_append, Post), (`List.nil_append, Post), (`Vector.getElem_mk, Post),
                  (`List.getElem_toArray, Post), (`List.getElem_cons_zero, Post), (`List.getElem_cons_succ, Post),
@@ -41086,7 +41086,7 @@ info: Clap/PoseidonVec/Poseidon.lean:269:0: [Clap.Compile] 💥️
                       659264346779336196861046149708262978772865549957418762539334998250261177999,
                       4845513029979932068519665574875148103907087162327411884857282514189560116135, ⋯][i + 1])
               ([] ++ [inputs[0], inputs[1]]))[2]
-  [Meta.Tactic.simp.rewrite] Vector.mapM_singleton:1000:
+  [Meta.Tactic.simp.rewrite] Vector.mapM_mk_singleton:1000:
         Vector.mapM sigma
           #v[((0 +
                   [6745197990210204598374042828761989596302876299545964402857411729872131034734,
@@ -64404,8 +64404,8 @@ error: Clap/PoseidonVec/Poseidon.lean:268:0: ❌️ Docstring on `#guard_msgs` d
 +                  (`List.foldlM_nil, Post), (`Vector.mapIdx_mk, Post), (`List.mapIdx_toArray, Post),
 +                  (`List.mapIdx_cons, Post), (`List.mapIdx_nil, Post), (`Vector.map_mk, Post), (`List.map_toArray, Post),
 +                  (`List.map_cons, Post), (`List.map_nil, Post), (`List.map_id, Pre),
-+                  (`Vector.mapM_mk_singleton_append, Post), (`Vector.mapM_mk_eq_append, Post),
-+                  (`Vector.mapM_singleton, Post), (`Clap.Compiler.CompileSets.Vector.rwMk_append_mk, Post),
++                  (`Vector.ton_append, Post), (`Vector.mapM_mk_eq_append, Post),
++                  (`Vector.mapM_mk_singleton, Post), (`Clap.Compiler.CompileSets.Vector.rwMk_append_mk, Post),
 +                  (`List.append_toArray, Post), (`List.cons_append, Post), (`List.nil_append, Post),
 +                  (`Vector.getElem_mk, Post), (`List.getElem_toArray, Post), (`List.getElem_cons_zero, Post),
 +                  (`List.getElem_cons_succ, Post), (`Nat.reduceMul, Post), (`Nat.reduceDiv, Post),
@@ -64443,8 +64443,8 @@ error: Clap/PoseidonVec/Poseidon.lean:268:0: ❌️ Docstring on `#guard_msgs` d
 +                  (`List.foldlM_toArray, Post), (`List.foldlM_cons, Post), (`List.foldlM_nil, Post),
 +                  (`Vector.mapIdx_mk, Post), (`List.mapIdx_toArray, Post), (`List.mapIdx_cons, Post),
 +                  (`List.mapIdx_nil, Post), (`Vector.map_mk, Post), (`List.map_toArray, Post), (`List.map_cons, Post),
-+                  (`List.map_nil, Post), (`List.map_id, Pre), (`Vector.mapM_mk_singleton_append, Post),
-+                  (`Vector.mapM_mk_eq_append, Post), (`Vector.mapM_singleton, Post),
++                  (`List.map_nil, Post), (`List.map_id, Pre), (`Vector.ton_append, Post),
++                  (`Vector.mapM_mk_eq_append, Post), (`Vector.mapM_mk_singleton, Post),
 +                  (`Clap.Compiler.CompileSets.Vector.rwMk_append_mk, Post), (`List.append_toArray, Post),
 +                  (`List.cons_append, Post), (`List.nil_append, Post), (`Vector.getElem_mk, Post),
 +                  (`List.getElem_toArray, Post), (`List.getElem_cons_zero, Post), (`List.getElem_cons_succ, Post),
@@ -105432,7 +105432,7 @@ error: Clap/PoseidonVec/Poseidon.lean:268:0: ❌️ Docstring on `#guard_msgs` d
 +                       659264346779336196861046149708262978772865549957418762539334998250261177999,
 +                       4845513029979932068519665574875148103907087162327411884857282514189560116135, ⋯][i + 1])
 +               ([] ++ [inputs[0], inputs[1]]))[2]
-+   [Meta.Tactic.simp.rewrite] Vector.mapM_singleton:1000:
++   [Meta.Tactic.simp.rewrite] Vector.mapM_mk_singleton:1000:
 +         Vector.mapM sigma
 +           #v[((0 +
 +                   [6745197990210204598374042828761989596302876299545964402857411729872131034734,

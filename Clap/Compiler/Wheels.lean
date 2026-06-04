@@ -77,7 +77,7 @@ initialize Lean.registerTraceClass `Clap.Compile.simp.proc.vector_mk_append_mk (
 
 initialize Lean.registerTraceClass `Clap.Compile.simp.proc.vector_set_mk (inherited := true)
 
-initialize Lean.registerTraceClass `Clap.Compile.simp.proc.mapM_single (inherited := true)
+initialize Lean.registerTraceClass `Clap.Compile.simp.proc.mapM_mk_single (inherited := true)
 
 initialize Lean.registerTraceClass `Clap.Compile.simp.proc.monad (inherited := true)
 

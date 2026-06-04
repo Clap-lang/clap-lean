@@ -301,7 +301,7 @@ set_option maxHeartbeats 0 in
       drop ∪
       extract ∪
       toArray ∪
-      compilerWtf ∪
+      monads ∪
       -- compilerAssoc
       bindMyAssoc_set
     ))
