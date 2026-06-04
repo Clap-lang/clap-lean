@@ -80,15 +80,6 @@ abbrev EPK_NUM_FIELDS := 3
 
 -- Input structures
 
-/-- JWT field with an unquoted value (iat). -/
-structure UnquotedFieldInput (maxPairLen maxNameLen maxValueLen : ℕ) where
-  field      : FString bn254 maxPairLen
-  name       : FString bn254 maxNameLen
-  value      : FString bn254 maxValueLen
-  nameIndex  : F bn254
-  colonIndex : F bn254
-  valueIndex : F bn254
-
 /-- Email-verified field input (special parsing: value may be quoted or unquoted). -/
 structure EvFieldInput (maxPairLen maxNameLen maxValueLen : ℕ) where
   field      : FString bn254 maxPairLen
@@ -143,7 +134,7 @@ structure KeylessInput where
   audOverride      : AudOverrideInput
   uid              : JWT.QuotedFieldInput MAX_UID_KV_PAIR_LEN MAX_UID_NAME_LEN MAX_UID_VALUE_LEN
   iss              : JWT.QuotedFieldInput MAX_ISS_KV_PAIR_LEN MAX_ISS_NAME_LEN MAX_ISS_VALUE_LEN
-  iat              : UnquotedFieldInput MAX_IAT_KV_PAIR_LEN MAX_IAT_NAME_LEN MAX_IAT_VALUE_LEN
+  iat              : JWT.UnquotedFieldInput MAX_IAT_KV_PAIR_LEN MAX_IAT_NAME_LEN MAX_IAT_VALUE_LEN
   nonce            : JWT.QuotedFieldInput MAX_NONCE_KV_PAIR_LEN MAX_NONCE_NAME_LEN MAX_NONCE_VALUE_LEN
   ev               : EvFieldInput MAX_EV_KV_PAIR_LEN MAX_EV_NAME_LEN MAX_EV_VALUE_LEN
   extra            : ExtraFieldInput
@@ -245,13 +236,13 @@ def verifyQuotedField {maxPairLen maxNameLen maxValueLen : ℕ}
     string body (`SelectArrayValue(string_bodies, index) === 0`). -/
 def verifyUnquotedField {maxPairLen maxNameLen maxValueLen : ℕ}
     (h_name : maxNameLen ≤ maxPairLen) (h_value : maxValueLen ≤ maxPairLen) (h_pair : maxPairLen ≤ MAX_JWT_PAYLOAD_LEN)
-    (json : JSONStructure) (inp : UnquotedFieldInput maxPairLen maxNameLen maxValueLen)
+    (json : JSONStructure) (inp : JWT.UnquotedFieldInput maxPairLen maxNameLen maxValueLen)
     : Option Unit := do
   FString.assertIsSubstringFS h_pair json.payload json.payloadHash inp.field inp.nameIndex
   JWT.enforceNotNested MAX_JWT_PAYLOAD_LEN inp.nameIndex inp.field.len json.bracketsDepthMap
   -- Assert field does not start inside a string body — CIRCOM: start_char === 0
   eq0 (← selectArrayValue json.stringBodies inp.nameIndex)
-  JWT.parseJWTFieldWithUnquotedValue h_name h_value inp.field inp.name inp.value inp.colonIndex inp.valueIndex
+  JWT.parseJWTFieldWithUnquotedValue inp h_name h_value
 
 /-- Verify the audience (aud) field with override and skip support.
     CIRCOM: the `ParseJWTFieldWithQuotedValue` takes a `skip_checks` flag;

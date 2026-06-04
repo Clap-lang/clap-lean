@@ -266,6 +266,15 @@ private def parseJWTFieldSharedLogic
   -- Enforce (lastChar - 44) * (lastChar - 125) == 0
   F.guardedEq0 perform ((lastChar - (',' : F _)) &&& (lastChar - ('}' : F _)))
 
+/-- JWT field with an unquoted value (iat). -/
+structure UnquotedFieldInput (maxPairLen maxNameLen maxValueLen : ℕ) where
+  field      : FString bn254 maxPairLen
+  name       : FString bn254 maxNameLen
+  value      : FString bn254 maxValueLen
+  nameIndex  : F bn254
+  colonIndex : F bn254
+  valueIndex : F bn254
+
 open Primes HashToField FString FArray in
 /--
   Asserts structural correctness of a JWT key-value pair field with an **unquoted** value.
@@ -285,35 +294,31 @@ open Primes HashToField FString FArray in
 -/
 def parseJWTFieldWithUnquotedValue
     {maxKVPairLen maxNameLen maxValueLen : ℕ}
+    (fi : UnquotedFieldInput maxKVPairLen maxNameLen maxValueLen)
     (h_name  : maxNameLen  ≤ maxKVPairLen)
     (h_value : maxValueLen ≤ maxKVPairLen)
-    (field       : FString bn254 maxKVPairLen)
-    (name        : FString bn254 maxNameLen)
-    (value       : FString bn254 maxValueLen)
-    (colon_index : F bn254)
-    (value_index : F bn254)
     (skipChecks  : FB bn254 := 0)
     : Option Unit := do
   -- Delegate shared structural checks
-  parseJWTFieldSharedLogic h_name h_value field name value colon_index value_index skipChecks
+  parseJWTFieldSharedLogic h_name h_value fi.field fi.name fi.value fi.colonIndex fi.valueIndex skipChecks
   let perform : FB bn254 := FB.not skipChecks
   -- Check 1: whitespace in three zones
-  -- Zone A: [name_len + 2, colon_index)  — between closing name-quote and colon
-  -- Zone B: [colon_index + 1, value_index)  — between colon and value (no quote around value)
-  -- Zone C: [value_index + value_len, field_len - 1)  — after value, before terminator
-  let zoneA ← arraySelectorComplex maxKVPairLen (name.len + 2) colon_index
-  let zoneB ← arraySelectorComplex maxKVPairLen (colon_index + 1) value_index
-  let zoneC ← arraySelectorComplex maxKVPairLen (value_index + value.len) (field.len - 1)
+  -- Zone A: [name_len + 2, colonIndex)  — between closing name-quote and colon
+  -- Zone B: [colonIndex + 1, valueIndex)  — between colon and value (no quote around value)
+  -- Zone C: [valueIndex + value_len, field_len - 1)  — after value, before terminator
+  let zoneA ← arraySelectorComplex maxKVPairLen (fi.name.len + 2) fi.colonIndex
+  let zoneB ← arraySelectorComplex maxKVPairLen (fi.colonIndex + 1) fi.valueIndex
+  let zoneC ← arraySelectorComplex maxKVPairLen (fi.valueIndex + fi.value.len) (fi.field.len - 1)
   -- Merge zones: inZone[i] = zoneA[i] ∨ zoneB[i] ∨ zoneC[i]
   let inZone := (zoneA.zipWith FB.or zoneB).zipWith FB.or zoneC
   -- For each position in a whitespace zone, the character must be whitespace
-  (inZone.zip field.data).toList.forM fun (z, c) ↦ do
+  (inZone.zip fi.field.data).toList.forM fun (z, c) ↦ do
     let ws ← F8.isWhitespace c
     F.guardedEq0 perform (z &&& FB.not ws)
   -- Check 2: value must not contain ',', '}', or '"'
-  -- valueSelector: 1s at [value_index, value_index + value_len)
-  let valueSel ← arraySelector maxKVPairLen value_index (value_index + value.len)
-  (valueSel.zip field.data).toList.forM fun (sel, c) ↦ do
+  -- valueSelector: 1s at [valueIndex, valueIndex + value_len)
+  let valueSel ← arraySelector maxKVPairLen fi.valueIndex (fi.valueIndex + fi.value.len)
+  (valueSel.zip fi.field.data).toList.forM fun (sel, c) ↦ do
     let isForbidden := (←F.eq c ',') ||| (←F.eq c '}') ||| (←F.eq c '\"')
     -- If in value range, character must not be forbidden
     F.guardedEq0 perform (sel &&& isForbidden)
@@ -814,7 +819,7 @@ example : (do
   let field := strToFS 6 "\"a\":b,"
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
-  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 3 4
+  parseJWTFieldWithUnquotedValue {field, name, value, nameIndex:=0, colonIndex:=3, valueIndex:=4} (by omega) (by omega)
   ) = some () := by native_decide
 
 -- valid: "a":b}   (ending with '}')
@@ -822,7 +827,7 @@ example : (do
   let field := strToFS 6 "\"a\":b}"
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
-  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 3 4
+  parseJWTFieldWithUnquotedValue {field, name, value, nameIndex:=0, colonIndex:=3, valueIndex:=4} (by omega) (by omega)
   ) = some () := by native_decide
 
 -- valid: "sub":123,  (multi-char name and numeric value)
@@ -830,7 +835,7 @@ example : (do
   let field := strToFS 10 "\"sub\":123,"
   let name  := strToFS 3 "sub"
   let value := strToFS 3 "123"
-  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 5 6
+  parseJWTFieldWithUnquotedValue {field, name, value, nameIndex:=0, colonIndex:=5, valueIndex:=6} (by omega) (by omega)
   ) = some () := by native_decide
 
 -- valid: "alg": RS256,  (single space between colon and value)
@@ -838,7 +843,7 @@ example : (do
   let field := strToFS 13 "\"alg\": RS256,"
   let name  := strToFS 3 "alg"
   let value := strToFS 5 "RS256"
-  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 5 7
+  parseJWTFieldWithUnquotedValue {field, name, value, nameIndex:=0, colonIndex:=5, valueIndex:=7} (by omega) (by omega)
   ) = some () := by native_decide
 
 -- valid: "iat":9876}  (numeric value, ending with '}')
@@ -846,7 +851,7 @@ example : (do
   let field := strToFS 11 "\"iat\":9876}"
   let name  := strToFS 3 "iat"
   let value := strToFS 4 "9876"
-  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 5 6
+  parseJWTFieldWithUnquotedValue {field, name, value, nameIndex:=0, colonIndex:=5, valueIndex:=6} (by omega) (by omega)
   ) = some () := by native_decide
 
 -- valid: "role": true ,  (spaces on both sides of value)
@@ -854,7 +859,7 @@ example : (do
   let field := strToFS 14 "\"role\": true ,"
   let name  := strToFS 4 "role"
   let value := strToFS 4 "true"
-  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 6 8
+  parseJWTFieldWithUnquotedValue {field, name, value, nameIndex:=0, colonIndex:=6, valueIndex:=8} (by omega) (by omega)
   ) = some () := by native_decide
 
 -- Reject: single non-whitespace byte 'X' between name-quote and colon.
@@ -863,7 +868,7 @@ example : (do
   let field := strToFS 7 "\"a\"X:b,"
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
-  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 4 5
+  parseJWTFieldWithUnquotedValue {field, name, value, nameIndex:=0, colonIndex:=4, valueIndex:=5} (by omega) (by omega)
   ) = none := by native_decide
 
 -- Reject: Exploit 1 — "role"XX:true,
@@ -873,7 +878,7 @@ example : (do
   let field := strToFS 14 "\"role\"XX:true,"
   let name  := strToFS 4 "role"
   let value := strToFS 4 "true"
-  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 8 9
+  parseJWTFieldWithUnquotedValue {field, name, value, nameIndex:=0, colonIndex:=8, valueIndex:=9} (by omega) (by omega)
   ) = none := by native_decide
 
 -- Reject: value contains ',' — "a":b,,
@@ -881,7 +886,7 @@ example : (do
   let field := strToFS 7 "\"a\":b,,"
   let name  := strToFS 1 "a"
   let value := strToFS 2 "b,"
-  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 3 4
+  parseJWTFieldWithUnquotedValue {field, name, value, nameIndex:=0, colonIndex:=3, valueIndex:=4} (by omega) (by omega)
   ) = none := by native_decide
 
 -- Reject: Exploit 2 — "iat":1,"admin":true}
@@ -890,7 +895,7 @@ example : (do
   let field := strToFS 24 "\"iat\":1,\"admin\":true}"
   let name  := strToFS 3 "iat"
   let value := strToFS 14 "1,\"admin\":true"
-  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 5 6
+  parseJWTFieldWithUnquotedValue {field, name, value, nameIndex:=0, colonIndex:=5, valueIndex:=6} (by omega) (by omega)
   ) = none := by native_decide
 
 -- Reject: value contains '}' — "a":b},
@@ -899,7 +904,7 @@ example : (do
   let field := strToFS 7 "\"a\":b},"
   let name  := strToFS 1 "a"
   let value := strToFS 2 "b}"
-  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 3 4
+  parseJWTFieldWithUnquotedValue {field, name, value, nameIndex:=0, colonIndex:=3, valueIndex:=4} (by omega) (by omega)
   ) = none := by native_decide
 
 -- Reject: value contains '"' — "a":"b",  (quoted value content presented as unquoted)
@@ -907,7 +912,7 @@ example : (do
   let field := strToFS 8 "\"a\":\"b\","
   let name  := strToFS 1 "a"
   let value := strToFS 3 "\"b\""
-  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 3 4
+  parseJWTFieldWithUnquotedValue {field, name, value, nameIndex:=0, colonIndex:=3, valueIndex:=4} (by omega) (by omega)
   ) = none := by native_decide
 
 -- Reject: Exploit 3 — "exp":1999999999,
@@ -915,14 +920,14 @@ example : (do
   let field := strToFS 18 "\"exp\":1999999999,"
   let name  := strToFS 3 "exp"
   let value := strToFS 1 "1"
-  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 5 6
+  parseJWTFieldWithUnquotedValue {field, name, value, nameIndex:=0, colonIndex:=5, valueIndex:=6} (by omega) (by omega)
   ) = none := by native_decide
 
 example : (do
   let field := strToFS 18 "\"exp\":1999999999,"
   let name  := strToFS 3 "exp"
   let value := strToFS 1 "1"
-  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 5 6 (skipChecks := 1)
+  parseJWTFieldWithUnquotedValue {field, name, value, nameIndex:=0, colonIndex:=5, valueIndex:=6} (by omega) (by omega) (skipChecks := 1)
   ) = some () := by native_decide
 
 -- Reject: partial value with trailing non-whitespace — "nbf":16000 ,
@@ -931,14 +936,14 @@ example : (do
   let field := strToFS 13 "\"nbf\":16000 ,"
   let name  := strToFS 3 "nbf"
   let value := strToFS 3 "160"
-  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 5 6
+  parseJWTFieldWithUnquotedValue {field, name, value, nameIndex:=0, colonIndex:=5, valueIndex:=6} (by omega) (by omega)
   ) = none := by native_decide
 
 example : (do
   let field := strToFS 13 "\"nbf\":16000 ,"
   let name  := strToFS 3 "nbf"
   let value := strToFS 3 "160"
-  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 5 6 (skipChecks := 1)
+  parseJWTFieldWithUnquotedValue {field, name, value, nameIndex:=0, colonIndex:=5, valueIndex:=6} (by omega) (by omega) (skipChecks := 1)
   ) = some () := by native_decide
 
 -- skipChecks = 1 does NOT bypass sub-template constraints: out-of-range indices still fail,
@@ -947,7 +952,7 @@ example : (do
   let field := strToFS 6 "\"a\":b,"
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
-  parseJWTFieldWithUnquotedValue (by omega) (by omega) field name value 100 200 (skipChecks := 1)
+  parseJWTFieldWithUnquotedValue {field, name, value, nameIndex:=0, colonIndex:=100, valueIndex:=200} (by omega) (by omega) (skipChecks := 1)
   ) = none := by native_decide
 
 -- parseJWTFieldWithQuotedValue tests
