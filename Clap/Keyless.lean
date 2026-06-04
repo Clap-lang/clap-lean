@@ -282,9 +282,8 @@ def verifyAudField (json : JSONStructure)
   let performAudChecks : FB bn254 := FB.not audOverride.skipAudChecks
   -- Mux the effective aud value: if useAudOverride then override else private
   let audValue := muxFString audOverride.useAudOverride audOverride.overrideAudValue audOverride.privateAudValue
-  let audValueLen ← share ((audOverride.overrideAudValue.len - audOverride.privateAudValue.len) * audOverride.useAudOverride + audOverride.privateAudValue.len)
   -- Construct the effective field input with muxed value
-  let audEff : QuotedFieldInput _ _ _ := { aud with value := { audValue with len := audValueLen } }
+  let audEff : QuotedFieldInput _ _ _ := { aud with value := audValue }
   -- Assert field is a substring of the decoded JWT payload (conditioned on performAudChecks)
   let field_passes ← FString.isSubstringFS (by decide) json.payload json.payloadHash audEff.field audEff.nameIndex
   FB.conditionallyAssert performAudChecks field_passes
