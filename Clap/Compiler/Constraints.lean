@@ -36,7 +36,8 @@ def resetCounter : MetaM Unit := do
 structure TraversalDbgState where
   numDown : Nat
   numUp : Nat
-  cumulativeSimpTime : Float
+  cumulativeSimpTimeDown : Float
+  cumulativeSimpTimeUp : Float
   deriving Inhabited, Repr
 
 initialize traversalDbg : EnvExtension TraversalDbgState ←

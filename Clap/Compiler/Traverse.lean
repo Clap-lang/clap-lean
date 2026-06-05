@@ -215,7 +215,7 @@ def isOptionUnit (e : Expr) : Bool := Id.run do
 -- vec ==> #v[vec[0], vec[1]][0] : GetElem (1 + 1)
 -- Vector.mk 2 ... |>.getElem (1 + 1)
 
-def compilerWat : Sym.Simp.Simproc := fun e ↦ do
+def monad : Sym.Simp.Simproc := fun e ↦ do
   match_expr e with
   | Bind.bind _ _ α β x f =>
     let u ← Sym.getLevelInType α
@@ -277,7 +277,7 @@ def compilerWat : Sym.Simp.Simproc := fun e ↦ do
   | _ =>
     return .rfl
 
-def compilerBindAssoc : Sym.Simp.Simproc := fun e ↦ do
+def monadBindAssoc : Sym.Simp.Simproc := fun e ↦ do
   match_expr e with
   | Option.bind _ γ x g =>
     match_expr x with
@@ -300,19 +300,19 @@ def compilerBindAssoc : Sym.Simp.Simproc := fun e ↦ do
       return .rfl
   | _ => return .rfl
 
-def compilerBindAssocSimple : MetaM Sym.Simp.Methods :=
+def monadBindAssocSimple : MetaM Sym.Simp.Methods :=
   mkPreMethods #[
     ``Option.bind_assoc
   ]
 
 def monads : MetaM Sym.Simp.Methods :=
   mkPreMethods #[
-    ``compilerWat
+    ``monad, 
   ]
 
 def compilerAssoc : MetaM Sym.Simp.Methods :=
   mkPreMethods #[
-    ``compilerBindAssoc
+    ``monadBindAssoc
   ]
 
 def bind_eq_bind_sym {α} {β} := (Option.bind_eq_bind (α := α) (β := β)).symm
@@ -578,6 +578,11 @@ def bindMyAssoc : Sym.Simp.Simproc := fun e ↦ do
 def bindMyAssoc_set : MetaM Methods :=
   mkPostMethods #[
     ``bindMyAssoc
+  ]
+
+def monads! : MetaM Sym.Simp.Methods :=
+  mkPreMethods #[
+    ``SymSets.General.monad, ``bindMyAssoc
   ]
 
 opaque eq0 (n : Nat) : Option Unit
@@ -1288,7 +1293,10 @@ private partial def down (reduce reduceOuter : Simplifier)
     down reduce reduceOuter (.inr f :: stack) a
   else
     let (simped, time) ← Dbg.timeS (reduce todo)
-    inDebugOnly (do trace[Clap.Compile.dbg] m!"simp [↓] took {time}s")
+    inDebugOnly (do
+      trace[Clap.Compile.dbg] m!"simp [↓] took {time}s"
+      modifyDbgState fun σ ↦ {σ with cumulativeSimpTimeDown := σ.cumulativeSimpTimeDown + time}
+    )
     if !Sym.isSameExpr simped todo
     then
       trace[Clap.Compile.simp] "[↓] {checkEmoji}\n{todo}\n==>\n{simped}"
@@ -1308,8 +1316,6 @@ private partial def up (reduce reduceOuter : Simplifier)
   match stack with
   | [] =>
     trace[Clap.Compile.up] "Done"
-    -- trace[Clap.Compile.up]
-    --   "This should go to debug tracing. Simped done:\n{←reduce done}"
     return done
   | .inr e :: stack => do
     lambdaTelescopeOne! e fun arg body ↦ do
@@ -1324,7 +1330,12 @@ private partial def up (reduce reduceOuter : Simplifier)
          up bind
     else trace[Clap.Compile.simp] "Binding value: {result} in {bind}"
          let (simped, time) ← Dbg.timeS (reduceOuter bind)
-         inDebugOnly (do trace[Clap.Compile.dbg] m!"simp [↓] took {time}s")
+         inDebugOnly (do
+           trace[Clap.Compile.dbg] m!"simp [↑] took {time}s"
+           modifyDbgState fun σ ↦ {σ with cumulativeSimpTimeUp := σ.cumulativeSimpTimeUp + time}
+           if time > 0.4 then
+             trace[Clap.Compile.dbg] m!"\n{bombEmoji}\n{bind}"
+         )
          -- TODO(semantics): Ok we simped, so what?
          if !Sym.isSameExpr simped bind
          then trace[Clap.Compile.simp] "[↑] {checkEmoji}\n{bind}\n==>\n{simped}"
@@ -1346,9 +1357,11 @@ end
 
 def compile (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
   lambdaTelescope e fun args e ↦ do
+    let simpset ← SymSets.Vector.monads! ∪ return simpset
     let compiled ← down
-      (reduce      := Compiler.Simp.simplify (simpset))
-      (reduceOuter := Compiler.Simp.simplify (simpset))
+      (reduce      := Compiler.Simp.simplify (←(SymSets.Vector.monads! ∪ return simpset)))
+      (reduceOuter := fun e ↦ return e)
+      -- (reduceOuter := Compiler.Simp.simplify simpset)
       (stack       := [])
       (todo        := e)
     inDebugOnly do trace[Clap.Compile.dbg] m!"σ: {repr (←getDbgState)}"
@@ -1741,7 +1754,7 @@ def ex₈ (n : ℕ) (vec : Vector Nat n) : Option Unit := do
   let x ← (do let _ ← eq0 2; let X ← vec.mapM (fun x ↦ (eq0 (x + 42) : Option _)); return 4) 
   eq0 x
 
-def ex₈_fixed (vec : Vector Nat 40) : Option Unit := do
+def ex₈_fixed (vec : Vector Nat 2) : Option Unit := do
   let x ← (do let _ ← eq0 2; let X ← vec.mapM (fun x ↦ (eq0 (x + 42) : Option _)); return 4) 
   eq0 x
 
@@ -1789,15 +1802,20 @@ set_option maxHeartbeats 0 in
   -- Pretty print (i.e. go back to `Bind.bind`)
   return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
 
--- set_option trace.Clap.Compile true in
-
+set_option trace.Clap.Compile.dbg true in
+set_option Clap.traversalDbg true in
+set_option trace.Clap.Compile true in
 #eval spoon <| do
-  let e ← compileExample (args := #[toExpr 40]) ``ex₈
+  resetDbgState
+  let e ← compileExample (args := #[toExpr 2]) ``ex₈
     (←(mapM_singlePass ∪ zeta ∪ monads ∪ explode
     -- ∪ compilerAssoc
-    ∪ bindMyAssoc_set
+    -- ∪ bindMyAssoc_set
     -- mapM_alt
     ))
+  let σ ← getDbgState
+  logInfo m!"σ: {repr σ}"
+  
   return e
   -- Pretty print (i.e. go back to `Bind.bind`)
   -- return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
@@ -1820,12 +1838,13 @@ set_option trace.Clap.Compile false in
   logInfo m!"{←(getAndResetDbgState <&> repr)}"
   -- return e
 
--- set_option trace.Clap.Compile true
+set_option trace.Clap.Compile true
+set_option trace.Clap.Compile.up true
 set_option Clap.traversalDbg true
 set_option trace.Clap.Compile.dbg false
 def bench : MetaM Unit := do
-  let simpset := (←(mapM_singlePass ∪ zeta ∪ monads ∪ explode ∪ bindMyAssoc_set))
-  let inputSizes := (Array.range 3).map (10 * 2^·)
+  let simpset := (←(mapM_singlePass ∪ zeta ∪ explode))
+  let inputSizes := (Array.range 2).map (10 * 2^·)
   let timings ← inputSizes.mapM fun inputSize ↦ do
     let res ← Dbg.timeS <| (compileExample ``ex₈ simpset (args := #[mkNatLit inputSize])).run' {} |>.run
     let σ ← getAndResetDbgState
@@ -1834,7 +1853,7 @@ def bench : MetaM Unit := do
     logInfo m!"ex₈[{n}] took {time}s"
     logInfo m!"dbg: {repr dbgState}"
     
-    -- logInfo m!"{←ppMonad compiled}"
+    logInfo m!"{←ppMonad compiled}"
     -- logInfo m!"res:\n{(←Sym.simp compiled (←compilerBindEqBind) |>.run).getResultExpr compiled}"
   
   -- for n in inputSizes do
