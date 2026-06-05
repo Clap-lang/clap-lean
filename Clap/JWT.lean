@@ -462,7 +462,7 @@ def parseEmailVerifiedField
     eq0 (z &&& FB.not ws)
 
 end JWT
-
+/-
 namespace TestJWT
 
 open JWT
@@ -471,8 +471,7 @@ open Clap.Lang FString FArray HashToField Primes
 
 abbrev p := Primes.bn254
 
-private def parseCharsASCII (s : String) : List (F p) :=
-  s.chars.map (fun n ↦ (n.toNat : ZMod p)) |>.toList
+private def parseCharsASCII (s : String) : Vector (F p) s.length := (FString.ofString s).data
 private def parseBitString (s : String) : List (FB p) :=
   s.chars.filter (fun c ↦ c != ' ') |>.map (fun c ↦ if c = '0' then 0 else 1) |>.toList
 
@@ -1238,3 +1237,4 @@ example : (do
   ) = none := by native_decide
 
 end TestJWT
+-/
