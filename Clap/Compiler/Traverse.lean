@@ -1357,10 +1357,10 @@ end
 
 def compile (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
   lambdaTelescope e fun args e ↦ do
-    let simpset ← SymSets.Vector.monads! ∪ return simpset
+    let simpset! ← SymSets.Vector.monads! ∪ return simpset
     let compiled ← down
-      (reduce      := Compiler.Simp.simplify (←(SymSets.Vector.monads! ∪ return simpset)))
-      (reduceOuter := fun e ↦ return e)
+      (reduce      := Compiler.Simp.simplify simpset!)
+      (reduceOuter := Compiler.Simp.simplify simpset!)
       -- (reduceOuter := Compiler.Simp.simplify simpset)
       (stack       := [])
       (todo        := e)
@@ -1802,12 +1802,14 @@ set_option maxHeartbeats 0 in
   -- Pretty print (i.e. go back to `Bind.bind`)
   return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
 
+-- def xx : MetaM Sym.Simp.Methods := 
+
 set_option trace.Clap.Compile.dbg true in
 set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile true in
 #eval spoon <| do
   resetDbgState
-  let e ← compileExample (args := #[toExpr 2]) ``ex₈
+  let e ← compileExample (args := #[toExpr 160]) ``ex₈
     (←(mapM_singlePass ∪ zeta ∪ monads ∪ explode
     -- ∪ compilerAssoc
     -- ∪ bindMyAssoc_set
@@ -1838,8 +1840,8 @@ set_option trace.Clap.Compile false in
   logInfo m!"{←(getAndResetDbgState <&> repr)}"
   -- return e
 
-set_option trace.Clap.Compile true
-set_option trace.Clap.Compile.up true
+-- set_option trace.Clap.Compile true
+-- set_option trace.Clap.Compile.up true
 set_option Clap.traversalDbg true
 set_option trace.Clap.Compile.dbg false
 def bench : MetaM Unit := do
