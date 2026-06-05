@@ -176,6 +176,33 @@ def powers (α : F p) (len : ℕ) : Option (Vector (F p) len) := do
   let l : List (F p) ← (List.range len).foldlM (fun pows _ ↦ do let last := List.head! pows ; let p ← share (last * α) ; p::pows) [1]
   some ⟨l.reverse.toArray, by sorry⟩
 
+open Primes HashToField in
+def isSubstringFS' {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLen)
+    (str        : FString bn254 maxStrLen)
+    (substr     : FString bn254 maxSubstrLen)
+    (startIndex : F bn254)
+    (α : F bn254)
+    : Option (FB bn254) := do
+  -- Step 2 (of isSubstringFS): build challenge powers α⁰, α¹, …, α^{maxStrLen-1}
+  -- powers[0] = 1, powers[i] = α^i
+  let powers : Vector (F bn254) maxStrLen ← powers α maxStrLen
+--    Vector.ofFn (fun i ↦ (List.iterate (fun x ↦ share (x * α)) 1 (i.val + 1)).getLast!)
+  -- Step 3 (of isSubstringFS): selector bits for [startIndex, startIndex + substr.len)
+  let selector ← FArray.arraySelector maxStrLen startIndex (startIndex + substr.len)
+  -- Step 4 (of isSubstringFS): selected_str[i] = selector[i] * str[i]; ŝ(α) = Σᵢ selected_str[i] · powers[i]
+  let mut strPolyEval : F bn254 := 0
+  for l : i in [0:maxStrLen] do
+    strPolyEval := strPolyEval + selector[i] * str.data[i] * powers[i]
+  -- Step 5 (of isSubstringFS): t(α) = Σⱼ substr[j] · powers[j]
+  let mut substrPolyEval : F bn254 := 0
+  for l : j in [0:maxSubstrLen] do
+    substrPolyEval := substrPolyEval + substr.data[j] * powers[j]!
+  -- Step 6 (of isSubstringFS): α^startIndex = SelectArrayValue(powers, startIndex)
+  let distinguishingValue ← FArray.selectArrayValue powers startIndex
+  -- Step 7 (of isSubstringFS): success = NOT(isZero(ŝ(α))) AND isEqual(ŝ(α), α^startIndex · t(α))
+  let nonZero : FB bn254 := FB.not (←isZero (←share strPolyEval))
+  let polyEq  : FB bn254 ← F.eq strPolyEval (distinguishingValue * substrPolyEval)
+  return FB.and nonZero polyEq
 
 open Primes HashToField in
 /--
@@ -196,26 +223,8 @@ def isSubstringFS {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLe
   let substrHash ← hashBytesToField substr
   -- random_challenge = H(str_hash, substr_hash, substr_len, start_index)
   let α ← Clap.Poseidon.poseidonBN254 [strHash, substrHash, substr.len, startIndex]
-  -- Step 2: build challenge powers α⁰, α¹, …, α^{maxStrLen-1}
-  -- powers[0] = 1, powers[i] = α^i
-  let powers : Vector (F bn254) maxStrLen ← powers α maxStrLen
---    Vector.ofFn (fun i ↦ (List.iterate (fun x ↦ share (x * α)) 1 (i.val + 1)).getLast!)
-  -- Step 3: selector bits for [startIndex, startIndex + substr.len)
-  let selector ← FArray.arraySelector maxStrLen startIndex (startIndex + substr.len)
-  -- Step 4: selected_str[i] = selector[i] * str[i]; ŝ(α) = Σᵢ selected_str[i] · powers[i]
-  let mut strPolyEval : F bn254 := 0
-  for l : i in [0:maxStrLen] do
-    strPolyEval := strPolyEval + selector[i] * str.data[i] * powers[i]
-  -- Step 5: t(α) = Σⱼ substr[j] · powers[j]
-  let mut substrPolyEval : F bn254 := 0
-  for l : j in [0:maxSubstrLen] do
-    substrPolyEval := substrPolyEval + substr.data[j] * powers[j]!
-  -- Step 6: α^startIndex = SelectArrayValue(powers, startIndex)
-  let distinguishingValue ← FArray.selectArrayValue powers startIndex
-  -- Step 7: success = NOT(isZero(ŝ(α))) AND isEqual(ŝ(α), α^startIndex · t(α))
-  let nonZero : FB bn254 := FB.not (←isZero (←share strPolyEval))
-  let polyEq  : FB bn254 ← F.eq strPolyEval (distinguishingValue * substrPolyEval)
-  return FB.and nonZero polyEq
+  -- Steps 2-7:
+  isSubstringFS' _h str substr startIndex α
 
 open Primes in
 /-- Asserts that `substr` appears in `str` starting at `startIndex` (Fiat-Shamir variant). -/
