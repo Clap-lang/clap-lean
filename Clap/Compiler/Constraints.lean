@@ -33,4 +33,27 @@ def getCounter : MetaM Nat := do
 def resetCounter : MetaM Unit := do
   modifyEnv fun e ↦ counter.modifyState e fun _ ↦ 0
 
+structure TraversalDbgState where
+  numDown : Nat
+  numUp : Nat
+  cumulativeSimpTime : Float
+  deriving Inhabited, Repr
+
+initialize traversalDbg : EnvExtension TraversalDbgState ←
+  registerEnvExtension (pure default)
+
+def getDbgState : MetaM TraversalDbgState :=
+  return traversalDbg.getState (←getEnv)
+
+def modifyDbgState (f : TraversalDbgState → TraversalDbgState) : MetaM Unit :=
+  modifyEnv (traversalDbg.modifyState (f := f))
+
+def resetDbgState : MetaM Unit :=
+  modifyDbgState (fun _ ↦ default)
+
+def getAndResetDbgState : MetaM TraversalDbgState := do
+  let σ ← getDbgState
+  resetDbgState
+  return σ
+
 end Clap.Compiler

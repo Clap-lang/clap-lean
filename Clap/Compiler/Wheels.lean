@@ -97,6 +97,17 @@ initialize Lean.registerTraceClass `Clap.Compile.simp.proc.seemsTotallySafeInDTT
 
 initialize Lean.registerTraceClass `Clap.Compile.debug.simp (inherited := true)
 
+/-
+TODO: Having a `dbg` option and a `trace dbg` option is silly.
+That said, I want to treat a `traceClass` as a trace class only, I don't want
+to check it programatically whether it's on, to use as a debug flag as well.
+-/
+initialize Lean.registerTraceClass `Clap.Compile.dbg (inherited := false)
+
+register_option Clap.traversalDbg : Bool := {
+  defValue := false
+  descr := "debugging info for traversal"
+}
 
 open Lean Elab.Term in
 def formatExprWith {m : Type _ → Type _} [Monad m]

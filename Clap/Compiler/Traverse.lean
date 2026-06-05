@@ -1272,16 +1272,23 @@ structure ActionWithResult where
 
 abbrev InProgressExpr := ActionWithResult ⊕ Expr
 
+def inDebugOnly (m : Sym.Simp.SimpM Unit) : Sym.Simp.SimpM Unit := do
+  if (←getBoolOption ``Clap.traversalDbg) then
+    m
+
 mutual
 
 private partial def down (reduce reduceOuter : Simplifier)
-                         (stack : List InProgressExpr) (todo : Expr) : Sym.Simp.SimpM Expr := do
+                         (stack : List InProgressExpr) (todo : Expr)
+                         : Sym.Simp.SimpM Expr := do
+  inDebugOnly (do modifyDbgState fun σ ↦ {σ with numDown := σ.numDown + 1})
   if let .some ⟨_, _, _, _, a, f⟩ ← todo.matchBinds -- TODO(perf): Propagate the rest.
   then
     trace[Clap.Compile.down] "\npush [→]:\n{f}\ngo [↓]:\n{a}"
     down reduce reduceOuter (.inr f :: stack) a
   else
-    let simped ← reduce todo
+    let (simped, time) ← Dbg.timeS (reduce todo)
+    inDebugOnly (do trace[Clap.Compile.dbg] m!"simp [↓] took {time}s")
     if !Sym.isSameExpr simped todo
     then
       trace[Clap.Compile.simp] "[↓] {checkEmoji}\n{todo}\n==>\n{simped}"
@@ -1297,6 +1304,7 @@ private partial def down (reduce reduceOuter : Simplifier)
 
 private partial def up (reduce reduceOuter : Simplifier)
                        (stack : List InProgressExpr) (done : Expr) : Sym.Simp.SimpM Expr := do
+  inDebugOnly (modifyDbgState fun σ ↦ {σ with numUp := σ.numUp + 1})
   match stack with
   | [] =>
     trace[Clap.Compile.up] "Done"
@@ -1315,7 +1323,8 @@ private partial def up (reduce reduceOuter : Simplifier)
     then trace[Clap.Compile.up] "\ngo [↑]:\n{bind}"
          up bind
     else trace[Clap.Compile.simp] "Binding value: {result} in {bind}"
-         let simped ← reduceOuter bind
+         let (simped, time) ← Dbg.timeS (reduceOuter bind)
+         inDebugOnly (do trace[Clap.Compile.dbg] m!"simp [↓] took {time}s")
          -- TODO(semantics): Ok we simped, so what?
          if !Sym.isSameExpr simped bind
          then trace[Clap.Compile.simp] "[↑] {checkEmoji}\n{bind}\n==>\n{simped}"
@@ -1337,12 +1346,12 @@ end
 
 def compile (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
   lambdaTelescope e fun args e ↦ do
-    let (compiled, time) ← Dbg.timeS <| down
+    let compiled ← down
       (reduce      := Compiler.Simp.simplify (simpset))
       (reduceOuter := Compiler.Simp.simplify (simpset))
       (stack       := [])
       (todo        := e)
-    -- logInfo m!"Compilation took: {time}s"
+    inDebugOnly do trace[Clap.Compile.dbg] m!"σ: {repr (←getDbgState)}"
     Sym.mkLambdaFVarsS args compiled
 
 def compileExample (ex : Name) (simpset : Sym.Simp.Methods) (args : Array Expr := #[]) : Sym.Simp.SimpM Expr := do
@@ -1793,8 +1802,11 @@ set_option maxHeartbeats 0 in
   -- Pretty print (i.e. go back to `Bind.bind`)
   -- return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
 
+set_option trace.Clap.Compile.dbg true in
+set_option Clap.traversalDbg true in
+set_option trace.Clap.Compile false in
 #eval do
-  let (e, time) ← Dbg.timeS <| compileExample (args := #[toExpr 80]) ``ex₈
+  let (e, time) ← Dbg.timeS <| compileExample (args := #[toExpr 40]) ``ex₈
     (←(mapM_singlePass ∪ zeta ∪ monads ∪ explode
     -- ∪ compilerAssoc
     ∪ bindMyAssoc_set
@@ -1805,16 +1817,24 @@ set_option maxHeartbeats 0 in
   let e' ← e'.run
   
   logInfo m!"e: {e'.getResultExpr e}"
+  logInfo m!"{←(getAndResetDbgState <&> repr)}"
   -- return e
 
+-- set_option trace.Clap.Compile true
+set_option Clap.traversalDbg true
+set_option trace.Clap.Compile.dbg false
 def bench : MetaM Unit := do
   let simpset := (←(mapM_singlePass ∪ zeta ∪ monads ∪ explode ∪ bindMyAssoc_set))
   let inputSizes := (Array.range 3).map (10 * 2^·)
   let timings ← inputSizes.mapM fun inputSize ↦ do
-    return (inputSize, ←Dbg.timeS <| (compileExample ``ex₈ simpset (args := #[mkNatLit inputSize])).run' {} |>.run)
-  for (n, compiled, time) in timings do
+    let res ← Dbg.timeS <| (compileExample ``ex₈ simpset (args := #[mkNatLit inputSize])).run' {} |>.run
+    let σ ← getAndResetDbgState
+    return (inputSize, res, σ)
+  for (n, (compiled, time), dbgState) in timings do
     logInfo m!"ex₈[{n}] took {time}s"
-    logInfo m!"{←ppMonad compiled}"
+    logInfo m!"dbg: {repr dbgState}"
+    
+    -- logInfo m!"{←ppMonad compiled}"
     -- logInfo m!"res:\n{(←Sym.simp compiled (←compilerBindEqBind) |>.run).getResultExpr compiled}"
   
   -- for n in inputSizes do
