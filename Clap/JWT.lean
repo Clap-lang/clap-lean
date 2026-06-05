@@ -30,8 +30,9 @@ private def stringBodiesRev₀ (input : List (F p)) : Option (List (FB p) × FB 
   input =  { asdfsdf "as\"df" }
   output = 00000000000111111000
 -/
-def stringBodies (input : List (F p)) : Option (List (FB p)) := do
-  (←stringBodiesRev₀ input).1.reverse
+def stringBodies {w} (input : FString p w) : Option (PaddedVector FB p w) := do
+  let data := ⟨(←stringBodiesRev₀ input.data.toArray.toList).1.reverse.toArray, sorry⟩
+  some {data,len := input.len}
 
 /-
 omit [Core bn254] in
@@ -328,7 +329,7 @@ structure QuotedFieldInput (maxPairLen maxNameLen maxValueLen : ℕ) where
   field             : FString bn254 maxPairLen
   name              : FString bn254 maxNameLen
   value             : FString bn254 maxValueLen
-  fieldStringBodies : Vector (FB bn254) maxPairLen
+  fieldStringBodies : PaddedVector FB bn254 maxPairLen
   nameIndex         : F bn254
   colonIndex        : F bn254
   valueIndex        : F bn254
@@ -384,7 +385,7 @@ def parseJWTFieldWithQuotedValue
   let nameOrValue := nameSel.zipWith FB.or valueSel
   -- For each position: whitespace zone chars must be whitespace,
   -- and string bodies must match name/value selectors exactly
-  (inZone.zip (nameOrValue.zip (fi.fieldStringBodies.zip fi.field.data))).toList.forM fun (z, nv, sb, c) ↦ do
+  (inZone.zip (nameOrValue.zip (fi.fieldStringBodies.data.zip fi.field.data))).toList.forM fun (z, nv, sb, c) ↦ do
     -- Whitespace check: if in a whitespace zone, the character must be whitespace
     let ws ← F8.isWhitespace c
     F.guardedEq0 perform (z &&& FB.not ws)
@@ -470,10 +471,15 @@ open Clap.Lang FString FArray HashToField Primes
 
 abbrev p := Primes.bn254
 
-private def parseCharsASCII (s : String) : List (F p) :=
-  s.chars.map (fun n ↦ (n.toNat : ZMod p)) |>.toList
-private def parseBitString (s : String) : List (FB p) :=
-  s.chars.filter (fun c ↦ c != ' ') |>.map (fun c ↦ if c = '0' then 0 else 1) |>.toList
+private def parseCharsASCII (s : String) : FString p s.length := FString.ofString s
+private def parseBitString (s : String) : Array (FB p) :=
+  s.chars.filter (fun c ↦ c != ' ') |>.map (fun c ↦ if c = '0' then 0 else 1) |>.toArray
+
+private def PaddedVector.toArray {w} : PaddedVector FB p w → Array (FB p)
+  | ⟨data, len⟩ => data.toArray.take len.val
+
+private def stringBodiesToArray {w} (input : FString p w) : Option (Array (FB p)) :=
+  stringBodies input |>.map PaddedVector.toArray
 
 /- from the Circom docstring
   { asdfsdf "as\"df" }
@@ -481,7 +487,7 @@ private def parseBitString (s : String) : List (FB p) :=
 example :
   let inp      := parseCharsASCII "{ asdfsdf \"as\\\"df\" }"
   let expected := parseBitString  "0000000000 011 1 111 000"
-  stringBodies (p := p) inp == expected := by native_decide
+  stringBodiesToArray inp == some expected := by native_decide
 
 /-
   { a "a\"a" } →
@@ -490,7 +496,7 @@ example :
 example :
   let inp      := parseCharsASCII "{ a \"a\\\"a\" }"
   let expected := parseBitString  "0000 01 1 11 000"
-  stringBodies (p := p) inp == expected := by native_decide
+  stringBodiesToArray inp == expected := by native_decide
 
 /-
   "i\i""i" →
@@ -499,7 +505,7 @@ example :
 example :
   let inp      := parseCharsASCII "\"i\\i\"\"i\""
   let expected := parseBitString  " 01 11 0 01 0"
-  stringBodies (p := p) inp == expected := by native_decide
+  stringBodiesToArray inp == expected := by native_decide
 
 /-
   "i\"\\\"i" →
@@ -508,7 +514,7 @@ example :
 example :
   let inp      := parseCharsASCII "\"i\\\"\\\\\\\"i\""
   let expected := parseBitString  " 01 1 1 1 1 1 11 0"
-  stringBodies (p := p) inp == expected := by native_decide
+  stringBodiesToArray inp == expected := by native_decide
 
 /-
   """""" →
@@ -517,7 +523,7 @@ example :
 example :
   let inp      := parseCharsASCII "\"\"\"\"\"\""
   let expected := parseBitString  " 0 0 0 0 0 0"
-  stringBodies (p := p) inp == expected := by native_decide
+  stringBodiesToArray inp == expected := by native_decide
 
 /-
   \"\""i"\"\" →
@@ -526,7 +532,7 @@ example :
 example :
   let inp      := parseCharsASCII "\\\"\\\"\"i\"\\\"\\\""
   let expected := parseBitString  " 0 0 0 0 01 0 0 0 0 0"
-  stringBodies (p := p) inp == expected := by native_decide
+  stringBodiesToArray inp == expected := by native_decide
 
 /-
   \\"\\" →
@@ -535,12 +541,12 @@ example :
 example :
   let inp      := parseCharsASCII "\\\\\"\\\\\""
   let expected := parseBitString  " 0 0 0 1 1 0"
-  stringBodies (p := p) inp == expected := by native_decide
+  stringBodiesToArray inp == expected := by native_decide
 
 private def br :=
   parseCharsASCII "{he{llo{}world!}}"
 example :
-  bracketsMap (p := p) br == some [1, 0, 0, 1, 0, 0, 0, 1, -1, 0, 0, 0, 0, 0, 0, -1, -1]
+  bracketsMap (p := p) br.data.toList == some [1, 0, 0, 1, 0, 0, 0, 1, -1, 0, 0, 0, 0, 0, 0, -1, -1]
 := by
   native_decide
 
@@ -962,7 +968,7 @@ example : (do
 -- string_bodies:                    0   1   0   0   0   1   0   0
 example : (do
   let field := strToFS 8 "\"a\":\"b\","
-  let fieldStringBodies : Vector (ZMod p) 8 := #v[0,1,0,0,0,1,0,0]
+  let fieldStringBodies : PaddedVector FB p 8 := ⟨#v[0,1,0,0,0,1,0,0], 8⟩
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3,valueIndex:=5} (by omega) (by omega)
@@ -971,7 +977,7 @@ example : (do
 -- valid: "a":"b"}  (ending with '}')
 example : (do
   let field := strToFS 8 "\"a\":\"b\"}"
-  let fieldStringBodies : Vector (ZMod p) 8 := #v[0,1,0,0,0,1,0,0]
+  let fieldStringBodies : PaddedVector FB p 8 := ⟨#v[0,1,0,0,0,1,0,0], 8⟩
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega)
@@ -982,7 +988,7 @@ example : (do
 -- string_bodies:             0   1   1   1   0   0   0   1   1   1    0    0
 example : (do
   let field := strToFS 12 "\"sub\":\"abc\","
-  let fieldStringBodies : Vector (ZMod p) 12 := #v[0,1,1,1,0,0,0,1,1,1,0,0]
+  let fieldStringBodies : PaddedVector FB p 12 := ⟨#v[0,1,1,1,0,0,0,1,1,1,0,0], 12⟩
   let name  := strToFS 3 "sub"
   let value := strToFS 3 "abc"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=5, valueIndex:=7} (by omega) (by omega)
@@ -993,7 +999,7 @@ example : (do
 -- string_bodies:               0   1   1   1   1   1   0   0   0   1    1    1    1    0    0    0
 example : (do
   let field := strToFS 16 "\"email\":\"ab@c\","
-  let fieldStringBodies : Vector (ZMod p) 16 := #v[0,1,1,1,1,1,0,0,0,1,1,1,1,0,0,0]
+  let fieldStringBodies : PaddedVector FB p 16 := ⟨#v[0,1,1,1,1,1,0,0,0,1,1,1,1,0,0,0], 16⟩
   let name  := strToFS 5 "email"
   let value := strToFS 4 "ab@c"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=7, valueIndex:=9} (by omega) (by omega)
@@ -1004,7 +1010,7 @@ example : (do
 -- string_bodies:          0    1   0   0   0    0   1   0   0    0
 example : (do
   let field := strToFS 10 "\"k\": \"v\" ,"
-  let fieldStringBodies : Vector (ZMod p) 10 := #v[0,1,0,0,0,0,1,0,0,0]
+  let fieldStringBodies : PaddedVector FB p 10 := ⟨#v[0,1,0,0,0,0,1,0,0,0], 10⟩
   let name  := strToFS 1 "k"
   let value := strToFS 1 "v"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=6} (by omega) (by omega)
@@ -1013,7 +1019,7 @@ example : (do
 -- valid: "k":"v"}  (ending with '}')
 example : (do
   let field := strToFS 8 "\"k\":\"v\"}"
-  let fieldStringBodies : Vector (ZMod p) 8 := #v[0,1,0,0,0,1,0,0]
+  let fieldStringBodies : PaddedVector FB p 8 := ⟨#v[0,1,0,0,0,1,0,0], 8⟩
   let name  := strToFS 1 "k"
   let value := strToFS 1 "v"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega)
@@ -1023,7 +1029,7 @@ example : (do
 -- field[value_index - 1] = field[3] = ':' ≠ '"'
 example : (do
   let field := strToFS 7 "\"a\":b\","
-  let fieldStringBodies : Vector (ZMod p) 7 := #v[0,1,0,0,1,0,0]
+  let fieldStringBodies : PaddedVector FB p 7 := ⟨#v[0,1,0,0,1,0,0], 7⟩
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=4} (by omega) (by omega)
@@ -1033,7 +1039,7 @@ example : (do
 -- field[value_index + value_len] = field[5] = ',' ≠ '"'
 example : (do
   let field := strToFS 7 "\"a\":\"b,"
-  let fieldStringBodies : Vector (ZMod p) 7 := #v[0,1,0,0,0,1,0]
+  let fieldStringBodies : PaddedVector FB p 7 := ⟨#v[0,1,0,0,0,1,0], 7⟩
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega)
@@ -1043,7 +1049,7 @@ example : (do
 -- string_bodies: 0 1 0 0 0 0 1 0 0
 example : (do
   let field := strToFS 9 "\"a\"X:\"b\","
-  let fieldStringBodies : Vector (ZMod p) 9 := #v[0,1,0,0,0,0,1,0,0]
+  let fieldStringBodies : PaddedVector FB p 9 := ⟨#v[0,1,0,0,0,0,1,0,0], 9⟩
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=4, valueIndex:=6} (by omega) (by omega)
@@ -1053,7 +1059,7 @@ example : (do
 -- string_bodies: 0 1 0 0 0 0 1 0 0
 example : (do
   let field := strToFS 9 "\"a\":X\"b\","
-  let fieldStringBodies : Vector (ZMod p) 9 := #v[0,1,0,0,0,0,1,0,0]
+  let fieldStringBodies : PaddedVector FB p 9 := ⟨#v[0,1,0,0,0,0,1,0,0], 9⟩
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=6} (by omega) (by omega)
@@ -1062,7 +1068,7 @@ example : (do
 -- Reject: wrong string bodies — all zeros (should have 1s at name and value positions)
 example : (do
   let field := strToFS 8 "\"a\":\"b\","
-  let fieldStringBodies : Vector (ZMod p) 8 := #v[0,0,0,0,0,0,0,0]
+  let fieldStringBodies : PaddedVector FB p 8 := ⟨#v[0,0,0,0,0,0,0,0], 8⟩
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega)
@@ -1071,7 +1077,7 @@ example : (do
 -- Reject: wrong string bodies — all ones
 example : (do
   let field := strToFS 8 "\"a\":\"b\","
-  let fieldStringBodies : Vector (ZMod p) 8 := #v[1,1,1,1,1,1,1,1]
+  let fieldStringBodies : PaddedVector FB p 8 := ⟨#v[1,1,1,1,1,1,1,1], 8⟩
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega)
@@ -1079,7 +1085,7 @@ example : (do
 
 example : (do
   let field := strToFS 8 "\"a\":\"b\","
-  let fieldStringBodies : Vector (ZMod p) 8 := #v[1,1,1,1,1,1,1,1]
+  let fieldStringBodies : PaddedVector FB p 8 := ⟨#v[1,1,1,1,1,1,1,1], 8⟩
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega) (skipChecks := 1)
@@ -1089,7 +1095,7 @@ example : (do
 -- string_bodies: 0 1 0 0 0 1 0 0 0
 example : (do
   let field := strToFS 9 "\"a\":\"b\"X,"
-  let fieldStringBodies : Vector (ZMod p) 9 := #v[0,1,0,0,0,1,0,0,0]
+  let fieldStringBodies : PaddedVector FB p 9 := ⟨#v[0,1,0,0,0,1,0,0,0], 9⟩
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega)
@@ -1097,7 +1103,7 @@ example : (do
 
 example : (do
   let field := strToFS 9 "\"a\":\"b\"X,"
-  let fieldStringBodies : Vector (ZMod p) 9 := #v[0,1,0,0,0,1,0,0,0]
+  let fieldStringBodies : PaddedVector FB p 9 := ⟨#v[0,1,0,0,0,1,0,0,0], 9⟩
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega) (skipChecks := 1)
@@ -1105,7 +1111,7 @@ example : (do
 
 example : (do
   let field := strToFS 9 "\"a\":\"b\"X,"
-  let fieldStringBodies : Vector (ZMod p) 9 := #v[0,1,0,0,0,1,0,0,0]
+  let fieldStringBodies : PaddedVector FB p 9 := ⟨#v[0,1,0,0,0,1,0,0,0], 9⟩
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega) (skipChecks := 1)
@@ -1115,7 +1121,7 @@ example : (do
 -- matching CIRCOM where sub-template constraints (one-hot encoding) always apply.
 example : (do
   let field := strToFS 6 "\"a\":b,"
-  let fieldStringBodies : Vector (ZMod p) 6 := #v[0,0,0,0,0,0]
+  let fieldStringBodies : PaddedVector FB p 6 := ⟨#v[0,0,0,0,0,0], 6⟩
   let name  := strToFS 1 "a"
   let value := strToFS 1 "b"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=100, valueIndex:=200} (by omega) (by omega) (skipChecks := 1)
@@ -1126,7 +1132,7 @@ example : (do
 -- string_bodies:            0    1   0   0   0   1   1   1    1   1    0    0
 example : (do
   let field := strToFS 12 "\"k\":\"ab cd\","
-  let fieldStringBodies : Vector (ZMod p) 12 := #v[0,1,0,0,0,1,1,1,1,1,0,0]
+  let fieldStringBodies : PaddedVector FB p 12 := ⟨#v[0,1,0,0,0,1,1,1,1,1,0,0], 12⟩
   let name  := strToFS 1 "k"
   let value := strToFS 5 "ab cd"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega)
@@ -1139,7 +1145,7 @@ example : (do
 -- value = a\"b (4 chars), value_index=5, value_sel=[5,9)
 example : (do
   let field := strToFS 11 "\"k\":\"a\\\"b\","
-  let fieldStringBodies : Vector (ZMod p) 11 := #v[0,1,0,0,0,1,1,1,1,0,0]
+  let fieldStringBodies : PaddedVector FB p 11 := ⟨#v[0,1,0,0,0,1,1,1,1,0,0], 11⟩
   let name  := strToFS 1 "k"
   let value := strToFS 4 "a\\\"b"
   parseJWTFieldWithQuotedValue {field, name, value, fieldStringBodies, nameIndex:=0, colonIndex:=3, valueIndex:=5} (by omega) (by omega)
