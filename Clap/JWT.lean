@@ -30,8 +30,9 @@ private def stringBodiesRev₀ (input : List (F p)) : Option (List (FB p) × FB 
   input =  { asdfsdf "as\"df" }
   output = 00000000000111111000
 -/
-def stringBodies (input : List (F p)) : Option (List (FB p)) := do
-  (←stringBodiesRev₀ input).1.reverse
+def stringBodies {w} (input : FString p w) : Option (PaddedVector FB p w) := do
+  let data := ⟨(←stringBodiesRev₀ input.data.toArray.toList).1.reverse.toArray, sorry⟩
+  some {data,len := input.len}
 
 /-
 omit [Core bn254] in
@@ -328,7 +329,7 @@ structure QuotedFieldInput (maxPairLen maxNameLen maxValueLen : ℕ) where
   field             : FString bn254 maxPairLen
   name              : FString bn254 maxNameLen
   value             : FString bn254 maxValueLen
-  fieldStringBodies : Vector (FB bn254) maxPairLen
+  fieldStringBodies : PaddedVector FB bn254 maxPairLen
   nameIndex         : F bn254
   colonIndex        : F bn254
   valueIndex        : F bn254
@@ -384,7 +385,7 @@ def parseJWTFieldWithQuotedValue
   let nameOrValue := nameSel.zipWith FB.or valueSel
   -- For each position: whitespace zone chars must be whitespace,
   -- and string bodies must match name/value selectors exactly
-  (inZone.zip (nameOrValue.zip (fi.fieldStringBodies.zip fi.field.data))).toList.forM fun (z, nv, sb, c) ↦ do
+  (inZone.zip (nameOrValue.zip (fi.fieldStringBodies.data.zip fi.field.data))).toList.forM fun (z, nv, sb, c) ↦ do
     -- Whitespace check: if in a whitespace zone, the character must be whitespace
     let ws ← F8.isWhitespace c
     F.guardedEq0 perform (z &&& FB.not ws)
