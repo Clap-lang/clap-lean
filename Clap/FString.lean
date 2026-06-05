@@ -217,6 +217,14 @@ def isSubstringFS {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLe
   let polyEq  : FB bn254 ← F.eq strPolyEval (distinguishingValue * substrPolyEval)
   return FB.and nonZero polyEq
 
+namespace Spec.FString
+
+def isSubstring (s sub : String) (start : ℕ) : Prop :=
+  ∃ (pref suff : String),
+    pref.length = start ∧ pref ++ sub ++ suff = s
+
+end Spec.FString
+
 open Primes in
 /-- Asserts that `substr` appears in `str` starting at `startIndex` (Fiat-Shamir variant). -/
 def assertIsSubstringFS {maxStrLen maxSubstrLen : ℕ} (h : maxSubstrLen ≤ maxStrLen)
