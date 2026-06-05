@@ -152,6 +152,13 @@ def Clap.Dbg.timeInSecondsOfMs (begin «end» : Nat) : Float :=
 def Clap.Dbg.timeSince (begin : Nat) (msg := ""): Lean.Meta.Sym.Simp.SimpM Unit := do
   Lean.logWarning m!"{msg}\n{(Float.ofNat (←IO.monoMsNow) - Float.ofNat begin) / Float.ofNat 1000}s"
 
+open Lean Meta Sym in
+def Clap.Dbg.timeS {α} {m : Type _ → Type _} [Monad m] [MonadLiftT BaseIO m] (k : m α) : m (α × Float) := do
+  let s ← IO.monoNanosNow
+  let a ← k
+  let e ← IO.monoNanosNow
+  return (a, (e - s).toFloat / 1000000000)
+
 register_simp_attr dbgSimp
 
 register_simp_attr compilerSimp

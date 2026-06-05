@@ -219,7 +219,7 @@ def simplify (simpset : Sym.Simp.Methods) (e : Expr) : Sym.Simp.SimpM Expr := do
       let time ← IO.monoMsNow
       -- logInfo m!"Compiling:\n{e}"
       let res := (←Sym.simp e simpset config).getResultExpr e
-      Dbg.timeSince time "simplify took:"
+      -- Dbg.timeSince time "simplify took:"
       return res
     fun exc =>
       throwError m!"***SIMP ERRROR***\nExpression:\n{e}\nInternal:\n{exc.toMessageData}"

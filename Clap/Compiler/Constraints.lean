@@ -30,4 +30,7 @@ def getCounter : MetaM Nat := do
   let env ← getEnv
   return counter.getState env
 
+def resetCounter : MetaM Unit := do
+  modifyEnv fun e ↦ counter.modifyState e fun _ ↦ 0
+
 end Clap.Compiler
