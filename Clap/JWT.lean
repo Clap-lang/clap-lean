@@ -582,29 +582,29 @@ At the shared-logic the gaps `ws2, ws3, ws4` are arbitrary. The insecurity of th
 /-- Parsed pieces of one JWT field. `ws2`/`ws3`/`ws4` are the gaps after the name's closing quote,
     after the colon, and after the value -/
 structure JWTField where
-  name   : List Char
-  ws2    : List Char
-  ws3    : List Char
-  value  : List Char
-  ws4    : List Char
+  name   : String
+  ws2    : String
+  ws3    : String
+  value  : String
+  ws4    : String
   ending : Char
 
 /-- Re-serialize a field: `" name " ws2 : ws3 value ws4 ending`. -/
-def serialize (f : JWTField) : List Char :=
-  ('"' :: f.name) ++ ('"' :: f.ws2) ++ (':' :: f.ws3) ++ f.value ++ f.ws4 ++ [f.ending]
+def serialize (f : JWTField) : String :=
+  ("\"" ++ f.name ++ "\"" ++ f.ws2 ++ ":" ++ f.ws3 ++ f.value ++ f.ws4).push f.ending
 
 -- Sanity check: unquoted and quoted values share one `serialize`; the value-quotes fold into ws3/ws4.
-example : serialize ⟨['a'], [], [], ['b'], [], ','⟩       = "\"a\":b,".toList    := by native_decide
-example : serialize ⟨['a'], [], ['"'], ['b'], ['"'], ','⟩ = "\"a\":\"b\",".toList := by native_decide
+example : serialize ⟨"a", "", "", "b", "", ','⟩       = "\"a\":b," := by native_decide
+example : serialize ⟨"a", "", "\"", "b", "\"", ','⟩ = "\"a\":\"b\"," := by native_decide
 
-/-- Live content (first `len` bytes, padding removed) of an FString, as a `Char` list. -/
-def liveChars {w : ℕ} (fs : FString bn254 w) : List Char :=
-  (fs.data.toList.take fs.len.val).map Spec.F8.toChar
+/-- Live content (first `len` bytes, padding removed) of an FString, as a `String`. -/
+def liveStr {w : ℕ} (fs : FString bn254 w) : String :=
+  Spec.FString.toString fs
 
 /-- A no-op when `skip`; otherwise `field` re-serializes from some `f` with the given `name`/`value`, colon and
     value at the claimed indices, and `P f` (for quoted and unqoted versions). The shared
     logic uses `P = fun _ => True`; the quoted/unquoted tighten `P`. -/
-def ReconstructsWith (P : JWTField → Prop) (field name value : List Char) (colonIndex valueIndex : ℕ) (skip : Bool) : Prop :=
+def ReconstructsWith (P : JWTField → Prop) (field name value : String) (colonIndex valueIndex : ℕ) (skip : Bool) : Prop :=
   skip ∨ ∃ f : JWTField,
     field = serialize f ∧
     f.name = name ∧ f.value = value ∧
@@ -614,7 +614,7 @@ def ReconstructsWith (P : JWTField → Prop) (field name value : List Char) (col
     P f
 
 /-- Shared-logic reconstruction -/
-def Reconstructs (field name value : List Char) (colonIndex valueIndex : ℕ) (skip : Bool) : Prop :=
+def Reconstructs (field name value : String) (colonIndex valueIndex : ℕ) (skip : Bool) : Prop :=
   ReconstructsWith (fun _ => True) field name value colonIndex valueIndex skip
 
 /--
@@ -634,7 +634,7 @@ lemma parseJWTFieldSharedLogic_reconstructs_equiv
     -- probably more hypothesis needed
      :
     (_root_.JWT.parseJWTFieldSharedLogic' h_name h_value field name value colonIndex valueIndex skipChecks = some ())
-      ↔ Reconstructs (liveChars field) (liveChars name) (liveChars value) colonIndex.val valueIndex.val (Spec.FB.toBool skipChecks) := by
+      ↔ Reconstructs (liveStr field) (liveStr name) (liveStr value) colonIndex.val valueIndex.val (Spec.FB.toBool skipChecks) := by
   sorry
 
 end Spec.Serialize.JWT
@@ -830,12 +830,12 @@ namespace Spec.Serialize.JWT
 /-- Unquoted-value constraints on the parsed pieces: the three gaps are all whitespace, and the
     value contains no JSON delimiter (`,`, `}`, `"`). -/
 def isUnquotedField (f : JWTField) : Prop :=
-  (∀ c ∈ f.ws2 ++ f.ws3 ++ f.ws4, Spec.F8.isWhitespace_spec c = true) ∧
-  (∀ c ∈ f.value, c ≠ ',' ∧ c ≠ '}' ∧ c ≠ '"')
+  (f.ws2 ++ f.ws3 ++ f.ws4).all Spec.F8.isWhitespace_spec = true ∧
+  f.value.all (fun c => c != ',' && c != '}' && c != '"') = true
 
 /-- Reconstruction spec for `parseJWTFieldWithUnquotedValue`: the SAME `serialize`, refined so the
     gaps are whitespace and the value is delimiter-free. -/
-def ReconstructsUnquoted (field name value : List Char) (colonIndex valueIndex : ℕ) (skip : Bool) : Prop :=
+def ReconstructsUnquoted (field name value : String) (colonIndex valueIndex : ℕ) (skip : Bool) : Prop :=
   ReconstructsWith isUnquotedField field name value colonIndex valueIndex skip
 
 lemma parseJWTFieldWithUnquotedValue_reconstructs_equiv
@@ -853,7 +853,7 @@ lemma parseJWTFieldWithUnquotedValue_reconstructs_equiv
     -- probably more hypothesis here
     :
     (_root_.JWT.parseJWTFieldWithUnquotedValue h_name h_value field name value colonIndex valueIndex skipChecks = some ())
-      ↔ ReconstructsUnquoted (liveChars field) (liveChars name) (liveChars value) colonIndex.val valueIndex.val (Spec.FB.toBool skipChecks) := by
+      ↔ ReconstructsUnquoted (liveStr field) (liveStr name) (liveStr value) colonIndex.val valueIndex.val (Spec.FB.toBool skipChecks) := by
   sorry
 
 /-! #### `parseJWTFieldWithQuotedValue`
@@ -874,16 +874,16 @@ def bits {w : ℕ} (v : Vector (FB bn254) w) : List Bool :=
     opening quote `"`; `ws4` is the closing quote `"` then whitespace. The value content is left
     unconstrained here, it is a quoted JSON string body, pinned instead by the string-bodies witness. -/
 def isQuotedField (f : JWTField) : Prop :=
-  (∀ c ∈ f.ws2, Spec.F8.isWhitespace_spec c = true) ∧
-  (∃ w, f.ws3 = w ++ ['"'] ∧ ∀ c ∈ w, Spec.F8.isWhitespace_spec c = true) ∧
-  (∃ w, f.ws4 = '"' :: w ∧ ∀ c ∈ w, Spec.F8.isWhitespace_spec c = true)
+  f.ws2.all Spec.F8.isWhitespace_spec = true ∧
+  (∃ w : String, f.ws3 = w ++ "\"" ∧ w.all Spec.F8.isWhitespace_spec = true) ∧
+  (∃ w : String, f.ws4 = "\"" ++ w ∧ w.all Spec.F8.isWhitespace_spec = true)
 
 /-- The string-bodies witness marks exactly the name-content region `[1, 1+nameLen)` and the
     value-content region `[valueIndex, valueIndex+valueLen)`, and nothing else (padding included). -/
 def stringBodiesMatch (sb : List Bool) (nameLen valueLen valueIndex : ℕ) : Prop :=
   sb = (List.range sb.length).map fun i => decide ((1 ≤ i ∧ i < 1 + nameLen) ∨ (valueIndex ≤ i ∧ i < valueIndex + valueLen))
 
-def ReconstructsQuoted (field name value : List Char) (stringBodies : List Bool)
+def ReconstructsQuoted (field name value : String) (stringBodies : List Bool)
     (colonIndex valueIndex : ℕ) (skip : Bool) : Prop :=
   ReconstructsWith isQuotedField field name value colonIndex valueIndex skip
   ∧ (skip ∨ stringBodiesMatch stringBodies name.length value.length valueIndex)
@@ -906,7 +906,7 @@ lemma parseJWTFieldWithQuotedValue_reconstructs_equiv
     -- probably more hypothesis here
     :
     (_root_.JWT.parseJWTFieldWithQuotedValue h_name h_value field name value field_string_bodies colonIndex valueIndex skipChecks = some ())
-      ↔ ReconstructsQuoted (liveChars field) (liveChars name) (liveChars value) (bits field_string_bodies) colonIndex.val valueIndex.val (Spec.FB.toBool skipChecks) := by
+      ↔ ReconstructsQuoted (liveStr field) (liveStr name) (liveStr value) (bits field_string_bodies) colonIndex.val valueIndex.val (Spec.FB.toBool skipChecks) := by
   sorry
 
 end Spec.Serialize.JWT
