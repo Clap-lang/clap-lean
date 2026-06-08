@@ -53,6 +53,27 @@ def cowboyCast (e : Expr) (yourDeepestDesire : ℕ) : Sym.SymM Expr := do
   logInfo m!"Cowboy cast:\n{e}\n==>\n{e'}"
   return e'
 
+opaque clapwrap {α : Type} (inner : Option α) : Option α
+
+def wrapper := Expr.const ``clapwrap []
+
+/--
+`Sym.simp` doesn't know when to stop!
+Even if `(done := true)`, we still get the fixpoint... ouch?
+
+This is a workaround. We return a wrapped expression that matches nothing to stop the recursion.
+Amazing...
+-/
+def wrapped (t e : Expr) : Expr :=
+  mkApp2 wrapper t e
+
+@[inherit_doc wrapped]
+def unwrapped (e : Expr) : Expr :=
+  if let (``clapwrap, #[_, inner]) := e.getAppFnArgs then inner else e
+
+@[inherit_doc wrapped]
+abbrev singlePass := wrapped
+
 namespace SymSets
 
 section
@@ -81,8 +102,9 @@ def andThen (names : Array Name) : MetaM Sym.Simp.Simproc := do
   let simprocs ← names.mapM getSimproc
   return simprocs.foldl (· >> ·) (fun _ ↦ return .rfl) -- I hope this is the `.continue`...
 
+-- dischargeSimpSelf
 def mkPostMethods (declNames : Array Name)
-                  (d : Discharger := Sym.Simp.dischargeSimpSelf) : MetaM Methods := do
+                  (d : Discharger := Sym.Simp.dischargeNone) : MetaM Methods := do
   let (procs, thms) ← declNames.toList.partitionM (liftM ∘ isSimproc)
   let procs ← andThen procs.toArray
   return { post := (←mkSimprocFor thms.toArray d) >> procs }
@@ -94,13 +116,14 @@ def mkPostMethodsSinglePass (declNames : Array Name)
                             (d : Discharger := Sym.Simp.dischargeSimpSelf) : MetaM Methods := do
   let (procs, thms) ← declNames.toList.partitionM (liftM ∘ isSimproc)
   let procs ← orElse procs.toArray
-  return { post := (←mkSimprocFor thms.toArray d) >> procs }
+  return { post := procs >> (←mkSimprocFor thms.toArray d) }
 
+-- dischargeSimpSelf
 def mkPreMethods (declNames : Array Name)
-                 (d : Discharger := Sym.Simp.dischargeSimpSelf) : MetaM Methods := do
+                 (d : Discharger := Sym.Simp.dischargeNone) : MetaM Methods := do
   let (procs, thms) ← declNames.toList.partitionM (liftM ∘ isSimproc)
   let procs ← andThen procs.toArray
-  return { pre := (←mkSimprocFor thms.toArray d) >> procs }
+  return { pre := procs >> (←mkSimprocFor thms.toArray d) }
 
 namespace Monad
 
@@ -223,13 +246,13 @@ def monad : Sym.Simp.Simproc := fun e ↦ do
     let e' ← shareCommonInc <| mkApp4 (.const ``Option.bind [u, v]) α β x f
     trace[Clap.Compile.simp.proc.monad.bind_eq_bind]
       m!"\n{e}\n==>\n{e'}"
-    return .step e' (←Sym.mkEqRefl e')
+    return .step e' (←Sym.mkEqRefl e') (done := true)
   | Pure.pure _ _ α x =>
     let u ← Sym.getLevelInType α
     let e' ← shareCommonInc <| mkApp2 (.const ``Option.some [u]) α x
     trace[Clap.Compile.simp.proc.monad.pure_apply]
       m!"\n{e}\n==>\n{e'}"
-    return .step e' (←Sym.mkEqRefl e')
+    return .step e' (←Sym.mkEqRefl e') (done := true)
   | Option.bind α γ x g =>
     match_expr x with
     -- | Option.bind α β x f => 
@@ -253,7 +276,7 @@ def monad : Sym.Simp.Simproc := fun e ↦ do
       let e' ← shareCommonInc (g.beta #[x])
       trace[Clap.Compile.simp.proc.monad.bind_some]
         m!"\n{e}\n==>\n{e'}"
-      return .step e' (←Sym.mkEqRefl e')
+      return .step e' (←Sym.mkEqRefl e') (done := true)
     | _ => return .rfl
     -- | _ =>
     --   -- addConstraint q(Nat)
@@ -295,7 +318,7 @@ def monadBindAssoc : Sym.Simp.Simproc := fun e ↦ do
       let e' ← shareCommonInc <| mkApp4 (.const ``Option.bind [u, w]) α γ x cont
       trace[Clap.Compile.simp.proc.monad.bind_assoc]
         m!"\n{e}\n==>\n{e'}"
-      return .step e' (←mkSorry (←mkEq e e') false)
+      return .step e' (←mkSorry (←mkEq e e') false) (done := true)
     | _ =>
       return .rfl
   | _ => return .rfl
@@ -654,6 +677,7 @@ def getElem_mk : Sym.Simp.Simproc := fun e => do
   let .some (elems, t) := Collection.elemsOfExpr vec | return .rfl
   let .some sz := t.type.sz | unreachable!
   let n := (←Sym.simpWithGround n).getResultExpr n
+  logWarning m!"n: {n}"
   let .some i := Sym.getNatValue? n | return .rfl
   if h : i < elems.size
   then
@@ -877,7 +901,6 @@ def _root_.Vector.mapM_mk_single : Sym.Simp.Simproc := fun e ↦ do
 
     return .step e' (←mkSorry (←mkEq e e') false)
 
-
 /--
 Currently for vectors only.
 
@@ -889,7 +912,7 @@ Currently for vectors only.
 def _root_.Vector.mapM_mk_single_singlePass : Sym.Simp.Simproc := fun e ↦ do
   let_expr _root_.Vector.mapM m α β n mInst f vec := e | return .rfl
   let_expr _root_.Vector.mk _ sz arr _ := vec | return .rfl
-  -- reportMaxShared e (descr := "BEGIN[mapM_mk_single]")
+
   let l ← arr.getAppArgs[1]?.getDM (unreachable!)
   let u ← Sym.getLevelInType β
   let_expr List.cons t hd tl := l |
@@ -927,9 +950,6 @@ def _root_.Vector.mapM_mk_single_singlePass : Sym.Simp.Simproc := fun e ↦ do
           .bvar 0
         ]
 
-    -- let append := mkApp5 (.const ``_root_.Vector.append [u])
-    --                 β hdSz tlSz (←mkVecLit β (←Sym.mkListLit β [.bvar 1]) hdSz) (.bvar 0)
-
     let tlVec ← mkVecLit α tl tlSz
 
     -- TODO: Check universes. `Vector` construction should preserve `u`.
@@ -964,13 +984,9 @@ def _root_.Vector.mapM_mk_single_singlePass : Sym.Simp.Simproc := fun e ↦ do
         (←Sym.shareCommonInc (f.beta #[hd])) -- TODO(?): `Expr.app f hdVec` without reducing here?
         (.lam `fst t innerBind .default )
       
-    -- let (e', time) ← Dbg.timeS (Sym.shareCommonInc bind)
+    -- See the docs of `singlePass`
+    let e' ← Sym.shareCommonInc (singlePass appendT bind)
 
-    let e' ← Sym.shareCommonInc bind
-
-    -- logInfo m!"END[mapM_mk_single] Sym.shareCommonInc took {time}s"
-
-    -- reportMaxShared e' (descr := "END[mapM_mk_single]")
     trace[Clap.Compile.simp.proc.mapM_mk_single]
       m!"\n{e}\n==>\n{e'}"
 
@@ -978,6 +994,11 @@ def _root_.Vector.mapM_mk_single_singlePass : Sym.Simp.Simproc := fun e ↦ do
 
 def mapM_singlePass : MetaM Methods :=
   mkPostMethods #[
+    ``Vector.mapM_mk_single_singlePass
+  ]
+
+def mapM_singlePass_pre : MetaM Methods :=
+  mkPreMethods #[
     ``Vector.mapM_mk_single_singlePass
   ]
 
@@ -1181,6 +1202,13 @@ def set : MetaM Methods :=
     -- ``List.set_cons_succ, ``List.set_cons_zero,
   ]
 
+def processWrapped : Sym.Simp.Simproc := fun e ↦ do
+  let_expr clapwrap _ e := e | return .rfl
+  return .rfl (done := true)
+
+def wrapped : MetaM Methods :=
+  mkPreMethods #[``processWrapped]
+
 end Vector
 
 namespace List
@@ -1287,7 +1315,8 @@ private partial def down (reduce reduceOuter : Simplifier)
                          (stack : List InProgressExpr) (todo : Expr)
                          : Sym.Simp.SimpM Expr := do
   inDebugOnly (do modifyDbgState fun σ ↦ {σ with numDown := σ.numDown + 1})
-  trace[Clap.Compile.down] m!"New expr: {todo}"
+  -- See the docs of `unwrapped`
+  let todo := unwrapped todo
   if let .some ⟨_, _, _, _, a, f⟩ ← todo.matchBinds -- TODO(perf): Propagate the rest.
   then
     trace[Clap.Compile.down] m!"\npush [→]:\n{f}\ngo [↓]:\n{a}"
@@ -1314,7 +1343,6 @@ private partial def down (reduce reduceOuter : Simplifier)
 private partial def up (reduce reduceOuter : Simplifier)
                        (stack : List InProgressExpr) (done : Expr) : Sym.Simp.SimpM Expr := do
   inDebugOnly (modifyDbgState fun σ ↦ {σ with numUp := σ.numUp + 1})
-  trace[Clap.Compile.up] m!"New expr: {done}"
   match stack with
   | [] =>
     trace[Clap.Compile.up] "Done"
@@ -1332,11 +1360,11 @@ private partial def up (reduce reduceOuter : Simplifier)
          up bind
     else trace[Clap.Compile.simp] "Binding value: {result} in {bind}"
          let (simped, time) ← Dbg.timeS (reduceOuter bind)
+        --  let (simped, time) := (bind, 0)
          inDebugOnly (do
            trace[Clap.Compile.dbg] m!"simp [↑] took {time}s"
+           trace[Clap.Compile.dbg] m!"\n{bind}\n==>\n{simped}"
            modifyDbgState fun σ ↦ {σ with cumulativeSimpTimeUp := σ.cumulativeSimpTimeUp + time}
-           if time > 0.4 then
-             trace[Clap.Compile.dbg] m!"\n{bombEmoji}\n{bind}"
          )
          -- TODO(semantics): Ok we simped, so what?
          if !Sym.isSameExpr simped bind
@@ -1358,8 +1386,9 @@ private partial def up (reduce reduceOuter : Simplifier)
 end
 
 def compile (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
+  
+  let simpset! ← SymSets.Vector.monads! ∪ return simpset
   lambdaTelescope e fun args e ↦ do
-    let simpset! ← SymSets.Vector.monads! ∪ return simpset
     let compiled ← down
       (reduce      := Compiler.Simp.simplify simpset!)
       (reduceOuter := Compiler.Simp.simplify simpset!)
@@ -1806,31 +1835,33 @@ set_option maxHeartbeats 0 in
 
 -- def xx : MetaM Sym.Simp.Methods := 
 
-set_option trace.Clap.Compile.dbg true in
-set_option Clap.traversalDbg true in
-set_option trace.Clap.Compile true in
-#eval spoon <| do
-  resetDbgState
-  let e ← compileExample (args := #[toExpr 160]) ``ex₈
-    (←(mapM_singlePass ∪ zeta ∪ monads ∪ explode
-    -- ∪ compilerAssoc
-    -- ∪ bindMyAssoc_set
-    -- mapM_alt
-    ))
-  let σ ← getDbgState
-  logInfo m!"σ: {repr σ}"
+-- set_option trace.Clap.Compile.dbg true in
+-- set_option Clap.traversalDbg true in
+-- set_option trace.Clap.Compile true in
+-- #eval spoon <| do
+--   resetDbgState
+--   let e ← compileExample (args := #[toExpr 160]) ``ex₈
+--     (←(mapM_singlePass ∪ zeta ∪ monads ∪ explode
+--     -- ∪ compilerAssoc
+--     -- ∪ bindMyAssoc_set
+--     -- mapM_alt
+--     ))
+--   let σ ← getDbgState
+--   logInfo m!"σ: {repr σ}"
   
-  return e
-  -- Pretty print (i.e. go back to `Bind.bind`)
-  -- return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
+--   return e
+--   -- Pretty print (i.e. go back to `Bind.bind`)
+--   -- return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
 
 set_option maxRecDepth 1024 in
 set_option trace.Clap.Compile.dbg true in
 set_option Clap.traversalDbg true in
-set_option trace.Clap.Compile true in
+set_option trace.Clap.Compile false in
 #eval do
-  let (e, time) ← Dbg.timeS <| compileExample (args := #[toExpr 5]) ``ex₈
-    (←(mapM_singlePass ∪ explode -- ∪ zeta ∪ monads ∪ explode
+  let (e, time) ← Dbg.timeS <| compileExample (args := #[toExpr 40]) ``ex₈
+    (←(SymSets.Vector.wrapped ∪
+      mapM_singlePass_pre ∪
+      explode -- ∪ zeta ∪ monads ∪ explode
     -- ∪ compilerAssoc
     ∪ bindMyAssoc_set
     -- mapM_alt
@@ -1848,8 +1879,9 @@ set_option trace.Clap.Compile true in
 set_option Clap.traversalDbg true
 set_option trace.Clap.Compile.dbg false
 def bench : MetaM Unit := do
-  let simpset := (←(mapM_singlePass ∪ zeta ∪ explode))
-  let inputSizes := (Array.range 4).map (10 * 2^·)
+  let simpset := (←(SymSets.Vector.wrapped ∪ mapM_singlePass_pre ∪ explode ∪ bindMyAssoc_set))
+  -- let simpset := (←(mapM_singlePass ∪ zeta ∪ explode))
+  let inputSizes := (Array.range 2).map (10 * 2^·)
   let timings ← inputSizes.mapM fun inputSize ↦ do
     let res ← Dbg.timeS <| (compileExample ``ex₈ simpset (args := #[mkNatLit inputSize])).run' {} |>.run
     let σ ← getAndResetDbgState
@@ -1874,9 +1906,32 @@ set_option maxRecDepth 40000 in
 -- 10 vec, [size 1409/272/272] of compiled
 opaque share : Nat → Option Nat
 
-def ex₉ (vec : Vector Nat 5) : Option Unit := do
-  let x ← (do let _ ← eq0 2; let x ← vec.mapM (fun x ↦ (share (x + 42) : Option _)); return x[4]) 
-  eq0 x
+def ex₉ {n : Nat} (vec : Vector Nat n) : Option Unit := do
+  let x ← (do let _ ← eq0 2; let x ← vec.mapM (fun x ↦ (share (x + 42) : Option _)); return x) 
+  let _ ← x.mapM eq0
+
+set_option maxRecDepth 1024 in
+set_option trace.Clap.Compile.dbg true in
+set_option Clap.traversalDbg true in
+set_option trace.Clap.Compile true in
+#eval do
+  let (e, time) ← Dbg.timeS <| compileExample (args := #[toExpr 2]) ``ex₉
+    (←(SymSets.Vector.wrapped ∪
+      mapM_singlePass_pre ∪
+      getElem ∪
+      append ∪
+      explode -- ∪ zeta ∪ monads ∪ explode
+    ∪ compilerAssoc
+    -- ∪ bindMyAssoc_set
+    -- mapM_alt
+    )) |>.run' {} |>.run
+  logInfo m!"time: {time}"
+  -- let e' := Sym.simp e {}
+  let e' := Sym.simp e (←compilerBindEqBind)
+  let e' ← e'.run
+  
+  logInfo m!"e: {e'.getResultExpr e}"
+  logInfo m!"{←(getAndResetDbgState <&> repr)}"
 
 set_option trace.Clap.Compile true in
 #eval spoon <| do
