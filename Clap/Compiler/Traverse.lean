@@ -1287,9 +1287,10 @@ private partial def down (reduce reduceOuter : Simplifier)
                          (stack : List InProgressExpr) (todo : Expr)
                          : Sym.Simp.SimpM Expr := do
   inDebugOnly (do modifyDbgState fun σ ↦ {σ with numDown := σ.numDown + 1})
+  trace[Clap.Compile.down] m!"New expr: {todo}"
   if let .some ⟨_, _, _, _, a, f⟩ ← todo.matchBinds -- TODO(perf): Propagate the rest.
   then
-    trace[Clap.Compile.down] "\npush [→]:\n{f}\ngo [↓]:\n{a}"
+    trace[Clap.Compile.down] m!"\npush [→]:\n{f}\ngo [↓]:\n{a}"
     down reduce reduceOuter (.inr f :: stack) a
   else
     let (simped, time) ← Dbg.timeS (reduce todo)
@@ -1313,6 +1314,7 @@ private partial def down (reduce reduceOuter : Simplifier)
 private partial def up (reduce reduceOuter : Simplifier)
                        (stack : List InProgressExpr) (done : Expr) : Sym.Simp.SimpM Expr := do
   inDebugOnly (modifyDbgState fun σ ↦ {σ with numUp := σ.numUp + 1})
+  trace[Clap.Compile.up] m!"New expr: {done}"
   match stack with
   | [] =>
     trace[Clap.Compile.up] "Done"
@@ -1822,12 +1824,13 @@ set_option trace.Clap.Compile true in
   -- Pretty print (i.e. go back to `Bind.bind`)
   -- return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
 
+set_option maxRecDepth 1024 in
 set_option trace.Clap.Compile.dbg true in
 set_option Clap.traversalDbg true in
-set_option trace.Clap.Compile false in
+set_option trace.Clap.Compile true in
 #eval do
-  let (e, time) ← Dbg.timeS <| compileExample (args := #[toExpr 40]) ``ex₈
-    (←(mapM_singlePass ∪ zeta ∪ monads ∪ explode
+  let (e, time) ← Dbg.timeS <| compileExample (args := #[toExpr 5]) ``ex₈
+    (←(mapM_singlePass ∪ explode -- ∪ zeta ∪ monads ∪ explode
     -- ∪ compilerAssoc
     ∪ bindMyAssoc_set
     -- mapM_alt
@@ -1846,7 +1849,7 @@ set_option Clap.traversalDbg true
 set_option trace.Clap.Compile.dbg false
 def bench : MetaM Unit := do
   let simpset := (←(mapM_singlePass ∪ zeta ∪ explode))
-  let inputSizes := (Array.range 2).map (10 * 2^·)
+  let inputSizes := (Array.range 4).map (10 * 2^·)
   let timings ← inputSizes.mapM fun inputSize ↦ do
     let res ← Dbg.timeS <| (compileExample ``ex₈ simpset (args := #[mkNatLit inputSize])).run' {} |>.run
     let σ ← getAndResetDbgState

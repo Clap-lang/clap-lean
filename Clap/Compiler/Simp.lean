@@ -216,9 +216,11 @@ def simplify (simpset : Sym.Simp.Methods) (e : Expr) : Sym.Simp.SimpM Expr := do
   let e ← preprocessExpr e
   tryCatchRuntimeEx
     do
-      let time ← IO.monoMsNow
+      -- let time ← IO.monoMsNow
       -- logInfo m!"Compiling:\n{e}"
+      trace[Clap.Compile.down] m!"HERE: {e}"
       let res := (←Sym.simp e simpset config).getResultExpr e
+      trace[Clap.Compile.down] m!"THERE: {res}"
       -- Dbg.timeSince time "simplify took:"
       return res
     fun exc =>
