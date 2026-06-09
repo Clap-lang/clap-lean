@@ -234,8 +234,13 @@ open Primes HashToField in
 
   Enforces:
   - `left` is 0-padded after `left.len` characters
-  - `right` is 0-padded after `right.len` characters
   - `fullStr = left || right` where `||` is concatenation
+
+  Mirrors `circuit/templates/helpers/strings/AssertIsConcatenation.circom` from
+  the aptos-labs `keyless-zk-proofs` reference: the CIRCOM template only
+  checks left-padding and explicitly states "Assumes `right_len` has been
+  validated to be correct outside of this subcircuit, i.e. that `right` is
+  0-padded after `right_len` values"
 -/
 def assertIsConcatenation
     {maxFullLen maxLeftLen maxRightLen : ℕ}
@@ -254,10 +259,8 @@ def assertIsConcatenation
   let leftSelector ← FArray.rightArraySelector maxLeftLen (left.len - 1)
   for l : i in [0:maxLeftLen] do
     eq0 (leftSelector[i] * left.data[i])
-  -- Step 2b: enforce that right is 0-padded after right.len
-  let rightSelector ← FArray.rightArraySelector maxRightLen (right.len - 1)
-  for l : i in [0:maxRightLen] do
-    eq0 (rightSelector[i] * right.data[i])
+  -- NOTE: right-0-padding is deliberately NOT enforced here; per the CIRCOM
+  -- reference the caller validates `right_len` (see the doc comment above).
   -- Step 3: build challenge powers α⁰, α¹, …, α^{maxFullLen-1}
   let powers : Vector (F bn254) maxFullLen ← powers α maxFullLen
   -- Step 4: left_poly_eval = Σᵢ left[i] · powers[i]
@@ -538,18 +541,21 @@ example : FString.assertIsConcatenation (by omega) (by omega)
   (mkFStrQ #v[99] 1)
   = none := by native_decide
 
--- 8a. Right 0-padding valid: right = [99, 0] with len=1 passes
+-- Right-0-padding is no longer enforced in-subcircuit (the caller validates
+-- right_len, per the AssertIsConcatenation reference). Both cases below are
+-- therefore decided purely by the concatenation polynomial check.
+
+-- 8a. right = [99, 0] (len=1): the trailing 0 matches `full` → concatenates → some
 example : FString.assertIsConcatenation (by omega) (by omega)
   (mkFStrQ #v[97, 98, 99] 3)
-  -- len=1, byte at index 1 is 0 → valid padding
   (mkFStrQ #v[97, 98] 2)
   (mkFStrQ #v[99, 0] 1)
   = some () := by native_decide
 
--- 8b. Right 0-padding violated: right = [99, 100] with len=1 fails
+-- 8b. right = [99, 100] (len=1): the trailing 100 has no matching slot in a
+--     maxFullLen=3 `full`, so the polynomial identity fails → none (not a padding check)
 example : FString.assertIsConcatenation (by omega) (by omega)
   (mkFStrQ #v[97, 98, 99] 3)
-  -- len=1, byte at index 1 is non-zero → fails
   (mkFStrQ #v[97, 98] 2)
   (mkFStrQ #v[99, 100] 1)
   = none := by native_decide
