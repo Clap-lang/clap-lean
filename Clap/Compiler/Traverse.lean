@@ -1550,7 +1550,7 @@ def compile (e : Expr) (simpset : Sym.Simp.Methods := default) : Sym.Simp.SimpM 
       (stack       := [])
       (todo        := e)
     inDebugOnly do trace[Clap.Compile.dbg] m!"σ: {repr (←getDbgState)}"
-    Sym.shareCommonInc (←Sym.mkLambdaFVarsS args compiled)
+    Sym.shareCommonInc (←mkLambdaFVars args compiled)
 
 def compileExample (ex : Name) (simpset : Sym.Simp.Methods := default) (args : Array Expr := #[]) : Sym.Simp.SimpM Expr := do
   -- withTraceNode `Clap.Compile.simp.proc (fun e ↦ return m!"") do
@@ -1819,7 +1819,7 @@ set_option trace.Clap.Compile true in
 set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile.dbg true in
 #eval spoon <| do
-  let e ← compileExample ``exex' (←(mapM_singlePass_pre))
+  let e ← compileExample ``exex'' (←(mapM_singlePass_pre))
   -- Pretty print (i.e. go back to `Bind.bind`)
   return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
 

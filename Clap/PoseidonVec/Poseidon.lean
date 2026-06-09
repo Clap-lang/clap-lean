@@ -319,19 +319,30 @@ set_option maxRecDepth 1000000 in
     (return default)
   ))
 
+-- `test = poseidonBN254`
+-- def poseidonBN254 {n} (inputs : Vector (F bn254) n) : Option (F bn254)
 set_option autoImplicit true in
-def testExample (inputType resultType: Type) (input: Array Expr) (test: Name) : MetaM Bool := do
+def testExample (test: Name) : MetaM Bool := do
   let compiled ← liftExpr (Clap.Compiler.compileExample test (←(
     poseidonBN254' ∪
     SymSets.General.ground ∪
     Clap.Compiler.SymSets.General.control ∪
     (return default)
   )))
+  logInfo m!"compiled:\n{compiled}"
   let raw := ((←getEnv).find? test).get!.value!
-  let funcType := (inputType → resultType)
-  Expr.lam
-  evalExpr funcType (toTypeExpr funcType)
-  _
+  logInfo m!"raw: {raw}"
+  -- `q((n : ℕ) → Vector (F p) n → Option (F p))`
+  let typeExpr := ((←getEnv).find? test).get!.type
+  let stuff ← unsafe evalExpr ((n : ℕ) → Vector (F p) n → Option (F p)) typeExpr raw
+  let stuffEvald := stuff _ #v[1, 2]
+  logInfo m!"stuffEvald: {repr stuffEvald}"
+  let stuff' ← unsafe evalExpr ((n : ℕ) → Vector (F p) n → Option (F p)) typeExpr compiled
+  let stuff'Evald := stuff' _ #v[1, 2]
+  logInfo m!"stuff'Evald: {repr stuff'Evald}"
+  return stuffEvald == stuff'Evald
+
+#eval! testExample ``Clap.PoseidonVec.poseidonBN254
 
 end DownTest
 
