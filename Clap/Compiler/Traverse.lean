@@ -571,29 +571,58 @@ partial def _root_.Lean.Expr.sequenceBinds (e : Expr) : Array (Expr × Expr) :=
       | _ =>
         res.push (e, default)
 
+private def _root_.Lean.Expr.matchBindsE (e : Expr) : Option (Expr × Expr) :=
+  match_expr e with
+  | Bind.bind _ _ _ _ a f => .some (a, f)
+  | Option.bind   _ _ a f => .some (a, f)
+  | _                     => .none
+
 partial def _root_.Lean.Expr.sequenceBindsL (e : Expr) : Array (Expr × Expr) :=
   go #[e] #[]
 where
-  go (todo : Array Expr) (res : Array (Expr × Expr)) : Array (Expr × Expr) :=
+  go (todo : Array Expr) (done : Array (Expr × Expr)) : Array (Expr × Expr) :=
     match todo.back? with
-    | none => res
-    | some e =>
+    | .none => done
+    | .some e =>
       let todo := todo.pop
-      match_expr e with
-      | Option.bind _ _ a f =>
-        match_expr a with
-        | Option.bind _ _ b g =>
-          go (todo.push f |>.push g |>.push b) res
+      match e.matchBindsE with
+      | .some (a, f) =>
+        match a.matchBindsE with
+        | .some (b, g) =>
+          go (todo.push f |>.push g |>.push b) done
         | _ =>
-          go (todo.push f) (res.push (a, default))
+          go (todo.push f) (done.push (a, default))
       | _ =>
         match e with
         | .lam _ dom body _ =>
-          let (a, _) := res.back!
-          let res := res.pop.push (a, dom)
-          go (todo.push body) res
+          let done := done.modify done.size.pred fun (a, _) ↦ (a, dom)
+          go (todo.push body) done
         | _ =>
-          go todo (res.push (e, default))
+          go todo (done.push (e, default))
+
+-- partial def _root_.Lean.Expr.sequenceBindsL (e : Expr) : Array (Expr × Expr) :=
+--   go #[e] #[]
+-- where
+--   go (todo : Array Expr) (done : Array (Expr × Expr)) : Array (Expr × Expr) :=
+--     match todo.back? with
+--     | .none => done
+--     | .some e =>
+--       let todo := todo.pop
+--       match_expr e with
+--       | Option.bind _ _ a f =>
+--         match_expr a with
+--         | Option.bind _ _ b g =>
+--           go (todo.push f |>.push g |>.push b) done
+--         | _ =>
+--           go (todo.push f) (done.push (a, default))
+--       | _ =>
+--         match e with
+--         | .lam _ dom body _ =>
+--           let done := done.modify done.size.pred fun (a, _) ↦ (a, dom)
+--           go (todo.push body) done
+--         | _ =>
+--           go todo (done.push (e, default))
+
 
 -- partial def _root_.Lean.Expr.sequenceBindsL (e : Expr) : Array (Expr × Expr) :=
 --   go e #[]
@@ -1674,9 +1703,9 @@ namespace ExampruSym
 
 open SymSets Monad General Vector
 
-opaque F {α : Type} : Nat → Option α
-opaque G {α : Type} : Nat → Option α
-opaque H {α : Type} : Nat → Option α
+opaque F : Nat → Option ℕ
+opaque G : Nat → Option ℕ
+opaque H : Nat → Option ℕ
 
 def exex : Option Unit :=
   Option.bind (eq0 4) fun _ : Unit ↦
@@ -1693,14 +1722,15 @@ def exex : Option Unit :=
 #print exex
 
 def exex' : Option Unit := do
-  let x ← F 2
-  let y ← G x
+  let z ← F 2
+  let x ← H 4
+  let y ← (do let x ← G (x + z); let y ← G x; H (x + z))
   H y
 
 #check @Option.bind_assoc
 set_option trace.Clap.Compile true in
 #eval spoon <| do
-  let e ← compileExample ``exex
+  let e ← compileExample ``exex'
   -- Pretty print (i.e. go back to `Bind.bind`)
   return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
 
