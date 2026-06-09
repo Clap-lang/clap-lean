@@ -559,6 +559,13 @@ private def _root_.Lean.Expr.matchBindsE (e : Expr) : Option (Expr × Expr) :=
   | Option.bind   _ _ a f => .some (a, f)
   | _                     => .none
 
+/-
+do let x : t₁ ← a1
+   a2
+   let x ← do a3; a4; return 4
+   a3 x
+-/ --> [(a1, t₁), (a2, t₂), (a3, t₃), (a4, t₄), (return 4, ℕ), a3]
+
 partial def _root_.Lean.Expr.sequenceBindsL (e : Expr) : Array (Expr × Expr) :=
   go #[e] #[]
 where
@@ -1329,7 +1336,7 @@ def set : MetaM Methods :=
   ]
 
 def processWrapped : Sym.Simp.Simproc := fun e ↦ do
-  let_expr clapwrap _ e := e | return .rfl
+  let_expr Simp.clapwrap _ e := e | return .rfl
   return .rfl (done := true)
 
 def wrapped : MetaM Methods :=
@@ -1767,6 +1774,12 @@ def exex : Option Unit :=
 
 #print exex
 
+namespace NewTraversal
+
+def testReturn : Option Unit := do
+  let x ← .some ()
+  return ()
+
 def exex' : Option Unit := do
   let z ← F 2
   let x ← H 4
@@ -1780,13 +1793,16 @@ def exex'' : Option Unit := do
   H y
 
 #check @Option.bind_assoc
+
 set_option trace.Clap.Compile true in
 set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile.dbg true in
 #eval spoon <| do
-  let e ← compileExample ``exex'' (←(mapM_singlePass_pre))
+  let e ← compileExample ``exex' (←(mapM_singlePass_pre))
   -- Pretty print (i.e. go back to `Bind.bind`)
   return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
+
+end NewTraversal
 
 #exit
 
