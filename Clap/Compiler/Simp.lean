@@ -211,6 +211,24 @@ def forceHeartbeats {α : Type} {m : Type → Type} [MonadWithReaderOf Core.Cont
                     (heartBeats : Nat) : m α → m α :=
   withTheReader Core.Context ({· with maxHeartbeats := heartBeats * 1000})
 
+opaque clapwrap {α : Type} (inner : Option α) : Option α
+
+def wrapper := Expr.const ``clapwrap []
+
+/--
+`Sym.simp` doesn't know when to stop!
+Even if `(done := true)`, we still get the fixpoint... ouch?
+
+This is a workaround. We return a wrapped expression that matches nothing to stop the recursion.
+Amazing...
+-/
+def wrapped (t e : Expr) : Expr :=
+  mkApp2 wrapper t e
+
+@[inherit_doc wrapped]
+def unwrapped (e : Expr) : Expr :=
+  if let (``clapwrap, #[_, inner]) := e.getAppFnArgs then inner else e
+
 set_option hygiene false in
 def simplify (simpset : Sym.Simp.Methods) (e : Expr) : Sym.Simp.SimpM Expr := do
   -- let e ← preprocessExpr e
@@ -220,7 +238,8 @@ def simplify (simpset : Sym.Simp.Methods) (e : Expr) : Sym.Simp.SimpM Expr := do
       -- logInfo m!"Compiling:\n{e}"
       let res := (←Sym.simp e simpset config).getResultExpr e
       -- Dbg.timeSince time "simplify took:"
-      return res
+      -- unwrap _after_ simp, it is _not_ enough to put last in the simp chain
+      return unwrapped res
     fun exc =>
       throwError m!"***SIMP ERRROR***\nExpression:\n{e}\nInternal:\n{exc.toMessageData}"
 

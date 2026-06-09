@@ -53,26 +53,8 @@ def cowboyCast (e : Expr) (yourDeepestDesire : ℕ) : Sym.SymM Expr := do
   logInfo m!"Cowboy cast:\n{e}\n==>\n{e'}"
   return e'
 
-opaque clapwrap {α : Type} (inner : Option α) : Option α
-
-def wrapper := Expr.const ``clapwrap []
-
-/--
-`Sym.simp` doesn't know when to stop!
-Even if `(done := true)`, we still get the fixpoint... ouch?
-
-This is a workaround. We return a wrapped expression that matches nothing to stop the recursion.
-Amazing...
--/
-def wrapped (t e : Expr) : Expr :=
-  mkApp2 wrapper t e
-
-@[inherit_doc wrapped]
-def unwrapped (e : Expr) : Expr :=
-  if let (``clapwrap, #[_, inner]) := e.getAppFnArgs then inner else e
-
-@[inherit_doc wrapped]
-abbrev singlePass := wrapped
+@[inherit_doc Simp.wrapped]
+abbrev singlePass := Simp.wrapped
 
 namespace SymSets
 
@@ -882,6 +864,60 @@ def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
     -- Dbg.timeSince time "mapM_mk_cons took:"
     return .step e' proof
 
+open Compiler.Simp in
+/--
+Single step transformation. TODO: Does not play particularly nice with our top-level driver.
+`Vector.mapM f #v[x₀, x₁, ..., xₘ]` ==>
+`f x₀ >>= fun row₀ ↦ f x₁ >>= fun row₁ ↦ ... fun rowₘ ↦ .some #v[row₀, row₁, ..., rowₘ]`
+-/
+def _root_.Vector.mapM_mk_seq : Sym.Simp.Simproc := fun e ↦ do
+  let .some [f, _, β, xs] := mapM? e | return .rfl
+  let .some (elems, ⟨⟨_, k, .some sz⟩, _⟩) ← sequenced xs | return .rfl
+  let szSimped := (←Sym.simpWithGround sz).getResultExpr sz
+  if !isSameExpr sz szSimped then
+    trace[Clap.Compile.simp.proc.vector_mapM_mk]
+      m!"Info: Processing `Vector _ ({sz})` of ground length {szSimped}. Request:\n{e}"
+  match szSimped.nat? with
+  | .none => throwError m!"{sz} does not simplify to ground. Expr:\n{e} (TODO: Maybe this is ok.)"
+  | .some szSimpedNat =>
+    let transformedList ← Sym.mkListLit β <| (List.range szSimpedNat).reverse.map .bvar
+    let .some transformedColl :=
+      Collection.ofExpr transformedList <&>
+      Collection.setSize (sz := szSimped) >>=
+      Collection.cast (t := k) | unreachable!
+    let transformedColl ← transformedColl.toExpr
+    let transformedCollT ← Sym.inferType transformedColl
+    let v ← Sym.getLevelInType transformedCollT
+    let transformedColl? :=
+      mkAppN (.const ``Option.some [v]) #[transformedCollT, transformedColl]
+    let transformedColl? ← Sym.shareCommonInc transformedColl?
+    let u ← Sym.getLevelInType β
+    /-
+    Start with `.some #[.bvar sz.pred, .bvar sz.pred.pred, ..., .bvar 0]`
+    Prefix a single lambda in each iteration.
+    -/
+    let e' ← (List.range szSimpedNat).foldrM (init := transformedColl?) fun i e ↦ do
+      let elem := elems[i]!
+      liftM ∘ Sym.shareCommonInc <|
+        mkAppN                                         -- `f vec[i] >>= fun row_{i} ↦ e`
+          (.const ``Option.bind [u, v])
+          #[
+            β, transformedCollT,                       -- implicits
+            ←Sym.shareCommonInc (f.beta #[elem]),      -- `f vec[i]`
+            .lam (binderInfo := .default)
+                 (binderName := .mkSimple s!"row_{i}")
+                 (binderType := β)
+                 (body       := e)                     -- `fun row_{i} ↦ e`
+          ]
+      -- Careful, `e` contains loose bvars until the very last iteration.
+    trace[Clap.Compile.simp.proc.vector_mapM_mk]
+      m!"\n{e}\n==>\n{e'}"
+    let proof ← mkSorry (←mkEq e e') false
+    -- Dbg.timeSince time "mapM_mk_cons took:"
+    trace[Clap.Compile.simp.proc.vector_mapM_mk]
+      m!"SEQ: {e'.sequenceBindsL}"
+    return .step e' proof
+
 def reportMaxShared (e : Expr) (descr : String := "") : Sym.Simp.SimpM Unit := do
   try
     e.checkMaxShared
@@ -1161,6 +1197,11 @@ def mapM : MetaM Methods :=
     -- ``Compiler.explodeVectorMapM
   ]
 
+def mapM_seq : MetaM Methods :=
+  mkPostMethods #[
+    ``Vector.mapM_mk_seq
+  ]
+
 def mapM_alt : MetaM Methods :=
   mkPostMethods #[
     ``Vector.mapM_mk_single
@@ -1394,6 +1435,9 @@ def inDebugOnly (m : Sym.Simp.SimpM Unit) : Sym.Simp.SimpM Unit := do
   if (←getBoolOption ``Clap.traversalDbg) then
     m
 
+def logOfExprs (e e' : Expr) : MessageData :=
+  m!"\n{e}\n==>\n{e'}"
+
 mutual
 
 private partial def down (reduce reduceOuter : Simplifier)
@@ -1401,12 +1445,14 @@ private partial def down (reduce reduceOuter : Simplifier)
                          : Sym.Simp.SimpM Expr := do
   inDebugOnly (do modifyDbgState fun σ ↦ {σ with numDown := σ.numDown + 1})
   -- See the docs of `unwrapped`
-  let todo := unwrapped todo
+  -- let todo := unwrapped todo
   let .some ⟨_, _, _, β, _, _⟩ ← todo.matchBinds | return todo
   let binds := todo.sequenceBindsL
   logInfo m!"e: {todo}\nbinds:"
   let simpedBinds ← binds.mapM fun (action, τ) ↦ do
     let (simped, time) ← Dbg.timeS (reduce action)
+    trace[Clap.Compile.down] logOfExprs action simped
+    inDebugOnly do trace[Clap.Compile.dbg] m!"simp took {time}s"
     return (simped, τ)
   let binds := SymSets.Vector.chainActions β simpedBinds
   logInfo m!"binds: {←binds}"
@@ -1729,14 +1775,16 @@ def exex' : Option Unit := do
 
 def exex'' : Option Unit := do
   let z ← F 2
-  let x ← #v[1, 2].mapM H
-  let y ← (do let x ← G z; let y ← G x; H (x + z))
+  let x ← #v[1, 2].mapM (fun _ ↦ pure 4)
+  let y ← (do let x ← G x[1]; let y ← G x; H (x + z))
   H y
 
 #check @Option.bind_assoc
 set_option trace.Clap.Compile true in
+set_option Clap.traversalDbg true in
+set_option trace.Clap.Compile.dbg true in
 #eval spoon <| do
-  let e ← compileExample ``exex'' (←(mapM))
+  let e ← compileExample ``exex'' (←(mapM_singlePass_pre))
   -- Pretty print (i.e. go back to `Bind.bind`)
   return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
 
