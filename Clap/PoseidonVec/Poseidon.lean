@@ -140,7 +140,7 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
 
   -- `let state ← #v[1, 2].mapM f; tail` ==>
   -- `let state ← f 1 >>= fun a1 ↦ f 2 >>= fun a2 ↦ pure #v[a1, a2]; tail`
-  -- 
+  --
 
   -- Boundary round (r = half−1): sigma → ark → mix with P
   let state := mix (ark (← state.mapM sigma) C (half * t)) P
@@ -230,7 +230,7 @@ private def testPoseidon (inputs : Vector (ZMod p) 2) (expected : F p) : Option 
   let res ← poseidonBN254 inputs
   F.assert_eq res expected
 -- bind (poseidonBN254 inputs) >>= fun res ↦ F.assert_eq res expected
--- process (poseidonBN254 inputs) | push 
+-- process (poseidonBN254 inputs) | push
 def poseidonBN254 : SimpSet :=
   SimpSet.withAllPost #[
     ``PoseidonVec.poseidonBN254, ``poseidon, ``poseidonEx,
@@ -306,6 +306,35 @@ set_option maxHeartbeats 0 in
       bindMyAssoc_set
     ))
 
+namespace DownTest
+
+open Clap.Compiler.SymSets General in
+set_option pp.exprSizes true in
+set_option maxRecDepth 1000000 in
+#eval spoon <| do
+  compileExample ``testPoseidon (←(
+    poseidonBN254' ∪
+    SymSets.General.ground ∪
+    control ∪
+    (return default)
+  ))
+
+set_option autoImplicit true in
+def testExample (inputType resultType: Type) (input: Array Expr) (test: Name) : MetaM Bool := do
+  let compiled ← liftExpr (Clap.Compiler.compileExample test (←(
+    poseidonBN254' ∪
+    SymSets.General.ground ∪
+    Clap.Compiler.SymSets.General.control ∪
+    (return default)
+  )))
+  let raw := ((←getEnv).find? test).get!.value!
+  let funcType := (inputType → resultType)
+  Expr.lam
+  evalExpr funcType (toTypeExpr funcType)
+  _
+
+end DownTest
+
 -- set_option trace.Clap.Compile.simp.fail true
 -- set_option trace.Meta.Tactic.simp true
 -- -- set_option trace.Clap.Compile.down true
@@ -329,7 +358,7 @@ set_option maxHeartbeats 400000
 --      CompileSets.Nat.arith ∪
 --      CompileSets.Array.range ∪
 --      CompileSets.List.range ∪
---      CompileSets.Logic.cases ∪ 
+--      CompileSets.Logic.cases ∪
 --     --  CompileSets.Vector.getElem! ∪
 --      CompileSets.Vector.sum ∪
 --      CompileSets.Vector.explode ∪

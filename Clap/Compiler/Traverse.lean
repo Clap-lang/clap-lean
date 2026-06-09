@@ -237,7 +237,7 @@ def monad : Sym.Simp.Simproc := fun e ↦ do
     return .step e' (←Sym.mkEqRefl e') (done := true)
   | Option.bind α γ x g =>
     match_expr x with
-    -- | Option.bind α β x f => 
+    -- | Option.bind α β x f =>
     --   -- let time ← IO.monoMsNow
     --   let subtree := (←Sym.simp f).getResultExpr f
     --   trace[Clap.Compile.simp.proc.monad.bind_assoc]
@@ -286,7 +286,7 @@ def monadBindAssoc : Sym.Simp.Simproc := fun e ↦ do
   match_expr e with
   | Option.bind _ γ x g =>
     match_expr x with
-    | Option.bind α β x f => 
+    | Option.bind α β x f =>
       -- let subtree := (←Sym.simp f).getResultExpr f
       -- trace[Clap.Compile.simp.proc.monad.bind_assoc]
       --   m!"Subtree.\n{f}\n==>\n{subtree}"
@@ -312,7 +312,7 @@ def monadBindAssocSimple : MetaM Sym.Simp.Methods :=
 
 def monads : MetaM Sym.Simp.Methods :=
   mkPreMethods #[
-    ``monad, 
+    ``monad,
   ]
 
 def compilerAssoc : MetaM Sym.Simp.Methods :=
@@ -575,15 +575,19 @@ where
     | .some e =>
       let todo := todo.pop
       match e.matchBindsE with
-      | .some (a, f) =>
-        match a.matchBindsE with
+      -- action >>= func
+      -- action: m A
+      -- func: A → m B
+      | .some (action, func) =>
+        match action.matchBindsE with
         | .some (b, g) =>
-          go (todo.push f |>.push g |>.push b) done
+          go (todo.append #[func, g, b]) done
         | _ =>
-          go (todo.push f) (done.push (a, default))
+          go (todo.push func) (done.push (action, default))
       | _ =>
         match e with
         | .lam _ dom body _ =>
+        -- TODO cover case of passing a lambda directly into sequenceBindsL
           let done := done.modify done.size.pred fun (a, _) ↦ (a, dom)
           go (todo.push body) done
         | _ =>
@@ -733,7 +737,7 @@ def foldlM : MetaM Methods :=
 def foldlM_singlePass_s : MetaM Methods :=
   mkPreMethods #[
     ``foldlM_singlePass
-  ] 
+  ]
 
 def foldlM_post : MetaM Methods :=
   mkPostMethods #[
@@ -784,7 +788,7 @@ def getElem_old : MetaM Methods :=
 def map : MetaM Methods :=
   mkPostMethods #[
     ``Vector.map_mk, ``List.map_toArray,
-    
+
     ``List.map_cons, ``List.map_nil,
   ] ∪ mapOptim
   where
@@ -799,8 +803,8 @@ def mapIdx_mk : Sym.Simp.Simproc := fun e => do
 
   trace[Clap.Compile.simp.proc.vector_mapIdx_mk]
     m!"\n{e}\n==>\n{e'}"
-  
-  return .step e' (←mkSorry (←mkEq e e') false) 
+
+  return .step e' (←mkSorry (←mkEq e e') false)
 
 def mapIdx : MetaM Methods :=
   mkPostMethods #[
@@ -965,7 +969,7 @@ def _root_.Vector.mapM_mk_single : Sym.Simp.Simproc := fun e ↦ do
 
     let hdSz := mkNatLit 1
     let tlSz := mkNatLit szN.pred
-    
+
     -- `#v[__do_lift] ++ __do_lift_1`
     /-
       TODO(perf): Use the instance-less one for every typeclass'd operation.
@@ -994,11 +998,11 @@ def _root_.Vector.mapM_mk_single : Sym.Simp.Simproc := fun e ↦ do
     let mapMT ← Sym.inferType mapM
     let appendT ← Sym.inferType append
     let v ← Sym.getLevelInType mapMT
-    
+
     let someAppend := mkApp2 (.const ``Option.some [u]) appendT append
 
     -- `Vector.mapM f tl >>= fun __do_lift_1 ↦ pure (#v[__do_lift] ++ __do_lift_1)`
-    let innerBind := 
+    let innerBind :=
       mkApp4
         (.const ``Option.bind [u, v]) mapMT appendT mapM
         (.lam `_snd mapMT someAppend .default)
@@ -1014,10 +1018,10 @@ def _root_.Vector.mapM_mk_single : Sym.Simp.Simproc := fun e ↦ do
       mkApp4
         (.const ``Option.bind [u, u])
         β
-        appendT 
+        appendT
         (←Sym.shareCommonInc (f.beta #[hd])) -- TODO(?): `Expr.app f hdVec` without reducing here?
         (.lam `fst t innerBind .default )
-      
+
     let e' ← Sym.shareCommonInc bind
     -- let (e', time) ← timeS (Sym.shareCommonInc bind)
 
@@ -1062,7 +1066,7 @@ def _root_.Vector.mapM_mk_single_singlePass : Sym.Simp.Simproc := fun e ↦ do
 
     let hdSz := mkNatLit 1
     let tlSz := mkNatLit szN.pred
-    
+
     -- `#v[__do_lift] ++ __do_lift_1`
     /-
       TODO(perf): Use the instance-less one for every typeclass'd operation.
@@ -1088,11 +1092,11 @@ def _root_.Vector.mapM_mk_single_singlePass : Sym.Simp.Simproc := fun e ↦ do
     let mapMT ← Sym.inferType mapM
     let appendT ← Sym.inferType append
     let v ← Sym.getLevelInType mapMT
-    
+
     let someAppend := mkApp2 (.const ``Option.some [u]) appendT append
 
     -- `Vector.mapM f tl >>= fun __do_lift_1 ↦ pure (#v[__do_lift] ++ __do_lift_1)`
-    let innerBind := 
+    let innerBind :=
       mkApp4
         (.const ``Option.bind [u, v]) mapMT appendT mapM
         (.lam `_snd mapMT someAppend .default)
@@ -1108,10 +1112,10 @@ def _root_.Vector.mapM_mk_single_singlePass : Sym.Simp.Simproc := fun e ↦ do
       mkApp4
         (.const ``Option.bind [u, u])
         β
-        appendT 
+        appendT
         (←Sym.shareCommonInc (f.beta #[hd])) -- TODO(?): `Expr.app f hdVec` without reducing here?
         (.lam `fst t innerBind .default )
-      
+
     -- See the docs of `singlePass`
     let e' ← Sym.shareCommonInc (singlePass appendT bind)
 
@@ -1185,7 +1189,7 @@ def mapM_singlePass_pre : MetaM Methods :=
   --                      (←mkAppM ``Option.some #[theMiddleBit])
   --                      .default
   --         ])
-  --         .default 
+  --         .default
   --     ]
   --   logInfo m!"consMapM: {consMapM}"
   --   let e' ← Sym.shareCommonInc consMapM
@@ -1244,14 +1248,14 @@ def mk_zipWith_mk : Sym.Simp.Simproc := fun e => do
 
   trace[Clap.Compile.simp.proc.vector_mk_zipWith_mk]
     m!"\n{e}\n==>\n{e'}"
-  
-  return .step e' (←mkSorry (←mkEq e e') false) 
+
+  return .step e' (←mkSorry (←mkEq e e') false)
 
 def zipWith : MetaM Methods :=
   mkPostMethods #[
     ``Vector.mk_zipWith_mk,
     -- ``List.zipWith_toArray,
-    
+
     -- ``List.zipWith_cons_cons, ``List.zipWith_nil_left, ``List.zipWith_nil_right,
 
     -- ``Compiler.explodeVectorZipWith
@@ -1287,7 +1291,7 @@ def replicate : MetaM Methods :=
 def extract : MetaM Methods :=
   mkPostMethods #[
     ``Vector.extract_mk, ``List.extract_toArray,
-    
+
     ``List.extract_eq_take_drop
   ] ∪ drop ∪ take ∪ SymSets.General.ground
 
@@ -1331,7 +1335,7 @@ def set : MetaM Methods :=
   mkPostMethods #[
     ``Vector.set_mk
     -- ``List.set_toArray,
-    
+
     -- ``List.set_cons_succ, ``List.set_cons_zero,
   ]
 
@@ -1574,7 +1578,7 @@ elab "compile_just_sym" "[" simps:ident,* "]" : tactic => do
   let methods ← simps.mapM (liftM ∘ Simp.API.getMethodsM)
   let methods ← liftM <| methods.foldl (fun method acc ↦ method ∪ acc) (pure {})
   Tactic.liftMetaTactic1 fun mvarId => Sym.SymM.run do
-    let mvarId ← Sym.preprocessMVar mvarId    
+    let mvarId ← Sym.preprocessMVar mvarId
     let time ← IO.monoMsNow
     let res ← (← Sym.simpGoal mvarId methods).toOption
     logInfo m!"compile_just_sym took {Dbg.timeInSecondsOfMs time (←IO.monoMsNow)}s"
@@ -1589,7 +1593,7 @@ def rewriteReport : Sym.Simp.Simproc := fun e ↦ do
   let res ← stuff.rewrite e
   match res with
   | .rfl .. => return res
-  | .step .. => 
+  | .step .. =>
     logInfo m!"Did the rewrite"
     return res
 
@@ -1638,7 +1642,7 @@ compile:
 def tt' : Option Unit :=
   Option.bind (eq0 0) fun _ ↦
   Option.bind f fun _ ↦
-  Option.bind (.some 4) fun x ↦ 
+  Option.bind (.some 4) fun x ↦
   Option.bind (.some <| x + 1) fun y ↦
   Option.bind (.some <| y + 2) fun y ↦
   eq0 y
@@ -1665,11 +1669,16 @@ def ppMonad (e : Expr) : MetaM Expr := do
   let pretty ← Sym.simp e (←Clap.Compiler.SymSets.General.compilerBindEqBind) |>.run
   return pretty.getResultExpr e
 
+/-- a.k.a tablespoon -/
+def liftExpr (m : Sym.Simp.SimpM Expr) : MetaM Expr := do
+  m.run' {} |>.run
+
 def spoon (m : Sym.Simp.SimpM Expr) : MetaM Unit := do
-  let compiled ← m.run' {} |>.run
+  let compiled ← liftExpr m
   let pretty ← ppMonad compiled
   -- logInfo m!"Compiled:\n{compiled}"
   logInfo m!"Compiled:\n{pretty}"
+
 
   -- -- (m.run' {} |>.run) >>= PrettyPrinter.ppExpr
 
@@ -1723,14 +1732,14 @@ where
 --   for (k, v) in σ do
 --     logInfo m!"{k.expr} → {v.getResultExpr default}"
 --   return ()
-  
+
 -- #eval abc.run' {} |>.run
-  
+
 -- #exit
   -- let σshare₁ := σ.share
   -- for key in σshare₁.set do
-  --   logInfo m!"{key.expr}"  
-  -- logInfo m!"______________________"  
+  --   logInfo m!"{key.expr}"
+  -- logInfo m!"______________________"
   -- let impl ← Sym.shareCommon val
   -- logInfo m!"impl: {impl}"
   -- let σ₂ ← get
@@ -1776,9 +1785,21 @@ def exex : Option Unit :=
 
 namespace NewTraversal
 
-def testReturn : Option Unit := do
-  let x ← .some ()
-  return ()
+def testInnerReturn : Option Unit := do
+  let x ← F 1
+  let y ← F (←(fun (x: ℕ) => do
+    return x) 3)
+  let z ← F 3
+  pure ()
+
+set_option trace.Clap.Compile true in
+set_option Clap.traversalDbg true in
+set_option trace.Clap.Compile.dbg true in
+#eval spoon <| do
+  let e ← compileExample ``testInnerReturn (←(mapM_singlePass_pre))
+  -- Pretty print (i.e. go back to `Bind.bind`)
+  return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
+
 
 def exex' : Option Unit := do
   let z ← F 2
@@ -1952,7 +1973,7 @@ fun vec => (eq0 vec[0]).bind fun x => (eq0 0).bind fun x => eq0 vec[1]
 -- `[0:#1, 1:#0, 2:g, 3: 2 1, 4: 3 1, 5: λ 4, 6: f, 7: λ 6 5, 8: 6 7]`
 -- `f ==> f'`
 -- `[0:#1, 1:#0, 2:g, 3: 2 1, 4: 3 1, 5: λ 4, 6: f, 7: λ 6 5, 8: 6 7, 9: f']`
--- 
+--
 
 def ex₇ (vec : Vector Nat 3) : Option Unit := do
   eq0 ((vec ++ vec)[0])
@@ -1982,11 +2003,11 @@ def ex₇ (vec : Vector Nat 3) : Option Unit := do
 #eval spoon <| do compileExampleJustSym ``ex₇ (←(append ∪ getElem ∪ sum ∪ zeta ∪ monads ∪ explode))
 
 def ex₈ (n : ℕ) (vec : Vector Nat n) : Option Unit := do
-  let x ← (do let _ ← eq0 2; let X ← vec.mapM (fun x ↦ (eq0 (x + 42) : Option _)); return 4) 
+  let x ← (do let _ ← eq0 2; let X ← vec.mapM (fun x ↦ (eq0 (x + 42) : Option _)); return 4)
   eq0 x
 
 def ex₈_fixed (vec : Vector Nat 2) : Option Unit := do
-  let x ← (do let _ ← eq0 2; let X ← vec.mapM (fun x ↦ (eq0 (x + 42) : Option _)); return 4) 
+  let x ← (do let _ ← eq0 2; let X ← vec.mapM (fun x ↦ (eq0 (x + 42) : Option _)); return 4)
   eq0 x
 
   -- let res ← vec.mapM (fun n ↦ return n + 1)
@@ -2033,7 +2054,7 @@ set_option maxHeartbeats 0 in
   -- Pretty print (i.e. go back to `Bind.bind`)
   return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
 
--- def xx : MetaM Sym.Simp.Methods := 
+-- def xx : MetaM Sym.Simp.Methods :=
 
 -- set_option trace.Clap.Compile.dbg true in
 -- set_option Clap.traversalDbg true in
@@ -2048,7 +2069,7 @@ set_option maxHeartbeats 0 in
 --     ))
 --   let σ ← getDbgState
 --   logInfo m!"σ: {repr σ}"
-  
+
 --   return e
 --   -- Pretty print (i.e. go back to `Bind.bind`)
 --   -- return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
@@ -2069,7 +2090,7 @@ set_option trace.Clap.Compile false in
   logInfo m!"time: {time}"
   let e' := Sym.simp e (←compilerBindEqBind)
   let e' ← e'.run
-  
+
   logInfo m!"e: {e'.getResultExpr e}"
   logInfo m!"{←(getAndResetDbgState <&> repr)}"
   -- return e
@@ -2089,10 +2110,10 @@ def bench : MetaM Unit := do
   for (n, (compiled, time), dbgState) in timings do
     logInfo m!"ex₈[{n}] took {time}s"
     logInfo m!"dbg: {repr dbgState}"
-    
+
     logInfo m!"{←ppMonad compiled}"
     -- logInfo m!"res:\n{(←Sym.simp compiled (←compilerBindEqBind) |>.run).getResultExpr compiled}"
-  
+
   -- for n in inputSizes do
   --   let (res, time) ← Dbg.timeS ∘ spoon <|
   --     compileExample ``ex₈ (←(mapM_singlePass ∪ zeta ∪ monads ∪ explode ∪ bindMyAssoc_set))
@@ -2107,7 +2128,7 @@ set_option maxRecDepth 40000 in
 opaque share : Nat → Option Nat
 
 def ex₉ {n : Nat} (vec : Vector Nat n) : Option Unit := do
-  let x ← (do let _ ← eq0 2; let x ← vec.mapM (fun x ↦ (share (x + 42) : Option _)); return x) 
+  let x ← (do let _ ← eq0 2; let x ← vec.mapM (fun x ↦ (share (x + 42) : Option _)); return x)
   let _ ← x.mapM eq0
 
 set_option maxRecDepth 1024 in
@@ -2129,7 +2150,7 @@ set_option trace.Clap.Compile false in
   -- let e' := Sym.simp e {}
   let e' := Sym.simp e (←compilerBindEqBind)
   let e' ← e'.run
-  
+
   logInfo m!"e: {e'.getResultExpr e}"
   logInfo m!"{←(getAndResetDbgState <&> repr)}"
 
@@ -2147,7 +2168,7 @@ set_option trace.Clap.Compile true in
 -- set_option trace.Clap.Compile true in
 -- example {vec : Vector Nat 10} : ex₈ vec = .none := by
 --   unfold ex₈
-  
+
 --   cbv
 --   -- compile_just_sym [SymSets.Vector.mapM]
   -- rw [Option.bind_eq_bind]
@@ -2157,11 +2178,11 @@ set_option trace.Clap.Compile true in
   -- rw [bind_assoc]
   -- rw [bind_assoc]
   -- rw [bind_assoc]
-  
+
 
   -- compile_just_sym [compilerAssoc]
   -- rw [bind_assoc]
-  
+
   -- #check bind_assoc
 -- set_option trace.Clap.Compile true in
 -- example {vec : Vector Nat 10} : ex₈' vec = sorry := by
