@@ -552,7 +552,7 @@ def _root_.Lean.Expr.foldlM? (e : Expr) : Option (List Expr) :=
   | _ => .none
 
 /-
-`a >>= λ a₁ : t₁ ↦ b >>= λ a₂ : t₂ ↦ c >>= fun a₃ : t₃ ↦ a₄ : m t₄` = `(#[(a, t₁), (b, t₂), (c, t₃)], t₄)`
+`a >>= λ a₁ : t₁ ↦ b >>= λ a₂ : t₂ ↦ c >>= λ a₃ : t₃ ↦ a₄ : m t₄` = `(#[(a, t₁), (b, t₂), (c, t₃)], t₄)`
 -/
 partial def _root_.Lean.Expr.sequenceBinds (e : Expr) : Array (Expr × Expr) :=
   go e #[]
@@ -564,12 +564,60 @@ partial def _root_.Lean.Expr.sequenceBinds (e : Expr) : Array (Expr × Expr) :=
       go f (res.push (a, default))
     | _ =>
       match e with
-        | .lam _ dom body _ =>
-          let (a, _dummy) := res.back!
-          -- We know the type of `a`, replace the _dummy_
-          go body (res.take (res.size - 1) |>.push (a, dom))
+      | .lam _ dom body _ =>
+        let (a, _dummy) := res.back!
+        -- We know the type of `a`, replace the _dummy_
+        go body (res.take (res.size - 1) |>.push (a, dom))
+      | _ =>
+        res.push (e, default)
+
+partial def _root_.Lean.Expr.sequenceBindsL (e : Expr) : Array (Expr × Expr) :=
+  go #[e] #[]
+where
+  go (todo : Array Expr) (res : Array (Expr × Expr)) : Array (Expr × Expr) :=
+    match todo.back? with
+    | none => res
+    | some e =>
+      let todo := todo.pop
+      match_expr e with
+      | Option.bind _ _ a f =>
+        match_expr a with
+        | Option.bind _ _ b g =>
+          go (todo.push f |>.push g |>.push b) res
         | _ =>
-          res.push (e, default)
+          go (todo.push f) (res.push (a, default))
+      | _ =>
+        match e with
+        | .lam _ dom body _ =>
+          let (a, _) := res.back!
+          let res := res.pop.push (a, dom)
+          go (todo.push body) res
+        | _ =>
+          go todo (res.push (e, default))
+
+-- partial def _root_.Lean.Expr.sequenceBindsL (e : Expr) : Array (Expr × Expr) :=
+--   go e #[]
+--   where
+--     go (e : Expr) (res : Array (Expr × Expr)) :=
+--     match_expr e with
+--     | Option.bind _ _ a f =>
+--       -- TODO: TR the L-traverse
+--       match_expr a with
+--       | Option.bind _ _ b g =>
+--         let res' := go b res
+--         let res'' := go g res'
+--         go f res''
+--       | _ =>
+--         -- The upcoming lambda knows the type of `a`, insert a _dummy_
+--         go f (res.push (a, default))
+--     | _ =>
+--       match e with
+--       | .lam _ dom body _ =>
+--         let (a, _dummy) := res.back!
+--         -- We know the type of `a`, replace the _dummy_
+--         go body (res.pop.push (a, dom))
+--       | _ =>
+--         res.push (e, default)
 
 /--
 We pass along the types instead of inferring them from expressions. I guess that's faster :).
@@ -583,7 +631,16 @@ def bindActions (a₁ a₁type a₂ a₂type: Expr) : Sym.Simp.SimpM (Expr × Ex
            cont
   return (bind, a₂type)
 
+def chainActions (t : Expr) (actions : Array (Expr × Expr)) : Sym.Simp.SimpM Expr := do
+  let .some (action, _) := actions.back? | throwError m!"expected some action"
+  let actions := actions.pop
+  let (e', _) ← actions.foldrM (init := (action, t)) fun (a₁, ta₁) (a₂, ta₂) ↦
+    bindActions a₁ ta₁ a₂ ta₂
+  let e' ← Sym.shareCommon e'
+  return e'
+
 -- (bind (bind (b : Option α) (g : α → Option β) : Option β) (f : β → Option γ) : Option γ)
+-- TODO: use `chainActions`
 def bindMyAssoc : Sym.Simp.Simproc := fun e ↦ do
   let_expr Option.bind β γ a f := e | return .rfl
   let_expr Option.bind α β b g := a | return .rfl
@@ -1316,28 +1373,38 @@ private partial def down (reduce reduceOuter : Simplifier)
   inDebugOnly (do modifyDbgState fun σ ↦ {σ with numDown := σ.numDown + 1})
   -- See the docs of `unwrapped`
   let todo := unwrapped todo
-  if let .some ⟨_, _, _, _, a, f⟩ ← todo.matchBinds -- TODO(perf): Propagate the rest.
-  then
-    trace[Clap.Compile.down] m!"\npush [→]:\n{f}\ngo [↓]:\n{a}"
-    down reduce reduceOuter (.inr f :: stack) a
-  else
-    let (simped, time) ← Dbg.timeS (reduce todo)
-    inDebugOnly (do
-      trace[Clap.Compile.dbg] m!"simp [↓] took {time}s"
-      modifyDbgState fun σ ↦ {σ with cumulativeSimpTimeDown := σ.cumulativeSimpTimeDown + time}
-    )
-    if !Sym.isSameExpr simped todo
-    then
-      trace[Clap.Compile.simp] "[↓] {checkEmoji}\n{todo}\n==>\n{simped}"
-      trace[Clap.Compile.down] "\ngo [↓]:\n{simped}"
-      down reduce reduceOuter stack simped
-    else
-      trace[Clap.Compile.simp.fail] "[↓] {crossEmoji}\n{todo}"
-      trace[Clap.Compile.down] "\ngo [↑]:\n{todo}"
-      -- match ←isGroundTerm todo with
-      -- | .some e => trace[Clap.Compile.simp.warnDownNotGround] "{stopEmoji} [↓] stopped:\n{e}"
-      -- | .none => pure ()
-      up reduce reduceOuter stack todo
+  let .some ⟨_, _, _, β, _, _⟩ ← todo.matchBinds | return todo
+  let binds := todo.sequenceBindsL
+  logInfo m!"e: {todo}\nbinds: {binds}\nbindsOther: {todo.sequenceBindsL}"
+  let simpedBinds ← binds.mapM fun (action, τ) ↦ do
+    let (simped, time) ← Dbg.timeS (reduce action)
+    return (simped, τ)
+  let binds := SymSets.Vector.chainActions β simpedBinds
+  logInfo m!"binds: {←binds}"
+  binds
+
+  -- if let .some ⟨_, _, _, _, a, f⟩ ← todo.matchBinds -- TODO(perf): Propagate the rest.
+  -- then
+  --   trace[Clap.Compile.down] m!"\npush [→]:\n{f}\ngo [↓]:\n{a}"
+  --   down reduce reduceOuter (.inr f :: stack) a
+  -- else
+  --   let (simped, time) ← Dbg.timeS (reduce todo)
+  --   inDebugOnly (do
+  --     trace[Clap.Compile.dbg] m!"simp [↓] took {time}s"
+  --     modifyDbgState fun σ ↦ {σ with cumulativeSimpTimeDown := σ.cumulativeSimpTimeDown + time}
+  --   )
+  --   if !Sym.isSameExpr simped todo
+  --   then
+  --     trace[Clap.Compile.simp] "[↓] {checkEmoji}\n{todo}\n==>\n{simped}"
+  --     trace[Clap.Compile.down] "\ngo [↓]:\n{simped}"
+  --     down reduce reduceOuter stack simped
+  --   else
+  --     trace[Clap.Compile.simp.fail] "[↓] {crossEmoji}\n{todo}"
+  --     trace[Clap.Compile.down] "\ngo [↑]:\n{todo}"
+  --     -- match ←isGroundTerm todo with
+  --     -- | .some e => trace[Clap.Compile.simp.warnDownNotGround] "{stopEmoji} [↓] stopped:\n{e}"
+  --     -- | .none => pure ()
+  --     up reduce reduceOuter stack todo
 
 private partial def up (reduce reduceOuter : Simplifier)
                        (stack : List InProgressExpr) (done : Expr) : Sym.Simp.SimpM Expr := do
@@ -1347,7 +1414,9 @@ private partial def up (reduce reduceOuter : Simplifier)
     trace[Clap.Compile.up] "Done"
     return done
   | .inr e :: stack => do
-    lambdaTelescopeOne! e fun arg body ↦ do
+    -- TODO: Bad idea to use the One! guy, need to eta-expand if need be if so...
+    lambdaTelescope e fun arg body ↦ do
+      let #[arg] := arg | unreachable!
       trace[Clap.Compile.up] "\npush [←]:\n{(done, arg)}\ngo [↓]:\n{body}"
       down reduce reduceOuter (.inl {action := done, result := arg} :: stack) body
   | .inl ⟨a, result⟩ :: stack => do
@@ -1384,7 +1453,7 @@ private partial def up (reduce reduceOuter : Simplifier)
 
 end
 
-def compile (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
+def compile (e : Expr) (simpset : Sym.Simp.Methods := default) : Sym.Simp.SimpM Expr := do
   let simpset! ← SymSets.Vector.monads! ∪ return simpset
   let e ← Compiler.Simp.preprocessExpr e
   lambdaTelescope e fun args e ↦ do
@@ -1397,7 +1466,7 @@ def compile (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
     inDebugOnly do trace[Clap.Compile.dbg] m!"σ: {repr (←getDbgState)}"
     Sym.shareCommonInc (←Sym.mkLambdaFVarsS args compiled)
 
-def compileExample (ex : Name) (simpset : Sym.Simp.Methods) (args : Array Expr := #[]) : Sym.Simp.SimpM Expr := do
+def compileExample (ex : Name) (simpset : Sym.Simp.Methods := default) (args : Array Expr := #[]) : Sym.Simp.SimpM Expr := do
   -- withTraceNode `Clap.Compile.simp.proc (fun e ↦ return m!"") do
   let e := ((←getEnv).find? ex).get!.value!.beta args
   compile e simpset
@@ -1604,6 +1673,38 @@ where
 namespace ExampruSym
 
 open SymSets Monad General Vector
+
+opaque F {α : Type} : Nat → Option α
+opaque G {α : Type} : Nat → Option α
+opaque H {α : Type} : Nat → Option α
+
+def exex : Option Unit :=
+  Option.bind (eq0 4) fun _ : Unit ↦
+    Option.bind
+      ((Option.bind
+         (Option.bind
+           (Option.bind
+             (F 2) fun x ↦
+            Option.bind (F 3) fun y ↦ G (x + y))
+           fun x ↦ H x))
+         fun x ↦ F x) fun x ↦
+      F x
+
+#print exex
+
+def exex' : Option Unit := do
+  let x ← F 2
+  let y ← G x
+  H y
+
+#check @Option.bind_assoc
+set_option trace.Clap.Compile true in
+#eval spoon <| do
+  let e ← compileExample ``exex
+  -- Pretty print (i.e. go back to `Bind.bind`)
+  return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
+
+#exit
 
 -- set_option maxRecDepth 500000
 -- set_option trace.Clap.Compile true
@@ -1857,7 +1958,7 @@ set_option trace.Clap.Compile.dbg true in
 set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile false in
 #eval do
-  let (e, time) ← Dbg.timeS <| compileExample (args := #[toExpr 40]) ``ex₈
+  let (e, time) ← Dbg.timeS <| compileExample (args := #[toExpr 5]) ``ex₈
     (←(SymSets.Vector.wrapped ∪
       mapM_singlePass_pre ∪
       explode -- ∪ zeta ∪ monads ∪ explode
