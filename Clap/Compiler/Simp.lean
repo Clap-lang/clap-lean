@@ -213,7 +213,7 @@ def forceHeartbeats {α : Type} {m : Type → Type} [MonadWithReaderOf Core.Cont
 
 set_option hygiene false in
 def simplify (simpset : Sym.Simp.Methods) (e : Expr) : Sym.Simp.SimpM Expr := do
-  let e ← preprocessExpr e
+  -- let e ← preprocessExpr e
   tryCatchRuntimeEx
     do
       -- let time ← IO.monoMsNow

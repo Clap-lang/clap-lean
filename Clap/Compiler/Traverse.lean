@@ -677,7 +677,6 @@ def getElem_mk : Sym.Simp.Simproc := fun e => do
   let .some (elems, t) := Collection.elemsOfExpr vec | return .rfl
   let .some sz := t.type.sz | unreachable!
   let n := (←Sym.simpWithGround n).getResultExpr n
-  logWarning m!"n: {n}"
   let .some i := Sym.getNatValue? n | return .rfl
   if h : i < elems.size
   then
@@ -1386,8 +1385,8 @@ private partial def up (reduce reduceOuter : Simplifier)
 end
 
 def compile (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
-  
   let simpset! ← SymSets.Vector.monads! ∪ return simpset
+  let e ← Compiler.Simp.preprocessExpr e
   lambdaTelescope e fun args e ↦ do
     let compiled ← down
       (reduce      := Compiler.Simp.simplify simpset!)
@@ -1396,7 +1395,7 @@ def compile (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
       (stack       := [])
       (todo        := e)
     inDebugOnly do trace[Clap.Compile.dbg] m!"σ: {repr (←getDbgState)}"
-    Sym.mkLambdaFVarsS args compiled
+    Sym.shareCommonInc (←Sym.mkLambdaFVarsS args compiled)
 
 def compileExample (ex : Name) (simpset : Sym.Simp.Methods) (args : Array Expr := #[]) : Sym.Simp.SimpM Expr := do
   -- withTraceNode `Clap.Compile.simp.proc (fun e ↦ return m!"") do
@@ -1879,7 +1878,7 @@ set_option trace.Clap.Compile false in
 set_option Clap.traversalDbg true
 set_option trace.Clap.Compile.dbg false
 def bench : MetaM Unit := do
-  let simpset := (←(SymSets.Vector.wrapped ∪ mapM_singlePass_pre ∪ explode ∪ bindMyAssoc_set))
+  let simpset := (←(SymSets.Vector.wrapped ∪ mapM_singlePass_pre ∪ explode ∪ compilerAssoc))
   -- let simpset := (←(mapM_singlePass ∪ zeta ∪ explode))
   let inputSizes := (Array.range 2).map (10 * 2^·)
   let timings ← inputSizes.mapM fun inputSize ↦ do
@@ -1913,9 +1912,9 @@ def ex₉ {n : Nat} (vec : Vector Nat n) : Option Unit := do
 set_option maxRecDepth 1024 in
 set_option trace.Clap.Compile.dbg true in
 set_option Clap.traversalDbg true in
-set_option trace.Clap.Compile true in
+set_option trace.Clap.Compile false in
 #eval do
-  let (e, time) ← Dbg.timeS <| compileExample (args := #[toExpr 2]) ``ex₉
+  let (e, time) ← Dbg.timeS <| compileExample (args := #[toExpr 20]) ``ex₉
     (←(SymSets.Vector.wrapped ∪
       mapM_singlePass_pre ∪
       getElem ∪
