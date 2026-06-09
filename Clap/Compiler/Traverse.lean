@@ -1404,7 +1404,7 @@ private partial def down (reduce reduceOuter : Simplifier)
   let todo := unwrapped todo
   let .some ⟨_, _, _, β, _, _⟩ ← todo.matchBinds | return todo
   let binds := todo.sequenceBindsL
-  logInfo m!"e: {todo}\nbinds: {binds}\nbindsOther: {todo.sequenceBindsL}"
+  logInfo m!"e: {todo}\nbinds:"
   let simpedBinds ← binds.mapM fun (action, τ) ↦ do
     let (simped, time) ← Dbg.timeS (reduce action)
     return (simped, τ)
@@ -1727,10 +1727,16 @@ def exex' : Option Unit := do
   let y ← (do let x ← G (x + z); let y ← G x; H (x + z))
   H y
 
+def exex'' : Option Unit := do
+  let z ← F 2
+  let x ← #v[1, 2].mapM H
+  let y ← (do let x ← G z; let y ← G x; H (x + z))
+  H y
+
 #check @Option.bind_assoc
 set_option trace.Clap.Compile true in
 #eval spoon <| do
-  let e ← compileExample ``exex'
+  let e ← compileExample ``exex'' (←(mapM))
   -- Pretty print (i.e. go back to `Bind.bind`)
   return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
 
