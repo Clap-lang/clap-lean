@@ -4,14 +4,15 @@ namespace ExampruSym
 
 open Clap.Compiler
 
--- TODO why are we using these when eval gets rid of them, and bEq treats them as equal?
 opaque F : ℕ → Option ℕ
 opaque G : ℕ → Option ℕ
 opaque H : ℕ → Option ℕ
 
-def testSymSet := (SymSets.Vector.mapM_singlePass_pre)
+def testSymSet :=
+  Clap.Compiler.ExampruSym.NewTraversal.spinalSurgeryStrictLeft_pre ∪
+  SymSets.Vector.mapM_alt
 
-
+open Lean in
 def runTest (name: Lean.Name) := spoon <| do
   let uncompiled := ((←Lean.MonadEnv.getEnv).find? name).get!
   let uncompiledExpr := uncompiled.value!
@@ -19,12 +20,14 @@ def runTest (name: Lean.Name) := spoon <| do
 
   let expectedType := (Option ℕ)
 
-  let compiled ← compileExample name (←testSymSet)
+  let compiled ← compileJustSym uncompiledExpr (←testSymSet)
+  let dbgState ← getAndResetDbgState
+  logInfo m!"{←dbgState.pretty}"
   -- Pretty print (i.e. go back to `Bind.bind`)
   let formatted := (
     ←Lean.Meta.Sym.simp compiled (←SymSets.General.compilerBindEqBind)
   ).getResultExpr compiled
-  let defEq ← Lean.Meta.isDefEq uncompiled.value! compiled
+  let defEq ← Lean.Meta.isDefEq uncompiledExpr compiled
   if defEq then
     Lean.logInfo m!"Compiled expression defEq"
   else

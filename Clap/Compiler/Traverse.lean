@@ -673,12 +673,33 @@ def bindActions (a₁ a₁type a₂ a₂type: Expr) : Sym.Simp.SimpM (Expr × Ex
            cont
   return (bind, a₂type)
 
+def bindActionsInferType (action f : Expr) : Sym.Simp.SimpM Expr := do
+  let_expr Option actionType := ←Sym.inferType action | throwError "What are you doing..."
+  let cont := Expr.lam `a actionType f .default
+  let functionType ← Sym.inferType cont
+  let .forallE _ _ body _ := functionType | throwError "forall expected"
+  let_expr Option outType := body | throwError "What on Earth..."
+  let bind :=
+    mkApp4 (.const ``Option.bind [←Sym.getLevelInType actionType, ←Sym.getLevelInType outType])
+           actionType outType
+           action
+           cont
+  return bind
+
 def chainActions (t : Expr) (actions : Array (Expr × Expr)) : Sym.Simp.SimpM Expr := do
   let .some (action, _) := actions.back? | throwError m!"expected some action"
   let actions := actions.pop
   let (e', _) ← actions.foldrM (init := (action, t)) fun (a₁, ta₁) (a₂, ta₂) ↦
     bindActions a₁ ta₁ a₂ ta₂
-  let e' ← Sym.shareCommon e'
+  let e' ← Sym.shareCommonInc e'
+  return e'
+
+def chainActionsInferType (actions : Array Expr) : Sym.Simp.SimpM Expr := do
+  let .some action := actions.back? | throwError m!"expected some action"
+  let actions := actions.pop
+  let e' ← actions.foldrM (init := action) fun a₁ a₂ ↦
+    bindActionsInferType a₁ a₂
+  let e' ← Sym.shareCommonInc e'
   return e'
 
 -- (bind (bind (b : Option α) (g : α → Option β) : Option β) (f : β → Option γ) : Option γ)
@@ -967,6 +988,7 @@ Currently for vectors only.
 def _root_.Vector.mapM_mk_single : Sym.Simp.Simproc := fun e ↦ do
   let_expr _root_.Vector.mapM m α β n mInst f vec := e | return .rfl
   let_expr _root_.Vector.mk _ sz arr _ := vec | return .rfl
+  recordRuleDbg "mapM_mk_single"
   -- reportMaxShared e (descr := "BEGIN[mapM_mk_single]")
   let l ← arr.getAppArgs[1]?.getDM (unreachable!)
   let u ← Sym.getLevelInType β
@@ -1020,13 +1042,11 @@ def _root_.Vector.mapM_mk_single : Sym.Simp.Simproc := fun e ↦ do
     let v ← Sym.getLevelInType mapMT
 
     let someAppend := mkApp2 (.const ``Option.some [u]) appendT append
-
     -- `Vector.mapM f tl >>= fun __do_lift_1 ↦ pure (#v[__do_lift] ++ __do_lift_1)`
     let innerBind :=
       mkApp4
         (.const ``Option.bind [u, v]) mapMT appendT mapM
         (.lam `_snd mapMT someAppend .default)
-
     /-
     TODO: Check the second universe, it's what `append : Vector.{u} (#[#1] ++ #0)` lives in, I think.
           Hence `u`. Or so I think.
@@ -1481,114 +1501,114 @@ def logOfExprs (e e' : Expr) : MessageData :=
 --     | .none => (e, rest)
 --     | .some (a, f) => let res := go a ()
 
-mutual
+-- mutual
 
-private partial def down (reduce reduceOuter : Simplifier)
-                         (stack : List InProgressExpr) (todo : Expr)
-                         : Sym.Simp.SimpM Expr := do
-  SymSets.General.inDebugOnly (do modifyDbgState fun σ ↦ {σ with numDown := σ.numDown + 1})
-  -- See the docs of `unwrapped`
-  -- let todo := unwrapped todo
-  let .some ⟨_, _, _, β, _, _⟩ ← todo.matchBinds | return todo
-  let binds := todo.sequenceBindsL
-  logInfo m!"e: {todo}\nbinds:"
-  let simpedBinds ← binds.mapM fun (action, τ) ↦ do
-    -- let (simped, time) ← Dbg.timeS (reduce action)
-    -- trace[Clap.Compile.down] logOfExprs action simped
-    -- SymSets.General.inDebugOnly do trace[Clap.Compile.dbg] m!"simp took {time}s"
-    -- return (simped, τ)
-    return (action, τ)
-  let binds := SymSets.Vector.chainActions β simpedBinds
-  logInfo m!"binds: {←binds}"
-  binds
+-- private partial def down (reduce reduceOuter : Simplifier)
+--                          (stack : List InProgressExpr) (todo : Expr)
+--                          : Sym.Simp.SimpM Expr := do
+--   SymSets.General.inDebugOnly (do modifyDbgState fun σ ↦ {σ with numDown := σ.numDown + 1})
+--   -- See the docs of `unwrapped`
+--   -- let todo := unwrapped todo
+--   let .some ⟨_, _, _, β, _, _⟩ ← todo.matchBinds | return todo
+--   let binds := todo.sequenceBindsL -- do A; B; let x ← C; D; E ==> [A, B, C, D, E]
+--   logInfo m!"e: {todo}\nbinds:"
+--   let simpedBinds ← binds.mapM fun (action, τ) ↦ do
+--     -- let (simped, time) ← Dbg.timeS (reduce action)
+--     -- trace[Clap.Compile.down] logOfExprs action simped
+--     -- SymSets.General.inDebugOnly do trace[Clap.Compile.dbg] m!"simp took {time}s"
+--     -- return (simped, τ)
+--     return (action, τ)
+--   let binds := SymSets.Vector.chainActions β simpedBinds
+--   logInfo m!"binds: {←binds}"
+--   binds
 
-  -- if let .some ⟨_, _, _, _, a, f⟩ ← todo.matchBinds -- TODO(perf): Propagate the rest.
-  -- then
-  --   trace[Clap.Compile.down] m!"\npush [→]:\n{f}\ngo [↓]:\n{a}"
-  --   down reduce reduceOuter (.inr f :: stack) a
-  -- else
-  --   let (simped, time) ← Dbg.timeS (reduce todo)
-  --   inDebugOnly (do
-  --     trace[Clap.Compile.dbg] m!"simp [↓] took {time}s"
-  --     modifyDbgState fun σ ↦ {σ with cumulativeSimpTimeDown := σ.cumulativeSimpTimeDown + time}
-  --   )
-  --   if !Sym.isSameExpr simped todo
-  --   then
-  --     trace[Clap.Compile.simp] "[↓] {checkEmoji}\n{todo}\n==>\n{simped}"
-  --     trace[Clap.Compile.down] "\ngo [↓]:\n{simped}"
-  --     down reduce reduceOuter stack simped
-  --   else
-  --     trace[Clap.Compile.simp.fail] "[↓] {crossEmoji}\n{todo}"
-  --     trace[Clap.Compile.down] "\ngo [↑]:\n{todo}"
-  --     -- match ←isGroundTerm todo with
-  --     -- | .some e => trace[Clap.Compile.simp.warnDownNotGround] "{stopEmoji} [↓] stopped:\n{e}"
-  --     -- | .none => pure ()
-  --     up reduce reduceOuter stack todo
+--   -- if let .some ⟨_, _, _, _, a, f⟩ ← todo.matchBinds -- TODO(perf): Propagate the rest.
+--   -- then
+--   --   trace[Clap.Compile.down] m!"\npush [→]:\n{f}\ngo [↓]:\n{a}"
+--   --   down reduce reduceOuter (.inr f :: stack) a
+--   -- else
+--   --   let (simped, time) ← Dbg.timeS (reduce todo)
+--   --   inDebugOnly (do
+--   --     trace[Clap.Compile.dbg] m!"simp [↓] took {time}s"
+--   --     modifyDbgState fun σ ↦ {σ with cumulativeSimpTimeDown := σ.cumulativeSimpTimeDown + time}
+--   --   )
+--   --   if !Sym.isSameExpr simped todo
+--   --   then
+--   --     trace[Clap.Compile.simp] "[↓] {checkEmoji}\n{todo}\n==>\n{simped}"
+--   --     trace[Clap.Compile.down] "\ngo [↓]:\n{simped}"
+--   --     down reduce reduceOuter stack simped
+--   --   else
+--   --     trace[Clap.Compile.simp.fail] "[↓] {crossEmoji}\n{todo}"
+--   --     trace[Clap.Compile.down] "\ngo [↑]:\n{todo}"
+--   --     -- match ←isGroundTerm todo with
+--   --     -- | .some e => trace[Clap.Compile.simp.warnDownNotGround] "{stopEmoji} [↓] stopped:\n{e}"
+--   --     -- | .none => pure ()
+--   --     up reduce reduceOuter stack todo
 
-private partial def up (reduce reduceOuter : Simplifier)
-                       (stack : List InProgressExpr) (done : Expr) : Sym.Simp.SimpM Expr := do
-  SymSets.General.inDebugOnly (modifyDbgState fun σ ↦ {σ with numUp := σ.numUp + 1})
-  match stack with
-  | [] =>
-    trace[Clap.Compile.up] "Done"
-    return done
-  | .inr e :: stack => do
-    -- TODO: Bad idea to use the One! guy, need to eta-expand if need be if so...
-    lambdaTelescope e fun arg body ↦ do
-      let #[arg] := arg | unreachable!
-      trace[Clap.Compile.up] "\npush [←]:\n{(done, arg)}\ngo [↓]:\n{body}"
-      down reduce reduceOuter (.inl {action := done, result := arg} :: stack) body
-  | .inl ⟨a, result⟩ :: stack => do
-    let bind ← mkBindWith a result done
-    let up := up reduce reduceOuter stack
-    let lamArgT ← Sym.inferType result -- TODO(perf): Propagate universe/type info from `matchBinds`.
-    if lamArgT.isUnital
-    then trace[Clap.Compile.up] "\ngo [↑]:\n{bind}"
-         up bind
-    else trace[Clap.Compile.simp] "Binding value: {result} in {bind}"
-         let (simped, time) ← Dbg.timeS (reduceOuter bind)
-        --  let (simped, time) := (bind, 0)
-         SymSets.General.inDebugOnly (do
-           trace[Clap.Compile.dbg] m!"simp [↑] took {time}s"
-           trace[Clap.Compile.dbg] m!"\n{bind}\n==>\n{simped}"
-           modifyDbgState fun σ ↦ {σ with cumulativeSimpTimeUp := σ.cumulativeSimpTimeUp + time}
-         )
-         -- TODO(semantics): Ok we simped, so what?
-         if !Sym.isSameExpr simped bind
-         then trace[Clap.Compile.simp] "[↑] {checkEmoji}\n{bind}\n==>\n{simped}"
-         else trace[Clap.Compile.simp.fail] "[↑] {crossEmoji}\n{bind}"
-         trace[Clap.Compile.up] "\ngo [↑]:\n{simped}"
-         up simped
-  where mkBindWith (a result k : Expr) : Sym.Simp.SimpM Expr := do
-    -- TODO(perf): Propagate universe/type info from `matchBinds`.
-    -- logInfo m!"a: {a}\nresult: {result}\nk: {k}"
-    let α ← result.fvarId!.getType
-    let u ← Sym.getLevelInType α
-    let β ← Sym.inferType k
-    let_expr Option t' := β | throwError m!"Body return not in `Option. Shouldn't be happening."
-    let v ← Sym.getLevelInType t'
-    let f ← Sym.shareCommonInc (←Sym.mkLambdaFVarsS #[result] k)
-    Sym.shareCommonInc <| mkApp4 (.const ``Option.bind [u, v]) α β a f
+-- private partial def up (reduce reduceOuter : Simplifier)
+--                        (stack : List InProgressExpr) (done : Expr) : Sym.Simp.SimpM Expr := do
+--   SymSets.General.inDebugOnly (modifyDbgState fun σ ↦ {σ with numUp := σ.numUp + 1})
+--   match stack with
+--   | [] =>
+--     trace[Clap.Compile.up] "Done"
+--     return done
+--   | .inr e :: stack => do
+--     -- TODO: Bad idea to use the One! guy, need to eta-expand if need be if so...
+--     lambdaTelescope e fun arg body ↦ do
+--       let #[arg] := arg | unreachable!
+--       trace[Clap.Compile.up] "\npush [←]:\n{(done, arg)}\ngo [↓]:\n{body}"
+--       down reduce reduceOuter (.inl {action := done, result := arg} :: stack) body
+--   | .inl ⟨a, result⟩ :: stack => do
+--     let bind ← mkBindWith a result done
+--     let up := up reduce reduceOuter stack
+--     let lamArgT ← Sym.inferType result -- TODO(perf): Propagate universe/type info from `matchBinds`.
+--     if lamArgT.isUnital
+--     then trace[Clap.Compile.up] "\ngo [↑]:\n{bind}"
+--          up bind
+--     else trace[Clap.Compile.simp] "Binding value: {result} in {bind}"
+--          let (simped, time) ← Dbg.timeS (reduceOuter bind)
+--         --  let (simped, time) := (bind, 0)
+--          SymSets.General.inDebugOnly (do
+--            trace[Clap.Compile.dbg] m!"simp [↑] took {time}s"
+--            trace[Clap.Compile.dbg] m!"\n{bind}\n==>\n{simped}"
+--            modifyDbgState fun σ ↦ {σ with cumulativeSimpTimeUp := σ.cumulativeSimpTimeUp + time}
+--          )
+--          -- TODO(semantics): Ok we simped, so what?
+--          if !Sym.isSameExpr simped bind
+--          then trace[Clap.Compile.simp] "[↑] {checkEmoji}\n{bind}\n==>\n{simped}"
+--          else trace[Clap.Compile.simp.fail] "[↑] {crossEmoji}\n{bind}"
+--          trace[Clap.Compile.up] "\ngo [↑]:\n{simped}"
+--          up simped
+--   where mkBindWith (a result k : Expr) : Sym.Simp.SimpM Expr := do
+--     -- TODO(perf): Propagate universe/type info from `matchBinds`.
+--     -- logInfo m!"a: {a}\nresult: {result}\nk: {k}"
+--     let α ← result.fvarId!.getType
+--     let u ← Sym.getLevelInType α
+--     let β ← Sym.inferType k
+--     let_expr Option t' := β | throwError m!"Body return not in `Option. Shouldn't be happening."
+--     let v ← Sym.getLevelInType t'
+--     let f ← Sym.shareCommonInc (←Sym.mkLambdaFVarsS #[result] k)
+--     Sym.shareCommonInc <| mkApp4 (.const ``Option.bind [u, v]) α β a f
 
-end
+-- end
 
-def compile (e : Expr) (simpset : Sym.Simp.Methods := default) : Sym.Simp.SimpM Expr := do
-  let simpset! ← SymSets.Vector.monads! ∪ return simpset
-  let e ← Compiler.Simp.preprocessExpr e
-  lambdaTelescope e fun args e ↦ do
-    let compiled ← down
-      (reduce      := Compiler.Simp.simplify simpset!)
-      (reduceOuter := Compiler.Simp.simplify simpset!)
-      -- (reduceOuter := Compiler.Simp.simplify simpset)
-      (stack       := [])
-      (todo        := e)
-    SymSets.General.inDebugOnly do trace[Clap.Compile.dbg] m!"σ: {←(←getDbgState).pretty}"
-    Sym.shareCommonInc (←mkLambdaFVars args compiled)
+-- def compile (e : Expr) (simpset : Sym.Simp.Methods := default) : Sym.Simp.SimpM Expr := do
+--   let simpset! ← SymSets.Vector.monads! ∪ return simpset
+--   let e ← Compiler.Simp.preprocessExpr e
+--   lambdaTelescope e fun args e ↦ do
+--     let compiled ← down
+--       (reduce      := Compiler.Simp.simplify simpset!)
+--       (reduceOuter := Compiler.Simp.simplify simpset!)
+--       -- (reduceOuter := Compiler.Simp.simplify simpset)
+--       (stack       := [])
+--       (todo        := e)
+--     SymSets.General.inDebugOnly do trace[Clap.Compile.dbg] m!"σ: {←(←getDbgState).pretty}"
+--     Sym.shareCommonInc (←mkLambdaFVars args compiled)
 
-def compileExample (ex : Name) (simpset : Sym.Simp.Methods := default) (args : Array Expr := #[]) : Sym.Simp.SimpM Expr := do
-  -- withTraceNode `Clap.Compile.simp.proc (fun e ↦ return m!"") do
-  let e := ((←getEnv).find? ex).get!.value!.beta args
-  compile e simpset
+-- def compileExample (ex : Name) (simpset : Sym.Simp.Methods := default) (args : Array Expr := #[]) : Sym.Simp.SimpM Expr := do
+--   -- withTraceNode `Clap.Compile.simp.proc (fun e ↦ return m!"") do
+--   let e := ((←getEnv).find? ex).get!.value!.beta args
+--   compile e simpset
 
 def compileJustSym (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
   let e ← Compiler.Simp.preprocessExpr e
@@ -1825,13 +1845,13 @@ def testInnerReturn : Option Unit := do
   let z ← F 3
   pure ()
 
-set_option trace.Clap.Compile true in
-set_option Clap.traversalDbg true in
-set_option trace.Clap.Compile.dbg true in
-#eval spoon <| do
-  let e ← compileExample ``testInnerReturn (←(mapM_singlePass_pre))
-  -- Pretty print (i.e. go back to `Bind.bind`)
-  return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
+-- set_option trace.Clap.Compile true in
+-- set_option Clap.traversalDbg true in
+-- set_option trace.Clap.Compile.dbg true in
+-- #eval spoon <| do
+--   let e ← compileExample ``testInnerReturn (←(mapM_singlePass_pre))
+--   -- Pretty print (i.e. go back to `Bind.bind`)
+--   return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
 
 
 def exex' : Option Unit := do
@@ -1848,13 +1868,13 @@ def exex'' : Option Unit := do
 
 #check @Option.bind_assoc
 
-set_option trace.Clap.Compile true in
-set_option Clap.traversalDbg true in
-set_option trace.Clap.Compile.dbg true in
-#eval spoon <| do
-  let e ← compileExample ``exex'' (←(mapM_singlePass_pre))
-  -- Pretty print (i.e. go back to `Bind.bind`)
-  return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
+-- set_option trace.Clap.Compile true in
+-- set_option Clap.traversalDbg true in
+-- set_option trace.Clap.Compile.dbg true in
+-- #eval spoon <| do
+--   let e ← compileExample ``exex'' (←(mapM_singlePass_pre))
+--   -- Pretty print (i.e. go back to `Bind.bind`)
+--   return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
 
 
 def eq0 (e : Nat) : Option Unit := .some ()
@@ -1979,51 +1999,71 @@ partial def _root_.Lean.Expr.sequenceBindsLM (e : Expr) : Sym.Simp.SimpM (Array 
   go #[e] #[]
 where
   go (todo : Array Expr) (done : Array (Expr × Expr)) : Sym.Simp.SimpM (Array (Expr × Expr)) := do
+    trace[Clap.Compile.dbg]
+      m!"todo: {todo}\ndone: {done}"
     match todo.back? with
     | .none => return done
     | .some e =>
       let todo := todo.pop
       match e.matchBindsE with
       | .some (action, func) =>
+        trace[Clap.Compile.dbg]
+          m!"bind"
         match action.matchBindsE with
         | .some (b, g) =>
+          trace[Clap.Compile.dbg]
+            m!"bind(L)"
           go (todo.append #[func, g, b]) done
         | _ =>
+          trace[Clap.Compile.dbg]
+            m!"not bind"
           go (todo.push func) (done.push (action, default))
       | _ =>
         match e with
         | .lam _ dom body _ =>
+          trace[Clap.Compile.dbg]
+            m!"lam(b)"
           -- TODO cover case of passing a lambda directly into sequenceBindsL
           -- `.lam x q(Nat) q(True) default` yields `(q(True), default)`, that's fine vOv
           let done := done.modify done.size.pred fun (a, _) ↦ (a, dom)
           go (todo.push body) done
         | _ =>
+          trace[Clap.Compile.dbg]
+            m!"lamb"
           go todo (done.push (e, default))
 
-partial def _root_.Lean.Expr.sequenceBindsStrictLeft (e : Expr) : Sym.Simp.SimpM (Array (Expr × Expr)) :=
-  go #[e] #[]
-where
-  go (todo : Array Expr) (done : Array (Expr × Expr)) : Sym.Simp.SimpM (Array (Expr × Expr)) := do
-    match todo.back? with
-    | .none => return done
-    | .some e =>
-      let todo := todo.pop
-      match e.matchBindsE with
-      | .some (action, func) =>
-        match action.matchBindsE with
-        | .some (b, g) =>
-          go (todo.append #[func, g, b]) done
-        | _ =>
-          go (todo.push func) (done.push (action, default))
-      | _ =>
-        match e with
-        | .lam _ dom body _ =>
-          -- TODO cover case of passing a lambda directly into sequenceBindsL
-          -- `.lam x q(Nat) q(True) default` yields `(q(True), default)`, that's fine vOv
-          let done := done.modify done.size.pred fun (a, _) ↦ (a, dom)
-          go (todo.push body) done
-        | _ =>
-          go todo (done.push (e, default))
+partial def _root_.Lean.Expr.sequenceBindsLButCorrect (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
+  match e.matchBindsE with
+  | .some (a, .lam _ dom body _) =>
+    let a' ← sequenceBindsLButCorrect a
+    _
+  | .none => return #[]
+  | _ => _
+
+-- partial def _root_.Lean.Expr.sequenceBindsStrictLeft (e : Expr) : Sym.Simp.SimpM (Array (Expr × Expr)) :=
+--   go #[e] #[]
+-- where
+--   go (todo : Array Expr) (done : Array (Expr × Expr)) : Sym.Simp.SimpM (Array (Expr × Expr)) := do
+--     match todo.back? with
+--     | .none => return done
+--     | .some e =>
+--       let todo := todo.pop
+--       match e.matchBindsE with
+--       | .some (action, func) =>
+--         match action.matchBindsE with
+--         | .some (b, g) =>
+--           go (todo.append #[func, g, b]) done
+--         | _ =>
+--           go (todo.push func) (done.push (action, default))
+--       | _ =>
+--         match e with
+--         | .lam _ dom body _ =>
+--           -- TODO cover case of passing a lambda directly into sequenceBindsL
+--           -- `.lam x q(Nat) q(True) default` yields `(q(True), default)`, that's fine vOv
+--           let done := done.modify done.size.pred fun (a, _) ↦ (a, dom)
+--           go (todo.push body) done
+--         | _ =>
+--           go todo (done.push (e, default))
 
 def tryThisForSize : Sym.Simp.Simproc := fun e ↦ do
   let .some (_, #[_, β, _, _]) := e.matchBindsEInfo | return .rfl
@@ -2033,17 +2073,27 @@ def tryThisForSize : Sym.Simp.Simproc := fun e ↦ do
   logInfo m!"\n{e}\n==>\n{e'}"
   return .step e' (←mkSorry (←mkEq e e') false) (done := true)
 
--- def tryThatForSize : Sym.Simp.Simproc := fun e ↦ do
---   let .some (us, #[α, β, a, f]) := e.matchBindsEInfo | return .rfl
---   let .some (vs, #[β, γ, b, g]) := a.matchBindsEInfo | return .rfl
---   let 
---   let e' := e
---   return .step e' (←mkSorry (←mkEq e e') false) (done := true)
+/-
+    B
+  B   fun ...
+A   fun ...
+-/
+def tryThatForSize : Sym.Simp.Simproc := fun e ↦ do
+  let .some (_, #[_, outputτ, a, _]) := e.matchBindsEInfo | return .rfl
+  let .some (_, #[_, _, _, _])       := a.matchBindsEInfo | return .rfl
+  recordRuleDbg "tryThatForSize"
+  let actionSequence ← e.sequenceBindsLM
+  trace[Clap.Compile.dbg]
+    m!"Action Sequence: {actionSequence}"
+  let flatBind ← Sym.shareCommonInc (←SymSets.Vector.chainActionsInferType <| actionSequence.map Prod.fst)
+  trace[Clap.Compile.dbg]
+    m!"Flat Bind: {flatBind}"
+  return .step flatBind (←mkSorry (←mkEq e flatBind) false)
 
--- def spinalSurgeryStrictLeft_pre : MetaM Sym.Simp.Methods :=
---   mkPreMethods #[
---     ``tryThatForSize
---   ]
+def spinalSurgeryStrictLeft_pre : MetaM Sym.Simp.Methods :=
+  mkPreMethods #[
+    ``tryThatForSize
+  ]
 
 def spinalSurgery_pre : MetaM Sym.Simp.Methods :=
   mkPreMethods #[

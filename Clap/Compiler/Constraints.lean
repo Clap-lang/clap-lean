@@ -39,10 +39,11 @@ structure TraversalDbgState where
   cumulativeSimpTimeDown : Float
   cumulativeSimpTimeUp : Float
   inlinedHisto : Std.HashMap Expr Nat
+  ruleHisto : Std.HashMap String Nat
   deriving Inhabited
 
 def TraversalDbgState.pretty (σ : TraversalDbgState) : MetaM Format := do
-  return f!"\nnumDown := {σ.numDown}\nnumUp := {σ.numUp}\ndownTime := {σ.cumulativeSimpTimeDown}\nupTime := {σ.cumulativeSimpTimeUp}\nhistoInlined := {repr (←σ.inlinedHisto.toArray.mapM fun (k, v) ↦ do return ((←PrettyPrinter.ppExpr k).pretty, v))}"
+  return f!"\nnumDown := {σ.numDown}\nnumUp := {σ.numUp}\ndownTime := {σ.cumulativeSimpTimeDown}\nupTime := {σ.cumulativeSimpTimeUp}\nhistoInlined := {repr (←σ.inlinedHisto.toArray.mapM fun (k, v) ↦ do return ((←PrettyPrinter.ppExpr k).pretty, v))}\nhistoRules := {repr σ.ruleHisto}"
 
 initialize traversalDbg : EnvExtension TraversalDbgState ←
   registerEnvExtension (pure default)
@@ -70,5 +71,12 @@ def recordDbgHisto (e : Expr) :=
       if σ.inlinedHisto.contains e
       then σ.inlinedHisto.modify e Nat.succ
       else σ.inlinedHisto.insert e 1}
+
+def recordRuleDbg (e : String) :=
+  modifyDbgState fun σ ↦
+    {σ with ruleHisto :=
+      if σ.ruleHisto.contains e
+      then σ.ruleHisto.modify e Nat.succ
+      else σ.ruleHisto.insert e 1}
 
 end Clap.Compiler

@@ -33,7 +33,6 @@ def exex'' : Option ℕ := do
   H y
 
 #check @Option.bind_assoc
-
 set_option trace.Clap.Compile true in
 set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile.dbg true in
