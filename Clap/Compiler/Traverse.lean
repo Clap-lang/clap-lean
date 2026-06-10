@@ -595,6 +595,7 @@ where
       match e.matchBindsE with
       | .some (action, func) =>
         match action.matchBindsE with
+
         | .some (b, g) =>
           go (todo.append #[func, g, b]) done
         | _ =>
@@ -1485,17 +1486,18 @@ mutual
 private partial def down (reduce reduceOuter : Simplifier)
                          (stack : List InProgressExpr) (todo : Expr)
                          : Sym.Simp.SimpM Expr := do
-  inDebugOnly (do modifyDbgState fun σ ↦ {σ with numDown := σ.numDown + 1})
+  SymSets.General.inDebugOnly (do modifyDbgState fun σ ↦ {σ with numDown := σ.numDown + 1})
   -- See the docs of `unwrapped`
   -- let todo := unwrapped todo
   let .some ⟨_, _, _, β, _, _⟩ ← todo.matchBinds | return todo
   let binds := todo.sequenceBindsL
   logInfo m!"e: {todo}\nbinds:"
   let simpedBinds ← binds.mapM fun (action, τ) ↦ do
-    let (simped, time) ← Dbg.timeS (reduce action)
-    trace[Clap.Compile.down] logOfExprs action simped
-    inDebugOnly do trace[Clap.Compile.dbg] m!"simp took {time}s"
-    return (simped, τ)
+    -- let (simped, time) ← Dbg.timeS (reduce action)
+    -- trace[Clap.Compile.down] logOfExprs action simped
+    -- SymSets.General.inDebugOnly do trace[Clap.Compile.dbg] m!"simp took {time}s"
+    -- return (simped, τ)
+    return (action, τ)
   let binds := SymSets.Vector.chainActions β simpedBinds
   logInfo m!"binds: {←binds}"
   binds
@@ -1525,7 +1527,7 @@ private partial def down (reduce reduceOuter : Simplifier)
 
 private partial def up (reduce reduceOuter : Simplifier)
                        (stack : List InProgressExpr) (done : Expr) : Sym.Simp.SimpM Expr := do
-  inDebugOnly (modifyDbgState fun σ ↦ {σ with numUp := σ.numUp + 1})
+  SymSets.General.inDebugOnly (modifyDbgState fun σ ↦ {σ with numUp := σ.numUp + 1})
   match stack with
   | [] =>
     trace[Clap.Compile.up] "Done"
@@ -1546,7 +1548,7 @@ private partial def up (reduce reduceOuter : Simplifier)
     else trace[Clap.Compile.simp] "Binding value: {result} in {bind}"
          let (simped, time) ← Dbg.timeS (reduceOuter bind)
         --  let (simped, time) := (bind, 0)
-         inDebugOnly (do
+         SymSets.General.inDebugOnly (do
            trace[Clap.Compile.dbg] m!"simp [↑] took {time}s"
            trace[Clap.Compile.dbg] m!"\n{bind}\n==>\n{simped}"
            modifyDbgState fun σ ↦ {σ with cumulativeSimpTimeUp := σ.cumulativeSimpTimeUp + time}
@@ -1580,7 +1582,7 @@ def compile (e : Expr) (simpset : Sym.Simp.Methods := default) : Sym.Simp.SimpM 
       -- (reduceOuter := Compiler.Simp.simplify simpset)
       (stack       := [])
       (todo        := e)
-    inDebugOnly do trace[Clap.Compile.dbg] m!"σ: {repr (←getDbgState)}"
+    SymSets.General.inDebugOnly do trace[Clap.Compile.dbg] m!"σ: {←(←getDbgState).pretty}"
     Sym.shareCommonInc (←mkLambdaFVars args compiled)
 
 def compileExample (ex : Name) (simpset : Sym.Simp.Methods := default) (args : Array Expr := #[]) : Sym.Simp.SimpM Expr := do
@@ -1589,6 +1591,7 @@ def compileExample (ex : Name) (simpset : Sym.Simp.Methods := default) (args : A
   compile e simpset
 
 def compileJustSym (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
+  let e ← Compiler.Simp.preprocessExpr e
   Sym.shareCommonInc (←lambdaTelescope e fun args e ↦ do
     -- let time ← IO.monoMsNow
     let compiled ← Compiler.Simp.simplify (simpset) e -- ∪ (←SymSets.General.compilerSet)) e
@@ -1888,7 +1891,7 @@ set_option trace.Clap.Compile true in
   let e' ← e'.run
 
   logInfo m!"e: {e'.getResultExpr e}"
-  logInfo m!"{←(getAndResetDbgState <&> repr)}"
+  -- logInfo m!"{←(getAndResetDbgState)}"
 
 opaque A : Nat → Option Nat
 opaque B : Nat → Option Nat
@@ -1899,10 +1902,31 @@ opaque E : Nat → Option Nat
 def e? (vec : Vector Nat 4) : Option Unit := do
   let _ ← A 1
   let z ← B 2
-  let x ← (do let _ ← F 4
-              let x ← (do let _ ← C 42; let w ← D z; let _ ← D 42; E (z + w))
-              H x)
+  let x ←
+    (do let _ ← F 4
+        let x ←
+          (do
+            let _ ← C 42; let w ← D z; let _ ← D 42
+            let y ← (do let x ← D 9; let y ← H 99; return x + y)
+            E (z + w)
+          )
+        H x)
   F x
+
+def eboom (vec : Vector Nat 4) : Option Unit := do
+  let x ←
+    (do
+      let w ← A 0
+      let x ←
+        (do let y ← do
+            let z ← B 1
+            let res ←
+              (do let w ← C 2
+                  D 5)
+            E res)
+      F (w + x)
+    )
+  discard (G x)
 
 def assocPre : MetaM Sym.Simp.Methods :=
   mkPreMethods #[
@@ -1914,14 +1938,58 @@ def assocPost : MetaM Sym.Simp.Methods :=
     ``bind_assoc
   ]
 
+partial def _root_.Lean.Expr.sequenceBindsLM (e : Expr) : Sym.Simp.SimpM (Array (Expr × Expr)) :=
+  go #[e] #[]
+where
+  go (todo : Array Expr) (done : Array (Expr × Expr)) : Sym.Simp.SimpM (Array (Expr × Expr)) := do
+    match todo.back? with
+    | .none => return done
+    | .some e =>
+      let todo := todo.pop
+      match e.matchBindsE with
+      | .some (action, func) =>
+        match action.matchBindsE with
+        | .some (b, g) =>
+          go (todo.append #[func, g, b]) done
+        | _ =>
+          go (todo.push func) (done.push (action, default))
+      | _ =>
+        match e with
+        | .lam _ dom body _ =>
+          -- TODO cover case of passing a lambda directly into sequenceBindsL
+          -- Actually this is fine...
+          -- `.lam x q(Nat) q(True) default` yields `(q(True), default)`,
+          -- which is the 'untyped' last action of a sequence.
+          let done := done.modify done.size.pred fun (a, _) ↦ (a, dom)
+          go (todo.push body) done
+        | _ =>
+          go todo (done.push (e, default))
+
+def tryThisForSize : Sym.Simp.Simproc := fun e ↦ do
+  let .some (_, #[_, β, _, _]) := e.matchBindsEInfo | logInfo m!"rejected"; return .rfl
+  let seq ← e.sequenceBindsLM
+  let binds ← SymSets.Vector.chainActions β seq
+  let e' ← Sym.shareCommon binds
+  -- logInfo m!"\n{e}\n==>\n{e'}"
+  return .step e' (←mkSorry (←mkEq e e') false) (done := true)
+
+def spinalSurgery_pre : MetaM Sym.Simp.Methods :=
+  mkPreMethods #[
+    ``tryThisForSize
+  ]
+
 set_option trace.Clap.Compile.dbg true
 set_option Clap.traversalDbg true
 set_option trace.Clap.Compile true
 #eval do
-  let (e, time) ← Dbg.timeS <| compileExampleJustSym ``e?
-    (←(
-    compilerAssoc
-    )) |>.run' {} |>.run
+  resetDbgState
+
+  let spinalSurgery ← spinalSurgery_pre
+  -- let normalAssoc ← compilerAssoc
+
+  let (e, time) ←
+    Dbg.timeS <| compileExampleJustSym ``eboom spinalSurgery |>.run' {} |>.run
+    
   logInfo m!"time: {time}"
   -- let e' := Sym.simp e {}
   let e' := Sym.simp e (←compilerBindEqBind)
@@ -1931,6 +1999,8 @@ set_option trace.Clap.Compile true
   let σ ← getAndResetDbgState
   logInfo m!"{←σ.pretty}"
 
+-- #eval ExampruSym.runTest ``eboom
+
 end NewTraversal
 
-end Clap.Compiler
+end Clap.Compiler.ExampruSym

@@ -39,6 +39,33 @@ set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile.dbg true in
 #eval runTest ``exex''
 
+
+opaque A : Nat → Option Nat
+opaque B : Nat → Option Nat
+opaque C : Nat → Option Nat
+opaque D : Nat → Option Nat
+opaque E : Nat → Option Nat
+
+def eboom (vec : Vector Nat 4) : Option Unit := do
+  let x ←
+    (do
+      let _ ← A 0
+      let x ←
+        (do let y ← do
+            let _ ← B 1
+            let res ←
+              (do let w ← C 2
+                  D 5)
+            E res)
+      F x
+    )
+  discard (G x)
+
+-- set_option trace.Clap.Compile true in
+-- set_option Clap.traversalDbg true in
+-- set_option trace.Clap.Compile.dbg true in
+-- #eval runTest ``eboom
+
 end NewTraversal
 
 namespace ExampruSym
