@@ -228,13 +228,13 @@ def monad : Sym.Simp.Simproc := fun e ↦ do
     let e' ← shareCommonInc <| mkApp4 (.const ``Option.bind [u, v]) α β x f
     trace[Clap.Compile.simp.proc.monad.bind_eq_bind]
       m!"\n{e}\n==>\n{e'}"
-    return .step e' (←Sym.mkEqRefl e') (done := true)
+    return .step e' (←Sym.mkEqRefl e')
   | Pure.pure _ _ α x =>
     let u ← Sym.getLevelInType α
     let e' ← shareCommonInc <| mkApp2 (.const ``Option.some [u]) α x
     trace[Clap.Compile.simp.proc.monad.pure_apply]
       m!"\n{e}\n==>\n{e'}"
-    return .step e' (←Sym.mkEqRefl e') (done := true)
+    return .step e' (←Sym.mkEqRefl e')
   | Option.bind α γ x g =>
     match_expr x with
     -- | Option.bind α β x f =>
@@ -258,7 +258,7 @@ def monad : Sym.Simp.Simproc := fun e ↦ do
       let e' ← shareCommonInc (g.beta #[x])
       trace[Clap.Compile.simp.proc.monad.bind_some]
         m!"\n{e}\n==>\n{e'}"
-      return .step e' (←Sym.mkEqRefl e') (done := true)
+      return .step e' (←Sym.mkEqRefl e')
     | _ => return .rfl
     -- | _ =>
     --   -- addConstraint q(Nat)
@@ -282,11 +282,34 @@ def monad : Sym.Simp.Simproc := fun e ↦ do
   | _ =>
     return .rfl
 
-def monadBindAssoc : Sym.Simp.Simproc := fun e ↦ do
+private def _root_.Lean.Expr.matchBindsE (e : Expr) : Option (Expr × Expr) :=
   match_expr e with
-  | Option.bind _ γ x g =>
-    match_expr x with
-    | Option.bind α β x f =>
+  | Bind.bind _ _ _ _ a f => .some (a, f)
+  | Option.bind   _ _ a f => .some (a, f)
+  | _                     => .none
+
+private def _root_.Lean.Expr.matchBindsEInfo (e : Expr) : Option (List Level × Array Expr) :=
+  match_expr e with
+  | Bind.bind _ _ α β a f => .some (e.getAppFn.constLevels!, #[α, β, a, f])
+  | Option.bind   α β a f => .some (e.getAppFn.constLevels!, #[α, β, a, f])
+  | _                     => .none
+
+def bind_eq_bind_sym {α} {β} := (Option.bind_eq_bind (α := α) (β := β)).symm
+
+def compilerBindEqBind : MetaM Sym.Simp.Methods :=
+  mkPostMethods #[
+    ``bind_eq_bind_sym
+  ]
+
+def inDebugOnly (m : Sym.Simp.SimpM Unit) : Sym.Simp.SimpM Unit := do
+  if (←getBoolOption ``Clap.traversalDbg) then
+    m
+
+def monadBindAssoc : Sym.Simp.Simproc := fun e ↦ do
+  match e.matchBindsEInfo with
+  | .some (_, #[_, γ, x, g]) =>
+    match x.matchBindsEInfo with
+    | .some (_, #[α, β, x, f]) =>
       -- let subtree := (←Sym.simp f).getResultExpr f
       -- trace[Clap.Compile.simp.proc.monad.bind_assoc]
       --   m!"Subtree.\n{f}\n==>\n{subtree}"
@@ -298,9 +321,12 @@ def monadBindAssoc : Sym.Simp.Simproc := fun e ↦ do
         mkApp4 (.const ``Option.bind [v, w]) β γ (←shareCommonInc (f.beta #[.bvar 0])) g
       let cont := Expr.lam `_assoc α bind .default
       let e' ← shareCommonInc <| mkApp4 (.const ``Option.bind [u, w]) α γ x cont
+      inDebugOnly (do
+        recordDbgHisto x
+      )
       trace[Clap.Compile.simp.proc.monad.bind_assoc]
-        m!"\n{e}\n==>\n{e'}"
-      return .step e' (←mkSorry (←mkEq e e') false) (done := true)
+        m!"INLINED: {x}\n{(←Sym.simp e (←compilerBindEqBind)).getResultExpr e}\n==>\n{(←Sym.simp e' (←compilerBindEqBind)).getResultExpr e'}"
+      return .step e' (←mkSorry (←mkEq e e') false)
     | _ =>
       return .rfl
   | _ => return .rfl
@@ -320,11 +346,9 @@ def compilerAssoc : MetaM Sym.Simp.Methods :=
     ``monadBindAssoc
   ]
 
-def bind_eq_bind_sym {α} {β} := (Option.bind_eq_bind (α := α) (β := β)).symm
-
-def compilerBindEqBind : MetaM Sym.Simp.Methods :=
+def compilerAssocPost : MetaM Sym.Simp.Methods :=
   mkPostMethods #[
-    ``bind_eq_bind_sym
+    ``monadBindAssoc
   ]
 
 end General
@@ -553,12 +577,6 @@ partial def _root_.Lean.Expr.sequenceBinds (e : Expr) : Array (Expr × Expr) :=
       | _ =>
         res.push (e, default)
 
-private def _root_.Lean.Expr.matchBindsE (e : Expr) : Option (Expr × Expr) :=
-  match_expr e with
-  | Bind.bind _ _ _ _ a f => .some (a, f)
-  | Option.bind   _ _ a f => .some (a, f)
-  | _                     => .none
-
 /-
 do let x : t₁ ← a1
    a2
@@ -575,9 +593,6 @@ where
     | .some e =>
       let todo := todo.pop
       match e.matchBindsE with
-      -- action >>= func
-      -- action: m A
-      -- func: A → m B
       | .some (action, func) =>
         match action.matchBindsE with
         | .some (b, g) =>
@@ -587,7 +602,10 @@ where
       | _ =>
         match e with
         | .lam _ dom body _ =>
-        -- TODO cover case of passing a lambda directly into sequenceBindsL
+          -- TODO cover case of passing a lambda directly into sequenceBindsL
+          -- Actually this is fine...
+          -- `.lam x q(Nat) q(True) default` yields `(q(True), default)`,
+          -- which is the 'untyped' last action of a sequence.
           let done := done.modify done.size.pred fun (a, _) ↦ (a, dom)
           go (todo.push body) done
         | _ =>
@@ -643,6 +661,7 @@ where
 
 /--
 We pass along the types instead of inferring them from expressions. I guess that's faster :).
+TODO: Should also grab universes...
 -/
 def bindActions (a₁ a₁type a₂ a₂type: Expr) : Sym.Simp.SimpM (Expr × Expr) := do
   let cont := Expr.lam `a a₁type a₂ default
@@ -1442,12 +1461,24 @@ structure ActionWithResult where
 
 abbrev InProgressExpr := ActionWithResult ⊕ Expr
 
-def inDebugOnly (m : Sym.Simp.SimpM Unit) : Sym.Simp.SimpM Unit := do
-  if (←getBoolOption ``Clap.traversalDbg) then
-    m
-
 def logOfExprs (e e' : Expr) : MessageData :=
   m!"\n{e}\n==>\n{e'}"
+
+-- def inlineFirst (e : Expr) : Expr :=
+--   match e.matchBindsEInfo with
+--   | .some (levels, #[α, β, a, f]) =>
+--     let tail := mkApp4 (.const ``Option.bind levels) α β a f
+--     _
+--   | _ => e
+
+
+-- def firstAction (e : Expr) : Expr × Option Expr :=
+--   go e 
+--   where
+--     go (e : Expr) (rest : Option Expr) : Expr × Option Expr :=
+--     match e.matchBindsE with
+--     | .none => (e, rest)
+--     | .some (a, f) => let res := go a ()
 
 mutual
 
@@ -1760,5 +1791,146 @@ where
   -- logInfo m!"{←PrettyPrinter.ppExpr (cache₂sorted[28]'sorry).expr}"
 
 -- #eval! abc.run
+
+namespace ExampruSym
+
+namespace NewTraversal
+open SymSets Monad General Vector
+
+opaque F : ℕ → Option ℕ
+opaque G : ℕ → Option ℕ
+opaque H : ℕ → Option ℕ
+
+def exex : Option Unit :=
+  Option.bind (eq0 4) fun _ : Unit ↦
+    Option.bind
+      ((Option.bind
+         (Option.bind
+           (Option.bind
+             (F 2) fun x ↦
+            Option.bind (F 3) fun y ↦ G (x + y))
+           fun x ↦ H x))
+         fun x ↦ F x) fun x ↦
+      F x
+
+#print exex
+
+def testInnerReturn : Option Unit := do
+  let x ← F 1
+  let y ← F (←(fun (x: ℕ) => do
+    return x) 3)
+  let z ← F 3
+  pure ()
+
+set_option trace.Clap.Compile true in
+set_option Clap.traversalDbg true in
+set_option trace.Clap.Compile.dbg true in
+#eval spoon <| do
+  let e ← compileExample ``testInnerReturn (←(mapM_singlePass_pre))
+  -- Pretty print (i.e. go back to `Bind.bind`)
+  return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
+
+
+def exex' : Option Unit := do
+  let z ← F 2
+  let x ← H 4
+  let y ← (do let x ← G (x + z); let y ← G x; H (x + z))
+  H y
+
+def exex'' : Option Unit := do
+  let z ← F 2
+  let x ← #v[1, 2].mapM (fun _ ↦ pure 4)
+  let y ← (do let x ← G x[1]; let y ← G x; H (x + z))
+  H y
+
+#check @Option.bind_assoc
+
+set_option trace.Clap.Compile true in
+set_option Clap.traversalDbg true in
+set_option trace.Clap.Compile.dbg true in
+#eval spoon <| do
+  let e ← compileExample ``exex'' (←(mapM_singlePass_pre))
+  -- Pretty print (i.e. go back to `Bind.bind`)
+  return (←Sym.simp e (←compilerBindEqBind)).getResultExpr e
+
+
+def eq0 (e : Nat) : Option Unit := .some ()
+
+def ex₈ (n : ℕ) (vec : Vector Nat n) : Option Unit := do
+  let x ← (do let _ ← eq0 2; let X ← vec.mapM (fun x ↦ (eq0 (x + 42) : Option _)); return 4)
+  eq0 x
+
+opaque share : Nat → Option Nat
+
+def ex₉ {n : Nat} (vec : Vector Nat n) : Option Unit := do
+  let x ← (do let _ ← eq0 2; let x ← vec.mapM (fun x ↦ (share (x + 42) : Option _)); return x)
+  let _ ← x.mapM eq0
+
+set_option maxRecDepth 1024 in
+set_option trace.Clap.Compile.dbg true in
+set_option Clap.traversalDbg true in
+set_option trace.Clap.Compile true in
+#eval do
+  let (e, time) ← Dbg.timeS <| compileExampleJustSym (args := #[toExpr 3]) ``ex₉
+    (←(
+      mapM ∪
+      getElem ∪
+      append ∪
+      explode -- ∪ monads -- ∪ zeta ∪ monads ∪ explode
+    ∪ compilerAssoc
+    -- ∪ bindMyAssoc_set
+    ∪ monads
+    -- mapM_alt
+    )) |>.run' {} |>.run
+  logInfo m!"time: {time}"
+  -- let e' := Sym.simp e {}
+  let e' := Sym.simp e (←compilerBindEqBind)
+  let e' ← e'.run
+
+  logInfo m!"e: {e'.getResultExpr e}"
+  logInfo m!"{←(getAndResetDbgState <&> repr)}"
+
+opaque A : Nat → Option Nat
+opaque B : Nat → Option Nat
+opaque C : Nat → Option Nat
+opaque D : Nat → Option Nat
+opaque E : Nat → Option Nat
+
+def e? (vec : Vector Nat 4) : Option Unit := do
+  let _ ← A 1
+  let z ← B 2
+  let x ← (do let _ ← F 4
+              let x ← (do let _ ← C 42; let w ← D z; let _ ← D 42; E (z + w))
+              H x)
+  F x
+
+def assocPre : MetaM Sym.Simp.Methods :=
+  mkPreMethods #[
+    ``bind_assoc
+  ]
+
+def assocPost : MetaM Sym.Simp.Methods :=
+  mkPostMethods #[
+    ``bind_assoc
+  ]
+
+set_option trace.Clap.Compile.dbg true
+set_option Clap.traversalDbg true
+set_option trace.Clap.Compile true
+#eval do
+  let (e, time) ← Dbg.timeS <| compileExampleJustSym ``e?
+    (←(
+    compilerAssoc
+    )) |>.run' {} |>.run
+  logInfo m!"time: {time}"
+  -- let e' := Sym.simp e {}
+  let e' := Sym.simp e (←compilerBindEqBind)
+  let e' ← e'.run
+
+  logInfo m!"e: {e'.getResultExpr e}"
+  let σ ← getAndResetDbgState
+  logInfo m!"{←σ.pretty}"
+
+end NewTraversal
 
 end Clap.Compiler

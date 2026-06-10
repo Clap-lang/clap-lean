@@ -38,7 +38,11 @@ structure TraversalDbgState where
   numUp : Nat
   cumulativeSimpTimeDown : Float
   cumulativeSimpTimeUp : Float
-  deriving Inhabited, Repr
+  inlinedHisto : Std.HashMap Expr Nat
+  deriving Inhabited
+
+def TraversalDbgState.pretty (σ : TraversalDbgState) : MetaM Format := do
+  return f!"\nnumDown := {σ.numDown}\nnumUp := {σ.numUp}\ndownTime := {σ.cumulativeSimpTimeDown}\nupTime := {σ.cumulativeSimpTimeUp}\nhistoInlined := {repr (←σ.inlinedHisto.toArray.mapM fun (k, v) ↦ do return ((←PrettyPrinter.ppExpr k).pretty, v))}"
 
 initialize traversalDbg : EnvExtension TraversalDbgState ←
   registerEnvExtension (pure default)
@@ -56,5 +60,15 @@ def getAndResetDbgState : MetaM TraversalDbgState := do
   let σ ← getDbgState
   resetDbgState
   return σ
+
+def getDbgHisto : MetaM (Std.HashMap Expr Nat) :=
+  TraversalDbgState.inlinedHisto <$> getDbgState
+
+def recordDbgHisto (e : Expr) :=
+  modifyDbgState fun σ ↦
+    {σ with inlinedHisto :=
+      if σ.inlinedHisto.contains e
+      then σ.inlinedHisto.modify e Nat.succ
+      else σ.inlinedHisto.insert e 1}
 
 end Clap.Compiler
