@@ -1874,7 +1874,7 @@ set_option trace.Clap.Compile.dbg true in
 set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile true in
 #eval do
-  let (e, time) ← Dbg.timeS <| compileExampleJustSym (args := #[toExpr 3]) ``ex₉
+  let (e, time) ← Dbg.timeS <| compileExampleJustSym (args := #[toExpr 10]) ``ex₉
     (←(
       mapM ∪
       getElem ∪
@@ -1892,6 +1892,24 @@ set_option trace.Clap.Compile true in
 
   logInfo m!"e: {e'.getResultExpr e}"
   -- logInfo m!"{←(getAndResetDbgState)}"
+
+-- set_option Clap.traversalDbg true
+-- set_option trace.Clap.Compile.dbg false
+-- def bench : MetaM Unit := do
+--   let simpset := (←(SymSets.Vector.wrapped ∪ mapM_mk ∪ explode ∪ compilerAssoc))
+--   -- let simpset := (←(mapM_singlePass ∪ zeta ∪ explode))
+--   let inputSizes := (Array.range 2).map (10 * 2^·)
+--   let timings ← inputSizes.mapM fun inputSize ↦ do
+--     let res ← Dbg.timeS <| (compileExample ``ex₉ simpset (args := #[mkNatLit inputSize])).run' {} |>.run
+--     let σ ← getAndResetDbgState
+--     return (inputSize, res, σ)
+--   for (n, (compiled, time), dbgState) in timings do
+--     logInfo m!"ex₈[{n}] took {time}s"
+--     logInfo m!"dbg: {←dbgState.pretty}"
+
+--     logInfo m!"{←ppMonad compiled}"
+
+-- #eval bench
 
 opaque A : Nat → Option Nat
 opaque B : Nat → Option Nat
@@ -1928,6 +1946,25 @@ def eboom (vec : Vector Nat 4) : Option Unit := do
     )
   discard (G x)
 
+def eboom' (vec : Vector Nat 4) : Option Unit := do
+  let x ←
+    (do
+      let w ← A 0
+      let x ←
+        (do let y ← do
+            let z ← B 1
+            let w ← (do let y ← do
+                        let z ← B 1
+                        let res ←
+                          (do let w ← C 2; D 5)
+                        E res)
+            let res ←
+              (do let w ← C 2; D 5)
+            E res)
+      F (w + x)
+    )
+  discard (G x)
+
 def assocPre : MetaM Sym.Simp.Methods :=
   mkPreMethods #[
     ``bind_assoc
@@ -1957,21 +1994,56 @@ where
         match e with
         | .lam _ dom body _ =>
           -- TODO cover case of passing a lambda directly into sequenceBindsL
-          -- Actually this is fine...
-          -- `.lam x q(Nat) q(True) default` yields `(q(True), default)`,
-          -- which is the 'untyped' last action of a sequence.
+          -- `.lam x q(Nat) q(True) default` yields `(q(True), default)`, that's fine vOv
+          let done := done.modify done.size.pred fun (a, _) ↦ (a, dom)
+          go (todo.push body) done
+        | _ =>
+          go todo (done.push (e, default))
+
+partial def _root_.Lean.Expr.sequenceBindsStrictLeft (e : Expr) : Sym.Simp.SimpM (Array (Expr × Expr)) :=
+  go #[e] #[]
+where
+  go (todo : Array Expr) (done : Array (Expr × Expr)) : Sym.Simp.SimpM (Array (Expr × Expr)) := do
+    match todo.back? with
+    | .none => return done
+    | .some e =>
+      let todo := todo.pop
+      match e.matchBindsE with
+      | .some (action, func) =>
+        match action.matchBindsE with
+        | .some (b, g) =>
+          go (todo.append #[func, g, b]) done
+        | _ =>
+          go (todo.push func) (done.push (action, default))
+      | _ =>
+        match e with
+        | .lam _ dom body _ =>
+          -- TODO cover case of passing a lambda directly into sequenceBindsL
+          -- `.lam x q(Nat) q(True) default` yields `(q(True), default)`, that's fine vOv
           let done := done.modify done.size.pred fun (a, _) ↦ (a, dom)
           go (todo.push body) done
         | _ =>
           go todo (done.push (e, default))
 
 def tryThisForSize : Sym.Simp.Simproc := fun e ↦ do
-  let .some (_, #[_, β, _, _]) := e.matchBindsEInfo | logInfo m!"rejected"; return .rfl
+  let .some (_, #[_, β, _, _]) := e.matchBindsEInfo | return .rfl
   let seq ← e.sequenceBindsLM
   let binds ← SymSets.Vector.chainActions β seq
   let e' ← Sym.shareCommon binds
-  -- logInfo m!"\n{e}\n==>\n{e'}"
+  logInfo m!"\n{e}\n==>\n{e'}"
   return .step e' (←mkSorry (←mkEq e e') false) (done := true)
+
+-- def tryThatForSize : Sym.Simp.Simproc := fun e ↦ do
+--   let .some (us, #[α, β, a, f]) := e.matchBindsEInfo | return .rfl
+--   let .some (vs, #[β, γ, b, g]) := a.matchBindsEInfo | return .rfl
+--   let 
+--   let e' := e
+--   return .step e' (←mkSorry (←mkEq e e') false) (done := true)
+
+-- def spinalSurgeryStrictLeft_pre : MetaM Sym.Simp.Methods :=
+--   mkPreMethods #[
+--     ``tryThatForSize
+--   ]
 
 def spinalSurgery_pre : MetaM Sym.Simp.Methods :=
   mkPreMethods #[
@@ -1984,8 +2056,9 @@ set_option trace.Clap.Compile true
 #eval do
   resetDbgState
 
-  let spinalSurgery ← spinalSurgery_pre
-  -- let normalAssoc ← compilerAssoc
+  let spinalSurgery ← compilerAssoc
+  -- let spinalSurgery ← spinalSurgery_pre
+  -- let spinalSurgery ← spinalSurgeryStrictLeft_pre
 
   let (e, time) ←
     Dbg.timeS <| compileExampleJustSym ``eboom spinalSurgery |>.run' {} |>.run
