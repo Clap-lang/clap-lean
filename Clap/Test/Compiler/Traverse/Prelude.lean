@@ -9,19 +9,24 @@ opaque G : ℕ → Option ℕ
 opaque H : ℕ → Option ℕ
 
 def testSymSet :=
-  Clap.Compiler.ExampruSym.NewTraversal.Dom.flattenBinds_pre ∪
-  SymSets.General.optionPureApply ∪
-  SymSets.Vector.mapM_alt ∪
-  SymSets.General.beta ∪
-  SymSets.Vector.getElem ∪
-  SymSets.General.compilerSet_bind_some
+  ExampruSym.NewTraversal.Dom.flattenBinds_pre
+  ∪ ExampruSym.NewTraversal.Dom.bind_pure_many_pre
+  ∪ SymSets.General.optionPureApply
+  ∪ SymSets.Vector.mapM_alt
+  ∪ SymSets.General.beta
+  ∪ SymSets.Vector.getElem
 
 open Lean in
 def runTest (uncompiledExpr : Expr) := spoon <| do
   let uncompiledTypeExpr ← Meta.inferType uncompiledExpr
   let expectedType := (Option ℕ)
 
+  let time ← IO.monoMsNow
+  logInfo m!"Compiling {uncompiledExpr}"
   let compiled ← compileJustSym uncompiledExpr (←testSymSet)
+  Clap.Dbg.timeSince time "Compilation took:"
+  logInfo m!"Compiled to {compiled}"
+
   let dbgState ← getAndResetDbgState
   logInfo m!"{←dbgState.pretty}"
   -- Pretty print (i.e. go back to `Bind.bind`)

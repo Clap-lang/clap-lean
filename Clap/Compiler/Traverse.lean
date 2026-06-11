@@ -117,8 +117,11 @@ def mkPostMethodsSinglePass (declNames : Array Name)
 def mkPreMethods (declNames : Array Name)
                  (d : Discharger := Sym.Simp.dischargeNone) : MetaM Methods := do
   let (procs, thms) ← declNames.toList.partitionM (liftM ∘ isSimproc)
+
+  let totalName := declNames.foldl (λ acc name => name.toString ++ acc) ""
   let procs ← andThen procs.toArray
-  return { pre := procs >> (←mkSimprocFor thms.toArray d) }
+  let proc := rewriteWithLog totalName (procs >> (←mkSimprocFor thms.toArray d))
+  return { pre := proc }
 
 namespace Monad
 
@@ -2230,7 +2233,7 @@ def get_left_bind (expr: Expr): Option ((Expr × Expr × Expr) × (Expr × Expr 
   assert! midType == midType'
   return ((inputType, midType, outputType), (input, f1, f2))
 
-partial def flatten_binds: Sym.Simp.Simproc := fun expr ↦ do
+def flatten_binds: Sym.Simp.Simproc := fun expr ↦ do
   let Option.some outerBind := ←expr.matchBinds | return .rfl
   let Option.some innerBind := ←(outerBind.aₗ).matchBinds | return .rfl
   -- logInfo m!"Found {expr}"
@@ -2282,6 +2285,55 @@ def flattenBinds_pre : MetaM Sym.Simp.Methods :=
   mkPreMethods #[
     ``flatten_binds
   ]
+
+def substitute_unbound_bvars (body: Expr) (values: Array Expr) (types: List Expr) : Expr :=
+  let wrapped_body := types.foldr (λ argType acc => Expr.lam `x argType acc .default) body
+  wrapped_body.beta values
+
+-- TODO this is currently extermely specialised and not correct in unhandled cases
+-- needs to also substitute into actions
+-- could do with perhaps calling the substitution function directly rather than beta reducing?
+def apply_many (body: Expr) (args: List (Expr × Expr)) : Sym.SymM Expr := do
+  let values := args.map Prod.fst
+  let types := args.map Prod.snd
+
+  let values := values.zipIdx.map (
+    λ (value, idx) => substitute_unbound_bvars value (values.take idx).toArray (types.take idx)
+  )
+
+  return substitute_unbound_bvars body values.toArray types
+
+-- TODO also pick up somes
+partial def get_bind_pure_lambdas (expr: Expr) : Sym.SymM (List (Bind × Expr)) := do
+  let Option.some firstBind := ←expr.matchBinds | return []
+  let_expr pure monadType inst valueType value := firstBind.aₗ | return []
+  let .lam _ dom body _ := firstBind.aᵣ | return []
+  return (firstBind, value) :: (←get_bind_pure_lambdas body)
+
+def bind_pure_many : Sym.Simp.Simproc := fun expr ↦ do
+  let bind_pure_lambdas ← get_bind_pure_lambdas expr
+  if bind_pure_lambdas.isEmpty then return .rfl
+  let .some (bind, _) := bind_pure_lambdas.getLast? | return .rfl
+  let .lam _ dom body _ := bind.aᵣ | return .rfl
+  -- logInfo m!"{bind_some_lambdas.length}"
+  let expr' ← apply_many body (
+    bind_pure_lambdas.map λ (bind, value) => (value, bind.α)
+  )
+  -- logInfo m!"{expr'}"
+  -- return .rfl
+  return .step expr' (←mkSorry (←mkEq expr expr') false)
+
+def bind_pure_many_pre : MetaM Sym.Simp.Methods :=
+  mkPreMethods #[
+    ``bind_pure_many
+  ]
+
+def bind_pure_many_post : MetaM Sym.Simp.Methods :=
+  mkPostMethods #[
+    ``bind_pure_many
+  ]
+
+
 
 def flattenBindsButCorrect : Sym.Simp.Simproc := fun e ↦ do
   let .some (_, #[_, outputτ, a, _]) := e.matchBindsEInfo | return .rfl
