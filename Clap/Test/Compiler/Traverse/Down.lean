@@ -84,7 +84,6 @@ example :
   ]
   rfl
 
-
 #print testTreeBind
 set_option trace.Clap.Compile true in
 set_option Clap.traversalDbg true in
@@ -104,8 +103,8 @@ set_option trace.Clap.Compile.dbg true in
 
 def exex'' : Option ℕ := do
   let z ← F 2
-  let x ← #v[1, 2].mapM (fun _ ↦ pure 4)
-  let y ← (do let x ← G x[1]; let y ← G x; H (x + z))
+  let x ← #v[1].mapM (fun _ ↦ pure 4)
+  let y ← (do let x ← G x[0]; let y ← G x; H (x + z))
   H y
 
 #check @Option.bind_assoc
@@ -113,7 +112,6 @@ set_option trace.Clap.Compile true in
 set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile.dbg true in
 #eval runTest ``exex''
-
 
 opaque A : Nat → Option Nat
 opaque B : Nat → Option Nat

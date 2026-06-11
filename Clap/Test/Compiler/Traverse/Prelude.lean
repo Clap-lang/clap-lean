@@ -11,7 +11,9 @@ opaque H : ℕ → Option ℕ
 def testSymSet :=
   -- Clap.Compiler.ExampruSym.NewTraversal.spinalSurgeryStrictLeft_pre ∪
   Clap.Compiler.ExampruSym.NewTraversal.Dom.flattenBinds_pre ∪
+  -- Clap.Compiler.ExampruSym.NewTraversal.Dom.flattenBinds_pre_but_correct ∪
   SymSets.Vector.mapM_alt
+  -- SymSets.General.beta
 
 open Lean in
 def runTest (name: Lean.Name) := spoon <| do

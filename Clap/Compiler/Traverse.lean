@@ -595,7 +595,6 @@ where
       match e.matchBindsE with
       | .some (action, func) =>
         match action.matchBindsE with
-
         | .some (b, g) =>
           go (todo.append #[func, g, b]) done
         | _ =>
@@ -603,10 +602,6 @@ where
       | _ =>
         match e with
         | .lam _ dom body _ =>
-          -- TODO cover case of passing a lambda directly into sequenceBindsL
-          -- Actually this is fine...
-          -- `.lam x q(Nat) q(True) default` yields `(q(True), default)`,
-          -- which is the 'untyped' last action of a sequence.
           let done := done.modify done.size.pred fun (a, _) ↦ (a, dom)
           go (todo.push body) done
         | _ =>
@@ -673,18 +668,18 @@ def bindActions (a₁ a₁type a₂ a₂type: Expr) : Sym.Simp.SimpM (Expr × Ex
            cont
   return (bind, a₂type)
 
-def bindActionsInferType (action f : Expr) : Sym.Simp.SimpM Expr := do
-  let_expr Option actionType := ←Sym.inferType action | throwError "What are you doing..."
-  let cont := Expr.lam `a actionType f .default
-  let functionType ← Sym.inferType cont
-  let .forallE _ _ body _ := functionType | throwError "forall expected"
-  let_expr Option outType := body | throwError "What on Earth..."
+def bindActionsInferType (action actionτ f fτ : Expr) : Sym.Simp.SimpM (Expr × Expr) := do
+  let cont := Expr.lam `a actionτ f .default
+  -- let_expr Option actionType := ←Sym.inferType action | throwError "What are you doing..."
+  -- let functionType ← Sym.inferType cont
+  -- let .forallE _ _ body _ := functionType | throwError "forall expected"
+  -- let_expr Option outType := body | throwError "What on Earth..."
   let bind :=
-    mkApp4 (.const ``Option.bind [←Sym.getLevelInType actionType, ←Sym.getLevelInType outType])
-           actionType outType
+    mkApp4 (.const ``Option.bind [←Sym.getLevelInType actionτ, ←Sym.getLevelInType fτ])
+           actionτ fτ
            action
            cont
-  return bind
+  return (bind, fτ)
 
 def chainActions (t : Expr) (actions : Array (Expr × Expr)) : Sym.Simp.SimpM Expr := do
   let .some (action, _) := actions.back? | throwError m!"expected some action"
@@ -699,10 +694,13 @@ def chainActions (t : Expr) (actions : Array (Expr × Expr)) : Sym.Simp.SimpM Ex
   and reconstructs them into a linear, right heavy tree
 -/
 def chainActionsInferType (actions : Array Expr) : Sym.Simp.SimpM Expr := do
+  let actions ← actions.mapM fun action ↦ do
+    let_expr Option τ := ←Sym.inferType action | throwError m!"expected option"
+    return (action, τ)
   let .some action := actions.back? | throwError m!"expected some action"
   let actions := actions.pop
-  let e' ← actions.foldrM (init := action) fun a₁ a₂ ↦
-    bindActionsInferType a₁ a₂
+  let (e', _) ← actions.foldrM (init := action) fun (a₁, τ₁) (a₂, τ₂) ↦
+    bindActionsInferType a₁ τ₁ a₂ τ₂
   let e' ← Sym.shareCommonInc e'
   return e'
 
@@ -999,7 +997,11 @@ def _root_.Vector.mapM_mk_single : Sym.Simp.Simproc := fun e ↦ do
   let u ← Sym.getLevelInType β
   let_expr List.cons t hd tl := l |
     -- `#v[].mapM f ==> pure #v[]`
-    let e' := mkApp2 (.const ``Option.some [u]) β (←mkVecLit β (←Sym.mkListLit β []) q(0))
+    -- TODO: Check universe
+    let e' := mkApp2
+                (.const ``Option.some [u])
+                (mkApp2 (.const ``Vector [u]) β q(0))
+                (←mkVecLit β (←Sym.mkListLit β []) q(0))
     trace[Clap.Compile.simp.proc.mapM_mk_single]
       m!"\n{e}\n==>\n{e'}"
     return .step e' (←mkSorry (←mkEq e e') false)
@@ -2004,38 +2006,46 @@ partial def _root_.Lean.Expr.sequenceBindsLM (e : Expr) : Sym.Simp.SimpM (Array 
   go #[e] #[]
 where
   go (todo : Array Expr) (done : Array (Expr × Expr)) : Sym.Simp.SimpM (Array (Expr × Expr)) := do
-    trace[Clap.Compile.dbg]
-      m!"todo: {todo}\ndone: {done}"
     match todo.back? with
     | .none => return done
     | .some e =>
       let todo := todo.pop
       match e.matchBindsE with
       | .some (action, func) =>
-        trace[Clap.Compile.dbg]
-          m!"bind"
         match action.matchBindsE with
         | .some (b, g) =>
-          trace[Clap.Compile.dbg]
-            m!"bind(L)"
           go (todo.append #[func, g, b]) done
         | _ =>
-          trace[Clap.Compile.dbg]
-            m!"not bind"
           go (todo.push func) (done.push (action, default))
       | _ =>
         match e with
         | .lam _ dom body _ =>
-          trace[Clap.Compile.dbg]
-            m!"lam(b)"
-          -- TODO cover case of passing a lambda directly into sequenceBindsL
-          -- `.lam x q(Nat) q(True) default` yields `(q(True), default)`, that's fine vOv
           let done := done.modify done.size.pred fun (a, _) ↦ (a, dom)
           go (todo.push body) done
         | _ =>
-          trace[Clap.Compile.dbg]
-            m!"lamb"
           go todo (done.push (e, default))
+
+partial def _root_.Lean.Expr.sequenceBindsLMSansType (e : Expr) : Sym.Simp.SimpM (Array Expr) :=
+  go #[e] #[]
+where
+  go (todo : Array Expr) (done : Array Expr) : Sym.Simp.SimpM (Array Expr) := do
+    match todo.back? with
+    | .none => return done
+    | .some e =>
+      let todo := todo.pop
+      match e.matchBindsE with
+      | .some (action, func) =>
+        match action.matchBindsE with
+        | .some (b, g) =>
+          go (todo.append #[func, g, b]) done
+        | _ =>
+          go (todo.push func) (done.push action)
+      | _ =>
+        match e with
+        | .lam _ _ body _ =>
+          go (todo.push body) done
+        | _ =>
+          go todo (done.push e)
 
 -- partial def _root_.Lean.Expr.sequenceBindsLButCorrect (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
 --   match e.matchBindsE with
@@ -2093,6 +2103,9 @@ def tryThatForSize : Sym.Simp.Simproc := fun e ↦ do
   let flatBind ← Sym.shareCommonInc (←SymSets.Vector.chainActionsInferType <| actionSequence.map Prod.fst)
   trace[Clap.Compile.dbg]
     m!"Flat Bind: {flatBind}"
+  trace[Clap.Compile.dbg]
+    m!"T: {←Sym.inferType flatBind}"
+   
   return .step flatBind (←mkSorry (←mkEq e flatBind) false)
 
 def spinalSurgeryStrictLeft_pre : MetaM Sym.Simp.Methods :=
@@ -2176,13 +2189,11 @@ def get_left_bind (expr: Expr): Option ((Expr × Expr × Expr) × (Expr × Expr 
   assert! midType == midType'
   return ((inputType, midType, outputType), (input, f1, f2))
 
-
 partial def flatten_binds: Sym.Simp.Simproc := fun expr ↦ do
   let Option.some outerBind := ←expr.matchBinds | return .rfl
   let Option.some innerBind := ←(outerBind.aₗ).matchBinds | return .rfl
   logInfo m!"Found {expr}"
   recordRuleDbg "Dom flatten"
-
 
   let ((inputType, midType, outputType), (input, f1, f2)) :=
     ((
@@ -2196,8 +2207,6 @@ partial def flatten_binds: Sym.Simp.Simproc := fun expr ↦ do
       outerBind.aᵣ
     ))
 
-
-
   let func :=
     Expr.lam
       `x
@@ -2207,7 +2216,7 @@ partial def flatten_binds: Sym.Simp.Simproc := fun expr ↦ do
           (.const ``Option.bind [←Sym.getLevelInType midType, ←Sym.getLevelInType outputType])
           midType
           outputType
-          (.app f1 (.bvar 0))
+          (f1.beta #[.bvar 0])
           f2
       )
       .default
@@ -2231,6 +2240,17 @@ def flattenBinds_pre : MetaM Sym.Simp.Methods :=
     ``flatten_binds
   ]
 
+def flattenBindsButCorrect : Sym.Simp.Simproc := fun e ↦ do
+  let .some (_, #[_, outputτ, a, _]) := e.matchBindsEInfo | return .rfl
+  let .some (_, #[_, _, _, _])       := a.matchBindsEInfo | return .rfl
+  recordRuleDbg "tryThatForSize"
+  let actionSequence ← e.sequenceBindsLMSansType
+  trace[Clap.Compile.dbg]
+    m!"Action Sequence: {actionSequence}"
+  let flatBind ← Sym.shareCommonInc (←SymSets.Vector.chainActionsInferType <| actionSequence)
+  trace[Clap.Compile.dbg]
+    m!"Flat Bind: {flatBind}"
+  return .step flatBind (←mkSorry (←mkEq e flatBind) false)
 
 -- partial def flatten_binds: Sym.Simp.Simproc := fun expr ↦ do
 --   -- Return if we don't have a left leaning bind
