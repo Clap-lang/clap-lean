@@ -1069,8 +1069,6 @@ def _root_.Vector.mapM_mk_single : Sym.Simp.Simproc := fun e ↦ do
         appendT
         (←Sym.shareCommonInc (f.beta #[hd])) -- TODO(?): `Expr.app f hdVec` without reducing here?
         (.lam `fst t innerBind .default )
-    logInfo m!"innerBind: {innerBind}"
-    logInfo m!"bind: {bind}"
     let e' ← Sym.shareCommonInc bind
     -- let (e', time) ← timeS (Sym.shareCommonInc bind)
 
@@ -2048,6 +2046,24 @@ where
           go (todo.push body) done
         | _ =>
           go todo (done.push e)
+
+opaque a : Option Unit
+opaque b : Option Unit
+opaque c : Option Unit
+opaque d : Option Unit
+opaque e : Option Unit
+
+def xb : Option Unit := do
+  a
+  let x ← (do a; b)
+  c
+  d
+  e
+
+example : xb = bind a (fun _ ↦ (bind (bind a fun _ ↦ b) fun _ ↦ bind c fun _ ↦ bind d fun _ ↦ e)) := by
+  rfl
+-- fun a ↦ fun b ↦ body
+-- telescope args = [a, b], body = body
 
 -- partial def _root_.Lean.Expr.sequenceBindsLButCorrect (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
 --   match e.matchBindsE with
