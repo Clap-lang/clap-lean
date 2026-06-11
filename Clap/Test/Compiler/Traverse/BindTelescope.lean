@@ -61,16 +61,16 @@ def buildChain (vec : Expr) (n : Nat) : MetaM Expr := do
 
     return e
 
-abbrev vector : Vector Nat 3 := #v[1, 2, 3]
+abbrev vector (n: ℕ) : Vector Nat n := Vector.range n
 #check Option.bind_some
 /-- Build the full goal `<chain>.bind (fun x : Vector Nat n => eq0 x[0]) = sorry`
 in a local context containing `vec : Vector Nat n`. Returns the goal mvar. -/
-def chainTest (n : Nat) : MetaM Unit := do
+def chainTest (n : ℕ) : MetaM Unit := do
   -- let chain ← withLocalDeclD `vec (mkVecType n) fun vec => do
-  let chain ← buildChain (.const ``ExampruSym.NewTraversal.vector []) 3
+  let chain ← buildChain ((Expr.const ``ExampruSym.NewTraversal.vector []).beta #[mkNatLit n]) n
   runTest chain
 
-#eval chainTest 4
+#eval chainTest 5
 
 
 

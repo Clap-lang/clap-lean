@@ -84,13 +84,25 @@ def andThen (names : Array Name) : MetaM Sym.Simp.Simproc := do
   let simprocs ← names.mapM getSimproc
   return simprocs.foldl (· >> ·) (fun _ ↦ return .rfl) -- I hope this is the `.continue`...
 
+def rewriteWithLog (name : String) (f : Simproc) : Simproc :=
+  fun e ↦ do
+    let res ← f e
+    match res with
+      | .rfl .. => return res
+      | .step .. =>
+        recordRuleDbg name
+        return res
+
 -- dischargeSimpSelf
 def mkPostMethods (declNames : Array Name)
                   (d : Discharger := Sym.Simp.dischargeNone) : MetaM Methods := do
   let (procs, thms) ← declNames.toList.partitionM (liftM ∘ isSimproc)
   let procs ← andThen procs.toArray
-  
-  return { post := (←mkSimprocFor thms.toArray d) >> procs }
+
+  let totalName := declNames.foldl (λ acc name => name.toString ++ acc) ""
+  let proc := rewriteWithLog totalName ((←mkSimprocFor thms.toArray d) >> procs)
+
+  return { post := proc }
 
 /--
 I thought this would sigle-pass, but apparently not.
@@ -119,11 +131,6 @@ def monad : MetaM Sym.Simp.Methods :=
   ]
 
 end Monad
-
-def rewriteWithLog (name : String) (f : Simproc) : Simproc :=
-  fun e ↦ do
-    recordRuleDbg name
-    f e
 
 namespace General
 
@@ -2139,7 +2146,7 @@ def tryThatForSize : Sym.Simp.Simproc := fun e ↦ do
     m!"Flat Bind: {flatBind}"
   trace[Clap.Compile.dbg]
     m!"T: {←Sym.inferType flatBind}"
-   
+
   return .step flatBind (←mkSorry (←mkEq e flatBind) false)
 
 def spinalSurgeryStrictLeft_pre : MetaM Sym.Simp.Methods :=
@@ -2240,7 +2247,7 @@ partial def flatten_binds: Sym.Simp.Simproc := fun expr ↦ do
       innerBind.aᵣ,
       outerBind.aᵣ
     ))
-  
+
   -- logInfo m!"input type: {inputType}\nmid type: {midType}\noutput type: {outputType}\ninput: {input}\nf1: {f1}\nf2: {f2}"
 
   let func :=
