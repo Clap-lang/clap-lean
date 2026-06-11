@@ -1045,6 +1045,7 @@ def _root_.Vector.mapM_mk_single : Sym.Simp.Simproc := fun e ↦ do
     let mapM := mkApp7 (.const ``Vector.mapM [u, v, w]) m α β tlSz mInst f tlVec
     -- TODO(perf): Hand write the type if helps, least of my problems
     let mapMT ← Sym.inferType mapM
+    let_expr Option mapMT := mapMT | throwError m!"expected Option monad"
     let appendT ← Sym.inferType append
     let v ← Sym.getLevelInType mapMT
 
@@ -1068,7 +1069,8 @@ def _root_.Vector.mapM_mk_single : Sym.Simp.Simproc := fun e ↦ do
         appendT
         (←Sym.shareCommonInc (f.beta #[hd])) -- TODO(?): `Expr.app f hdVec` without reducing here?
         (.lam `fst t innerBind .default )
-
+    logInfo m!"innerBind: {innerBind}"
+    logInfo m!"bind: {bind}"
     let e' ← Sym.shareCommonInc bind
     -- let (e', time) ← timeS (Sym.shareCommonInc bind)
 
@@ -2206,6 +2208,8 @@ partial def flatten_binds: Sym.Simp.Simproc := fun expr ↦ do
       innerBind.aᵣ,
       outerBind.aᵣ
     ))
+  
+  logInfo m!"input type: {inputType}\nmid type: {midType}\noutput type: {outputType}\ninput: {input}\nf1: {f1}\nf2: {f2}"
 
   let func :=
     Expr.lam

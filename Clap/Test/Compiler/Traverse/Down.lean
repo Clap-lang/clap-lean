@@ -103,7 +103,7 @@ set_option trace.Clap.Compile.dbg true in
 
 def exex'' : Option ℕ := do
   let z ← F 2
-  let x ← #v[1].mapM (fun _ ↦ pure 4)
+  let x ← #v[1, 2, 3, 4].mapM (fun _ ↦ pure 4)
   let y ← (do let x ← G x[0]; let y ← G x; H (x + z))
   H y
 
