@@ -9,19 +9,14 @@ opaque G : ℕ → Option ℕ
 opaque H : ℕ → Option ℕ
 
 def testSymSet :=
-  -- Clap.Compiler.ExampruSym.NewTraversal.spinalSurgeryStrictLeft_pre ∪
   Clap.Compiler.ExampruSym.NewTraversal.Dom.flattenBinds_pre ∪
-  -- Clap.Compiler.ExampruSym.NewTraversal.Dom.flattenBinds_pre_but_correct ∪
-  -- SymSets.Vector.mapM
-  SymSets.Vector.mapM_alt
-  -- SymSets.General.beta
+  SymSets.General.optionPureApply ∪
+  SymSets.Vector.mapM_alt ∪
+  SymSets.General.beta
 
 open Lean in
-def runTest (name: Lean.Name) := spoon <| do
-  let uncompiled := ((←Lean.MonadEnv.getEnv).find? name).get!
-  let uncompiledExpr := uncompiled.value!
-  let uncompiledTypeExpr := uncompiled.type
-
+def runTest (uncompiledExpr : Expr) := spoon <| do
+  let uncompiledTypeExpr ← Meta.inferType uncompiledExpr
   let expectedType := (Option ℕ)
 
   let compiled ← compileJustSym uncompiledExpr (←testSymSet)
@@ -56,8 +51,12 @@ def runTest (name: Lean.Name) := spoon <| do
   if uncompiledEvaluated == compiledEvaluated then
     Lean.logInfo m!"Compiled expression evalutes equal: {uncompiledEvaluated} == {compiledEvaluated}"
   else
-    Lean.logInfo m!"Compiled expression evaluates unequal"
-    Lean.logInfo m!"Uncompiled: {uncompiledEvaluated} ≠ Compiled: {compiledEvaluated}"
+    Lean.logError m!"Compiled expression evaluates unequal\nUncompiled: {uncompiledEvaluated} ≠ Compiled: {compiledEvaluated}"
   return formatted
+
+open Lean in
+def runTestByName (testName : Name) : MetaM Unit := do
+  let .some constantInfo := (←getEnv).find? testName | throwError m!"Undeclared constant:\n{testName}"
+  runTest constantInfo.value!
 
 end ExampruSym

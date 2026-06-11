@@ -183,6 +183,11 @@ def compilerSet_whatever : MetaM Sym.Simp.Methods :=
     ``Option.map_eq_map, ``Option.map_some, ``Option.pure_apply
   ]
 
+def optionPureApply : MetaM Sym.Simp.Methods :=
+  mkPostMethods #[
+    ``Option.pure_apply
+  ]
+
 def compilerSet_old : MetaM Sym.Simp.Methods :=
   mkPostMethods #[
     ``Option.bind_assoc, ``bind_assoc,
@@ -2210,7 +2215,7 @@ def get_left_bind (expr: Expr): Option ((Expr × Expr × Expr) × (Expr × Expr 
 partial def flatten_binds: Sym.Simp.Simproc := fun expr ↦ do
   let Option.some outerBind := ←expr.matchBinds | return .rfl
   let Option.some innerBind := ←(outerBind.aₗ).matchBinds | return .rfl
-  logInfo m!"Found {expr}"
+  -- logInfo m!"Found {expr}"
   recordRuleDbg "Dom flatten"
 
   let ((inputType, midType, outputType), (input, f1, f2)) :=
@@ -2225,7 +2230,7 @@ partial def flatten_binds: Sym.Simp.Simproc := fun expr ↦ do
       outerBind.aᵣ
     ))
   
-  logInfo m!"input type: {inputType}\nmid type: {midType}\noutput type: {outputType}\ninput: {input}\nf1: {f1}\nf2: {f2}"
+  -- logInfo m!"input type: {inputType}\nmid type: {midType}\noutput type: {outputType}\ninput: {input}\nf1: {f1}\nf2: {f2}"
 
   let func :=
     Expr.lam
@@ -2251,7 +2256,7 @@ partial def flatten_binds: Sym.Simp.Simproc := fun expr ↦ do
 
   let bind ← shareCommon bind
 
-  logInfo m!"Produced {bind}"
+  -- logInfo m!"Produced {bind}"
 
   return .step bind (←mkSorry (←mkEq expr bind) false)
 
@@ -2328,7 +2333,6 @@ def flattenBindsButCorrect : Sym.Simp.Simproc := fun e ↦ do
 --     let .lam _ dom body _ := expr | return [expr]
 
 --     []
-
 
 end Dom
 

@@ -13,10 +13,14 @@ def testInnerReturn : Option ℕ := do
   let z ← F 3
   pure z
 
+#eval Lean.ToExpr.toExpr testInnerReturn
+
+-- Environment.find? ``testInnerReturn
+
 set_option trace.Clap.Compile true in
 set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTest ``testInnerReturn
+#eval runTestByName ``testInnerReturn
 
 def testRightBind : Option ℕ := do
   let x ← F 1
@@ -25,7 +29,7 @@ def testRightBind : Option ℕ := do
 set_option trace.Clap.Compile true in
 set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTest ``testRightBind
+#eval runTestByName ``testRightBind
 
 def testLeftBind : Option ℕ := do
   let y ← F ((←do
@@ -36,7 +40,7 @@ def testLeftBind : Option ℕ := do
 set_option trace.Clap.Compile true in
 set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTest ``testLeftBind
+#eval runTestByName ``testLeftBind
 
 def testTreeBind : Option ℕ := do
   let y ← F ((←do
@@ -88,7 +92,7 @@ example :
 set_option trace.Clap.Compile true in
 set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTest ``testTreeBind
+#eval runTestByName ``testTreeBind
 
 def exex' : Option ℕ := do
   let z ← F 2
@@ -99,7 +103,7 @@ def exex' : Option ℕ := do
 set_option trace.Clap.Compile true in
 set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTest ``exex'
+#eval runTestByName ``exex'
 
 def exex'' : Option ℕ := do
   let z ← F 2
@@ -111,7 +115,7 @@ def exex'' : Option ℕ := do
 set_option trace.Clap.Compile true in
 set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTest ``exex''
+#eval runTestByName ``exex''
 
 opaque A : Nat → Option Nat
 opaque B : Nat → Option Nat
