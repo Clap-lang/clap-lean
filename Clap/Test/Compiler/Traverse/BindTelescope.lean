@@ -50,14 +50,15 @@ def buildChain (vec : Expr) (n : Nat) : MetaM Expr := do
     let sizeEq ← mkEq (← mkAppM ``Array.size #[arr]) (mkNatLit n)
     let sizeProof ← mkSorry sizeEq (synthetic := false)
     let vector := mkApp4 (mkConst ``Vector.mk [0]) natType (mkNatLit n) arr sizeProof
-    let mut e ← mkAppM ``Option.some #[vector]
+    let sum ← mkAppM ``Vector.sum #[vector]
+    let mut e ← mkAppM ``Option.some #[sum]
     for i in (List.range n).reverse do
       let body ← mkLambdaFVars #[rows[i]!] e
       let elem ← mkVecGet vec n i
       let plus1 ← mkAppM ``HAdd.hAdd #[elem, mkNatLit 1]
       let pureCall ← mkOptionPure natType plus1
       e ← mkAppM ``Option.bind #[pureCall, body]
-    
+
     return e
 
 
