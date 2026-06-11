@@ -12,7 +12,9 @@ def testSymSet :=
   Clap.Compiler.ExampruSym.NewTraversal.Dom.flattenBinds_pre ∪
   SymSets.General.optionPureApply ∪
   SymSets.Vector.mapM_alt ∪
-  SymSets.General.beta
+  SymSets.General.beta ∪
+  SymSets.Vector.getElem ∪
+  SymSets.General.compilerSet_bind_some
 
 open Lean in
 def runTest (uncompiledExpr : Expr) := spoon <| do

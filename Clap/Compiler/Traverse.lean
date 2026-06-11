@@ -89,6 +89,7 @@ def mkPostMethods (declNames : Array Name)
                   (d : Discharger := Sym.Simp.dischargeNone) : MetaM Methods := do
   let (procs, thms) ← declNames.toList.partitionM (liftM ∘ isSimproc)
   let procs ← andThen procs.toArray
+  
   return { post := (←mkSimprocFor thms.toArray d) >> procs }
 
 /--
@@ -118,6 +119,11 @@ def monad : MetaM Sym.Simp.Methods :=
   ]
 
 end Monad
+
+def rewriteWithLog (name : String) (f : Simproc) : Simproc :=
+  fun e ↦ do
+    recordRuleDbg name
+    f e
 
 namespace General
 
@@ -169,11 +175,16 @@ def compilerSet_bind_assoc : MetaM Sym.Simp.Methods :=
   mkPostMethods #[
     ``Option.bind_assoc, ``bind_assoc
   ]
+
 def compilerSet_bind_pure : MetaM Sym.Simp.Methods :=
   mkPostMethods #[
     ``Option.bind_some, ``bind_pure, ``pure_bind
   ]
 
+def compilerSet_bind_some : MetaM Sym.Simp.Methods :=
+  mkPostMethods #[
+    ``Option.bind_some
+  ]
 
 def compilerSet_whatever : MetaM Sym.Simp.Methods :=
   mkPostMethods #[
