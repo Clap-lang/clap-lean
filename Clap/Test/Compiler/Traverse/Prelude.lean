@@ -9,7 +9,8 @@ opaque G : ℕ → Option ℕ
 opaque H : ℕ → Option ℕ
 
 def testSymSet :=
-  Clap.Compiler.ExampruSym.NewTraversal.spinalSurgeryStrictLeft_pre ∪
+  -- Clap.Compiler.ExampruSym.NewTraversal.spinalSurgeryStrictLeft_pre ∪
+  Clap.Compiler.ExampruSym.NewTraversal.Dom.flattenBinds_pre ∪
   SymSets.Vector.mapM_alt
 
 open Lean in

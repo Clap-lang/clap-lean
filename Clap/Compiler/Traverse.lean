@@ -694,6 +694,10 @@ def chainActions (t : Expr) (actions : Array (Expr × Expr)) : Sym.Simp.SimpM Ex
   let e' ← Sym.shareCommonInc e'
   return e'
 
+/-
+  Takes a list of actions extracted from an arbitrary structure bind tree
+  and reconstructs them into a linear, right heavy tree
+-/
 def chainActionsInferType (actions : Array Expr) : Sym.Simp.SimpM Expr := do
   let .some action := actions.back? | throwError m!"expected some action"
   let actions := actions.pop
@@ -701,6 +705,7 @@ def chainActionsInferType (actions : Array Expr) : Sym.Simp.SimpM Expr := do
     bindActionsInferType a₁ a₂
   let e' ← Sym.shareCommonInc e'
   return e'
+
 
 -- (bind (bind (b : Option α) (g : α → Option β) : Option β) (f : β → Option γ) : Option γ)
 -- TODO: use `chainActions`
@@ -1494,7 +1499,7 @@ def logOfExprs (e e' : Expr) : MessageData :=
 
 
 -- def firstAction (e : Expr) : Expr × Option Expr :=
---   go e 
+--   go e
 --   where
 --     go (e : Expr) (rest : Option Expr) : Expr × Option Expr :=
 --     match e.matchBindsE with
@@ -2032,13 +2037,13 @@ where
             m!"lamb"
           go todo (done.push (e, default))
 
-partial def _root_.Lean.Expr.sequenceBindsLButCorrect (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
-  match e.matchBindsE with
-  | .some (a, .lam _ dom body _) =>
-    let a' ← sequenceBindsLButCorrect a
-    _
-  | .none => return #[]
-  | _ => _
+-- partial def _root_.Lean.Expr.sequenceBindsLButCorrect (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
+--   match e.matchBindsE with
+--   | .some (a, .lam _ dom body _) =>
+--     let a' ← sequenceBindsLButCorrect a
+--     _
+--   | .none => return #[]
+--   | _ => _
 
 -- partial def _root_.Lean.Expr.sequenceBindsStrictLeft (e : Expr) : Sym.Simp.SimpM (Array (Expr × Expr)) :=
 --   go #[e] #[]
@@ -2112,7 +2117,7 @@ set_option trace.Clap.Compile true
 
   let (e, time) ←
     Dbg.timeS <| compileExampleJustSym ``eboom spinalSurgery |>.run' {} |>.run
-    
+
   logInfo m!"time: {time}"
   -- let e' := Sym.simp e {}
   let e' := Sym.simp e (←compilerBindEqBind)
@@ -2123,6 +2128,169 @@ set_option trace.Clap.Compile true
   logInfo m!"{←σ.pretty}"
 
 -- #eval ExampruSym.runTest ``eboom
+
+#check bind_assoc
+/-
+            >>= h
+        >>=
+(x >>= f)  g
+becomes
+
+            >>= h
+        >>=
+(x >>= (λ x1, f x1))  (λ x2, g x2)
+
+
+
+  >>=
+x     λ x1
+        >>=
+    (f x1)  λ x2
+              >>=
+          (g x2)  h
+
+     >>=
+ >>=     g
+x   λ a
+
+any unbound bvars in the tree will have been converted to fvars by lambda telescoping as we get here
+
+-/
+
+namespace Dom
+
+/-allowed patterns:
+      >>=
+   >>=     g
+  x   f
+
+    >>=
+  x    λ x
+        >>=
+      f x  g x
+-/
+
+def get_left_bind (expr: Expr): Option ((Expr × Expr × Expr) × (Expr × Expr × Expr)) := do
+  let_expr Option.bind midType outputType mid f2 := expr | .none
+  let_expr Option.bind inputType midType' input f1 := mid | .none
+  assert! midType == midType'
+  return ((inputType, midType, outputType), (input, f1, f2))
+
+
+partial def flatten_binds: Sym.Simp.Simproc := fun expr ↦ do
+  let Option.some outerBind := ←expr.matchBinds | return .rfl
+  let Option.some innerBind := ←(outerBind.aₗ).matchBinds | return .rfl
+  logInfo m!"Found {expr}"
+  recordRuleDbg "Dom flatten"
+
+
+  let ((inputType, midType, outputType), (input, f1, f2)) :=
+    ((
+      innerBind.α,
+      innerBind.β,
+      outerBind.β
+    ),
+    (
+      innerBind.aₗ,
+      innerBind.aᵣ,
+      outerBind.aᵣ
+    ))
+
+
+
+  let func :=
+    Expr.lam
+      `x
+      inputType
+      (
+        mkApp4
+          (.const ``Option.bind [←Sym.getLevelInType midType, ←Sym.getLevelInType outputType])
+          midType
+          outputType
+          (.app f1 (.bvar 0))
+          f2
+      )
+      .default
+
+  let bind :=
+    mkApp4
+      (.const ``Option.bind [←Sym.getLevelInType inputType, ←Sym.getLevelInType outputType])
+      inputType
+      outputType
+      input
+      func
+
+  let bind ← shareCommon bind
+
+  logInfo m!"Produced {bind}"
+
+  return .step bind (←mkSorry (←mkEq expr bind) false)
+
+def flattenBinds_pre : MetaM Sym.Simp.Methods :=
+  mkPreMethods #[
+    ``flatten_binds
+  ]
+
+
+-- partial def flatten_binds: Sym.Simp.Simproc := fun expr ↦ do
+--   -- Return if we don't have a left leaning bind
+--   let_expr Option.bind midType outputType mid f2 := expr | return .rfl
+--   let_expr Option.bind inputType midType' input f1 := mid | return .rfl
+
+--   -- We have a left leaning bind
+--   -- The resulting type of the left bind should be the input type to the right bind
+--   assert! midType == midType'
+
+--   let expr' ← assoc_bind expr
+--   return .step expr' (←mkSorry (←mkEq expr expr') false)
+-- where
+--   assoc_bind (expr: Expr): Sym.Simp.SimpM Expr := do
+--     -- no unbound bvars in expr
+--     let_expr Option.bind midType outputType mid f2 := expr | return expr
+
+--     let mid := assoc_bind mid
+--     let f2 := do (
+--       let .lam _ dom body _ := f2
+--       lambdaTelescope
+--     )
+
+--     let_expr Option.bind inputType midType' input f1 := mid | return expr
+
+--     let input := assoc_bind input
+--     let f1 := assoc_bind f1
+
+--     assert! midType == midType'
+
+--     /-
+--     (       expr      )
+--     (    mid   )
+--     input >>= f1 >>= f2
+
+--     becomes
+
+--     input >>= (λ x => ((f x) >>= g))
+--     -/
+
+
+
+--     #check bind_assoc
+
+
+
+
+
+--     return expr
+
+--   flatten_input (expr: Expr): Sym.Simp.SimpM (List Expr) := do
+--     let_expr Option.bind inputType outputType input f := expr | return [expr]
+--     return (←flatten_input input) ++ (←flatten_function f)
+--   flatten_function (expr: Expr): Sym.Simp.SimpM (List Expr) := do
+--     let .lam _ dom body _ := expr | return [expr]
+
+--     []
+
+
+end Dom
 
 end NewTraversal
 
