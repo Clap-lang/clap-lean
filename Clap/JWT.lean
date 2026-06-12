@@ -65,11 +65,13 @@ omit [Core bn254] in
   brackets:  10010001-1000000-1-1
   where `arr` is represented by its ASCII encoding, i.e. `{` = 123
 -/
-def bracketsMap (input : List (F p)) : Option (List (FB p)) := do
-  input.mapM (fun c ↦ do
-    let eqOpen ← F.eq c '{'
-    let eqClose ←F.eq c '}'
-    some (eqOpen - eqClose))
+def bracketsMap {LEN} (input : FString p LEN) : Option (PaddedVector FB p LEN) := do
+  let v ←
+    input.data.mapM fun c ↦ do
+      let eqOpen ← F.eq c '{'
+      let eqClose ←F.eq c '}'
+      some (eqOpen - eqClose)
+  some ⟨v, input.len⟩
 
 private def bracketsDepthMapRev₀ (input : List (F p)) : Option (List (F p) × F p) := do
   input.foldlM
@@ -107,16 +109,18 @@ private def bracketsDepthMapRev₀ (input : List (F p)) : Option (List (F p) × 
   out:           00000011222111000000   correctly represents open brackets as being outside of bracket nesting
   out: 0000001122 11 0000 0
 -/
-def bracketsDepthMap (input : List (F p)) : Option (List (F p)) := do
-  (←bracketsDepthMapRev₀ input).1.reverse.mapM minusOne
+def bracketsDepthMap {LEN : ℕ} (input : Vector (F p) LEN) : Option (Vector (F p) LEN) := do
+  let b ← bracketsDepthMapRev₀ input.toList
+  let b' := b.1.reverse.mapM minusOne
+  b'.map fun l ↦ ⟨l.toArray, sorry⟩
  where
   --  The outermost open and closed bracket are both ignored.
   minusOne (a : F p) : Option (F p) := do a - 1 + (←isZero a)
 
-def hadamardProduct (lhs rhs : List (F p)) : List (F p) :=
+def Vector.hadamardProduct {LEN : ℕ} (lhs rhs : Vector (F p) LEN) : Vector (F p) LEN :=
   lhs.zipWith (· * ·) rhs
 
-def escalarProduct (i₁ i₂ : List (F p)) : F p :=
+def Vector.scalarProduct {LEN : ℕ} (i₁ i₂ : Vector (F p) LEN) : F p :=
   let p := hadamardProduct i₁ i₂
   p.sum
 
@@ -126,15 +130,14 @@ def escalarProduct (i₁ i₂ : List (F p)) : F p :=
   corresponding to the first index and length of a full field in the JWT, fails if the given field
   contains any indices inside nested brackets in the original JWT, and succeeds otherwise
 -/
-def enforceNotNested (len : ℕ)
+def enforceNotNested (LEN : ℕ)
   (startIndex fieldLen : F p)
-  (bracketsDepthMap : List (F p)) :
+  (bracketsDepthMap : Vector (F p) LEN) :
   Option Unit
 := do
   let endIndex := startIndex + fieldLen
-  let bracketsSelector ← FArray.arraySelector len startIndex endIndex
-  let bracketsSelector := bracketsSelector.toList
-  let o := escalarProduct bracketsDepthMap bracketsSelector
+  let bracketsSelector ← FArray.arraySelector LEN startIndex endIndex
+  let o := Vector.scalarProduct bracketsDepthMap bracketsSelector
   eq0 o
 
 /--
@@ -546,31 +549,30 @@ example :
 private def br :=
   parseCharsASCII "{he{llo{}world!}}"
 example :
-  bracketsMap (p := p) br.data.toList == some [1, 0, 0, 1, 0, 0, 0, 1, -1, 0, 0, 0, 0, 0, 0, -1, -1]
+  (bracketsMap (p := p) br).map PaddedVector.data == some #v[1, 0, 0, 1, 0, 0, 0, 1, -1, 0, 0, 0, 0, 0, 0, -1, -1]
 := by
   native_decide
 
-private def plusMinusOneBr₁ : List (F p) :=
-  [0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, -1, 0, 0, -1, 0, 0, 0, 0, -1]
+private def plusMinusOneBr₁ : Vector (F p) 20 :=
+  #v[0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, -1, 0, 0, -1, 0, 0, 0, 0, -1]
 example :
   bracketsDepthMap plusMinusOneBr₁ == some
-    [0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0, 0]
+    #v[0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0, 0]
 := by
   native_decide
 
-private def plusMinusOneBr₂ : List (F p) :=
-  [1,1,1,1,1,-1,-1,-1,-1,-1]
+private def plusMinusOneBr₂ : Vector (F p) 10 :=
+  #v[1,1,1,1,1,-1,-1,-1,-1,-1]
 
-example : bracketsDepthMap plusMinusOneBr₂ == some [0, 0, 1, 2, 3, 3, 2, 1, 0, 0] := by
+example : bracketsDepthMap plusMinusOneBr₂ == some #v[0, 0, 1, 2, 3, 3, 2, 1, 0, 0] := by
   native_decide
 
 example :
-  enforceNotNested (p := p) 10 0 2 [0, 0, 1, 2, 3, 3, 2, 1, 0, 0] == .some ()
+  enforceNotNested (p := p) 10 0 2 #v[0, 0, 1, 2, 3, 3, 2, 1, 0, 0] == .some ()
 := by
   native_decide
 
-example : enforceNotNested
-  (p := p) 10 8 10 [0, 0, 1, 2, 3, 3, 2, 1, 0, 0] == .some ()
+example : enforceNotNested (p := p) 10 8 10 #v[0, 0, 1, 2, 3, 3, 2, 1, 0, 0] == .some ()
 := by
   native_decide
 
@@ -584,7 +586,7 @@ private def evBadFString : FString p max_EV_value_len := { evTrue₂FString with
 private def requiredEvName : FString p 14 := FString.ofString "email_verified"
 
 example :
-  enforceNotNested (p := p) 10 2 4 [0, 0, 1, 2, 3, 3, 2, 1, 0, 0] == .none
+  enforceNotNested (p := p) 10 2 4 #v[0, 0, 1, 2, 3, 3, 2, 1, 0, 0] == .none
 :=
   by native_decide
 
