@@ -286,7 +286,7 @@ set_option maxHeartbeats 0 in
     (←(
       poseidonBN254'
       ∪ Clap.Compiler.ExampruSym.NewTraversal.Dom.flattenBinds_pre
-      ∪ Clap.Compiler.ExampruSym.NewTraversal.Dom.bind_pure_many_pre
+      ∪ Clap.Compiler.ExampruSym.NewTraversal.Dom.bindPureMany_pre
       ∪ Vector.explode
       ∪ control
       ∪ Clap.Compiler.SymSets.Vector.map
@@ -307,6 +307,8 @@ set_option maxHeartbeats 0 in
       -- compilerAssoc
       -- bindMyAssoc_set
     ))
+
+#exit
 
 namespace DownTest
 

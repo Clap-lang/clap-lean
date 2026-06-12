@@ -15,22 +15,6 @@ namespace Clap.Compiler
 
 open Lean Meta Qq Elab
 
-/-
-Thoughts and prayers:
-1. e.g. `#v[a1, a2, ...].mapM f → #v[f a1, f a2, f ...]`
-   to   `↓f a1 >>= res ↦ #v[f a2, f ...].mapM f`
-
-2. Top level:
-   `a >>= b >>= c`
-   `↓a >>=`
-      `↓b >>=`
-        `↓c`
-
-3. All exprs can be made smaller by sacrificing proofs.
-   This needs hand-crafting an alternate `rewrite` function /
-   changing every simp lemma to a simproc
--/
-
 instance {m} [Monad m] : Union (m Sym.Simp.Methods) where
   union a b := do return (←a) ∪ (←b)
 
@@ -41,17 +25,6 @@ theorem _root_.List.drop_toArray {α} {l : List α} {i} :
     List.extract_eq_take_drop, Array.mk.injEq
   ]
   rw [←List.extract_eq_take_drop, List.drop_eq_extract]
-
-/--
-YEEEEEHAAAAAAAAW, you rootin' tootin' cowboy.
--/
-def cowboyCast (e : Expr) (yourDeepestDesire : ℕ) : Sym.SymM Expr := do
-  let t ← Sym.inferType e
-  let_expr Vector t sz := t | throwError m!"Not a true cowboy."
-  let proof ← mkEq t (←mkAppM ``Vector #[t, mkNatLit yourDeepestDesire]) -- TODO: Nuke mapM
-  let e' ← e.rewriteType (←mkSorry proof false)
-  logInfo m!"Cowboy cast:\n{e}\n==>\n{e'}"
-  return e'
 
 @[inherit_doc Simp.wrapped]
 abbrev singlePass := Simp.wrapped
@@ -1515,8 +1488,8 @@ structure ActionWithResult where
 
 abbrev InProgressExpr := ActionWithResult ⊕ Expr
 
-def logOfExprs (e e' : Expr) : MessageData :=
-  m!"\n{e}\n==>\n{e'}"
+def logRewrite (e e' : Expr) (decorate : String := "") : MessageData :=
+  m!"\n{e}\n={decorate}=>\n{e'}"
 
 -- def inlineFirst (e : Expr) : Expr :=
 --   match e.matchBindsEInfo with
@@ -1547,7 +1520,7 @@ def logOfExprs (e e' : Expr) : MessageData :=
 --   logInfo m!"e: {todo}\nbinds:"
 --   let simpedBinds ← binds.mapM fun (action, τ) ↦ do
 --     -- let (simped, time) ← Dbg.timeS (reduce action)
---     -- trace[Clap.Compile.down] logOfExprs action simped
+--     -- trace[Clap.Compile.down] logRewrite action simped
 --     -- SymSets.General.inDebugOnly do trace[Clap.Compile.dbg] m!"simp took {time}s"
 --     -- return (simped, τ)
 --     return (action, τ)
@@ -2233,10 +2206,9 @@ def get_left_bind (expr: Expr): Option ((Expr × Expr × Expr) × (Expr × Expr 
   assert! midType == midType'
   return ((inputType, midType, outputType), (input, f1, f2))
 
-def flatten_binds: Sym.Simp.Simproc := fun expr ↦ do
+def flattenBinds : Sym.Simp.Simproc := fun expr ↦ do
   let Option.some outerBind := ←expr.matchBinds | return .rfl
   let Option.some innerBind := ←(outerBind.aₗ).matchBinds | return .rfl
-  -- logInfo m!"Found {expr}"
   recordRuleDbg "Dom flatten"
 
   let ((inputType, midType, outputType), (input, f1, f2)) :=
@@ -2250,8 +2222,6 @@ def flatten_binds: Sym.Simp.Simproc := fun expr ↦ do
       innerBind.aᵣ,
       outerBind.aᵣ
     ))
-
-  -- logInfo m!"input type: {inputType}\nmid type: {midType}\noutput type: {outputType}\ninput: {input}\nf1: {f1}\nf2: {f2}"
 
   let func :=
     Expr.lam
@@ -2277,13 +2247,17 @@ def flatten_binds: Sym.Simp.Simproc := fun expr ↦ do
 
   let bind ← shareCommon bind
 
-  -- logInfo m!"Produced {bind}"
+  trace[Clap.Compile.simp.proc.flattenBinds]
+    m!"func: {func}\nbind: {bind}"
+
+  trace[Clap.Compile.simp.proc.flattenBinds]
+    logRewrite expr bind
 
   return .step bind (←mkSorry (←mkEq expr bind) false)
 
 def flattenBinds_pre : MetaM Sym.Simp.Methods :=
   mkPreMethods #[
-    ``flatten_binds
+    ``flattenBinds
   ]
 
 def substitute_unbound_bvars (body: Expr) (values: Array Expr) (types: List Expr) : Expr :=
@@ -2293,7 +2267,7 @@ def substitute_unbound_bvars (body: Expr) (values: Array Expr) (types: List Expr
 -- TODO this is currently extermely specialised and not correct in unhandled cases
 -- needs to also substitute into actions
 -- could do with perhaps calling the substitution function directly rather than beta reducing?
-def apply_many (body: Expr) (args: List (Expr × Expr)) : Sym.SymM Expr := do
+def applyMany (body: Expr) (args: List (Expr × Expr)) : Sym.SymM Expr := do
   let values := args.map Prod.fst
   let types := args.map Prod.snd
 
@@ -2303,106 +2277,39 @@ def apply_many (body: Expr) (args: List (Expr × Expr)) : Sym.SymM Expr := do
 
   return substitute_unbound_bvars body values.toArray types
 
--- TODO also pick up somes
+def _root_.Lean.Expr.pure? (e : Expr) : Option Expr :=
+  match_expr e with
+  | pure _ _ _ x => .some x
+  | Option.some _ x => .some x
+  | _ => .none
+
 partial def get_bind_pure_lambdas (expr: Expr) : Sym.SymM (List (Bind × Expr)) := do
   let Option.some firstBind := ←expr.matchBinds | return []
-  let_expr pure monadType inst valueType value := firstBind.aₗ | return []
-  let .lam _ dom body _ := firstBind.aᵣ | return []
+  let .some value := firstBind.aₗ.pure? | return []
+  let .lam (body := body) .. := firstBind.aᵣ | return []
   return (firstBind, value) :: (←get_bind_pure_lambdas body)
 
-def bind_pure_many : Sym.Simp.Simproc := fun expr ↦ do
+def bindPureMany : Sym.Simp.Simproc := fun expr ↦ do
   let bind_pure_lambdas ← get_bind_pure_lambdas expr
   if bind_pure_lambdas.isEmpty then return .rfl
   let .some (bind, _) := bind_pure_lambdas.getLast? | return .rfl
-  let .lam _ dom body _ := bind.aᵣ | return .rfl
-  -- logInfo m!"{bind_some_lambdas.length}"
-  let expr' ← apply_many body (
+  let .lam (body := body) .. := bind.aᵣ | return .rfl
+  let expr' ← applyMany body (
     bind_pure_lambdas.map λ (bind, value) => (value, bind.α)
   )
-  -- logInfo m!"{expr'}"
-  -- return .rfl
+  trace[Clap.Compile.simp.proc.bindPureMany]
+    logRewrite expr expr' s!"{bind_pure_lambdas.length}"
   return .step expr' (←mkSorry (←mkEq expr expr') false)
 
-def bind_pure_many_pre : MetaM Sym.Simp.Methods :=
+def bindPureMany_pre : MetaM Sym.Simp.Methods :=
   mkPreMethods #[
-    ``bind_pure_many
+    ``bindPureMany
   ]
 
-def bind_pure_many_post : MetaM Sym.Simp.Methods :=
+def bindPureMany_post : MetaM Sym.Simp.Methods :=
   mkPostMethods #[
-    ``bind_pure_many
+    ``bindPureMany
   ]
-
-
-
-def flattenBindsButCorrect : Sym.Simp.Simproc := fun e ↦ do
-  let .some (_, #[_, outputτ, a, _]) := e.matchBindsEInfo | return .rfl
-  let .some (_, #[_, _, _, _])       := a.matchBindsEInfo | return .rfl
-  recordRuleDbg "tryThatForSize"
-  let actionSequence ← e.sequenceBindsLMSansType
-  trace[Clap.Compile.dbg]
-    m!"Action Sequence: {actionSequence}"
-  let flatBind ← Sym.shareCommonInc (←SymSets.Vector.chainActionsInferType <| actionSequence)
-  trace[Clap.Compile.dbg]
-    m!"Flat Bind: {flatBind}"
-  return .step flatBind (←mkSorry (←mkEq e flatBind) false)
-
--- partial def flatten_binds: Sym.Simp.Simproc := fun expr ↦ do
---   -- Return if we don't have a left leaning bind
---   let_expr Option.bind midType outputType mid f2 := expr | return .rfl
---   let_expr Option.bind inputType midType' input f1 := mid | return .rfl
-
---   -- We have a left leaning bind
---   -- The resulting type of the left bind should be the input type to the right bind
---   assert! midType == midType'
-
---   let expr' ← assoc_bind expr
---   return .step expr' (←mkSorry (←mkEq expr expr') false)
--- where
---   assoc_bind (expr: Expr): Sym.Simp.SimpM Expr := do
---     -- no unbound bvars in expr
---     let_expr Option.bind midType outputType mid f2 := expr | return expr
-
---     let mid := assoc_bind mid
---     let f2 := do (
---       let .lam _ dom body _ := f2
---       lambdaTelescope
---     )
-
---     let_expr Option.bind inputType midType' input f1 := mid | return expr
-
---     let input := assoc_bind input
---     let f1 := assoc_bind f1
-
---     assert! midType == midType'
-
---     /-
---     (       expr      )
---     (    mid   )
---     input >>= f1 >>= f2
-
---     becomes
-
---     input >>= (λ x => ((f x) >>= g))
---     -/
-
-
-
---     #check bind_assoc
-
-
-
-
-
---     return expr
-
---   flatten_input (expr: Expr): Sym.Simp.SimpM (List Expr) := do
---     let_expr Option.bind inputType outputType input f := expr | return [expr]
---     return (←flatten_input input) ++ (←flatten_function f)
---   flatten_function (expr: Expr): Sym.Simp.SimpM (List Expr) := do
---     let .lam _ dom body _ := expr | return [expr]
-
---     []
 
 end Dom
 
