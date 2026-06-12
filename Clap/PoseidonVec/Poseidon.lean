@@ -276,7 +276,7 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
 -- set_option trace.Clap.Compile true in
 -- set_option trace.Clap.Compile.simp.proc.vector_mk_zipWith_mk true in
 -- set_option trace.Clap.Compile.simp.proc.monad true in
-open Clap.Compiler.SymSets Vector General in
+open Clap.Compiler.SymSets General in
 set_option pp.exprSizes true in
 set_option maxRecDepth 1000000 in
 set_option maxHeartbeats 0 in
@@ -284,26 +284,28 @@ set_option maxHeartbeats 0 in
 #eval spoon <| do
   compileExampleJustSym ``testPoseidon
     (←(
-      poseidonBN254' ∪
-      map ∪
-      getElem ∪
-      append ∪
-      mapM ∪
-      foldlM ∪
-      mapIdx ∪
-      control ∪
-      SymSets.List.range ∪
-      sum ∪
-      zipWith ∪
-      zeta ∪
-      explode ∪
-      set ∪
-      drop ∪
-      extract ∪
-      toArray ∪
-      monads ∪
+      poseidonBN254'
+      ∪ Clap.Compiler.ExampruSym.NewTraversal.Dom.flattenBinds_pre
+      ∪ Clap.Compiler.ExampruSym.NewTraversal.Dom.bind_pure_many_pre
+      ∪ Vector.explode
+      ∪ control
+      ∪ Clap.Compiler.SymSets.Vector.map
+      ∪ Clap.Compiler.SymSets.Vector.getElem
+      ∪ Clap.Compiler.SymSets.Vector.append
+      ∪ Clap.Compiler.SymSets.Vector.mapM
+      ∪ Clap.Compiler.SymSets.Vector.foldlM
+      ∪ Clap.Compiler.SymSets.Vector.mapIdx
+      ∪ SymSets.List.range
+      ∪ Clap.Compiler.SymSets.Vector.zipWith
+      ∪ Clap.Compiler.SymSets.Vector.sum
+      ∪ SymSets.General.zeta
+      ∪ Clap.Compiler.SymSets.Vector.set
+      ∪ Clap.Compiler.SymSets.Vector.drop
+      ∪ Clap.Compiler.SymSets.Vector.extract
+      ∪ Clap.Compiler.SymSets.Vector.toArray
+      -- ∪ monads
       -- compilerAssoc
-      bindMyAssoc_set
+      -- bindMyAssoc_set
     ))
 
 namespace DownTest

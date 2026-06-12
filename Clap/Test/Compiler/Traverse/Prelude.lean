@@ -14,6 +14,7 @@ def testSymSet :=
   ∪ SymSets.General.optionPureApply
   ∪ SymSets.Vector.mapM_alt
   ∪ SymSets.General.beta
+  ∪ SymSets.General.zeta
   ∪ SymSets.Vector.getElem
 
 open Lean in
