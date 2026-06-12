@@ -180,10 +180,6 @@ def poseidonBN254 {n} (inputs : Vector (F bn254) n) : Option (F bn254) :=
   let P := Clap.PoseidonVec.Constant.P t
   poseidon inputs C S M P
 
-
-
-
-
 end Poseidon254
 
 end Clap.PoseidonVec
@@ -277,7 +273,7 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
 -- set_option trace.Clap.Compile.simp.proc.vector_mk_zipWith_mk true in
 -- set_option trace.Clap.Compile.simp.proc.monad true in
 open Clap.Compiler.SymSets General in
-set_option pp.exprSizes true in
+-- set_option pp.exprSizes true in
 set_option maxRecDepth 1000000 in
 set_option maxHeartbeats 0 in
 -- set_option maxHeartbeats 100000 in

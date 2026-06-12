@@ -281,13 +281,13 @@ def monad : Sym.Simp.Simproc := fun e ↦ do
   | _ =>
     return .rfl
 
-private def _root_.Lean.Expr.matchBindsE (e : Expr) : Option (Expr × Expr) :=
+def _root_.Lean.Expr.matchBindsE (e : Expr) : Option (Expr × Expr) :=
   match_expr e with
   | Bind.bind _ _ _ _ a f => .some (a, f)
   | Option.bind   _ _ a f => .some (a, f)
   | _                     => .none
 
-private def _root_.Lean.Expr.matchBindsEInfo (e : Expr) : Option (List Level × Array Expr) :=
+def _root_.Lean.Expr.matchBindsEInfo (e : Expr) : Option (List Level × Array Expr) :=
   match_expr e with
   | Bind.bind _ _ α β a f => .some (e.getAppFn.constLevels!, #[α, β, a, f])
   | Option.bind   α β a f => .some (e.getAppFn.constLevels!, #[α, β, a, f])
@@ -2046,6 +2046,8 @@ where
         | _ =>
           go todo (done.push e)
 
+-- partial def _root_.Lean.Expr.sequenceBindsLM (e : Expr) : Sym.Simp.SimpM (Array (Expr × Expr)) :=
+
 opaque a : Option Unit
 opaque b : Option Unit
 opaque c : Option Unit
@@ -2254,6 +2256,26 @@ def flattenBinds : Sym.Simp.Simproc := fun expr ↦ do
     logRewrite expr bind
 
   return .step bind (←mkSorry (←mkEq expr bind) false)
+
+-- partial def flattenBinds' : Sym.Simp.Simproc := fun e ↦ do
+--   let Option.some outerBind := ←e.matchBinds | return .rfl
+--   let Option.some innerBind := ←(outerBind.aₗ).matchBinds | return .rfl
+  
+--   let rec go (e : Expr) (level : ℕ) : Expr :=
+--     if let .some (a, f) := e.matchBindsE
+--     then
+--       let left := go a level
+--       let right := go a level.succ
+--       _
+
+--     else _
+    
+--   _
+
+-- def flattenBinds_pre' : MetaM Sym.Simp.Methods :=
+--   mkPreMethods #[
+--     ``flattenBinds'
+--   ]
 
 def flattenBinds_pre : MetaM Sym.Simp.Methods :=
   mkPreMethods #[
