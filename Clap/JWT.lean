@@ -73,16 +73,93 @@ def bracketsMap {LEN} (input : FString p LEN) : Option (PaddedVector FB p LEN) :
       some (eqOpen - eqClose)
   some ⟨v, input.len⟩
 
-private def bracketsDepthMapRev₀ (input : List (F p)) : Option (List (F p) × F p) := do
-  input.foldlM
-    ( fun (acc, depth) i ↦ do
-        -- The value is the depth from the previous position, except when i = (-1)
-        let i' := depth - (←F.eq i (-1))
-        -- Update the depth
-        let depth' := depth + i
-        (i' :: acc, depth')
-    )
-    ([], 0)
+/-- Tail recursive helper for `partialSums`. The result is in reverse order. -/
+private def partialSums₀ : List (F p) → List (F p) → List (F p)
+  | [], revAcc => revAcc
+  | a :: as, sums => do
+    match sums with
+    | [] => partialSums₀ as [a]
+    | sum :: sums =>
+      let sum' := sum + a
+      partialSums₀ as (sum' :: sum :: sums)
+
+omit [Fact (Nat.Prime p)] in
+lemma partialSumsTR_length : ∀ (l sums revAcc : List (F p)),
+  sums = partialSums₀ l revAcc → sums.length = l.length + revAcc.length
+:= by
+  intro l
+  induction l with
+  | nil => simp_all [partialSums₀]
+  | cons a as ih =>
+    intro sums h h
+    simp [partialSums₀] at h
+    split at h <;> grind
+
+/--
+`partialSum` is step 1 from `bracketsDepthMap`:
+Compute an intermediate array where each index is a running sum of all previous indices in the input.
+The result actually is in *reverse order*. This works well with `bracketsDepthMap`,
+which takes input in reverse order.
+
+Example as if the output was in normal order:
+input  : 01000101000*00*0000*
+output : 01111223333222111110
+-/
+private def partialSums {LEN : ℕ} (input : Vector (F p) LEN) : Vector (F p) LEN :=
+  let (eq := h) revResult := partialSums₀ input.toList []
+  have : revResult.toArray.size = LEN := by
+    symm at h
+    apply partialSumsTR_length at h
+    grind
+  ⟨revResult.toArray, this⟩
+
+/--
+Tail recursive helper for `removeOffset`.
+The input is expected in *reverse order*.
+-/
+private def removeOffset₀ : List (F p) → List (F p) → Option (List (F p))
+  | [], acc => return acc
+  | [a], acc => return a :: acc
+  | a₁ :: a₂ :: as, acc => do
+    let isDec ← F.eq a₁ (a₂ + 1)
+    removeOffset₀ (a₂ :: as) ((a₁ - isDec) :: acc)
+
+lemma removeOffset_length : ∀ (revInput output acc : List (F p)),
+  some output = removeOffset₀ revInput acc → output.length = revInput.length + acc.length
+:= by
+  intro l
+  induction l using List.twoStepInduction with
+  | nil => simp_all [removeOffset₀]
+  | singleton a =>
+    intro l' acc
+    simp_all [removeOffset₀]
+    grind
+  | cons_cons a₁ a₂ as ih₁ ih₂ =>
+    intro l' acc h
+    simp_all [removeOffset₀]
+    simp [F.eq, isZero] at h
+    grind
+
+/--
+Step 4 from `bracketsDepthMap`:
+For each value greater than 1 compared to the previous value in the result of step 3, decrement that value by 1.
+The input is expected in *reverse order*. This works well with `partialSums`, which
+produces the output in reverse order.
+
+Example as if the input was in normal order:
+input  : 00000112222111000000
+output : 00000011222111000000
+-/
+private def removeOffset {LEN : ℕ} (revInput : Vector (F p) LEN) : Option (Vector (F p) LEN) := by
+  let result := removeOffset₀ revInput.toList []
+  match h : result with
+  | none => exact none
+  | some l =>
+    have : l.toArray.size = LEN := by
+      symm at h
+      apply removeOffset_length at h
+      grind
+    exact some (⟨l.toArray, this⟩ : Vector (F p) LEN)
 
 /--
   Given an input array `arr` of length `LEN` containing `1`s corresponding to open
@@ -110,11 +187,13 @@ private def bracketsDepthMapRev₀ (input : List (F p)) : Option (List (F p) × 
   out: 0000001122 11 0000 0
 -/
 def bracketsDepthMap {LEN : ℕ} (input : Vector (F p) LEN) : Option (Vector (F p) LEN) := do
-  let b ← bracketsDepthMapRev₀ input.toList
-  let b' := b.1.reverse.mapM minusOne
-  b'.map fun l ↦ ⟨l.toArray, sorry⟩
+  -- Step 1
+  let revSums := partialSums input
+  -- Steps 2 and 3
+  let revPrelim ← revSums.mapM minusOne
+  -- Step 4
+  removeOffset revPrelim
  where
-  --  The outermost open and closed bracket are both ignored.
   minusOne (a : F p) : Option (F p) := do a - 1 + (←isZero a)
 
 def Vector.hadamardProduct {LEN : ℕ} (lhs rhs : Vector (F p) LEN) : Vector (F p) LEN :=
@@ -565,6 +644,14 @@ private def plusMinusOneBr₂ : Vector (F p) 10 :=
   #v[1,1,1,1,1,-1,-1,-1,-1,-1]
 
 example : bracketsDepthMap plusMinusOneBr₂ == some #v[0, 0, 1, 2, 3, 3, 2, 1, 0, 0] := by
+  native_decide
+
+private def plusMinusOneBr₃ : Vector (F p) 20 :=
+  #v[0,1,0,0,0,1,0,1,0,0,0,-1,0,0,-1,0,0,0,0,-1]
+
+example :
+  bracketsDepthMap plusMinusOneBr₃ == some #v[0,0,0,0,0,0,1,1,2,2,2,1,1,1,0,0,0,0,0,0]
+:= by
   native_decide
 
 example :
