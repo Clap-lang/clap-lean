@@ -1657,6 +1657,16 @@ def rewriteReport : Sym.Simp.Simproc := fun e ↦ do
     logInfo m!"Did the rewrite"
     return res
 
+-- bind (bind (bind x fun y₂ ↦ g (fun y₄ ↦ y₄)) fun y₃ ↦ g') fun y ↦ bind x₁ fun y₁ ↦ bind x₂ g''
+-- [(x, fun y ↦ x), ..., ..., ] -- List.cons 
+/-
+do
+  do
+    do
+      do
+        x
+-/
+
 elab "sym_simp" "[" declNames:ident,* "]" : tactic => do
   resetCounter
   -- let rewrite ← Sym.mkSimprocFor (← declNames.getElems.mapM fun s => realizeGlobalConstNoOverload s.raw) Sym.Simp.dischargeNone
@@ -1739,6 +1749,24 @@ def spoon (m : Sym.Simp.SimpM Expr) : MetaM Unit := do
   -- logInfo m!"Compiled:\n{compiled}"
   logInfo m!"Compiled:\n{pretty}"
 
+def x :=
+  let x := 42
+  x
+
+#eval ToExpr.toExpr x
+#check OfNat.ofNat
+run_meta do
+  let env ← getEnv
+  let c := env.find? ``x |>.get!
+  logInfo m!"c: {repr c.value!}"
+
+#eval spoon do
+  let env ← getEnv
+  let impl := env.find? ``x |>.get!.value!
+  let preprocessed ← Compiler.Simp.preprocessExpr impl
+  logInfo m!"old:\n{impl}\nnew:\n{preprocessed}"
+  return preprocessed
+  
 
   -- -- (m.run' {} |>.run) >>= PrettyPrinter.ppExpr
 

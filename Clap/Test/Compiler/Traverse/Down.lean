@@ -61,29 +61,46 @@ def testTreeBindNested : Option ℕ := do
   let b ← (
     do let x ← F (a + b)
        let y ← F (x + 10)
-       return y + y + b
+       let z ← F (x + 42)
+       return y + y + b + z
   )
   let w ← F (b + 100)
-  let y ← F (b + 100)
+  let y ← F (b + 200)
   let c ← (
     do let x ← F 1000;
        let y ← F (x + 10000)
-       return y + a + w
+       let z ← (do
+         let a ← F 3
+         let b ← F (a + w)
+         let c ← F (a + b)
+         let d ← F 4
+         return c + d)
+       return y + a + w + z
   )
   let z ← F (c + 100000)
   return y + z + a + b
+
+-- `e = λ x y z ↦ A`
+-- `lambdaTlescope e fun args body ↦ ... mkLambdaFVars args body`
+-- .lam x `t`
 
 def flattenedTreeBindNested : Option ℕ := do
   let a ← F 1
   let b ← F 2
   let x ← F (a + b)
   let y ← F (x + 10)
-  let b ← pure (y + y + b)
+  let z ← F (x + 42)
+  let b ← pure (y + y + b + z)
   let w ← F (b + 100)
-  let y ← F (b + 100)
+  let y ← F (b + 200)
   let x ← F 1000;
   let y' ← F (x + 10000)
-  let c ← pure (y' + a + w)
+  let a' ← F 3
+  let b' ← F (a' + w)
+  let c' ← F (a' + b')
+  let d' ← F 4
+  let y'' ← pure (c' + d')
+  let c ← pure (y' + a + w + y'')
   let z ← F (c + 100000)
   return y + z + a + b
 
@@ -132,6 +149,7 @@ partial def planusEst (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
         let b ← go b Γ
         let g ← go g Γ
         let actions := b ++ g
+        logInfo m!"↑[{actions.size.pred}]"
         let actions' ← go (func.liftLooseBVars 0 actions.size.pred) (actions.size :: Γ)
         return actions ++ actions'
       | _ =>
