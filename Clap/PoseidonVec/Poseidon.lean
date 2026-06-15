@@ -281,7 +281,7 @@ set_option maxHeartbeats 0 in
   compileExampleJustSym ``testPoseidon
     (←(
       poseidonBN254'
-      ∪ Clap.Compiler.ExampruSym.NewTraversal.Dom.flattenBinds_pre
+      ∪ Clap.Compiler.ExampruSym.NewTraversal.Dom.flattenBindsAny_pre
       ∪ Clap.Compiler.ExampruSym.NewTraversal.Dom.bindPureMany_pre
       ∪ Vector.explode
       ∪ control

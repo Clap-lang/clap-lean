@@ -2364,14 +2364,16 @@ def bindPureMany_post : MetaM Sym.Simp.Methods :=
 open Lean Meta in
 /--
 TODO: Make tail rec.
+
+The result is a sequence of actions _in order_ as taken in a do block that is arbitrarily nested.
+Variables bound by the intermediate lambdas are reindexed to preserve data flow,
+i.e. interleaving the result with lambdas yields a semantically equivalent bind expression
+that is strictly right-linear.
 -/
 partial def planusEst (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
-  let res ← go e [0]
-  -- logInfo m!"res: {res}"
-  return res
+  go e [0]
   where
   go (e : Expr) (Γ : List ℕ) : Sym.Simp.SimpM (Array Expr) := do
-    -- trace[Clap.Compile.dbg] m!"e[{Γ}]:\n{e}"
     match e.matchBindsE with
     | .some (action, func) =>
       match action.matchBindsE with
@@ -2379,8 +2381,11 @@ partial def planusEst (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
         let b ← go b Γ
         let g ← go g Γ
         let actions := b ++ g
-        -- logInfo m!"↑[{actions.size.pred}]"
-        -- `let x ← do a₁; a₂; a₃; ...; aₙ` offsets subsequent lambdas `n - 1` times
+        /-
+          `let x ← do a₁; a₂; a₃; ...; aₙ` offsets subsequent lambdas `n - 1` times
+          note that `func` here is `λ x ↦ body`, so `x` is _bound_, i.e. not offset by
+          `liftLooseBVars`.
+        -/
         let actions' ← go (func.liftLooseBVars 0 actions.size.pred) (actions.size :: Γ)
         return actions ++ actions'
       | _ =>
