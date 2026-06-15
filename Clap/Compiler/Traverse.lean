@@ -1663,8 +1663,8 @@ def rewriteReport : Sym.Simp.Simproc := fun e ↦ do
 do
   do
     do
+      x
       do
-        x
 -/
 
 elab "sym_simp" "[" declNames:ident,* "]" : tactic => do
@@ -2359,6 +2359,51 @@ def bindPureMany_pre : MetaM Sym.Simp.Methods :=
 def bindPureMany_post : MetaM Sym.Simp.Methods :=
   mkPostMethods #[
     ``bindPureMany
+  ]
+
+open Lean Meta in
+/--
+TODO: Make tail rec.
+-/
+partial def planusEst (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
+  let res ← go e [0]
+  -- logInfo m!"res: {res}"
+  return res
+  where
+  go (e : Expr) (Γ : List ℕ) : Sym.Simp.SimpM (Array Expr) := do
+    -- trace[Clap.Compile.dbg] m!"e[{Γ}]:\n{e}"
+    match e.matchBindsE with
+    | .some (action, func) =>
+      match action.matchBindsE with
+      | .some (b, g) =>
+        let b ← go b Γ
+        let g ← go g Γ
+        let actions := b ++ g
+        -- logInfo m!"↑[{actions.size.pred}]"
+        -- `let x ← do a₁; a₂; a₃; ...; aₙ` offsets subsequent lambdas `n - 1` times
+        let actions' ← go (func.liftLooseBVars 0 actions.size.pred) (actions.size :: Γ)
+        return actions ++ actions'
+      | _ =>
+        let func ← go func Γ
+        return #[action] ++ func
+    | _ =>
+      match e with
+      | .lam (body := body) .. =>
+        go body Γ
+      | _ =>
+        return #[e]
+
+def flattenBindsAny : Sym.Simp.Simproc := fun e ↦ do
+  let .some (a, f) := e.matchBindsE | return .rfl
+  let .some (b, g) := a.matchBindsE | return .rfl
+  let e' ← planusEst e
+  let e' ← chainActionsInferType e'
+  trace[Clap.Compile.dbg] m!"[flattenBindsAny]\n{e}\n==>\n{e'}"
+  return .step e' (←mkSorry (←mkEq e e') false)
+
+def flattenBindsAny_pre : MetaM Sym.Simp.Methods :=
+  mkPreMethods #[
+    ``flattenBindsAny
   ]
 
 end Dom

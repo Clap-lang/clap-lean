@@ -42,6 +42,7 @@ set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile.dbg true in
 #eval runTestByName ``testLeftBind
 
+
 -- def testTreeBind : Option ℕ := do
 --   let y ← F ((←do
 --     let x ← F 1;
@@ -57,12 +58,12 @@ set_option trace.Clap.Compile.dbg true in
 
 def testTreeBindNested : Option ℕ := do
   let a ← F 1
-  let b ← F 2
+  let B ← F 2
   let b ← (
-    do let x ← F (a + b)
+    do let x ← F (a + B)
        let y ← F (x + 10)
        let z ← F (x + 42)
-       return y + y + b + z
+       return y + y + B + z
   )
   let w ← F (b + 100)
   let y ← F (b + 200)
@@ -75,7 +76,7 @@ def testTreeBindNested : Option ℕ := do
          let c ← F (a + b)
          let d ← F 4
          return c + d)
-       return y + a + w + z
+       return y + a + w + z + B + w
   )
   let z ← F (c + 100000)
   return y + z + a + b
@@ -86,11 +87,11 @@ def testTreeBindNested : Option ℕ := do
 
 def flattenedTreeBindNested : Option ℕ := do
   let a ← F 1
-  let b ← F 2
-  let x ← F (a + b)
+  let B ← F 2
+  let x ← F (a + B)
   let y ← F (x + 10)
   let z ← F (x + 42)
-  let b ← pure (y + y + b + z)
+  let b ← pure (y + y + B + z)
   let w ← F (b + 100)
   let y ← F (b + 200)
   let x ← F 1000;
@@ -100,7 +101,7 @@ def flattenedTreeBindNested : Option ℕ := do
   let c' ← F (a' + b')
   let d' ← F 4
   let y'' ← pure (c' + d')
-  let c ← pure (y' + a + w + y'')
+  let c ← pure (y' + a + w + y'' + B + w)
   let z ← F (c + 100000)
   return y + z + a + b
 
@@ -152,8 +153,9 @@ partial def planusEst (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
         let b ← go b Γ
         let g ← go g Γ
         let actions := b ++ g
-        logInfo m!"↑[{actions.size.pred}]"
         -- `let x ← do a₁; a₂; a₃; ...; aₙ` offsets subsequent lambdas `n - 1` times
+        logInfo m!"func: {func}"
+        logInfo m!"↑[{actions.size.pred}]"
         let actions' ← go (func.liftLooseBVars 0 actions.size.pred) (actions.size :: Γ)
         return actions ++ actions'
       | _ =>
@@ -279,6 +281,11 @@ set_option trace.Clap.Compile true in
 set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile.dbg true in
 #eval runTestByName ``testTreeBind
+
+set_option trace.Clap.Compile true in
+set_option Clap.traversalDbg true in
+set_option trace.Clap.Compile.dbg true in
+#eval runTestByName ``testTreeBindNested
 
 def exex' : Option ℕ := do
   let z ← F 2

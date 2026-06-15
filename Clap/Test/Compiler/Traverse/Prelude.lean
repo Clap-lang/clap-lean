@@ -9,7 +9,7 @@ opaque G : ℕ → Option ℕ
 opaque H : ℕ → Option ℕ
 
 def testSymSet :=
-  ExampruSym.NewTraversal.Dom.flattenBinds_pre
+  ExampruSym.NewTraversal.Dom.flattenBindsAny_pre
   ∪ ExampruSym.NewTraversal.Dom.bindPureMany_pre
   ∪ SymSets.General.optionPureApply
   ∪ SymSets.Vector.mapM_alt
