@@ -3,6 +3,9 @@ import Clap.Wheels
 import Clap.Array
 import Clap.HashToField
 import Clap.Poseidon.Poseidon
+import Mathlib.Algebra.Polynomial.Roots
+import Mathlib.Algebra.MvPolynomial.SchwartzZippel
+import Mathlib.Probability.Distributions.Uniform
 
 open Clap.Lang
 
@@ -188,19 +191,19 @@ open Primes HashToField in
   This is taken as a parameter to avoid re-hashing when repeatedly calling this template on the
   same string.
 -/
-def isSubstringFS {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLen)
+def isSubstringFS_aux {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLen)
     (str        : FString bn254 maxStrLen)
-    (strHash    : F bn254)
     (substr     : FString bn254 maxSubstrLen)
     (startIndex : F bn254)
+    (powers     : Vector (F bn254) maxStrLen)
     : Option (FB bn254) := do
   -- Step 1: hash substr and derive the random challenge α
-  let substrHash ← hashBytesToField substr
+  -- let substrHash ← hashBytesToField substr
   -- random_challenge = H(str_hash, substr_hash, substr_len, start_index)
-  let α ← Clap.Poseidon.poseidonBN254 #v[strHash, substrHash, substr.len, startIndex]
+  -- let α ← Clap.Poseidon.poseidonBN254 #v[strHash, substrHash, substr.len, startIndex]
   -- Step 2: build challenge powers α⁰, α¹, …, α^{maxStrLen-1}
   -- powers[0] = 1, powers[i] = α^i
-  let powers : Vector (F bn254) maxStrLen ← powers α maxStrLen
+  -- let powers : Vector (F bn254) maxStrLen ← powers α maxStrLen
 --    Vector.ofFn (fun i ↦ (List.iterate (fun x ↦ share (x * α)) 1 (i.val + 1)).getLast!)
   -- Step 3: selector bits for [startIndex, startIndex + substr.len)
   let selector ← FArray.arraySelector maxStrLen startIndex (startIndex + substr.len)
@@ -218,6 +221,24 @@ def isSubstringFS {maxStrLen maxSubstrLen : ℕ} (_h : maxSubstrLen ≤ maxStrLe
   let nonZero : FB bn254 := FB.not (←isZero (←share strPolyEval))
   let polyEq  : FB bn254 ← F.eq strPolyEval (distinguishingValue * substrPolyEval)
   return FB.and nonZero polyEq
+
+open Primes HashToField in
+def isSubstringFS {maxStrLen maxSubstrLen : ℕ} (h : maxSubstrLen ≤ maxStrLen)
+    (str        : FString bn254 maxStrLen)
+    (strHash    : F bn254)
+    (substr     : FString bn254 maxSubstrLen)
+    (startIndex : F bn254)
+    : Option (FB bn254) := do
+  -- Step 1: hash substr and derive the random challenge α
+  let substrHash ← hashBytesToField substr
+  -- random_challenge = H(str_hash, substr_hash, substr_len, start_index)
+  let α ← Clap.Poseidon.poseidonBN254 #v[strHash, substrHash, substr.len, startIndex]
+  -- Step 2: build challenge powers α⁰, α¹, …, α^{maxStrLen-1}
+  -- powers[0] = 1, powers[i] = α^i
+  let powers : Vector (F bn254) maxStrLen ← powers α maxStrLen
+--    Vector.ofFn (fun i ↦ (List.iterate (fun x ↦ share (x * α)) 1 (i.val + 1)).getLast!)
+  -- Step 3: selector bits for [startIndex, startIndex + substr.len)
+  isSubstringFS_aux h str substr startIndex powers
 
 open Primes in
 /-- Asserts that `substr` appears in `str` starting at `startIndex` (Fiat-Shamir variant). -/
@@ -283,6 +304,178 @@ def assertIsConcatenation
   F.assert_eq fullPolyEval (leftPolyEval + distinguishingValue * rightPolyEval)
 
 end FString
+
+/-!
+## Spec: `isSubstringFS` (Fiat–Shamir substring check)
+
+`FString.isSubstringFS` / `isSubstringFS_aux` do not compare bytes directly.
+They use the Fiat–Shamir + Schwartz–Zippel trick: the selected window of `str`
+and the whole `substr` are read as the coefficients of two formal polynomials,
+a random challenge `α` is drawn (a Poseidon hash of the inputs), and the polynomial identity `ŝ(X) = X^startIndex · t(X)` is checked at the point `α`.
+
+Here it is specify in three refinement levels:
+
+* Level 1 (low): `isSubstringFS_aux_spec str substr si α` is the polynomial-evaluation
+  check at a given `α` (this is what the circuit's `for`-loops actually compute, recognised as `Polynomial.eval`).
+* Level 2 (mid): `SubstringAt str substr si` is the field-level substring predicate,
+  bridged to Level 1 by `selectedStrPoly_eq_iff` (the formal identity `ŝ = X^si · t` holds iff the substring genuinely matches).
+  t(X) = substr[0] + substr[1]·X + substr[2]·X² + … is the substring represented as a polynominal.
+  X^si · t(X) we are shifting the string: t(X) describes the substring sitting at position 0 and X^si · t(X) describes that same substring slid over to start at position si,
+  which is precisely where it's supposed to live inside str. The substring macthes if these two polynomials ŝ and X^si · t are equal.
+* Level 3 (high): `SubstringAtString` is the highlevel lean String/Char meaning, bridged to Level 2 by `substringAt_eq_string` under `Spec.FString.valid`.
+
+Soundness is the Schwartz–Zippel statement, given in two forms:
+(1) `..._sound_card` (deterministic: at most `maxStrLen-1` bad challenges, via
+`Polynomial.card_roots'`) and (2) `..._sound_prob` (probabilistic: for uniform `α`
+the false-accept probability is `≤ (maxStrLen-1)/|F|`). The challenge produced by
+Poseidon is !ASSUMED! uniform (the random-oracle / Fiat–Shamir heuristic); this assumption is an explicit hypothesis
+-/
+
+namespace Spec.FString
+
+open Primes Polynomial Clap.Lang.Spec.FString
+
+variable {maxStrLen maxSubstrLen : ℕ}
+
+/-- `t(X) = Σⱼ substr[j] · Xʲ` the substring as a formal polynomial. -/
+noncomputable def substrPoly (substr : FString bn254 maxSubstrLen) : (ZMod bn254)[X] :=
+  ∑ j : Fin maxSubstrLen, C substr.data[j] * X ^ (j : ℕ)
+
+/-- `ŝ(X) = Σ_{i ∈ [si, si+sl)} str[i] · Xⁱ` the selected window of `str` (the coefficients outside the window are
+  zeroed by the circuit's `selector`). -/
+noncomputable def selectedStrPoly (str : FString bn254 maxStrLen) (sl si : ℕ) : (ZMod bn254)[X] :=
+  ∑ i : Fin maxStrLen, if si ≤ (i : ℕ) ∧ (i : ℕ) < si + sl then C str.data[i] * X ^ (i : ℕ) else 0
+
+/-- The difference polynomial -/
+noncomputable def diffPoly (str : FString bn254 maxStrLen) (substr : FString bn254 maxSubstrLen)
+    (si : ℕ) : (ZMod bn254)[X] := selectedStrPoly str substr.len.val si - X ^ si * substrPoly substr
+
+/-- (Low) What `isSubstringFS_aux` computes at a given challenge `α`: evaluate `ŝ` and `t` at `α` and check the shifted identity together with the
+    non-zero guard `ŝ(α) ≠ 0`. The circuit's running sums are exactly these `Polynomial.eval`s -/
+noncomputable def isSubstringFS_aux_spec (str : FString bn254 maxStrLen)
+    (substr : FString bn254 maxSubstrLen) (si : ℕ) (α : ZMod bn254) : Bool :=
+  decide ((selectedStrPoly str substr.len.val si).eval α ≠ 0 ∧
+          (selectedStrPoly str substr.len.val si).eval α = α ^ si * (substrPoly substr).eval α)
+
+/-- (Mid) Field-level: `substr` matches `str` starting at `si`.
+    Bounds + per-byte equality on the window + `substr` zero-padding past its
+    length + the window is not all-zero (mirrors the circuit's `ŝ(α) ≠ 0` guard, which rejects a degenerate and out-of-range selector). -/
+def SubstringAt (str : FString bn254 maxStrLen) (substr : FString bn254 maxSubstrLen) (si : ℕ) : Prop :=
+  0 < substr.len.val ∧ si + substr.len.val ≤ maxStrLen ∧
+  (∀ j, j < substr.len.val → str.data[si + j]? = substr.data[j]?) ∧
+  (∀ j, substr.len.val ≤ j → j < maxSubstrLen → substr.data[j]? = some 0) ∧
+  (∃ j, j < substr.len.val ∧ str.data[si + j]? ≠ some 0)
+
+/-- (High) `sub` is non-empty and occurs in `s` starting exactly at character position `si`. -/
+def SubstringAtString (s sub : String) (si : ℕ) : Prop :=
+  sub ≠ "" ∧ si + sub.length ≤ s.length ∧ sub.toList <+: s.toList.drop si
+
+/-- The power vector `#[α⁰, α¹, …, α^{len-1}]` that `FString.powers` computes -/
+def powersVec (α : ZMod bn254) (len : ℕ) : Vector (ZMod bn254) len :=
+  Vector.ofFn (fun i => α ^ (i : ℕ))
+
+open HashToField in
+/-- The Fiat–Shamir challenge derived by the full `isSubstringFS` circuit. -/
+def challenge (strHash : ZMod bn254) (substr : FString bn254 maxSubstrLen) (startIndex : ZMod bn254) : Option (ZMod bn254) := do
+  let substrHash ← hashBytesToField substr
+  Clap.Poseidon.poseidonBN254 #v[strHash, substrHash, substr.len, startIndex]
+
+/-! ### Spec bridge lemmas -/
+
+/-- low ↔ mid. The polynomial identity `ŝ = X^si · t`, together with `ŝ ≠ 0`, holds iff the substring genuinely matches.
+   Schwartz–Zippel then says that evaluating at a random `α` reflects this identity -/
+lemma selectedStrPoly_eq_iff (str : FString bn254 maxStrLen)
+    (substr : FString bn254 maxSubstrLen) (si : ℕ) :
+    (selectedStrPoly str substr.len.val si = X ^ si * substrPoly substr ∧ selectedStrPoly str substr.len.val si ≠ 0)
+      ↔ SubstringAt str substr si := by
+  sorry
+
+/-- mid ↔ high: under validity, the field predicate matches the decoded-string predicate -/
+lemma substringAt_eq_string (str : FString bn254 maxStrLen)
+    (substr : FString bn254 maxSubstrLen) (si : ℕ)
+    (hstr : valid str) (hsub : valid substr) :
+    SubstringAt str substr si ↔ SubstringAtString (toString str) (toString substr) si := by
+  sorry
+
+/-! ### `isSubstringFS_aux` spec proofs -/
+
+/-- Low spec proof: `isSubstringFS_aux` computes `FB.ofBool` of the polynomial-evaluation check. Composes the
+    `arraySelector`, `selectArrayValue`, `F.eq` and `FB.and` equivalences and recognises the running sums as `Polynomial.eval`. -/
+lemma isSubstringFS_aux_equiv (h : maxSubstrLen ≤ maxStrLen)
+    (str : FString bn254 maxStrLen) (substr : FString bn254 maxSubstrLen)
+    (startIndex α : ZMod bn254)
+    (hstr : valid str) (hsub : valid substr)
+    (hidx : startIndex.val + substr.len.val ≤ maxStrLen)
+    (hsi : startIndex.val < maxStrLen) :
+    FString.isSubstringFS_aux h str substr startIndex (powersVec α maxStrLen)
+      = some (FB.ofBool (isSubstringFS_aux_spec str substr startIndex.val α)) := by
+  sorry
+
+/-- (Completness) If the substring matches then, for every challenge that is not a root of `ŝ`, the check passes. The equality half holds
+    for *all* `α` (formal identity); only the `ŝ(α) ≠ 0` guard can fail, on at most `deg ŝ < maxStrLen` challenges. -/
+lemma isSubstringFS_aux_complete (str : FString bn254 maxStrLen)
+    (substr : FString bn254 maxSubstrLen) (si : ℕ)
+    (hmatch : SubstringAt str substr si)
+    (α : ZMod bn254) (hα : (selectedStrPoly str substr.len.val si).eval α ≠ 0) :
+    isSubstringFS_aux_spec str substr si α = true := by
+  sorry
+
+/-- (Soundness deterministic) If the substring does not match, then `diffPoly` is a non-zero polynomial of degree `< maxStrLen`,
+    so the check accepts for at most `maxStrLen - 1` challenges (its roots `Polynomial.card_roots'`) -/
+lemma isSubstringFS_aux_sound_card (str : FString bn254 maxStrLen)
+    (substr : FString bn254 maxSubstrLen) (si : ℕ)
+    (hbad : ¬ SubstringAt str substr si) :
+    -- the set of all challenges α for which the check passes
+    (Finset.univ.filter (fun α => isSubstringFS_aux_spec str substr si α = true)).card ≤ maxStrLen - 1 := by
+  sorry
+
+/-- (soundness probabilistic) For a uniformly random challenge `α` (the random-oracle / Fiat–Shamir heuristic on Poseidon), a non-matching
+    substring is accepted with probability at most `(maxStrLen - 1) / |F|` (`MvPolynomial.schwartz_zippel`). -/
+lemma isSubstringFS_aux_sound_prob (str : FString bn254 maxStrLen)
+    (substr : FString bn254 maxSubstrLen) (si : ℕ)
+    (hbad : ¬ SubstringAt str substr si) :
+    -- if the substring doesn't match, then when α is drawn uniformly at random, the probability the check passes is at most (maxStrLen − 1) / |F|
+    -- outermeasure should be fine since ZMod bn254 is finite
+    (PMF.uniformOfFintype (ZMod bn254)).toOuterMeasure {α | isSubstringFS_aux_spec str substr si α = true}
+      ≤ ((maxStrLen - 1 : ℕ) : ENNReal) / (Fintype.card (ZMod bn254) : ENNReal) := by
+  sorry
+
+/-! ### `isSubstringFS` the full circuit, with the challenge -/
+
+/-- `isSubstringFS` reduces to the low check at the Fiat–Shamir challenge it derives. Composes `powers`-correctness with
+    `isSubstringFS_aux_equiv`. -/
+lemma isSubstringFS_equiv (h : maxSubstrLen ≤ maxStrLen)
+    (str : FString bn254 maxStrLen) (strHash : ZMod bn254)
+    (substr : FString bn254 maxSubstrLen) (startIndex : ZMod bn254)
+    (hstr : valid str) (hsub : valid substr)
+    (hidx : startIndex.val + substr.len.val ≤ maxStrLen)
+    (hsi : startIndex.val < maxStrLen) :
+    FString.isSubstringFS h str strHash substr startIndex
+      = (challenge strHash substr startIndex).map (fun α => FB.ofBool (isSubstringFS_aux_spec str substr startIndex.val α)) := by
+  sorry
+
+/-- (probabilistic soundness of the full circuit) Modelling the derived challenge as uniform (the Fiat–Shamir heuristic on Poseidon), the full
+    circuit accepts a string/index that is not a genuine substring occurrence with probability at most `(maxStrLen - 1) / |F|` -/
+lemma isSubstringFS_sound (str : FString bn254 maxStrLen)
+    (substr : FString bn254 maxSubstrLen) (startIndex : ZMod bn254)
+    (hstr : valid str) (hsub : valid substr)
+    (hbad : ¬ SubstringAtString (toString str) (toString substr) startIndex.val) :
+    (PMF.uniformOfFintype (ZMod bn254)).toOuterMeasure {α | isSubstringFS_aux_spec str substr startIndex.val α = true}
+      ≤ ((maxStrLen - 1 : ℕ) : ENNReal) / (Fintype.card (ZMod bn254) : ENNReal) := by
+  sorry
+
+/-- (completeness of the full circuit) A genuine substring occurrence is accepted whenever the derived challenge avoids the (≤ `maxStrLen-1`) roots of `ŝ`. -/
+lemma isSubstringFS_complete (h : maxSubstrLen ≤ maxStrLen)
+    (str : FString bn254 maxStrLen) (strHash : ZMod bn254)
+    (substr : FString bn254 maxSubstrLen) (startIndex α : ZMod bn254)
+    (hstr : valid str) (hsub : valid substr)
+    (hmatch : SubstringAtString (toString str) (toString substr) startIndex.val)
+    (hchal : challenge strHash substr startIndex = some α)
+    (hα : (selectedStrPoly str substr.len.val startIndex.val).eval α ≠ 0) :
+    FString.isSubstringFS h str strHash substr startIndex = some FB.true := by
+  sorry
+
+end Spec.FString
 
 namespace TestString
 
