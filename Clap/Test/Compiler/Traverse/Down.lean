@@ -135,6 +135,9 @@ example : flattenedTreeBind = testTreeBind := by
   simp [bind_assoc, Option.bind_assoc]
 
 open Lean Meta in
+/--
+TODO: Make tail rec.
+-/
 partial def planusEst (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
   let res ← go e [0]
   logInfo m!"res: {res}"
@@ -150,6 +153,7 @@ partial def planusEst (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
         let g ← go g Γ
         let actions := b ++ g
         logInfo m!"↑[{actions.size.pred}]"
+        -- `let x ← do a₁; a₂; a₃; ...; aₙ` offsets subsequent lambdas `n - 1` times
         let actions' ← go (func.liftLooseBVars 0 actions.size.pred) (actions.size :: Γ)
         return actions ++ actions'
       | _ =>
@@ -157,44 +161,32 @@ partial def planusEst (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
         return #[action] ++ func
     | _ =>
       match e with
-      | .lam _ dom body _ =>
+      | .lam (body := body) .. =>
         go body Γ
       | _ =>
         return #[e]
 
-
-inductive LR | Left | Right
-
-open Lean in
-def newLevel (e : Expr) (level : ℕ) : ℕ :=
-  level + if e.matchBindsE.isSome then 1 else 0
-
-def LR.next (lr : LR) (level : ℕ) : ℕ :=
-  match lr with | Left => level.succ | Right => level
-
-open LR
-
-open Lean in
-partial def planusEst' (e : Expr) (level : ℕ) (count : ℕ) (lams : ℕ) (lr : LR) : MetaM ℕ := do
-  let newLevel := newLevel (level := level)
-  -- logInfo m!"e[l={level}][c={count}][λ={lams}]:\n{e}"
-  if let .some (a, f) := e.matchBindsE
-  then
-    let level' := newLevel a
-    if level' != level then logInfo m!"push: {a}"
-    let left ← planusEst' a level' count lams Left
-    if level' != level then logInfo m!"pop"
-    let right ← planusEst' f level count lams Right
-    if level' != level then logInfo m!"left: {left} | right: {right}\ne: {e}\nrepl: {e.liftLooseBVars 0 left}"
-    return left + right
-  else
-    match e with
-    | .lam (body := body) .. =>
-      -- logInfo m!"lam[l={level}][c={count}][λ={lams}]: {e}"
-      planusEst' body level count lams.succ lr
-    | _ =>
-      logInfo m!"any[l={level}][c={count}][λ={lams}]:\n{e}\n==>\n{e.liftLooseBVars 1 count}"
-      return count.succ
+-- open Lean in
+-- partial def planusEst' (e : Expr) (level : ℕ) (count : ℕ) (lams : ℕ) (lr : LR) : MetaM ℕ := do
+--   let newLevel := newLevel (level := level)
+--   -- logInfo m!"e[l={level}][c={count}][λ={lams}]:\n{e}"
+--   if let .some (a, f) := e.matchBindsE
+--   then
+--     let level' := newLevel a
+--     if level' != level then logInfo m!"push: {a}"
+--     let left ← planusEst' a level' count lams Left
+--     if level' != level then logInfo m!"pop"
+--     let right ← planusEst' f level count lams Right
+--     if level' != level then logInfo m!"left: {left} | right: {right}\ne: {e}\nrepl: {e.liftLooseBVars 0 left}"
+--     return left + right
+--   else
+--     match e with
+--     | .lam (body := body) .. =>
+--       -- logInfo m!"lam[l={level}][c={count}][λ={lams}]: {e}"
+--       planusEst' body level count lams.succ lr
+--     | _ =>
+--       logInfo m!"any[l={level}][c={count}][λ={lams}]:\n{e}\n==>\n{e.liftLooseBVars 1 count}"
+--       return count.succ
     
 
   --   if let .some (b, g) := a.matchBindsE
@@ -229,16 +221,16 @@ run_meta do
     | .bvar .. => logInfo m!"{e}"
     | e => discard (e.traverseChildren (fun e ↦ go e >>= fun _ ↦ return e))
   
-  let tree := (←getEnv).find? ``testTreeBind |>.get!.value!
-  let flattree := (←getEnv).find? ``flattenedTreeBind |>.get!.value!
+  -- let tree := (←getEnv).find? ``testTreeBind |>.get!.value!
+  -- let flattree := (←getEnv).find? ``flattenedTreeBind |>.get!.value!
   let testTreeBindNested := (←getEnv).find? ``testTreeBindNested |>.get!.value!
   let flatNested := (←getEnv).find? ``flattenedTreeBindNested |>.get!.value!
 
   -- logInfo m!"{repr tree}"
   -- logInfo m!"{repr flattree}"
 
-  let res ← (planusEst tree).run'.run
-  logInfo m!"res: {res}"
+  -- let res ← (planusEst tree).run'.run
+  -- logInfo m!"res: {res}"
 
   let res ← (planusEst testTreeBindNested).run'.run
   logInfo m!"resNested: {res}"
@@ -247,9 +239,8 @@ run_meta do
   logInfo m!"not flat:"
   go testTreeBindNested -- [1, 0, 0, 0, 0, 2, 0, 1, 0, 0, 6, 3, 0, 2, 0, 6, 4]
   logInfo m!"flat:"
-  go flatNested         -- [1, 0, 0, 0, 0, 2, 0, 1, 0, 0, 8, 3, 0, 4, 0, 10, 6]
-
-  
+  go flatNested
+  -- [#1, #0, #0, #1 ,#1 ,#1 ,#3 ,#0 ,#0 ,#1 ,#0 ,#0 ,#4 ,#1 ,#0 ,#1 ,#0 ,#5 ,#14 ,#8 ,#0 ,#0 ,#9 ,#0 ,#16 ,#11] 
 
   -- logInfo m!"not flat:"
   -- go tree
