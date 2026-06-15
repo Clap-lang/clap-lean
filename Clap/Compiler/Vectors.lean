@@ -163,7 +163,7 @@ Use with `↓`.
 def dontExplodeVector : Sym.Simp.Simproc := fun e ↦ do
   let_expr GetElem.getElem _ _ _ _ _ coll _ _ := e | return .rfl
   unless coll.isFVar && (←inferType coll).isAppOf ``Vector do return .rfl
-  -- trace[Clap.Compile.simp.proc.kaboom] m!"Marked done:\n{e}"
+  trace[Clap.Compile.simp.proc.kaboom] m!"Marked done:\n{e}"
   return .rfl (done := true)
 
 /--
