@@ -795,8 +795,14 @@ def getElem_mk : Sym.Simp.Simproc := fun e => do
 
   -- Instead, we can simply traverse the first `i` conses, as we have the length apriori for the proof.
   -- Or some such.
-  let_expr GetElem.getElem _ _ _ _ _ vec n _ := e | return .rfl
-  let .some (elems, t) := Collection.elemsOfExpr vec | return .rfl
+  let_expr GetElem.getElem _ _ _ _ _ vec n _ := e |
+    trace[Clap.Compile.simp.proc.vector_getElem_mk]
+      m!"rejected: {e}"
+    return .rfl
+  let .some (elems, t) := Collection.elemsOfExpr vec |
+    trace[Clap.Compile.simp.proc.vector_getElem_mk]
+      m!"rejected: {e}"
+    return .rfl
   let .some sz := t.type.sz | unreachable!
   let n := (←Sym.simpWithGround n).getResultExpr n
   let .some i := Sym.getNatValue? n | return .rfl
