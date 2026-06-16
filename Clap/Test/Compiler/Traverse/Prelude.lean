@@ -9,6 +9,7 @@ opaque G : ℕ → Option ℕ
 opaque H : ℕ → Option ℕ
 
 def testSymSet :=
+  -- ExampruSym.NewTraversal.Dom.flattenBinds_pre
   ExampruSym.NewTraversal.Dom.flattenBindsAny_pre
   ∪ ExampruSym.NewTraversal.Dom.bindPureMany_pre
   ∪ SymSets.General.optionPureApply
@@ -16,7 +17,10 @@ def testSymSet :=
   ∪ SymSets.General.beta
   ∪ SymSets.General.zeta
   ∪ SymSets.Vector.getElem
-
+  -- ∪ SymSets.Vector.foldlM_mk_post
+  ∪ SymSets.Vector.foldlM_post
+  ∪ SymSets.List.range
+  ∪ SymSets.Vector.set
 open Lean in
 def runTest (uncompiledExpr : Expr) := spoon <| do
   let uncompiledTypeExpr ← Meta.inferType uncompiledExpr

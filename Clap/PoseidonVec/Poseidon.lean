@@ -66,7 +66,8 @@ def mixLast {t : ℕ} (state : Vector (F p) t) (M : Vector (Vector (F p) t) t) (
 def mixS {t s : ℕ} (r : ℕ) (state : Vector (F p) t) (S : Vector (F p) s) : Vector (F p) t :=
 --  let t : ℕ := state.length
   let base : ℕ := (2 * t - 1) * r
-  ⟨#[dotProduct base] ++ (tail base).toArray, sorry⟩
+  state
+  -- ⟨#[dotProduct base] ++ (tail base).toArray, sorry⟩
 where
   /-- `out[0] = Σᵢ S[base + i] · in[i]` — full dot product for element 0 -/
   dotProduct (base : ℕ) : F p := 0
@@ -123,7 +124,7 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := 1 + n
   let nRoundsF : ℕ := 1
-  let nRoundsP : ℕ := 32
+  let nRoundsP : ℕ := 64
   -- let nRoundsF : ℕ := 8
   -- let nRoundsP : ℕ := N_ROUNDS_P[t - 2]'sorry
   let half : ℕ := nRoundsF / 2
@@ -143,8 +144,11 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
 
   -- Phase 2: partial rounds
   let state ← (List.range nRoundsP).foldlM (fun state r ↦ do
-    let s0 := (← sigma state[0]) + C[(half + 1) * t + r]'sorry
-    mixS r (state.set 0 s0) S) state
+    let s0  ← sigma state[0]
+    -- let s0 := (← sigma state[0]) + C[(half + 1) * t + r]'sorry
+    mixS r (state.set 0 s0) S
+    ) state
+    -- mixS r (state.set 0 s0) S) state
 
   -- -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
   -- let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
@@ -153,7 +157,8 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   
   -- Final round: sigma on all, then extract nOuts elements via MixLast
   -- let state ← state.mapM sigma
-  mixLast state M 0
+  -- mixLast state M 0
+  state[0]
 
 /-- **Poseidon:** Single-output Poseidon hash. Wraps `poseidonEx` with
     `nOuts = 1` and `initialState = 0`, returning the first element of
@@ -269,6 +274,14 @@ Timings:
   `nRoundsF = 8, nRoundsP = 8` | `?`
 -/
 
+/-
+Minimised:
+  `nRoundsF = 1, nRoundsP = 2 | 0.203000s`
+  `nRoundsF = 1, nRoundsP = 4 | 0.265000s`
+  `nRoundsF = 1, nRoundsP = 8 | 0.555000s`
+  `nRoundsF = 1, nRoundsP = 16 | 6.779000s`
+-/
+
 -- set_option debug.skipKernelTC true in
 -- set_option trace.Clap.Compile true in
 -- set_option trace.Clap.Compile.simp.proc.vector_mk_zipWith_mk true in
@@ -283,7 +296,8 @@ set_option maxHeartbeats 0 in
 -- set_option trace.Clap.Compile.simp.proc.kaboom true in
 -- set_option trace.Clap.Compile.simp.proc.vector_mapIdx_mk true in
 -- set_option trace.Clap.Compile.simp.proc.vector_mk_append_mk true in
-set_option trace.Clap.Compile.dbg true in
+-- set_option trace.Clap.Compile.dbg true in
+-- set_option trace.Clap.Compile true in
 #eval spoon <| do
   compileExampleJustSym ``testPoseidon
     (←(
@@ -296,7 +310,7 @@ set_option trace.Clap.Compile.dbg true in
       ∪ Clap.Compiler.SymSets.Vector.getElem
       ∪ Clap.Compiler.SymSets.Vector.append
       ∪ Clap.Compiler.SymSets.Vector.mapM
-      ∪ Clap.Compiler.SymSets.Vector.foldlM
+      ∪ Clap.Compiler.SymSets.Vector.foldlM_post
       ∪ Clap.Compiler.SymSets.Vector.mapIdx
       ∪ SymSets.List.range
       ∪ Clap.Compiler.SymSets.Vector.zipWith

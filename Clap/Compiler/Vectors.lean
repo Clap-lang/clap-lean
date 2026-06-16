@@ -51,9 +51,16 @@ def mkVecLit (t l len : Expr) : Sym.Simp.SimpM Expr := do
   let vector ← inferVectorProof vectorSansProof
   Sym.shareCommonInc vector -- TODO: Check if `...inc` is enough.
   
-private def mkListLitAux (nil : Expr) (cons : Expr) : List Expr → Expr
+private def mkListLitAux' (nil : Expr) (cons : Expr) : List Expr → Expr
   | []    => nil
-  | x::xs => mkApp (mkApp cons x) (mkListLitAux nil cons xs)
+  | x::xs => mkApp (mkApp cons x) (mkListLitAux' nil cons xs)
+
+private def mkListLitAux (nil : Expr) (cons : Expr) (l : List Expr) : Expr :=
+  go nil nil cons l.reverse
+  where
+    go (res nil cons : Expr) : List Expr → Expr
+    | []    => res
+    | x::xs => go (mkApp (mkApp cons x) res) nil cons xs
 
 open Lean Meta Sym in
 def _root_.Lean.Meta.Sym.mkListLit (type : Expr) (xs : List Expr) : SymM Expr := do

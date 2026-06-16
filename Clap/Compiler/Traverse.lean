@@ -62,9 +62,9 @@ def rewriteWithLog (name : String) (f : Simproc) : Simproc :=
     let (res, time) ← Dbg.timeS (f e)
     match res with
       | .rfl .. => return res
-      | .step .. =>
-        -- logInfo m!"boop[{name}]: {time}"
+      | .step e' .. =>
         recordRuleDbg name time
+        trace[Clap.Compile.dbg] m!"\n{e}\n={name}=>\n{e'}"
         return res
 
 -- dischargeSimpSelf
@@ -773,13 +773,46 @@ def foldlM_singlePass : Sym.Simp.Simproc := fun e ↦ do
       let tail ← Sym.shareCommonInc <| mkApp3 (.const ``List.foldlM [u, w, v]) f (.bvar 0) xs
       -- `bind head tail`
       let bind ← Sym.shareCommonInc <| mkApp2 (.const ``Option.bind [v, u]) head tail
-      return .step bind (←mkSorry (←mkEq e bind) false) (done := true)
+      return .step bind (←mkSorry (←mkEq e bind) false)
+
+
+/--
+`[1, 2, 3, 4].foldlM f b` ==>
+`f b 1 >>= λ next → f next 2 >>= λ next → f next 3 >>= λ next ↦ pure next
+-/
+def foldlM_mk : Sym.Simp.Simproc := fun e ↦ do
+  let .some [α, β, f, init, xs] := e.foldlM? | return .rfl
+  /-
+  TODO(perf): With head|tail reasoning, we don't need to traverse the full list literal expr.
+              Using `sequenced` does just that.
+  -/
+  let .some (elems, ⟨⟨_, k, .some sz⟩, listExpr⟩) ← sequenced xs | return .rfl
+  let szSimped := (←Sym.simpWithGround sz).getResultExpr sz
+  match szSimped.nat? with
+  | .none => throwError m!"{sz} does not simplify to ground. Expr:\n{e} (TODO: Maybe this is ok.)"
+  | .some _szSimpedNat => -- TODO(check)
+    let u ← Sym.getLevelInType β
+    let v ← Sym.getLevelInType α
+    let tail ← Sym.shareCommonInc <| mkAppN (.const ``Option.some [u]) #[β, .bvar 0]
+    let e' ← elems.foldrM (init := tail) fun tail x ↦ do
+      -- `f tail x`
+      let next ← Sym.shareCommonInc <| mkApp2 f (.bvar 0) x
+      let lam := Expr.lam `next β tail .default
+      Sym.shareCommonInc <| mkApp2 (.const ``Option.bind [v, u]) next lam
+    trace[Clap.Compile.simp.proc.vector_foldlM_mk]
+      m!"\n{e}\n==>\n{e'}"
+    return .step e' (←mkSorry (←mkEq e e') false)
 
 def foldlM : MetaM Methods :=
   mkPreMethods #[
     ``Vector.foldlM_mk, ``List.foldlM_toArray,
 
     ``List.foldlM_cons, ``List.foldlM_nil
+  ]
+
+def foldlM_mk_post : MetaM Methods :=
+  mkPostMethods #[
+    ``foldlM_mk
   ]
 
 def foldlM_singlePass_s : MetaM Methods :=
@@ -1437,6 +1470,15 @@ def set : MetaM Methods :=
 
     -- ``List.set_cons_succ, ``List.set_cons_zero,
   ]
+
+def set_pre : MetaM Methods :=
+  mkPreMethods #[
+    ``Vector.set_mk
+    -- ``List.set_toArray,
+
+    -- ``List.set_cons_succ, ``List.set_cons_zero,
+  ]
+
 
   -- let t ← Sym.inferType e
   -- let_expr Vector t sz := t | return .rfl

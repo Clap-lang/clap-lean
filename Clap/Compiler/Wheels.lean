@@ -28,6 +28,8 @@ initialize registerTraceClass `Clap.Compile.simp.proc.vector_mk_zipWith_mk (inhe
 
 initialize registerTraceClass `Clap.Compile.simp.proc.vector_mapM_mk (inherited := true)
 
+initialize registerTraceClass `Clap.Compile.simp.proc.vector_foldlM_mk (inherited := true)
+
 initialize registerTraceClass `Clap.Compile.simp.proc.vector_mapIdx_mk (inherited := true)
 
 initialize registerTraceClass `Clap.Compile.simp.proc.vector_mk_append_mk (inherited := true)
