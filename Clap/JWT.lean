@@ -12,16 +12,22 @@ variable {p : ℕ} [Fact (Nat.Prime p)]
 instance : Coe Char (F p) where
   coe c := c.toNat
 
-private def stringBodiesRev₀ (input : List (F p)) : Option (List (FB p) × FB p × FB p) :=
-  input.foldlM
-    ( fun (acc, openedQuotes, escaped) c ↦ do
-        let isNonEscQuotationMark := (←F.eq c '\"') &&& FB.not escaped
-        let acc' := openedQuotes * FB.not isNonEscQuotationMark :: acc
-        let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
-        let escaped' := (←F.eq c '\\') &&& FB.not escaped
-        some (acc', openedQuotes', escaped')
-    )
-    ([], default, default)
+def stringBodies₀ (openedQuotes : FB p) (escaped : FB p) : List (FB p) → List (FB p) → List (FB p)
+| revAcc, [] => revAcc
+| revAcc, c :: cs =>
+  let isNonEscQuotationMark := FB.and ((F.eq c '\"').get!) (FB.not escaped)
+  let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
+  let escaped' := FB.and (F.eq c '\\').get! (FB.not escaped)
+  stringBodies₀ openedQuotes' escaped' (openedQuotes * FB.not isNonEscQuotationMark :: revAcc) cs
+
+lemma stringBodies₀_length : ∀ (openedQuotes escaped : FB p) revAcc l,
+  (stringBodies₀ openedQuotes escaped revAcc l).length = l.length + revAcc.length
+:= by
+  intro openedQuotes escaped revAcc l
+  revert revAcc openedQuotes escaped
+  induction l with
+  | nil => simp [stringBodies₀]
+  | cons a as ih => grind [stringBodies₀]
 
 /-- From keyless:
   Given an array of ask characters representing a JSON object, output a binary array demarquing
@@ -30,9 +36,12 @@ private def stringBodiesRev₀ (input : List (F p)) : Option (List (FB p) × FB 
   input =  { asdfsdf "as\"df" }
   output = 00000000000111111000
 -/
-def stringBodies {w} (input : FString p w) : Option (PaddedVector FB p w) := do
-  let data := ⟨(←stringBodiesRev₀ input.data.toArray.toList).1.reverse.toArray, sorry⟩
-  some {data,len := input.len}
+def stringBodies {w} (input : FString p w) : Option (PaddedVector FB p w) :=
+  let r := stringBodies₀ 0 0 [] input.data.toArray.toList
+  have : r.reverse.toArray.size = w := by
+    grind [stringBodies₀_length]
+  let data : Vector (F p) w := ⟨r.reverse.toArray, this⟩
+  some {data, len := input.len}
 
 /-
 omit [Core bn254] in
