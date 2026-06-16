@@ -122,8 +122,9 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   -- N_ROUNDS_P[t-2] for t ∈ [2, 17]
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := 1 + n
-  let nRoundsF : ℕ := 4
+  let nRoundsF : ℕ := 2
   let nRoundsP : ℕ := 2
+  -- let nRoundsF : ℕ := 8
   -- let nRoundsP : ℕ := N_ROUNDS_P[t - 2]'sorry
   let half : ℕ := nRoundsF / 2
 
@@ -137,10 +138,6 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
     let l ← state.mapM sigma
     mix (ark l C ((r + 1) * t)) M) state
 
-  -- `let state ← #v[1, 2].mapM f; tail` ==>
-  -- `let state ← f 1 >>= fun a1 ↦ f 2 >>= fun a2 ↦ pure #v[a1, a2]; tail`
-  --
-
   -- Boundary round (r = half−1): sigma → ark → mix with P
   let state := mix (ark (← state.mapM sigma) C (half * t)) P
 
@@ -149,12 +146,11 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
     let s0 := (← sigma state[0]) + C[(half + 1) * t + r]'sorry
     mixS r (state.set 0 s0) S) state
 
-
   -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
   let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
     let l ← state.mapM sigma
     mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
-
+  
   -- Final round: sigma on all, then extract nOuts elements via MixLast
   let state ← state.mapM sigma
   mixLast state M 0
@@ -276,8 +272,11 @@ open Clap.Compiler.SymSets General in
 set_option maxRecDepth 1000000 in
 set_option maxHeartbeats 0 in
 -- set_option maxHeartbeats 100000 in
-set_option trace.Clap.Compile.simp.proc.vector_getElem_mk true in
-set_option trace.Clap.Compile.simp.proc.kaboom true in
+
+-- set_option trace.Clap.Compile.simp.proc.vector_getElem_mk true in
+-- set_option trace.Clap.Compile.simp.proc.kaboom true in
+-- set_option trace.Clap.Compile.simp.proc.vector_mapIdx_mk true in
+-- set_option trace.Clap.Compile.simp.proc.vector_mk_append_mk true in
 #eval spoon <| do
   compileExampleJustSym ``testPoseidon
     (←(

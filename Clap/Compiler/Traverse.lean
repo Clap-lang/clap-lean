@@ -464,6 +464,8 @@ def Collection.ofExpr (e : Expr) : Option Collection :=
   match_expr e with
   | Vector.mk t sz xs _ => do return ⟨←CollectionType.mkVec t sz, ←listExprOfArrayExpr xs⟩
   | Array.mk  t    _    => do return ⟨←CollectionType.mkArray t, ←listExprOfArrayExpr e⟩
+  -- `List.toArray` should not be necessary, as reducible definitions must be reduced first
+  | List.toArray t _    => do return ⟨←CollectionType.mkArray t, ←listExprOfArrayExpr e⟩
   | List.cons t    _  _ => do return ⟨←CollectionType.mkList t, e⟩
   | List.nil  t         => do return ⟨←CollectionType.mkList t, e⟩
   | _                   => .none
@@ -493,40 +495,6 @@ def _root_.Lean.Expr.listLitTail (e : Expr) : Option Expr :=
   | List.cons _ _ tl => .some tl
   | _ => .none
 
-def mk_append_mk : Simproc := fun e ↦ do
-  let_expr HAppend.hAppend _ _ _ _ xs ys := e | return .rfl
-
-  let .some ⟨xsElems, xs⟩ := Collection.elemsOfExpr xs | return .rfl
-  let .some ⟨ysElems, ys⟩ := Collection.elemsOfExpr ys | return .rfl
-
-  let append := xsElems.append ysElems
-
-  -- `xs.type.t = ys.type.t` ∧ `xs.type.k = ys.type.k`
-  let .some appendListColl := Collection.ofExpr (←Sym.mkListLit xs.type.t append.toList) | unreachable!
-  let instAdd := Expr.const ``instAddNat []
-  let inst ← shareCommonInc <| mkApp2 (.const ``instHAdd [0]) q(ℕ) instAdd
-  let .some szXs := xs.type.sz | unreachable!
-  let .some szYs := ys.type.sz | unreachable!
-  let sz := mkApp6 (.const ``HAdd.hAdd [0, 0, 0]) q(ℕ) q(ℕ) q(ℕ) inst szXs szYs
-  let .some appendVecColl := appendListColl.setSize sz |>.cast xs.type.k | unreachable!
-  let e' ← appendVecColl.toExpr
-
-  trace[Clap.Compile.simp.proc.vector_mk_append_mk]
-    m!"\n{e}\n==>\n{e'}"
-
-  return .step e' (←mkSorry (←mkEq e e') false)
-
-def append : MetaM Methods :=
-  mkPostMethods #[
-    ``Vector.mk_append_mk--, ``List.append_toArray,
-
-    -- ``List.cons_append, ``List.nil_append, ``List.append_nil,
-
-    -- ``Compiler.explodeVectorAppend,
-
-    -- ``appendDbg
-  ]
-
 def explode : MetaM Methods := do
   return {
     -- post := explodeVector
@@ -535,6 +503,14 @@ def explode : MetaM Methods := do
 
 open Collection in
 /--
+TODO: Probably return the ground size?
+
+Sequenced collection, e.g.:
+- `List.cons a (List.cons b List.nil)` ==> `[a, b]`
+
+Vectors are special, i.e.:
+- `x : Vector τ sz` ==> `[x[0], x[1], ..., x[sz-1]`
+
 We permit any free variable of type vector with size we can reduce to ground nat.
 Unsized collections better enumerate their elements in the first place.
 -/
@@ -575,6 +551,34 @@ partial def _root_.Lean.Expr.sequenceBinds (e : Expr) : Array (Expr × Expr) :=
         go body (res.take (res.size - 1) |>.push (a, dom))
       | _ =>
         res.push (e, default)
+
+def mk_append_mk : Simproc := fun e ↦ do
+  let_expr HAppend.hAppend _ _ _ _ xs ys := e | return .rfl
+
+  let .some ⟨xsElems, xsC⟩ ← sequenced xs | return .rfl
+  let .some ⟨ysElems, ysC⟩ ← sequenced ys | return .rfl
+
+  let append := xsElems.append ysElems
+
+  -- `xs.type.t = ys.type.t` ∧ `xs.type.k = ys.type.k`
+  let .some appendListColl := Collection.ofExpr (←Sym.mkListLit xsC.type.t append.toList) | unreachable!
+  let instAdd := Expr.const ``instAddNat []
+  let inst ← shareCommonInc <| mkApp2 (.const ``instHAdd [0]) q(ℕ) instAdd
+  let .some szXs := xsC.type.sz | unreachable!
+  let .some szYs := ysC.type.sz | unreachable!
+  let sz := mkApp6 (.const ``HAdd.hAdd [0, 0, 0]) q(ℕ) q(ℕ) q(ℕ) inst szXs szYs
+  let .some appendVecColl := appendListColl.setSize sz |>.cast xsC.type.k | unreachable!
+  let e' ← appendVecColl.toExpr
+
+  trace[Clap.Compile.simp.proc.vector_mk_append_mk]
+    m!"\n{e}\n==>\n{e'}"
+
+  return .step e' (←mkSorry (←mkEq e e') false)
+
+def append : MetaM Methods :=
+  mkPostMethods #[
+    ``Vector.mk_append_mk
+  ]
 
 /-
 do let x : t₁ ← a1
@@ -800,8 +804,8 @@ def getElem_mk : Sym.Simp.Simproc := fun e => do
     --   m!"rejected: {e}"
     return .rfl
   let .some (elems, t) := Collection.elemsOfExpr vec |
-    -- trace[Clap.Compile.simp.proc.vector_getElem_mk]
-    --   m!"rejected: {e}"
+    trace[Clap.Compile.simp.proc.vector_getElem_mk]
+      m!"rejected: {e}"
     return .rfl
   let .some sz := t.type.sz | unreachable!
   let n := (←Sym.simpWithGround n).getResultExpr n
@@ -845,7 +849,10 @@ def map : MetaM Methods :=
 
 def mapIdx_mk : Sym.Simp.Simproc := fun e => do
   let_expr Vector.mapIdx _ β sz f xs := e | return .rfl
-  let some (xs, _) := vectorElemsOfMk xs | return .rfl
+  let some (xs, _) := vectorElemsOfMk xs |
+    trace[Clap.Compile.simp.proc.vector_mapIdx_mk]
+      m!"rejected:\n{e}"
+    return .rfl
 
   let result ← Sym.mkListLit β (xs.mapIdx (f.beta #[mkNatLit ·, ·])).toList
   let e' ← mkVecLit β result sz
@@ -865,12 +872,23 @@ def listOfArray (e : Expr) : Option Expr :=
   then .none
   else .some e.getAppArgs[1]!
 
-def mapM? (e : Expr) : Option (List Expr) :=
+def _root_.Lean.Expr.mapM? (e : Expr) : Option (List Expr) :=
   match_expr e with
   | Vector.mapM _ α β _ _ f xs => .some [f, α, β, xs]
   | Array.mapM α β _ _ f xs    => .some [f, α, β, xs]
   | List.mapM _ _ α β f xs     => .some [f, α, β, xs]
   | _                          => .none
+
+/--
+TODO: No `MetaM` or better, how do I grab the universe of `α`?
+      Of course we can just return `m n` from this, infer the `Sort` of `α` in the caller
+      and reconstruct the `Vector` typpe this way, but it would make the interface of this dreary.
+-/
+def _root_.Lean.Expr.append? (e : Expr) : Option (List Expr) :=
+  match_expr e with
+  | HAppend.hAppend α β γ _ xs ys => .some [α, β, γ, xs, ys]
+  | _root_.Vector.append _ _ _ _ _ => panic! "Vector.append not implemented yet."
+  | _ => .none
 
 open Compiler.Simp in
 /--
@@ -879,7 +897,7 @@ Single step transformation. TODO: Does not play particularly nice with our top-l
 `f x₀ >>= fun row₀ ↦ f x₁ >>= fun row₁ ↦ ... fun rowₘ ↦ .some #v[row₀, row₁, ..., rowₘ]`
 -/
 def _root_.Vector.mapM_mk : Sym.Simp.Simproc := fun e ↦ do
-  let .some [f, _, β, xs] := mapM? e | return .rfl
+  let .some [f, _, β, xs] := e.mapM? | return .rfl
   let .some (elems, ⟨⟨_, k, .some sz⟩, _⟩) ← sequenced xs | return .rfl
   let szSimped := (←Sym.simpWithGround sz).getResultExpr sz
   if !isSameExpr sz szSimped then
@@ -931,7 +949,7 @@ Single step transformation. TODO: Does not play particularly nice with our top-l
 `f x₀ >>= fun row₀ ↦ f x₁ >>= fun row₁ ↦ ... fun rowₘ ↦ .some #v[row₀, row₁, ..., rowₘ]`
 -/
 def _root_.Vector.mapM_mk_seq : Sym.Simp.Simproc := fun e ↦ do
-  let .some [f, _, β, xs] := mapM? e | return .rfl
+  let .some [f, _, β, xs] := e.mapM? | return .rfl
   let .some (elems, ⟨⟨_, k, .some sz⟩, _⟩) ← sequenced xs | return .rfl
   let szSimped := (←Sym.simpWithGround sz).getResultExpr sz
   if !isSameExpr sz szSimped then
@@ -1355,9 +1373,37 @@ def size : MetaM Methods :=
    ``List.length_cons, ``List.length_nil
   ]
 
+def _root_.Lean.Expr.foldr? (e : Expr) : Option (List Expr) :=
+  match_expr e with
+  | Vector.foldr α β _ f init xs => .some [α, β, f, init, xs]
+  -- `start = xs.size` ∧ `stop = 0`
+  | Array.foldr α β f init xs start stop => .some [α, β, f, init, xs]
+  | List.foldr α β f init xs => .some [α, β, f, init, xs]
+  | _ => .none
+#check List.foldr_toArray
+/--
+TODO: We ignore start/stop on purpose for the time being.
+      `Sym` does not play nice with `List.foldr_toArray` and `List.foldr_toArray'` sometimes...
+
+      This is currently unprovable.
+-/
+def foldr_toArrayButSane : Sym.Simp.Simproc := fun e => do
+  let_expr Array.foldr α β f init xs _ _ := e | return .rfl
+  let .some ⟨_, xs⟩ := Collection.ofExpr xs | throwError m!"cannot foldr:\n{xs} in:\n{e}"
+  let e' ← Sym.shareCommonInc <| mkApp5 (.const ``List.foldr e.getAppFn.constLevels!) α β f init xs
+  return .step e' (←mkSorry (←mkEq e e') false)
+
+  -- let .some (elems, ⟨⟨_, k, .some sz⟩, listExpr⟩) ← sequenced xs | return .rfl
+  -- let szGround ← simpWithGround! sz
+  -- match Sym.getNatValue? szGround with
+  -- | .none => throwError m!"Not ground:\n{szGround} in:\n{e}"
+  -- | .some _ =>
+    
+  --   let .some appendVecColl := appendListColl.setSize sz |>.cast xsC.type.k | unreachable!
+
 def foldr : MetaM Methods :=
   mkPostMethods #[
-    ``Vector.foldr_mk, ``List.foldr_toArray', ``List.foldr_toArray,
+    ``Vector.foldr_mk, ``foldr_toArrayButSane, -- ``List.foldr_toArray, ``List.foldr_toArray', 
 
     ``List.foldr_cons, ``List.foldr_nil,
 
@@ -1390,6 +1436,55 @@ def set : MetaM Methods :=
 
     -- ``List.set_cons_succ, ``List.set_cons_zero,
   ]
+
+  -- let t ← Sym.inferType e
+  -- let_expr Vector t sz := t | return .rfl
+  -- unless e.isFVar do return .rfl
+  -- let sz' ← Sym.simpWithGround sz
+  -- match (sz'.getResultExpr sz).nat? with
+  -- | .none => throwError m!"{sz} does not simplify to ground.\nExpr:\n{e}"
+  -- | .some _n => let explodedVec ← (sequenceAsVecExpr e t (sz'.getResultExpr sz)).run'
+  --               trace[Clap.Compile.simp.proc.kaboom] m!"{who}"
+  --               -- trace[Clap.Compile.simp.proc.kaboom] m!"Exploding:\n{e}\n==>\n{explodedVec}"
+  --               return .step explodedVec (←mkSorry (←mkEq e explodedVec) false)
+
+-- private def explodeWrapper {α : Type} {k} (inner : Vector α k) (who : String := ""): Vector α k := inner
+
+-- private def unwrap : Sym.Simp.Simproc := fun e ↦ do
+--   let_expr Simp.clapwrap _ e := e | return .rfl
+--   return .rfl (done := true)
+
+-- def explode! : Sym.Simp.Simproc := fun e ↦ do
+--   let_expr explodeWrapper τ sz e who := e | return .rfl
+--   unless e.isFVar do return .rfl
+--   let sz' ← Sym.simpWithGround sz
+--   let sz' := sz'.getResultExpr sz
+--   match Sym.getNatValue? sz' with
+--   | .none => throwError m!"[unreachable]\n{sz} does not simplify to ground in:\n{e}"
+--   | .some _n => let explodedVec ← (sequenceAsVecExpr e τ sz').run'
+--                 trace[Clap.Compile.simp.proc.kaboom] m!"{who}"
+--                 -- trace[Clap.Compile.simp.proc.kaboom] m!"Exploding:\n{e}\n==>\n{explodedVec}"
+--                 return .step explodedVec (←mkSorry (←mkEq e explodedVec) false)
+
+
+-- private def wrappedInExplosives (τ sz who : Expr) : Sym.Simp.SimpM Expr := do
+--   let τu ← Sym.getLevelInType τ
+--   let vectorτ ← Sym.shareCommonInc <| mkApp2 (.const ``Vector [τu]) τ sz
+--   Sym.shareCommonInc <| mkApp4 (.const ``explodeWrapper [τu]) τ sz vectorτ who
+
+-- private def wrapInExplosives (τ sz who e : Expr) : Sym.Simp.SimpM Result := do
+--   let e' ← wrappedInExplosives τ sz who
+--   return .step e' (←mkSorry (←mkEq e e') false)
+
+-- def explode? : Sym.Simp.Simproc := fun e ↦ do
+--   if let .some [α, β, γ, xs, ys] := e.append?
+--   then
+--     let .some xs := Collection.elemsOfExpr xs | return .rfl
+--     let .some ys := Collection.elemsOfExpr ys | return .rfl
+--     return mkApp
+--   else
+--     return .rfl
+  
 
 def processWrapped : Sym.Simp.Simproc := fun e ↦ do
   let_expr Simp.clapwrap _ e := e | return .rfl

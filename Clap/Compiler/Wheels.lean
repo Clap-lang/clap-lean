@@ -115,6 +115,10 @@ def Clap.SymSets.General.ground : MetaM Sym.Simp.Methods := do
 def Lean.Meta.Sym.simpWithGround (e : Expr) : SymM Sym.Simp.Result :=
   Clap.SymSets.General.ground >>= (Sym.simp e ·)
 
+def Lean.Meta.Sym.simpWithGround! (e : Expr) : SymM Expr := do
+  let res ← Clap.SymSets.General.ground >>= (Sym.simp e ·)
+  return res.getResultExpr e
+
 end
 
 def Clap.Dbg.timeInSecondsOfMs (begin «end» : Nat) : Float :=

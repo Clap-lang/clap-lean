@@ -81,10 +81,6 @@ def testTreeBindNested : Option ℕ := do
   let z ← F (c + 100000)
   return y + z + a + b
 
--- `e = λ x y z ↦ A`
--- `lambdaTlescope e fun args body ↦ ... mkLambdaFVars args body`
--- .lam x `t`
-
 def flattenedTreeBindNested : Option ℕ := do
   let a ← F 1
   let B ← F 2
