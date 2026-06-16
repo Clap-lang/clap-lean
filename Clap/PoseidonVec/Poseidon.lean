@@ -283,6 +283,7 @@ set_option maxHeartbeats 0 in
 -- set_option trace.Clap.Compile.simp.proc.kaboom true in
 -- set_option trace.Clap.Compile.simp.proc.vector_mapIdx_mk true in
 -- set_option trace.Clap.Compile.simp.proc.vector_mk_append_mk true in
+set_option trace.Clap.Compile.dbg true in
 #eval spoon <| do
   compileExampleJustSym ``testPoseidon
     (←(

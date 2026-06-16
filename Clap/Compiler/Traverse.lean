@@ -1719,14 +1719,14 @@ def logRewrite (e e' : Expr) (decorate : String := "") : MessageData :=
 
 def compileJustSym (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
   let e ← Compiler.Simp.preprocessExpr e
-  Sym.shareCommonInc (←lambdaTelescope e fun args e ↦ do
+  let res ← lambdaTelescope e fun args e ↦ do
     let time ← IO.monoMsNow
-    let compiled ← Compiler.Simp.simplify (simpset) e -- ∪ (←SymSets.General.compilerSet)) e
-    -- logInfo m!"Compiled:\n{compiled}"
+    let compiled ← Compiler.Simp.simplify simpset e
     Dbg.timeSince time "Compilation took:"
-    Sym.mkLambdaFVarsS args compiled) -- >>= (liftM ∘ PrettyPrinter.ppExpr)
-    -- [k, m + 12, m]
-    -- [k, m,]
+    let σ ← getDbgState
+    logInfo m!"{←σ.pretty}"
+    Sym.mkLambdaFVarsS args compiled
+  Sym.shareCommonInc res
 
 def compileExampleJustSym (ex : Name) (simpset : Sym.Simp.Methods) (args : Array Expr := #[]) : Sym.Simp.SimpM Expr := do
   -- withTraceNode `Clap.Compile.simp.proc (fun e ↦ return m!"") do
@@ -2228,43 +2228,43 @@ example : xb = bind a (fun _ ↦ (bind (bind a fun _ ↦ b) fun _ ↦ bind c fun
 --         | _ =>
 --           go todo (done.push (e, default))
 
-def tryThisForSize : Sym.Simp.Simproc := fun e ↦ do
-  let .some (_, #[_, β, _, _]) := e.matchBindsEInfo | return .rfl
-  let seq ← e.sequenceBindsLM
-  let binds ← SymSets.Vector.chainActions β seq
-  let e' ← Sym.shareCommon binds
-  logInfo m!"\n{e}\n==>\n{e'}"
-  return .step e' (←mkSorry (←mkEq e e') false) (done := true)
+-- def tryThisForSize : Sym.Simp.Simproc := fun e ↦ do
+--   let .some (_, #[_, β, _, _]) := e.matchBindsEInfo | return .rfl
+--   let seq ← e.sequenceBindsLM
+--   let binds ← SymSets.Vector.chainActions β seq
+--   let e' ← Sym.shareCommon binds
+--   logInfo m!"\n{e}\n==>\n{e'}"
+--   return .step e' (←mkSorry (←mkEq e e') false) (done := true)
 
-/-
-    B
-  B   fun ...
-A   fun ...
--/
-def tryThatForSize : Sym.Simp.Simproc := fun e ↦ do
-  let .some (_, #[_, outputτ, a, _]) := e.matchBindsEInfo | return .rfl
-  let .some (_, #[_, _, _, _])       := a.matchBindsEInfo | return .rfl
-  recordRuleDbg "tryThatForSize"
-  let actionSequence ← e.sequenceBindsLM
-  trace[Clap.Compile.dbg]
-    m!"Action Sequence: {actionSequence}"
-  let flatBind ← Sym.shareCommonInc (←SymSets.Vector.chainActionsInferType <| actionSequence.map Prod.fst)
-  trace[Clap.Compile.dbg]
-    m!"Flat Bind: {flatBind}"
-  trace[Clap.Compile.dbg]
-    m!"T: {←Sym.inferType flatBind}"
+-- /-
+--     B
+--   B   fun ...
+-- A   fun ...
+-- -/
+-- def tryThatForSize : Sym.Simp.Simproc := fun e ↦ do
+--   let .some (_, #[_, outputτ, a, _]) := e.matchBindsEInfo | return .rfl
+--   let .some (_, #[_, _, _, _])       := a.matchBindsEInfo | return .rfl
+--   recordRuleDbg "tryThatForSize"
+--   let actionSequence ← e.sequenceBindsLM
+--   trace[Clap.Compile.dbg]
+--     m!"Action Sequence: {actionSequence}"
+--   let flatBind ← Sym.shareCommonInc (←SymSets.Vector.chainActionsInferType <| actionSequence.map Prod.fst)
+--   trace[Clap.Compile.dbg]
+--     m!"Flat Bind: {flatBind}"
+--   trace[Clap.Compile.dbg]
+--     m!"T: {←Sym.inferType flatBind}"
 
-  return .step flatBind (←mkSorry (←mkEq e flatBind) false)
+  -- return .step flatBind (←mkSorry (←mkEq e flatBind) false)
 
-def spinalSurgeryStrictLeft_pre : MetaM Sym.Simp.Methods :=
-  mkPreMethods #[
-    ``tryThatForSize
-  ]
+-- def spinalSurgeryStrictLeft_pre : MetaM Sym.Simp.Methods :=
+--   mkPreMethods #[
+--     ``tryThatForSize
+--   ]
 
-def spinalSurgery_pre : MetaM Sym.Simp.Methods :=
-  mkPreMethods #[
-    ``tryThisForSize
-  ]
+-- def spinalSurgery_pre : MetaM Sym.Simp.Methods :=
+--   mkPreMethods #[
+--     ``tryThisForSize
+--   ]
 
 set_option trace.Clap.Compile.dbg true
 set_option Clap.traversalDbg true
@@ -2504,7 +2504,7 @@ def flattenBindsAny : Sym.Simp.Simproc := fun e ↦ do
   let .some (b, g) := a.matchBindsE | return .rfl
   let e' ← planusEst e
   let e' ← chainActionsInferType e'
-  trace[Clap.Compile.dbg] m!"[flattenBindsAny]\n{e}\n==>\n{e'}"
+  -- trace[Clap.Compile.dbg] m!"[flattenBindsAny]\n{e}\n==>\n{e'}"
   return .step e' (←mkSorry (←mkEq e e') false)
 
 def flattenBindsAny_pre : MetaM Sym.Simp.Methods :=
