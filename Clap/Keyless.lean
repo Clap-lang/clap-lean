@@ -200,7 +200,6 @@ def verifyJWTStructure (jwtRaw : JWTRawInput) (rsa : RSAInput) : Option (FString
   -- Step 5: Base64-decode the payload
   Base64Len.base64UrlDecode (by decide) jwtRaw.b64u_jwt_payload
 
-
 /-- Compute JSON structural analysis from the decoded JWT payload.
     Returns the payload with its hash, string bodies, and brackets depth map. -/
 def computeJSONStructure (payload : FString bn254 MAX_JWT_PAYLOAD_LEN) : Option JSONStructure := do
