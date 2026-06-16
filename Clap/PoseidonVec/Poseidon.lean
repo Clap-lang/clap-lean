@@ -123,7 +123,7 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := 1 + n
   let nRoundsF : ℕ := 8
-  let nRoundsP : ℕ := 6
+  let nRoundsP : ℕ := 4
   -- let nRoundsF : ℕ := 8
   -- let nRoundsP : ℕ := N_ROUNDS_P[t - 2]'sorry
   let half : ℕ := nRoundsF / 2
@@ -258,15 +258,15 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
 
 /-
 Timings:
-  `nRoundsF = 1, nRoundsP = 2` | ` 1.083000s`
-  `nRoundsF = 1, nRoundsP = 4` | ` 1.645000s`
-  `nRoundsF = 1, nRoundsP = 6` | `10.588000s`
+  `nRoundsF = 1, nRoundsP = 2` | `  1.083000s`
+  `nRoundsF = 1, nRoundsP = 4` | `  1.645000s`
+  `nRoundsF = 1, nRoundsP = 6` | ` 10.588000s`
   `nRoundsF = 1, nRoundsP = 8` | `366.672000s`
   -------------------------------------------
-  `nRoundsF = 8, nRoundsP = 2` | ` 4.653000s`
-  `nRoundsF = 8, nRoundsP = 4` | ` 6.060000s`
-  `nRoundsF = 8, nRoundsP = 6` | `19.184000s`
-  `nRoundsF = 8, nRoundsP = 8` | `4.653000s`
+  `nRoundsF = 8, nRoundsP = 2` | `  4.653000s`
+  `nRoundsF = 8, nRoundsP = 4` | `  6.060000s`
+  `nRoundsF = 8, nRoundsP = 6` | ` 16.021000s`
+  `nRoundsF = 8, nRoundsP = 8` | `?`
 -/
 
 -- set_option debug.skipKernelTC true in

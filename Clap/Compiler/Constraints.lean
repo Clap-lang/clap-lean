@@ -39,7 +39,7 @@ structure TraversalDbgState where
   cumulativeSimpTimeDown : Float
   cumulativeSimpTimeUp : Float
   inlinedHisto : Std.HashMap Expr Nat
-  ruleHisto : Std.HashMap String Nat
+  ruleHisto : Std.HashMap String (Nat × Float)
   deriving Inhabited
 
 def TraversalDbgState.pretty (σ : TraversalDbgState) : MetaM Format := do
@@ -72,11 +72,11 @@ def recordDbgHisto (e : Expr) :=
       then σ.inlinedHisto.modify e Nat.succ
       else σ.inlinedHisto.insert e 1}
 
-def recordRuleDbg (e : String) :=
+def recordRuleDbg (e : String) (timeS : Float := 0.0) :=
   modifyDbgState fun σ ↦
     {σ with ruleHisto :=
       if σ.ruleHisto.contains e
-      then σ.ruleHisto.modify e Nat.succ
-      else σ.ruleHisto.insert e 1}
+      then σ.ruleHisto.modify e (fun (n, time) ↦ (Nat.succ n, time + timeS))
+      else σ.ruleHisto.insert e (1, timeS)}
 
 end Clap.Compiler

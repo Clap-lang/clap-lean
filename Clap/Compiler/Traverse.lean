@@ -59,11 +59,11 @@ def andThen (names : Array Name) : MetaM Sym.Simp.Simproc := do
 
 def rewriteWithLog (name : String) (f : Simproc) : Simproc :=
   fun e ↦ do
-    let res ← f e
+    let (res, time) ← Dbg.timeS (f e)
     match res with
       | .rfl .. => return res
       | .step .. =>
-        recordRuleDbg name
+        recordRuleDbg name time
         return res
 
 -- dischargeSimpSelf
