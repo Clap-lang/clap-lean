@@ -1432,12 +1432,12 @@ def foldr_toArrayButSane : Sym.Simp.Simproc := fun e => do
   -- match Sym.getNatValue? szGround with
   -- | .none => throwError m!"Not ground:\n{szGround} in:\n{e}"
   -- | .some _ =>
-    
+
   --   let .some appendVecColl := appendListColl.setSize sz |>.cast xsC.type.k | unreachable!
 
 def foldr : MetaM Methods :=
   mkPostMethods #[
-    ``Vector.foldr_mk, ``foldr_toArrayButSane, -- ``List.foldr_toArray, ``List.foldr_toArray', 
+    ``Vector.foldr_mk, ``foldr_toArrayButSane, -- ``List.foldr_toArray, ``List.foldr_toArray',
 
     ``List.foldr_cons, ``List.foldr_nil,
 
@@ -1527,7 +1527,7 @@ def set_pre : MetaM Methods :=
 --     return mkApp
 --   else
 --     return .rfl
-  
+
 
 def processWrapped : Sym.Simp.Simproc := fun e ↦ do
   let_expr Simp.clapwrap _ e := e | return .rfl
@@ -1802,7 +1802,7 @@ def rewriteReport : Sym.Simp.Simproc := fun e ↦ do
     return res
 
 -- bind (bind (bind x fun y₂ ↦ g (fun y₄ ↦ y₄)) fun y₃ ↦ g') fun y ↦ bind x₁ fun y₁ ↦ bind x₂ g''
--- [(x, fun y ↦ x), ..., ..., ] -- List.cons 
+-- [(x, fun y ↦ x), ..., ..., ] -- List.cons
 /-
 do
   do
@@ -1910,7 +1910,7 @@ run_meta do
   let preprocessed ← Compiler.Simp.preprocessExpr impl
   logInfo m!"old:\n{impl}\nnew:\n{preprocessed}"
   return preprocessed
-  
+
 
   -- -- (m.run' {} |>.run) >>= PrettyPrinter.ppExpr
 
@@ -2432,7 +2432,7 @@ def flattenBinds : Sym.Simp.Simproc := fun expr ↦ do
 -- partial def flattenBinds' : Sym.Simp.Simproc := fun e ↦ do
 --   let Option.some outerBind := ←e.matchBinds | return .rfl
 --   let Option.some innerBind := ←(outerBind.aₗ).matchBinds | return .rfl
-  
+
 --   let rec go (e : Expr) (level : ℕ) : Expr :=
 --     if let .some (a, f) := e.matchBindsE
 --     then
@@ -2441,7 +2441,7 @@ def flattenBinds : Sym.Simp.Simproc := fun expr ↦ do
 --       _
 
 --     else _
-    
+
 --   _
 
 -- def flattenBinds_pre' : MetaM Sym.Simp.Methods :=
@@ -2454,22 +2454,42 @@ def flattenBinds_pre : MetaM Sym.Simp.Methods :=
     ``flattenBinds
   ]
 
-def substitute_unbound_bvars (body: Expr) (values: Array Expr) (types: List Expr) : Expr :=
+def substitute_unbound_bvars (body: Expr) (values: Array Expr) (types: List Expr) : Sym.SymM Expr := do
+  trace[Clap.Compile.dbg]
+    m!"substitute_unbound_bvars body: {body} values: {values} types: {types}"
   let wrapped_body := types.foldr (λ argType acc => Expr.lam `x argType acc .default) body
-  wrapped_body.beta values
+  trace[Clap.Compile.dbg]
+    m!"substitute_unbound_bvars wrapped_body: {wrapped_body}"
+  let res := wrapped_body.beta values
+  trace[Clap.Compile.dbg]
+    m!"substitute_unbound_bvars res: {res}"
+  return res
 
 -- TODO this is currently extermely specialised and not correct in unhandled cases
 -- needs to also substitute into actions
 -- could do with perhaps calling the substitution function directly rather than beta reducing?
 def applyMany (body: Expr) (args: List (Expr × Expr)) : Sym.SymM Expr := do
+  trace[Clap.Compile.dbg]
+    m!"applyMany pre: body: {body}\nargs: {args}"
+
   let values := args.map Prod.fst
   let types := args.map Prod.snd
 
-  let values := values.zipIdx.map (
-    λ (value, idx) => substitute_unbound_bvars value (values.take idx).toArray (types.take idx)
+  let values ← values.zipIdx.mapM (
+    λ (value, idx) => do substitute_unbound_bvars value (values.take idx).toArray (types.take idx)
   )
 
-  return substitute_unbound_bvars body values.toArray types
+
+
+  trace[Clap.Compile.dbg]
+    m!"applyMany during: values: {values}"
+
+  let res ← substitute_unbound_bvars body values.toArray types
+
+  trace[Clap.Compile.dbg]
+    m!"applyMany post: {res}"
+
+  return res
 
 def _root_.Lean.Expr.pure? (e : Expr) : Option Expr :=
   match_expr e with
@@ -2488,9 +2508,14 @@ def bindPureMany : Sym.Simp.Simproc := fun expr ↦ do
   if bind_pure_lambdas.isEmpty then return .rfl
   let .some (bind, _) := bind_pure_lambdas.getLast? | return .rfl
   let .lam (body := body) .. := bind.aᵣ | return .rfl
+
+
+
   let expr' ← applyMany body (
     bind_pure_lambdas.map λ (bind, value) => (value, bind.α)
   )
+
+
   trace[Clap.Compile.simp.proc.bindPureMany]
     logRewrite expr expr' s!"{bind_pure_lambdas.length}"
   return .step expr' (←mkSorry (←mkEq expr expr') false)

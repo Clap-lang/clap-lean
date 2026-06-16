@@ -12,6 +12,7 @@ def testSymSet :=
   -- ExampruSym.NewTraversal.Dom.flattenBinds_pre
   ExampruSym.NewTraversal.Dom.flattenBindsAny_pre
   ∪ ExampruSym.NewTraversal.Dom.bindPureMany_pre
+  -- ∪ SymSets.General.compilerSet_bind_some -- in case bindPureMany is buggy
   ∪ SymSets.General.optionPureApply
   ∪ SymSets.Vector.mapM_alt
   ∪ SymSets.General.beta
@@ -21,6 +22,12 @@ def testSymSet :=
   ∪ SymSets.Vector.foldlM_post
   ∪ SymSets.List.range
   ∪ SymSets.Vector.set
+  ∪ Clap.SymSets.General.ground
+
+
+
+
+
 open Lean in
 def runTest (uncompiledExpr : Expr) := spoon <| do
   let uncompiledTypeExpr ← Meta.inferType uncompiledExpr

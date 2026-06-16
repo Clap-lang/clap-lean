@@ -74,7 +74,7 @@ def chainTest (n : ℕ) : MetaM Unit := do
 set_option maxRecDepth 100000
 set_option maxHeartbeats 0
 set_option trace.Clap.Compile true
-#eval chainTest 160
+#eval chainTest 320
 
 /-
 Compilation times
