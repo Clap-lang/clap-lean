@@ -69,12 +69,12 @@ def mixS {t s : ℕ} (r : ℕ) (state : Vector (F p) t) (S : Vector (F p) s) : V
   ⟨#[dotProduct base] ++ (tail base).toArray, sorry⟩
 where
   /-- `out[0] = Σᵢ S[base + i] · in[i]` — full dot product for element 0 -/
-  dotProduct (base : ℕ) : F p :=
-    let s' : Vector _ t := ⟨S.extract base (base+t) |>.toArray, sorry⟩
-    (state.zipWith (· * ·) s').sum
+  dotProduct (base : ℕ) : F p := 0
+    -- let s' : Vector _ t := ⟨S.extract base (base+t) |>.toArray, sorry⟩
+    -- (state.zipWith (· * ·) s').sum
   /-- `out[i] = in[i] + in[0] · S[base + t + i − 1]` for `i ∈ [1, t)` -/
-  tail (base : ℕ) : Vector (F p) (t-1) :=
-    (state.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state[0]'sorry * S[base + t + i]'sorry)
+  tail (base : ℕ) : Vector (F p) (t-1) := state.drop 1
+    -- (state.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state[0]'sorry * S[base + t + i]'sorry)
 
 -- TODO: Imperative or functional style?
 -- def mixS (r : ℕ) (state : Array (F p)) (s : Array (F p)) : Array (F p) := Id.run do
@@ -122,37 +122,37 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   -- N_ROUNDS_P[t-2] for t ∈ [2, 17]
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := 1 + n
-  let nRoundsF : ℕ := 8
-  let nRoundsP : ℕ := 4
+  let nRoundsF : ℕ := 1
+  let nRoundsP : ℕ := 32
   -- let nRoundsF : ℕ := 8
   -- let nRoundsP : ℕ := N_ROUNDS_P[t - 2]'sorry
   let half : ℕ := nRoundsF / 2
 
   let state : Vector (F p) t := #v[initState] ++ inputs
 
-  -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
-  let state := ark state C 0
+  -- -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
+  -- let state := ark state C 0
 
-  -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
-  let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
-    let l ← state.mapM sigma
-    mix (ark l C ((r + 1) * t)) M) state
+  -- -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
+  -- let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
+  --   let l ← state.mapM sigma
+  --   mix (ark l C ((r + 1) * t)) M) state
 
-  -- Boundary round (r = half−1): sigma → ark → mix with P
-  let state := mix (ark (← state.mapM sigma) C (half * t)) P
+  -- -- Boundary round (r = half−1): sigma → ark → mix with P
+  -- let state := mix (ark (← state.mapM sigma) C (half * t)) P
 
   -- Phase 2: partial rounds
   let state ← (List.range nRoundsP).foldlM (fun state r ↦ do
     let s0 := (← sigma state[0]) + C[(half + 1) * t + r]'sorry
     mixS r (state.set 0 s0) S) state
 
-  -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
-  let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
-    let l ← state.mapM sigma
-    mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
+  -- -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
+  -- let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
+  --   let l ← state.mapM sigma
+  --   mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
   
   -- Final round: sigma on all, then extract nOuts elements via MixLast
-  let state ← state.mapM sigma
+  -- let state ← state.mapM sigma
   mixLast state M 0
 
 /-- **Poseidon:** Single-output Poseidon hash. Wraps `poseidonEx` with

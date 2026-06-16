@@ -63,6 +63,7 @@ def rewriteWithLog (name : String) (f : Simproc) : Simproc :=
     match res with
       | .rfl .. => return res
       | .step .. =>
+        -- logInfo m!"boop[{name}]: {time}"
         recordRuleDbg name time
         return res
 
