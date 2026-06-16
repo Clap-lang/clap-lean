@@ -2472,14 +2472,19 @@ def applyMany (body: Expr) (args: List (Expr × Expr)) : Sym.SymM Expr := do
   trace[Clap.Compile.dbg]
     m!"applyMany pre: body: {body}\nargs: {args}"
 
-  let values := args.map Prod.fst
-  let types := args.map Prod.snd
+  -- let (values, types) := args.unzip
 
-  let values ← values.zipIdx.mapM (
-    λ (value, idx) => do substitute_unbound_bvars value (values.take idx).toArray (types.take idx)
-  )
+  -- let mut runningValues := values
+  -- let mut types := types
 
+  -- let values ← values.zipIdx.mapM (
+  --   λ (value, idx) => do substitute_unbound_bvars value (values.take idx).toArray (types.take idx)
+  -- )
 
+  let mut args := args
+
+  for (value, type) in args.unzip do
+    _
 
   trace[Clap.Compile.dbg]
     m!"applyMany during: values: {values}"
