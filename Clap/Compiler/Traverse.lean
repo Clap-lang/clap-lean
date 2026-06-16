@@ -1720,10 +1720,10 @@ def logRewrite (e e' : Expr) (decorate : String := "") : MessageData :=
 def compileJustSym (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
   let e ← Compiler.Simp.preprocessExpr e
   Sym.shareCommonInc (←lambdaTelescope e fun args e ↦ do
-    -- let time ← IO.monoMsNow
+    let time ← IO.monoMsNow
     let compiled ← Compiler.Simp.simplify (simpset) e -- ∪ (←SymSets.General.compilerSet)) e
     -- logInfo m!"Compiled:\n{compiled}"
-    -- Dbg.timeSince time "Compilation took:"
+    Dbg.timeSince time "Compilation took:"
     Sym.mkLambdaFVarsS args compiled) -- >>= (liftM ∘ PrettyPrinter.ppExpr)
     -- [k, m + 12, m]
     -- [k, m,]

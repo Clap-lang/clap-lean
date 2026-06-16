@@ -122,8 +122,8 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   -- N_ROUNDS_P[t-2] for t ∈ [2, 17]
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := 1 + n
-  let nRoundsF : ℕ := 2
-  let nRoundsP : ℕ := 2
+  let nRoundsF : ℕ := 8
+  let nRoundsP : ℕ := 6
   -- let nRoundsF : ℕ := 8
   -- let nRoundsP : ℕ := N_ROUNDS_P[t - 2]'sorry
   let half : ℕ := nRoundsF / 2
@@ -256,19 +256,25 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
 --  ``mix, ``mixS, ``mixS.dotProduct, ``mixS.tail
   ]
 
--- #v[1, 2].mapM f ==> bind (f 1) >>=
---                       fun x1 ↦
---                         bind (f 2) >>=
---                           fun x2 ↦
---                             return #v[x1, x2]
--- f (fun a1 => f (fun a2 => ... a1 ... an ...))
+/-
+Timings:
+  `nRoundsF = 1, nRoundsP = 2` | ` 1.083000s`
+  `nRoundsF = 1, nRoundsP = 4` | ` 1.645000s`
+  `nRoundsF = 1, nRoundsP = 6` | `10.588000s`
+  `nRoundsF = 1, nRoundsP = 8` | `366.672000s`
+  -------------------------------------------
+  `nRoundsF = 8, nRoundsP = 2` | ` 4.653000s`
+  `nRoundsF = 8, nRoundsP = 4` | ` 6.060000s`
+  `nRoundsF = 8, nRoundsP = 6` | `19.184000s`
+  `nRoundsF = 8, nRoundsP = 8` | `4.653000s`
+-/
 
 -- set_option debug.skipKernelTC true in
 -- set_option trace.Clap.Compile true in
 -- set_option trace.Clap.Compile.simp.proc.vector_mk_zipWith_mk true in
 -- set_option trace.Clap.Compile.simp.proc.monad true in
 open Clap.Compiler.SymSets General in
--- set_option pp.exprSizes true in
+set_option pp.exprSizes true in
 set_option maxRecDepth 1000000 in
 set_option maxHeartbeats 0 in
 -- set_option maxHeartbeats 100000 in
