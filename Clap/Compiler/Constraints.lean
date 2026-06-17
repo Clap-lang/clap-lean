@@ -40,10 +40,25 @@ structure TraversalDbgState where
   cumulativeSimpTimeUp : Float
   inlinedHisto : Std.HashMap Expr Nat
   ruleHisto : Std.HashMap String (Nat × Float)
+  skippedRuleHisto : Std.HashMap String (Nat × Float)
   deriving Inhabited
 
+def sumRuleTime (times: Std.HashMap String (Nat × Float)) : Float :=
+  (times.toList.map (λ (_, (_, time)) => time)).sum
+
 def TraversalDbgState.pretty (σ : TraversalDbgState) : MetaM Format := do
-  return f!"\nnumDown := {σ.numDown}\nnumUp := {σ.numUp}\ndownTime := {σ.cumulativeSimpTimeDown}\nupTime := {σ.cumulativeSimpTimeUp}\nhistoInlined := {repr (←σ.inlinedHisto.toArray.mapM fun (k, v) ↦ do return ((←PrettyPrinter.ppExpr k).pretty, v))}\nhistoRules := {repr σ.ruleHisto}"
+  let text := String.intercalate "\n" ([
+    f!"numDown := {σ.numDown}",
+    f!"numUp := {σ.numUp}",
+    f!"downTime := {σ.cumulativeSimpTimeDown}",
+    f!"upTime := {σ.cumulativeSimpTimeUp}",
+    f!"histoInlined := {repr (←σ.inlinedHisto.toArray.mapM fun (k, v) ↦ do return ((←PrettyPrinter.ppExpr k).pretty, v))}",
+    f!"histoRules := {repr σ.ruleHisto}",
+    f!"totalStepTime := {sumRuleTime σ.ruleHisto}",
+    f!"histoSkippedRules := {repr σ.skippedRuleHisto}",
+    f!"totalSkipTime := {sumRuleTime σ.skippedRuleHisto}",
+  ].map Format.pretty)
+  return f!"{text}"
 
 initialize traversalDbg : EnvExtension TraversalDbgState ←
   registerEnvExtension (pure default)
@@ -78,5 +93,12 @@ def recordRuleDbg (e : String) (timeS : Float := 0.0) :=
       if σ.ruleHisto.contains e
       then σ.ruleHisto.modify e (fun (n, time) ↦ (Nat.succ n, time + timeS))
       else σ.ruleHisto.insert e (1, timeS)}
+
+def recordSkippedRuleDbg (e : String) (timeS : Float := 0.0) :=
+  modifyDbgState fun σ ↦
+    {σ with skippedRuleHisto :=
+      if σ.skippedRuleHisto.contains e
+      then σ.skippedRuleHisto.modify e (fun (n, time) ↦ (Nat.succ n, time + timeS))
+      else σ.skippedRuleHisto.insert e (1, timeS)}
 
 end Clap.Compiler

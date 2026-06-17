@@ -140,7 +140,7 @@ def Clap.Dbg.timeS {α} {m : Type _ → Type _} [Monad m] [MonadLiftT BaseIO m] 
   let s ← IO.monoNanosNow
   let a ← k
   let e ← IO.monoNanosNow
-  return (a, (e - s).toFloat / 1000000000)
+  return (a, (e - s).toFloat / 1_000_000_000)
 
 register_simp_attr dbgSimp
 

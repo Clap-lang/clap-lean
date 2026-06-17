@@ -61,7 +61,9 @@ def rewriteWithLog (name : String) (f : Simproc) : Simproc :=
   fun e ↦ do
     let (res, time) ← Dbg.timeS (f e)
     match res with
-      | .rfl .. => return res
+      | .rfl .. =>
+        recordSkippedRuleDbg name time
+        return res
       | .step e' .. =>
         recordRuleDbg name time
         trace[Clap.Compile.dbg] m!"\n{e}\n={name}=>\n{e'}"
@@ -139,6 +141,9 @@ def betaReduce : Simproc := fun e ↦ do
   -- let (Expr.lam _ _ _ _) := function | return .rfl
 
   let .some (function, args) := getApplicationChain e 2 | return .rfl
+
+  let .some (function, args) := getApplicationChain e 1 | return .rfl
+  let .lam _ _ _ _ := function | return .rfl
   let args := args.toArray
   let e' ← Sym.shareCommonInc <| function.betaRev args
   trace[Clap.Compile.simp.proc.beta]
