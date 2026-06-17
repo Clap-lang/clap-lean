@@ -6,7 +6,11 @@ initialize registerTraceClass `Clap.Compile
 
 initialize registerTraceClass `Clap.Compile.simp (inherited := true)
 
+initialize registerTraceClass `Clap.Compile.simp.consiliumMagnum (inherited := true)
+
 initialize registerTraceClass `Clap.Compile.simp.proc (inherited := true)
+
+initialize registerTraceClass `Clap.Compile.simp.proc.strategiaMagna (inherited := true)
 
 initialize registerTraceClass `Clap.Compile.simp.proc.kaboom (inherited := true)
 

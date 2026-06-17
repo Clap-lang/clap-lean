@@ -841,6 +841,62 @@ def unfold_generic_mk_foldlM : Sym.Simp.Simproc := fun expr ↦ do
 
     return .step expr' (←mkSorry (←mkEq expr expr') false)
 
+-- /--
+-- `[1, 2, 3, 4].foldlM f b` ==>
+-- `f b 1 >>= λ next → f next 2 >>= λ next → f next 3 >>= λ next ↦ pure next`
+-- -/
+-- def foldlM_lockstep : Sym.Simp.Simproc := fun expr ↦ do
+--   let .some [inputType, outputType, f, init, collection] := expr.foldlM? | return .rfl
+--   let .some (elems, ⟨⟨_, _, .some size⟩, _⟩) ← sequenced collection | return .rfl
+
+--   trace[Clap.Compile.dbg]
+--     m!"Unfold_generic_mk_foldlM\nelems:{elems}\nsize:{size}"
+
+--   let u ← Sym.getLevelInType outputType
+--   let v ← Sym.getLevelInType inputType
+
+--   let szSimped := (←Sym.simpWithGround size).getResultExpr size
+--   match szSimped.nat? with
+--   | .none => throwError m!"{size} does not simplify to ground. Expr:\n{expr} (TODO: Maybe this is ok.)"
+--   | .some 0 =>
+--     -- For an empty collection, return some init
+--     let expr' ← Sym.shareCommonInc <| mkAppN (.const ``Option.some [u]) #[outputType, init]
+--     trace[Clap.Compile.dbg]
+--       m!"Unfold_generic_mk_foldlM 0 branch\nexpr':{expr'}"
+--     trace[Clap.Compile.dbg]
+--       m!"\n{expr}\n==>\n{expr'}"
+--     return .step expr' (←mkSorry (←mkEq expr expr') false)
+--   | .some _szSimpedNat => -- TODO(check)
+--     -- some next
+--     let chain_base ← Sym.shareCommonInc <| mkAppN (.const ``Option.some [u]) #[outputType, .bvar 0]
+
+--     -- repeated (f x elem).bind fun x => acc
+
+--     let chain := elems.foldr (
+--       λ (elem: Expr) (acc: Expr) =>
+--         let bind_lhs := mkApp2 f (.bvar 0) elem
+--         let bind_rhs := Expr.lam `next outputType acc .default
+--         let bind := mkApp4 (.const `Option.bind [v, u]) inputType outputType bind_lhs bind_rhs
+--         bind
+--     ) chain_base
+
+--     let wrapped_chain := Expr.lam `init outputType chain .default
+
+--     trace[Clap.Compile.dbg]
+--       m!"Unfold_generic_mk_foldlM init: {init} elems: {elems} wrapped_chain: {wrapped_chain}"
+
+--     let reduced_chain := wrapped_chain.beta #[init]
+
+--     trace[Clap.Compile.dbg]
+--       m!"Unfold_generic_mk_foldlM reduced_chain: {reduced_chain}"
+
+--     let expr' ← Sym.shareCommonInc <| reduced_chain
+
+
+--     trace[Clap.Compile.dbg]
+--       m!"\n{expr}\n==>\n{expr'}"
+
+--     return .step expr' (←mkSorry (←mkEq expr expr') false)
 
 def foldlM : MetaM Methods :=
   mkPreMethods #[
@@ -1577,14 +1633,14 @@ def wrapped : MetaM Methods :=
 
 def unfold_generic_collection_functions_pre : MetaM Methods :=
   mkPreMethods #[
-    ``Clap.Compiler.SymSets.Vector.unfold_generic_mk_foldlM,
+    -- ``Clap.Compiler.SymSets.Vector.unfold_generic_mk_foldlM,
     ``Clap.Compiler.SymSets.Vector.getElem_mk,
     ``Vector.set_mk
   ]
 
 def unfold_generic_collection_functions_post : MetaM Methods :=
   mkPostMethods #[
-    ``Clap.Compiler.SymSets.Vector.unfold_generic_mk_foldlM,
+    -- ``Clap.Compiler.SymSets.Vector.unfold_generic_mk_foldlM,
     ``Clap.Compiler.SymSets.Vector.getElem_mk,
     ``Vector.set_mk
   ]
@@ -2548,15 +2604,15 @@ def applyMany (body: Expr) (args: List (Expr × Expr)) : Sym.SymM Expr := do
       (types.take idx)
     args := args.set idx (value, type)
 
-  trace[Clap.Compile.dbg]
-    m!"applyMany during: args: {args}"
+  -- trace[Clap.Compile.dbg]
+  --   m!"applyMany during: args: {args}"
 
   let (values, types) := args.unzip
 
   let res ← substitute_unbound_bvars body values.toArray types
 
-  trace[Clap.Compile.dbg]
-    m!"applyMany post: {res}"
+  -- trace[Clap.Compile.dbg]
+  --   m!"applyMany post: {res}"
 
   return res
 
@@ -2648,6 +2704,86 @@ def flattenBindsAny_pre : MetaM Sym.Simp.Methods :=
   mkPreMethods #[
     ``flattenBindsAny
   ]
+
+/-
+  A >>= B >>= C
+
+-/
+
+partial def consiliumMagnum (simpset : Sym.Simp.Methods) (e : Expr) (Γ : Std.HashSet Expr := {}) (dbg : Nat := 42) : Sym.Simp.SimpM Expr := do
+  trace[Clap.Compile.simp.consiliumMagnum]
+    m!"\n{e}"
+  if dbg == 0 then return e
+  let ire (e : Expr) (Γ : Std.HashSet Expr) := consiliumMagnum simpset e Γ dbg.pred
+  let simp (e : Expr) : Sym.Simp.SimpM Sym.Simp.Result := Sym.simp e simpset    
+  match e.matchBindsEInfo with
+  | .some (usᵣ, #[αᵣ, βᵣ, aᵣ, fᵣ]) =>
+    if Γ.contains aᵣ
+    then
+      trace[Clap.Compile.simp.consiliumMagnum]
+        m!"Skip:\n{aᵣ}"
+      ire fᵣ Γ
+    else
+      match aᵣ.matchBindsEInfo with
+      | .some (wsₗ, #[αₗ, βₗ, aₗ, gₗ]) =>
+        let e' ← planusEst e
+        let e' ← chainActionsInferType e'
+        trace[Clap.Compile.simp.consiliumMagnum]
+          m!"Flatten:\n{e}\n==>\n{e'}"
+        ire e' Γ
+      | _ =>
+          -- if let bind_pure_lambdas ← get_bind_pure_lambdas e
+          -- then
+          --   if bind_pure_lambdas.isEmpty then return .rfl
+          --   let .some (bind, _) := bind_pure_lambdas.getLast? | return .rfl
+          --   let .lam (body := body) .. := bind.aᵣ | return .rfl
+        let ωₗ := (←simp aᵣ).getResultExpr aᵣ
+        trace[Clap.Compile.simp.consiliumMagnum]
+          m!"Focus:\n{aᵣ}\nin:\n{e}\n==>\n{ωₗ}"
+        let e' ← Sym.shareCommonInc <| mkApp4 (.const ``Option.bind usᵣ) αᵣ βᵣ ωₗ fᵣ
+        ire e' (Γ.insert ωₗ)
+  | _ =>
+    let e' ← simp e
+    let e' := e'.getResultExpr e
+    trace[Clap.Compile.simp.consiliumMagnum]
+      m!"Simplify:\n{e}\n==>\n{e'}"
+    if Sym.isSameExpr e e' then return e
+    ire e' Γ
+
+def compilaCumStrategiaMagna (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
+  let e ← Compiler.Simp.preprocessExpr e
+  let res ← lambdaTelescope e fun args e ↦ do
+    let time ← IO.monoMsNow
+    let compiled ← consiliumMagnum simpset e
+    Dbg.timeSince time "Compilation took:"
+    let σ ← getDbgState
+    logInfo m!"{←σ.pretty}"
+    Sym.mkLambdaFVarsS args compiled
+  Sym.shareCommonInc res
+
+-- open Sym.Simp in
+-- /--
+-- TODO: Simp... STAHP?!
+-- -/
+-- private def actaStrategiaMagna : Simproc := fun e ↦ do
+--   let .some (us, #[α, β, a, f]) := e.matchBindsEInfo | return .rfl
+--   let simp (e : Expr) : Sym.Simp.SimpM Result := do Sym.simp e (←read).toMethods
+--   let ωₗ ← simp a
+--   let ωₗ := ωₗ.markAsDone.getResultExpr a
+--   trace[Clap.Compile.simp.proc.strategiaMagna]
+--     m!"Focus:\n{a}\nin:\n{e}\n==>ₗ\n{ωₗ}"
+--   let ωᵣ := f
+--   -- let ωᵣ ← simp f
+--   -- let ωᵣ := ωᵣ.getResultExpr f
+--   -- trace[Clap.Compile.simp.proc.strategiaMagna]
+--   --   m!"Focus:\n{f}\nin:\n{e}\n==>ᵣ\n{ωᵣ}"
+--   let e' := mkApp4 (.const ``Option.bind us) α β ωₗ ωᵣ
+--   return .step e' (←mkSorry (←mkEq e e') false)
+
+-- def strategiaMagna : MetaM Sym.Simp.Methods :=
+--   mkPreMethods #[
+--     ``actaStrategiaMagna
+--   ]
 
 end Dom
 

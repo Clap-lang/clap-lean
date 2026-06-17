@@ -20,7 +20,9 @@ def testInnerReturn : Option ℕ := do
 set_option trace.Clap.Compile true in
 set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTestByName ``testInnerReturn
+#eval runTestByName ``testInnerReturn (isUsingTopLevelStrategy := true) (eval := false)
+
+#exit
 
 def testRightBind : Option ℕ := do
   let x ← F 1
@@ -29,7 +31,7 @@ def testRightBind : Option ℕ := do
 set_option trace.Clap.Compile true in
 set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTestByName ``testRightBind
+#eval runTestByName ``testRightBind (isUsingTopLevelStrategy := true)
 
 def testLeftBind : Option ℕ := do
   let y ← F ((←do
