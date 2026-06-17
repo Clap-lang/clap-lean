@@ -123,16 +123,16 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   -- N_ROUNDS_P[t-2] for t ∈ [2, 17]
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := 1 + n
-  let nRoundsF : ℕ := 1
-  let nRoundsP : ℕ := 32
+  let nRoundsF : ℕ := 8
+  let nRoundsP : ℕ := 20
   -- let nRoundsF : ℕ := 8
   -- let nRoundsP : ℕ := N_ROUNDS_P[t - 2]'sorry
   let half : ℕ := nRoundsF / 2
 
   let state : Vector (F p) t := #v[initState] ++ inputs
 
-  -- -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
-  -- let state := ark state C 0
+  -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
+  let state := ark state C 0
 
   -- -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
   -- let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
@@ -154,7 +154,7 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   -- let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
   --   let l ← state.mapM sigma
   --   mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
-  
+
   -- Final round: sigma on all, then extract nOuts elements via MixLast
   -- let state ← state.mapM sigma
   -- mixLast state M 0
@@ -287,7 +287,7 @@ Minimised:
 -- set_option trace.Clap.Compile.simp.proc.vector_mk_zipWith_mk true in
 -- set_option trace.Clap.Compile.simp.proc.monad true in
 open Clap.Compiler.SymSets General in
-set_option pp.exprSizes true in
+-- set_option pp.exprSizes true in
 set_option maxRecDepth 1000000 in
 set_option maxHeartbeats 0 in
 -- set_option maxHeartbeats 100000 in
@@ -298,28 +298,30 @@ set_option maxHeartbeats 0 in
 -- set_option trace.Clap.Compile.simp.proc.vector_mk_append_mk true in
 -- set_option trace.Clap.Compile.dbg true in
 -- set_option trace.Clap.Compile true in
-#eval spoon <| do
+#eval spoon (pretty := false) <| do
   compileExampleJustSym ``testPoseidon
     (←(
       poseidonBN254'
       ∪ Clap.Compiler.ExampruSym.NewTraversal.Dom.flattenBindsAny_pre
       ∪ Clap.Compiler.ExampruSym.NewTraversal.Dom.bindPureMany_pre
-      ∪ Vector.explode
+      ∪ Clap.Compiler.SymSets.Vector.unfold_generic_collection_functions_pre
+      ∪ SymSets.General.beta
+      ∪ SymSets.General.zeta
       ∪ control
-      ∪ Clap.Compiler.SymSets.Vector.map
-      ∪ Clap.Compiler.SymSets.Vector.getElem
+      -- ∪ Vector.explode
+      -- ∪ Clap.Compiler.SymSets.Vector.map
+      -- ∪ Clap.Compiler.SymSets.Vector.getElem
       ∪ Clap.Compiler.SymSets.Vector.append
-      ∪ Clap.Compiler.SymSets.Vector.mapM
-      ∪ Clap.Compiler.SymSets.Vector.foldlM_post
+      -- ∪ Clap.Compiler.SymSets.Vector.mapM
+      -- ∪ Clap.Compiler.SymSets.Vector.foldlM_post
       ∪ Clap.Compiler.SymSets.Vector.mapIdx
       ∪ SymSets.List.range
-      ∪ Clap.Compiler.SymSets.Vector.zipWith
-      ∪ Clap.Compiler.SymSets.Vector.sum
-      ∪ SymSets.General.zeta
+      -- ∪ Clap.Compiler.SymSets.Vector.zipWith
+      -- ∪ Clap.Compiler.SymSets.Vector.sum
       ∪ Clap.Compiler.SymSets.Vector.set
-      ∪ Clap.Compiler.SymSets.Vector.drop
-      ∪ Clap.Compiler.SymSets.Vector.extract
-      ∪ Clap.Compiler.SymSets.Vector.toArray
+      -- ∪ Clap.Compiler.SymSets.Vector.drop
+      -- ∪ Clap.Compiler.SymSets.Vector.extract
+      -- ∪ Clap.Compiler.SymSets.Vector.toArray
       -- ∪ monads
       -- compilerAssoc
       -- bindMyAssoc_set
