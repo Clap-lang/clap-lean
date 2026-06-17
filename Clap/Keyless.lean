@@ -427,3 +427,65 @@ def keyless (input : KeylessInput) : Option Unit := do
     input.publicInputsHash
 
 end Keyless
+
+namespace Spec.Keyless
+
+open Keyless Clap Lang Primes Spec
+
+abbrev p := bn254
+abbrev F p := ZMod p
+abbrev FB p := F p
+
+def muxFString_spec (sel : Bool) (a b : String) : String := if sel then a else b
+
+lemma muxFString_equiv {maxLen : ℕ} (sel : FB p) (a b : FString bn254 maxLen)
+  (hsel : FB.valid sel)
+  (ha : FString.valid a)
+  (ha : FString.valid b) :
+  Keyless.muxFString sel a b =
+    FString.ofString
+      (muxFString_spec
+        (FB.toBool sel)
+        (FString.toString a)
+        (FString.toString b)
+      )
+:= by
+  have h_cond_swap : F.conditionalSwap sel a.len b.len = if FB.toBool sel then a.len else b.len :=
+    F.conditionalSwap_equiv sel a.len b.len hsel
+  have h_cond_swap_data : a.data.zipWith (F.conditionalSwap sel) b.data = if FB.toBool sel then a.data else b.data := by
+    ext i; simp [F.conditionalSwap_equiv, hsel];
+    split_ifs <;> rfl;
+  have h_ofString_toString : FString.ofString (FString.toString a) = a ∧ FString.ofString (FString.toString b) = b := by
+    exact ⟨ Spec.FString.ofString_toString a ‹_›, Spec.FString.ofString_toString b ‹_› ⟩;
+  unfold Keyless.muxFString muxFString_spec; aesop;
+
+def assertFieldName_spec
+  (name expected : String)
+  (guard : Bool := true) :
+  Option Unit
+:=
+  Spec.FB.conditionallyAssert guard (name == expected)
+
+lemma assertFieldName_equiv {n : ℕ}
+  (name : FString bn254 n)
+  (hname : FString.valid name)
+  (expected : String)
+  (hchars : ∀ c ∈ expected.toList, c.toNat < 256)
+  (hlen : expected.length < bn254)
+  (guard : FB bn254)
+  (hguard : FB.valid guard):
+  Keyless.assertFieldName name expected guard =
+    assertFieldName_spec (FString.toString name) expected (FB.toBool guard)
+:= by
+  convert Spec.FB.conditionallyAssert_equiv guard _ hguard _ using 1;
+  rotate_left;
+  rotate_left;
+  exact FB.ofBool ( FString.toString name == expected );
+  · exact Spec.FB.valid_ofBool _;
+  · unfold Keyless.assertFieldName;
+    rw [ Spec.FString.isPaddedOf_equiv name expected hname hchars ( by native_decide ) hlen ];
+    grind;
+  · simp +decide [ Spec.FB.left_inv, Spec.FB.conditionallyAssert ];
+    unfold assertFieldName_spec; aesop;
+
+end Spec.Keyless
