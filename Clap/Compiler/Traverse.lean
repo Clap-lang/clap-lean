@@ -124,20 +124,20 @@ private def zetaReduce : Simproc := fun e ↦ do
     m!"\n{e}\n==>\n{new}"
   return .step new (←Sym.mkEqRefl new)
 
-def getApplicationChain (e: Expr) : Option (Expr × List Expr) := do
-  let .app function arg := e | .none
-  let .some (inner_function, args) := getApplicationChain function | .some (function, [arg])
-  return (inner_function, arg::args)
+-- def getApplicationChain (e: Expr) : Option (Expr × List Expr) := do
+--   let .app function arg := e | .none
+--   let .some (inner_function, args) := getApplicationChain function | .some (function, [arg])
+--   return (inner_function, arg::args)
 
 /--
 This is more or less `Lean.Meta.Tactic.Cbv.betaReduce`, which seems to not be exported.
 -/
 def betaReduce : Simproc := fun e ↦ do
-  let .some (inner_function, args) := getApplicationChain e | return .rfl
-  let Expr.lam _ _ _ _ := inner_function | return .rfl
-  logInfo m!"{repr e}"
-  let expr' ← Sym.shareCommonInc <| inner_function.betaRev args.toArray
-  return .step expr' (←Sym.mkEqRefl expr')
+  let (f@(.lam ..), args@⟨(.cons _ _)⟩) := e.withApp (·, ·) | return .rfl
+  let e' ← Sym.shareCommonInc <| f.beta args
+  trace[Clap.Compile.simp.proc.beta]
+    m!"\n{e}\n==>\n{e'}"
+  return .step e' (←Sym.mkEqRefl e')
 
 def zeta : MetaM Methods := do
   return {

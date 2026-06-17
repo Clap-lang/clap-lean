@@ -53,8 +53,8 @@ def g := λ a b => f a b
 
 -- set_option trace.Clap.Compile true in
 -- set_option Clap.traversalDbg true in
-set_option trace.Clap.Compile.dbg true in
-set_option maxRecDepth 100000 in
+-- set_option trace.Clap.Compile.dbg true in
+-- set_option maxRecDepth 100000 in
 #eval runTestByName ``testbetaReduction
 
 end NewTraversal
