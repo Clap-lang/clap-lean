@@ -8,6 +8,8 @@ initialize registerTraceClass `Clap.Compile.simp (inherited := true)
 
 initialize registerTraceClass `Clap.Compile.simp.proc (inherited := true)
 
+initialize registerTraceClass `Clap.Compile.simp.proc.beta (inherited := true)
+
 initialize registerTraceClass `Clap.Compile.simp.proc.kaboom (inherited := true)
 
 initialize registerTraceClass `Clap.Compile.simp.proc.getElem_mk (inherited := true)
