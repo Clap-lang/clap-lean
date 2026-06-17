@@ -6,6 +6,8 @@ initialize registerTraceClass `Clap.Compile
 
 initialize registerTraceClass `Clap.Compile.simp (inherited := true)
 
+initialize registerTraceClass `Clap.Compile.simp.consiliumMagnum (inherited := true)
+
 initialize registerTraceClass `Clap.Compile.simp.proc (inherited := true)
 
 initialize registerTraceClass `Clap.Compile.simp.proc.beta (inherited := true)
@@ -15,6 +17,8 @@ initialize registerTraceClass `Clap.Compile.simp.proc.kaboom (inherited := true)
 initialize registerTraceClass `Clap.Compile.simp.proc.getElem_mk (inherited := true)
 
 initialize registerTraceClass `Clap.Compile.simp.proc.mk_append_mk (inherited := true)
+
+initialize registerTraceClass `Clap.Compile.simp.proc.strategiaMagna (inherited := true)
 
 initialize registerTraceClass `Clap.Compile.simp.proc.vector_mapM_mk_eq_append (inherited := true)
 

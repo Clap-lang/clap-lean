@@ -12,26 +12,27 @@ def testSymSet :=
   -- ExampruSym.NewTraversal.Dom.flattenBinds_pre
   ExampruSym.NewTraversal.Dom.flattenBindsAny_pre
   ∪ ExampruSym.NewTraversal.Dom.bindPureMany_pre
+  -- ∪ Clap.Compiler.ExampruSym.NewTraversal.Dom.strategiaMagna
   ∪ SymSets.General.optionPureApply
   ∪ SymSets.Vector.unfold_generic_collection_functions_pre
-  -- ∪ SymSets.Vector.foldlM_post
+  ∪ SymSets.Vector.foldlM_post
   ∪ SymSets.General.beta
   ∪ SymSets.General.zeta
   ∪ SymSets.List.range
   ∪ Clap.SymSets.General.ground
 
-
-
-
-
 open Lean in
-def runTest (uncompiledExpr : Expr) (eval : Bool := true) := spoon <| do
+def runTest (uncompiledExpr : Expr) (eval : Bool := true)
+            (isUsingTopLevelStrategy : Bool := false) := spoon <| do
   let uncompiledTypeExpr ← Meta.inferType uncompiledExpr
   let expectedType := (Option ℕ)
 
   let time ← IO.monoMsNow
   logInfo m!"Compiling {uncompiledExpr}"
-  let compiled ← compileJustSym uncompiledExpr (←testSymSet)
+  let compiled ←
+    if isUsingTopLevelStrategy
+    then ExampruSym.NewTraversal.Dom.compilaCumStrategiaMagna uncompiledExpr (←testSymSet)
+    else compileJustSym uncompiledExpr (←testSymSet)
   Clap.Dbg.timeSince time "Compilation took:"
   logInfo m!"Compiled to {compiled}"
 
@@ -72,8 +73,8 @@ def runTest (uncompiledExpr : Expr) (eval : Bool := true) := spoon <| do
   return formatted
 
 open Lean in
-def runTestByName (testName : Name) (eval : Bool := true) : MetaM Unit := do
+def runTestByName (testName : Name) (eval : Bool := true) (isUsingTopLevelStrategy : Bool := false) : MetaM Unit := do
   let .some constantInfo := (←getEnv).find? testName | throwError m!"Undeclared constant:\n{testName}"
-  runTest constantInfo.value! eval
+  runTest constantInfo.value! eval isUsingTopLevelStrategy
 
 end ExampruSym
