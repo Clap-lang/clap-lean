@@ -140,14 +140,14 @@ def betaReduce : Simproc := fun e ↦ do
   -- let Expr.app function arg := e | return .rfl
   -- let (Expr.lam _ _ _ _) := function | return .rfl
 
-  let .some (function, args) := getApplicationChain e 2 | return .rfl
+  let .some (function', args') := getApplicationChain e 2 | return .rfl
 
   let .some (function, args) := getApplicationChain e 1 | return .rfl
   let .lam _ _ _ _ := function | return .rfl
   let args := args.toArray
   let e' ← Sym.shareCommonInc <| function.betaRev args
   trace[Clap.Compile.simp.proc.beta]
-    m!"\n{e}\n==>\n{e'}"
+    m!"\n{e}\n==>\n{e'}\nharr:{args'.length}"
   return .step e' (←Sym.mkEqRefl e')
 
 def zeta : MetaM Methods := do
