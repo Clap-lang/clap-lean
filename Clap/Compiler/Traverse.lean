@@ -799,7 +799,7 @@ def unfold_generic_mk_foldlM : Sym.Simp.Simproc := fun expr ↦ do
   let v ← Sym.getLevelInType inputType
 
   let szSimped := (←Sym.simpWithGround size).getResultExpr size
-   match szSimped.nat? with
+  match szSimped.nat? with
   | .none => throwError m!"{size} does not simplify to ground. Expr:\n{expr} (TODO: Maybe this is ok.)"
   | .some 0 =>
     -- For an empty collection, return some init
@@ -2510,22 +2510,22 @@ def flattenBinds_pre : MetaM Sym.Simp.Methods :=
   ]
 
 def substitute_unbound_bvars (body: Expr) (values: Array Expr) (types: List Expr) : Sym.SymM Expr := do
-  trace[Clap.Compile.dbg]
-    m!"substitute_unbound_bvars body: {body} values: {values} types: {types}"
+  -- trace[Clap.Compile.dbg]
+  --   m!"substitute_unbound_bvars body: {body} values: {values} types: {types}"
   let wrapped_body := types.foldr (λ argType acc => Expr.lam `x argType acc .default) body
-  trace[Clap.Compile.dbg]
-    m!"substitute_unbound_bvars wrapped_body: {wrapped_body}"
+  -- trace[Clap.Compile.dbg]
+  --   m!"substitute_unbound_bvars wrapped_body: {wrapped_body}"
   let res := wrapped_body.beta values
-  trace[Clap.Compile.dbg]
-    m!"substitute_unbound_bvars res: {res}"
+  -- trace[Clap.Compile.dbg]
+  --   m!"substitute_unbound_bvars res: {res}"
   return res
 
 -- TODO this is currently extermely specialised and not correct in unhandled cases
 -- needs to also substitute into actions
 -- could do with perhaps calling the substitution function directly rather than beta reducing?
 def applyMany (body: Expr) (args: List (Expr × Expr)) : Sym.SymM Expr := do
-  trace[Clap.Compile.dbg]
-    m!"applyMany pre: body: {body}\nargs: {args}"
+  -- trace[Clap.Compile.dbg]
+  --   m!"applyMany pre: body: {body}\nargs: {args}"
 
   -- let values := args.map Prod.fst
   -- let types := args.map Prod.snd

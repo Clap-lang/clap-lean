@@ -14,6 +14,7 @@ def testSymSet :=
   ∪ ExampruSym.NewTraversal.Dom.bindPureMany_pre
   ∪ SymSets.General.optionPureApply
   ∪ SymSets.Vector.unfold_generic_collection_functions_pre
+  -- ∪ SymSets.Vector.foldlM_post
   ∪ SymSets.General.beta
   ∪ SymSets.General.zeta
   ∪ SymSets.List.range
@@ -24,7 +25,7 @@ def testSymSet :=
 
 
 open Lean in
-def runTest (uncompiledExpr : Expr) := spoon <| do
+def runTest (uncompiledExpr : Expr) (eval : Bool := true) := spoon <| do
   let uncompiledTypeExpr ← Meta.inferType uncompiledExpr
   let expectedType := (Option ℕ)
 
@@ -33,6 +34,8 @@ def runTest (uncompiledExpr : Expr) := spoon <| do
   let compiled ← compileJustSym uncompiledExpr (←testSymSet)
   Clap.Dbg.timeSince time "Compilation took:"
   logInfo m!"Compiled to {compiled}"
+
+  if !eval then return compiled
 
   let dbgState ← getAndResetDbgState
   logInfo m!"{←dbgState.pretty}"
@@ -69,8 +72,8 @@ def runTest (uncompiledExpr : Expr) := spoon <| do
   return formatted
 
 open Lean in
-def runTestByName (testName : Name) : MetaM Unit := do
+def runTestByName (testName : Name) (eval : Bool := true) : MetaM Unit := do
   let .some constantInfo := (←getEnv).find? testName | throwError m!"Undeclared constant:\n{testName}"
-  runTest constantInfo.value!
+  runTest constantInfo.value! eval
 
 end ExampruSym
