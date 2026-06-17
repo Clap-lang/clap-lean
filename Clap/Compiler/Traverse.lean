@@ -124,16 +124,20 @@ private def zetaReduce : Simproc := fun e ↦ do
     m!"\n{e}\n==>\n{new}"
   return .step new (←Sym.mkEqRefl new)
 
+def getApplicationChain (e: Expr) : Option (Expr × List Expr) := do
+  let .app function arg := e | .none
+  let .some (inner_function, args) := getApplicationChain function | .some (function, [arg])
+  return (inner_function, arg::args)
+
 /--
 This is more or less `Lean.Meta.Tactic.Cbv.betaReduce`, which seems to not be exported.
 -/
 def betaReduce : Simproc := fun e ↦ do
-  let .app e arg := e | return .rfl
-  let .lam .. := e | return .rfl
-  logInfo m!"e: {e}"
-  let e' := e.beta #[arg]
-  logInfo m!"e': {e'}"
-  return .step (←shareCommonInc e') (←Sym.mkEqRefl e')
+  let .some (inner_function, args) := getApplicationChain e | return .rfl
+  let Expr.lam _ _ _ _ := inner_function | return .rfl
+  logInfo m!"{repr e}"
+  let expr' ← Sym.shareCommonInc <| inner_function.betaRev args.toArray
+  return .step expr' (←Sym.mkEqRefl expr')
 
 def zeta : MetaM Methods := do
   return {
@@ -141,9 +145,12 @@ def zeta : MetaM Methods := do
   }
 
 def beta : MetaM Methods := do
-  return {
-    pre := betaReduce
-  }
+  -- mkPreMethods #[
+  --   `Clap.Compiler.SymSets.General.betaReduce
+  -- ] ∪
+  mkPostMethods #[
+    `Clap.Compiler.SymSets.General.betaReduce
+  ]
 
 def control : MetaM Methods := do
   return {
@@ -775,33 +782,65 @@ def foldlM_singlePass : Sym.Simp.Simproc := fun e ↦ do
       let bind ← Sym.shareCommonInc <| mkApp2 (.const ``Option.bind [v, u]) head tail
       return .step bind (←mkSorry (←mkEq e bind) false)
 
+#check Option.bind
 
--- /--
--- `[1, 2, 3, 4].foldlM f b` ==>
--- `f b 1 >>= λ next → f next 2 >>= λ next → f next 3 >>= λ next ↦ pure next`
--- -/
--- def foldlM_mk : Sym.Simp.Simproc := fun e ↦ do
---   let .some [α, β, f, init, xs] := e.foldlM? | return .rfl
---   /-
---   TODO(perf): With head|tail reasoning, we don't need to traverse the full list literal expr.
---               Using `sequenced` does just that.
---   -/
---   let .some (elems, ⟨⟨_, k, .some sz⟩, listExpr⟩) ← sequenced xs | return .rfl
---   let szSimped := (←Sym.simpWithGround sz).getResultExpr sz
---   match szSimped.nat? with
---   | .none => throwError m!"{sz} does not simplify to ground. Expr:\n{e} (TODO: Maybe this is ok.)"
---   | .some _szSimpedNat => -- TODO(check)
---     let u ← Sym.getLevelInType β
---     let v ← Sym.getLevelInType α
---     let tail ← Sym.shareCommonInc <| mkAppN (.const ``Option.some [u]) #[β, .bvar 0]
---     let e' ← elems.foldrM (init := tail) fun tail x ↦ do
---       -- `f tail x`
---       let next ← Sym.shareCommonInc <| mkApp2 f (.bvar 0) x
---       let lam := Expr.lam `next β tail .default
---       Sym.shareCommonInc <| mkApp2 (.const ``Option.bind [v, u]) next lam
---     trace[Clap.Compile.simp.proc.vector_foldlM_mk]
---       m!"\n{e}\n==>\n{e'}"
---     return .step e' (←mkSorry (←mkEq e e') false)
+/--
+`[1, 2, 3, 4].foldlM f b` ==>
+`f b 1 >>= λ next → f next 2 >>= λ next → f next 3 >>= λ next ↦ pure next`
+-/
+def unfold_generic_mk_foldlM : Sym.Simp.Simproc := fun expr ↦ do
+  let .some [inputType, outputType, f, init, collection] := expr.foldlM? | return .rfl
+  let .some (elems, ⟨⟨_, _, .some size⟩, _⟩) ← sequenced collection | return .rfl
+
+  trace[Clap.Compile.dbg]
+    m!"Unfold_generic_mk_foldlM\nelems:{elems}\nsize:{size}"
+
+  let u ← Sym.getLevelInType outputType
+  let v ← Sym.getLevelInType inputType
+
+  let szSimped := (←Sym.simpWithGround size).getResultExpr size
+   match szSimped.nat? with
+  | .none => throwError m!"{size} does not simplify to ground. Expr:\n{expr} (TODO: Maybe this is ok.)"
+  | .some 0 =>
+    -- For an empty collection, return some init
+    let expr' ← Sym.shareCommonInc <| mkAppN (.const ``Option.some [u]) #[outputType, init]
+    trace[Clap.Compile.dbg]
+      m!"Unfold_generic_mk_foldlM 0 branch\nexpr':{expr'}"
+    trace[Clap.Compile.dbg]
+      m!"\n{expr}\n==>\n{expr'}"
+    return .step expr' (←mkSorry (←mkEq expr expr') false)
+  | .some _szSimpedNat => -- TODO(check)
+    -- some next
+    let chain_base ← Sym.shareCommonInc <| mkAppN (.const ``Option.some [u]) #[outputType, .bvar 0]
+
+    -- repeated (f x elem).bind fun x => acc
+
+    let chain := elems.foldr (
+      λ (elem: Expr) (acc: Expr) =>
+        let bind_lhs := mkApp2 f (.bvar 0) elem
+        let bind_rhs := Expr.lam `next outputType acc .default
+        let bind := mkApp4 (.const `Option.bind [v, u]) inputType outputType bind_lhs bind_rhs
+        bind
+    ) chain_base
+
+    let wrapped_chain := Expr.lam `init outputType chain .default
+
+    trace[Clap.Compile.dbg]
+      m!"Unfold_generic_mk_foldlM init: {init} elems: {elems} wrapped_chain: {wrapped_chain}"
+
+    let reduced_chain := wrapped_chain.beta #[init]
+
+    trace[Clap.Compile.dbg]
+      m!"Unfold_generic_mk_foldlM reduced_chain: {reduced_chain}"
+
+    let expr' ← Sym.shareCommonInc <| reduced_chain
+
+
+    trace[Clap.Compile.dbg]
+      m!"\n{expr}\n==>\n{expr'}"
+
+    return .step expr' (←mkSorry (←mkEq expr expr') false)
+
 
 def foldlM : MetaM Methods :=
   mkPreMethods #[
@@ -852,6 +891,18 @@ def getElem_mk : Sym.Simp.Simproc := fun e => do
     return .step e' (←Sym.mkEqRefl e')
   else
     return .rfl
+
+def unfold_generic_collection_functions_pre : MetaM Methods :=
+  mkPreMethods #[
+    `Clap.Compiler.SymSets.Vector.unfold_generic_mk_foldlM,
+    `Clap.Compiler.SymSets.Vector.getElem_mk
+  ]
+
+def unfold_generic_collection_functions_post : MetaM Methods :=
+  mkPostMethods #[
+    `Clap.Compiler.SymSets.Vector.unfold_generic_mk_foldlM,
+    `Clap.Compiler.SymSets.Vector.getElem_mk
+  ]
 
 open SymSets
 
@@ -1887,11 +1938,13 @@ def ppMonad (e : Expr) : MetaM Expr := do
 def liftExpr (m : Sym.Simp.SimpM Expr) : MetaM Expr := do
   m.run' {} |>.run
 
-def spoon (m : Sym.Simp.SimpM Expr) : MetaM Unit := do
+def spoon (m : Sym.Simp.SimpM Expr) (pretty := true) : MetaM Unit := do
   let compiled ← liftExpr m
-  let pretty ← ppMonad compiled
-  -- logInfo m!"Compiled:\n{compiled}"
-  logInfo m!"Compiled:\n{pretty}"
+  if pretty then
+    let pretty ← ppMonad compiled
+    logInfo m!"Compiled:\n{pretty}"
+  else
+    logInfo m!"Compiled:\n{compiled}"
 
 def x :=
   let x := 42
@@ -2472,17 +2525,31 @@ def applyMany (body: Expr) (args: List (Expr × Expr)) : Sym.SymM Expr := do
   trace[Clap.Compile.dbg]
     m!"applyMany pre: body: {body}\nargs: {args}"
 
-  let values := args.map Prod.fst
-  let types := args.map Prod.snd
+  -- let values := args.map Prod.fst
+  -- let types := args.map Prod.snd
 
-  let values ← values.zipIdx.mapM (
-    λ (value, idx) => do substitute_unbound_bvars value (values.take idx).toArray (types.take idx)
-  )
+  -- let values ← values.zipIdx.mapM (
+  --   λ (value, idx) => do substitute_unbound_bvars value (values.take idx).toArray (types.take idx)
+  -- )
 
+  let mut args := args
 
+  for ((value, type), idx) in args.zipIdx do
+    let (values, types) := args.unzip
+    let value ← substitute_unbound_bvars
+      value
+      (values.take idx).toArray
+      (types.take idx)
+    let type ← substitute_unbound_bvars
+      type
+      (values.take idx).toArray
+      (types.take idx)
+    args := args.set idx (value, type)
 
   trace[Clap.Compile.dbg]
-    m!"applyMany during: values: {values}"
+    m!"applyMany during: args: {args}"
+
+  let (values, types) := args.unzip
 
   let res ← substitute_unbound_bvars body values.toArray types
 

@@ -12,16 +12,11 @@ def testSymSet :=
   -- ExampruSym.NewTraversal.Dom.flattenBinds_pre
   ExampruSym.NewTraversal.Dom.flattenBindsAny_pre
   ∪ ExampruSym.NewTraversal.Dom.bindPureMany_pre
-  -- ∪ SymSets.General.compilerSet_bind_some -- in case bindPureMany is buggy
   ∪ SymSets.General.optionPureApply
-  ∪ SymSets.Vector.mapM_alt
+  ∪ SymSets.Vector.unfold_generic_collection_functions_pre
   ∪ SymSets.General.beta
   ∪ SymSets.General.zeta
-  ∪ SymSets.Vector.getElem
-  -- ∪ SymSets.Vector.foldlM_mk_post
-  ∪ SymSets.Vector.foldlM_post
   ∪ SymSets.List.range
-  ∪ SymSets.Vector.set
   ∪ Clap.SymSets.General.ground
 
 
