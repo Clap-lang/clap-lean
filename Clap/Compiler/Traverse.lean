@@ -892,18 +892,6 @@ def getElem_mk : Sym.Simp.Simproc := fun e => do
   else
     return .rfl
 
-def unfold_generic_collection_functions_pre : MetaM Methods :=
-  mkPreMethods #[
-    `Clap.Compiler.SymSets.Vector.unfold_generic_mk_foldlM,
-    `Clap.Compiler.SymSets.Vector.getElem_mk
-  ]
-
-def unfold_generic_collection_functions_post : MetaM Methods :=
-  mkPostMethods #[
-    `Clap.Compiler.SymSets.Vector.unfold_generic_mk_foldlM,
-    `Clap.Compiler.SymSets.Vector.getElem_mk
-  ]
-
 open SymSets
 
 def toArray : MetaM Methods :=
@@ -1586,6 +1574,20 @@ def processWrapped : Sym.Simp.Simproc := fun e ↦ do
 
 def wrapped : MetaM Methods :=
   mkPreMethods #[``processWrapped]
+
+def unfold_generic_collection_functions_pre : MetaM Methods :=
+  mkPreMethods #[
+    ``Clap.Compiler.SymSets.Vector.unfold_generic_mk_foldlM,
+    ``Clap.Compiler.SymSets.Vector.getElem_mk,
+    ``Vector.set_mk
+  ]
+
+def unfold_generic_collection_functions_post : MetaM Methods :=
+  mkPostMethods #[
+    ``Clap.Compiler.SymSets.Vector.unfold_generic_mk_foldlM,
+    ``Clap.Compiler.SymSets.Vector.getElem_mk,
+    ``Vector.set_mk
+  ]
 
 end Vector
 

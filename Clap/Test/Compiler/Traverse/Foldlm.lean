@@ -19,10 +19,10 @@ abbrev sigma_unshared (x : ℕ) : Option (ℕ) := do
   some (x4 * x)
 
 def testFoldlM : Option ℕ := do
-  let xs ← (List.range 4).foldlM (fun state r ↦ do
+  let xs ← (List.range 2).foldlM (fun state r ↦ do
     let s0 ← sigma_unshared state[0]
     state.set 0 s0
-    ) #v[5, 2, 3]
+    ) #v[1, 2, 3]
   let x ← xs[0]
   return x
 
