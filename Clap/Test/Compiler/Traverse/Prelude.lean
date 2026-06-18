@@ -10,12 +10,14 @@ opaque H : ℕ → Option ℕ
 
 def testSymSet :=
   -- ExampruSym.NewTraversal.Dom.flattenBinds_pre
-  ExampruSym.NewTraversal.Dom.flattenBindsAny_pre
-  ∪ ExampruSym.NewTraversal.Dom.bindPureMany_pre
+  -- SymSets.Vector.unwrap_s
+  -- ExampruSym.NewTraversal.Dom.flattenBindsAny_pre
+  -- ∪ ExampruSym.NewTraversal.Dom.bindPureMany_pre
   -- ∪ Clap.Compiler.ExampruSym.NewTraversal.Dom.strategiaMagna
-  ∪ SymSets.General.optionPureApply
+  -- ∪
+  SymSets.General.optionPureApply
   ∪ SymSets.Vector.unfold_generic_collection_functions_pre
-  ∪ SymSets.Vector.foldlM_post
+  -- ∪ SymSets.Vector.foldlM_post
   ∪ SymSets.General.beta
   ∪ SymSets.General.zeta
   ∪ SymSets.List.range
