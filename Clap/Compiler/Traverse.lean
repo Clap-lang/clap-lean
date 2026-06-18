@@ -879,31 +879,35 @@ def foldlM_stagger : Sym.Simp.Simproc := fun e ↦ do
   let .some [m, inst, α, β, f, init, collection] := e.foldlMInfo? | return .rfl
   -- TODO(perf): `coll` not necessary in full
   let .some ⟨_, listExpr⟩ := Collection.ofExpr collection | return .rfl
-  let us@([u, v, w]) := e.getAppFn.constLevels! | unreachable!
-  -- let listFold ← Sym.shareCommonInc <|
-  --   mkApp7
-  --     (.const ``List.foldlM us)
-  --     m inst 
-  --     β α f init listExpr
+  -- let us@([u, v, w]) := e.getAppFn.constLevels! | unreachable!
+  let u₁ ← Sym.getLevelInType β
+  let u₂ := u₁
+  let u₃ ← Sym.getLevelInType α
+  let listFold ← Sym.shareCommonInc <|
+    mkApp7
+      (.const ``List.foldlM [u₁, u₂, u₃])
+      m inst 
+      β α f init listExpr
   match_expr listExpr with
   | List.cons _ hd tl =>
     -- let theorems : Theorems := ({} : Theorems).insert (←mkTheoremFromDecl ``List.foldlM_cons)
     -- let e' ← theorems.rewrite dischargeNone listFold
     -- let e' := e'.getResultExpr e
-    let .some head := listExpr.listLitHead | unreachable!
-    let head ← Sym.shareCommonInc <| mkApp2 f init head
-    let .some xs := listExpr.listLitTail | unreachable!
-    let tail ← Sym.shareCommonInc <| mkApp7 (.const ``List.foldlM us)
+    let head ← Sym.shareCommonInc <| f.beta #[init, hd]
+    let tail ← Sym.shareCommonInc <| mkApp7 (.const ``List.foldlM [u₁, u₂, u₃])
                                             m inst
-                                            β α f (.bvar 0) xs
-    let e' ← Sym.shareCommonInc <| mkApp4 (.const ``Option.bind [v, u]) β α head tail
+                                            β α f (.bvar 0) tl
+    let lambda ← Sym.shareCommonInc <| .lam `next β tail .default
+    -- TODO(perf): Hand-write the types I guess vOv.
+    let tailτ ← Sym.inferType tail
+    let tailτu ← Sym.getLevelInType tailτ
+    let e' ← Sym.shareCommonInc <| mkApp4 (.const ``Option.bind [u₁, tailτu]) β tailτ head lambda
     trace[Clap.Compile.simp.proc.vector_foldlM_stagger]
       m!"\n{e}\n==>\n{e'}"
-    -- TODO(perf): Hand-write the type.
     let e' ← Sym.shareCommonInc <| Simp.wrapped (←Sym.inferType e') e'
     return .step e' (←mkSorry (←mkEq e e') false) (done := true)
   | _ =>
-    let e' := mkApp2 (.const ``Option.some [u]) β init
+    let e' := mkApp2 (.const ``Option.some [u₁]) β init
     trace[Clap.Compile.simp.proc.vector_foldlM_stagger]
       m!"\n{e}\n==>\n{e'}"
     return .step e' (←mkSorry (←mkEq e e') false) (done := true)
