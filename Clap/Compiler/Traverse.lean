@@ -51,13 +51,16 @@ def getSimproc (name : Name) : MetaM Sym.Simp.Simproc := do
 
 def orElse (names : Array Name) : MetaM Sym.Simp.Simproc := do
   let simprocs ← names.mapM getSimproc
-  return simprocs.foldl (· <|> ·) (fun _ ↦ return .rfl) -- I hope this is the `.continue`...
+  return simprocs.foldl (· <|> ·) (fun _ ↦ return .rfl)
 
 def andThen (names : Array Name) : MetaM Sym.Simp.Simproc := do
   let simprocs ← names.mapM getSimproc
-  return simprocs.foldl (· >> ·) (fun _ ↦ return .rfl) -- I hope this is the `.continue`...
+  return simprocs.foldl (· >> ·) (fun _ ↦ return .rfl)
 
-def rewriteWithLog (name : String) (f : Simproc) : Simproc :=
+/--
+A simproc with logging enabled.
+-/
+def withLog (name : String) (f : Simproc) : Simproc :=
   fun e ↦ do
     let (res, time) ← Dbg.timeS (f e)
     match res with
@@ -69,14 +72,44 @@ def rewriteWithLog (name : String) (f : Simproc) : Simproc :=
         trace[Clap.Compile.dbg] m!"\n{e}\n={name}=>\n{e'}"
         return res
 
--- dischargeSimpSelf
+/--
+A simproc of sequenced simprocs with logging enabled.
+-/
+def andThenWithLog (names : Array Name) : MetaM Sym.Simp.Simproc := do
+  let simprocs ← names.mapM getSimproc
+  return (simprocs.zip names).foldl (init := fun _ ↦ return .rfl) fun acc (proc, name) ↦
+    acc >> withLog name.componentsRev.head!.toString proc
+
+/--
+A variation on `Lean.Meta.Sym.Simp.Theorems.rewrite` that composes with a logging proc.
+-/
+def _root_.Lean.Meta.Sym.Simp.Theorems.rewriteWithLog
+  (thms : Theorems) (d : Discharger := dischargeNone) : Simproc := fun e => do
+  let mut anyCD := false
+  for (thm, numExtra) in thms.getMatchWithExtra e do
+    let rw := withLog thm.declName.get!.componentsRev.head!.toString (thm.rewrite (d := d))
+    let result ←
+      if numExtra == 0
+      then rw e
+      else simpOverApplied e numExtra rw
+    anyCD := anyCD || result.isContextDependent
+    if !result.isRfl then
+      return if anyCD && !result.isContextDependent then result.withContextDependent else result
+  return mkRflResultCD anyCD
+
+def mkSimprocForWithLog (declNames : Array Name) (d : Discharger := dischargeNone) : MetaM Simproc := do
+  let mut thms : Theorems := {}
+  for declName in declNames do
+    thms := thms.insert (← mkTheoremFromDecl declName)
+  return thms.rewrite d
+
 def mkPostMethods (declNames : Array Name)
                   (d : Discharger := Sym.Simp.dischargeNone) : MetaM Methods := do
   let (procs, thms) ← declNames.toList.partitionM (liftM ∘ isSimproc)
-  let procs ← andThen procs.toArray
+  let procs ← andThenWithLog procs.toArray
 
   let totalName := declNames.foldl (λ acc name => name.toString ++ acc) ""
-  let proc := rewriteWithLog totalName ((←mkSimprocFor thms.toArray d) >> procs)
+  let proc := withLog totalName ((←mkSimprocFor thms.toArray d) >> procs)
 
   return { post := proc }
 
@@ -89,15 +122,35 @@ def mkPostMethodsSinglePass (declNames : Array Name)
   let procs ← orElse procs.toArray
   return { post := procs >> (←mkSimprocFor thms.toArray d) }
 
--- dischargeSimpSelf
 def mkPreMethods (declNames : Array Name)
                  (d : Discharger := Sym.Simp.dischargeNone) : MetaM Methods := do
   let (procs, thms) ← declNames.toList.partitionM (liftM ∘ isSimproc)
-
   let totalName := declNames.foldl (λ acc name => name.toString ++ acc) ""
   let procs ← andThen procs.toArray
-  let proc := rewriteWithLog totalName (procs >> (←mkSimprocFor thms.toArray d))
+  let proc := withLog totalName (procs >> (←mkSimprocFor thms.toArray d))
   return { pre := proc }
+
+inductive PrePost where | Pre | Post
+  deriving DecidableEq, Repr
+
+instance : Inhabited PrePost := ⟨.Post⟩
+
+def mkMethods (components : Array (Name × PrePost))
+              (d : Discharger := Sym.Simp.dischargeSimpSelf) : MetaM Methods := do
+  let (procs, thms) ← components.toList.partitionM fun (name, _) ↦ isSimproc name
+  let (preProcs, postProcs) := partitionPrePost procs
+  let (preThms, postThms) := partitionPrePost thms
+  let preProcs ← andThenWithLog preProcs.toArray
+  let preThms ← mkSimprocForWithLog preThms.toArray d
+  let postProcs ← andThenWithLog postProcs.toArray
+  let postThms ← mkSimprocForWithLog postThms.toArray d
+
+  let pre := preProcs >> preThms
+  let post := postProcs >> postThms
+  return { pre := pre, post := post }
+
+  where partitionPrePost (arg : List (Name × PrePost)) :=
+    (arg.partition fun (_, prePost) ↦ prePost matches .Pre).map (·.map Prod.fst) (·.map Prod.fst)
 
 namespace Monad
 
@@ -306,17 +359,17 @@ def monad : Sym.Simp.Simproc := fun e ↦ do
   | _ =>
     return .rfl
 
-def _root_.Lean.Expr.matchBindsE (e : Expr) : Option (Expr × Expr) :=
-  match_expr e with
-  | Bind.bind _ _ _ _ a f => .some (a, f)
-  | Option.bind   _ _ a f => .some (a, f)
-  | _                     => .none
+-- def _root_.Lean.Expr.matchBindsE (e : Expr) : Option (Expr × Expr) :=
+--   match_expr e with
+--   | Bind.bind _ _ _ _ a f => .some (a, f)
+--   | Option.bind   _ _ a f => .some (a, f)
+--   | _                     => .none
 
-def _root_.Lean.Expr.matchBindsEInfo (e : Expr) : Option (List Level × Array Expr) :=
-  match_expr e with
-  | Bind.bind _ _ α β a f => .some (e.getAppFn.constLevels!, #[α, β, a, f])
-  | Option.bind   α β a f => .some (e.getAppFn.constLevels!, #[α, β, a, f])
-  | _                     => .none
+-- def _root_.Lean.Expr.matchBindsEInfo (e : Expr) : Option (List Level × Array Expr) :=
+--   match_expr e with
+--   | Bind.bind _ _ α β a f => .some (e.getAppFn.constLevels!, #[α, β, a, f])
+--   | Option.bind   α β a f => .some (e.getAppFn.constLevels!, #[α, β, a, f])
+--   | _                     => .none
 
 def bind_eq_bind_sym {α} {β} := (Option.bind_eq_bind (α := α) (β := β)).symm
 
@@ -2599,95 +2652,36 @@ def flattenBinds_pre : MetaM Sym.Simp.Methods :=
     ``flattenBinds
   ]
 
-def substitute_unbound_bvars (body: Expr) (values: Array Expr) (types: List Expr) : Sym.SymM Expr := do
-  -- trace[Clap.Compile.dbg]
-  --   m!"substitute_unbound_bvars body: {body} values: {values} types: {types}"
-  let wrapped_body := types.foldr (λ argType acc => Expr.lam `x argType acc .default) body
-  -- trace[Clap.Compile.dbg]
-  --   m!"substitute_unbound_bvars wrapped_body: {wrapped_body}"
-  let res := wrapped_body.beta values
-  -- trace[Clap.Compile.dbg]
-  --   m!"substitute_unbound_bvars res: {res}"
-  return res
-
+-- /-
 -- TODO this is currently extermely specialised and not correct in unhandled cases
 -- needs to also substitute into actions
 -- could do with perhaps calling the substitution function directly rather than beta reducing?
-def applyMany (body: Expr) (args: List (Expr × Expr)) : Sym.SymM Expr := do
-  -- trace[Clap.Compile.dbg]
-  --   m!"applyMany pre: body: {body}\nargs: {args}"
+-- -/
+-- def applyMany (body: Expr) (args: List (Expr × Expr)) : Sym.SymM Expr := do
+--   let mut args := args
+--   for ((value, type), idx) in args.zipIdx do
+--     let (values, types) := args.unzip
+--     let value ← substitute_unbound_bvars
+--       value
+--       (values.take idx).toArray
+--       (types.take idx)
+--     let type ← substitute_unbound_bvars
+--       type
+--       (values.take idx).toArray
+--       (types.take idx)
+--     args := args.set idx (value, type)
+--   let (values, types) := args.unzip
+--   substitute_unbound_bvars body values.toArray types
 
-  -- let values := args.map Prod.fst
-  -- let types := args.map Prod.snd
+-- def bindPureMany_pre : MetaM Sym.Simp.Methods :=
+--   mkPreMethods #[
+--     ``bindPureMany
+--   ]
 
-  -- let values ← values.zipIdx.mapM (
-  --   λ (value, idx) => do substitute_unbound_bvars value (values.take idx).toArray (types.take idx)
-  -- )
-
-  let mut args := args
-
-  for ((value, type), idx) in args.zipIdx do
-    let (values, types) := args.unzip
-    let value ← substitute_unbound_bvars
-      value
-      (values.take idx).toArray
-      (types.take idx)
-    let type ← substitute_unbound_bvars
-      type
-      (values.take idx).toArray
-      (types.take idx)
-    args := args.set idx (value, type)
-
-  -- trace[Clap.Compile.dbg]
-  --   m!"applyMany during: args: {args}"
-
-  let (values, types) := args.unzip
-
-  let res ← substitute_unbound_bvars body values.toArray types
-
-  -- trace[Clap.Compile.dbg]
-  --   m!"applyMany post: {res}"
-
-  return res
-
-def _root_.Lean.Expr.pure? (e : Expr) : Option Expr :=
-  match_expr e with
-  | pure _ _ _ x => .some x
-  | Option.some _ x => .some x
-  | _ => .none
-
-partial def get_bind_pure_lambdas (expr: Expr) : Sym.SymM (List (Bind × Expr)) := do
-  let Option.some firstBind := ←expr.matchBinds | return []
-  let .some value := firstBind.aₗ.pure? | return []
-  let .lam (body := body) .. := firstBind.aᵣ | return []
-  return (firstBind, value) :: (←get_bind_pure_lambdas body)
-
-def bindPureMany : Sym.Simp.Simproc := fun expr ↦ do
-  let bind_pure_lambdas ← get_bind_pure_lambdas expr
-  if bind_pure_lambdas.isEmpty then return .rfl
-  let .some (bind, _) := bind_pure_lambdas.getLast? | return .rfl
-  let .lam (body := body) .. := bind.aᵣ | return .rfl
-
-
-
-  let expr' ← applyMany body (
-    bind_pure_lambdas.map λ (bind, value) => (value, bind.α)
-  )
-
-
-  trace[Clap.Compile.simp.proc.bindPureMany]
-    logRewrite expr expr' s!"{bind_pure_lambdas.length}"
-  return .step expr' (←mkSorry (←mkEq expr expr') false)
-
-def bindPureMany_pre : MetaM Sym.Simp.Methods :=
-  mkPreMethods #[
-    ``bindPureMany
-  ]
-
-def bindPureMany_post : MetaM Sym.Simp.Methods :=
-  mkPostMethods #[
-    ``bindPureMany
-  ]
+-- def bindPureMany_post : MetaM Sym.Simp.Methods :=
+--   mkPostMethods #[
+--     ``bindPureMany
+--   ]
 #check Array.foldl
 open Lean Meta in
 /--
@@ -2739,80 +2733,210 @@ def flattenBindsAny_pre : MetaM Sym.Simp.Methods :=
     ``flattenBindsAny
   ]
 
-/-
-  A >>= B >>= C
+-- /--
+--   consilium magnum - grand plan
+--   ire - go
+--   planus est - is flat
+-- -/
+-- partial def consiliumMagnum' (simpset : Sym.Simp.Methods) (e : Expr) (Γ : Std.HashSet Expr := {}) (dbg : Nat := 42) : Sym.Simp.SimpM Expr := do
+--   if dbg == 0 then return e
+--   let ire (e : Expr) (Γ : Std.HashSet Expr) := consiliumMagnum' simpset e Γ dbg.pred
+--   let simp (e : Expr) : Sym.Simp.SimpM Sym.Simp.Result := do
+--     let e' ← Sym.simp e simpset
+--     match e' with
+--     | .rfl .. => return e'
+--     | .step e' prf done ctxDep =>
+--       return .step (Simp.unwrapped e') prf done ctxDep
+--   match e.matchBindsEInfo with
+--   | .some (usᵣ, #[αᵣ, βᵣ, aᵣ, fᵣ]) =>
+--     if Γ.contains aᵣ
+--     then
+--       trace[Clap.Compile.simp.consiliumMagnum]
+--         m!"Skip:\n{aᵣ}"
+--       ire fᵣ Γ
+--     else
+--       match aᵣ.matchBindsEInfo with
+--       | .some (wsₗ, #[αₗ, βₗ, aₗ, gₗ]) =>
+--         let e' ← planusEst e
+--         let e' ← chainActionsInferType e'
+--         trace[Clap.Compile.simp.consiliumMagnum]
+--           m!"Flatten:\n{e}\n==>\n{e'}"
+--         ire e' Γ
+--       | _ =>
+--         -- TODO: Structure this better  
+--         let ωₗ ← simp aᵣ
+--         match ωₗ with
+--         | .rfl .. =>
+--           let Γ := Γ.insert aᵣ
+--           /-
+--             TODO: Using `bindPureMany` here would be ideal, but the intermediate `some`s
+--             need simping apriori.
+--           -/
+--           match ←bindPureMany e with
+--           | .step e' ..  =>
+--             trace[Clap.Compile.simp.consiliumMagnum]
+--               m!"Feedforward:\n{e}\n==>\n{e'}"
+--             ire e' Γ
+--           | .rfl .. =>
+--             ire e Γ
+--         | .step ωₗ .. =>
+--           trace[Clap.Compile.simp.consiliumMagnum]
+--             m!"Focus:\n{aᵣ}\nin:\n{e}\n==>\n{ωₗ}"
+--           let e' ← Sym.shareCommonInc <| mkApp4 (.const ``Option.bind usᵣ) αᵣ βᵣ ωₗ fᵣ
+--           ire e' Γ
+--   | _ =>
+--     let e' ← simp e
+--     let e' := e'.getResultExpr e
+--     trace[Clap.Compile.simp.consiliumMagnum]
+--       m!"Simplify:\n{e}\n==>\n{e'}"
+--     if Sym.isSameExpr e e' then return e
+--     ire e' Γ
 
--/
+-- def compilaCumStrategiaMagna' (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
+--   let e ← Compiler.Simp.preprocessExpr e
+--   let res ← lambdaTelescope e fun args e ↦ do
+--     let time ← IO.monoMsNow
+--     let compiled ← consiliumMagnum' simpset e
+--     Dbg.timeSince time "Compilation took:"
+--     let σ ← getDbgState
+--     logInfo m!"{←σ.pretty}"
+--     Sym.mkLambdaFVarsS args compiled
+--   Sym.shareCommonInc res
 
-/-
+section ExpressionAnalysis
 
-`g : ℕ → α`
+def _root_.Lean.Expr.pure? (e : Expr) : Option Expr :=
+  match_expr e with
+  | pure    _ _ _ x => .some x
+  | Option.some _ x => .some x
+  | _               => .none
 
-`f (((((fun a b c ↦ ((g a) b) c) 1) 2) 3) 4)`
+def _root_.Lean.Expr.bind? (e : Expr) : Option (Expr × Expr) :=
+  match_expr e with
+  | Bind.bind _ _ _ _ a f => .some (a, f)
+  | Option.bind   _ _ a f => .some (a, f)
+  | _                     => .none
 
+def _root_.Lean.Expr.bindInfo? (e : Expr) : Option (List Level × Array Expr) :=
+  match_expr e with
+  | Bind.bind _ _ α β a f => .some (e.getAppFn.constLevels!, #[α, β, a, f])
+  | Option.bind   α β a f => .some (e.getAppFn.constLevels!, #[α, β, a, f])
+  | _                     => .none
 
--/
+end ExpressionAnalysis
+
+namespace Sets
+
+namespace Structural
+
+section bindPureMany
 
 /--
-  consilium magnum - grand plan
-  ire - go
-  planus est - is flat
+`pure a₁ >>= fun _ : τ₁ ↦ pure a₂ >>= fun _ : τ₂ ↦ ...` ==>
+`[(a₁, τ₁, fun _ ↦ pure a₂ >>= fun _ ↦ ...), (a₂, τ₂, fun _ ↦ fun _ ↦ ...), ...]`
 -/
-partial def consiliumMagnum (simpset : Sym.Simp.Methods) (e : Expr) (Γ : Std.HashSet Expr := {}) (dbg : Nat := 42) : Sym.Simp.SimpM Expr := do
-  if dbg == 0 then return e
-  let ire (e : Expr) (Γ : Std.HashSet Expr) := consiliumMagnum simpset e Γ dbg.pred
-  let simp (e : Expr) : Sym.Simp.SimpM Sym.Simp.Result := do
-    let e' ← Sym.simp e simpset
-    match e' with
-    | .rfl .. => return e'
-    | .step e' prf done ctxDep =>
-      return .step (Simp.unwrapped e') prf done ctxDep
-  match e.matchBindsEInfo with
-  | .some (usᵣ, #[αᵣ, βᵣ, aᵣ, fᵣ]) =>
-    if Γ.contains aᵣ
-    then
-      trace[Clap.Compile.simp.consiliumMagnum]
-        m!"Skip:\n{aᵣ}"
-      ire fᵣ Γ
-    else
-      match aᵣ.matchBindsEInfo with
-      | .some (wsₗ, #[αₗ, βₗ, aₗ, gₗ]) =>
-        let e' ← planusEst e
-        let e' ← chainActionsInferType e'
-        trace[Clap.Compile.simp.consiliumMagnum]
-          m!"Flatten:\n{e}\n==>\n{e'}"
-        ire e' Γ
-      | _ =>
-        -- TODO: Structure this better  
-        let ωₗ ← simp aᵣ
-        match ωₗ with
-        | .rfl .. =>
-          let Γ := Γ.insert aᵣ
-          /-
-            TODO: Using `bindPureMany` here would be ideal, but the intermediate `some`s
-            need simping apriori.
-          -/
-          match ←bindPureMany e with
-          | .step e' ..  =>
-            trace[Clap.Compile.simp.consiliumMagnum]
-              m!"Feedforward:\n{e}\n==>\n{e'}"
-            ire e' Γ
-          | .rfl .. =>
-            ire e Γ
-        | .step ωₗ .. =>
-          trace[Clap.Compile.simp.consiliumMagnum]
-            m!"Focus:\n{aᵣ}\nin:\n{e}\n==>\n{ωₗ}"
-          let e' ← Sym.shareCommonInc <| mkApp4 (.const ``Option.bind usᵣ) αᵣ βᵣ ωₗ fᵣ
-          ire e' Γ
-  | _ =>
-    let e' ← simp e
-    let e' := e'.getResultExpr e
-    trace[Clap.Compile.simp.consiliumMagnum]
-      m!"Simplify:\n{e}\n==>\n{e'}"
-    if Sym.isSameExpr e e' then return e
-    ire e' Γ
+partial def getBindPureLambdas (expr : Expr) : Option (List (Expr × Expr × Expr)) := do
+  let (_, #[α, _, a, f]) ← expr.bindInfo? | .none
+  let value ← a.pure?
+  let .lam (body := body) .. := f | .none
+  return (value, α, f) :: (←getBindPureLambdas body)
 
-def compilaCumStrategiaMagna (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
+def substituteUnboundBvars (body : Expr) (values types : Array Expr) : Sym.SymM Expr := do
+  let wrappedBody := types.foldr (init := body) fun argType acc => .lam `x argType acc .default
+  return wrappedBody.beta values
+
+/-
+TODO this is currently extermely specialised and not correct in unhandled cases
+needs to also substitute into actions
+could do with perhaps calling the substitution function directly rather than beta reducing?
+-/
+def applyMany (body: Expr) (args: Array (Expr × Expr)) : Sym.SymM Expr := do
+  let mut args := args
+  for ((value, type), idx) in args.zipIdx do
+    let (values, types) := args.unzip
+    let value ← substituteUnboundBvars
+      value
+      (values.take idx)
+      (types.take idx)
+    let type ← substituteUnboundBvars
+      type
+      (values.take idx)
+      (types.take idx)
+    args := args.set! idx (value, type)
+  let (values, types) := args.unzip
+  substituteUnboundBvars body values types
+
+def bindPureMany : Sym.Simp.Simproc := fun expr ↦ do
+  match getBindPureLambdas expr with
+  | .none => return .rfl
+  | .some bindPurelambdas => 
+    let .some (_, _, f) := bindPurelambdas.getLast? | return .rfl
+    let .lam (body := body) .. := f | unreachable!
+    let expr' ← applyMany body (
+      bindPurelambdas.toArray.map fun (value, τ, _) => (value, τ)
+    )
+    trace[Clap.Compile.simp.proc.bindPureMany]
+      logRewrite expr expr' s!"{bindPurelambdas.length}"
+    return .step expr' (←mkSorry (←mkEq expr expr') false)
+
+end bindPureMany
+
+def structural : MetaM Sym.Simp.Methods :=
+  mkMethods #[
+    (``bindPureMany, .Pre)
+  ]
+
+end Structural
+
+namespace General
+
+def general : MetaM Sym.Simp.Methods := return {}
+
+end General
+
+namespace Functional
+
+def functional : MetaM Sym.Simp.Methods := return {}
+
+end Functional
+
+end Sets
+
+open Sets in
+partial def consiliumMagnum (e : Expr) : Sym.Simp.SimpM Expr := do
+  ire e 0
+  where
+    simp (e : Expr) (symset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr :=
+      Sym.simp e symset <&> (·.getResultExpr e)
+
+    consiliumStructurale (e : Expr) : Sym.Simp.SimpM Expr := do
+      simp e (←Structural.structural)
+    
+    consiliumFunctionale (e : Expr) : Sym.Simp.SimpM Expr := do
+      simp e (←Functional.functional)
+
+    consiliumGenerale (e : Expr) : Sym.Simp.SimpM Expr := do
+      simp e (←General.general)
+
+    ire (e : Expr) (numPasses : ℕ) : Sym.Simp.SimpM Expr := do
+      withTraceNode `Clap.Compile.simp.consiliumMagnum.pass formatExprWith do
+
+      let e' ← withTraceNode `Clap.Compile.simp.consiliumMagnum.pass.structurale formatExprWith do
+        consiliumStructurale e
+      
+      let e'' ← withTraceNode `Clap.Compile.simp.consiliumMagnum.pass.functionale formatExprWith do
+        consiliumFunctionale e'
+
+      let e''' ← withTraceNode `Clap.Compile.simp.consiliumMagnum.pass.generale formatExprWith do
+        consiliumGenerale e''
+      
+      if Sym.isSameExpr e e'''
+      then trace[Clap.Compile.simp.consiliumMagnum] m!"Fixpoint reached after {numPasses} iterations."
+           trace[Clap.Compile.simp.consiliumMagnum] m!"{logRewrite e e'''}"
+           return e'''
+      else ire e''' numPasses.succ    
+
+def compile (e : Expr) : Sym.Simp.SimpM Expr := do
   let e ← Compiler.Simp.preprocessExpr e
   let res ← lambdaTelescope e fun args e ↦ do
     let time ← IO.monoMsNow
@@ -2822,6 +2946,7 @@ def compilaCumStrategiaMagna (e : Expr) (simpset : Sym.Simp.Methods) : Sym.Simp.
     logInfo m!"{←σ.pretty}"
     Sym.mkLambdaFVarsS args compiled
   Sym.shareCommonInc res
+
 
 -- open Sym.Simp in
 -- /--

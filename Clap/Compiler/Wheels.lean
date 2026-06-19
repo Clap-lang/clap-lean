@@ -8,6 +8,14 @@ initialize registerTraceClass `Clap.Compile.simp (inherited := true)
 
 initialize registerTraceClass `Clap.Compile.simp.consiliumMagnum (inherited := true)
 
+initialize registerTraceClass `Clap.Compile.simp.consiliumMagnum.pass (inherited := true)
+
+initialize registerTraceClass `Clap.Compile.simp.consiliumMagnum.pass.structurale (inherited := true)
+
+initialize registerTraceClass `Clap.Compile.simp.consiliumMagnum.pass.functionalte (inherited := true)
+
+initialize registerTraceClass `Clap.Compile.simp.consiliumMagnum.pass.generale (inherited := true)
+
 initialize registerTraceClass `Clap.Compile.simp.proc (inherited := true)
 
 initialize registerTraceClass `Clap.Compile.simp.proc.beta (inherited := true)
