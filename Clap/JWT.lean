@@ -289,6 +289,21 @@ lemma evailVerifiedCheck_equiv [Fact (Nat.Prime p)] {wa wb wc}
   all_goals try (simp [String.length] ; omega)
   all_goals try decide
 
+def enforceNotNested_spec (LEN)
+  (startIndex fieldLen : ZMod p)
+  (bracketsDepthMap : Vector (ZMod p) LEN) :
+  Bool
+:=
+  let f := bracketsDepthMap.extract startIndex.val (startIndex + fieldLen).val
+  f.all (· = 0)
+
+lemma enforceNotNested_equiv (LEN)
+  (startIndex fieldLen : F p)
+  (bracketsDepthMap : Vector (F p) LEN) :
+  JWT.enforceNotNested LEN startIndex fieldLen bracketsDepthMap =
+    Spec.FB.assert (enforceNotNested_spec LEN startIndex fieldLen bracketsDepthMap)
+:= by sorry
+
 end Spec.JWT
 
 open Primes HashToField FString FArray in
