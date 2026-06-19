@@ -16,6 +16,7 @@ def testSymSet :=
   -- ∪ Clap.Compiler.ExampruSym.NewTraversal.Dom.strategiaMagna
   -- ∪
   SymSets.General.optionPureApply
+  -- ∪ SymSets.Vector.foldlM_stagger_post
   ∪ SymSets.Vector.unfold_generic_collection_functions_pre
   -- ∪ SymSets.Vector.foldlM_post
   ∪ SymSets.General.beta

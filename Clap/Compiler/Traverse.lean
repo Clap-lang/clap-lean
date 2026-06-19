@@ -875,6 +875,10 @@ def unfold_generic_mk_foldlM : Sym.Simp.Simproc := fun expr ↦ do
 
     return .step expr' (←mkSorry (←mkEq expr expr') false)
 
+/--
+  `#v[a₁, a₂, ...].foldlM (init := x) f`
+  `f a₁ x >>= fun rest ↦ [a₂, ...].foldlM (init := rest) f`
+-/
 def foldlM_stagger : Sym.Simp.Simproc := fun e ↦ do
   let .some [m, inst, α, β, f, init, collection] := e.foldlMInfo? | return .rfl
   -- TODO(perf): `coll` not necessary in full
@@ -1668,6 +1672,11 @@ def unfold_generic_collection_functions_post : MetaM Methods :=
     ``Clap.Compiler.SymSets.Vector.foldlM_stagger,
     `Clap.Compiler.SymSets.Vector.getElem_mk,
     `Clap.Compiler.SymSets.Vector.set_mk
+  ]
+
+def foldlM_stagger_post : MetaM Methods :=
+  mkPostMethods #[
+    ``Clap.Compiler.SymSets.Vector.foldlM_stagger,
   ]
 
 end Vector
@@ -2735,6 +2744,15 @@ def flattenBindsAny_pre : MetaM Sym.Simp.Methods :=
 
 -/
 
+/-
+
+`g : ℕ → α`
+
+`f (((((fun a b c ↦ ((g a) b) c) 1) 2) 3) 4)`
+
+
+-/
+
 /--
   consilium magnum - grand plan
   ire - go
@@ -2765,17 +2783,27 @@ partial def consiliumMagnum (simpset : Sym.Simp.Methods) (e : Expr) (Γ : Std.Ha
           m!"Flatten:\n{e}\n==>\n{e'}"
         ire e' Γ
       | _ =>
-        match ←bindPureMany e with
-        | .step e' ..  =>
-          trace[Clap.Compile.simp.consiliumMagnum]
-            m!"Feedforward:\n{e}\n==>\n{e'}"
-          ire e' Γ
+        -- TODO: Structure this better  
+        let ωₗ ← simp aᵣ
+        match ωₗ with
         | .rfl .. =>
-          let ωₗ := (←simp aᵣ).getResultExpr aᵣ
+          let Γ := Γ.insert aᵣ
+          /-
+            TODO: Using `bindPureMany` here would be ideal, but the intermediate `some`s
+            need simping apriori.
+          -/
+          match ←bindPureMany e with
+          | .step e' ..  =>
+            trace[Clap.Compile.simp.consiliumMagnum]
+              m!"Feedforward:\n{e}\n==>\n{e'}"
+            ire e' Γ
+          | .rfl .. =>
+            ire e Γ
+        | .step ωₗ .. =>
           trace[Clap.Compile.simp.consiliumMagnum]
             m!"Focus:\n{aᵣ}\nin:\n{e}\n==>\n{ωₗ}"
           let e' ← Sym.shareCommonInc <| mkApp4 (.const ``Option.bind usᵣ) αᵣ βᵣ ωₗ fᵣ
-          ire e' (if Sym.isSameExpr ωₗ aᵣ then Γ.insert ωₗ else Γ)
+          ire e' Γ
   | _ =>
     let e' ← simp e
     let e' := e'.getResultExpr e
