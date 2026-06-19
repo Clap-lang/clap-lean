@@ -289,19 +289,35 @@ lemma evailVerifiedCheck_equiv [Fact (Nat.Prime p)] {wa wb wc}
   all_goals try (simp [String.length] ; omega)
   all_goals try decide
 
-def enforceNotNested_spec (LEN)
-  (startIndex fieldLen : ZMod p)
+def arraySelector_spec (len startIdx endIdx : ℕ) : Vector Bool len :=
+  Vector.ofFn (fun i => decide (startIdx ≤ (i : ℕ) ∧ (i : ℕ) < endIdx))
+
+lemma arraySelector_equiv [Fact (Nat.Prime p)] (len : ℕ) (startIdx endIdx : F p)
+  (hlen : len ≤ p) (hstart : startIdx.val < len)
+  (hlt : startIdx.val < endIdx.val)
+  (hend : endIdx.val < 2 ^ Clap.minBits len)
+  (hw : 2 ^ (Clap.minBits len + 1) < p) :
+  FArray.arraySelector len startIdx endIdx
+    = some ((arraySelector_spec len startIdx.val endIdx.val).map (FB.ofBool (p := p)))
+:= by sorry
+
+def enforceNotNested_spec (LEN : ℕ)
+  (startIdx fieldLen : ZMod p)
   (bracketsDepthMap : Vector (ZMod p) LEN) :
   Bool
 :=
-  let f := bracketsDepthMap.extract startIndex.val (startIndex + fieldLen).val
+  let f := bracketsDepthMap.extract startIdx.val (startIdx + fieldLen).val
   f.all (· = 0)
 
-lemma enforceNotNested_equiv (LEN)
-  (startIndex fieldLen : F p)
+lemma enforceNotNested_equiv (LEN) (hlen : LEN ≤ p)
+  (startIdx fieldLen : F p)
+  (hstart : startIdx.val < LEN)
+  (hlt : startIdx.val < startIdx.val + fieldLen.val)
+  (hend : startIdx.val + fieldLen.val < 2 ^ Clap.minBits LEN)
+  (hw : 2 ^ (Clap.minBits LEN + 1) < p)
   (bracketsDepthMap : Vector (F p) LEN) :
-  JWT.enforceNotNested LEN startIndex fieldLen bracketsDepthMap =
-    Spec.FB.assert (enforceNotNested_spec LEN startIndex fieldLen bracketsDepthMap)
+  JWT.enforceNotNested LEN startIdx fieldLen bracketsDepthMap =
+    Spec.FB.assert (enforceNotNested_spec LEN startIdx fieldLen bracketsDepthMap)
 := by sorry
 
 end Spec.JWT
