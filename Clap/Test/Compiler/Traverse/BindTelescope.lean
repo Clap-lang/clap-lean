@@ -62,16 +62,47 @@ def buildChain (vec : Expr) (n : Nat) : MetaM Expr := do
     return e
 
 abbrev vector (n: ℕ) : Vector Nat n := Vector.range n
-#check Option.bind_some
-/-- Build the full goal `<chain>.bind (fun x : Vector Nat n => eq0 x[0]) = sorry`
-in a local context containing `vec : Vector Nat n`. Returns the goal mvar. -/
+
 def chainTest (n : ℕ) : MetaM Unit := do
-  -- let chain ← withLocalDeclD `vec (mkVecType n) fun vec => do
   let chain ← buildChain ((Expr.const ``ExampruSym.NewTraversal.vector []).beta #[mkNatLit n]) n
-  runTest chain
+  logInfo m!"{chain}"
+  runTest chain (eval := false)
 
-#eval chainTest 5
+set_option maxRecDepth 100000
+set_option maxHeartbeats 0
+set_option trace.Clap.Compile true
+set_option trace.Clap.Compile.dbg true
+#eval chainTest 160
 
+/-
+Compilation times
+OLD
+chainTest   1 -  0.002s
+chainTest   2 -  0.003s
+chainTest   3 -  0.002s
+chainTest   4 -  0.004s
+chainTest   5 -  0.005s
+chainTest   6 -  0.005s
+chainTest   7 -  0.005s
+chainTest   8 -  0.006s
+chainTest   9 -  0.007s
+chainTest  10 -  0.008s
+chainTest  20 -  0.021s
+chainTest  40 -  0.061s
+chainTest  80 -  0.205s
+chainTest 160 -  0.883s
+chainTest 320 -  4.228s - maxRecDepth
+chainTest 640 - 30.692s - heartbeats
+NEW
+chainTest  10  - 0.005s
+chainTest  20  - 0.005s
+chainTest  40  - 0.008s
+chainTest  80  - 0.014s
+chainTest 160  - 0.033s
+chainTest 320  - 0.087s
+chainTest 640  - 0.024s
+chainTest 1280 - 0.782s - something other than compilation takes several seconds here
+-/
 
 
 end NewTraversal

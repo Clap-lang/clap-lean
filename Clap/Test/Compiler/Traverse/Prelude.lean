@@ -8,22 +8,26 @@ opaque F : ℕ → Option ℕ
 opaque G : ℕ → Option ℕ
 opaque H : ℕ → Option ℕ
 
-def testSymSet :=
-  Clap.Compiler.ExampruSym.NewTraversal.Dom.flattenBinds_pre ∪
-  SymSets.General.optionPureApply ∪
-  SymSets.Vector.mapM_alt ∪
-  SymSets.General.beta ∪
-  SymSets.Vector.getElem ∪
-  SymSets.General.compilerSet_bind_some
-
 open Lean in
-def runTest (uncompiledExpr : Expr) := spoon <| do
+def runTest (uncompiledExpr : Expr) (eval : Bool := true) := spoon <| do
   let uncompiledTypeExpr ← Meta.inferType uncompiledExpr
   let expectedType := (Option ℕ)
 
-  let compiled ← compileJustSym uncompiledExpr (←testSymSet)
+  logInfo m!"Compiling {uncompiledExpr}"
+  let (compiled, time) ← Clap.Dbg.timeS (ExampruSym.NewTraversal.Dom.compile uncompiledExpr)
+  logInfo m!"Compiled to {compiled}"
+
   let dbgState ← getAndResetDbgState
-  logInfo m!"{←dbgState.pretty}"
+  logInfo m!"RAW dbg state:\n{←dbgState.pretty}"
+  let totalCompileTime := m!"Total compile time: {time}"
+  let rulesAppliedTime := sumRuleTime dbgState.ruleHisto
+  let rulesSkippedTime := sumRuleTime dbgState.skippedRuleHisto
+  let timeSpentInRules := rulesAppliedTime + rulesSkippedTime
+  let rulesTotal := m!"Rules[skipped+applied]: {timeSpentInRules}"
+  logInfo m!"{totalCompileTime}\n{rulesTotal}\nUnaccounted[Δ]: {time - timeSpentInRules}"
+
+  if !eval then return compiled
+
   -- Pretty print (i.e. go back to `Bind.bind`)
   let formatted := (
     ←Lean.Meta.Sym.simp compiled (←SymSets.General.compilerBindEqBind)
@@ -57,8 +61,8 @@ def runTest (uncompiledExpr : Expr) := spoon <| do
   return formatted
 
 open Lean in
-def runTestByName (testName : Name) : MetaM Unit := do
+def runTestByName (testName : Name) (eval : Bool := true) : MetaM Unit := do
   let .some constantInfo := (←getEnv).find? testName | throwError m!"Undeclared constant:\n{testName}"
-  runTest constantInfo.value!
+  runTest constantInfo.value! eval
 
 end ExampruSym

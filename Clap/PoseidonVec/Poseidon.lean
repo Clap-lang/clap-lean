@@ -66,15 +66,16 @@ def mixLast {t : ℕ} (state : Vector (F p) t) (M : Vector (Vector (F p) t) t) (
 def mixS {t s : ℕ} (r : ℕ) (state : Vector (F p) t) (S : Vector (F p) s) : Vector (F p) t :=
 --  let t : ℕ := state.length
   let base : ℕ := (2 * t - 1) * r
-  ⟨#[dotProduct base] ++ (tail base).toArray, sorry⟩
+  state
+  -- ⟨#[dotProduct base] ++ (tail base).toArray, sorry⟩
 where
   /-- `out[0] = Σᵢ S[base + i] · in[i]` — full dot product for element 0 -/
-  dotProduct (base : ℕ) : F p :=
-    let s' : Vector _ t := ⟨S.extract base (base+t) |>.toArray, sorry⟩
-    (state.zipWith (· * ·) s').sum
+  dotProduct (base : ℕ) : F p := 0
+    -- let s' : Vector _ t := ⟨S.extract base (base+t) |>.toArray, sorry⟩
+    -- (state.zipWith (· * ·) s').sum
   /-- `out[i] = in[i] + in[0] · S[base + t + i − 1]` for `i ∈ [1, t)` -/
-  tail (base : ℕ) : Vector (F p) (t-1) :=
-    (state.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state[0]'sorry * S[base + t + i]'sorry)
+  tail (base : ℕ) : Vector (F p) (t-1) := state.drop 1
+    -- (state.drop 1).mapIdx (fun i sᵢ ↦ sᵢ + state[0]'sorry * S[base + t + i]'sorry)
 
 -- TODO: Imperative or functional style?
 -- def mixS (r : ℕ) (state : Array (F p)) (s : Array (F p)) : Array (F p) := Id.run do
@@ -122,10 +123,10 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   -- N_ROUNDS_P[t-2] for t ∈ [2, 17]
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := 1 + n
+  let nRoundsF : ℕ := 8
+  let nRoundsP : ℕ := 20
   -- let nRoundsF : ℕ := 8
   -- let nRoundsP : ℕ := N_ROUNDS_P[t - 2]'sorry
-  let nRoundsF : ℕ := 6
-  let nRoundsP : ℕ := 2
   let half : ℕ := nRoundsF / 2
 
   let state : Vector (F p) t := #v[initState] ++ inputs
@@ -133,32 +134,31 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   -- initial state: [initState, inputs[0], …, inputs[nInputs−1]]
   let state := ark state C 0
 
-  -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
-  let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
-    let l ← state.mapM sigma
-    mix (ark l C ((r + 1) * t)) M) state
+  -- -- Phase 1: first-half full rounds (r = 0 … half−2), mix with M
+  -- let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
+  --   let l ← state.mapM sigma
+  --   mix (ark l C ((r + 1) * t)) M) state
 
-  -- `let state ← #v[1, 2].mapM f; tail` ==>
-  -- `let state ← f 1 >>= fun a1 ↦ f 2 >>= fun a2 ↦ pure #v[a1, a2]; tail`
-  --
-
-  -- Boundary round (r = half−1): sigma → ark → mix with P
-  let state := mix (ark (← state.mapM sigma) C (half * t)) P
+  -- -- Boundary round (r = half−1): sigma → ark → mix with P
+  -- let state := mix (ark (← state.mapM sigma) C (half * t)) P
 
   -- Phase 2: partial rounds
   let state ← (List.range nRoundsP).foldlM (fun state r ↦ do
-    let s0 := (← sigma state[0]) + C[(half + 1) * t + r]'sorry
-    mixS r (state.set 0 s0) S) state
+    let s0  ← sigma state[0]
+    -- let s0 := (← sigma state[0]) + C[(half + 1) * t + r]'sorry
+    mixS r (state.set 0 s0) S
+    ) state
+    -- mixS r (state.set 0 s0) S) state
 
-
-  -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
-  let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
-    let l ← state.mapM sigma
-    mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
+  -- -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
+  -- let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
+  --   let l ← state.mapM sigma
+  --   mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
 
   -- Final round: sigma on all, then extract nOuts elements via MixLast
-  let state ← state.mapM sigma
-  mixLast state M 0
+  -- let state ← state.mapM sigma
+  -- mixLast state M 0
+  state[0]
 
 /-- **Poseidon:** Single-output Poseidon hash. Wraps `poseidonEx` with
     `nOuts = 1` and `initialState = 0`, returning the first element of
@@ -179,10 +179,6 @@ def poseidonBN254 {n} (inputs : Vector (F bn254) n) : Option (F bn254) :=
   let M := Clap.PoseidonVec.Constant.M t
   let P := Clap.PoseidonVec.Constant.P t
   poseidon inputs C S M P
-
-
-
-
 
 end Poseidon254
 
@@ -216,7 +212,7 @@ open Clap Lang PoseidonVec
 
 section
 
-open Lean Meta Clap Compiler Simp API
+open Lean Meta Clap Clap.Compiler Simp API
 
 -- example {inputs : Vector (F Primes.bn254) 2} : List.foldlM
 --   (fun state r => do
@@ -265,46 +261,49 @@ def poseidonBN254' : MetaM Sym.Simp.Methods :=
 --  ``mix, ``mixS, ``mixS.dotProduct, ``mixS.tail
   ]
 
--- #v[1, 2].mapM f ==> bind (f 1) >>=
---                       fun x1 ↦
---                         bind (f 2) >>=
---                           fun x2 ↦
---                             return #v[x1, x2]
--- f (fun a1 => f (fun a2 => ... a1 ... an ...))
+/-
+Timings:
+  `nRoundsF = 1, nRoundsP = 2` | `  1.083000s`
+  `nRoundsF = 1, nRoundsP = 4` | `  1.645000s`
+  `nRoundsF = 1, nRoundsP = 6` | ` 10.588000s`
+  `nRoundsF = 1, nRoundsP = 8` | `366.672000s`
+  -------------------------------------------
+  `nRoundsF = 8, nRoundsP = 2` | `  4.653000s`
+  `nRoundsF = 8, nRoundsP = 4` | `  6.060000s`
+  `nRoundsF = 8, nRoundsP = 6` | ` 16.021000s`
+  `nRoundsF = 8, nRoundsP = 8` | `?`
+-/
+
+/-
+Minimised:
+  `nRoundsF = 1, nRoundsP = 2 | 0.203000s`
+  `nRoundsF = 1, nRoundsP = 4 | 0.265000s`
+  `nRoundsF = 1, nRoundsP = 8 | 0.555000s`
+  `nRoundsF = 1, nRoundsP = 16 | 6.779000s`
+-/
 
 -- set_option debug.skipKernelTC true in
 -- set_option trace.Clap.Compile true in
 -- set_option trace.Clap.Compile.simp.proc.vector_mk_zipWith_mk true in
 -- set_option trace.Clap.Compile.simp.proc.monad true in
-open Clap.Compiler.SymSets Vector General in
-set_option pp.exprSizes true in
+open Clap.Compiler.SymSets General in
+-- set_option pp.exprSizes true in
 set_option maxRecDepth 1000000 in
 set_option maxHeartbeats 0 in
 -- set_option maxHeartbeats 100000 in
-#eval spoon <| do
-  compileExampleJustSym ``testPoseidon
-    (←(
-      poseidonBN254' ∪
-      map ∪
-      getElem ∪
-      append ∪
-      mapM ∪
-      foldlM ∪
-      mapIdx ∪
-      control ∪
-      SymSets.List.range ∪
-      sum ∪
-      zipWith ∪
-      zeta ∪
-      explode ∪
-      set ∪
-      drop ∪
-      extract ∪
-      toArray ∪
-      monads ∪
-      -- compilerAssoc
-      bindMyAssoc_set
-    ))
+
+-- set_option trace.Clap.Compile.simp.proc.vector_getElem_mk true in
+-- set_option trace.Clap.Compile.simp.proc.kaboom true in
+-- set_option trace.Clap.Compile.simp.proc.vector_mapIdx_mk true in
+-- set_option trace.Clap.Compile.simp.proc.vector_mk_append_mk true in
+-- set_option trace.Clap.Compile.dbg true in
+-- set_option trace.Clap.Compile true in
+-- TODO add custom lemma input to the compiler and make it unfold poseidon
+#eval spoon (pretty := false) <| do
+  Clap.Compiler.ExampruSym.NewTraversal.Dom.compile
+    ((←getEnv).find? ``testPoseidon).get!.value!
+
+#exit
 
 namespace DownTest
 

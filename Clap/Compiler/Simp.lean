@@ -57,7 +57,7 @@ def SimpSet.toSimpSet (s : SimpSet) : Array Lemma :=
   s.pos.map (Function.uncurry Lemma.pos) ++
   s.neg.map Lemma.neg
 
-def SimpSet.union (s₁ s₂ : SimpSet) : SimpSet where
+def SimpSet.andThen (s₁ s₂ : SimpSet) : SimpSet where
   pos := s₁.pos ++ s₂.pos
   neg := s₁.neg ++ s₂.neg
 
@@ -126,11 +126,11 @@ def andThen (names : Array Name) : MetaM Sym.Simp.Simproc := do
 instance : Singleton Sym.Simp.Simproc Sym.Simp.Methods where
   singleton x := {post := x}
 
-instance : Union Sym.Simp.Methods := ⟨
+instance : AndThen Sym.Simp.Methods := ⟨
   fun m₁ m₂ =>
     {
-      pre := m₁.pre >> m₂.pre
-      post := m₁.post >> m₂.post
+      pre := m₁.pre >> (m₂ ()).pre
+      post := m₁.post >> (m₂ ()).post
     }
   ⟩
 
@@ -140,8 +140,8 @@ def SimpSet.toMethods (s : SimpSet) : Sym.SymM Sym.Simp.Methods := do
   let (preSimp, preThm) ← pre.toList.partitionM (liftM ∘ isSimproc)
   let (postSimp, postThm) ← post.toList.partitionM (liftM ∘ isSimproc)
   logInfo m!"preThm: {preThm}\npreSimp: {preSimp}\npostThm:{postThm}\npostSimp:{postSimp}"
-  let simprocsPre := (←Sym.mkSimprocFor preThm.toArray) <|> (←andThen preSimp.toArray)
-  let simprocsPost := (← Sym.mkSimprocFor postThm.toArray) <|> (←andThen postSimp.toArray)
+  let simprocsPre := (←Sym.mkSimprocFor preThm.toArray) <|> (←API.andThen preSimp.toArray)
+  let simprocsPost := (← Sym.mkSimprocFor postThm.toArray) <|> (←API.andThen postSimp.toArray)
   return {
     pre := simprocsPre
     post := simprocsPost
@@ -156,7 +156,7 @@ section Debug
 deriving instance Repr for Sym.Simp.Config
 end Debug
 
-instance : Union SimpSet := ⟨SimpSet.union⟩
+instance : AndThen SimpSet := ⟨fun a b ↦ SimpSet.andThen a (b ())⟩
 
 instance : Singleton Name SimpSet where
   singleton x := ⟨#[(x, .Post)], #[]⟩
