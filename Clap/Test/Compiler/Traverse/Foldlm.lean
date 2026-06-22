@@ -34,7 +34,7 @@ def testFoldlM : Option ℕ := do
 -- set_option trace.Clap.Compile.simp.proc.beta true in
 set_option maxRecDepth 100000 in
 -- set_option maxHeartbeats 800000 in
-#eval runTestByName ``testFoldlM false
+#eval runTestByName ``testFoldlM
 
 end NewTraversal
 

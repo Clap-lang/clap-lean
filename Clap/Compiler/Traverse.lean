@@ -6,6 +6,7 @@ import Lean.Meta.Tactic.Cbv.Main
 
 import Clap.Lang
 import Clap.Spec
+import Clap.Compiler.BetaReduction
 import Clap.Compiler.Trace
 import Clap.Compiler.Simp
 import Clap.Compiler.Vectors
@@ -912,17 +913,26 @@ def map : MetaM Methods :=
     mapOptim : MetaM Methods := mkPreMethods #[``List.map_id]
 
 def mapIdx_mk : Sym.Simp.Simproc := fun e => do
-  let_expr Vector.mapIdx _ β sz f xs := e | return .rfl
+  let_expr Vector.mapIdx inputType outputType sz f xs := e | return .rfl
   let some (xs, _) := vectorElemsOfMk xs |
     trace[Clap.Compile.simp.proc.vector_mapIdx_mk]
       m!"rejected:\n{e}"
     return .rfl
 
-  let result ← Sym.mkListLit β (xs.mapIdx (f.beta #[mkNatLit ·, ·])).toList
-  let e' ← mkVecLit β result sz
+  logInfo m!"Xs: {xs}"
+  let result ← Sym.mkListLit outputType (xs.mapIdx (f.beta #[mkNatLit ·, ·])).toList
+  logInfo m!"Result: {result}"
+  let e' ←mkVecLit outputType result sz
+  logInfo m!"e': {e'}"
 
-  trace[Clap.Compile.simp.proc.vector_mapIdx_mk]
-    m!"\n{e}\n==>\n{e'}"
+  -- return .rfl
+  -- trace[Clap.Compile.simp.proc.vector_mapIdx_mk]
+  --   m!"Result: {result}"
+  -- trace[Clap.Compile.simp.proc.vector_mapIdx_mk]
+  --   m!"e': {e'}"
+
+  -- trace[Clap.Compile.simp.proc.vector_mapIdx_mk]
+  --   m!"\n{e}\n==>\n{e'}"
 
   return .step e' (←mkSorry (←mkEq e e') false)
 
@@ -3044,36 +3054,30 @@ def set : Sym.Simp.Simproc := fun e => do
 
 end Set
 
-def general : MetaM Sym.Simp.Methods :=
+def general (other: MetaM Sym.Simp.Methods) : MetaM Sym.Simp.Methods :=
   mkMethods #[
     (``getElem, .Post),
     (``append, .Post),
     (``evalGround, .Post),
-    (``set, .Post)
+    (`Clap.Compiler.ExampruSym.NewTraversal.Dom.Sets.General.set, .Post),
+    (`Clap.Compiler.SymSets.Vector.mapIdx_mk, .Post)
   ]
+  -- >>
+  -- size
+  -- >>
+  -- sum
+  -- >>
+  -- foldr
+  -- >>
+  -- mkMethods #[
+  --   (``range, .Post)
+  -- ]
   >>
-  size
-  >>
-  sum
-  >>
-  foldr
-  >>
-  mkMethods #[
-    (``range, .Post)
-  ]
+  other
 
 end General
 
 namespace Functional
-
-/--
-This is more or less `Lean.Meta.Tactic.Cbv.betaReduce`, which seems to not be exported.
--/
-def betaReduce : Sym.Simp.Simproc := fun e ↦ do
-  let (function@(.lam ..), args@⟨(.cons _ _)⟩) := e.withApp (·, ·) | return .rfl
-  let e' ← Sym.betaS function args
-  trace[Clap.Compile.simp.proc.beta] m!"\nf = {function}\nargs[{args.size}] = {args}"
-  return .step e' (←Sym.mkEqRefl e')
 
 section Zeta
 
@@ -3093,8 +3097,8 @@ end Zeta
 
 def functional : MetaM Sym.Simp.Methods :=
   mkMethods #[
-    (``betaReduce, .Pre),
-    (``zetaReduce, .Pre)
+    (`Clap.Compiler.ExampruSym.NewTraversal.Dom.Sets.Functional.betaReduce, .Pre),
+    (`Clap.Compiler.ExampruSym.NewTraversal.Dom.Sets.Functional.zetaReduce, .Pre)
   ]
 
 end Functional
@@ -3102,8 +3106,8 @@ end Functional
 end Sets
 
 open Sets in
-partial def consiliumMagnum (e : Expr) : Sym.Simp.SimpM Expr := do
-  (·.1) <$> ire e 0
+partial def consiliumMagnum (e : Expr) (extraPasses: MetaM Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
+  (·.1) <$> ire e 1
   where
     simp (e : Expr) (symset : Sym.Simp.Methods) : Sym.Simp.SimpM ExprChanged? := do
       let e' ← Sym.simp e symset <&> (·.getResultExpr e)
@@ -3116,7 +3120,7 @@ partial def consiliumMagnum (e : Expr) : Sym.Simp.SimpM Expr := do
       simp e (←Functional.functional)
 
     consiliumGenerale (e : Expr) : Sym.Simp.SimpM ExprChanged? := do
-      simp e (←General.general)
+      simp e (←General.general extraPasses)
 
     ire (e : Expr) (numPasses : ℕ) : Sym.Simp.SimpM ExprIter := do
       withTraceNode `Clap.Compile.consiliumMagnum.pass formatExprIter do
@@ -3136,10 +3140,16 @@ partial def consiliumMagnum (e : Expr) : Sym.Simp.SimpM Expr := do
         trace[Clap.Compile.consiliumMagnum] m!"{logRewrite e e'''}"
         ire e''' numPasses.succ
 
-def compile (e : Expr) : Sym.Simp.SimpM Expr := do
+def doNothing : MetaM Sym.Simp.Methods := pure {
+  pre := λ _ => pure .rfl
+  post := λ _ => pure .rfl
+  : Sym.Simp.Methods
+}
+
+def compile (e : Expr) (extraPasses: MetaM Sym.Simp.Methods := doNothing) : Sym.Simp.SimpM Expr := do
   let e ← Compiler.Simp.preprocessExpr e
   let res ← lambdaTelescope e fun args e ↦ do
-    let (compiled, time) ← Dbg.timeS (consiliumMagnum e)
+    let (compiled, time) ← Dbg.timeS (consiliumMagnum e extraPasses)
     trace[Clap.Compile] m!"Compilation took: {time}s."
     Dbg.inDebugOnly (do getDbgState >>= fun σ ↦ do logInfo m!"{←σ.pretty}")
     Sym.mkLambdaFVarsS args compiled

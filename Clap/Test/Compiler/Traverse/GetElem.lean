@@ -12,7 +12,6 @@ def testSmallSimplifiableIndex : Option ℕ := do
   y
 
 set_option trace.Clap.Compile true in
-set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile.dbg true in
 #eval runTestByName ``testSmallSimplifiableIndex
 
@@ -22,7 +21,6 @@ def testBigSimplifiableIndex : Option ℕ := do
   y
 
 set_option trace.Clap.Compile true in
-set_option Clap.traversalDbg true in
 set_option trace.Clap.Compile.dbg true in
 #eval runTestByName ``testBigSimplifiableIndex
 

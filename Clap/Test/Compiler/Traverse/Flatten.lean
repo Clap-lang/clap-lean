@@ -15,7 +15,7 @@ def testInnerReturn : Option ℕ := do
 
 set_option trace.Clap.Compile true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTestByName ``testInnerReturn (eval := true)
+#eval runTestByName ``testInnerReturn
 
 def testRightBind : Option ℕ := do
   let x ← F 1
@@ -163,7 +163,7 @@ opaque C : Nat → Option Nat
 opaque D : Nat → Option Nat
 opaque E : Nat → Option Nat
 
-def eboom (vec : Vector Nat 4) : Option Unit := do
+abbrev eboom (vec : Vector Nat 4) : Option Unit := do
   let x ←
     (do
       let _ ← A 0
@@ -178,10 +178,9 @@ def eboom (vec : Vector Nat 4) : Option Unit := do
     )
   discard (G x)
 
--- set_option trace.Clap.Compile true in
--- set_option Clap.traversalDbg true in
--- set_option trace.Clap.Compile.dbg true in
--- #eval runTestByName ``eboom
+def eboomWithArgs := eboom #v[1,2,3,4]
+
+#eval runTestByName ``eboomWithArgs
 
 end NewTraversal
 

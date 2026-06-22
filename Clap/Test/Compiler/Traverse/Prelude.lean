@@ -9,12 +9,12 @@ opaque G : ℕ → Option ℕ
 opaque H : ℕ → Option ℕ
 
 open Lean in
-def runTest (uncompiledExpr : Expr) (eval : Bool := true) := spoon <| do
+def runTest (uncompiledExpr : Expr) (eval : Bool := true) (extraPasses : MetaM Meta.Sym.Simp.Methods := Clap.Compiler.ExampruSym.NewTraversal.Dom.doNothing) := spoon <| do
   let uncompiledTypeExpr ← Meta.inferType uncompiledExpr
   let expectedType := (Option ℕ)
 
   logInfo m!"Compiling {uncompiledExpr}"
-  let (compiled, time) ← Clap.Dbg.timeS (ExampruSym.NewTraversal.Dom.compile uncompiledExpr)
+  let (compiled, time) ← Clap.Dbg.timeS (ExampruSym.NewTraversal.Dom.compile uncompiledExpr extraPasses)
   logInfo m!"Compiled to {compiled}"
 
   let dbgState ← getAndResetDbgState
@@ -61,8 +61,8 @@ def runTest (uncompiledExpr : Expr) (eval : Bool := true) := spoon <| do
   return formatted
 
 open Lean in
-def runTestByName (testName : Name) (eval : Bool := true) : MetaM Unit := do
+def runTestByName (testName : Name) (eval : Bool := true) (extraPasses : MetaM Meta.Sym.Simp.Methods := Clap.Compiler.ExampruSym.NewTraversal.Dom.doNothing) : MetaM Unit := do
   let .some constantInfo := (←getEnv).find? testName | throwError m!"Undeclared constant:\n{testName}"
-  runTest constantInfo.value! eval
+  runTest constantInfo.value! eval extraPasses
 
 end ExampruSym
