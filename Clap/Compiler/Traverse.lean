@@ -1478,19 +1478,19 @@ def unwrap_s : MetaM Methods :=
     ``Clap.Compiler.SymSets.Vector.unwrap
   ]
 
-def set_mk : Sym.Simp.Simproc := fun e => do
-  let_expr Vector.set t sz xs i x h := e | return .rfl
-  let some (xs, _, _) := vectorElemsOfMk xs | return .rfl
-  let iGround := (←simpWithGround i).getResultExpr i
-  match Sym.getNatValue? iGround with
-  | .none => throwError m!"Not ground: {iGround}. Request:\n{e}"
-  | .some iNat =>
-    -- TODO: I guess we can `Vector.set` with `h`.
-    let result ← Sym.mkListLit t (xs.set! iNat x).toList
-    let e' ← mkVecLit t result sz
-    trace[Clap.Compile.simp.proc.vector_set_mk]
-      m!"\n{e}\n==>\n{e'}"
-    return .step e' (←mkSorry (←mkEq e e') false)
+-- def set_mk : Sym.Simp.Simproc := fun e => do
+--   let_expr Vector.set t sz xs i x h := e | return .rfl
+--   let some (xs, _, _) := vectorElemsOfMk xs | return .rfl
+--   let iGround := (←simpWithGround i).getResultExpr i
+--   match Sym.getNatValue? iGround with
+--   | .none => throwError m!"Not ground: {iGround}. Request:\n{e}"
+--   | .some iNat =>
+--     -- TODO: I guess we can `Vector.set` with `h`.
+--     let result ← Sym.mkListLit t (xs.set! iNat x).toList
+--     let e' ← mkVecLit t result sz
+--     trace[Clap.Compile.simp.proc.vector_set_mk]
+--       m!"\n{e}\n==>\n{e'}"
+--     return .step e' (←mkSorry (←mkEq e e') false)
 
 def set : MetaM Methods :=
   mkPostMethods #[
@@ -2845,7 +2845,7 @@ section FoldlM
 `[1, 2, 3, 4].foldlM f b` ==>
 `f b 1 >>= λ next → f next 2 >>= λ next → f next 3 >>= λ next ↦ pure next`
 -/
-def unfold_generic_mk_foldlM : Sym.Simp.Simproc := fun expr ↦ do
+def foldlM : Sym.Simp.Simproc := fun expr ↦ do
   let .some [inputType, outputType, f, init, collection] := expr.foldlM? | return .rfl
   let .some (elems, ⟨⟨_, _, .some size⟩, _⟩) ← sequenced collection | return .rfl
 
@@ -2896,7 +2896,8 @@ end FoldlM
 def structural : MetaM Sym.Simp.Methods :=
   mkMethods #[
     (``pureBindMany, .Pre),
-    (``flattenBindsAny, .Pre)
+    (``flattenBindsAny, .Pre),
+    (``foldlM, .Pre)
   ]
 
 end Structural
@@ -3022,12 +3023,33 @@ def sum : MetaM Sym.Simp.Methods :=
 
 end Sum
 
+section Set
+
+/--
+TODO: Generalise to lists and arrays.
+-/
+def set : Sym.Simp.Simproc := fun e => do
+  let_expr Vector.set t sz xs i x _ := e | return .rfl
+  let some (xs, _, _) := vectorElemsOfMk xs | return .rfl
+  let iGround := (←Sym.simpWithGround i).getResultExpr i
+  match Sym.getNatValue? iGround with
+  | .none => throwError m!"Not ground: {iGround}. Request:\n{e}"
+  | .some iNat =>
+    -- TODO: I guess we can `Vector.set` with `h`.
+    let result ← Sym.mkListLit t (xs.set! iNat x).toList
+    let e' ← mkVecLit t result sz
+    -- trace[Clap.Compile.simp.proc.vector_set_mk]
+    --   m!"\n{e}\n==>\n{e'}"
+    return .step e' (←mkSorry (←mkEq e e') false)
+
+end Set
+
 def general : MetaM Sym.Simp.Methods :=
   mkMethods #[
     (``getElem, .Post),
     (``append, .Post),
-    (``range, .Post),
-    (``evalGround, .Post)
+    (``evalGround, .Post),
+    (``set, .Post)
   ]
   >>
   size
@@ -3035,6 +3057,10 @@ def general : MetaM Sym.Simp.Methods :=
   sum
   >>
   foldr
+  >>
+  mkMethods #[
+    (``range, .Post)
+  ]
 
 end General
 

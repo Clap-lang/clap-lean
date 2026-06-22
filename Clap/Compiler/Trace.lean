@@ -73,7 +73,8 @@ TODO: Synth this to avoid mishaps.
 def ruleMap : Std.HashMap String Pass :=
   .ofArray #[
     ("pureBindMany", structural),
-    ("flattenBindsAny", structural)
+    ("flattenBindsAny", structural),
+    ("foldlM", structural)
   ] ∪
   .ofArray #[
     ("betaReduce", functional),
@@ -95,7 +96,8 @@ def ruleMap : Std.HashMap String Pass :=
     ("Vector.size_toArray.size_toArray", general),
     ("List.size_toArray", general),
     ("List.length_cons", general),
-    ("List.length_nil", general)
+    ("List.length_nil", general),
+    ("set", general)
   ]
 
 def passTimeOfHisto (histo : RuleHisto) : Std.HashMap Pass Float := Id.run do
@@ -110,10 +112,13 @@ def passTimeOfHisto (histo : RuleHisto) : Std.HashMap Pass Float := Id.run do
   return result
 
 def CompilerDbgState.pretty (σ : CompilerDbgState) : MetaM Format := do
+  let histoRules := σ.ruleHisto.toArray.qsort fun (_, _, timeₗ) (_, _, timeᵣ) ↦ timeₗ >= timeᵣ
+  let histoSkippedRules := σ.skippedRuleHisto.toArray.qsort fun (_, _, timeₗ) (_, _, timeᵣ) ↦ timeₗ >= timeᵣ
+
   let text := String.intercalate "\n" ([
-    f!"histoRules := {repr σ.ruleHisto}",
+    f!"histoRules := {histoRules}",
     f!"totalStepTime := {sumRuleTime σ.ruleHisto}",
-    f!"histoSkippedRules := {repr σ.skippedRuleHisto}",
+    f!"histoSkippedRules := {histoSkippedRules}",
     f!"totalSkipTime := {sumRuleTime σ.skippedRuleHisto}",
     f!"passTime := {repr <| passTimeOfHisto σ.ruleHisto}"
   ].map Format.pretty)
