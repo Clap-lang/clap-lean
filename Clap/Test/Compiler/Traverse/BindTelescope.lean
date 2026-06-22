@@ -62,19 +62,17 @@ def buildChain (vec : Expr) (n : Nat) : MetaM Expr := do
     return e
 
 abbrev vector (n: ℕ) : Vector Nat n := Vector.range n
-#check Option.bind_some
-/-- Build the full goal `<chain>.bind (fun x : Vector Nat n => eq0 x[0]) = sorry`
-in a local context containing `vec : Vector Nat n`. Returns the goal mvar. -/
+
 def chainTest (n : ℕ) : MetaM Unit := do
-  -- let chain ← withLocalDeclD `vec (mkVecType n) fun vec => do
   let chain ← buildChain ((Expr.const ``ExampruSym.NewTraversal.vector []).beta #[mkNatLit n]) n
   logInfo m!"{chain}"
-  runTest chain
+  runTest chain (eval := false)
 
 set_option maxRecDepth 100000
 set_option maxHeartbeats 0
 set_option trace.Clap.Compile true
-#eval chainTest 320
+set_option trace.Clap.Compile.dbg true
+#eval chainTest 160
 
 /-
 Compilation times

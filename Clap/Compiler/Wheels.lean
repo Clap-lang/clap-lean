@@ -20,6 +20,11 @@ initialize registerTraceClass `Clap.Compile.simp (inherited := true)
 initialize registerTraceClass `Clap.Compile.simp.proc (inherited := true)
 
 initialize registerTraceClass `Clap.Compile.simp.proc.beta (inherited := true)
+
+initialize registerTraceClass `Clap.Compile.simp.proc.pureBindMany (inherited := true)
+
+
+
 initialize registerTraceClass `Clap.Compile.simp.proc.strategiaMagna (inherited := true)
 
 initialize registerTraceClass `Clap.Compile.simp.proc.kaboom (inherited := true)
@@ -70,7 +75,7 @@ initialize registerTraceClass `Clap.Compile.simp.proc.preprocess (inherited := t
 
 initialize registerTraceClass `Clap.Compile.simp.proc.flattenBinds (inherited := true)
 
-initialize registerTraceClass `Clap.Compile.simp.proc.pureBindMany (inherited := true)
+
 
 initialize registerTraceClass `Clap.Compile.simp.proc.seemsTotallySafeInDTT (inherited := true)
 

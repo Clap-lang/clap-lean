@@ -8,41 +8,42 @@ opaque F : ℕ → Option ℕ
 opaque G : ℕ → Option ℕ
 opaque H : ℕ → Option ℕ
 
-def testSymSet :=
+-- def testSymSet := sorry
   -- ExampruSym.NewTraversal.Dom.flattenBinds_pre
   -- SymSets.Vector.unwrap_s
   -- ExampruSym.NewTraversal.Dom.flattenBindsAny_pre
   -- ∪ ExampruSym.NewTraversal.Dom.bindPureMany_pre
   -- ∪ Clap.Compiler.ExampruSym.NewTraversal.Dom.strategiaMagna
   -- ∪
-  SymSets.General.optionPureApply
+  -- SymSets.General.optionPureApply
   -- ∪ SymSets.Vector.foldlM_stagger_post
-  ∪ SymSets.Vector.unfold_generic_collection_functions_pre
-  -- ∪ SymSets.Vector.foldlM_post
-  ∪ SymSets.General.beta
-  ∪ SymSets.General.zeta
-  ∪ SymSets.List.range
-  ∪ Clap.SymSets.General.ground
+  -- ∪ SymSets.Vector.unfold_generic_collection_functions_pre
+  -- -- ∪ SymSets.Vector.foldlM_post
+  -- ∪ SymSets.General.beta
+  -- ∪ SymSets.General.zeta
+  -- ∪ SymSets.List.range
+  -- ∪ Clap.SymSets.General.ground
 
 open Lean in
-def runTest (uncompiledExpr : Expr) (eval : Bool := true)
-            (isUsingTopLevelStrategy : Bool := false) := spoon <| do
+def runTest (uncompiledExpr : Expr) (eval : Bool := true) := spoon <| do
   let uncompiledTypeExpr ← Meta.inferType uncompiledExpr
   let expectedType := (Option ℕ)
 
-  let time ← IO.monoMsNow
   logInfo m!"Compiling {uncompiledExpr}"
-  let compiled ←
-    if isUsingTopLevelStrategy
-    then ExampruSym.NewTraversal.Dom.compilaCumStrategiaMagna uncompiledExpr (←testSymSet)
-    else compileJustSym uncompiledExpr (←testSymSet)
-  Clap.Dbg.timeSince time "Compilation took:"
+  let (compiled, time) ← Clap.Dbg.timeS (ExampruSym.NewTraversal.Dom.compile uncompiledExpr)
   logInfo m!"Compiled to {compiled}"
+
+  let dbgState ← getAndResetDbgState
+  logInfo m!"RAW dbg state:\n{←dbgState.pretty}"
+  let totalCompileTime := m!"Total compile time: {time}"
+  let rulesAppliedTime := sumRuleTime dbgState.ruleHisto
+  let rulesSkippedTime := sumRuleTime dbgState.skippedRuleHisto
+  let timeSpentInRules := rulesAppliedTime + rulesSkippedTime
+  let rulesTotal := m!"Rules[skipped+applied]: {timeSpentInRules}"
+  logInfo m!"{totalCompileTime}\n{rulesTotal}\nUnaccounted[Δ]: {time - timeSpentInRules}"
 
   if !eval then return compiled
 
-  let dbgState ← getAndResetDbgState
-  logInfo m!"{←dbgState.pretty}"
   -- Pretty print (i.e. go back to `Bind.bind`)
   let formatted := (
     ←Lean.Meta.Sym.simp compiled (←SymSets.General.compilerBindEqBind)
@@ -76,8 +77,8 @@ def runTest (uncompiledExpr : Expr) (eval : Bool := true)
   return formatted
 
 open Lean in
-def runTestByName (testName : Name) (eval : Bool := true) (isUsingTopLevelStrategy : Bool := false) : MetaM Unit := do
+def runTestByName (testName : Name) (eval : Bool := true) : MetaM Unit := do
   let .some constantInfo := (←getEnv).find? testName | throwError m!"Undeclared constant:\n{testName}"
-  runTest constantInfo.value! eval isUsingTopLevelStrategy
+  runTest constantInfo.value! eval
 
 end ExampruSym
