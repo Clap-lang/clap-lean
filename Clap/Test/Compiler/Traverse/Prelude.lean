@@ -1,5 +1,7 @@
 import Clap.Compiler.Traverse
 
+instance (priority := high) : Inhabited (Lean.MetaM Lean.Meta.Sym.Simp.Methods) := ⟨pure default⟩
+
 namespace ExampruSym
 
 open Clap.Compiler
