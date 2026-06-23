@@ -107,8 +107,7 @@ def passTimeOfHisto (histo : RuleHisto) : Std.HashMap Pass Float := Id.run do
     (general, 0.0)
   ]
   for (rule, (_, time)) in histo do
-    if !ruleMap.contains rule then panic! "Please add {rule} to `Trace/ruleMap` . (TODO: Shoudln't be necessary)"
-    result := result.modify (ruleMap.get! rule) (· + time)
+    result := result.modify (ruleMap.get? rule |>.getD general) (· + time)
   return result
 
 def CompilerDbgState.pretty (σ : CompilerDbgState) : MetaM Format := do
