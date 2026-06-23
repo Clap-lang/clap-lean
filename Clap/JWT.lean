@@ -7,21 +7,32 @@ namespace JWT
 
 open Clap.Lang Primes
 
-variable {p : ℕ} [Fact (Nat.Prime p)]
+variable {p : ℕ}
 
 instance : Coe Char (F p) where
   coe c := c.toNat
 
-private def stringBodiesRev₀ (input : List (F p)) : Option (List (FB p) × FB p × FB p) :=
-  input.foldlM
-    ( fun (acc, openedQuotes, escaped) c ↦ do
-        let isNonEscQuotationMark := (←F.eq c '\"') &&& FB.not escaped
-        let acc' := openedQuotes * FB.not isNonEscQuotationMark :: acc
-        let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
-        let escaped' := (←F.eq c '\\') &&& FB.not escaped
-        some (acc', openedQuotes', escaped')
-    )
-    ([], default, default)
+def stringBodies₀ (openedQuotes : FB p) (escaped : FB p) :
+  List (FB p) → List (FB p) → Option (List (FB p))
+| revAcc, [] => revAcc
+| revAcc, c :: cs => do
+  let isNonEscQuotationMark := FB.and (←F.eq c '\"') (FB.not escaped)
+  let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
+  let escaped' := FB.and (←F.eq c '\\') (FB.not escaped)
+  stringBodies₀ openedQuotes' escaped' (openedQuotes * FB.not isNonEscQuotationMark :: revAcc) cs
+
+lemma stringBodies₀_length : ∀ (openedQuotes escaped : FB p) revAcc l res,
+  some res = stringBodies₀ openedQuotes escaped revAcc l →
+  res.length = l.length + revAcc.length
+:= by
+  intro openedQuotes escaped revAcc l res h
+  revert revAcc openedQuotes escaped res
+  induction l with
+  | nil => simp [stringBodies₀]
+  | cons a as ih =>
+    intro _ _ _ _ h
+    simp [stringBodies₀, F.eq, F.isZero_def] at h
+    split at h <;> grind
 
 /-- From keyless:
   Given an array of ask characters representing a JSON object, output a binary array demarquing
@@ -30,9 +41,16 @@ private def stringBodiesRev₀ (input : List (F p)) : Option (List (FB p) × FB 
   input =  { asdfsdf "as\"df" }
   output = 00000000000111111000
 -/
-def stringBodies {w} (input : FString p w) : Option (PaddedVector FB p w) := do
-  let data := ⟨(←stringBodiesRev₀ input.data.toArray.toList).1.reverse.toArray, sorry⟩
-  some {data,len := input.len}
+def stringBodies {w} (input : FString p w) : Option (PaddedVector FB p w) :=
+  let (eq := h) r := stringBodies₀ 0 0 [] input.data.toArray.toList
+  match r with
+  | none => none
+  | some res =>
+    have : res.reverse.toArray.size = w := by
+      have hlen := stringBodies₀_length (p := p) 0 0 []
+      grind [stringBodies₀, stringBodies₀_length]
+    let data : Vector (F p) w := ⟨res.reverse.toArray, this⟩
+    .some {data, len := input.len}
 
 /-
 omit [Core bn254] in
@@ -65,22 +83,100 @@ omit [Core bn254] in
   brackets:  10010001-1000000-1-1
   where `arr` is represented by its ASCII encoding, i.e. `{` = 123
 -/
-def bracketsMap (input : List (F p)) : Option (List (FB p)) := do
-  input.mapM (fun c ↦ do
-    let eqOpen ← F.eq c '{'
-    let eqClose ←F.eq c '}'
-    some (eqOpen - eqClose))
+def bracketsMap {LEN} (input : FString p LEN) : Option (PaddedVector FB p LEN) := do
+  let v ←
+    input.data.mapM fun c ↦ do
+      let eqOpen ← F.eq c '{'
+      let eqClose ←F.eq c '}'
+      some (eqOpen - eqClose)
+  some ⟨v, input.len⟩
 
-private def bracketsDepthMapRev₀ (input : List (F p)) : Option (List (F p) × F p) := do
-  input.foldlM
-    ( fun (acc, depth) i ↦ do
-        -- The value is the depth from the previous position, except when i = (-1)
-        let i' := depth - (←F.eq i (-1))
-        -- Update the depth
-        let depth' := depth + i
-        (i' :: acc, depth')
-    )
-    ([], 0)
+/-- Tail recursive helper for `partialSums`. The result is in reverse order. -/
+private def partialSums₀ : List (F p) → List (F p) → List (F p)
+  | [], revAcc => revAcc
+  | a :: as, sums => do
+    match sums with
+    | [] => partialSums₀ as [a]
+    | sum :: sums =>
+      let sum' := sum + a
+      partialSums₀ as (sum' :: sum :: sums)
+
+lemma partialSumsTR_length : ∀ (l sums revAcc : List (F p)),
+  sums = partialSums₀ l revAcc → sums.length = l.length + revAcc.length
+:= by
+  intro l
+  induction l with
+  | nil => simp_all [partialSums₀]
+  | cons a as ih =>
+    intro sums h h
+    simp [partialSums₀] at h
+    split at h <;> grind
+
+/--
+`partialSum` is step 1 from `bracketsDepthMap`:
+Compute an intermediate array where each index is a running sum of all previous indices in the input.
+The result actually is in *reverse order*. This works well with `bracketsDepthMap`,
+which takes input in reverse order.
+
+Example as if the output was in normal order:
+input  : 01000101000*00*0000*
+output : 01111223333222111110
+-/
+private def partialSums {LEN : ℕ} (input : Vector (F p) LEN) : Vector (F p) LEN :=
+  let (eq := h) revResult := partialSums₀ input.toList []
+  have : revResult.toArray.size = LEN := by
+    symm at h
+    apply partialSumsTR_length at h
+    grind
+  ⟨revResult.toArray, this⟩
+
+/--
+Tail recursive helper for `removeOffset`.
+The input is expected in *reverse order*.
+-/
+private def removeOffset₀ : List (F p) → List (F p) → Option (List (F p))
+  | [], acc => return acc
+  | [a], acc => return a :: acc
+  | a₁ :: a₂ :: as, acc => do
+    let isDec ← F.eq a₁ (a₂ + 1)
+    removeOffset₀ (a₂ :: as) ((a₁ - isDec) :: acc)
+
+lemma removeOffset_length : ∀ (revInput output acc : List (F p)),
+  some output = removeOffset₀ revInput acc → output.length = revInput.length + acc.length
+:= by
+  intro l
+  induction l using List.twoStepInduction with
+  | nil => simp_all [removeOffset₀]
+  | singleton a =>
+    intro l' acc
+    simp_all [removeOffset₀]
+    grind
+  | cons_cons a₁ a₂ as ih₁ ih₂ =>
+    intro l' acc h
+    simp_all [removeOffset₀]
+    simp [F.eq, isZero] at h
+    grind
+
+/--
+Step 4 from `bracketsDepthMap`:
+For each value greater than 1 compared to the previous value in the result of step 3, decrement that value by 1.
+The input is expected in *reverse order*. This works well with `partialSums`, which
+produces the output in reverse order.
+
+Example as if the input was in normal order:
+input  : 00000112222111000000
+output : 00000011222111000000
+-/
+private def removeOffset {LEN : ℕ} (revInput : Vector (F p) LEN) : Option (Vector (F p) LEN) := by
+  let result := removeOffset₀ revInput.toList []
+  match h : result with
+  | none => exact none
+  | some l =>
+    have : l.toArray.size = LEN := by
+      symm at h
+      apply removeOffset_length at h
+      grind
+    exact some (⟨l.toArray, this⟩ : Vector (F p) LEN)
 
 /--
   Given an input array `arr` of length `LEN` containing `1`s corresponding to open
@@ -107,16 +203,20 @@ private def bracketsDepthMapRev₀ (input : List (F p)) : Option (List (F p) × 
   out:           00000011222111000000   correctly represents open brackets as being outside of bracket nesting
   out: 0000001122 11 0000 0
 -/
-def bracketsDepthMap (input : List (F p)) : Option (List (F p)) := do
-  (←bracketsDepthMapRev₀ input).1.reverse.mapM minusOne
+def bracketsDepthMap {LEN : ℕ} (input : Vector (F p) LEN) : Option (Vector (F p) LEN) := do
+  -- Step 1
+  let revSums := partialSums input
+  -- Steps 2 and 3
+  let revPrelim ← revSums.mapM minusOne
+  -- Step 4
+  removeOffset revPrelim
  where
-  --  The outermost open and closed bracket are both ignored.
   minusOne (a : F p) : Option (F p) := do a - 1 + (←isZero a)
 
-def hadamardProduct (lhs rhs : List (F p)) : List (F p) :=
+def Vector.hadamardProduct {LEN : ℕ} (lhs rhs : Vector (F p) LEN) : Vector (F p) LEN :=
   lhs.zipWith (· * ·) rhs
 
-def escalarProduct (i₁ i₂ : List (F p)) : F p :=
+def Vector.scalarProduct {LEN : ℕ} (i₁ i₂ : Vector (F p) LEN) : F p :=
   let p := hadamardProduct i₁ i₂
   p.sum
 
@@ -126,15 +226,14 @@ def escalarProduct (i₁ i₂ : List (F p)) : F p :=
   corresponding to the first index and length of a full field in the JWT, fails if the given field
   contains any indices inside nested brackets in the original JWT, and succeeds otherwise
 -/
-def enforceNotNested (len : ℕ)
+def enforceNotNested [Fact (Nat.Prime p)] (LEN : ℕ)
   (startIndex fieldLen : F p)
-  (bracketsDepthMap : List (F p)) :
+  (bracketsDepthMap : Vector (F p) LEN) :
   Option Unit
 := do
   let endIndex := startIndex + fieldLen
-  let bracketsSelector ← FArray.arraySelector len startIndex endIndex
-  let bracketsSelector := bracketsSelector.toList
-  let o := escalarProduct bracketsDepthMap bracketsSelector
+  let bracketsSelector ← FArray.arraySelector LEN startIndex endIndex
+  let o := Vector.scalarProduct bracketsDepthMap bracketsSelector
   eq0 o
 
 /--
@@ -155,13 +254,13 @@ def emailVerifiedCheck
 
 namespace Spec.JWT
 
-def emailVerifiedCheck (uidName evName evValue : String) : Option Bool := do
+def emailVerifiedCheck  (uidName evName evValue : String) : Option Bool := do
   let uidIsEmail := uidName = "email"
   Spec.FB.conditionallyAssert uidIsEmail (evName = "email_verified")
   Spec.FB.conditionallyAssert uidIsEmail (evValue = "true" || evValue = "\"true\"")
   return uidIsEmail
 
-lemma evailVerifiedCheck_equiv {wa wb wc}
+lemma evailVerifiedCheck_equiv [Fact (Nat.Prime p)] {wa wb wc}
   (h : 2^8 < p)
   (a : FString p wa) (ha: Spec.FString.valid a)
   (b : FString p wb) (hb: Spec.FString.valid b)
@@ -546,31 +645,38 @@ example :
 private def br :=
   parseCharsASCII "{he{llo{}world!}}"
 example :
-  bracketsMap (p := p) br.data.toList == some [1, 0, 0, 1, 0, 0, 0, 1, -1, 0, 0, 0, 0, 0, 0, -1, -1]
+  (bracketsMap (p := p) br).map PaddedVector.data == some #v[1, 0, 0, 1, 0, 0, 0, 1, -1, 0, 0, 0, 0, 0, 0, -1, -1]
 := by
   native_decide
 
-private def plusMinusOneBr₁ : List (F p) :=
-  [0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, -1, 0, 0, -1, 0, 0, 0, 0, -1]
+private def plusMinusOneBr₁ : Vector (F p) 20 :=
+  #v[0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, -1, 0, 0, -1, 0, 0, 0, 0, -1]
 example :
   bracketsDepthMap plusMinusOneBr₁ == some
-    [0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0, 0]
+    #v[0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0, 0]
 := by
   native_decide
 
-private def plusMinusOneBr₂ : List (F p) :=
-  [1,1,1,1,1,-1,-1,-1,-1,-1]
+private def plusMinusOneBr₂ : Vector (F p) 10 :=
+  #v[1,1,1,1,1,-1,-1,-1,-1,-1]
 
-example : bracketsDepthMap plusMinusOneBr₂ == some [0, 0, 1, 2, 3, 3, 2, 1, 0, 0] := by
+example : bracketsDepthMap plusMinusOneBr₂ == some #v[0, 0, 1, 2, 3, 3, 2, 1, 0, 0] := by
+  native_decide
+
+private def plusMinusOneBr₃ : Vector (F p) 20 :=
+  #v[0,1,0,0,0,1,0,1,0,0,0,-1,0,0,-1,0,0,0,0,-1]
+
+example :
+  bracketsDepthMap plusMinusOneBr₃ == some #v[0,0,0,0,0,0,1,1,2,2,2,1,1,1,0,0,0,0,0,0]
+:= by
   native_decide
 
 example :
-  enforceNotNested (p := p) 10 0 2 [0, 0, 1, 2, 3, 3, 2, 1, 0, 0] == .some ()
+  enforceNotNested (p := p) 10 0 2 #v[0, 0, 1, 2, 3, 3, 2, 1, 0, 0] == .some ()
 := by
   native_decide
 
-example : enforceNotNested
-  (p := p) 10 8 10 [0, 0, 1, 2, 3, 3, 2, 1, 0, 0] == .some ()
+example : enforceNotNested (p := p) 10 8 10 #v[0, 0, 1, 2, 3, 3, 2, 1, 0, 0] == .some ()
 := by
   native_decide
 
@@ -584,7 +690,7 @@ private def evBadFString : FString p max_EV_value_len := { evTrue₂FString with
 private def requiredEvName : FString p 14 := FString.ofString "email_verified"
 
 example :
-  enforceNotNested (p := p) 10 2 4 [0, 0, 1, 2, 3, 3, 2, 1, 0, 0] == .none
+  enforceNotNested (p := p) 10 2 4 #v[0, 0, 1, 2, 3, 3, 2, 1, 0, 0] == .none
 :=
   by native_decide
 
