@@ -1,3 +1,4 @@
+import Mathlib
 import Clap.Lang
 import Clap.Array
 import Clap.FString
@@ -253,24 +254,15 @@ lemma evailVerifiedCheck_equiv {wa wb wc}
     (emailVerifiedCheck (Spec.FString.toString a)
                         (Spec.FString.toString b)
                         (Spec.FString.toString c)) := by
-  unfold _root_.JWT.emailVerifiedCheck emailVerifiedCheck
-  rw [Spec.FString.isPaddedOf_equiv]
-  rw [Spec.FString.isPaddedOf_equiv]
-  simp
-  rw [Spec.FB.conditionallyAssert_equiv]
-  rw [Spec.FString.isPaddedOf_equiv]
-  rw [Spec.FString.isPaddedOf_equiv]
-  simp [Spec.FB.left_inv]
-  rw [Spec.FB.conditionallyAssert_equiv]
-  simp [Spec.FB.left_inv]
-  rw [Spec.FB.or_equiv]
-  simp [Spec.FB.left_inv]
-  all_goals try apply Spec.FB.valid_ofBool
-  rw [Spec.FB.or_equiv] ; apply Spec.FB.valid_ofBool
-  all_goals try apply Spec.FB.valid_ofBool
-  all_goals try assumption
-  all_goals try (simp [String.length] ; omega)
-  all_goals try decide
+  unfold _root_.JWT.emailVerifiedCheck;
+  rw [ Spec.FString.isPaddedOf_equiv, Spec.FString.isPaddedOf_equiv, Spec.FString.isPaddedOf_equiv, Spec.FString.isPaddedOf_equiv ];
+  all_goals try assumption;
+  all_goals try exact fun c hc => by fin_cases hc <;> decide;
+  · unfold emailVerifiedCheck; simp +decide [ Spec.FB.conditionallyAssert_equiv, Spec.FB.or_equiv, Spec.FB.left_inv, Spec.FB.valid_ofBool ] ;
+  · exact lt_of_le_of_lt ( by decide ) h;
+  · exact lt_of_le_of_lt ( by decide ) h;
+  · exact lt_of_le_of_lt ( by decide ) h;
+  · exact lt_of_le_of_lt ( by decide ) h
 
 def arraySelector_spec (len startIdx endIdx : ℕ) : Vector Bool len :=
   Vector.ofFn (fun i => decide (startIdx ≤ (i : ℕ) ∧ (i : ℕ) < endIdx))
@@ -282,7 +274,59 @@ lemma arraySelector_equiv [Fact (Nat.Prime p)] (len : ℕ) (startIdx endIdx : F 
   (hw : 2 ^ (Clap.minBits len + 1) < p) :
   FArray.arraySelector len startIdx endIdx
     = some ((arraySelector_spec len startIdx.val endIdx.val).map (FB.ofBool (p := p)))
-:= by sorry
+:= by
+  rw [FArray.arraySelector_eq len startIdx endIdx hlen hstart hlt hend hw]
+  congr 1
+  apply Vector.ext
+  intro i hi
+  simp only [arraySelector_spec, Vector.getElem_map, Vector.getElem_ofFn, FB.ofBool, FB.true,
+    FB.false]
+  by_cases h : startIdx.val ≤ (i : ℕ) ∧ (i : ℕ) < endIdx.val <;> simp [h]
+
+/-
+Over `ZMod p`, if the integer sum of the canonical representatives of a list is `< p`, then the
+    list sums to `0` exactly when every entry is `0`.
+-/
+lemma zmod_sum_eq_zero_iff {p : ℕ} [NeZero p] (L : List (ZMod p))
+    (h : (L.map ZMod.val).sum < p) :
+    L.sum = 0 ↔ ∀ x ∈ L, x = 0 := by
+      have h_sum_zero_iff : (L.sum : ZMod p) = (↑((List.map ZMod.val L).sum) : ZMod p) := by
+        induction L <;> simp +decide [ * ];
+      rw [ h_sum_zero_iff, ZMod.natCast_eq_zero_iff ];
+      rw [ Nat.dvd_iff_mod_eq_zero, Nat.mod_eq_of_lt h ];
+      rw [ List.sum_eq_zero_iff ];
+      simp +decide [ ZMod.val_eq_zero ]
+
+/-
+The scalar product of `bracketsDepthMap` with the `arraySelector` indicator of the window
+    `[s, e)` equals the (field) sum of the window obtained by `Vector.extract`.
+-/
+lemma escalarProduct_arraySelectorSpec_eq {LEN : ℕ} (bdm : Vector (F p) LEN) (s e : ℕ) :
+    Vector.escalarProduct bdm ((arraySelector_spec LEN s e).map (FB.ofBool (p := p)))
+      = (bdm.extract s e).toList.sum := by
+        unfold Vector.escalarProduct;
+        unfold Vector.hadamardProduct; simp +decide [ arraySelector_spec ] ;
+        rw [ show ( Vector.zipWith ( fun x1 x2 => x1 * x2 ) bdm ( Vector.map FB.ofBool ( Vector.ofFn fun i : Fin LEN => decide ( s ≤ ( i : ℕ ) ) && decide ( ( i : ℕ ) < e ) ) ) ) = Vector.ofFn ( fun i : Fin LEN => if s ≤ ( i : ℕ ) ∧ ( i : ℕ ) < e then bdm[i] else 0 ) from ?_ ];
+        · rw [ show ( Vector.ofFn fun i : Fin LEN => if s ≤ ( i : ℕ ) ∧ ( i : ℕ ) < e then bdm[i] else 0 ).sum = ∑ i ∈ Finset.univ.filter ( fun i : Fin LEN => s ≤ ( i : ℕ ) ∧ ( i : ℕ ) < e ), bdm[i] from ?_ ];
+          · rw [ ← Finset.sum_subset ( show Finset.image ( fun k : Fin ( Min.min e LEN - s ) => ⟨ s + k, by omega ⟩ : Fin ( Min.min e LEN - s ) → Fin LEN ) Finset.univ ⊆ Finset.filter ( fun i : Fin LEN => s ≤ ( i : ℕ ) ∧ ( i : ℕ ) < e ) Finset.univ from ?_ ) ];
+            · rw [ Finset.sum_image ];
+              · rw [ ← List.sum_ofFn ];
+                congr;
+                refine' List.ext_get _ _ <;> aesop;
+              · exact fun a _ b _ h => by simpa [ Fin.ext_iff ] using h;
+            · simp +zetaDelta at *;
+              intro x hx₁ hx₂ hx₃; contrapose! hx₃; use ⟨ x - s, by omega ⟩ ; simp +decide [ hx₁, hx₂ ] ;
+            · grind +splitIndPred;
+          · rw [ Finset.sum_filter, Vector.sum ];
+            convert Finset.sum_congr rfl fun i _ => ?_;
+            rotate_left;
+            exact fun i => if s ≤ i.val ∧ i.val < e then bdm[i] else 0;
+            · rfl;
+            · simp +decide [ Finset.sum ];
+              conv => rw [ ← Array.toList_ofFn ] ;
+              grind;
+        · ext i; simp +decide [ FB.ofBool ] ;
+          split_ifs <;> simp +decide [ *, FB.true, FB.false ]
 
 def enforceNotNested_spec (LEN : ℕ)
   (startIdx fieldLen : ZMod p)
@@ -292,16 +336,46 @@ def enforceNotNested_spec (LEN : ℕ)
   let f := bracketsDepthMap.extract startIdx.val (startIdx + fieldLen).val
   f.all (· = 0)
 
+/-
+`enforceNotNested` succeeds iff every bracket-depth value inside the field window
+    `[startIdx, startIdx + fieldLen)` is zero.
+
+    The statement as originally written was not provable: the circuit only checks that the *sum* of
+    the depth values over the window is zero (`eq0` of a scalar product), whereas the spec
+    `enforceNotNested_spec` checks that *every* such value is zero. Over `ZMod p` these differ —
+    e.g. a window `[1, p-1]` sums to `0` without being all-zero. We therefore add the
+    no-cancellation hypothesis `hbound`, stating that the integer sum of the canonical
+    representatives of the depth values in the window is `< p`. This is exactly the invariant
+    enjoyed by genuine bracket-depth maps (small non-negative depths), and under it "sums to zero"
+    is equivalent to "is all zero", making circuit and spec agree.
+-/
 lemma enforceNotNested_equiv (LEN) (hlen : LEN ≤ p)
   (startIdx fieldLen : F p)
   (hstart : startIdx.val < LEN)
   (hlt : startIdx.val < startIdx.val + fieldLen.val)
   (hend : startIdx.val + fieldLen.val < 2 ^ Clap.minBits LEN)
   (hw : 2 ^ (Clap.minBits LEN + 1) < p)
-  (bracketsDepthMap : Vector (F p) LEN) :
+  (bracketsDepthMap : Vector (F p) LEN)
+  (hbound : ((bracketsDepthMap.extract startIdx.val (startIdx + fieldLen).val).toList.map
+      ZMod.val).sum < p) :
   JWT.enforceNotNested LEN startIdx fieldLen bracketsDepthMap =
     Spec.FB.assert (enforceNotNested_spec LEN startIdx fieldLen bracketsDepthMap)
-:= by sorry
+:= by
+  convert Option.bind_congr ?_;
+  rotate_left;
+  use fun a => if Vector.escalarProduct bracketsDepthMap a = 0 then some () else none;
+  · unfold eq0; aesop;
+  · rw [ arraySelector_equiv LEN startIdx ( startIdx + fieldLen ) hlen hstart ?_ ?_ hw ];
+    · simp +decide [ Spec.FB.assert, enforceNotNested_spec ];
+      convert zmod_sum_eq_zero_iff ( bracketsDepthMap.extract ( ZMod.val startIdx ) ( ZMod.val ( startIdx + fieldLen ) ) |> Vector.toList ) hbound |> Iff.symm using 1;
+      rw [ escalarProduct_arraySelectorSpec_eq ];
+      simp +decide [ List.mem_iff_get ];
+      split_ifs <;> simp_all +decide [ Fin.forall_iff ];
+    · rw [ ZMod.val_add ];
+      rw [ Nat.mod_eq_of_lt ] <;> linarith [ pow_succ' 2 ( Clap.minBits LEN ) ];
+    · convert hend using 1;
+      convert ZMod.val_add_of_lt ( show startIdx.val + fieldLen.val < p from ?_ );
+      exact lt_of_lt_of_le hend ( Nat.le_of_lt hw |> le_trans ( Nat.pow_le_pow_right ( by decide ) ( Nat.le_succ _ ) ) )
 
 end Spec.JWT
 
