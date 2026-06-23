@@ -306,27 +306,37 @@ lemma escalarProduct_arraySelectorSpec_eq {LEN : ℕ} (bdm : Vector (F p) LEN) (
       = (bdm.extract s e).toList.sum := by
         unfold Vector.escalarProduct;
         unfold Vector.hadamardProduct; simp +decide [ arraySelector_spec ] ;
-        rw [ show ( Vector.zipWith ( fun x1 x2 => x1 * x2 ) bdm ( Vector.map FB.ofBool ( Vector.ofFn fun i : Fin LEN => decide ( s ≤ ( i : ℕ ) ) && decide ( ( i : ℕ ) < e ) ) ) ) = Vector.ofFn ( fun i : Fin LEN => if s ≤ ( i : ℕ ) ∧ ( i : ℕ ) < e then bdm[i] else 0 ) from ?_ ];
-        · rw [ show ( Vector.ofFn fun i : Fin LEN => if s ≤ ( i : ℕ ) ∧ ( i : ℕ ) < e then bdm[i] else 0 ).sum = ∑ i ∈ Finset.univ.filter ( fun i : Fin LEN => s ≤ ( i : ℕ ) ∧ ( i : ℕ ) < e ), bdm[i] from ?_ ];
-          · rw [ ← Finset.sum_subset ( show Finset.image ( fun k : Fin ( Min.min e LEN - s ) => ⟨ s + k, by omega ⟩ : Fin ( Min.min e LEN - s ) → Fin LEN ) Finset.univ ⊆ Finset.filter ( fun i : Fin LEN => s ≤ ( i : ℕ ) ∧ ( i : ℕ ) < e ) Finset.univ from ?_ ) ];
-            · rw [ Finset.sum_image ];
-              · rw [ ← List.sum_ofFn ];
-                congr;
-                refine' List.ext_get _ _ <;> aesop;
-              · exact fun a _ b _ h => by simpa [ Fin.ext_iff ] using h;
-            · simp +zetaDelta at *;
-              intro x hx₁ hx₂ hx₃; contrapose! hx₃; use ⟨ x - s, by omega ⟩ ; simp +decide [ hx₁, hx₂ ] ;
-            · grind +splitIndPred;
-          · rw [ Finset.sum_filter, Vector.sum ];
-            convert Finset.sum_congr rfl fun i _ => ?_;
-            rotate_left;
-            exact fun i => if s ≤ i.val ∧ i.val < e then bdm[i] else 0;
-            · rfl;
-            · simp +decide [ Finset.sum ];
-              conv => rw [ ← Array.toList_ofFn ] ;
-              grind;
-        · ext i; simp +decide [ FB.ofBool ] ;
-          split_ifs <;> simp +decide [ *, FB.true, FB.false ]
+        rw [ show Vector.zipWith (fun x1 x2 => x1 * x2) bdm
+                (Vector.ofFn (FB.ofBool ∘ fun i : Fin LEN => decide (s ≤ (i : ℕ)) && decide ((i : ℕ) < e))) =
+              Vector.ofFn (fun i : Fin LEN => if s ≤ (i : ℕ) ∧ (i : ℕ) < e then bdm[i] else 0) from by
+            ext i hi;
+            simp only [Vector.getElem_zipWith, Vector.getElem_ofFn, Function.comp];
+            simp +decide [FB.ofBool];
+            split_ifs <;> simp +decide [*, FB.true, FB.false] ];
+        conv_lhs => rw [← Vector.sum_toList, Vector.toList_ofFn, List.sum_ofFn];
+        conv_rhs =>
+          rw [show (bdm.extract s e).sum = ∑ k : Fin (min e LEN - s), (bdm.extract s e)[k.val] from by
+            rw [← Vector.sum_toList];
+            rw [show (bdm.extract s e).toList = List.ofFn (fun k : Fin (min e LEN - s) => (bdm.extract s e)[k.val]) from by
+              rw [← Vector.toList_ofFn]; congr 1; exact Vector.ofFn_getElem.symm];
+            rw [List.sum_ofFn]];
+        rw [← Finset.sum_filter];
+        apply Finset.sum_bij'
+          (i := fun a ha => ⟨a.val - s, by
+            simp only [Finset.mem_filter, Finset.mem_univ, true_and] at ha; omega⟩)
+          (j := fun (k : Fin (min e LEN - s)) _ => ⟨s + k.val, by have := k.isLt; omega⟩)
+          (hi := fun (a : Fin LEN) _ => Finset.mem_univ _)
+          (hj :=
+            fun (k : Fin (min e LEN - s)) _ => by
+              simp only [Finset.mem_filter, Finset.mem_univ, true_and]; have := k.isLt; omega
+          )
+          (left_neg := fun k _ => Fin.ext (by grind))
+          (right_neg := fun a ha => by
+            simp only [Finset.mem_univ] at ha;
+            exact Fin.ext (by grind))
+          (h := fun a ha => by
+            simp only [Finset.mem_filter, Finset.mem_univ, true_and] at ha;
+            simp [Vector.getElem_extract, Nat.add_sub_cancel' ha.1])
 
 def enforceNotNested_spec (LEN : ℕ)
   (startIdx fieldLen : ZMod p)
