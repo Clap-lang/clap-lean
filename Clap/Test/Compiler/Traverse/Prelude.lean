@@ -11,12 +11,18 @@ opaque G : ℕ → Option ℕ
 opaque H : ℕ → Option ℕ
 
 open Lean in
-def runTest (uncompiledExpr : Expr) (eval : Bool := true) (extraPasses : MetaM Meta.Sym.Simp.Methods := Clap.Compiler.ExampruSym.NewTraversal.Dom.doNothing) := spoon <| do
+def runTest
+  (uncompiledExpr : Expr)
+  (eval : Bool := true)
+  (extraPasses : MetaM Meta.Sym.Simp.Methods := Clap.Compiler.ExampruSym.NewTraversal.Dom.doNothing)
+  (expectedType: Type := Option ℕ)
+  (compare : Option (expectedType → expectedType → Bool) := .none)
+  (print : expectedType → String)
+:= spoon <| do
   let uncompiledTypeExpr ← Meta.inferType uncompiledExpr
-  let expectedType := (Option ℕ)
 
   logInfo m!"Compiling {uncompiledExpr}"
-  let (compiled, time) ← Clap.Dbg.timeS (ExampruSym.NewTraversal.Dom.compile uncompiledExpr extraPasses)
+  let (compiled, time) ← Clap.Dbg.timeS (ExampruSym.NewTraversal.Dom.compile uncompiledExpr extraPasses expectedType)
   logInfo m!"Compiled to {compiled}"
 
   let dbgState ← getAndResetDbgState
@@ -57,15 +63,31 @@ def runTest (uncompiledExpr : Expr) (eval : Bool := true) (extraPasses : MetaM M
       Lean.logInfo m!"Failed to evaluate compiled test expression with given type"
       throwError m!"{exception.toMessageData}"
 
-  if uncompiledEvaluated == compiledEvaluated then
-    Lean.logInfo m!"Compiled expression evalutes equal: {uncompiledEvaluated} == {compiledEvaluated}"
+  let .some compare := compare | return formatted
+  if compare uncompiledEvaluated compiledEvaluated then
+    Lean.logInfo m!"Compiled expression evalutes equal: {print uncompiledEvaluated} == {print compiledEvaluated}"
   else
-    Lean.logError m!"Compiled expression evaluates unequal\nUncompiled: {uncompiledEvaluated} ≠ Compiled: {compiledEvaluated}"
+    Lean.logError m!"Compiled expression evaluates unequal\nUncompiled: {print uncompiledEvaluated} ≠ Compiled: {print compiledEvaluated}"
   return formatted
 
 open Lean in
-def runTestByName (testName : Name) (eval : Bool := true) (extraPasses : MetaM Meta.Sym.Simp.Methods := Clap.Compiler.ExampruSym.NewTraversal.Dom.doNothing) : MetaM Unit := do
+def runTestByName
+  (testName : Name)
+  (eval : Bool := true)
+  (extraPasses : MetaM Meta.Sym.Simp.Methods := Clap.Compiler.ExampruSym.NewTraversal.Dom.doNothing)
+  (expectedType: Type := Option ℕ)
+  (compare : Option (expectedType → expectedType → Bool) := .none)
+  (print : expectedType → String := λ _ => s!"<<No print function provided>>")
+: MetaM Unit := do
   let .some constantInfo := (←getEnv).find? testName | throwError m!"Undeclared constant:\n{testName}"
-  runTest constantInfo.value! eval extraPasses
+  runTest constantInfo.value! eval extraPasses expectedType compare print
+
+open Lean in
+def runOptionNTestByName
+  (testName : Name)
+  (eval : Bool := true)
+  (extraPasses : MetaM Meta.Sym.Simp.Methods := Clap.Compiler.ExampruSym.NewTraversal.Dom.doNothing)
+: MetaM Unit :=
+  runTestByName testName eval extraPasses (Option ℕ) (λ x y: Option ℕ => x == y) (λ x => s!"{x}")
 
 end ExampruSym

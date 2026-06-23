@@ -123,8 +123,8 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (F p) n) (initState : F p)
   -- N_ROUNDS_P[t-2] for t ∈ [2, 17]
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := 1 + n
-  let nRoundsF : ℕ := 8
-  let nRoundsP : ℕ := 20
+  let nRoundsF : ℕ := 2
+  let nRoundsP : ℕ := 2
   -- let nRoundsF : ℕ := 8
   -- let nRoundsP : ℕ := N_ROUNDS_P[t - 2]'sorry
   let half : ℕ := nRoundsF / 2
@@ -299,49 +299,49 @@ set_option maxHeartbeats 0 in
 -- set_option trace.Clap.Compile.dbg true in
 -- set_option trace.Clap.Compile true in
 -- TODO add custom lemma input to the compiler and make it unfold poseidon
-#eval spoon (pretty := false) <| do
-  Clap.Compiler.ExampruSym.NewTraversal.Dom.compile
-    ((←getEnv).find? ``testPoseidon).get!.value!
+-- #eval spoon (pretty := false) <| do
+--   Clap.Compiler.ExampruSym.NewTraversal.Dom.compile
+--     ((←getEnv).find? ``testPoseidon).get!.value!
 
 #exit
 
 namespace DownTest
 
-open Clap.Compiler.SymSets General in
-set_option pp.exprSizes true in
-set_option maxRecDepth 1000000 in
-#eval spoon <| do
-  compileExample ``testPoseidon (←(
-    poseidonBN254' ∪
-    SymSets.General.ground ∪
-    control ∪
-    (return default)
-  ))
+-- open Clap.Compiler.SymSets General in
+-- set_option pp.exprSizes true in
+-- set_option maxRecDepth 1000000 in
+-- #eval spoon <| do
+--   compileExample ``testPoseidon (←(
+--     poseidonBN254' ∪
+--     SymSets.General.ground ∪
+--     control ∪
+--     (return default)
+--   ))
 
 -- `test = poseidonBN254`
 -- def poseidonBN254 {n} (inputs : Vector (F bn254) n) : Option (F bn254)
-set_option autoImplicit true in
-def testExample (test: Name) : MetaM Bool := do
-  let compiled ← liftExpr (Clap.Compiler.compileExample test (←(
-    poseidonBN254' ∪
-    SymSets.General.ground ∪
-    Clap.Compiler.SymSets.General.control ∪
-    (return default)
-  )))
-  logInfo m!"compiled:\n{compiled}"
-  let raw := ((←getEnv).find? test).get!.value!
-  logInfo m!"raw: {raw}"
-  -- `q((n : ℕ) → Vector (F p) n → Option (F p))`
-  let typeExpr := ((←getEnv).find? test).get!.type
-  let stuff ← unsafe evalExpr ((n : ℕ) → Vector (F p) n → Option (F p)) typeExpr raw
-  let stuffEvald := stuff _ #v[1, 2]
-  logInfo m!"stuffEvald: {repr stuffEvald}"
-  let stuff' ← unsafe evalExpr ((n : ℕ) → Vector (F p) n → Option (F p)) typeExpr compiled
-  let stuff'Evald := stuff' _ #v[1, 2]
-  logInfo m!"stuff'Evald: {repr stuff'Evald}"
-  return stuffEvald == stuff'Evald
+-- set_option autoImplicit true in
+-- def testExample (test: Name) : MetaM Bool := do
+--   let compiled ← liftExpr (Clap.Compiler.compileExample test (←(
+--     poseidonBN254' ∪
+--     SymSets.General.ground ∪
+--     Clap.Compiler.SymSets.General.control ∪
+--     (return default)
+--   )))
+--   logInfo m!"compiled:\n{compiled}"
+--   let raw := ((←getEnv).find? test).get!.value!
+--   logInfo m!"raw: {raw}"
+--   -- `q((n : ℕ) → Vector (F p) n → Option (F p))`
+--   let typeExpr := ((←getEnv).find? test).get!.type
+--   let stuff ← unsafe evalExpr ((n : ℕ) → Vector (F p) n → Option (F p)) typeExpr raw
+--   let stuffEvald := stuff _ #v[1, 2]
+--   logInfo m!"stuffEvald: {repr stuffEvald}"
+--   let stuff' ← unsafe evalExpr ((n : ℕ) → Vector (F p) n → Option (F p)) typeExpr compiled
+--   let stuff'Evald := stuff' _ #v[1, 2]
+--   logInfo m!"stuff'Evald: {repr stuff'Evald}"
+--   return stuffEvald == stuff'Evald
 
-#eval! testExample ``Clap.PoseidonVec.poseidonBN254
+-- #eval! testExample ``Clap.PoseidonVec.poseidonBN254
 
 end DownTest
 

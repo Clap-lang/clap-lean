@@ -13,7 +13,7 @@ def testSmallSimplifiableIndex : Option ℕ := do
 
 set_option trace.Clap.Compile true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTestByName ``testSmallSimplifiableIndex
+#eval runOptionNTestByName ``testSmallSimplifiableIndex
 
 def testBigSimplifiableIndex : Option ℕ := do
   let x := #v[1,2,3,4,5]
@@ -22,7 +22,7 @@ def testBigSimplifiableIndex : Option ℕ := do
 
 set_option trace.Clap.Compile true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTestByName ``testBigSimplifiableIndex
+#eval runOptionNTestByName ``testBigSimplifiableIndex
 
 end NewTraversal
 

@@ -140,7 +140,7 @@ def mkMethods (components : Array (Name × PrePost))
   let (procs, thms) ← components.toList.partitionM fun (name, _) ↦ isSimproc name
   let (preProcs, postProcs) := partitionPrePost procs
   let (preThms, postThms) := partitionPrePost thms
-  
+
   let preProcs ← andThenWithLog preProcs.toArray
   let preThms ← mkSimprocForWithLog preThms.toArray d
   let postProcs ← andThenWithLog postProcs.toArray
@@ -2731,32 +2731,161 @@ i.e. interleaving the result with lambdas yields a semantically equivalent bind 
 that is strictly right-linear.
 -/
 partial def sequenceActions (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
+  trace[Clap.Compile.dbg]
+    m!"Sequence Actions\n{e}"
   go e [0]
   where
   go (e : Expr) (Γ : List ℕ) : Sym.Simp.SimpM (Array Expr) := do
+    trace[Clap.Compile.dbg]
+      m!"Go\n{e}"
     match e.bind? with
     | .some (action, func) =>
+      trace[Clap.Compile.dbg]
+        m!"Outer Some"
       match action.bind? with
       | .some (b, g) =>
+        trace[Clap.Compile.dbg]
+          m!"Inner Some"
+        -- b is a linearised sequence of actions, correctly rebound
         let b ← go b Γ
+        -- g is a linearised sequence of actions, correctly rebound
+        -- g is not correctly rebound in the Vector.set case of poseidon
+        -- you can find this by searching for "[some (Vector.set #1 0 #0" and finding the one in the Inner Some summary when running the poseidon test in the test folder
+        -- g in that case should either be [some (Vector.set #3 0 #0 ..)] or should be made as such here (I think it should just be returned as so)
+        -- Additionally, the contents of Γ are never actually used, is it meant to be tracking how much bvars need to be adjusted?
         let g ← go g Γ
         let actions := b ++ g
+        let lifted_func := (func.liftLooseBVars 0 actions.size.pred)
+        let new_context := (actions.size :: Γ)
         /-
           `let x ← do a₁; a₂; a₃; ...; aₙ` offsets subsequent lambdas `n - 1` times.
           Note that `func` here is `λ x ↦ body`, so `x` is _bound_, i.e. not offset by
           `liftLooseBVars`.
         -/
-        let actions' ← go (func.liftLooseBVars 0 actions.size.pred) (actions.size :: Γ)
-        return actions ++ actions'
-      | _ =>
-        let func ← go func Γ
-        return #[action] ++ func
-    | _ =>
+        let actions' ← go lifted_func new_context
+        let result_actions := actions ++ actions'
+        trace[Clap.Compile.dbg]
+          m!"Inner some\nb:{b}\ng:{g}\ncontext:{Γ}\nactions:{actions}\nlifted_func:{lifted_func}\nnew_context:{new_context}\nactions':{actions'}\nResult: \n{result_actions}"
+        return result_actions
+      | .none =>
+        let processed_func ← go func Γ
+        let result_actions := #[action] ++ processed_func
+        trace[Clap.Compile.dbg]
+          m!"Inner none\nfunc:{func}\nprocessed_func:{processed_func}\nResult: \n{result_actions}"
+        return result_actions
+    | .none =>
+      trace[Clap.Compile.dbg]
+        m!"Outer None"
       match e with
       | .lam (body := body) .. =>
-        go body Γ
+        trace[Clap.Compile.dbg]
+          m!"Lam"
+        let result_actions ← go body Γ
+        trace[Clap.Compile.dbg]
+          m!"Lam\nbody:{body}\ncontext:{Γ}\nResult: \n{result_actions}"
+        return result_actions
       | _ =>
-        return #[e]
+        trace[Clap.Compile.dbg]
+          m!"Non-lam"
+        let result_actions := #[e]
+        trace[Clap.Compile.dbg]
+          m!"Non-lam\ne:{e}\ncontext:{Γ}\nResult: \n{result_actions}"
+        return result_actions
+
+def testFunc (a b c d e f: ℕ ) := a + b + c + d + e + f
+
+def e : Expr := (Lean.Expr.lam
+        `d
+        (Lean.Expr.const `Nat [])
+        (Lean.Expr.lam
+          `e
+          (Lean.Expr.const `Nat [])
+          (Lean.Expr.lam
+            `f
+            (Lean.Expr.const `Nat [])
+            (Lean.Expr.app
+              (Lean.Expr.app
+                (Lean.Expr.app
+                  (Lean.Expr.app
+                    (Lean.Expr.app
+                      (Lean.Expr.app
+                        (Lean.Expr.const `HAdd.hAdd [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero])
+                        (Lean.Expr.const `Nat []))
+                      (Lean.Expr.const `Nat []))
+                    (Lean.Expr.const `Nat []))
+                  (Lean.Expr.app
+                    (Lean.Expr.app (Lean.Expr.const `instHAdd [Lean.Level.zero]) (Lean.Expr.const `Nat []))
+                    (Lean.Expr.const `instAddNat [])))
+                (Lean.Expr.app
+                  (Lean.Expr.app
+                    (Lean.Expr.app
+                      (Lean.Expr.app
+                        (Lean.Expr.app
+                          (Lean.Expr.app
+                            (Lean.Expr.const `HAdd.hAdd [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero])
+                            (Lean.Expr.const `Nat []))
+                          (Lean.Expr.const `Nat []))
+                        (Lean.Expr.const `Nat []))
+                      (Lean.Expr.app
+                        (Lean.Expr.app (Lean.Expr.const `instHAdd [Lean.Level.zero]) (Lean.Expr.const `Nat []))
+                        (Lean.Expr.const `instAddNat [])))
+                    (Lean.Expr.app
+                      (Lean.Expr.app
+                        (Lean.Expr.app
+                          (Lean.Expr.app
+                            (Lean.Expr.app
+                              (Lean.Expr.app
+                                (Lean.Expr.const `HAdd.hAdd [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero])
+                                (Lean.Expr.const `Nat []))
+                              (Lean.Expr.const `Nat []))
+                            (Lean.Expr.const `Nat []))
+                          (Lean.Expr.app
+                            (Lean.Expr.app (Lean.Expr.const `instHAdd [Lean.Level.zero]) (Lean.Expr.const `Nat []))
+                            (Lean.Expr.const `instAddNat [])))
+                        (Lean.Expr.app
+                          (Lean.Expr.app
+                            (Lean.Expr.app
+                              (Lean.Expr.app
+                                (Lean.Expr.app
+                                  (Lean.Expr.app
+                                    (Lean.Expr.const `HAdd.hAdd [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero])
+                                    (Lean.Expr.const `Nat []))
+                                  (Lean.Expr.const `Nat []))
+                                (Lean.Expr.const `Nat []))
+                              (Lean.Expr.app
+                                (Lean.Expr.app (Lean.Expr.const `instHAdd [Lean.Level.zero]) (Lean.Expr.const `Nat []))
+                                (Lean.Expr.const `instAddNat [])))
+                            (Lean.Expr.app
+                              (Lean.Expr.app
+                                (Lean.Expr.app
+                                  (Lean.Expr.app
+                                    (Lean.Expr.app
+                                      (Lean.Expr.app
+                                        (Lean.Expr.const `HAdd.hAdd [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero])
+                                        (Lean.Expr.const `Nat []))
+                                      (Lean.Expr.const `Nat []))
+                                    (Lean.Expr.const `Nat []))
+                                  (Lean.Expr.app
+                                    (Lean.Expr.app
+                                      (Lean.Expr.const `instHAdd [Lean.Level.zero])
+                                      (Lean.Expr.const `Nat []))
+                                    (Lean.Expr.const `instAddNat [])))
+                                (Lean.Expr.bvar 5))
+                              (Lean.Expr.bvar 4)))
+                          (Lean.Expr.bvar 3)))
+                      (Lean.Expr.bvar 2)))
+                  (Lean.Expr.bvar 1)))
+              (Lean.Expr.bvar 0))
+            (Lean.BinderInfo.default))
+          (Lean.BinderInfo.default))
+        (Lean.BinderInfo.default))
+
+#eval PrettyPrinter.ppExpr (e.liftLooseBVars 1 1)
+
+run_meta do
+  let x := ((←getEnv).find? ``testFunc).get!.value!
+  logInfo m!"{repr x}"
+
 
 /--
 Optimises `bindActionsInferType`.
@@ -2793,12 +2922,18 @@ A `bind a₁ λ x ↦ a₂ x` given `a₁` and `a₂`.
 TODO(perf): Can cache types during traversal.
 -/
 def bindActionsInferType (action actionτ f fτ : Expr) : Sym.Simp.SimpM (Expr × Expr) := do
+  trace[Clap.Compile.dbg]
+    m!"BindActionsInferType\naction\n{action}\nActionType\n{actionτ}\nf\n{f}\nfτ\n{fτ}"
   let cont := Expr.lam `a actionτ f .default
+  trace[Clap.Compile.dbg]
+    m!"cont\n{cont}"
   let bind :=
     mkApp4 (.const ``Option.bind [←Sym.getLevelInType actionτ, ←Sym.getLevelInType fτ])
            actionτ fτ
            action
            cont
+  trace[Clap.Compile.dbg]
+    m!"bind\n{bind}"
   return (bind, fτ)
 
 /--
@@ -2812,8 +2947,8 @@ def chainActionsInferType (actions : Array Expr) : Sym.Simp.SimpM Expr := do
     return (action, τ)
   let .some action := actions.back? | throwError m!"expected some action"
   let actions := actions.pop
-  let (e', _) ← actions.foldrM (init := action) fun (a₁, τ₁) (a₂, τ₂) ↦
-    bindActionsInferType a₁ τ₁ a₂ τ₂
+  let (e', _) ← actions.foldrM (init := action) fun (elemAction, elemType) (accAction, accType) ↦
+    bindActionsInferType elemAction elemType accAction accType
   let e' ← Sym.shareCommonInc e'
   return e'
 
@@ -2833,10 +2968,22 @@ E.g.
 `   a₃ x`
 -/
 def flattenBindsAny : Sym.Simp.Simproc := fun e ↦ do
+  trace[Clap.Compile.dbg]
+    m!"Flatten binds? {e}"
   let .some (a, _) := e.bind? | return .rfl
+  trace[Clap.Compile.dbg]
+    m!"Flatten binds?? {a}"
   let .some (_, _) := a.bind? | return .rfl
+  trace[Clap.Compile.dbg]
+    m!"Flatten binds."
+  trace[Clap.Compile.dbg]
+    m!"e\n{e}\n{a}"
   let e' ← sequenceActions e
+  trace[Clap.Compile.dbg]
+    m!"Post sequence actions\n{e'}"
   let e' ← chainActionsInferType e'
+  trace[Clap.Compile.dbg]
+    m!"Post chainActionsInferType \n{e'}"
   return .step e' (←mkSorry (←mkEq e e') false)
 
 end flatten
@@ -2850,6 +2997,13 @@ section FoldlM
 def foldlM : Sym.Simp.Simproc := fun expr ↦ do
   let .some [inputType, outputType, f, init, collection] := expr.foldlM? | return .rfl
   let .some (elems, ⟨⟨_, _, .some size⟩, _⟩) ← sequenced collection | return .rfl
+
+  trace[Clap.Compile.dbg]
+    m!"expr\n{expr}"
+  trace[Clap.Compile.dbg]
+    m!"outputType\n{outputType}"
+  trace[Clap.Compile.dbg]
+    m!"inputType\n{inputType}"
 
   trace[Clap.Compile.dbg]
     m!"Unfold_generic_mk_foldlM\nelems:{elems}\nsize:{size}"
@@ -2871,22 +3025,40 @@ def foldlM : Sym.Simp.Simproc := fun expr ↦ do
   | .some _szSimpedNat =>
     -- `some next`
     let chain_base ← Sym.shareCommonInc <| mkAppN (.const ``Option.some [u]) #[outputType, .bvar 0]
+    trace[Clap.Compile.dbg]
+      m!"Chain_base\n{chain_base}"
+
+    trace[Clap.Compile.dbg]
+      m!"outputType\n{outputType}"
+    trace[Clap.Compile.dbg]
+      m!"inputType\n{inputType}"
 
     -- repeated `(f x elem).bind fun x => acc`
     let chain := elems.foldr (
       λ (elem: Expr) (acc: Expr) =>
         let bind_lhs := mkApp2 f (.bvar 0) elem
         let bind_rhs := Expr.lam `next outputType acc .default
-        let bind := mkApp4 (.const `Option.bind [v, u]) inputType outputType bind_lhs bind_rhs
+        let bind := mkApp4 (.const `Option.bind [v, u]) outputType outputType bind_lhs bind_rhs
         bind
     ) chain_base
 
+    trace[Clap.Compile.dbg]
+      m!"Chain\n{chain}"
+
     let wrapped_chain := Expr.lam `init outputType chain .default
+
+    trace[Clap.Compile.dbg]
+      m!"Wrapped_chain\n{wrapped_chain}"
 
     let reduced_chain := wrapped_chain.beta #[init]
 
+    trace[Clap.Compile.dbg]
+      m!"Reduced_chain\n{reduced_chain}"
+
     let expr' ← Sym.shareCommonInc <| reduced_chain
 
+    trace[Clap.Compile.dbg]
+      m!"!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 
     trace[Clap.Compile.dbg]
       m!"\n{expr}\n==>\n{expr'}"
@@ -2899,7 +3071,7 @@ def structural : MetaM Sym.Simp.Methods :=
   mkMethods #[
     (``pureBindMany, .Pre),
     (``flattenBindsAny, .Pre),
-    (``foldlM, .Pre)
+    (`Clap.Compiler.ExampruSym.NewTraversal.Dom.Sets.Structural.foldlM, .Pre)
   ]
 
 end Structural
@@ -3067,16 +3239,16 @@ def general (other: MetaM Sym.Simp.Methods) : MetaM Sym.Simp.Methods :=
     (``set, .Post),
     (``mapIdx, .Post)
   ]
-  -- >>
-  -- size
-  -- >>
-  -- sum
-  -- >>
-  -- foldr
-  -- >>
-  -- mkMethods #[
-  --   (``range, .Post)
-  -- ]
+  >>
+  size
+  >>
+  sum
+  >>
+  foldr
+  >>
+  mkMethods #[
+    (``range, .Post)
+  ]
   >>
   other
 
@@ -3111,9 +3283,21 @@ end Functional
 end Sets
 
 open Sets in
-partial def consiliumMagnum (e : Expr) (extraPasses: MetaM Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
-  (·.1) <$> ire e 1
+partial def consiliumMagnum (e : Expr) (extraPasses: MetaM Sym.Simp.Methods) (expectedType : Type) : Sym.Simp.SimpM Expr := do
+  let uncompiledTypeExpr ← Sym.inferType e
+  (·.1) <$> ire e 1 uncompiledTypeExpr
   where
+    evaluate (compiled: Expr) (uncompiledTypeExpr: Expr) : Sym.Simp.SimpM Unit  := do
+      Lean.Core.tryCatchRuntimeEx
+        do
+          logInfo m!"Attempting"
+          discard ((unsafe Lean.Meta.evalExpr expectedType uncompiledTypeExpr compiled).run)
+          logInfo m!"Success"
+        fun exception => do
+          Lean.logInfo m!"Failed to evaluate compiled test expression with given type"
+          throwError m!"{exception.toMessageData}"
+      pure ()
+
     simp (e : Expr) (symset : Sym.Simp.Methods) : Sym.Simp.SimpM ExprChanged? := do
       let e' ← Sym.simp e symset <&> (·.getResultExpr e)
       return (e', !Sym.isSameExpr e e')
@@ -3127,23 +3311,28 @@ partial def consiliumMagnum (e : Expr) (extraPasses: MetaM Sym.Simp.Methods) : S
     consiliumGenerale (e : Expr) : Sym.Simp.SimpM ExprChanged? := do
       simp e (←General.general extraPasses)
 
-    ire (e : Expr) (numPasses : ℕ) : Sym.Simp.SimpM ExprIter := do
+    ire (e : Expr) (numPasses : ℕ) (uncompiledType: Expr) : Sym.Simp.SimpM ExprIter := do
       withTraceNode `Clap.Compile.consiliumMagnum.pass formatExprIter do
+      evaluate e uncompiledType
+      logInfo m!"Huge"
 
       let (e', _) ← withTraceNode `Clap.Compile.consiliumMagnum.pass.structurale formatExprChanged?With do
         consiliumStructurale e
+      evaluate e' uncompiledType
 
       let (e'', _) ← withTraceNode `Clap.Compile.consiliumMagnum.pass.functionale formatExprChanged?With do
         consiliumFunctionale e'
+      evaluate e'' uncompiledType
 
       let (e''', _) ← withTraceNode `Clap.Compile.consiliumMagnum.pass.generale formatExprChanged?With do
         consiliumGenerale e''
+      evaluate e''' uncompiledType
 
       if Sym.isSameExpr e e'''
       then return (e''', numPasses)
       else
         trace[Clap.Compile.consiliumMagnum] m!"{logRewrite e e'''}"
-        ire e''' numPasses.succ
+        ire e''' numPasses.succ uncompiledType
 
 def doNothing : MetaM Sym.Simp.Methods := pure {
   pre := λ _ => pure .rfl
@@ -3151,10 +3340,10 @@ def doNothing : MetaM Sym.Simp.Methods := pure {
   : Sym.Simp.Methods
 }
 
-def compile (e : Expr) (extraPasses: MetaM Sym.Simp.Methods := doNothing) : Sym.Simp.SimpM Expr := do
+def compile (e : Expr) (extraPasses: MetaM Sym.Simp.Methods := doNothing) (expectedType := Option ℕ) : Sym.Simp.SimpM Expr := do
   let e ← Compiler.Simp.preprocessExpr e
   let res ← lambdaTelescope e fun args e ↦ do
-    let (compiled, time) ← Dbg.timeS (consiliumMagnum e extraPasses)
+    let (compiled, time) ← Dbg.timeS (consiliumMagnum e extraPasses expectedType)
     trace[Clap.Compile] m!"Compilation took: {time}s."
     Dbg.inDebugOnly (do getDbgState >>= fun σ ↦ do logInfo m!"{←σ.pretty}")
     Sym.mkLambdaFVarsS args compiled

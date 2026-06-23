@@ -31,7 +31,7 @@ set_option maxHeartbeats 0 in
 set_option trace.Clap.Compile.simp.proc.vector_mapIdx_mk true in
 set_option trace.Clap.Compile true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTestByName `ExampruSym.testPoseidon_1_2 (extraPasses := Clap.Compiler.SymSets.mkMethods #[
+#eval runOptionNTestByName `ExampruSym.testPoseidon_1_2 (extraPasses := Clap.Compiler.SymSets.mkMethods #[
   (`ExampruSym.testPoseidon_1_2EqDef, .Pre),
   (`ExampruSym.testPoseidonEqDef, .Pre),
   (`ExampruSym.poseidonBN254EqDef, .Pre),
@@ -70,3 +70,31 @@ def a := @Option.bind (Vector (ZMod Primes.bn254) (1 + 2)) ℕ
 
 
 end ExampruSym
+/-
+histoRules := #[
+ (pureBindMany, (22, 0.001603)),
+ (flattenBindsAny, (3, 0.001216)),
+ (betaReduce, (20, 0.000913)),
+ (foldlM, (1, 0.000350)),
+ (getElem, (2, 0.000237)),
+ (range, (1, 0.000178)),
+ (set, (1, 0.000161)),
+totalStepTime := 0.005848
+histoSkippedRules := #[(range, (4023, 0.029366)),
+ (pureBindMany, (3649, 0.028232)),
+ (flattenBindsAny, (3668, 0.021655)),
+ (getElem, (4025, 0.021484)),
+ (append, (4026, 0.018671)),
+ (set, (4023, 0.017966)),
+ (foldlM, (3670, 0.017891)),
+ (mapIdx, (4023, 0.016905)),
+ (foldr_toArray, (4024, 0.016604)),
+ (evalGround, (4024, 0.010990)),
+ (betaReduce, (1429, 0.007218)),
+ (Vector.sum_eq_foldr, (4024, 0.004708)),
+ (zetaReduce, (1449, 0.003099))]
+totalSkipTime := 0.214790
+passTime := Std.HashMap.ofList [(Clap.Compiler.Pass.structural, 0.003169),
+ (Clap.Compiler.Pass.functional, 0.000913),
+ (Clap.Compiler.Pass.general, 0.001766)]
+-/

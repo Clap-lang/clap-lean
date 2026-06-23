@@ -29,10 +29,10 @@ def testBetaReductionManyArgsInline : Option ℕ := do
 -- set_option Clap.traversalDbg true in
 -- set_option trace.Clap.Compile.dbg true in
 -- set_option maxRecDepth 100000 in
-#eval runTestByName ``testBetaReductionOneArg
-#eval runTestByName ``testBetaReductionTwoArgs
-#eval runTestByName ``testBetaReductionManyArgsSplit
-#eval runTestByName ``testBetaReductionManyArgsInline
+#eval runOptionNTestByName ``testBetaReductionOneArg
+#eval runOptionNTestByName ``testBetaReductionTwoArgs
+#eval runOptionNTestByName ``testBetaReductionManyArgsSplit
+#eval runOptionNTestByName ``testBetaReductionManyArgsInline
 
 end NewTraversal
 

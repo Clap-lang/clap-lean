@@ -15,7 +15,7 @@ def testInnerReturn : Option ℕ := do
 
 set_option trace.Clap.Compile true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTestByName ``testInnerReturn
+#eval runOptionNTestByName ``testInnerReturn
 
 def testRightBind : Option ℕ := do
   let x ← F 1
@@ -23,7 +23,7 @@ def testRightBind : Option ℕ := do
   return y
 set_option trace.Clap.Compile true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTestByName ``testRightBind
+#eval runOptionNTestByName ``testRightBind
 
 def testLeftBind : Option ℕ := do
   let y ← F ((←do
@@ -34,7 +34,7 @@ def testLeftBind : Option ℕ := do
 
 set_option trace.Clap.Compile true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTestByName ``testLeftBind
+#eval runOptionNTestByName ``testLeftBind
 
 def testTreeBindNested : Option ℕ := do
   let a ← F 1
@@ -131,11 +131,11 @@ example :
 
 set_option trace.Clap.Compile true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTestByName ``testTreeBind
+#eval runOptionNTestByName ``testTreeBind
 
 set_option trace.Clap.Compile true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTestByName ``testTreeBindNested
+#eval runOptionNTestByName ``testTreeBindNested
 
 def exex' : Option ℕ := do
   let z ← F 2
@@ -145,7 +145,7 @@ def exex' : Option ℕ := do
 
 set_option trace.Clap.Compile true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTestByName ``exex'
+#eval runOptionNTestByName ``exex'
 
 def exex'' : Option ℕ := do
   let z ← F 2
@@ -155,7 +155,7 @@ def exex'' : Option ℕ := do
 
 set_option trace.Clap.Compile true in
 set_option trace.Clap.Compile.dbg true in
-#eval runTestByName ``exex''
+#eval runOptionNTestByName ``exex''
 
 opaque A : Nat → Option Nat
 opaque B : Nat → Option Nat
@@ -180,7 +180,32 @@ abbrev eboom (vec : Vector Nat 4) : Option Unit := do
 
 def eboomWithArgs := eboom #v[1,2,3,4]
 
-#eval runTestByName ``eboomWithArgs
+#eval runOptionNTestByName ``eboomWithArgs
+
+def bvars : Option ℕ := do
+  let a ← pure 10
+  let b ← (do
+    let x ← pure 5;
+    let y ← pure (x + 100000)
+    return y
+  )
+  let c ← (do
+    let x ← pure b;
+    let y ← pure (x + 1000000)
+    let z ← pure (y + 10000000)
+    return z
+  )
+  let d ← pure (c + 100)
+  let e ← pure (d + 1000)
+  let f ← pure (e + 10000)
+  let g ← pure (f - a)
+  return g
+
+set_option pp.notation false in
+set_option trace.Clap.Compile true in
+set_option trace.Clap.Compile.dbg true in
+#eval runOptionNTestByName `ExampruSym.NewTraversal.bvars
+
 
 end NewTraversal
 
