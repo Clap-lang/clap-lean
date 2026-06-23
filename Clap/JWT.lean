@@ -7,27 +7,32 @@ namespace JWT
 
 open Clap.Lang Primes
 
-variable {p : ℕ} [Fact (Nat.Prime p)]
+variable {p : ℕ}
 
 instance : Coe Char (F p) where
   coe c := c.toNat
 
-def stringBodies₀ (openedQuotes : FB p) (escaped : FB p) : List (FB p) → List (FB p) → List (FB p)
+def stringBodies₀ (openedQuotes : FB p) (escaped : FB p) :
+  List (FB p) → List (FB p) → Option (List (FB p))
 | revAcc, [] => revAcc
-| revAcc, c :: cs =>
-  let isNonEscQuotationMark := FB.and ((F.eq c '\"').get!) (FB.not escaped)
+| revAcc, c :: cs => do
+  let isNonEscQuotationMark := FB.and (←F.eq c '\"') (FB.not escaped)
   let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
-  let escaped' := FB.and (F.eq c '\\').get! (FB.not escaped)
+  let escaped' := FB.and (←F.eq c '\\') (FB.not escaped)
   stringBodies₀ openedQuotes' escaped' (openedQuotes * FB.not isNonEscQuotationMark :: revAcc) cs
 
-lemma stringBodies₀_length : ∀ (openedQuotes escaped : FB p) revAcc l,
-  (stringBodies₀ openedQuotes escaped revAcc l).length = l.length + revAcc.length
+lemma stringBodies₀_length : ∀ (openedQuotes escaped : FB p) revAcc l res,
+  some res = stringBodies₀ openedQuotes escaped revAcc l →
+  res.length = l.length + revAcc.length
 := by
-  intro openedQuotes escaped revAcc l
-  revert revAcc openedQuotes escaped
+  intro openedQuotes escaped revAcc l res h
+  revert revAcc openedQuotes escaped res
   induction l with
   | nil => simp [stringBodies₀]
-  | cons a as ih => grind [stringBodies₀]
+  | cons a as ih =>
+    intro _ _ _ _ h
+    simp [stringBodies₀, F.eq, F.isZero_def] at h
+    split at h <;> grind
 
 /-- From keyless:
   Given an array of ask characters representing a JSON object, output a binary array demarquing
@@ -37,11 +42,15 @@ lemma stringBodies₀_length : ∀ (openedQuotes escaped : FB p) revAcc l,
   output = 00000000000111111000
 -/
 def stringBodies {w} (input : FString p w) : Option (PaddedVector FB p w) :=
-  let r := stringBodies₀ 0 0 [] input.data.toArray.toList
-  have : r.reverse.toArray.size = w := by
-    grind [stringBodies₀_length]
-  let data : Vector (F p) w := ⟨r.reverse.toArray, this⟩
-  some {data, len := input.len}
+  let (eq := h) r := stringBodies₀ 0 0 [] input.data.toArray.toList
+  match r with
+  | none => none
+  | some res =>
+    have : res.reverse.toArray.size = w := by
+      have hlen := stringBodies₀_length (p := p) 0 0 []
+      grind [stringBodies₀, stringBodies₀_length]
+    let data : Vector (F p) w := ⟨res.reverse.toArray, this⟩
+    .some {data, len := input.len}
 
 /-
 omit [Core bn254] in
@@ -92,7 +101,6 @@ private def partialSums₀ : List (F p) → List (F p) → List (F p)
       let sum' := sum + a
       partialSums₀ as (sum' :: sum :: sums)
 
-omit [Fact (Nat.Prime p)] in
 lemma partialSumsTR_length : ∀ (l sums revAcc : List (F p)),
   sums = partialSums₀ l revAcc → sums.length = l.length + revAcc.length
 := by
@@ -218,7 +226,7 @@ def Vector.scalarProduct {LEN : ℕ} (i₁ i₂ : Vector (F p) LEN) : F p :=
   corresponding to the first index and length of a full field in the JWT, fails if the given field
   contains any indices inside nested brackets in the original JWT, and succeeds otherwise
 -/
-def enforceNotNested (LEN : ℕ)
+def enforceNotNested [Fact (Nat.Prime p)] (LEN : ℕ)
   (startIndex fieldLen : F p)
   (bracketsDepthMap : Vector (F p) LEN) :
   Option Unit
@@ -246,13 +254,13 @@ def emailVerifiedCheck
 
 namespace Spec.JWT
 
-def emailVerifiedCheck (uidName evName evValue : String) : Option Bool := do
+def emailVerifiedCheck  (uidName evName evValue : String) : Option Bool := do
   let uidIsEmail := uidName = "email"
   Spec.FB.conditionallyAssert uidIsEmail (evName = "email_verified")
   Spec.FB.conditionallyAssert uidIsEmail (evValue = "true" || evValue = "\"true\"")
   return uidIsEmail
 
-lemma evailVerifiedCheck_equiv {wa wb wc}
+lemma evailVerifiedCheck_equiv [Fact (Nat.Prime p)] {wa wb wc}
   (h : 2^8 < p)
   (a : FString p wa) (ha: Spec.FString.valid a)
   (b : FString p wb) (hb: Spec.FString.valid b)
