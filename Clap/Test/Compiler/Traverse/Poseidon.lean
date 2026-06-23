@@ -27,7 +27,6 @@ def mixSEqDef := @Clap.PoseidonVec.mixS.eq_def
 -- To replicate, remove Vector.mapIdx processing
 -- Something is instantiating arguments incorrectly
 --   There is a pattern of a_2.set 0 (a_2 * _)
-
 set_option maxHeartbeats 0 in
 set_option trace.Clap.Compile.simp.proc.vector_mapIdx_mk true in
 set_option trace.Clap.Compile true in
@@ -43,15 +42,15 @@ set_option trace.Clap.Compile.dbg true in
   (`ExampruSym.mixSEqDef, .Pre),
 ])
 
-def vector_set (a_2) := @Vector.set (ZMod Primes.bn254) (1 + 2) a_2 0
-  (a_2 *
-    ((Vector.mapIdx (fun i s => s + (Clap.PoseidonVec.Constant.C (1 + 2))[i + 0])
-            (Vector.mk { toList := [0, 1, 2] } ⋯)).set
-        0
-        (a *
-          (Vector.mapIdx (fun i s => s + (Clap.PoseidonVec.Constant.C (1 + 2))[i + 0])
-              (Vector.mk { toList := [0, 1, 2] } ⋯))[0])
-        ⋯)[0]) (by trivial)
+-- def vector_set (a_2) := @Vector.set (ZMod Primes.bn254) (1 + 2) a_2 0
+--   (a_2 *
+--     ((Vector.mapIdx (fun i s => s + (Clap.PoseidonVec.Constant.C (1 + 2))[i + 0]!)
+--             (Vector.mk { toList := [0, 1, 2] } ⋯)).set
+--         0
+--         (a *
+--           (Vector.mapIdx (fun i s => s + (Clap.PoseidonVec.Constant.C (1 + 2))[i + 0]!)
+--               (Vector.mk { toList := [0, 1, 2] } ⋯))[0]!)
+--         ⋯)[0]!) (by trivial)
 
 def a := @Option.bind (Vector (ZMod Primes.bn254) (1 + 2)) ℕ
   (List.foldlM

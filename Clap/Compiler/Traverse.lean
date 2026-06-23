@@ -72,6 +72,7 @@ TODO(improve): We collapse certain rules like `Vector.range` and `List.range` wi
 -/
 def andThenWithLog (names : Array Name) : MetaM Sym.Simp.Simproc := do
   let simprocs ← names.mapM getSimproc
+  logInfo m!"simprocs: {names}"
   return (simprocs.zip names).foldl (init := fun _ ↦ return .rfl) fun acc (proc, name) ↦
     acc >> withLog name.lastComponent!.toString proc
 
@@ -98,7 +99,7 @@ def mkSimprocForWithLog (declNames : Array Name) (d : Discharger := dischargeNon
   let mut thms : Theorems := {}
   for declName in declNames do
     thms := thms.insert (← mkTheoremFromDecl declName)
-  return thms.rewrite d
+  return thms.rewriteWithLog d
 
 /--
 Careful, `mkPostMethods` and `mkPreMethods` do not log.
@@ -136,10 +137,11 @@ inductive PrePost where | Pre | Post
 instance : Inhabited PrePost := ⟨.Post⟩
 
 def mkMethods (components : Array (Name × PrePost))
-              (d : Discharger := Sym.Simp.dischargeSimpSelf) : MetaM Methods := do
+              (d : Discharger := Sym.Simp.dischargeNone) : MetaM Methods := do
   let (procs, thms) ← components.toList.partitionM fun (name, _) ↦ isSimproc name
   let (preProcs, postProcs) := partitionPrePost procs
   let (preThms, postThms) := partitionPrePost thms
+  
   let preProcs ← andThenWithLog preProcs.toArray
   let preThms ← mkSimprocForWithLog preThms.toArray d
   let postProcs ← andThenWithLog postProcs.toArray
@@ -912,34 +914,25 @@ def map : MetaM Methods :=
   where
     mapOptim : MetaM Methods := mkPreMethods #[``List.map_id]
 
-def mapIdx_mk : Sym.Simp.Simproc := fun e => do
-  let_expr Vector.mapIdx inputType outputType sz f xs := e | return .rfl
-  let some (xs, _) := vectorElemsOfMk xs |
-    trace[Clap.Compile.simp.proc.vector_mapIdx_mk]
-      m!"rejected:\n{e}"
-    return .rfl
+-- def mapIdx_mk : Sym.Simp.Simproc := fun e => do
+--   let_expr Vector.mapIdx inputType outputType sz f xs := e | return .rfl
+--   let some (xs, _) := vectorElemsOfMk xs |
+--     trace[Clap.Compile.simp.proc.vector_mapIdx_mk]
+--       m!"rejected:\n{e}"
+--     return .rfl
 
-  logInfo m!"Xs: {xs}"
-  let result ← Sym.mkListLit outputType (xs.mapIdx (f.beta #[mkNatLit ·, ·])).toList
-  logInfo m!"Result: {result}"
-  let e' ←mkVecLit outputType result sz
-  logInfo m!"e': {e'}"
+--   logInfo m!"Xs: {xs}"
+--   let result ← Sym.mkListLit outputType (xs.mapIdx (f.beta #[mkNatLit ·, ·])).toList
+--   logInfo m!"Result: {result}"
+--   let e' ←mkVecLit outputType result sz
+--   logInfo m!"e': {e'}"
 
-  -- return .rfl
-  -- trace[Clap.Compile.simp.proc.vector_mapIdx_mk]
-  --   m!"Result: {result}"
-  -- trace[Clap.Compile.simp.proc.vector_mapIdx_mk]
-  --   m!"e': {e'}"
+--   return .step e' (←mkSorry (←mkEq e e') false)
 
-  -- trace[Clap.Compile.simp.proc.vector_mapIdx_mk]
-  --   m!"\n{e}\n==>\n{e'}"
-
-  return .step e' (←mkSorry (←mkEq e e') false)
-
-def mapIdx : MetaM Methods :=
-  mkPostMethods #[
-    ``Vector.mapIdx_mk
-  ] >> SymSets.General.ground
+-- def mapIdx : MetaM Methods :=
+--   mkPostMethods #[
+--     ``Vector.mapIdx_mk
+--   ] >> SymSets.General.ground
 
 def listOfArray (e : Expr) : Option Expr :=
   if e.isAppOf ``List.toArray || e.isAppOf ``Array.mk
@@ -3054,13 +3047,29 @@ def set : Sym.Simp.Simproc := fun e => do
 
 end Set
 
+section MapIdx
+
+def mapIdx : Sym.Simp.Simproc := fun e => do
+  let_expr Vector.mapIdx inputType outputType sz f xs := e | return .rfl
+  let some (xs, _) := vectorElemsOfMk xs | return .rfl
+
+  logInfo m!"Xs: {xs}"
+  let result ← Sym.mkListLit outputType (xs.mapIdx (f.beta #[mkNatLit ·, ·])).toList
+  logInfo m!"Result: {result}"
+  let e' ← mkVecLit outputType result sz
+  logInfo m!"e': {e'}"
+
+  return .step e' (←mkSorry (←mkEq e e') false)
+
+end MapIdx
+
 def general (other: MetaM Sym.Simp.Methods) : MetaM Sym.Simp.Methods :=
   mkMethods #[
     (``getElem, .Post),
     (``append, .Post),
     (``evalGround, .Post),
-    (`Clap.Compiler.ExampruSym.NewTraversal.Dom.Sets.General.set, .Post),
-    (`Clap.Compiler.SymSets.Vector.mapIdx_mk, .Post)
+    (``set, .Post),
+    (``mapIdx, .Post)
   ]
   -- >>
   -- size
