@@ -19,9 +19,12 @@ initialize registerTraceClass `Clap.Compile.simp (inherited := true)
 
 initialize registerTraceClass `Clap.Compile.simp.proc (inherited := true)
 
+initialize registerTraceClass `Clap.Compile.simp.proc.append (inherited := true)
+
 initialize registerTraceClass `Clap.Compile.simp.proc.beta (inherited := true)
 
 initialize registerTraceClass `Clap.Compile.simp.proc.pureBindMany (inherited := true)
+
 
 
 
@@ -53,7 +56,6 @@ initialize registerTraceClass `Clap.Compile.simp.proc.vector_foldlM_stagger (inh
 
 initialize registerTraceClass `Clap.Compile.simp.proc.vector_mapIdx_mk (inherited := true)
 
-initialize registerTraceClass `Clap.Compile.simp.proc.vector_mk_append_mk (inherited := true)
 
 initialize registerTraceClass `Clap.Compile.simp.proc.vector_set_mk (inherited := true)
 

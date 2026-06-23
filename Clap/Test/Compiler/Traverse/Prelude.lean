@@ -26,7 +26,8 @@ def runTest (uncompiledExpr : Expr) (eval : Bool := true) (extraPasses : MetaM M
   let rulesSkippedTime := sumRuleTime dbgState.skippedRuleHisto
   let timeSpentInRules := rulesAppliedTime + rulesSkippedTime
   let rulesTotal := m!"Rules[skipped+applied]: {timeSpentInRules}"
-  logInfo m!"{totalCompileTime}\n{rulesTotal}\nUnaccounted[Δ]: {time - timeSpentInRules}"
+  let Δ := time - timeSpentInRules
+  logInfo m!"{totalCompileTime}\n{rulesTotal}\nUnaccounted[Δ]: {Δ} | {Δ / time * 100}%"
 
   if !eval then return compiled
 

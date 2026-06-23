@@ -72,7 +72,6 @@ TODO(improve): We collapse certain rules like `Vector.range` and `List.range` wi
 -/
 def andThenWithLog (names : Array Name) : MetaM Sym.Simp.Simproc := do
   let simprocs ← names.mapM getSimproc
-  logInfo m!"simprocs: {names}"
   return (simprocs.zip names).foldl (init := fun _ ↦ return .rfl) fun acc (proc, name) ↦
     acc >> withLog name.lastComponent!.toString proc
 
@@ -2951,9 +2950,6 @@ def append : Sym.Simp.Simproc := fun e ↦ do
   let sz := mkApp6 (.const ``HAdd.hAdd [0, 0, 0]) q(ℕ) q(ℕ) q(ℕ) inst szXs szYs
   let .some appendVecColl := appendListColl.setSize sz |>.cast xsC.type.k | unreachable!
   let e' ← appendVecColl.toExpr
-
-  trace[Clap.Compile.simp.proc.vector_mk_append_mk]
-    m!"\n{e}\n==>\n{e'}"
 
   return .step e' (←mkSorry (←mkEq e e') false)
 
