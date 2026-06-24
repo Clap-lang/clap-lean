@@ -23,8 +23,9 @@ initialize registerTraceClass `Clap.Compile.simp.proc.append (inherited := true)
 
 initialize registerTraceClass `Clap.Compile.simp.proc.beta (inherited := true)
 
-initialize registerTraceClass `Clap.Compile.simp.proc.pureBindMany (inherited := true)
+initialize registerTraceClass `Clap.Compile.simp.proc.evalGround (inherited := true)
 
+initialize registerTraceClass `Clap.Compile.simp.proc.pureBindMany (inherited := true)
 
 
 
@@ -42,7 +43,6 @@ initialize registerTraceClass `Clap.Compile.simp.proc.sequenceAsVecExpr (inherit
 
 initialize registerTraceClass `Clap.Compile.simp.proc.zeta (inherited := true)
 
-initialize registerTraceClass `Clap.Compile.simp.proc.evalGround (inherited := true)
 
 initialize registerTraceClass `Clap.Compile.simp.proc.vector_getElem_mk (inherited := true)
 

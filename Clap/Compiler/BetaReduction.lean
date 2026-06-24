@@ -2,7 +2,7 @@ import Lean
 
 import Lean.Meta.Sym.SymM
 
-namespace Clap.Compiler.ExampruSym.NewTraversal.Dom.Sets.Functional
+namespace Clap.Compiler.Sets.Functional
 
 /--
 This is more or less `Lean.Meta.Tactic.Cbv.betaReduce`, which seems to not be exported.
@@ -14,4 +14,4 @@ def betaReduce : Lean.Meta.Sym.Simp.Simproc := fun e ↦ do
     m!"\nf = {function}\nargs[{args.size}] = {args}"
   return .step e' (←Lean.Meta.Sym.mkEqRefl e')
 
-end Clap.Compiler.ExampruSym.NewTraversal.Dom.Sets.Functional
+end Clap.Compiler.Sets.Functional

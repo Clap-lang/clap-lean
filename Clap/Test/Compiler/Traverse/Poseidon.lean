@@ -22,7 +22,7 @@ def poseidonExEqDef {n c s} := @Clap.PoseidonVec.poseidonEx.eq_def n c s
 def sigmaEqDef := Clap.PoseidonVec.sigma.eq_def
 def arkEqDef {t c : ℕ} := @Clap.PoseidonVec.ark.eq_def t c
 def mixSEqDef := @Clap.PoseidonVec.mixS.eq_def
-
+-- #guard_msgs in
 -- TODO investigate vector.set bug
 -- To replicate, remove Vector.mapIdx processing
 -- Something is instantiating arguments incorrectly
@@ -30,17 +30,18 @@ def mixSEqDef := @Clap.PoseidonVec.mixS.eq_def
 -- #guard_msgs in
 set_option maxHeartbeats 0 in
 set_option trace.Clap.Compile.simp.proc.vector_mapIdx_mk true in
-set_option trace.Clap.Compile true in
-set_option trace.Clap.Compile.dbg true in
-#eval runOptionNTestByName `ExampruSym.testPoseidon_1_2 (extraPasses := Clap.Compiler.SymSets.mkMethods #[
-  (`ExampruSym.testPoseidon_1_2EqDef, .Pre),
-  (`ExampruSym.testPoseidonEqDef, .Pre),
-  (`ExampruSym.poseidonBN254EqDef, .Pre),
-  (`ExampruSym.poseidonEqDef, .Pre),
+-- set_option trace.Clap.Compile true in
+-- set_option trace.Clap.Compile.dbg true in
+set_option trace.Clap.Compile.simp.proc.evalGround true in
+#eval runOptionNTestByName `ExampruSym.testPoseidon_1_2 (extraPasses := Clap.Compiler.mkMethods #[
+  (`ExampruSym.testPoseidon.eq_def, .Pre),
+  (`Clap.PoseidonVec.poseidonBN254.eq_def, .Pre),
+  (`Clap.PoseidonVec.poseidon.eq_def, .Pre),
   (`ExampruSym.poseidonExEqDef, .Pre),
   (`ExampruSym.sigmaEqDef, .Pre),
   (`ExampruSym.arkEqDef, .Pre),
   (`ExampruSym.mixSEqDef, .Pre),
+  (`Clap.PoseidonVec.Constant.C.eq_def, .Pre)
 ])
 
 end ExampruSym

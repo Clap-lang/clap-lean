@@ -240,7 +240,7 @@ def poseidonBN254 : SimpSet :=
   ]
 
 def poseidonBN254' : MetaM Sym.Simp.Methods :=
-  SymSets.mkPostMethods #[
+  mkPostMethods #[
     ``PoseidonVec.poseidonBN254.eq_def, ``poseidon.eq_def, ``poseidonEx.eq_def,
     ``ark.eq_def, ``sigma.eq_def, ``id.eq_def,  -- const.eq_def : some Sym.simp thing...
     ``Constant.C.eq_def, ``Constant.M.eq_def, ``Constant.P.eq_def, ``Constant.S.eq_def,
@@ -286,7 +286,7 @@ Minimised:
 -- set_option trace.Clap.Compile true in
 -- set_option trace.Clap.Compile.simp.proc.vector_mk_zipWith_mk true in
 -- set_option trace.Clap.Compile.simp.proc.monad true in
-open Clap.Compiler.SymSets General in
+-- open Clap.Compiler.SymSets General in
 -- set_option pp.exprSizes true in
 set_option maxRecDepth 1000000 in
 set_option maxHeartbeats 0 in

@@ -14,7 +14,7 @@ open Lean in
 def runTest
   (uncompiledExpr : Expr)
   (eval : Bool := true)
-  (extraPasses : MetaM Meta.Sym.Simp.Methods := Clap.Compiler.ExampruSym.NewTraversal.Dom.doNothing)
+  (extraPasses : MetaM Meta.Sym.Simp.Methods := doNothing)
   (expectedType: Type := Option ℕ)
   (compare : Option (expectedType → expectedType → Bool) := .none)
   (print : expectedType → String)
@@ -22,7 +22,7 @@ def runTest
   let uncompiledTypeExpr ← Meta.inferType uncompiledExpr
 
   logInfo m!"Compiling {uncompiledExpr}"
-  let (compiled, time) ← Clap.Dbg.timeS (ExampruSym.NewTraversal.Dom.compile uncompiledExpr extraPasses expectedType)
+  let (compiled, time) ← Clap.Dbg.timeS (compile uncompiledExpr extraPasses expectedType)
   logInfo m!"Compiled to {compiled}"
 
   let dbgState ← getAndResetDbgState
@@ -39,7 +39,7 @@ def runTest
 
   -- Pretty print (i.e. go back to `Bind.bind`)
   let formatted := (
-    ←Lean.Meta.Sym.simp compiled (←SymSets.General.compilerBindEqBind)
+    ←Lean.Meta.Sym.simp compiled (←General.compilerBindEqBind)
   ).getResultExpr compiled
   let defEq ← Lean.Meta.isDefEq uncompiledExpr compiled
   if defEq then
@@ -74,7 +74,7 @@ open Lean in
 def runTestByName
   (testName : Name)
   (eval : Bool := true)
-  (extraPasses : MetaM Meta.Sym.Simp.Methods := Clap.Compiler.ExampruSym.NewTraversal.Dom.doNothing)
+  (extraPasses : MetaM Meta.Sym.Simp.Methods := doNothing)
   (expectedType: Type := Option ℕ)
   (compare : Option (expectedType → expectedType → Bool) := .none)
   (print : expectedType → String := λ _ => s!"<<No print function provided>>")
@@ -86,7 +86,7 @@ open Lean in
 def runOptionNTestByName
   (testName : Name)
   (eval : Bool := true)
-  (extraPasses : MetaM Meta.Sym.Simp.Methods := Clap.Compiler.ExampruSym.NewTraversal.Dom.doNothing)
+  (extraPasses : MetaM Meta.Sym.Simp.Methods := doNothing)
 : MetaM Unit :=
   runTestByName testName eval extraPasses (Option ℕ) (λ x y: Option ℕ => x == y) (λ x => s!"{x}")
 

@@ -7,6 +7,7 @@ import Lean.Meta.Tactic.Cbv.Main
 import Clap.Lang
 import Clap.Spec
 import Clap.Compiler.BetaReduction
+import Clap.Compiler.Collection
 import Clap.Compiler.Trace
 import Clap.Compiler.Simp
 import Clap.Compiler.Vectors
@@ -21,8 +22,6 @@ instance {m} [Monad m] : AndThen (m Sym.Simp.Methods) where
 
 @[inherit_doc Simp.wrapped]
 abbrev singlePass := Simp.wrapped
-
-namespace SymSets
 
 section
 
@@ -394,98 +393,7 @@ end General
 
 namespace Vector
 
-/--
-We're already doing O(n) work here anyway, maybe yield the length as well.
--/
-partial def listElemsOfExpr (e : Expr) (res : Array Expr := #[]) : Option (Array Expr) :=
-  match_expr e with
-  | List.cons _ hd tl => listElemsOfExpr tl (res.push hd)
-  | List.nil  _       => .some res
-  | _                 => .none
 
-def arrayElemsOfExpr (e : Expr) : Option (Array Expr) := do
-  let_expr Array.mk _ l := e | .none
-  listElemsOfExpr l
-
-def vectorElemsOfMk (e : Expr) : Option (Array Expr × Expr × Expr) := do
-  let_expr Vector.mk t sz arr _ := e | .none
-  return (←arrayElemsOfExpr arr, t, sz)
-
-/--
-TODO: Maybe generalise this to `GetElem` supporting collections, but it's not relevant
-for the current project.
--/
-inductive CollectionKind where | Vector | Array | List
-  deriving Repr
-
-structure CollectionType where
-  private _mk ::
-  t  : Expr
-  k  : CollectionKind
-  sz : Option Expr
-  deriving Repr
-
-def CollectionType.cast (c : CollectionType) (t : CollectionKind) : Option CollectionType :=
-  match t with
-  | .Vector => if c.sz.isNone then .none else go c t
-  | _       => go c t
-  where go (c : CollectionType) (k : CollectionKind) : CollectionType := {c with k := k}
-
-def CollectionType.setSize (c : CollectionType) (sz : Expr) : CollectionType :=
-  {c with sz := .some sz}
-
-def CollectionType.mkList (elem : Expr) := CollectionType._mk elem .List .none
-
-def CollectionType.mkArray (elem : Expr) := CollectionType.mkList elem |>.cast .Array
-
-def CollectionType.mkVec (elem : Expr) (sz : Expr) :=
-  CollectionType.mkList elem |>.setSize sz |>.cast .Vector
-
-structure Collection where
-  type     : CollectionType
-  listExpr : Expr
-  deriving Repr
-
-def Collection.setSize (coll : Collection) (sz : Expr) : Collection :=
-  {coll with type := coll.type.setSize sz}
-
-/--
-We're already doing O(n) work in `listElemsOfExpr` anyway, maybe yield the goodies as well.
--/
-partial def elemsOfListExpr (e : Expr) (elems : Array Expr := #[]) (sz : ℕ := 0) : Array Expr × ℕ :=
-  match_expr e with
-  | List.cons _ hd tl => elemsOfListExpr tl (elems.push hd) sz.succ
-  | _                 => (elems, sz) -- `List.nil` and `_`
-
-def Collection.elems (c : Collection) : Array Expr × Collection :=
-  let (elems, sz) := elemsOfListExpr c.listExpr
-  ⟨elems, c.setSize (toExpr sz)⟩
-
-def Collection.toExpr (c : Collection) : Sym.Simp.SimpM Expr := do
-  match c.type.k with
-  | .List => return c.listExpr
-  | .Array => shareCommonInc <| mkAppN (.const ``Array.mk [←Sym.getLevelInType c.type.t])
-                                       #[c.type.t, c.listExpr]
-  | .Vector => shareCommonInc (←mkVecLit c.type.t c.listExpr (←c.type.sz.getDM (unreachable!)))
-
-def Collection.ofExpr (e : Expr) : Option Collection :=
-  match_expr e with
-  | Vector.mk t sz xs _ => do return ⟨←CollectionType.mkVec t sz, ←listExprOfArrayExpr xs⟩
-  | Array.mk  t    _    => do return ⟨←CollectionType.mkArray t, ←listExprOfArrayExpr e⟩
-  -- `List.toArray` should not be necessary, as reducible definitions must be reduced first
-  | List.toArray t _    => do
-    dbg_trace s!"`List.toArray` encountered; this is a bug"
-    return ⟨←CollectionType.mkArray t, ←listExprOfArrayExpr e⟩
-  | List.cons t    _  _ => do return ⟨←CollectionType.mkList t, e⟩
-  | List.nil  t         => do return ⟨←CollectionType.mkList t, e⟩
-  | _                   => .none
-  where
-    listExprOfArrayExpr (e : Expr) : Option Expr := do
-      let_expr Array.mk _ l := e | .none
-      .some l
-
-def Collection.cast (coll : Collection) (t : CollectionKind) : Option Collection := do
-  return {coll with type := ←coll.type.cast t}
 
 -- /--
 -- Currently separate from the `vectorElemsOfMk` chain.
@@ -497,53 +405,29 @@ def Collection.cast (coll : Collection) (t : CollectionKind) : Option Collection
 --   | _                 => listElemsOfExpr' e >>= fun res ↦ .some (.List, spoon res)
 --   where spoon := fun (arr, t, sz) ↦ (arr, t, toExpr sz)
 
-def Collection.elemsOfExpr (e : Expr) : Option (Array Expr × Collection) :=
-  Collection.elems <$> Collection.ofExpr e
+-- def Collection.elemsOfExpr (e : Expr) : Option (Array Expr × Collection) :=
+--   Collection.elems <$> Collection.ofExpr e
 
-def _root_.Lean.Expr.listLitIsEmpty (e : Expr) : Bool :=
-  match_expr e with
-  | List.cons _ _ _ => false
-  | _ => true
+-- def _root_.Lean.Expr.listLitIsEmpty (e : Expr) : Bool :=
+--   match_expr e with
+--   | List.cons _ _ _ => false
+--   | _ => true
 
-def _root_.Lean.Expr.listLitHead (e : Expr) : Option Expr :=
-  match_expr e with
-  | List.cons _ hd _ => .some hd
-  | _ => .none
+-- def _root_.Lean.Expr.listLitHead (e : Expr) : Option Expr :=
+--   match_expr e with
+--   | List.cons _ hd _ => .some hd
+--   | _ => .none
 
-def _root_.Lean.Expr.listLitTail (e : Expr) : Option Expr :=
-  match_expr e with
-  | List.cons _ _ tl => .some tl
-  | _ => .none
+-- def _root_.Lean.Expr.listLitTail (e : Expr) : Option Expr :=
+--   match_expr e with
+--   | List.cons _ _ tl => .some tl
+--   | _ => .none
 
-def explode : MetaM Methods := do
-  return {
-    -- post := explodeVector
-    pre  := dontExplodeVector >> explodeVector
-  }
-
-open Collection in
-/--
-TODO: Probably return the ground size?
-
-Sequenced collection, e.g.:
-- `List.cons a (List.cons b List.nil)` ==> `[a, b]`
-
-Vectors are special, i.e.:
-- `x : Vector τ sz` ==> `[x[0], x[1], ..., x[sz-1]`
-
-We permit any free variable of type vector with size we can reduce to ground nat.
-Unsized collections better enumerate their elements in the first place.
--/
-def sequenced (e : Expr) : Sym.Simp.SimpM (Option (Array Expr × Collection)) := do
-  match_expr e with
-  | List.cons _ _ _   => return elemsOfExpr e
-  | List.nil  _       => return elemsOfExpr e
-  | Array.mk  _ _     => return elemsOfExpr e
-  | Vector.mk _ _ _ _ => return elemsOfExpr e
-  | _ =>
-    if !e.isFVar then return .none
-    let_expr Vector t sz := ←Sym.inferType e | return .none
-    elemsOfExpr <$> sequenceAsVecExpr e t sz
+-- def explode : MetaM Methods := do
+--   return {
+--     -- post := explodeVector
+--     pre  := dontExplodeVector >> explodeVector
+--   }
 
 -- def _root_.Lean.Expr.foldlM? (e : Expr) : Option (List Expr) :=
 --   match_expr e with
@@ -1446,7 +1330,7 @@ def _root_.Lean.Expr.foldr? (e : Expr) : Option (List Expr) :=
   | Array.foldr α β f init xs start stop => .some [α, β, f, init, xs]
   | List.foldr α β f init xs => .some [α, β, f, init, xs]
   | _ => .none
-#check List.foldr_toArray
+
 /--
 TODO: We ignore start/stop on purpose for the time being.
       `Sym` does not play nice with `List.foldr_toArray` and `List.foldr_toArray'` sometimes...
@@ -1475,10 +1359,10 @@ def unwrap : Sym.Simp.Simproc := fun e ↦ do
   let_expr Simp.clapwrap _ e := e | return .rfl
   return .rfl (done := true)
 
-def unwrap_s : MetaM Methods :=
-  mkPreMethods #[
-    ``Clap.Compiler.SymSets.Vector.unwrap
-  ]
+-- def unwrap_s : MetaM Methods :=
+--   mkPreMethods #[
+--     ``Clap.Compiler.SymSets.Vector.unwrap
+--   ]
 
 -- def set_mk : Sym.Simp.Simproc := fun e => do
 --   let_expr Vector.set t sz xs i x h := e | return .rfl
@@ -1609,8 +1493,6 @@ end Vector
 -- end List
 
 end
-
-end SymSets
 
 abbrev Simplifier := Expr → Sym.Simp.SimpM Expr
 
@@ -1913,7 +1795,7 @@ def tt' : Option Unit :=
   eq0 y
 
 def ppMonad (e : Expr) : MetaM Expr := do
-  let pretty ← Sym.simp e (←Clap.Compiler.SymSets.General.compilerBindEqBind) |>.run
+  let pretty ← Sym.simp e (←General.compilerBindEqBind) |>.run
   return pretty.getResultExpr e
 
 /-- a.k.a tablespoon -/
@@ -2065,6 +1947,15 @@ namespace Sets
 
 namespace Structural
 
+section Control
+
+def control : MetaM Sym.Simp.Methods := do
+  mkMethods #[
+    (`Lean.Meta.Sym.Simp.simpControl, .Pre)
+  ]
+
+end Control
+
 section pureBindMany
 
 /--
@@ -2194,6 +2085,11 @@ partial def sequenceActions (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
           m!"Non-lam\ne:{e}\ncontext:{Γ}\nResult: \n{result_actions}"
         return result_actions
 
+/--
+TODO(perf): This runs like a slow-running 🐕.
+Blazing fast algorithm:
+Left-to-right pass, count actions before each 🍃, bump that 🍃 by that many.
+-/
 partial def sequenceActions' (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
   go e
   where
@@ -2210,6 +2106,8 @@ partial def sequenceActions' (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
         let f₁ ← go f₁
         return a₂f₂ ++ f₁
       | .none =>
+        --TODO: Oi dummy, do you even lift?
+        -- `let f₁ := f₁.liftLooseBVars 0 ??`
         let f₁ ← go f₁
         return #[a₁] ++ f₁
     | .none =>
@@ -2218,100 +2116,93 @@ partial def sequenceActions' (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
       | _ =>
         return #[e]
 
-def testFunc (a b c d e f: ℕ ) := a + b + c + d + e + f
+-- def testFunc (a b c d e f: ℕ ) := a + b + c + d + e + f
 
-def e : Expr := (Lean.Expr.lam
-        `d
-        (Lean.Expr.const `Nat [])
-        (Lean.Expr.lam
-          `e
-          (Lean.Expr.const `Nat [])
-          (Lean.Expr.lam
-            `f
-            (Lean.Expr.const `Nat [])
-            (Lean.Expr.app
-              (Lean.Expr.app
-                (Lean.Expr.app
-                  (Lean.Expr.app
-                    (Lean.Expr.app
-                      (Lean.Expr.app
-                        (Lean.Expr.const `HAdd.hAdd [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero])
-                        (Lean.Expr.const `Nat []))
-                      (Lean.Expr.const `Nat []))
-                    (Lean.Expr.const `Nat []))
-                  (Lean.Expr.app
-                    (Lean.Expr.app (Lean.Expr.const `instHAdd [Lean.Level.zero]) (Lean.Expr.const `Nat []))
-                    (Lean.Expr.const `instAddNat [])))
-                (Lean.Expr.app
-                  (Lean.Expr.app
-                    (Lean.Expr.app
-                      (Lean.Expr.app
-                        (Lean.Expr.app
-                          (Lean.Expr.app
-                            (Lean.Expr.const `HAdd.hAdd [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero])
-                            (Lean.Expr.const `Nat []))
-                          (Lean.Expr.const `Nat []))
-                        (Lean.Expr.const `Nat []))
-                      (Lean.Expr.app
-                        (Lean.Expr.app (Lean.Expr.const `instHAdd [Lean.Level.zero]) (Lean.Expr.const `Nat []))
-                        (Lean.Expr.const `instAddNat [])))
-                    (Lean.Expr.app
-                      (Lean.Expr.app
-                        (Lean.Expr.app
-                          (Lean.Expr.app
-                            (Lean.Expr.app
-                              (Lean.Expr.app
-                                (Lean.Expr.const `HAdd.hAdd [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero])
-                                (Lean.Expr.const `Nat []))
-                              (Lean.Expr.const `Nat []))
-                            (Lean.Expr.const `Nat []))
-                          (Lean.Expr.app
-                            (Lean.Expr.app (Lean.Expr.const `instHAdd [Lean.Level.zero]) (Lean.Expr.const `Nat []))
-                            (Lean.Expr.const `instAddNat [])))
-                        (Lean.Expr.app
-                          (Lean.Expr.app
-                            (Lean.Expr.app
-                              (Lean.Expr.app
-                                (Lean.Expr.app
-                                  (Lean.Expr.app
-                                    (Lean.Expr.const `HAdd.hAdd [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero])
-                                    (Lean.Expr.const `Nat []))
-                                  (Lean.Expr.const `Nat []))
-                                (Lean.Expr.const `Nat []))
-                              (Lean.Expr.app
-                                (Lean.Expr.app (Lean.Expr.const `instHAdd [Lean.Level.zero]) (Lean.Expr.const `Nat []))
-                                (Lean.Expr.const `instAddNat [])))
-                            (Lean.Expr.app
-                              (Lean.Expr.app
-                                (Lean.Expr.app
-                                  (Lean.Expr.app
-                                    (Lean.Expr.app
-                                      (Lean.Expr.app
-                                        (Lean.Expr.const `HAdd.hAdd [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero])
-                                        (Lean.Expr.const `Nat []))
-                                      (Lean.Expr.const `Nat []))
-                                    (Lean.Expr.const `Nat []))
-                                  (Lean.Expr.app
-                                    (Lean.Expr.app
-                                      (Lean.Expr.const `instHAdd [Lean.Level.zero])
-                                      (Lean.Expr.const `Nat []))
-                                    (Lean.Expr.const `instAddNat [])))
-                                (Lean.Expr.bvar 5))
-                              (Lean.Expr.bvar 4)))
-                          (Lean.Expr.bvar 3)))
-                      (Lean.Expr.bvar 2)))
-                  (Lean.Expr.bvar 1)))
-              (Lean.Expr.bvar 0))
-            (Lean.BinderInfo.default))
-          (Lean.BinderInfo.default))
-        (Lean.BinderInfo.default))
-
-#eval PrettyPrinter.ppExpr (e.liftLooseBVars 1 1)
-
-run_meta do
-  let x := ((←getEnv).find? ``testFunc).get!.value!
-  logInfo m!"{repr x}"
-
+-- def e : Expr := (Lean.Expr.lam
+--         `d
+--         (Lean.Expr.const `Nat [])
+--         (Lean.Expr.lam
+--           `e
+--           (Lean.Expr.const `Nat [])
+--           (Lean.Expr.lam
+--             `f
+--             (Lean.Expr.const `Nat [])
+--             (Lean.Expr.app
+--               (Lean.Expr.app
+--                 (Lean.Expr.app
+--                   (Lean.Expr.app
+--                     (Lean.Expr.app
+--                       (Lean.Expr.app
+--                         (Lean.Expr.const `HAdd.hAdd [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero])
+--                         (Lean.Expr.const `Nat []))
+--                       (Lean.Expr.const `Nat []))
+--                     (Lean.Expr.const `Nat []))
+--                   (Lean.Expr.app
+--                     (Lean.Expr.app (Lean.Expr.const `instHAdd [Lean.Level.zero]) (Lean.Expr.const `Nat []))
+--                     (Lean.Expr.const `instAddNat [])))
+--                 (Lean.Expr.app
+--                   (Lean.Expr.app
+--                     (Lean.Expr.app
+--                       (Lean.Expr.app
+--                         (Lean.Expr.app
+--                           (Lean.Expr.app
+--                             (Lean.Expr.const `HAdd.hAdd [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero])
+--                             (Lean.Expr.const `Nat []))
+--                           (Lean.Expr.const `Nat []))
+--                         (Lean.Expr.const `Nat []))
+--                       (Lean.Expr.app
+--                         (Lean.Expr.app (Lean.Expr.const `instHAdd [Lean.Level.zero]) (Lean.Expr.const `Nat []))
+--                         (Lean.Expr.const `instAddNat [])))
+--                     (Lean.Expr.app
+--                       (Lean.Expr.app
+--                         (Lean.Expr.app
+--                           (Lean.Expr.app
+--                             (Lean.Expr.app
+--                               (Lean.Expr.app
+--                                 (Lean.Expr.const `HAdd.hAdd [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero])
+--                                 (Lean.Expr.const `Nat []))
+--                               (Lean.Expr.const `Nat []))
+--                             (Lean.Expr.const `Nat []))
+--                           (Lean.Expr.app
+--                             (Lean.Expr.app (Lean.Expr.const `instHAdd [Lean.Level.zero]) (Lean.Expr.const `Nat []))
+--                             (Lean.Expr.const `instAddNat [])))
+--                         (Lean.Expr.app
+--                           (Lean.Expr.app
+--                             (Lean.Expr.app
+--                               (Lean.Expr.app
+--                                 (Lean.Expr.app
+--                                   (Lean.Expr.app
+--                                     (Lean.Expr.const `HAdd.hAdd [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero])
+--                                     (Lean.Expr.const `Nat []))
+--                                   (Lean.Expr.const `Nat []))
+--                                 (Lean.Expr.const `Nat []))
+--                               (Lean.Expr.app
+--                                 (Lean.Expr.app (Lean.Expr.const `instHAdd [Lean.Level.zero]) (Lean.Expr.const `Nat []))
+--                                 (Lean.Expr.const `instAddNat [])))
+--                             (Lean.Expr.app
+--                               (Lean.Expr.app
+--                                 (Lean.Expr.app
+--                                   (Lean.Expr.app
+--                                     (Lean.Expr.app
+--                                       (Lean.Expr.app
+--                                         (Lean.Expr.const `HAdd.hAdd [Lean.Level.zero, Lean.Level.zero, Lean.Level.zero])
+--                                         (Lean.Expr.const `Nat []))
+--                                       (Lean.Expr.const `Nat []))
+--                                     (Lean.Expr.const `Nat []))
+--                                   (Lean.Expr.app
+--                                     (Lean.Expr.app
+--                                       (Lean.Expr.const `instHAdd [Lean.Level.zero])
+--                                       (Lean.Expr.const `Nat []))
+--                                     (Lean.Expr.const `instAddNat [])))
+--                                 (Lean.Expr.bvar 5))
+--                               (Lean.Expr.bvar 4)))
+--                           (Lean.Expr.bvar 3)))
+--                       (Lean.Expr.bvar 2)))
+--                   (Lean.Expr.bvar 1)))
+--               (Lean.Expr.bvar 0))
+--             (Lean.BinderInfo.default))
+--           (Lean.BinderInfo.default))
+--         (Lean.BinderInfo.default))
 
 /--
 Optimises `bindActionsInferType`.
@@ -2444,13 +2335,75 @@ def foldlM : Sym.Simp.Simproc := fun expr ↦ do
 
     return .step expr' (←mkSorry (←mkEq expr expr') false)
 
+/--
+TODO: Unused
+`#v[a₁, a₂, ...].foldlM (init := x) f`
+`f a₁ x >>= fun rest ↦ [a₂, ...].foldlM (init := rest) f`
+-/
+def _foldlM_stagger : Sym.Simp.Simproc := fun e ↦ do
+  let .some [m, inst, α, β, f, init, collection] := e.foldlMInfo? | return .rfl
+  -- TODO(perf): `coll` not necessary in full
+  let .some ⟨_, listExpr⟩ := Collection.ofExpr collection | return .rfl
+  -- let us@([u, v, w]) := e.getAppFn.constLevels! | unreachable!
+  let u₁ ← Sym.getLevelInType β
+  let u₂ := u₁
+  let u₃ ← Sym.getLevelInType α
+  match_expr listExpr with
+  | List.cons _ hd tl =>
+    let head ← Sym.shareCommonInc <| f.beta #[init, hd]
+    let tail ← Sym.shareCommonInc <| mkApp7 (.const ``List.foldlM [u₁, u₂, u₃])
+                                            m inst
+                                            β α f (.bvar 0) tl
+    let lambda ← Sym.shareCommonInc <| .lam `next β tail .default
+    let tailτ ← Sym.inferType tail
+    let tailτu ← Sym.getLevelInType tailτ
+    let e' ← Sym.shareCommonInc <| mkApp4 (.const ``Option.bind [u₁, tailτu]) β tailτ head lambda
+    let e' ← Sym.shareCommonInc <| Simp.wrapped (←Sym.inferType e') e'
+    return .step e' (←mkSorry (←mkEq e e') false) (done := true)
+  | _ =>
+    let e' := mkApp2 (.const ``Option.some [u₁]) β init
+    return .step e' (←mkSorry (←mkEq e e') false) (done := true)
+
 end FoldlM
 
+section Explode
+
+def dontExplodeVector : Sym.Simp.Simproc := fun e ↦ do
+  let_expr GetElem.getElem _ _ _ _ _ coll _ _ := e | return .rfl
+  unless coll.isFVar && (←inferType coll).isAppOf ``Vector do return .rfl
+  trace[Clap.Compile.simp.proc.kaboom] m!"Marked done:\n{e}"
+  return .rfl (done := true)
+
+/--
+TODO: The proof is not `rfl`. One can prove all of these `by aesop (add cases [Vector, Array, List])`,
+      but I'd rather not lift to `aesop` and build the proof by hand (viz. `abc'` above).
+-/
+def explodeVector (who : String := "") : Sym.Simp.Simproc := fun e ↦ do
+  let t ← Sym.inferType e
+  let_expr Vector t sz := t | return .rfl
+  unless e.isFVar do return .rfl
+  let sz' ← Sym.simpWithGround sz
+  match (sz'.getResultExpr sz).nat? with
+  | .none => throwError m!"{sz} does not simplify to ground.\nExpr:\n{e}"
+  | .some _n => let explodedVec ← (sequenceAsVecExpr e t (sz'.getResultExpr sz)).run'
+                trace[Clap.Compile.simp.proc.kaboom] m!"{who}"
+                -- trace[Clap.Compile.simp.proc.kaboom] m!"Exploding:\n{e}\n==>\n{explodedVec}"
+                return .step explodedVec (←mkSorry (←mkEq e explodedVec) false)
+
+
+def explode : MetaM Sym.Simp.Methods := do
+  return {
+    pre  := dontExplodeVector >> explodeVector
+  }
+
+end Explode
+
 def structural : MetaM Sym.Simp.Methods :=
+  control >>
   mkMethods #[
-    (``pureBindMany, .Pre),
-    (``flattenBindsAny, .Pre),
-    (`Clap.Compiler.ExampruSym.NewTraversal.Dom.Sets.Structural.foldlM, .Pre)
+    (``Sets.Structural.pureBindMany, .Pre),
+    (``Sets.Structural.flattenBindsAny, .Pre),
+    (``Sets.Structural.foldlM, .Pre)
   ]
 
 end Structural
@@ -2526,8 +2479,10 @@ end Range
 
 section Ground
 
-def evalGround : Sym.Simp.Simproc :=
-  Sym.Simp.evalGround {}
+def evalGround : Sym.Simp.Simproc := fun e ↦ do
+  match ←Sym.Simp.evalGround {} e with
+  | res@(.rfl ..) => trace[Clap.Compile.simp.proc.evalGround] m!"skipped: {e}"; return res
+  | res@(.step ..) => trace[Clap.Compile.simp.proc.evalGround] m!"ground hit: {e}"; return res
 
 end Ground
 
@@ -2579,7 +2534,7 @@ section Set
 TODO: Generalise to lists and arrays.
 -/
 def set : Sym.Simp.Simproc := fun e => do
-  let_expr Vector.set t sz xs i x _ := e | return .rfl
+  let_expr _root_.Vector.set t sz xs i x _ := e | return .rfl
   let some (xs, _, _) := vectorElemsOfMk xs | return .rfl
   let iGround := (←Sym.simpWithGround i).getResultExpr i
   match Sym.getNatValue? iGround with
@@ -2608,11 +2563,11 @@ end MapIdx
 
 def general (other: MetaM Sym.Simp.Methods) : MetaM Sym.Simp.Methods :=
   mkMethods #[
-    (``getElem, .Post),
-    (``append, .Post),
-    (``evalGround, .Post),
-    (``set, .Post),
-    (``mapIdx, .Post)
+    (``Sets.General.getElem, .Post),
+    (``Sets.General.append, .Post),
+    (``Sets.General.evalGround, .Post),
+    (``Sets.General.set, .Post),
+    (``Sets.General.mapIdx, .Post)
   ]
   >>
   size
@@ -2622,7 +2577,7 @@ def general (other: MetaM Sym.Simp.Methods) : MetaM Sym.Simp.Methods :=
   foldr
   >>
   mkMethods #[
-    (``range, .Post)
+    (``Sets.General.range, .Post)
   ]
   >>
   other
@@ -2649,8 +2604,8 @@ end Zeta
 
 def functional : MetaM Sym.Simp.Methods :=
   mkMethods #[
-    (`Clap.Compiler.ExampruSym.NewTraversal.Dom.Sets.Functional.betaReduce, .Pre),
-    (`Clap.Compiler.ExampruSym.NewTraversal.Dom.Sets.Functional.zetaReduce, .Pre)
+    (``Sets.Functional.betaReduce, .Pre),
+    (``Sets.Functional.zetaReduce, .Pre)
   ]
 
 end Functional
@@ -2658,10 +2613,15 @@ end Functional
 end Sets
 
 open Sets in
-partial def consiliumMagnum (e : Expr) (extraPasses: MetaM Sym.Simp.Methods) (expectedType : Type) : Sym.Simp.SimpM Expr := do
+partial def consiliumMagnum (e : Expr)
+                            (extraPasses: MetaM Sym.Simp.Methods)
+                            (expectedType : Type) : Sym.Simp.SimpM Expr := do
   let uncompiledTypeExpr ← Sym.inferType e
   (·.1) <$> ire e 1 uncompiledTypeExpr
   where
+    /-
+    `evaluate` can go at some point, together with `expectedType`
+    -/
     evaluate (compiled: Expr) (uncompiledTypeExpr: Expr) : Sym.Simp.SimpM Unit  := do
       Lean.Core.tryCatchRuntimeEx
         do

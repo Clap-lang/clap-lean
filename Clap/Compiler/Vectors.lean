@@ -164,32 +164,27 @@ def sequenceAsVecExpr (name : Expr) (t sz : Expr) : Sym.Simp.SimpM Expr := do
 --         )
 --         h
 
-/--
-Use with `↓`.
--/
-def dontExplodeVector : Sym.Simp.Simproc := fun e ↦ do
-  let_expr GetElem.getElem _ _ _ _ _ coll _ _ := e | return .rfl
-  unless coll.isFVar && (←inferType coll).isAppOf ``Vector do return .rfl
-  trace[Clap.Compile.simp.proc.kaboom] m!"Marked done:\n{e}"
-  return .rfl (done := true)
+-- def dontExplodeVector : Sym.Simp.Simproc := fun e ↦ do
+--   let_expr GetElem.getElem _ _ _ _ _ coll _ _ := e | return .rfl
+--   unless coll.isFVar && (←inferType coll).isAppOf ``Vector do return .rfl
+--   trace[Clap.Compile.simp.proc.kaboom] m!"Marked done:\n{e}"
+--   return .rfl (done := true)
 
-/--
-Use with ↑.
-
-TODO: The proof is not `rfl`. One can prove all of these `by aesop (add cases [Vector, Array, List])`,
-      but I'd rather not lift to `aesop` and build the proof by hand (viz. `abc'` above).
--/
-def explodeVector (who : String := "") : Sym.Simp.Simproc := fun e ↦ do
-  let t ← Sym.inferType e
-  let_expr Vector t sz := t | return .rfl
-  unless e.isFVar do return .rfl
-  let sz' ← Sym.simpWithGround sz
-  match (sz'.getResultExpr sz).nat? with
-  | .none => throwError m!"{sz} does not simplify to ground.\nExpr:\n{e}"
-  | .some _n => let explodedVec ← (sequenceAsVecExpr e t (sz'.getResultExpr sz)).run'
-                trace[Clap.Compile.simp.proc.kaboom] m!"{who}"
-                -- trace[Clap.Compile.simp.proc.kaboom] m!"Exploding:\n{e}\n==>\n{explodedVec}"
-                return .step explodedVec (←mkSorry (←mkEq e explodedVec) false)
+-- /--
+-- TODO: The proof is not `rfl`. One can prove all of these `by aesop (add cases [Vector, Array, List])`,
+--       but I'd rather not lift to `aesop` and build the proof by hand (viz. `abc'` above).
+-- -/
+-- def explodeVector (who : String := "") : Sym.Simp.Simproc := fun e ↦ do
+--   let t ← Sym.inferType e
+--   let_expr Vector t sz := t | return .rfl
+--   unless e.isFVar do return .rfl
+--   let sz' ← Sym.simpWithGround sz
+--   match (sz'.getResultExpr sz).nat? with
+--   | .none => throwError m!"{sz} does not simplify to ground.\nExpr:\n{e}"
+--   | .some _n => let explodedVec ← (sequenceAsVecExpr e t (sz'.getResultExpr sz)).run'
+--                 trace[Clap.Compile.simp.proc.kaboom] m!"{who}"
+--                 -- trace[Clap.Compile.simp.proc.kaboom] m!"Exploding:\n{e}\n==>\n{explodedVec}"
+--                 return .step explodedVec (←mkSorry (←mkEq e explodedVec) false)
 
 def toVectorSequence? (e : Expr) : Sym.Simp.SimpM (Option (Expr × Expr × Expr)) := do
   unless e.isFVar do return .none
