@@ -65,7 +65,7 @@ def check_carry_zero_circuit {k : ℕ} (n : ℕ) (t : Vector (Exp p var) k) (res
             (List.finRange (k - 1))
       )
 
-def check_lt' {k : ℕ} (w : ℕ) (isLt : Exp p var) (t₀ : Vector (Exp p var) k) (t₁ : Vector (Exp p var) k) (cont : Cs p var) : Cs p var :=
+def check_lt_circuit' {k : ℕ} (w : ℕ) (isLt : Exp p var) (t₀ : Vector (Exp p var) k) (t₁ : Vector (Exp p var) k) (cont : Cs p var) : Cs p var :=
   match k with
   | .zero => .eq0 (isLt - 1) cont
   | .succ k =>
@@ -73,17 +73,17 @@ def check_lt' {k : ℕ} (w : ℕ) (isLt : Exp p var) (t₀ : Vector (Exp p var) 
     -- (which drops the MSB via `i.castSucc`). This walks from MSB to LSB so that
     -- each position is visited exactly once.
     Num2Bits.num2bits_circuit w (t₀[Fin.last k] - t₁[Fin.last k] + (.c ((2 ^ w : ZMod p) - 1)))
-      (fun _ =>
+      (fun _ ↦
         IsZero.isZero_circuit (t₀[Fin.last k] - t₁[Fin.last k])
-        (fun iz =>
+        (fun iz ↦
           let isLt' : Exp p var :=
             isLt ||| (1 - .v iz)
-          check_lt' w isLt' (Vector.ofFn (fun i ↦ t₀[(i.castSucc)])) (Vector.ofFn (fun i ↦ t₁[(i.castSucc)])) cont
+          check_lt_circuit' w isLt' (Vector.ofFn (fun i ↦ t₀[(i.castSucc)])) (Vector.ofFn (fun i ↦ t₁[(i.castSucc)])) cont
         )
       )
 
-def check_lt {k : ℕ} (w : ℕ) (t : Vector (Exp p var) k) (t' : Vector (Exp p var) k) (cont : Cs p var) : Cs p var :=
-    check_lt' w 0 t t' cont
+def check_lt_circuit {k : ℕ} (w : ℕ) (t : Vector (Exp p var) k) (t' : Vector (Exp p var) k) (cont : Cs p var) : Cs p var :=
+    check_lt_circuit' w 0 t t' cont
 
 def fpMul_circuit {k : ℕ} (w : ℕ) (a b p' : Vector (Exp p var) k) (cont : Vector var k → Cs p var) : Cs p var :=
   range_check_vec_circuit w a $
@@ -109,7 +109,7 @@ def fpMul_circuit {k : ℕ} (w : ℕ) (a b p' : Vector (Exp p var) k) (cont : Ve
                               (
                                 check_carry_zero_circuit w t
                                   (
-                                    check_lt w (r.map .v) p'
+                                    check_lt_circuit w (r.map .v) p'
                                       (cont r)
                                   )
                               )
@@ -151,6 +151,23 @@ def check_carry_zero_wg {k : ℕ} (w : ℕ) (t : Vector (Exp p (ZMod p)) k) (res
     )
     carry
 
+def check_lt_wg' {k : ℕ} (w : ℕ) (isLt : Expₑ p) (t₀ : Vector (Expₑ p) k) (t₁ : Vector (Expₑ p) k) (cont : Wg p) : Wg p :=
+  match k with
+  | .zero => cont
+  | .succ k =>
+    Num2Bits.num2bits_wg w (t₀[Fin.last k] - t₁[Fin.last k] + (Exp.c ((2 ^ w : ZMod p) - 1)))
+      (fun _ ↦
+        IsZero.isZero_wg (t₀[Fin.last k] - t₁[Fin.last k])
+          (fun iz ↦
+            let isLt' : Expₑ p :=
+              isLt ||| (1 - .v iz)
+            check_lt_wg' w isLt' (Vector.ofFn (fun i ↦ t₀[(i.castSucc)])) (Vector.ofFn (fun i ↦ t₁[(i.castSucc)])) cont
+          )
+      )
+
+def check_lt_wg {k : ℕ} (w : ℕ) (t : Vector (Expₑ p) k) (t' : Vector (Expₑ p) k) (cont : Wg p) : Wg p :=
+  check_lt_wg' w 0 t t' cont
+
 def fpmul_wg (w k : ℕ) (a b p' : Vector (Exp p (ZMod p)) k) (cont : Vector (ZMod p) k → Wg p) : Wg p :=
   let ab := (toCompPoly (a.map (Exp.eval)))
   range_check_vec_wg w a
@@ -180,7 +197,10 @@ def fpmul_wg (w k : ℕ) (a b p' : Vector (Exp p (ZMod p)) k) (cont : Vector (ZM
                           (fun i ↦ Wg.cons (t.coeff i))
                           (
                             check_carry_zero_wg w (Vector.ofFn (fun i : Fin (2 * k - 1) ↦ .v (t.coeff i.1)))
-                              (cont r_vec)
+                              (
+                                check_lt_wg w (r_vec.map .v) p'
+                                (cont r_vec)
+                              )
                           )
                           (List.range (2 * k - 1)
                         )

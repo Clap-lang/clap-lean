@@ -72,9 +72,7 @@ def Circuit.toWg (c : Circuitₑ p) : Wg p :=
     letI e := e.eval
     .cons e (k e).toWg
   | .isZero e k =>
-    letI e := e.eval
-    let o : ZMod p := if e = 0 then 1 else 0
-    .cons e⁻¹ (.cons o (k o).toWg)
+    IsZero.isZero_wg e (fun o ↦ (k o).toWg)
   | .num2bits w e c =>
     Num2Bits.num2bits_wg w e (fun ls => (c ls).toWg)
   | .fpmul w k a b p' cont =>
