@@ -183,23 +183,11 @@ def eboomWithArgs := eboom #v[1,2,3,4]
 #eval runOptionNTestByName ``eboomWithArgs
 
 def bvars : Option ℕ := do
-  let a ← pure 10
   let b ← (do
-    let x ← pure 5;
-    let y ← pure (x + 100000)
-    return y
-  )
-  let c ← (do
-    let x ← pure b;
-    let y ← pure (x + 1000000)
-    let z ← pure (y + 10000000)
+    let z : ℕ ← #v[1, 2].foldlM (fun acc _ ↦ return acc) 42
     return z
   )
-  let d ← pure (c + 100)
-  let e ← pure (d + 1000)
-  let f ← pure (e + 10000)
-  let g ← pure (f - a)
-  return g
+  b
 
 set_option pp.notation false in
 set_option trace.Clap.Compile true in

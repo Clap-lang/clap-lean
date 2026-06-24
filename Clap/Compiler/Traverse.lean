@@ -2792,6 +2792,30 @@ partial def sequenceActions (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
           m!"Non-lam\ne:{e}\ncontext:{Γ}\nResult: \n{result_actions}"
         return result_actions
 
+partial def sequenceActions' (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
+  go e
+  where
+    go (e : Expr) : Sym.Simp.SimpM (Array Expr) := do
+    match e.bind? with
+    | .some (a₁, f₁) =>
+      match a₁.bind? with
+      | .some (a₂, f₂) =>
+        let a₂ ← go a₂
+        let f₂ := f₂.liftLooseBVars 0 a₂.size.pred
+        let f₂ ← go f₂
+        let a₂f₂ := a₂ ++ f₂
+        let f₁ := f₁.liftLooseBVars 0 a₂f₂.size.pred
+        let f₁ ← go f₁
+        return a₂f₂ ++ f₁
+      | .none =>
+        let f₁ ← go f₁
+        return #[a₁] ++ f₁
+    | .none =>
+      match e with
+      | .lam (body := body) .. => go body
+      | _ =>
+        return #[e]
+
 def testFunc (a b c d e f: ℕ ) := a + b + c + d + e + f
 
 def e : Expr := (Lean.Expr.lam
@@ -2978,7 +3002,7 @@ def flattenBindsAny : Sym.Simp.Simproc := fun e ↦ do
     m!"Flatten binds."
   trace[Clap.Compile.dbg]
     m!"e\n{e}\n{a}"
-  let e' ← sequenceActions e
+  let e' ← sequenceActions' e
   trace[Clap.Compile.dbg]
     m!"Post sequence actions\n{e'}"
   let e' ← chainActionsInferType e'
