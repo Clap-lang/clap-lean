@@ -40,7 +40,11 @@ def testTreeBindNested : Option ℕ := do
   let a ← F 1
   let B ← F 2
   let b ← (
-    do let x ← F (a + B)
+    do let x ← (do
+         let x ← F (a + B)
+         let y ← F (a + a)
+         .some (x + y)
+       )
        let y ← F (x + 10)
        let z ← F (x + 42)
        return y + y + B + z
@@ -48,7 +52,11 @@ def testTreeBindNested : Option ℕ := do
   let w ← F (b + 100)
   let y ← F (b + 200)
   let c ← (
-    do let x ← F 1000;
+    do let x ← (do
+         let x ← F 1000
+         let y ← F 14
+         .some (x + y)
+       )
        let y ← F (x + 10000)
        let z ← (do
          let a ← F 3
@@ -64,13 +72,17 @@ def testTreeBindNested : Option ℕ := do
 def flattenedTreeBindNested : Option ℕ := do
   let a ← F 1
   let B ← F 2
-  let x ← F (a + B)
+  let x' ← F (a + B)
+  let y' ← F (a + a)
+  let x ← x' + y'
   let y ← F (x + 10)
   let z ← F (x + 42)
   let b ← pure (y + y + B + z)
   let w ← F (b + 100)
   let y ← F (b + 200)
-  let x ← F 1000;
+  let x'' ← F 1000;
+  let y'' ← F 14
+  let x ← pure (x'' + y'')
   let y' ← F (x + 10000)
   let a' ← F 3
   let b' ← F (a' + w)
@@ -82,10 +94,14 @@ def flattenedTreeBindNested : Option ℕ := do
   return y + z + a + b
 
 def testTreeBind : Option ℕ := do
+  let A ← F 44
   let b ← (
-    do let x ← F 1
-       let y ← F (x + 10)
-       return y
+    do let x ← (do
+         let x ← F 1
+         let x' ← F 2
+         F (x + 10 + x')
+       )
+       return x + A
   )
   let y ← F (b + 100)
   let c ← (
@@ -97,24 +113,17 @@ def testTreeBind : Option ℕ := do
   return y + z -- `#2 + #0`
 
 def flattenedTreeBind : Option ℕ := do
+  let A ← F 44
   let x ← F 1
-  let y ← F (x + 10)
-  let y ← pure y
+  let x' ← F 2
+  let y ← F (x + 10 + x')
+  let y ← pure (y + A)
   let y ← F (y + 100)
   let x ← F 1000
   let y' ← F (x + 10000)
   let y' ← pure y'
   let z ← F (y' + 100000)
   pure (y + z) -- `#4 + #0`
-
-example :
-  testTreeBind =
-  (((F 1).bind fun x => (F (x.add 10)).bind fun y => some y).bind fun __do_lift =>
-    (F (__do_lift.add 100)).bind fun y =>
-      ((F 1000).bind fun x => (F (x.add 10000)).bind fun y => some y).bind fun __do_lift =>
-        (F (__do_lift.add 100000)).bind fun z => some (y.add z))
-:=
-  rfl
 
 example :
   testTreeBind = flattenedTreeBind
@@ -193,7 +202,6 @@ set_option pp.notation false in
 set_option trace.Clap.Compile true in
 set_option trace.Clap.Compile.dbg true in
 #eval runOptionNTestByName `ExampruSym.NewTraversal.bvars
-
 
 end NewTraversal
 
