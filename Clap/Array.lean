@@ -1,4 +1,3 @@
-import Mathlib
 import Clap.Lang
 import Clap.Wheels
 
@@ -124,7 +123,7 @@ lemma singleOneArray_eq (len : ℕ) (idx : F p) (hlen : len ≤ p) (hidx : idx.v
     rw [ Finset.card_eq_one.mpr ] ; aesop;
     exact ⟨ ⟨ idx.val, hidx ⟩, by ext; aesop ⟩;
   convert h_sum using 1;
-  induction' ( Vector.ofFn fun i : Fin len => if ( i : ℕ ) = ZMod.val idx then ( 1 : F p ) else 0 ) using Vector.recOn ; simp +decide [ * ];
+  induction ( Vector.ofFn fun i : Fin len => if ( i : ℕ ) = ZMod.val idx then ( 1 : F p ) else 0 ) using Vector.recOn ; simp +decide [ * ];
   induction ‹Array ( F p ) › using Array.recOn ; simp +decide [ *, Array.sum ];
   rw [ List.foldl_eq_foldr ]
 
@@ -145,7 +144,7 @@ lemma singleEndArray_eq (len : ℕ) (idx : F p) (hlen : len ≤ p) :
   have h_foldl : Vector.foldl (fun acc b => acc + b) 0 (Vector.ofFn (fun i : Fin len => if (i : ℕ) = idx.val then (1 : F p) else 0)) = ∑ i : Fin len, (if (i : ℕ) = idx.val then (1 : F p) else 0) := by
     have h_foldl : ∀ (v : Vector (F p) len), Vector.foldl (fun acc b => acc + b) 0 v = ∑ i : Fin len, v[i] := by
       intro v
-      induction' v with v ih;
+      rcases v with ⟨v⟩
       induction v using Array.recOn ; simp +decide [ *, Finset.sum_range_succ' ];
       rw [ ← List.sum_eq_foldl ];
       refine' congr_arg _ ( List.ext_get _ _ ) <;> aesop;
@@ -182,10 +181,11 @@ lemma selector_fold (len s e : ℕ) (hse : s < e) :
         FB.false ((List.finRange len).take m)
       = if s < m ∧ m ≤ e then (1 : F p) else 0 := by
   intro m hm
-  induction' m with m ih;
-  · aesop;
-  · rw [ List.take_add_one, List.foldl_append ];
-    split_ifs <;> simp_all +decide [ List.ofFn_eq_map ];
+  induction m with
+  | zero => aesop
+  | succ m ih =>
+    rw [ List.take_add_one, List.foldl_append ];
+    split_ifs <;> simp_all +decide;
     · rw [ ih ( by linarith ) ] ; split_ifs <;> simp_all +decide [ FB.or, FB.and, FB.not ];
       grind;
     · by_cases h : m = s <;> by_cases h' : m = e <;> simp_all +decide [ FB.or, FB.and ];
