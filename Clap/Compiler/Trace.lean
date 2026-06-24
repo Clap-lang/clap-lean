@@ -11,6 +11,7 @@ abbrev RuleHisto := Std.HashMap String (Nat × Float)
 structure CompilerDbgState where
   ruleHisto : RuleHisto
   skippedRuleHisto : RuleHisto
+  runUnfold: Bool
   deriving Inhabited
 
 def sumRuleTime (times: RuleHisto) : Float :=
@@ -22,11 +23,15 @@ initialize CompilerDbg : EnvExtension CompilerDbgState ←
 def getDbgState : MetaM CompilerDbgState :=
   return CompilerDbg.getState (←getEnv)
 
+def CompilerDbgState.setRunUnfold (state: CompilerDbgState) (value: Bool) : CompilerDbgState := {
+  state with runUnfold := value
+}
+
 def modifyDbgState (f : CompilerDbgState → CompilerDbgState) : MetaM Unit :=
   modifyEnv (CompilerDbg.modifyState (f := f))
 
 def resetDbgState : MetaM Unit :=
-  modifyDbgState (fun _ ↦ default)
+  modifyDbgState (fun _ ↦ (default: CompilerDbgState).setRunUnfold false)
 
 def getAndResetDbgState : MetaM CompilerDbgState := do
   let σ ← getDbgState

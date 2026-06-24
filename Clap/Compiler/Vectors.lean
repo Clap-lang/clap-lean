@@ -35,7 +35,7 @@ def getElemVectorOfIdx (coll t sz : Expr) (idx : ℕ) : Sym.Simp.SimpM Expr := d
       mkAppN
         (.const ``GetElem.getElem [u, v, w])
         #[collT, q(ℕ), t, valid, inst, coll, idx]
-    
+
   let proofIsValid := mkApp2 (.const ``Nat.lt []) idx sz
 
   Sym.shareCommonInc <| mkAppN getElemSansProof #[←mkSorry proofIsValid false]
@@ -50,7 +50,7 @@ def mkVecLit (t l len : Expr) : Sym.Simp.SimpM Expr := do
   let vectorSansProof := mkAppN (.const ``_root_.Vector.mk [u]) #[t, len, array]
   let vector ← inferVectorProof vectorSansProof
   Sym.shareCommonInc vector -- TODO: Check if `...inc` is enough.
-  
+
 private def mkListLitAux' (nil : Expr) (cons : Expr) : List Expr → Expr
   | []    => nil
   | x::xs => mkApp (mkApp cons x) (mkListLitAux' nil cons xs)
@@ -75,7 +75,7 @@ def _root_.Lean.Meta.Sym.mkListLit (type : Expr) (xs : List Expr) : SymM Expr :=
 def sequenceAsVecExpr (name : Expr) (t sz : Expr) : Sym.Simp.SimpM Expr := do
   let lenSimped := (←Sym.simpWithGround sz).getResultExpr sz
   match lenSimped.nat? with
-  | .none => 
+  | .none =>
     let error := s!"Not ground:\n{lenSimped}\nExpr:\n{name}"
     throwError m!"Cannot sequence a vector of unknown length.\n{error}"
   | .some lenSimpedNat =>
@@ -159,7 +159,7 @@ def sequenceAsVecExpr (name : Expr) (t sz : Expr) : Sym.Simp.SimpM Expr := do
 --                                     False.elim (noConfusion_of_Nat Nat.ctorIdx x))
 --                               rfl HEq.rfl)
 --                   h)
---               )     
+--               )
 --           h
 --         )
 --         h
@@ -213,7 +213,7 @@ TODO: Generalise.
 
 --   let a? ← toVectorSequence? a
 --   let b? ← toVectorSequence? b
-  
+
 --   if a?.isNone && b?.isNone then return .rfl
 
 --   let_expr Vector ta sza := ←Sym.inferType a | unreachable!

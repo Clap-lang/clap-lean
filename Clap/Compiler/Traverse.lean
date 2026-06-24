@@ -64,15 +64,31 @@ def withLog (name : String) (f : Simproc) : Simproc :=
         trace[Clap.Compile.dbg] m!"\n[{name}]\n{e}\n==>\n{e'}"
         return res
 
+def simprocWithAtMostOnceGuard (proc: Simproc) : Simproc := fun expr ↦ do
+  let dbgState ← getDbgState
+  if dbgState.runUnfold then
+    return .rfl
+  else
+    let res ← proc expr
+    match res with
+      | .rfl .. => return res
+      | .step .. =>
+        modifyDbgState (CompilerDbgState.setRunUnfold · true)
+        return res
+
 /--
 A simproc of sequenced simprocs with logging enabled.
 
 TODO(improve): We collapse certain rules like `Vector.range` and `List.range` with `lastComponent!`
 -/
-def andThenWithLog (names : Array Name) : MetaM Sym.Simp.Simproc := do
+def andThenWithLog (names : Array Name) (atMostOnce: Bool := false) : MetaM Sym.Simp.Simproc := do
   let simprocs ← names.mapM getSimproc
+  let guard := if atMostOnce then
+    simprocWithAtMostOnceGuard
+  else
+    λ x => x
   return (simprocs.zip names).foldl (init := fun _ ↦ return .rfl) fun acc (proc, name) ↦
-    acc >> withLog name.lastComponent!.toString proc
+    acc >> guard (withLog name.lastComponent!.toString proc)
 
 /--
 A variation on `Lean.Meta.Sym.Simp.Theorems.rewrite` that composes with a logging proc.
@@ -93,10 +109,17 @@ def _root_.Lean.Meta.Sym.Simp.Theorems.rewriteWithLog
       return if anyCD && !result.isContextDependent then result.withContextDependent else result
   return mkRflResultCD anyCD
 
-def mkSimprocForWithLog (declNames : Array Name) (d : Discharger := dischargeNone) : MetaM Simproc := do
+def mkSimprocForWithLog
+  (declNames : Array Name)
+  (d : Discharger := dischargeNone)
+  (atMostOnce : Bool := false)
+: MetaM Simproc := do
   let mut thms : Theorems := {}
   for declName in declNames do
     thms := thms.insert (← mkTheoremFromDecl declName)
+  if atMostOnce then
+    return simprocWithAtMostOnceGuard (thms.rewriteWithLog d)
+  else
   return thms.rewriteWithLog d
 
 /--
@@ -135,15 +158,17 @@ inductive PrePost where | Pre | Post
 instance : Inhabited PrePost := ⟨.Post⟩
 
 def mkMethods (components : Array (Name × PrePost))
-              (d : Discharger := Sym.Simp.dischargeNone) : MetaM Methods := do
+              (d : Discharger := Sym.Simp.dischargeNone)
+              (atMostOnce : Bool := false)
+              : MetaM Methods := do
   let (procs, thms) ← components.toList.partitionM fun (name, _) ↦ isSimproc name
   let (preProcs, postProcs) := partitionPrePost procs
   let (preThms, postThms) := partitionPrePost thms
 
-  let preProcs ← andThenWithLog preProcs.toArray
-  let preThms ← mkSimprocForWithLog preThms.toArray d
-  let postProcs ← andThenWithLog postProcs.toArray
-  let postThms ← mkSimprocForWithLog postThms.toArray d
+  let preProcs ← andThenWithLog preProcs.toArray atMostOnce
+  let preThms ← mkSimprocForWithLog preThms.toArray d atMostOnce
+  let postProcs ← andThenWithLog postProcs.toArray atMostOnce
+  let postThms ← mkSimprocForWithLog postThms.toArray d atMostOnce
 
   let pre := preProcs >> preThms
   let post := postProcs >> postThms
@@ -2435,7 +2460,8 @@ def structural : MetaM Sym.Simp.Methods :=
   mkMethods #[
     (``Sets.Structural.pureBindMany, .Pre),
     (``Sets.Structural.flattenBindsAny, .Pre),
-    (``Sets.Structural.foldlM, .Pre)
+    (``Sets.Structural.foldlM, .Pre),
+    (``Vector.mapM_mk, .Pre)
   ]
 
 end Structural
@@ -2584,7 +2610,7 @@ def mapIdx : Sym.Simp.Simproc := fun e => do
 
 end MapIdx
 
-def general (other: MetaM Sym.Simp.Methods) : MetaM Sym.Simp.Methods :=
+def general : MetaM Sym.Simp.Methods :=
   -- mkMethods #[(`Clap.Compiler.Sets.Structural.logVisitGeneral, .Pre)] >>
   General.control >>
   mkMethods #[
@@ -2604,8 +2630,6 @@ def general (other: MetaM Sym.Simp.Methods) : MetaM Sym.Simp.Methods :=
   mkMethods #[
     (``Sets.General.range, .Post)
   ]
-  >>
-  other
 
 end General
 
@@ -2642,24 +2666,42 @@ open Sets in
 partial def consiliumMagnum (e : Expr)
                             (extraPasses: MetaM Sym.Simp.Methods)
                             : Sym.Simp.SimpM Expr := do
-  let uncompiledTypeExpr ← Sym.inferType e
-  (·.1) <$> ire e 1 uncompiledTypeExpr
+  (·.1) <$> ire e 1
   where
     simp (e : Expr) (symset : Sym.Simp.Methods) : Sym.Simp.SimpM ExprChanged? := do
       let e' ← Sym.simp e symset <&> (·.getResultExpr e)
       return (e', !Sym.isSameExpr e e')
 
+    consiliumRecursus: Sym.Simp.Simproc := fun expr ↦ do
+      let .some (a, _) := expr.bind? | return .rfl
+      let .some (_, _) := a.bind? | return .rfl
+      let actions ← Sets.Structural.sequenceActions' expr
+      let simpedActions ← actions.mapM (consiliumMagnum · extraPasses)
+      let e' ← Sets.Structural.chainActionsInferType simpedActions
+      return .step e' (←mkSorry (←mkEq e e') false)
+
     consiliumStructurale (e : Expr) : Sym.Simp.SimpM ExprChanged? := do
-      simp e (←Structural.structural)
+      simp e (←(
+        (pure ({
+          pre := consiliumRecursus
+          post := fun _ ↦ pure (.rfl)
+        }): MetaM Sym.Simp.Methods) >>
+        Structural.structural
+      ))
 
     consiliumFunctionale (e : Expr) : Sym.Simp.SimpM ExprChanged? := do
       simp e (←Functional.functional)
 
     consiliumGenerale (e : Expr) : Sym.Simp.SimpM ExprChanged? := do
-      simp e (←General.general extraPasses)
+      simp e (←General.general)
 
-    ire (e : Expr) (numPasses : ℕ) (uncompiledType: Expr) : Sym.Simp.SimpM ExprIter := do
+    consiliumExplicare (e : Expr) : Sym.Simp.SimpM ExprChanged? := do
+      simp e (←extraPasses)
+
+    ire (e : Expr) (numPasses : ℕ) : Sym.Simp.SimpM ExprIter := do
       withTraceNode `Clap.Compile.consiliumMagnum.pass formatExprIter do
+
+      modifyDbgState (CompilerDbgState.setRunUnfold · false)
 
       let (e', _) ← withTraceNode `Clap.Compile.consiliumMagnum.pass.structurale formatExprChanged?With do
         consiliumStructurale e
@@ -2670,11 +2712,14 @@ partial def consiliumMagnum (e : Expr)
       let (e''', _) ← withTraceNode `Clap.Compile.consiliumMagnum.pass.generale formatExprChanged?With do
         consiliumGenerale e''
 
-      if Sym.isSameExpr e e'''
-      then return (e''', numPasses)
+      let (e'''', _) ← withTraceNode `Clap.Compile.consiliumMagnum.pass.explicare formatExprChanged?With do
+        consiliumExplicare e'''
+
+      if Sym.isSameExpr e e''''
+      then return (e'''', numPasses)
       else
         trace[Clap.Compile.consiliumMagnum] m!"{logRewrite e e'''}"
-        ire e''' numPasses.succ uncompiledType
+        ire e''' numPasses.succ
 
 def doNothing : MetaM Sym.Simp.Methods := pure {
   pre := λ _ => pure .rfl
