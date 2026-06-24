@@ -1,4 +1,3 @@
-import Mathlib
 import Clap.Lang
 import Clap.Array
 import Clap.FString
@@ -319,9 +318,9 @@ The scalar product of `bracketsDepthMap` with the `arraySelector` indicator of t
     `[s, e)` equals the (field) sum of the window obtained by `Vector.extract`.
 -/
 lemma escalarProduct_arraySelectorSpec_eq {LEN : ℕ} (bdm : Vector (F p) LEN) (s e : ℕ) :
-    Vector.escalarProduct bdm ((arraySelector_spec LEN s e).map (FB.ofBool (p := p)))
+    Vector.scalarProduct bdm ((arraySelector_spec LEN s e).map (FB.ofBool (p := p)))
       = (bdm.extract s e).toList.sum := by
-        unfold Vector.escalarProduct;
+        unfold Vector.scalarProduct;
         unfold Vector.hadamardProduct; simp +decide [ arraySelector_spec ] ;
         rw [ show Vector.zipWith (fun x1 x2 => x1 * x2) bdm
                 (Vector.ofFn (FB.ofBool ∘ fun i : Fin LEN => decide (s ≤ (i : ℕ)) && decide ((i : ℕ) < e))) =
@@ -376,7 +375,7 @@ def enforceNotNested_spec (LEN : ℕ)
     enjoyed by genuine bracket-depth maps (small non-negative depths), and under it "sums to zero"
     is equivalent to "is all zero", making circuit and spec agree.
 -/
-lemma enforceNotNested_equiv (LEN) (hlen : LEN ≤ p)
+lemma enforceNotNested_equiv [Fact (Nat.Prime p)] (LEN) (hlen : LEN ≤ p)
   (startIdx fieldLen : F p)
   (hstart : startIdx.val < LEN)
   (hlt : startIdx.val < startIdx.val + fieldLen.val)
@@ -390,7 +389,7 @@ lemma enforceNotNested_equiv (LEN) (hlen : LEN ≤ p)
 := by
   convert Option.bind_congr ?_;
   rotate_left;
-  use fun a => if Vector.escalarProduct bracketsDepthMap a = 0 then some () else none;
+  use fun a => if Vector.scalarProduct bracketsDepthMap a = 0 then some () else none;
   · unfold eq0; aesop;
   · rw [ arraySelector_equiv LEN startIdx ( startIdx + fieldLen ) hlen hstart ?_ ?_ hw ];
     · simp +decide [ Spec.FB.assert, enforceNotNested_spec ];
