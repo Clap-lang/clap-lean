@@ -19,7 +19,7 @@ abbrev sigma_unshared (x : ℕ) : Option (ℕ) := do
   some (x4 + x)
 
 def testFoldlM : Option ℕ := do
-  let xs ← (List.range 4).foldlM (fun state r ↦ do
+  let xs ← (List.range 10).foldlM (fun state r ↦ do
     let s0 ← sigma_unshared state[0]
     state.set 0 s0
     ) #v[0, 1, 2]
@@ -33,7 +33,7 @@ def testFoldlM : Option ℕ := do
 -- -- set_option pp.exprSizes true in
 -- set_option trace.Clap.Compile.simp.proc.beta true in
 set_option maxRecDepth 100000 in
--- set_option maxHeartbeats 800000 in
+set_option maxHeartbeats 0 in
 #eval runOptionNTestByName ``testFoldlM
 
 end NewTraversal
