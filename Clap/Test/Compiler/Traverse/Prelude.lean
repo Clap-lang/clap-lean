@@ -22,7 +22,7 @@ def runTest
   let uncompiledTypeExpr ← Meta.inferType uncompiledExpr
 
   logInfo m!"Compiling {uncompiledExpr}"
-  let (compiled, time) ← Clap.Dbg.timeS (compile uncompiledExpr extraPasses expectedType)
+  let (compiled, time) ← Clap.Dbg.timeS (compile uncompiledExpr extraPasses)
   logInfo m!"Compiled to {compiled}"
 
   let dbgState ← getAndResetDbgState

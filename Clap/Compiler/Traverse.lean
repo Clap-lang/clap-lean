@@ -225,6 +225,9 @@ def beta : MetaM Methods := do
     `Clap.Compiler.SymSets.General.betaReduce
   ]
 
+-- TODO work out how to unmark things done
+-- So that if an if's condition takes multiple iterations to reduce
+-- we are able to still process the if
 def control : MetaM Methods := do
   return {
     pre := simpControl
@@ -2398,8 +2401,37 @@ def explode : MetaM Sym.Simp.Methods := do
 
 end Explode
 
+#check HAdd.hAdd
+
+section Ground
+
+def evalGround : Sym.Simp.Simproc := fun e ↦ do
+  match ←Sym.Simp.evalGround {} e with
+  | res@(.rfl ..) => return res -- trace[Clap.Compile.simp.proc.evalGround] m!"skipped: {e}"; return res
+  | res@(.step ..) => trace[Clap.Compile.simp.proc.evalGround] m!"ground hit: {e}"; return res
+
+end Ground
+
+def logVisit (tag: String) : Sym.Simp.Simproc := fun expr ↦ do
+  let_expr HAdd.hAdd _ _ _ _ _ _ := expr | return .rfl
+  let_expr HAdd.hAdd _ _ _ _ x y := expr | return .rfl
+  let x := Sym.getNatValue? x
+  let y := Sym.getNatValue? y
+  match x, y with
+    | .some 1, some 2 =>
+      let res ← evalGround expr
+      logInfo m!"Grounded: {res.getResultExpr expr} {tag}"
+      return .rfl
+    | _, _ =>
+      logInfo m!"LoggedVisit: {expr} {tag}"
+      return .rfl
+
+def logVisitStructural := logVisit "structural"
+def logVisitFunctional := logVisit "functional"
+def logVisitGeneral := logVisit "general"
+
 def structural : MetaM Sym.Simp.Methods :=
-  control >>
+  -- mkMethods #[(`Clap.Compiler.Sets.Structural.logVisitStructural, .Pre)] >>
   mkMethods #[
     (``Sets.Structural.pureBindMany, .Pre),
     (``Sets.Structural.flattenBindsAny, .Pre),
@@ -2477,15 +2509,6 @@ def range : Sym.Simp.Simproc := fun e ↦ do
 
 end Range
 
-section Ground
-
-def evalGround : Sym.Simp.Simproc := fun e ↦ do
-  match ←Sym.Simp.evalGround {} e with
-  | res@(.rfl ..) => trace[Clap.Compile.simp.proc.evalGround] m!"skipped: {e}"; return res
-  | res@(.step ..) => trace[Clap.Compile.simp.proc.evalGround] m!"ground hit: {e}"; return res
-
-end Ground
-
 section Size
 
 def size : MetaM Sym.Simp.Methods :=
@@ -2562,10 +2585,12 @@ def mapIdx : Sym.Simp.Simproc := fun e => do
 end MapIdx
 
 def general (other: MetaM Sym.Simp.Methods) : MetaM Sym.Simp.Methods :=
+  -- mkMethods #[(`Clap.Compiler.Sets.Structural.logVisitGeneral, .Pre)] >>
+  General.control >>
   mkMethods #[
     (``Sets.General.getElem, .Post),
     (``Sets.General.append, .Post),
-    (``Sets.General.evalGround, .Post),
+    (`Clap.Compiler.Sets.Structural.evalGround, .Post),
     (``Sets.General.set, .Post),
     (``Sets.General.mapIdx, .Post)
   ]
@@ -2603,6 +2628,7 @@ def zetaReduce : Sym.Simp.Simproc := fun e ↦ do
 end Zeta
 
 def functional : MetaM Sym.Simp.Methods :=
+  -- mkMethods #[(`Clap.Compiler.Sets.Structural.logVisitFunctional, .Pre)] >>
   mkMethods #[
     (``Sets.Functional.betaReduce, .Pre),
     (``Sets.Functional.zetaReduce, .Pre)
@@ -2615,22 +2641,10 @@ end Sets
 open Sets in
 partial def consiliumMagnum (e : Expr)
                             (extraPasses: MetaM Sym.Simp.Methods)
-                            (expectedType : Type) : Sym.Simp.SimpM Expr := do
+                            : Sym.Simp.SimpM Expr := do
   let uncompiledTypeExpr ← Sym.inferType e
   (·.1) <$> ire e 1 uncompiledTypeExpr
   where
-    /-
-    `evaluate` can go at some point, together with `expectedType`
-    -/
-    evaluate (compiled: Expr) (uncompiledTypeExpr: Expr) : Sym.Simp.SimpM Unit  := do
-      Lean.Core.tryCatchRuntimeEx
-        do
-          discard ((unsafe Lean.Meta.evalExpr expectedType uncompiledTypeExpr compiled).run)
-        fun exception => do
-          Lean.logInfo m!"Failed to evaluate compiled test expression with given type"
-          throwError m!"{exception.toMessageData}"
-      pure ()
-
     simp (e : Expr) (symset : Sym.Simp.Methods) : Sym.Simp.SimpM ExprChanged? := do
       let e' ← Sym.simp e symset <&> (·.getResultExpr e)
       return (e', !Sym.isSameExpr e e')
@@ -2646,19 +2660,15 @@ partial def consiliumMagnum (e : Expr)
 
     ire (e : Expr) (numPasses : ℕ) (uncompiledType: Expr) : Sym.Simp.SimpM ExprIter := do
       withTraceNode `Clap.Compile.consiliumMagnum.pass formatExprIter do
-      evaluate e uncompiledType
 
       let (e', _) ← withTraceNode `Clap.Compile.consiliumMagnum.pass.structurale formatExprChanged?With do
         consiliumStructurale e
-      evaluate e' uncompiledType
 
       let (e'', _) ← withTraceNode `Clap.Compile.consiliumMagnum.pass.functionale formatExprChanged?With do
         consiliumFunctionale e'
-      evaluate e'' uncompiledType
 
       let (e''', _) ← withTraceNode `Clap.Compile.consiliumMagnum.pass.generale formatExprChanged?With do
         consiliumGenerale e''
-      evaluate e''' uncompiledType
 
       if Sym.isSameExpr e e'''
       then return (e''', numPasses)
@@ -2672,10 +2682,10 @@ def doNothing : MetaM Sym.Simp.Methods := pure {
   : Sym.Simp.Methods
 }
 
-def compile (e : Expr) (extraPasses: MetaM Sym.Simp.Methods := doNothing) (expectedType := Option ℕ) : Sym.Simp.SimpM Expr := do
+def compile (e : Expr) (extraPasses: MetaM Sym.Simp.Methods := doNothing) : Sym.Simp.SimpM Expr := do
   let e ← Compiler.Simp.preprocessExpr e
   let res ← lambdaTelescope e fun args e ↦ do
-    let (compiled, time) ← Dbg.timeS (consiliumMagnum e extraPasses expectedType)
+    let (compiled, time) ← Dbg.timeS (consiliumMagnum e extraPasses)
     trace[Clap.Compile] m!"Compilation took: {time}s."
     Dbg.inDebugOnly (do getDbgState >>= fun σ ↦ do logInfo m!"{←σ.pretty}")
     Sym.mkLambdaFVarsS args compiled

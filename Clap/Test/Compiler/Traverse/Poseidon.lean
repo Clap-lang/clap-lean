@@ -30,9 +30,9 @@ def mixSEqDef := @Clap.PoseidonVec.mixS.eq_def
 -- #guard_msgs in
 set_option maxHeartbeats 0 in
 set_option trace.Clap.Compile.simp.proc.vector_mapIdx_mk true in
--- set_option trace.Clap.Compile true in
--- set_option trace.Clap.Compile.dbg true in
-set_option trace.Clap.Compile.simp.proc.evalGround true in
+set_option trace.Clap.Compile true in
+set_option trace.Clap.Compile.dbg true in
+-- set_option trace.Clap.Compile.simp.proc.evalGround true in
 #eval runOptionNTestByName `ExampruSym.testPoseidon_1_2 (extraPasses := Clap.Compiler.mkMethods #[
   (`ExampruSym.testPoseidon.eq_def, .Pre),
   (`Clap.PoseidonVec.poseidonBN254.eq_def, .Pre),
