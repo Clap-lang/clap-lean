@@ -2267,11 +2267,11 @@ A `bind a₁ λ x ↦ a₂ x` given `a₁` and `a₂`.
 TODO(perf): Can cache types during traversal.
 -/
 def bindActionsInferType (action actionτ f fτ : Expr) : Sym.Simp.SimpM (Expr × Expr) := do
-  trace[Clap.Compile.dbg]
-    m!"BindActionsInferType\naction\n{action}\nActionType\n{actionτ}\nf\n{f}\nfτ\n{fτ}"
+  -- trace[Clap.Compile.dbg]
+  --   m!"BindActionsInferType\naction\n{action}\nActionType\n{actionτ}\nf\n{f}\nfτ\n{fτ}"
   let cont := Expr.lam `a actionτ f .default
-  trace[Clap.Compile.dbg]
-    m!"cont\n{cont}"
+  -- trace[Clap.Compile.dbg]
+  --   m!"cont\n{cont}"
   let bind :=
     mkApp4 (.const ``Option.bind [←Sym.getLevelInType actionτ, ←Sym.getLevelInType fτ])
            actionτ fτ
@@ -2364,15 +2364,13 @@ def foldlM : Sym.Simp.Simproc := fun expr ↦ do
     return .step expr' (←mkSorry (←mkEq expr expr') false)
 
 /--
-TODO: Unused
 `#v[a₁, a₂, ...].foldlM (init := x) f`
 `f a₁ x >>= fun rest ↦ [a₂, ...].foldlM (init := rest) f`
 -/
-def _foldlM_stagger : Sym.Simp.Simproc := fun e ↦ do
+def foldlM_stagger : Sym.Simp.Simproc := fun e ↦ do
   let .some [m, inst, α, β, f, init, collection] := e.foldlMInfo? | return .rfl
   -- TODO(perf): `coll` not necessary in full
   let .some ⟨_, listExpr⟩ := Collection.ofExpr collection | return .rfl
-  -- let us@([u, v, w]) := e.getAppFn.constLevels! | unreachable!
   let u₁ ← Sym.getLevelInType β
   let u₂ := u₁
   let u₃ ← Sym.getLevelInType α
@@ -2386,7 +2384,8 @@ def _foldlM_stagger : Sym.Simp.Simproc := fun e ↦ do
     let tailτ ← Sym.inferType tail
     let tailτu ← Sym.getLevelInType tailτ
     let e' ← Sym.shareCommonInc <| mkApp4 (.const ``Option.bind [u₁, tailτu]) β tailτ head lambda
-    let e' ← Sym.shareCommonInc <| Simp.wrapped (←Sym.inferType e') e'
+    -- let e' ← Sym.shareCommonInc <| Simp.wrapped (←Sym.inferType e') e'
+    -- logWarning m!"HELLO!"
     return .step e' (←mkSorry (←mkEq e e') false) (done := true)
   | _ =>
     let e' := mkApp2 (.const ``Option.some [u₁]) β init
@@ -2426,14 +2425,12 @@ def explode : MetaM Sym.Simp.Methods := do
 
 end Explode
 
-#check HAdd.hAdd
-
 section Ground
 
 def evalGround : Sym.Simp.Simproc := fun e ↦ do
   match ←Sym.Simp.evalGround {} e with
   | res@(.rfl ..) => return res -- trace[Clap.Compile.simp.proc.evalGround] m!"skipped: {e}"; return res
-  | res@(.step ..) => trace[Clap.Compile.simp.proc.evalGround] m!"ground hit: {e}"; return res
+  | res@(.step ..) => return res -- trace[Clap.Compile.simp.proc.evalGround] m!"ground hit: {e}"; return res
 
 end Ground
 
@@ -2727,10 +2724,70 @@ def doNothing : MetaM Sym.Simp.Methods := pure {
   : Sym.Simp.Methods
 }
 
+def desperateGeneral : MetaM Sym.Simp.Methods :=
+  -- mkMethods #[(`Clap.Compiler.Sets.Structural.logVisitStructural, .Pre)] >>
+  mkMethods #[
+    (``Sets.General.range, .Pre),
+    (``Sets.General.set, .Pre),
+    (``Sets.General.getElem, .Post),
+    (``Sets.Structural.evalGround, .Post),
+    (``Lean.Meta.Sym.Simp.simpControl, .Post),
+    (``Sets.General.mapIdx, .Post),
+    (``Sets.General.append, .Post)
+  ]
+
+def desperateStructure : MetaM Sym.Simp.Methods :=
+  -- mkMethods #[(`Clap.Compiler.Sets.Structural.logVisitStructural, .Pre)] >>
+  desperateGeneral >>
+  mkMethods #[
+    (``Compiler.Vector.unwrap, .Pre),
+    (``Sets.Structural.foldlM_stagger, .Pre),
+  ]
+
+partial def consiliumDesperatum (e : Expr)
+                                (extraPasses: MetaM Sym.Simp.Methods)
+                                (dbg : ℕ := 12)
+                                : Sym.Simp.SimpM Expr := do
+  if dbg == 0 then return e
+  match e.bind? with
+    | .some (a₁, f₁) =>
+      logWarning m!"I TOUCH:\n{e}"
+      match a₁.bind? with
+      | .none =>
+        match a₁.pure? with
+        | .none => 
+          -- `bind <SIMP> _`
+          let a₁ ← simp a₁ (←(extraPasses >> desperateStructure))
+          let .lam _ _ body _ := f₁ | unreachable!
+          let bind ← Sets.Structural.chainActionsInferType #[a₁, body]
+          -- logInfo m!"[bind <simp> _]\n{e}\n==>\n{bind}"
+          consiliumDesperatum bind extraPasses dbg.pred
+        | .some _ =>
+          -- `bind (pure _) _`
+          match ←Sets.Structural.pureBindMany e with
+          | .rfl .. => throwError m!"Pure bind many must succeed"
+          | .step e' .. =>
+            let e' ← simp e' (←(extraPasses >> desperateGeneral))
+            -- logInfo m!"[bind (pure _) _ + simp]\n{e}\n==>\n{e'}"
+            consiliumDesperatum e' extraPasses
+      | .some .. =>
+        -- `bind (bind _) _`
+        match ←Sets.Structural.flattenBindsAny e with
+        | .rfl .. => throwError m!"Bind flattener on nested bind must succeed"
+        | .step (e' := e') .. =>
+          -- logInfo m!"[bind (bind _) _]\n{e}\n==>\n{e'}"
+          consiliumDesperatum e' extraPasses dbg.pred
+    | _ => return e
+    where
+      simp (e : Expr) (symset : Sym.Simp.Methods) : Sym.Simp.SimpM Expr := do
+        let res ← Sym.simp e symset <&> (·.getResultExpr e)
+        return Simp.unwrapped res
+
 def compile (e : Expr) (extraPasses: MetaM Sym.Simp.Methods := doNothing) : Sym.Simp.SimpM Expr := do
   let e ← Compiler.Simp.preprocessExpr e
   let res ← lambdaTelescope e fun args e ↦ do
-    let (compiled, time) ← Dbg.timeS (consiliumMagnum e extraPasses)
+    let (compiled, time) ← Dbg.timeS (consiliumDesperatum e extraPasses)
+    -- let (compiled, time) ← Dbg.timeS (consiliumMagnum e extraPasses)
     trace[Clap.Compile] m!"Compilation took: {time}s."
     Dbg.inDebugOnly (do getDbgState >>= fun σ ↦ do logInfo m!"{←σ.pretty}")
     Sym.mkLambdaFVarsS args compiled
