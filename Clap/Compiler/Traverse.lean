@@ -240,7 +240,7 @@ def getApplicationChain (e: Expr) (depth: ℕ): Option (Expr × List Expr) := do
 --   return {
 --     pre := zetaReduce
 --   }
-
+#check Sets.Functional.betaReduce
 def beta : MetaM Methods := do
   mkPreMethods #[
     `Clap.Compiler.SymSets.General.betaReduce
