@@ -2359,7 +2359,8 @@ def foldlM_stagger : Sym.Simp.Simproc := fun e ↦ do
     let tailτ ← Sym.inferType tail
     let tailτu ← Sym.getLevelInType tailτ
     let e' ← Sym.shareCommonInc <| mkApp4 (.const ``Option.bind [u₁, tailτu]) β tailτ head lambda
-    let e' ← Sym.shareCommonInc <| Simp.wrapped (←Sym.inferType e') e'
+    -- let e' ← Sym.shareCommonInc <| Simp.wrapped (←Sym.inferType e') e'
+    -- logWarning m!"HELLO!"
     return .step e' (←mkSorry (←mkEq e e') false) (done := true)
   | _ =>
     let e' := mkApp2 (.const ``Option.some [u₁]) β init
@@ -2429,7 +2430,7 @@ def logVisitGeneral := logVisit "general"
 def structural : MetaM Sym.Simp.Methods :=
   -- mkMethods #[(`Clap.Compiler.Sets.Structural.logVisitStructural, .Pre)] >>
   mkMethods #[
-    (``Compiler.Vector.unwrap, .Pre),
+    -- (``Compiler.Vector.unwrap, .Pre),
     (``Sets.Structural.foldlM_stagger, .Pre),
     -- (``Sets.Structural.pureBindMany, .Pre),
     -- (``Sets.Structural.flattenBindsAny, .Pre),
@@ -2707,6 +2708,7 @@ partial def consiliumDesperatum (e : Expr)
   if dbg == 0 then return e
   match e.bind? with
     | .some (a₁, f₁) =>
+      logWarning m!"I TOUCH:\n{e}"
       match a₁.bind? with
       | .none =>
         match a₁.pure? with
