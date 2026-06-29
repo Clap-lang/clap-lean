@@ -55,7 +55,7 @@ lemma equiv_lam {α : Type} {f : ZMod p → α} {g : ZMod p → Circuitₑ p}
 lemma equiv_eq0 {cl : Option Unit} {cr : Circuitₑ p}
   (cont : cl ~ₛ cr.eval)
   (h : el = er.eval) :
-  (do eq0 el; cl) ~ₛ (Circuit.eq0 er cr).eval := by
+  (do eq0 el; cl) ~ₛ (Circuit.eq0 er fun _ ↦ cr).eval := by
   aesop (add simp eq0)
 
 @[aesop safe apply]
@@ -129,10 +129,10 @@ def ex p (is : Vector (ZMod p) 2) : Option Unit := do
 
 def ex_circuit_fun (p : ℕ) : Circuit' p := fun _ =>
   .lam fun x ↦ .lam fun y ↦
-  .eq0 (.v x) (
+  .eq0 (.v x) (fun _ ↦
   .share (.v x) fun vi =>
   .eq0 (.v vi + .v y) (
-  .nil))
+  fun _ ↦ .nil))
 
 theorem equiv [Fact (Nat.Prime p)] :
   Simulation.sBisim (curry (n := 2) (ex p)) (Circuit.eval' (ex_circuit_fun p)) := by
@@ -174,8 +174,8 @@ def ex p :=
 
 def ex_circuit_fun (p : ℕ) : Circuit' p := fun _ =>
   .lam fun x1 ↦ .lam fun x2 ↦ .lam fun x3 ↦ .lam fun x4 ↦ .lam fun x5 ↦ .lam fun x6 ↦
-  .eq0 ((.v x1) + (.v x3) - (.v x5)) (
-  .eq0 ((.v x2) + (.v x4) - (.v x6)) (
+  .eq0 ((.v x1) + (.v x3) - (.v x5)) fun _ ↦ (
+  .eq0 ((.v x2) + (.v x4) - (.v x6)) fun _ ↦ (
   .nil))
 
 theorem equiv [Fact (Nat.Prime p)] :

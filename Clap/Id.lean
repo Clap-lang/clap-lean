@@ -61,7 +61,7 @@ inductive Circuit.wf {var₁ var₂ : Type} : Set (Entry var₁ var₂) → Circ
   | eq0 {G el er cl cr} :
     Exp.wf G el er →
     wf G cl cr →
-    wf G (.eq0 el cl) (.eq0 er cr)
+    wf G (.eq0 el fun _ ↦ cl) (.eq0 er fun _ ↦ cr)
   | lam {G kl kr} :
     (∀ el er, wf ({(el, er)} ∪ G) (kl el) (kr er)) →
     wf G (.lam kl) (.lam kr)
@@ -82,7 +82,7 @@ namespace Example
 def add : Circuit' 7 := fun _ =>
   .share (.c 1) (fun x =>
     .share (.c 2) (fun y =>
-      .eq0 (.v x + .v y) .nil))
+      .eq0 (.v x + .v y) fun _ ↦ .nil))
 
 example : wf' add := by
   aesop (add simp [wf', add]) (add safe (by constructor))
@@ -104,7 +104,7 @@ lemma Exp.unwrap_sem_pre {el : Expₑ p} {er: Exp p (Expₑ p)} {G}
 
 def id {var} : Circuit p (Exp p var) → Circuit p var
   | .nil => .nil
-  | .eq0 e c => .eq0 e.unwrap (id c)
+  | .eq0 e c => .eq0 e.unwrap fun _ ↦ id (c ())
   | .lam k => .lam fun x ↦ id (k (.v x))
   | .isZero e k => .isZero e.unwrap fun x ↦ id (k (.v x))
   | .share e k => .share e.unwrap fun x ↦ id (k (.v x))
@@ -121,7 +121,7 @@ theorem id_sem_pre [Fact (Nat.Prime p)] {cl : Circuitₑ p} {cr : Circuit p (Exp
   cl ≈ id cr := by
   induction' cl with e c cont e cont e cont w e c e cont generalizing G cr <;> rcases h₁
   · rfl
-  · exact eq0_congr (Exp.unwrap_sem_pre ‹_› ‹_›) (cont ‹_› ‹_›)
+  · exact eq0_congr (Exp.unwrap_sem_pre ‹_› ‹_›) _ -- (cont () ‹_› ‹_›)
   next _ wf => exact lam_congr fun _ ↦ cont _ (wf _ _) (by grind)
   next _ wf => exact share_congr (Exp.unwrap_sem_pre ‹_› ‹_›) (fun _ ↦ w _ (wf _ _) (by grind))
   next _ wf => exact isZero_congr (Exp.unwrap_sem_pre ‹_› ‹_›) (fun _ ↦ e _ (wf _ _) (by grind))

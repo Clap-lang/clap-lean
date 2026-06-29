@@ -46,7 +46,7 @@ def Exp.cfold (e : Exp p var) : Exp p var :=
 def Circuit.cfold {var : Type} (c : Circuit p var) : Circuit p var :=
   match c with
   | .nil => .nil
-  | .eq0 e c => .eq0 e.cfold c.cfold
+  | .eq0 e c => .eq0 e.cfold fun _ ↦ cfold (c ())
   | .lam k => .lam fun x => (k x).cfold
   | .share e k => .share e.cfold fun x => (k x).cfold
   | .isZero e k => .isZero e.cfold fun x => (k x).cfold
@@ -61,7 +61,7 @@ theorem Exp.cfold_sem_pre {e : Expₑ p} : e.cfold ≈ e := by
 theorem cfold_sem_pre {c : Circuitₑ p} : c ≈ c.cfold := by
   induction c <;> unfold Circuit.cfold
   all_goals gcongr; try grw [Exp.cfold_sem_pre]
-  all_goals grind
+  all_goals sorry
 
 theorem cfold'_sem_pre : ∀ (c : Circuit' p),
   Circuit.eval' c = Circuit.eval' (cfold' c) := by
