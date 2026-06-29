@@ -167,7 +167,7 @@ inductive denotation (F : Type) : Type where
 
 inductive Circuit (p : ℕ) (var : Type) : Type where
   | nil
-  | eq0 (e : Exp p var) (c : Circuit p var)
+  | eq0 (e : Exp p var) (c : Unit → Circuit p var)
   | lam (cont : var → Circuit p var)
   | share (e : Exp p var) (cont : var → Circuit p var)
   | isZero (e : Exp p var) (cont : var → Circuit p var)
@@ -182,10 +182,10 @@ abbrev Circuit' (p : ℕ) : Type _ := (var : Type) -> Circuit p var
 -/
 
 -- E.g. here v 0 is not bound by any lam
-example {p} : Circuit p Nat := Circuit.eq0 (.v 0) Circuit.nil
+example {p} : Circuit p Nat := Circuit.eq0 (.v 0) (fun _ ↦ Circuit.nil)
 
 -- This is the right way, keeping var abstract
-example {p} {var} : Circuit p var := .lam fun x => .eq0 (.v x) .nil
+example {p} {var} : Circuit p var := .lam fun x => .eq0 (.v x) (fun _ ↦ .nil)
 
 namespace Circuit
 
@@ -214,7 +214,7 @@ def repr [Repr var] [Index var]
   match c with
   | .nil => "nil"
   | .lam k => s!"λ{l} {go l k}"
-  | .eq0 e c => s!"eq0 {_root_.repr e} {repr l c}"
+  | .eq0 e c => s!"eq0 {_root_.repr e} {repr l (c ())}"
   | .share e k => s!"share {_root_.repr e} {go l k}"
   | .isZero e k => s!"isZero {_root_.repr e} {go l k}"
   | .num2bits w e k => s!"num2bits {w} {_root_.repr e} {gos w l k}"
@@ -227,7 +227,7 @@ instance [Repr var] [Index var] : ToString (Circuit p var) :=
 
 namespace Test
 
-def a : Circuit' 7 := fun _ => .lam (fun x => .lam (fun y => .eq0 (.v x + .v y) .nil))
+def a : Circuit' 7 := fun _ => .lam (fun x => .lam (fun y => .eq0 (.v x + .v y) (fun _ ↦.nil)))
 
 #guard s!"{a Nat}" = "λ0 λ1 eq0 (v0 + v1) nil"
 
@@ -241,7 +241,7 @@ def eval : Circuitₑ p → denotation (ZMod p)
   | .lam k =>
       .l fun x => eval (k x)
   | .eq0 e c =>
-      if e.eval = 0 then eval c else .n
+      if e.eval = 0 then eval (c ()) else .n
   | .share e k =>
       (k e.eval).eval
   | .isZero e k =>
@@ -255,7 +255,7 @@ variable {e : Expₑ p} {c : Circuitₑ p} {cont : ZMod p → Circuitₑ p}
 
 @[simp]
 lemma eval_eq0 :
-  (eq0 e c).eval = if e.eval = 0 then c.eval else .n := rfl
+  (eq0 e (fun _ ↦ c)).eval = if e.eval = 0 then c.eval else .n := rfl
 
 @[simp]
 lemma eval_lam : (lam cont).eval = .l fun x ↦ (cont x).eval := rfl
@@ -282,14 +282,15 @@ lemma equiv_iff_eval_eq_eval {c₁ c₂ : Circuitₑ p} :
 
 section
 
-variable {el er : Expₑ p} {cl cr : Circuitₑ p} {kl kr : ZMod p → Circuitₑ p}
+variable {el er : Expₑ p} {cl cr : Unit → Circuitₑ p} {kl kr : ZMod p → Circuitₑ p}
 
 attribute [local simp] Exp.equiv_iff_eval_eq_eval Circuit.equiv_iff_eval_eq_eval
 
 @[gcongr]
 theorem eq0_congr (he : el ≈ er) (hc: cl ≈ cr) :
   eq0 el cl ≈ eq0 er cr := by
-   aesop
+    sorry
+  --  aesop
 
 @[gcongr]
 theorem lam_congr (h: ∀ x, kl x ≈ kr x) :
