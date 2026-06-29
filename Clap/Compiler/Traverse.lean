@@ -2673,7 +2673,9 @@ partial def consiliumMagnum (e : Expr)
       let .some (a, _) := expr.bind? | return .rfl
       let .some (_, _) := a.bind? | return .rfl
       let actions ← Sets.Structural.sequenceActions' expr
+      logInfo m!"Calling consiliumMagnum on: {actions}"
       let simpedActions ← actions.mapM (consiliumMagnum · extraPasses)
+      logInfo m!"Got out: {simpedActions}"
       let e' ← Sets.Structural.chainActionsInferType simpedActions
       return .step e' (←mkSorry (←mkEq e e') false)
 
@@ -2786,8 +2788,8 @@ partial def consiliumDesperatum (e : Expr)
 def compile (e : Expr) (extraPasses: MetaM Sym.Simp.Methods := doNothing) : Sym.Simp.SimpM Expr := do
   let e ← Compiler.Simp.preprocessExpr e
   let res ← lambdaTelescope e fun args e ↦ do
-    let (compiled, time) ← Dbg.timeS (consiliumDesperatum e extraPasses)
-    -- let (compiled, time) ← Dbg.timeS (consiliumMagnum e extraPasses)
+    -- let (compiled, time) ← Dbg.timeS (consiliumDesperatum e extraPasses)
+    let (compiled, time) ← Dbg.timeS (consiliumMagnum e extraPasses)
     trace[Clap.Compile] m!"Compilation took: {time}s."
     Dbg.inDebugOnly (do getDbgState >>= fun σ ↦ do logInfo m!"{←σ.pretty}")
     Sym.mkLambdaFVarsS args compiled

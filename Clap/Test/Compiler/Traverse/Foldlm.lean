@@ -48,8 +48,19 @@ def testFoldlM (k : ℕ) : Option ℕ := do
   let x ← xs[0]
   return x
 
+def testFoldlM' : Option ℕ := do
+  let xs ← (List.range 1).foldlM (fun state r ↦ do
+    let s0 ← sigma_unshared state[0]
+    state.set 0 s0
+    ) #v[0, 1, 2]
+  let x ← xs[0]
+  return x
+
+#eval runTestByName ``testFoldlM'
+
 def eq_def := sigma_unshared.eq_def
-#check Lean.Meta.Sym.mkLambdaFVarsS
+
+
 -- set_option trace.Clap.Compile.simp.consiliumMagnum true in
 -- set_option trace.Clap.Compile.simp.proc.vector_foldlM_stagger true in
 -- set_option Clap.traversalDbg true in
