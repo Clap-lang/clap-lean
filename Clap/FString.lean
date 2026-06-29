@@ -14,14 +14,71 @@ namespace F8
 
 variable {p : ℕ}
 
+def Constraint := Prop
+
+abbrev CircuitOptionM (output       : Type) : Type := Option output
+abbrev CircuitContM   (input output : Type) : Type := ExceptT String (Cont (r := input)) output
+abbrev CircuitStateM  (output       : Type) : Type := ExceptT String (StateM (List Constraint)) output
+
 -- https://en.wikipedia.org/wiki/ASCII#Table_of_codes
-def isWhitespace (c : F8 p) : Option (FB p) := do
+def isWhitespace (c : F8 p) : CircuitOptionM (FB p) := do
   -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
   let gt8 ← F8.greaterThan c 8
   let lt14 ← F8.lessThan c 14
   let isLineBreak : FB p := gt8 &&& lt14
   let isSpace ← F8.eq c 32 -- ASCII 32 is space
   isLineBreak ||| isSpace
+
+namespace Ops
+
+def num2bitsLsbPureV (n : ℕ) (f : ZMod p) : Vector (ZMod p) n :=
+  (aux n f).reverse
+where
+  aux (n : ℕ) (f : ZMod p) : Vector (ZMod p) n :=
+  match n with
+  | 0 => #v[]
+  | n+1 =>
+    let bit := f.val % 2
+    let rem := f.val / 2
+    (aux n rem).push bit
+
+end Ops
+
+namespace Cont
+
+#synth Pure (Except _)
+@[irreducible]
+def num2bits (w : ℕ) (e : ZMod p) (input : Type) : CircuitContM input (Vector (ZMod p) w) :=
+  if e.val < 2^w
+  then ExceptT.lift (pure (Ops.num2bitsLsbPureV w e))
+  else ExceptT.
+
+def lessThan (w : ℕ) (a b : F p) (input : Type) : CircuitContM (FB p) input := do
+  let d := a - b + 2^w
+  let d ← num2bits (w + 1) d
+  return FB.not d[w]!
+
+def greaterThan (a b : F8 p) (input : Type) : CircuitContM (FB p) input :=
+  lessThan 8 b a
+
+end Cont
+
+def isWhitespaceContM (c : F8 p) (input : Type) : CircuitContM (FB p) input := do
+  -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
+  let gt8 ← F8.greaterThan c 8
+  let lt14 ← F8.lessThan c 14
+  let isLineBreak : FB p := gt8 &&& lt14
+  let isSpace ← F8.eq c 32 -- ASCII 32 is space
+  isLineBreak ||| isSpace
+
+def isWhitespaceStateM (c : F8 p) : CircuitStateM (FB p) := do
+  -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
+  sorry
+  -- let gt8 ← F8.greaterThan c 8
+  -- let lt14 ← F8.lessThan c 14
+  -- let isLineBreak : FB p := gt8 &&& lt14
+  -- let isSpace ← F8.eq c 32 -- ASCII 32 is space
+  -- isLineBreak ||| isSpace
 
 end F8
 
