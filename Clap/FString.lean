@@ -12,16 +12,22 @@ open Clap.Lang
 
 namespace F8
 
-variable {p : ℕ}
+variable {p : ℕ} [Fact (Nat.Prime p)]
 
 def Constraint := Prop
 
-abbrev CircuitOptionM (output       : Type) : Type := Option output
-abbrev CircuitContM   (input output : Type) : Type := ExceptT String (Cont (r := input)) output
-abbrev CircuitStateM  (output       : Type) : Type := ExceptT String (StateM (List Constraint)) output
+-- abbrev CircuitOptionM (output : Type) : Type := Option output
+-- abbrev CircuitStateM  (output : Type) : Type := OptionT (StateM (List Constraint)) output
+
+/--
+Not a monad.
+-/
+abbrev CircuitContM (p : ℕ) (α : Type) : Type := Cont (Clap.Circuit p Unit) α
+
+#check (Clap.Circuit.lam : CircuitContM p _)
 
 -- https://en.wikipedia.org/wiki/ASCII#Table_of_codes
-def isWhitespace (c : F8 p) : CircuitOptionM (FB p) := do
+def isWhitespace (c : F8 p) : Option (FB p) := do
   -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
   let gt8 ← F8.greaterThan c 8
   let lt14 ← F8.lessThan c 14
@@ -43,42 +49,93 @@ where
     (aux n rem).push bit
 
 end Ops
-
 namespace Cont
-
-#synth Pure (Except _)
+-- #synth MonadExcept String Option
 @[irreducible]
-def num2bits (w : ℕ) (e : ZMod p) (input : Type) : CircuitContM input (Vector (ZMod p) w) :=
-  if e.val < 2^w
-  then ExceptT.lift (pure (Ops.num2bitsLsbPureV w e))
-  else ExceptT.
+def num2bits (w : ℕ) (e : ZMod p) : CircuitContM p (Vector (ZMod p) w) :=
+  pure (Ops.num2bitsLsbPureV w e)
+  -- if e.val < 2^w
+  -- else error _
 
-def lessThan (w : ℕ) (a b : F p) (input : Type) : CircuitContM (FB p) input := do
+def lessThan' (w : ℕ) (a b : F p) : CircuitContM p (FB p) := do
   let d := a - b + 2^w
   let d ← num2bits (w + 1) d
   return FB.not d[w]!
 
-def greaterThan (a b : F8 p) (input : Type) : CircuitContM (FB p) input :=
-  lessThan 8 b a
+def lessThan (a b : F8 p) : CircuitContM p (FB p) := do
+  lessThan' 8 a b
+
+def valid (x: F p) : Prop := x.val < 2^8
+
+def toUInt8 (f:F8 p) : UInt8 := UInt8.ofNat f.val
+
+def greaterThan (a b : F8 p) : CircuitContM p (FB p) :=
+  lessThan b a
+
+@[irreducible]
+def isZeroUser (e : ZMod p) : CircuitContM p (ZMod p) := fun c ↦
+  if e = 0
+  then Clap.Circuit.isZero e fun _ ↦ c 1
+  else Clap.Circuit.isZero e fun _ ↦ c 0
+
+-- @[irreducible]
+-- def share (e : ZMod p) : CircuitContM p (ZMod p) :=
+--   fun 
+
+-- @[irreducible]
+-- def eq0 (e : ZMod p) : CircuitContM p Unit :=
+--   if e = 0
+--   then fun c ↦ Clap.Circuit.eq0 e (c ())
+--   else fun c ↦ Clap.Circuit.eq0 e (c ())
+
+def eq (a b : F p) : CircuitContM p (FB p) :=
+  isZeroUser (a - b)
 
 end Cont
 
-def isWhitespaceContM (c : F8 p) (input : Type) : CircuitContM (FB p) input := do
+def isWhitespaceContM (c : F8 p) : CircuitContM p (FB p) := do
   -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
-  let gt8 ← F8.greaterThan c 8
-  let lt14 ← F8.lessThan c 14
+  let gt8 ← Cont.greaterThan c 8
+  let lt14 ← Cont.lessThan c 14
   let isLineBreak : FB p := gt8 &&& lt14
-  let isSpace ← F8.eq c 32 -- ASCII 32 is space
-  isLineBreak ||| isSpace
+  let isSpace ← Cont.eq c 32 -- ASCII 32 is space
+  pure (isLineBreak ||| isSpace)
 
-def isWhitespaceStateM (c : F8 p) : CircuitStateM (FB p) := do
-  -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
-  sorry
-  -- let gt8 ← F8.greaterThan c 8
-  -- let lt14 ← F8.lessThan c 14
-  -- let isLineBreak : FB p := gt8 &&& lt14
-  -- let isSpace ← F8.eq c 32 -- ASCII 32 is space
-  -- isLineBreak ||| isSpace
+def valid_ofBool (b:Bool) : F8.Cont.valid (FB.ofBool (p:=p) b) := sorry
+
+instance a : Clap.Circuit.Index Unit := ⟨fun x ↦ ()⟩
+
+instance : Fact (Nat.Prime 521) := ⟨sorry⟩
+
+example : isWhitespaceContM (p := 521) 1 = sorry := by
+  unfold isWhitespaceContM
+  dsimp
+  unfold Cont.greaterThan Cont.lessThan Cont.lessThan'
+  dsimp only
+  rw [bind_assoc]
+  dsimp
+  unfold Cont.num2bits
+  rw [pure_bind]
+  
+  done
+
+#eval! @(isWhitespaceContM (p := 521) 1 |>.run fun _ ↦ .nil).run.repr _ _ _ a 4
+
+
+
+-- @[irreducible]
+-- def eq0 (e : ZMod p) : Option Unit := if e = 0 then .some () else .none
+
+-- @[irreducible]
+-- def share (e : ZMod p) : Option (ZMod p) := some e
+
+-- @[irreducible]
+-- def isZero (e : ZMod p) : Option (ZMod p) := if e = 0 then some 1 else some 0
+
+-- @[irreducible]
+-- def num2bits (w : ℕ) (e : ZMod p) : Option (Vector (ZMod p) w) :=
+--   if e.val < 2^w then .some (num2bitsLsbPureV w e) else .none
+
 
 end F8
 

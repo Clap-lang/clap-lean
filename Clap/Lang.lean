@@ -119,7 +119,7 @@ lemma left_inv (b: Bool) : toBool (p:=p) (FB.ofBool b) = b := by
 --   invFun := toBool
 --   left_inv := left_inv
 --   right_inv := right_inv
-
+#check toBool
 lemma eq_equiv (a b : ZMod p) (ha : valid a) (hb : valid b) :
   FB.eq a b = some (FB.ofBool ((toBool a) = (toBool b))) := by
   unfold FB.eq F.eq
@@ -420,7 +420,8 @@ def lessThan_equiv [Fact (Nat.Prime p)] (a b : F p)
     (hw : 2^(8+1) < p) :
     F8.lessThan a b = some (FB.ofBool (toUInt8 a < toUInt8 b)) := by
   unfold F8.lessThan
-  aesop (add simp [F8.lessThan,F.lessThan_equiv,toUInt8,valid, UInt8.lt_iff_toNat_lt, Nat.mod_eq_of_lt])
+  simp_all only [valid, Nat.reducePow, Nat.reduceAdd, F.lessThan_equiv, toUInt8, UInt8.lt_iff_toNat_lt,
+    UInt8.toNat_ofNat', Nat.mod_eq_of_lt]
 
 end Spec.F8
 
