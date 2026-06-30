@@ -19,10 +19,10 @@ def Constraint := Prop
 -- abbrev CircuitOptionM (output : Type) : Type := Option output
 -- abbrev CircuitStateM  (output : Type) : Type := OptionT (StateM (List Constraint)) output
 
-/--
-Not a monad.
--/
-abbrev CircuitContM (p : ℕ) (α : Type) : Type := Cont (Clap.Circuit p Unit) α
+abbrev CircuitContM (p : ℕ) (α : Type) : Type := Cont (Clap.Circuit p α) α
+
+abbrev CircuitStateM (p : ℕ) (var : Type) : Type → Type := StateM (Clap.Circuit p var)
+
 
 #check (Clap.Circuit.lam : CircuitContM p _)
 
@@ -82,20 +82,80 @@ def isZeroUser (e : ZMod p) : CircuitContM p (ZMod p) := fun c ↦
 -- def share (e : ZMod p) : CircuitContM p (ZMod p) :=
 --   fun 
 
--- @[irreducible]
--- def eq0 (e : ZMod p) : CircuitContM p Unit :=
---   if e = 0
---   then fun c ↦ Clap.Circuit.eq0 e (c ())
---   else fun c ↦ Clap.Circuit.eq0 e (c ())
+@[irreducible]
+def eq0 (e : ZMod p) : CircuitContM p Unit := fun c ↦
+  Clap.Circuit.eq0 e (c ())
 
-def eq (a b : F p) : CircuitContM p (FB p) :=
+def eq (a b : F p) : CircuitContM p (FB p) := do
   isZeroUser (a - b)
+
+def eq' (a b : F p) : CircuitContM p (FB p) := do
+  let a' ← isZeroUser a
+  let b' ← isZeroUser b
+  let res := a' + b'
+  return res
+
+example {a b} : eq' (p := p) a b = id (fun _  ↦ .nil) := by
+  unfold eq'
+  simp [Bind.bind, isZeroUser]
+  ext x
+  simp [ContT.run]
+
+
+  done
 
 end Cont
 
+namespace State
+
+variable {var : Type}
+#check ContT.instMonad.toFunctor
+#synth Functor (Cont _)
+@[irreducible]
+def num2bits (w : ℕ) (e : ZMod p) : CircuitStateM p var (Vector (ZMod p) w) := do
+  let circuit ← get
+  let circuit := Clap.Circuit.num2bits (p := p) (var := var) w
+  pure (Ops.num2bitsLsbPureV w e)
+  -- if e.val < 2^w
+  -- else error _
+
+instance {r} {m} : LawfulMonad (ContT r m) := LawfulMonad.mk'
+  (id_map := by intros
+                unfold_projs
+                expose_names
+
+                done)
+  (pure_bind := by intros; ext; rfl)
+  (bind_assoc := by intros; ext; rfl)
+
+def lessThan' (w : ℕ) (a b : F p) : CircuitStateM p var (FB p) := do
+  let d := a - b + 2^w
+  let d ← num2bits (w + 1) d
+  pure <| FB.not d[w]!
+
+def lessThan (a b : F8 p) : CircuitStateM p var (FB p) := do
+  lessThan' 8 a b
+
+def valid (x: F p) : Prop := x.val < 2^8
+
+def toUInt8 (f:F8 p) : UInt8 := UInt8.ofNat f.val
+
+def greaterThan (a b : F8 p) : CircuitStateM p var (FB p) :=
+  lessThan b a
+
+end State
+
 def isWhitespaceContM (c : F8 p) : CircuitContM p (FB p) := do
   -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
-  let gt8 ← Cont.greaterThan c 8
+  let gt8 ← Cont.greaterThan c 8 -- `Cont.greaterThan c 8 >>= fun gt8 : FB p ↦ `
+  let lt14 ← Cont.lessThan c 14
+  let isLineBreak : FB p := gt8 &&& lt14
+  let isSpace ← Cont.eq c 32 -- ASCII 32 is space
+  pure (isLineBreak ||| isSpace)
+
+def isWhitespaceStateM (c : F8 p) {var : Type} : CircuitStateM p var (FB p) := do
+  -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
+  let gt8 ← Cont.greaterThan c 8 -- `Cont.greaterThan c 8 >>= fun gt8 : FB p ↦ `
   let lt14 ← Cont.lessThan c 14
   let isLineBreak : FB p := gt8 &&& lt14
   let isSpace ← Cont.eq c 32 -- ASCII 32 is space
@@ -107,6 +167,13 @@ instance a : Clap.Circuit.Index Unit := ⟨fun x ↦ ()⟩
 
 instance : Fact (Nat.Prime 521) := ⟨sorry⟩
 
+-- instance abc {p} : Bind (CircuitContM p) where
+--   bind := (fun {α} {β} wrapped_data func func' =>
+--     wrapped_data fun data ↦
+--       dbg_trace s!""
+--       func data func'
+--   )
+
 example : isWhitespaceContM (p := 521) 1 = sorry := by
   unfold isWhitespaceContM
   dsimp
@@ -116,10 +183,13 @@ example : isWhitespaceContM (p := 521) 1 = sorry := by
   dsimp
   unfold Cont.num2bits
   rw [pure_bind]
-  
+
   done
 
 #eval! @(isWhitespaceContM (p := 521) 1 |>.run fun _ ↦ .nil).run.repr _ _ _ a 4
+#eval! @(Cont.eq' (p := 521) 1 2 |>.run fun _ ↦ .nil).run.repr _ _ _ a 4
+
+
 
 
 
