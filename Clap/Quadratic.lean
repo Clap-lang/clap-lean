@@ -159,7 +159,7 @@ def Exp.normalQuadratic₀ : Exp p var → Option (Exp p var ⊕ NormalQuadratic
 def Cs.toLevels (cs : Cs p Nat) (n:ℕ) : Cs p ℕ :=
   match cs with
   | .nil => .nil
-  | .eq0 e cs => .eq0 e (cs.toLevels n)
+  | .eq0 e cs => .eq0 e (cs.toLevels n1)
   | .lam k => (k n).toLevels (n+1)
 
 /- Circom assumes that the first wire in position 0 has value one, so we shift

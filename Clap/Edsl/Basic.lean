@@ -36,30 +36,30 @@ section
 
 variable {p : ℕ}
 
-abbrev CircuitContM (p : ℕ) (var α : Type) : Type := Cont (Circuit p var) α
+abbrev CircuitContM (p : ℕ) (var : Type) (α : Type) : Type := Cont (Circuit p var) α
 
-def CircuitContM.run {var} {α : Type} (m : CircuitContM p var α) : Circuit' p :=
-  fun var ↦ ContT.run m fun _  ↦ .nil
+def CircuitContM.run (α var : Type) (m : CircuitContM p var α) : Circuit p var :=
+  ContT.run m fun _ ↦ .nil
 
 @[irreducible]
-def eq0 (e : ZMod p) : CircuitContM p Unit := fun c ↦
+def eq0 {var : Type} (e : Exp p var) : CircuitContM p var Unit := fun c ↦
   Clap.Circuit.eq0 e (c ())
 
-@[irreducible]
-def lam : CircuitContM p (ZMod p) :=
-  Clap.Circuit.lam
+-- @[irreducible]
+-- def lam : CircuitContM p (ZMod p) :=
+--   Clap.Circuit.lam
 
-@[irreducible]
-def share (e : ZMod p) : CircuitContM p (ZMod p) :=
-  Clap.Circuit.share e
+-- @[irreducible]
+-- def share (e : Expₑ p) : CircuitContM p (ZMod p) :=
+--   Clap.Circuit.share e
 
-@[irreducible]
-def isZero (e : ZMod p) : CircuitContM p (ZMod p) :=
-  Clap.Circuit.isZero e
+-- @[irreducible]
+-- def isZero (e : ZMod p) : CircuitContM p (ZMod p) :=
+--   Clap.Circuit.isZero (.c e)
 
-@[irreducible]
-def num2bits (w : ℕ) (e : ZMod p) : CircuitContM p (List (ZMod p)) :=
-  Clap.Circuit.num2bits w e
+-- @[irreducible]
+-- def num2bits (w : ℕ) (e : ZMod p) : CircuitContM p (List (ZMod p)) :=
+--   Clap.Circuit.num2bits w (.c e)
 
 end
 
@@ -81,14 +81,17 @@ variable {p : ℕ} {α β : Type}
 
 namespace EvalRandom
 
-def random (a : FB p) : CircuitContM p (FB p) := do
-  let a ← share a
-  let b ← share (a + 4)
-  let b ← share (b + 5)
-  let c ← num2bits 4 b
-  eq0 b
-  discard ([1, 2, 3].mapM eq0)
-  return c[0]!
+#synth Monad (CircuitContM _ _)
+
+def random (a : FB p) (var : Type) : CircuitContM p var (FB p) := do
+  let a ← eq0 a
+  _
+  -- let b ← share (a + 4)
+  -- let b ← share (b + 5)
+  -- let c ← num2bits 4 b
+  -- eq0 b
+  -- discard ([1, 2, 3].mapM eq0)
+  -- return c[0]!
 
 def thisIsIndeedACircuit : CircuitContM p Unit := do
   let a ← random 5

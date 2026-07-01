@@ -75,7 +75,7 @@ lemma mul_def : e₁ * e₂ = .mul e₁ e₂ := rfl
 lemma sub_def : e₁ - e₂ = .sub e₁ e₂ := rfl
 
 end
-
+-- `m Unit → output.r1cs`
 instance : Coe (ZMod p) (Exp p var) where
   coe := .c
 
@@ -90,13 +90,15 @@ example : Expₑ p := (.c 1) + (.v 2)
    which is what we need for some optimizations. -/
 example : Exp p (Exp p var) := (.c 1) + (.v ((.c 2) + (.c 2)))
 
-def eval (e : Expₑ p) : ZMod p :=
+def eval {var} (Γ : var → ZMod p) (e : Exp p var) : ZMod p :=
   match e with
-  | .v f => f
+  | .v f => Γ f
   | .c i => i
-  | .add l r => eval l + eval r
-  | .mul l r => eval l * eval r
-  | .sub l r => eval l - eval r
+  | .add l r => eval Γ l + eval Γ r
+  | .mul l r => eval Γ l * eval Γ r
+  | .sub l r => eval Γ l - eval Γ r
+
+def evalₑ := eval (Γ := (id : ZMod p → ZMod p))
 
 section
 
@@ -106,7 +108,7 @@ def equiv (e₁ e₂ : Expₑ p) : Prop := e₁.eval = e₂.eval
 
 instance : Setoid (Expₑ p) where
   r := Exp.equiv
-  iseqv := Equivalence.comap eq_equivalence Exp.eval -- Just pullback the proof.
+  iseqv := Equivalence.comap eq_equivalence Exp.evalₑ -- Just pullback the proof.
 
 lemma equiv_iff_eval_eq_eval : e₁ ≈ e₂ ↔ e₁.eval = e₂.eval := by rfl
 
@@ -235,18 +237,14 @@ end Test
 
 variable [Fact (Nat.Prime p)]
 
-def eval : Circuitₑ p → denotation (ZMod p)
+def eval {var} : Circuit p var → denotation var
   | .nil =>
-      dbg_trace s!"nil"
       .u
   | .lam k =>
-      dbg_trace s!"lam"
       .l fun x => eval (k x)
   | .eq0 e c =>
-      dbg_trace s!"eq0"
       if e.eval = 0 then eval c else .n
   | .share e k =>
-      dbg_trace s!"eq0"
       (k e.eval).eval
   | .isZero e k =>
       if e.eval = 0 then (k 1).eval else (k 0).eval
