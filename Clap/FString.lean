@@ -56,11 +56,11 @@ namespace Cont
 def num2bits (w : ℕ) (e : ZMod p) : CircuitContM p (List (ZMod p)) :=
   Clap.Circuit.num2bits w e
 
-lemma num2bits_equiv (w : ℕ) (e : ZMod p) (c):
-  (num2bits w e c).eval = c num2bitsLsbPureV
-:= by
-  simp [num2bits]
-  done
+-- lemma num2bits_equiv (w : ℕ) (e : ZMod p) (c):
+--   (num2bits w e c).eval = c num2bitsLsbPureV
+-- := by
+--   simp [num2bits]
+--   done
 
 def lessThan' (w : ℕ) (a b : F p) : CircuitContM p (FB p) := do
   let d := a - b + 2^w
@@ -79,6 +79,7 @@ def lessThan_equiv [Fact (Nat.Prime p)] (a b : F p)
   unfold lessThan lessThan'
   simp_all [valid, Nat.reducePow, Nat.reduceAdd, toUInt8, UInt8.lt_iff_toNat_lt,
     UInt8.toNat_ofNat', Nat.mod_eq_of_lt]
+  
 
 def valid (x: F p) : Prop := x.val < 2^8
 
@@ -198,7 +199,7 @@ end Cont
 
 def valid_ofBool (b:Bool) : F8.Cont.valid (FB.ofBool (p:=p) b) := sorry
 
-instance a : Clap.Circuit.Index Unit := ⟨fun x ↦ ()⟩
+instance a : Clap.Circuit.Index (ZMod 521) := ⟨fun x ↦ x⟩
 
 instance : Fact (Nat.Prime 521) := ⟨sorry⟩
 
