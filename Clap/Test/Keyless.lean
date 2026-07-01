@@ -39,7 +39,7 @@ test; the full file builds in ~10 min.
 -/
 
 namespace TestKeyless
-open Clap.Lang Core Primes ZMod Keyless KeylessTestFixture
+open Clap.Lang Primes Keyless KeylessTestFixture
 open HashToField FString FArray Clap.RSA
 
 -- ---------------------------------------------------------------------------

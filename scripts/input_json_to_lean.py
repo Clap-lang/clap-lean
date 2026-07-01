@@ -120,12 +120,15 @@ def emit_field_vector(name: str, vals: list[int], length: int, indent: str = "")
     )
 
 
-def emit_fb_vector(name: str, vals: list[int], length: int, indent: str = "") -> str:
+def emit_fb_padded_vector(
+    name: str, vals: list[int], actual_len: int, max_len: int, indent: str = ""
+) -> str:
+    """Emits a `PaddedVector FB bn254 max_len`, e.g. for `QuotedFieldInput.fieldStringBodies`."""
     body = ", ".join(str(v) for v in vals)
     return (
-        f"{indent}def {name} : Vector (FB bn254) {length} :=\n"
-        f"{indent}  ⟨(#[{body}] : Array Nat).map mkFB,\n"
-        f"{indent}   (Array.size_map ..).trans (by native_decide)⟩"
+        f"{indent}def {name} : PaddedVector FB bn254 {max_len} :=\n"
+        f"{indent}  ⟨⟨(#[{body}] : Array Nat).map mkFB,\n"
+        f"{indent}    (Array.size_map ..).trans (by native_decide)⟩, {actual_len}⟩"
     )
 
 
@@ -261,18 +264,18 @@ def emit(ns_name: str, j: dict[str, Any]) -> str:
     out.append("")
 
     out.append("-- String-bodies bit vectors (1 = inside a JSON string body)")
-    out.append(emit_fb_vector(
+    out.append(emit_fb_padded_vector(
         "audFieldStringBodies", as_int_list(j["aud_field_string_bodies"]),
-        MAX["aud_pair"]))
-    out.append(emit_fb_vector(
+        as_int(j["aud_field_len"]), MAX["aud_pair"]))
+    out.append(emit_fb_padded_vector(
         "uidFieldStringBodies", as_int_list(j["uid_field_string_bodies"]),
-        MAX["uid_pair"]))
-    out.append(emit_fb_vector(
+        as_int(j["uid_field_len"]), MAX["uid_pair"]))
+    out.append(emit_fb_padded_vector(
         "issFieldStringBodies", as_int_list(j["iss_field_string_bodies"]),
-        MAX["iss_pair"]))
-    out.append(emit_fb_vector(
+        as_int(j["iss_field_len"]), MAX["iss_pair"]))
+    out.append(emit_fb_padded_vector(
         "nonceFieldStringBodies", as_int_list(j["nonce_field_string_bodies"]),
-        MAX["nonce_pair"]))
+        as_int(j["nonce_field_len"]), MAX["nonce_pair"]))
     out.append("")
 
     out.append("-- RSA-2048 signature and modulus, as 32 × 64-bit LSB-first limbs")
@@ -452,11 +455,9 @@ set_option maxRecDepth 8192
 
 namespace KeylessTestFixture
 
--- `open ZMod` brings the scoped `instCoreZMod` instance into scope so that
--- `Core bn254` resolves concretely (F := ZMod bn254). We deliberately do
--- *not* declare `variable [Core bn254]`: a free `Core` hypothesis prevents
--- `native_decide` / `decide` from closing Vector size goals.
-open Clap.Lang Core Primes ZMod Keyless
+-- `F`/`FB` are plain abbrevs for `ZMod bn254` (see `Clap.Lang`), so no
+-- special opening is needed to make them resolve concretely.
+open Clap.Lang Primes Keyless
 """
 
 POSTAMBLE = """\
