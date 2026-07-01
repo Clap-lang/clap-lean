@@ -12,23 +12,23 @@ variable {var : Type} {p : ℕ}
 
 def pretty [Repr var] [Index var] (c : Circuit p var) := repr 0 c
 
-def printUsing [Repr var] [BEq var] [Hashable var]
-               (Γ : Std.HashMap var String) (c : Circuit p var) : Std.Format :=
-  go 0 c
-  where go (l : ℕ) (c : Circuit p var) :=
-    letI next (l : ℕ) (k : var → Circuit p var) := repr (l+1) (k (index l))
-    letI gos (w l : ℕ) (k : List var → Circuit p var) := repr (l+w) (k ((List.range w).map index))
-    match c with
-    | .nil => "nil"
-    | .lam k => s!"λ{l} {next l k}"
-    | .eq0 e c => s!"eq0 {_root_.repr e} {repr l c}"
-    | .share e k => s!"share {_root_.repr e} {next l k}"
-    | .isZero e k => s!"fun _ ↦ isZero {_root_.repr e} {next l k}"
-    | .num2bits w e k => s!"num2bits {w} {_root_.repr e} {gos w l k}"
-
-end Circuit
+-- def printUsing [Repr var] [BEq var] [Hashable var]
+--                (Γ : Std.HashMap var String) (c : Circuit p var) : Std.Format :=
+--   go 0 c
+--   where go (l : ℕ) (c : Circuit p var) :=
+--     letI next (l : ℕ) (k : var → Circuit p var) := repr (l+1) (k (index l))
+--     letI gos (w l : ℕ) (k : List var → Circuit p var) := repr (l+w) (k ((List.range w).map index))
+--     match c with
+--     | .nil => "nil"
+--     | .lam k => s!"λ{l} {next l k}"
+--     | .eq0 e c => s!"eq0 {_root_.repr e} {repr l c}"
+--     | .share e k => s!"share {_root_.repr e} {next l k}"
+--     | .isZero e k => s!"fun _ ↦ isZero {_root_.repr e} {next l k}"
+--     | .num2bits w e k => s!"num2bits {w} {_root_.repr e} {gos w l k}"
 
 end
+
+end Circuit
 
 namespace Edsl
 
@@ -95,7 +95,7 @@ def thisIsIndeedACircuit : CircuitContM p Unit := do
 
 -- /-- info: share 42 share 4 num2bits 4 2 eq0 1 eq0 1 eq0 2 eq0 3 nil -/
 -- #guard_msgs in
-#eval thisIsIndeedACircuit.run.pretty (p := TestPrime)
+#eval (random 5).run.pretty (p := TestPrime)
 
 end EvalRandom
 
