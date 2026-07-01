@@ -196,7 +196,7 @@ In order to print a Circuit we need to turn variables into Debrujin levels. We n
 
 One could argue that `OfNat` might do, but it's dependent on a value so there's more friction.
 -/
-class Index (var : outParam Type) where
+class Index (var : Type) where
   index : ℕ → var
 
 instance [Index var] : Coe ℕ var := ⟨Index.index⟩
