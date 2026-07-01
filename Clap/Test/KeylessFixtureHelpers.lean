@@ -9,7 +9,7 @@ small reusable helpers here so they survive regeneration.
 -/
 
 namespace KeylessTestFixture
-open Clap.Lang Core Primes ZMod Keyless HashToField
+open Clap.Lang Primes Keyless HashToField
 
 /-- Convert a Nat byte (0–255) to an `F bn254` field element.
     Used to lift each character of every `FString` fixture from raw `Array Nat`.
@@ -18,8 +18,8 @@ open Clap.Lang Core Primes ZMod Keyless HashToField
 def mkChar (n : Nat) : F bn254 := (n : ZMod bn254)
 
 /-- Convert a Nat (for indices, single-bit `FB`, RSA limbs) to `F bn254`.
-    Goes through `ZMod` because under the scoped `Clap.Lang.ZMod.instCoreZMod`,
-    `F bn254 = ZMod bn254` definitionally. -/
+    Goes through `ZMod` since `F bn254` is just the abbrev `ZMod bn254`
+    (see `Clap.Lang`). -/
 def mkFB (n : Nat) : FB bn254 := (n : ZMod bn254)
 
 /-- Mirror of `verifyPublicInputsHash` (Clap/Keyless.lean) without the final
@@ -44,7 +44,7 @@ def computePublicInputsHash (input : KeylessInput) : Option (F bn254) := do
   let hashedPubkeyModulus ← hash64BitLimbsToField {data := input.rsa.pubkeyModulus, len := RSA_KEY_BYTES}
   let overrideAudValHashed ← hashBytesToField input.audOverride.overrideAudValue
   Clap.Poseidon.poseidonBN254
-    [ input.commit.epk[0], input.commit.epk[1], input.commit.epk[2], input.commit.epkLen
+    #v[ input.commit.epk[0], input.commit.epk[1], input.commit.epk[2], input.commit.epkLen
     , idc
     , input.commit.expDate
     , input.commit.expHorizon
