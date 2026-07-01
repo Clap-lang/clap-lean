@@ -36,10 +36,10 @@ section
 
 variable {p : ℕ}
 
-abbrev CircuitContM (p : ℕ) (α : Type) : Type := Cont (Circuitₑ p) α
+abbrev CircuitContM (p : ℕ) (var α : Type) : Type := Cont (Circuit p var) α
 
-def CircuitContM.run {α : Type} (m : CircuitContM p α) : Circuitₑ p :=
-  ContT.run m fun _ ↦ .nil
+def CircuitContM.run {var} {α : Type} (m : CircuitContM p var α) : Circuit' p :=
+  fun var ↦ ContT.run m fun _  ↦ .nil
 
 @[irreducible]
 def eq0 (e : ZMod p) : CircuitContM p Unit := fun c ↦

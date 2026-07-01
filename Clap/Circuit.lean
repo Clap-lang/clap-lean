@@ -237,12 +237,16 @@ variable [Fact (Nat.Prime p)]
 
 def eval : Circuitₑ p → denotation (ZMod p)
   | .nil =>
+      dbg_trace s!"nil"
       .u
   | .lam k =>
+      dbg_trace s!"lam"
       .l fun x => eval (k x)
   | .eq0 e c =>
+      dbg_trace s!"eq0"
       if e.eval = 0 then eval c else .n
   | .share e k =>
+      dbg_trace s!"eq0"
       (k e.eval).eval
   | .isZero e k =>
       if e.eval = 0 then (k 1).eval else (k 0).eval
