@@ -112,6 +112,9 @@ def assertIsAsciiDigits {maxDigits : ℕ} (inp : FString p maxDigits) : Option U
 
   Requires `1 ≤ len < maxLen` (does not work when `maxLen ≤ 1`). The number represented must fit in the scalar field.
 -/
+
+-- #synth HSub (ZMod p) (ZMod p) (Option (ZMod p))
+
 def asciiDigitsToScalar {maxLen : ℕ} (inp : FString p maxLen) : Option (F p) := do
   assert! 0 < maxLen
   assertIsAsciiDigits inp
@@ -122,17 +125,17 @@ def asciiDigitsToScalar {maxLen : ℕ} (inp : FString p maxLen) : Option (F p) :
   --   s       : starts at 1, decremented to 0 at position `inp.len`
   --   ieq_sum : running sum of index_eq[i]; must equal 1 at the end
   --   acc     : accumulated digit value, frozen once s = 0
-  let (_, ieq_sum, acc) ← (List.finRange maxLen).drop 1 |>.foldlM
-    (fun (state : F p × F p × F p) (i : Fin maxLen) ↦ do
-      let (s, ieq_sum, acc) := state
-      let ieq       : F p ← share (← F.eq inp.len i.1)
-      let s'        : F p ← share (← s - ieq)
-      let acc_shift : F p ← share (10 * acc + (inp.data[i] - 48))
-      let acc'      : F p ← share ((acc_shift - acc) * s' + acc)
-      return (s', ieq_sum + ieq, acc'))
-    (1, 0, acc₀)
+  let (s', acc) ← (List.finRange maxLen).drop 1 |>.foldlM
+    (fun (state : F p × F p) (i : Fin maxLen) ↦ do
+      let (s, acc) := state
+      let ieq       ← share (← F.eq inp.len i.1)
+      let s'        ← share (s - ieq)
+      let acc_shift ← share (10 * acc + (inp.data[i] - 48))
+      let acc'      ← share ((acc_shift - acc) * s' + acc)
+      return (s', acc'))
+    (1, acc₀)
   -- Exactly one index_eq must have been 1, i.e. len ∈ {1, ..., maxLen-1}
-  F.assert_eq ieq_sum 1
+  F.assert_eq s' 0
   return acc
 
 /--
