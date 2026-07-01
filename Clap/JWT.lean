@@ -12,27 +12,34 @@ variable {p : ℕ}
 instance : Coe Char (F p) where
   coe c := c.toNat
 
-def stringBodies₀ (openedQuotes : FB p) (escaped : FB p) :
-  List (FB p) → List (FB p) → Option (List (FB p))
-| revAcc, [] => revAcc
-| revAcc, c :: cs => do
-  let isNonEscQuotationMark := FB.and (←F.eq c '\"') (FB.not escaped)
-  let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
-  let escaped' := FB.and (←F.eq c '\\') (FB.not escaped)
-  stringBodies₀ openedQuotes' escaped' (openedQuotes * FB.not isNonEscQuotationMark :: revAcc) cs
+def stringBodies₀ (openedQuotes : FB p) (escaped : FB p)
+  (revAcc : List (FB p))
+  (input : List (FB p)) :
+  Option (Σ' (res : List (FB p)), res.length = revAcc.length + input.length)
+:=
+  match revAcc, input with
+  | revAcc, [] => some ⟨revAcc, by simp_all⟩
+  | revAcc, c :: cs => do
+    let isNonEscQuotationMark := FB.and (←F.eq c '\"') (FB.not escaped)
+    let openedQuotes' := FB.xor openedQuotes isNonEscQuotationMark
+    let escaped' := FB.and (←F.eq c '\\') (FB.not escaped)
+    by
+      let res :=
+        stringBodies₀ openedQuotes' escaped'
+          (openedQuotes * FB.not isNonEscQuotationMark :: revAcc)
+          cs
+      rw [List.length_cons, Nat.add_comm _ 1, ←Nat.add_assoc]
+      exact
+        stringBodies₀ openedQuotes' escaped'
+          (openedQuotes * FB.not isNonEscQuotationMark :: revAcc)
+          cs
 
-lemma stringBodies₀_length : ∀ (openedQuotes escaped : FB p) revAcc l res,
-  some res = stringBodies₀ openedQuotes escaped revAcc l →
-  res.length = l.length + revAcc.length
-:= by
-  intro openedQuotes escaped revAcc l res h
-  revert revAcc openedQuotes escaped res
-  induction l with
-  | nil => simp [stringBodies₀]
-  | cons a as ih =>
-    intro _ _ _ _ h
-    simp [stringBodies₀, F.eq, F.isZero_def] at h
-    split at h <;> grind
+def dtsum (a b : ℕ) : Σ' s, s = a + b := by
+  match a with
+  | .zero => exact ⟨b, by simp⟩
+  | .succ a' =>
+    rw [Nat.succ_add_eq_add_succ]
+    exact dtsum a' b.succ
 
 /-- From keyless:
   Given an array of ask characters representing a JSON object, output a binary array demarquing
@@ -41,16 +48,10 @@ lemma stringBodies₀_length : ∀ (openedQuotes escaped : FB p) revAcc l res,
   input =  { asdfsdf "as\"df" }
   output = 00000000000111111000
 -/
-def stringBodies {w} (input : FString p w) : Option (PaddedVector FB p w) :=
-  let (eq := h) r := stringBodies₀ 0 0 [] input.data.toArray.toList
-  match r with
-  | none => none
-  | some res =>
-    have : res.reverse.toArray.size = w := by
-      have hlen := stringBodies₀_length (p := p) 0 0 []
-      grind [stringBodies₀, stringBodies₀_length]
-    let data : Vector (F p) w := ⟨res.reverse.toArray, this⟩
-    .some {data, len := input.len}
+def stringBodies {w} (input : FString p w) : Option (PaddedVector FB p w) := do
+  let ⟨res, hlen⟩ ← stringBodies₀ 0 0 [] input.data.toArray.toList
+  let data : Vector (F p) w := ⟨res.reverse.toArray, by grind⟩
+  pure {data, len := input.len}
 
 /-
 omit [Core bn254] in
