@@ -84,6 +84,7 @@ namespace EvalRandom
 def random (a : FB p) : CircuitContM p (FB p) := do
   let a ← share a
   let b ← share (a + 4)
+  let b ← share (b + 5)
   let c ← num2bits 4 b
   eq0 b
   discard ([1, 2, 3].mapM eq0)
