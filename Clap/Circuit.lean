@@ -167,7 +167,7 @@ inductive denotation (F : Type) : Type where
 
 inductive Circuit (p : ℕ) (var : Type) : Type where
   | nil
-  | eq0 (e : Exp p var) (c : Unit → Circuit p var)
+  | eq0 (e : Exp p var) (c : Circuit p var)
   | lam (cont : var → Circuit p var)
   | share (e : Exp p var) (cont : var → Circuit p var)
   | isZero (e : Exp p var) (cont : var → Circuit p var)

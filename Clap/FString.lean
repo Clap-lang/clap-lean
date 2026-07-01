@@ -19,7 +19,7 @@ def Constraint := Prop
 -- abbrev CircuitOptionM (output : Type) : Type := Option output
 -- abbrev CircuitStateM  (output : Type) : Type := OptionT (StateM (List Constraint)) output
 
-abbrev CircuitContM (p : ℕ) (α : Type) : Type := Cont (Clap.Circuit p α) α
+abbrev CircuitContM (p : ℕ) (α : Type) : Type := Cont (Clap.Circuit p (ZMod p)) α
 
 abbrev CircuitStateM (p : ℕ) (var : Type) : Type → Type := StateM (Clap.Circuit p var)
 
@@ -51,11 +51,16 @@ where
 end Ops
 namespace Cont
 -- #synth MonadExcept String Option
+-- TODO replace with Vector
 @[irreducible]
-def num2bits (w : ℕ) (e : ZMod p) : CircuitContM p (Vector (ZMod p) w) :=
-  pure (Ops.num2bitsLsbPureV w e)
-  -- if e.val < 2^w
-  -- else error _
+def num2bits (w : ℕ) (e : ZMod p) : CircuitContM p (List (ZMod p)) :=
+  Clap.Circuit.num2bits w e
+
+lemma num2bits_equiv (w : ℕ) (e : ZMod p) (c):
+  (num2bits w e c).eval = c num2bitsLsbPureV
+:= by
+  simp [num2bits]
+  done
 
 def lessThan' (w : ℕ) (a b : F p) : CircuitContM p (FB p) := do
   let d := a - b + 2^w
@@ -65,6 +70,16 @@ def lessThan' (w : ℕ) (a b : F p) : CircuitContM p (FB p) := do
 def lessThan (a b : F8 p) : CircuitContM p (FB p) := do
   lessThan' 8 a b
 
+open Clap.Lang.Spec.F8 in
+def lessThan_equiv [Fact (Nat.Prime p)] (a b : F p)
+    (ha : valid a)
+    (hb : valid b)
+    (hw : 2^(8+1) < p) :
+    lessThan a b = pure (FB.ofBool (Clap.Lang.Spec.F8.toUInt8 a < Clap.Lang.Spec.F8.toUInt8 b)) := by
+  unfold lessThan lessThan'
+  simp_all [valid, Nat.reducePow, Nat.reduceAdd, toUInt8, UInt8.lt_iff_toNat_lt,
+    UInt8.toNat_ofNat', Nat.mod_eq_of_lt]
+
 def valid (x: F p) : Prop := x.val < 2^8
 
 def toUInt8 (f:F8 p) : UInt8 := UInt8.ofNat f.val
@@ -73,77 +88,60 @@ def greaterThan (a b : F8 p) : CircuitContM p (FB p) :=
   lessThan b a
 
 @[irreducible]
-def isZeroUser (e : ZMod p) : CircuitContM p (ZMod p) := fun c ↦
-  if e = 0
-  then Clap.Circuit.isZero e fun _ ↦ c 1
-  else Clap.Circuit.isZero e fun _ ↦ c 0
+def isZero (e : ZMod p) : CircuitContM p (ZMod p) :=
+  Clap.Circuit.isZero e
 
 -- @[irreducible]
 -- def share (e : ZMod p) : CircuitContM p (ZMod p) :=
---   fun 
+--   fun
 
 @[irreducible]
 def eq0 (e : ZMod p) : CircuitContM p Unit := fun c ↦
   Clap.Circuit.eq0 e (c ())
 
-def eq (a b : F p) : CircuitContM p (FB p) := do
-  isZeroUser (a - b)
-
-def eq' (a b : F p) : CircuitContM p (FB p) := do
-  let a' ← isZeroUser a
-  let b' ← isZeroUser b
-  let res := a' + b'
-  return res
-
-example {a b} : eq' (p := p) a b = id (fun _  ↦ .nil) := by
-  unfold eq'
-  simp [Bind.bind, isZeroUser]
-  ext x
-  simp [ContT.run]
-
-
-  done
+def eq (lhs rhs: ZMod p) : CircuitContM p (ZMod p) :=
+  isZero (lhs - rhs)
 
 end Cont
 
-namespace State
+-- namespace State
 
-variable {var : Type}
-#check ContT.instMonad.toFunctor
-#synth Functor (Cont _)
-@[irreducible]
-def num2bits (w : ℕ) (e : ZMod p) : CircuitStateM p var (Vector (ZMod p) w) := do
-  let circuit ← get
-  let circuit := Clap.Circuit.num2bits (p := p) (var := var) w
-  pure (Ops.num2bitsLsbPureV w e)
-  -- if e.val < 2^w
-  -- else error _
+-- variable {var : Type}
+-- #check ContT.instMonad.toFunctor
+-- #synth Functor (Cont _)
+-- @[irreducible]
+-- def num2bits (w : ℕ) (e : ZMod p) : CircuitStateM p var (Vector (ZMod p) w) := do
+--   let circuit ← get
+--   let circuit := Clap.Circuit.num2bits (p := p) (var := var) w
+--   pure (Ops.num2bitsLsbPureV w e)
+--   -- if e.val < 2^w
+--   -- else error _
 
-instance {r} {m} : LawfulMonad (ContT r m) := LawfulMonad.mk'
-  (id_map := by intros
-                unfold_projs
-                expose_names
+-- instance {r} {m} : LawfulMonad (ContT r m) := LawfulMonad.mk'
+--   (id_map := by intros
+--                 unfold_projs
+--                 expose_names
 
-                done)
-  (pure_bind := by intros; ext; rfl)
-  (bind_assoc := by intros; ext; rfl)
+--                 done)
+--   (pure_bind := by intros; ext; rfl)
+--   (bind_assoc := by intros; ext; rfl)
 
-def lessThan' (w : ℕ) (a b : F p) : CircuitStateM p var (FB p) := do
-  let d := a - b + 2^w
-  let d ← num2bits (w + 1) d
-  pure <| FB.not d[w]!
+-- def lessThan' (w : ℕ) (a b : F p) : CircuitStateM p var (FB p) := do
+--   let d := a - b + 2^w
+--   let d ← num2bits (w + 1) d
+--   pure <| FB.not d[w]!
 
-def lessThan (a b : F8 p) : CircuitStateM p var (FB p) := do
-  lessThan' 8 a b
+-- def lessThan (a b : F8 p) : CircuitStateM p var (FB p) := do
+--   lessThan' 8 a b
 
-def valid (x: F p) : Prop := x.val < 2^8
+-- def valid (x: F p) : Prop := x.val < 2^8
 
-def toUInt8 (f:F8 p) : UInt8 := UInt8.ofNat f.val
+-- def toUInt8 (f:F8 p) : UInt8 := UInt8.ofNat f.val
 
-def greaterThan (a b : F8 p) : CircuitStateM p var (FB p) :=
-  lessThan b a
+-- def greaterThan (a b : F8 p) : CircuitStateM p var (FB p) :=
+--   lessThan b a
 
-end State
+-- end State
 
 def isWhitespaceContM (c : F8 p) : CircuitContM p (FB p) := do
   -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
@@ -153,13 +151,50 @@ def isWhitespaceContM (c : F8 p) : CircuitContM p (FB p) := do
   let isSpace ← Cont.eq c 32 -- ASCII 32 is space
   pure (isLineBreak ||| isSpace)
 
-def isWhitespaceStateM (c : F8 p) {var : Type} : CircuitStateM p var (FB p) := do
-  -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
-  let gt8 ← Cont.greaterThan c 8 -- `Cont.greaterThan c 8 >>= fun gt8 : FB p ↦ `
-  let lt14 ← Cont.lessThan c 14
-  let isLineBreak : FB p := gt8 &&& lt14
-  let isSpace ← Cont.eq c 32 -- ASCII 32 is space
-  pure (isLineBreak ||| isSpace)
+-- def isWhitespaceStateM (c : F8 p) {var : Type} : CircuitStateM p var (FB p) := do
+--   -- ASCII 9..13 are line break characters (tab, newline, vtab, ff, cr)
+--   let gt8 ← Cont.greaterThan c 8 -- `Cont.greaterThan c 8 >>= fun gt8 : FB p ↦ `
+--   let lt14 ← Cont.lessThan c 14
+--   let isLineBreak : FB p := gt8 &&& lt14
+--   let isSpace ← Cont.eq c 32 -- ASCII 32 is space
+--   pure (isLineBreak ||| isSpace)
+
+namespace Cont
+
+def isWhitespace_spec (c:Char) : Bool :=
+  (c.toNat > 8 && c.toNat < 14) || c.toNat = 32
+
+lemma toChar_toNat (c : ZMod p) (h : Spec.F8.valid c) : (Spec.F8.toChar c).toNat = c.val := by
+  unfold Spec.F8.toChar Spec.F8.toUInt8
+  show (UInt8.ofNat c.val).toUInt32.toNat = c.val
+  rw [UInt8.toNat_toUInt32, UInt8.toNat_ofNat']
+  exact Nat.mod_eq_of_lt h
+
+open Clap.Lang.Spec in
+lemma isWhitespace_equiv [Fact (Nat.Prime p)] (c:F8 p) (h : Spec.F8.valid c) (h : 2^(8+1) < p) :
+  F8.isWhitespaceContM c = pure (FB.ofBool (isWhitespace_spec (F8.toChar c))) := by
+  unfold F8.isWhitespaceContM isWhitespace_spec Cont.greaterThan
+  rw [F8.lessThan_equiv] <;> try (first | assumption | aesop (add simp [F8.valid]) ; erw [ZMod.val_natCast_of_lt] <;> grind)
+  rw [F8.lessThan_equiv] <;> try (first | assumption | aesop (add simp [F8.valid]) ; erw [ZMod.val_natCast_of_lt] <;> grind)
+  simp only [F8.eq,F.eq,F.isZero_def]
+  simp [Option.bind_some]
+  rw [FB.and_equiv] <;> try apply Spec.FB.valid_ofBool
+  rw [FB.or_equiv] <;> try apply Spec.FB.valid_ofBool
+  . rw [toChar_toNat] <;> try assumption
+    simp only [Spec.FB.left_inv]
+    unfold F8.toUInt8
+    erw [ZMod.val_natCast_of_lt] <;> try grind
+    erw [ZMod.val_natCast_of_lt] <;> try grind
+    congr 4
+    . aesop (add simp [sub_eq_zero,F8.valid,UInt8.lt_iff_toNat_lt]) <;> grind
+    . aesop (add simp [sub_eq_zero,F8.valid,UInt8.lt_iff_toNat_lt]) <;> grind
+    . aesop (add simp [FB.toBool,FB.false,sub_eq_zero,F8.valid])
+      . apply ZMod.val_cast_of_lt
+        grind
+      . rw [← ZMod.natCast_zmod_val c, a]; rfl
+  . aesop (add simp [Spec.FB.left_inv,Spec.FB.valid_ofBool,FB.valid])
+
+end Cont
 
 def valid_ofBool (b:Bool) : F8.Cont.valid (FB.ofBool (p:=p) b) := sorry
 
