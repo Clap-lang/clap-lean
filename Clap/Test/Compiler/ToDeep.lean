@@ -25,7 +25,7 @@ info: def - fun (var : Type) =>
       Circuit.isZero (Exp.v y) fun (z : var) =>
         Circuit.num2bits 2 (Exp.v y) fun (vars : List var) =>
           Circuit.eq0 ((((Exp.v x).add ((Exp.c 1).mul (Exp.v x))).sub (Exp.v y)).add (Exp.v z))
-            ((fun (x : PUnit.{1}) => Circuit.nil) ())
+            ((fun (__r : Unit) => Circuit.nil) ())
 ---
 info: type - (var : Type) → Circuit Primes.babybear var
 -/
@@ -70,9 +70,10 @@ info: def - fun (var : Type) =>
   Circuit.lam fun (x : var) =>
     Circuit.isZero (Exp.v x) fun (__do_lift : var) =>
       Circuit.share (Exp.v x) fun (__do_lift_1 : var) =>
-        Circuit.eq0 ((Exp.v __do_lift).add (Exp.v __do_lift_1)) ((fun (x : PUnit.{1}) => Circuit.nil) ())
+        Circuit.eq0 ((Exp.v __do_lift).add (Exp.v __do_lift_1)) ((fun (__r : Unit) => Circuit.nil) ())
 ---
-info: type - (var : Type) → Circuit Primes.babybear var -/
+info: type - (var : Type) → Circuit Primes.babybear var
+-/
 #guard_msgs(info, whitespace := lax) in
 set_option pp.funBinderTypes true in
 run_elab do

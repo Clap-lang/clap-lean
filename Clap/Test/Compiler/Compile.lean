@@ -48,9 +48,9 @@ fun (var : Type) =>
                   Circuit.lam fun (curried2_point₃_circuit : var) =>
                     Circuit.lam fun (curried3_point₃_circuit : var) =>
                       Circuit.eq0 ((Exp.v curried0_point₁_circuit).add (Exp.v curried3_point₃_circuit))
-                        ((fun (x : PUnit.{1}) =>
+                        ((fun (__r : Unit) =>
                             Circuit.eq0 ((Exp.v curried0_point₂_circuit).add (Exp.v curried2_point₁_circuit))
-                              ((fun (x : PUnit.{1}) => Circuit.nil) ()))
+                              ((fun (__r : Unit) => Circuit.nil) ()))
                           ())
 -/
 #guard_msgs(info, whitespace := lax) in

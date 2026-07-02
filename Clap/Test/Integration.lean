@@ -79,12 +79,12 @@ fun (var : Type) =>
                         Circuit.eq0 (Exp.v x)
                           ((fun (x_2 : Unit) =>
                               Circuit.eq0 (Exp.v y)
-                                ((fun (x_3 : PUnit.{1}) =>
+                                ((fun (__r : Unit) =>
                                     Circuit.eq0
                                       (((((Exp.v x).mul ((Exp.v y).sub (Exp.v z))).add (Exp.v z)).add
                                             (Exp.v curried0_p₁_circuit)).add
                                         (Exp.v curried0_p₂_circuit))
-                                      ((fun (x : PUnit.{1}) => Circuit.nil) ()))
+                                      ((fun (__r : Unit) => Circuit.nil) ()))
                                   ()))
                             ()))
                       ())

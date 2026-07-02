@@ -138,8 +138,6 @@ lemma assert_bits_e_spec {bs : List (ZMod p)} {rest : Cs p (ZMod p)} :
       · rfl
       · rfl
 
-omit inst in
-omit inst' in
 lemma rw_bisim_uncurry : ∀ (w : ℕ) (d : denotation (ZMod p)) (k : Vector (ZMod p) w -> Cs p (ZMod p)),
  (∀ args : Vector (ZMod p) w, Simulation.wrBisim d (k args).eval) ->
  Simulation.wrBisim d (Cs.curry _ k).eval := by
@@ -208,6 +206,7 @@ lemma bits2num_val_lt_2_pow_w_of_assert_bits  {args : List (ZMod p)} : assert_bi
     · simp [cond₁]
     · simp [cond₁]
       convert ZMod.val_pow_le
+      rfl
       refine Eq.symm (ZMod.val_ofNat_of_lt inst'.out)
       constructor
       linarith [inst'.out]
@@ -227,7 +226,7 @@ def bits2num_e (bits : List var) : Exp p var :=
 omit inst' in
 lemma bits2num_eq_eval_bits2num_e {bits : List (ZMod p)} : (bits2num_e bits).eval = bits2num bits := by
   unfold bits2num bits2num_e
-  generalize e_eq : Exp.c 0 = e
+  generalize e_eq : Exp.c (0 : ZMod p) = e
   generalize v_eq : (0 : ZMod p) = v
   have h : v = e.eval := by
     rw [←v_eq, ←e_eq, Exp.eval]
@@ -236,8 +235,6 @@ lemma bits2num_eq_eval_bits2num_e {bits : List (ZMod p)} : (bits2num_e bits).eva
     simpa using h.symm
   | cons l ls ih =>
     simp only [List.foldr_cons, Exp.eval_add, ih, Exp.eval]
-
-
 
 omit inst' in
 lemma reduce₁ :
@@ -254,7 +251,7 @@ lemma reduce₂ :
     e.eval = bits2num args -> (Cs.eq0 (bits2num_e args - e) cs).eval = cs.eval := by
   intros args e cs h
   rw (occs := .pos [1]) [Cs.eval]
-  unfold Exp.eval
+  simp
   rw [bits2num_spec] at h
   rw [bits2num_eq_eval_bits2num_e, h, bits2num_spec]
   simp
@@ -288,14 +285,9 @@ lemma fail₂ :
   ∀ {args : List (ZMod p)} {e : Expₑ p} {cs : Cs p (ZMod p)},
     e.eval ≠ (bits2num args) -> (Cs.eq0 (bits2num_e args - e) cs).eval = .n := by
   intros args e cs h
-  unfold Cs.eval Exp.eval
-  rw [bits2num_eq_eval_bits2num_e]
-  split_ifs with h'
-  · exfalso
-    apply h
-    rw [sub_eq_zero, eq_comm] at h'
-    rw [h']
-  · rfl
+  unfold Cs.eval
+  rw [Exp.eval_sub, ite_eq_right_iff, bits2num_eq_eval_bits2num_e]
+  grind
 
 omit inst' in
 lemma fail : ∀ {args : List (ZMod p)} {e : Expₑ p} {cs : Cs p (ZMod p)},
@@ -433,7 +425,7 @@ theorem soundness {c : Circuitₑ p} : circuitWF c → wrBisim c.eval c.toCs.eva
     intro o
     simp [Exp.eval,Circuit.eval,Cs.eval]
     split
-    case isZero.h.h.isTrue he0 =>
+    case isZero.isTrue he0 =>
       split
       case isTrue hsub =>
         split
@@ -444,7 +436,7 @@ theorem soundness {c : Circuitₑ p} : circuitWF c → wrBisim c.eval c.toCs.eva
           apply ih _ (h 1)
         case isFalse hmul => constructor
       case isFalse hsub => constructor
-    case isZero.h.h.isFalse he0 =>
+    case isZero.isFalse he0 =>
       split
       case isTrue hsub =>
         split
@@ -467,7 +459,7 @@ theorem soundness {c : Circuitₑ p} : circuitWF c → wrBisim c.eval c.toCs.eva
         have : (num2bitsLsbPure w (bits2num args.toList)) = args.toList := by
           rw [assert_bits_spec] at cond₁
           have : args.toArray.toList.length = w := by simp
-          convert num2bitsLsbPure_of_bits2num_eq (by convert inv) cond₁
+          convert num2bitsLsbPure_of_bits2num_eq (by aesop) cond₁
           exact this.symm
         unfold Vector.toList at this
         erw [cond₂, this]
