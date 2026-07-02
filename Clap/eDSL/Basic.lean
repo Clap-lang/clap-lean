@@ -71,18 +71,56 @@ variable {p : ℕ}
 
 namespace EvalRandom
 
-def random (a : FB p) (var : Type) : CircuitContM p var (FB p) := do
-  let a ← share a
-  let b : Exp p (Exp p var) := Exp.v (Exp.v (p := p) a + Exp.v (p := p) a)
+def random {var : Type} (a : Exp p var) : CircuitContM p var (FB p) := do
+  eq0 (a - 42)
   return 4
 
 def random' (var : Type) : CircuitContM p var Unit := do
-  let x ← random 42 var
+  let x ← random 42
   eq0 x
 
+def randomOption {var : Type} (a : Exp p var) : Option (FB p) := sorry
 
+def eval {var} : Circuit p var → denotation var := sorry
 
-#eval @Clap.Circuit.pretty _ _ _ X (@Clap.Edsl.CircuitContM.run _ _ _ (random (p := TestPrime) 5 (ZMod TestPrime)))
+example {var β : Type} {a : Exp p var} {c : FB p → CircuitContM p var β}
+  (h : a = 42) : eval ((random a >>= c) (fun _ ↦ .nil)) = eval ((pure 4 >>= c) fun _ ↦ .nil) := by
+  sorry
+  done
+
+lemma CircuitContM.pure_def {var α} {x} :
+  (pure x : CircuitContM p var α) = fun f ↦ f x := rfl
+
+lemma CircuitContM.bind_def {var α} {x} {f : α → CircuitContM p var α} :
+  bind (m := CircuitContM p var) x f = fun g => x fun i => f i g := rfl
+
+open Classical in
+example {var β : Type} {a : Exp p var} {c : FB p → Circuit p var}
+  : 
+  eval (random a c) =
+  if a = 42
+  then eval ((pure 4 : CircuitContM p var (FB p)) c)
+  else .n := by
+  rw [CircuitContM.pure_def]
+  dsimp
+  unfold random
+  split_ifs with h
+  rw [h]
+  simp
+  sorry
+
+example {var β : Type} {a : Exp p var} {c : FB p → CircuitContM p var β}
+  (h : a = 42) : eval ((random a >>= c) (fun _ ↦ .nil)) = eval (c 4 fun _ ↦ .nil) := by
+  sorry
+
+example {var β : Type} {a : Exp p var} {c : FB p → CircuitContM p var β}
+  (h : a ≠ 42) : eval ((random a >>= c) (fun _ ↦ .nil)) = .n := by
+  sorry
+
+-- `if a = 42 then eval (c 4 fun _ ↦ .nil) else .n`
+
+#eval @Clap.Circuit.pretty _ _ _ X (@Clap.Edsl.CircuitContM.run _ _ _ (random (p := TestPrime) (ZMod TestPrime) 5))
+-- #eval @Clap.Circuit.pretty _ _ _ X (@Clap.Edsl.CircuitContM.run _ _ _ (random' (p := TestPrime) 5 (ZMod TestPrime)))
 
 end EvalRandom
 
