@@ -85,7 +85,10 @@ namespace EvalRandom
 
 def random (a : FB p) (var : Type) : CircuitContM p var (FB p) := do
   let a ← eq0 a
-  _
+  let a ← eq0 1
+  let a ← eq0 2
+  let a ← eq0 3
+  return 4
   -- let b ← share (a + 4)
   -- let b ← share (b + 5)
   -- let c ← num2bits 4 b
