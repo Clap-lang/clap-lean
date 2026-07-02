@@ -86,10 +86,11 @@ lemma assert_bit_e_spec {b : ZMod p} {rest : Cs p (ZMod p)} :
   rewrite (occs := .pos [1]) [Cs.eval]
   have : (Exp.v b * (Exp.c 1 - Exp.v b)).eval = 0 ↔ (b = 0 ∨ b = 1) := by
     simp only [Exp.eval]
-    simp
+    simp [Exp.eval]
     have : 1 - b = 0 ↔ b = 1 := by
       rw [sub_eq_iff_eq_add, zero_add]
       aesop
+    
     rw [this]
   simp only [this]
 
