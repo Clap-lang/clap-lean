@@ -87,7 +87,7 @@ instance : OfNat (Exp p var) n where
 example : Expₑ p := (.c 1) + (.v 2)
 
 /- In this example, variables can be substitued by expressions,
-   which is what we need for some optimizations. -/
+   _which is what we need for some optimizations._ -/
 example : Exp p (Exp p var) := (.c 1) + (.v ((.c 2) + (.c 2)))
 
 def eval (e : Expₑ p) : ZMod p :=
