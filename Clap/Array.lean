@@ -411,6 +411,66 @@ lemma selectArrayValue_equiv [Fact (Nat.Prime p)] {len : ℕ}
         Vector.getElem?_eq_none (not_lt.mp hidx)]
     simp only [bind, Option.bind]
 
+/-- `true` at position `i` iff `i > idx` (strictly to the right). -/
+def rightArraySelector_spec (len idx : ℕ) : Vector Bool len :=
+  Vector.ofFn (fun i => decide (idx < (i : ℕ)))
+
+/-- When `idx` is in range (`idx.val < len`, `len ≤ p`), `rightArraySelector`
+    returns the encoded right-selector: 0s at `[0, idx]` and 1s at `(idx, len)`. -/
+lemma rightArraySelector_equiv [Fact (Nat.Prime p)] (len : ℕ) (idx : F p)
+    (hidx : idx.val < len) (hlen : len ≤ p) :
+    FArray.rightArraySelector len idx
+      = some ((rightArraySelector_spec len idx.val).map (FB.ofBool (p := p))) := by
+  haveI : NeZero p := ⟨(Fact.out : Nat.Prime p).pos.ne'⟩
+  have hbits := singleOneArray_equiv len idx hidx hlen
+  unfold FArray.rightArraySelector
+  simp only [hbits, bind, Option.bind, pure]
+  congr 1
+  set enc := (singleOneArray_spec len idx.val).map (FB.ofBool (p := p)) with henc
+  apply Vector.ext
+  intro i hi
+  rw [Vector.getElem_map, Vector.getElem_scanl_add enc i hi,
+      list_sum_take_eq_sum_range enc.toList i (by rw [Vector.length_toList]; omega)]
+  have hval : ∀ j : ℕ, j < i →
+      enc.toList[j]! = if j = idx.val then (1 : FB p) else 0 := by
+    intro j hji
+    have hjlen : j < len := lt_trans hji hi
+    rw [getElem!_pos enc.toList j (by rw [Vector.length_toList]; exact hjlen),
+        Vector.getElem_toList, henc, Vector.getElem_map]
+    simp only [singleOneArray_spec, Vector.getElem_ofFn]
+    by_cases hj : j = idx.val
+    · simp [hj, FB.ofBool, FB.true]
+    · simp [hj, FB.ofBool, FB.false]
+  rw [Finset.sum_congr rfl (fun j hj => hval j (Finset.mem_range.mp hj)),
+      Finset.sum_ite_eq']
+  simp only [Finset.mem_range, rightArraySelector_spec, Vector.getElem_ofFn]
+  by_cases h : idx.val < i
+  · rw [if_pos h]; simp [h, FB.ofBool, FB.true]
+  · rw [if_neg h]; simp [h, FB.ofBool, FB.false]
+
+/-- **Out of range.** When `len ≤ idx.val`, `rightArraySelector` is unsatisfiable. -/
+lemma rightArraySelector_none [Fact (Nat.Prime p)] (len : ℕ) (idx : F p)
+    (hlen : len ≤ p) (hidx : len ≤ idx.val) :
+    FArray.rightArraySelector len idx = none := by
+  unfold FArray.rightArraySelector
+  rw [singleOneArray_none len idx hlen hidx]
+  simp [bind, Option.bind]
+
+/-- Position `i` is in `[idx+1, len)` — mirrors `arraySelector_high`. -/
+def rightArraySelector_high (len idx : ℕ) : Vector Bool len :=
+  Vector.ofFn (fun i => decide ((i : ℕ) ∈ Finset.Ico (idx + 1) len))
+
+/-- The two spec levels agree (`Finset.mem_Ico` + `omega`). -/
+lemma rightArraySelector_eq_rightArraySelector_high :
+    rightArraySelector_spec = rightArraySelector_high := by
+  funext len idx
+  apply Vector.ext
+  intro i hi
+  simp only [rightArraySelector_spec, rightArraySelector_high, Vector.getElem_ofFn,
+             Finset.mem_Ico]
+  apply decide_eq_decide.mpr
+  omega
+
 end Spec.FArray
 
 namespace TestArray

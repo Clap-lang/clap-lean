@@ -248,6 +248,37 @@ def assertIsSubstringFS {maxStrLen maxSubstrLen : ℕ} (h : maxSubstrLen ≤ max
     : Option Unit := do
   FB.assert (← isSubstringFS h str strHash substr startIndex)
 
+open Primes in
+/--
+  Polynomial-identity core of `assertIsConcatenation`, separated from the
+  Fiat-Shamir setup.  `powers` must be `[α⁰, …, α^{maxFullLen-1}]` for the
+  challenge `α` derived by `assertIsConcatenation`.
+-/
+def assertIsConcatenation_aux
+    {maxFullLen maxLeftLen maxRightLen : ℕ}
+    (_hl : maxLeftLen ≤ maxFullLen) (_hr : maxRightLen ≤ maxFullLen)
+    (fullStr : FString bn254 maxFullLen)
+    (left    : FString bn254 maxLeftLen)
+    (right   : FString bn254 maxRightLen)
+    (powers  : Vector (F bn254) maxFullLen)
+    : Option Unit := do
+  -- Step 1: enforce that left is 0-padded after left.len
+  -- rightArraySelector(left_len - 1) gives 1s at positions > left_len - 1, i.e. at [left_len, maxLeftLen)
+  let leftSelector ← FArray.rightArraySelector maxLeftLen (left.len - 1)
+  (List.finRange maxLeftLen).forM fun i => eq0 (leftSelector[i] * left.data[i])
+  -- NOTE: right-0-padding is deliberately NOT enforced here; per the CIRCOM
+  -- reference the caller validates `right_len` (see the doc comment above).
+  -- Step 2: polynomial evaluations via F.dotProduct
+  let leftPolyEval  : F bn254 := F.dotProduct left.data
+      ((powers.take maxLeftLen).cast (Nat.min_eq_left _hl))
+  let rightPolyEval : F bn254 := F.dotProduct right.data
+      ((powers.take maxRightLen).cast (Nat.min_eq_left _hr))
+  let fullPolyEval  : F bn254 := F.dotProduct fullStr.data powers
+  -- Step 3: distinguishing_value = α^left_len = SelectArrayValue(powers, left_len)
+  let distinguishingValue ← FArray.selectArrayValue powers left.len
+  -- Step 4: assert full_poly_eval = left_poly_eval + α^left_len · right_poly_eval
+  F.assert_eq fullPolyEval (leftPolyEval + distinguishingValue * rightPolyEval)
+
 open Primes HashToField in
 /--
   Asserts that `fullStr = left ++ right` (concatenation) using the Fiat-Shamir transform.
@@ -275,31 +306,10 @@ def assertIsConcatenation
   let rightHash ← hashBytesToField right
   let fullHash  ← hashBytesToField {fullStr with len := left.len + right.len}
   let α ← Clap.Poseidon.poseidonBN254 #v[leftHash, rightHash, fullHash, left.len]
-  -- Step 2: enforce that left is 0-padded after left.len
-  -- rightArraySelector(left_len - 1) gives 1s at positions > left_len - 1, i.e. at [left_len, maxLeftLen)
-  let leftSelector ← FArray.rightArraySelector maxLeftLen (left.len - 1)
-  for l : i in [0:maxLeftLen] do
-    eq0 (leftSelector[i] * left.data[i])
-  -- NOTE: right-0-padding is deliberately NOT enforced here; per the CIRCOM
-  -- reference the caller validates `right_len` (see the doc comment above).
-  -- Step 3: build challenge powers α⁰, α¹, …, α^{maxFullLen-1}
+  -- Step 2: build challenge powers α⁰, α¹, …, α^{maxFullLen-1}
   let powers : Vector (F bn254) maxFullLen ← powers α maxFullLen
-  -- Step 4: left_poly_eval = Σᵢ left[i] · powers[i]
-  let mut leftPolyEval : F bn254 := 0
-  for l : i in [0:maxLeftLen] do
-    leftPolyEval := leftPolyEval + left.data[i] * powers[i]!
-  -- Step 5: right_poly_eval = Σⱼ right[j] · powers[j]
-  let mut rightPolyEval : F bn254 := 0
-  for l : j in [0:maxRightLen] do
-    rightPolyEval := rightPolyEval + right.data[j] * powers[j]!
-  -- Step 6: full_poly_eval = Σₖ fullStr[k] · powers[k]
-  let mut fullPolyEval : F bn254 := 0
-  for l : k in [0:maxFullLen] do
-    fullPolyEval := fullPolyEval + fullStr.data[k] * powers[k]
-  -- Step 7: distinguishing_value = α^left_len = SelectArrayValue(powers, left_len)
-  let distinguishingValue ← FArray.selectArrayValue powers left.len
-  -- Step 8: assert full_poly_eval = left_poly_eval + α^left_len · right_poly_eval
-  F.assert_eq fullPolyEval (leftPolyEval + distinguishingValue * rightPolyEval)
+  -- Step 3: delegate to aux
+  assertIsConcatenation_aux _hl _hr fullStr left right powers
 
 end FString
 
@@ -965,7 +975,7 @@ lemma isSubstringFS_complete (h : maxSubstrLen ≤ maxStrLen)
       simpa [Fin.getElem_fin] using this
     · -- condition 5: non-zero window witness; by contradiction via hα
       by_contra hcon
-      push_neg at hcon
+      push Not at hcon
       -- hcon : ∀ j < substr.len.val, str.data[startIndex.val + j]? = some 0
       apply hα
       suffices hzero : selectedStrPoly str substr.len.val startIndex.val = 0 by simp [hzero]
@@ -984,6 +994,597 @@ lemma isSubstringFS_complete (h : maxSubstrLen ≤ maxStrLen)
     isSubstringFS_aux_complete str substr startIndex.val ⟨hsubb, hsublt, hsubpad⟩ hSA α hα
   rw [isSubstringFS_equiv h str strHash substr startIndex hidx hslen hmax, hchal]
   simp [hspec, FB.ofBool, FB.true]
+
+variable {maxFullLen maxLeftLen maxRightLen : ℕ}
+
+/-- The difference polynomial `full(X) − (left(X) + X^{left.len}·right(X))`; identically zero iff
+    `fullStr` is the (left-padded) concatenation of `left` and `right`. -/
+noncomputable def assertIsConcatenation_diffPoly
+    (fullStr : FString bn254 maxFullLen) (left : FString bn254 maxLeftLen)
+    (right : FString bn254 maxRightLen) : (ZMod bn254)[X] :=
+  substrPoly fullStr - (substrPoly left + X ^ left.len.val * substrPoly right)
+
+/-- (Low) What `assertIsConcatenation_aux` computes at a given challenge `α`: `left` is 0-padded
+    past `left.len`, and the shifted polynomial-evaluation identity holds. The circuit's dot
+    products are exactly these `Polynomial.eval`s. -/
+noncomputable def assertIsConcatenation_aux_spec
+    (fullStr : FString bn254 maxFullLen) (left : FString bn254 maxLeftLen)
+    (right : FString bn254 maxRightLen) (α : ZMod bn254) : Bool :=
+  decide ((∀ i : Fin maxLeftLen, left.len.val ≤ i.val → left.data[i] = 0) ∧
+          (substrPoly fullStr).eval α = (substrPoly left).eval α + α ^ left.len.val * (substrPoly right).eval α)
+
+/-- (Mid) Field-level: `fullStr` is `left ++ right`. `left` is 0-padded past `left.len`, `fullStr`
+    agrees with `left` on `[0, left.len)` and with `right` on the shifted window `[left.len, …)`. -/
+def IsConcatenation (fullStr : FString bn254 maxFullLen) (left : FString bn254 maxLeftLen)
+    (right : FString bn254 maxRightLen) : Prop :=
+  (∀ i : Fin maxLeftLen, left.len.val ≤ i.val → left.data[i] = 0) ∧
+  (∀ i, i < left.len.val → fullStr.data[i]? = left.data[i]?) ∧
+  (∀ j, j < maxRightLen → fullStr.data[left.len.val + j]? = right.data[j]?)
+
+/-- (High) `full` is the concatenation of `left` and `right` as decoded strings. -/
+def IsConcatenationString (full left right : String) : Prop := full = left ++ right
+
+open HashToField in
+def assertIsConcatenation_challenge
+    (fullStr : FString bn254 maxFullLen) (left : FString bn254 maxLeftLen)
+    (right : FString bn254 maxRightLen) : Option (ZMod bn254) := do
+  let leftHash  ← hashBytesToField left
+  let rightHash ← hashBytesToField right
+  let fullHash  ← hashBytesToField {fullStr with len := left.len + right.len}
+  Clap.Poseidon.poseidonBN254 #v[leftHash, rightHash, fullHash, left.len]
+
+def assertIsConcatenation_atChallenge
+    (_hl : maxLeftLen ≤ maxFullLen) (_hr : maxRightLen ≤ maxFullLen)
+    (fullStr : FString bn254 maxFullLen) (left : FString bn254 maxLeftLen)
+    (right : FString bn254 maxRightLen) (α : ZMod bn254) : Option Unit :=
+  (FString.powers α maxFullLen).bind (FString.assertIsConcatenation_aux _hl _hr fullStr left right)
+
+/-! ### bridge lemmas -/
+
+/-- low ↔ mid. `full = left + X^{left.len}·right` -/
+lemma assertIsConcatenation_diffPoly_eq_zero_iff
+    (fullStr : FString bn254 maxFullLen) (left : FString bn254 maxLeftLen)
+    (right : FString bn254 maxRightLen)
+    (hfull : valid fullStr) (hleft : valid left)
+    (hbound : left.len.val + maxRightLen ≤ maxFullLen)
+    (hfit : fullStr.len.val ≤ left.len.val + maxRightLen) :
+    ((∀ i : Fin maxLeftLen, left.len.val ≤ i.val → left.data[i] = 0) ∧
+      substrPoly fullStr = substrPoly left + X ^ left.len.val * substrPoly right)
+      ↔ IsConcatenation fullStr left right := by
+  obtain ⟨_, hFlt, hFpad⟩ := hfull
+  obtain ⟨_, hLlt, _⟩ := hleft
+  unfold IsConcatenation
+  set L := left.len.val with hLdef
+  -- coeff normal form of the shifted right polynomial `X^L · right`
+  have hR : ∀ n, (X ^ L * substrPoly right).coeff n
+      = if L ≤ n then (right.data[n - L]?).getD 0 else 0 := by
+    intro n
+    rw [Polynomial.coeff_X_pow_mul']
+    by_cases h : L ≤ n
+    · rw [if_pos h, if_pos h, substrPoly_coeff]
+    · rw [if_neg h, if_neg h]
+  -- the polynomial identity, coefficient by coefficient
+  have hIdent :
+      (substrPoly fullStr = substrPoly left + X ^ L * substrPoly right)
+        ↔ ∀ n, (fullStr.data[n]?).getD 0
+              = (left.data[n]?).getD 0 + (if L ≤ n then (right.data[n - L]?).getD 0 else 0) := by
+    constructor
+    · intro h n
+      have hn := Polynomial.ext_iff.mp h n
+      rwa [Polynomial.coeff_add, substrPoly_coeff, substrPoly_coeff, hR] at hn
+    · intro h
+      rw [Polynomial.ext_iff]
+      intro n
+      rw [Polynomial.coeff_add, substrPoly_coeff, substrPoly_coeff, hR]
+      exact h n
+  -- factor out the shared left-0-padding clause
+  apply and_congr_right
+  intro hpadL
+  rw [hIdent]
+  constructor
+  · -- forward: coeff identity → agreement on `[0, L)` and on the shifted right window
+    intro hco
+    refine ⟨?_, ?_⟩
+    · -- agreement on `[0, L)`
+      intro i hi
+      have key := hco i
+      rw [if_neg (show ¬ L ≤ i by omega), add_zero] at key
+      have hiF : i < maxFullLen := by omega
+      have hiL : i < maxLeftLen := by omega
+      rw [Vector.getElem?_eq_getElem hiF, Vector.getElem?_eq_getElem hiL] at key ⊢
+      simpa using key
+    · -- agreement on the shifted window `[L, L + maxRightLen)`
+      intro j hj
+      have key := hco (L + j)
+      rw [if_pos (show L ≤ L + j by omega), Nat.add_sub_cancel_left] at key
+      have hleftz : (left.data[L + j]?).getD 0 = 0 := by
+        by_cases hlj : L + j < maxLeftLen
+        · rw [Vector.getElem?_eq_getElem hlj]
+          have := hpadL ⟨L + j, hlj⟩ (Nat.le_add_right L j)
+          simpa [Fin.getElem_fin] using this
+        · rw [Vector.getElem?_eq_none (by omega)]; rfl
+      rw [hleftz, zero_add] at key
+      have hjF : L + j < maxFullLen := by omega
+      rw [Vector.getElem?_eq_getElem hjF, Vector.getElem?_eq_getElem hj] at key ⊢
+      simpa using key
+  · -- backward: agreement clauses → coeff identity
+    rintro ⟨hb, hc⟩ n
+    by_cases h1 : n < L
+    · -- `n < L`: use the left-agreement clause
+      rw [if_neg (show ¬ L ≤ n by omega), add_zero, hb n h1]
+    · -- `L ≤ n`
+      rw [not_lt] at h1
+      rw [if_pos h1]
+      have hleftz : (left.data[n]?).getD 0 = 0 := by
+        by_cases hnL : n < maxLeftLen
+        · rw [Vector.getElem?_eq_getElem hnL]
+          have := hpadL ⟨n, hnL⟩ (by simpa using h1)
+          simpa [Fin.getElem_fin] using this
+        · rw [Vector.getElem?_eq_none (by omega)]; rfl
+      rw [hleftz, zero_add]
+      by_cases h2 : n - L < maxRightLen
+      · -- inside the right window: use the right-agreement clause
+        have hcn := hc (n - L) h2
+        rw [show L + (n - L) = n by omega] at hcn
+        rw [hcn]
+      · -- past the right window: both sides are 0 (`hfit` + `valid fullStr` zero the tail)
+        rw [not_lt] at h2
+        have hRz : (right.data[n - L]?).getD 0 = 0 := by
+          rw [Vector.getElem?_eq_none h2]; rfl
+        rw [hRz]
+        by_cases hnF : n < maxFullLen
+        · rw [Vector.getElem?_eq_getElem hnF]
+          have := hFpad ⟨n, hnF⟩ (by simpa using (show fullStr.len.val ≤ n by omega))
+          simpa [Fin.getElem_fin] using this
+        · rw [Vector.getElem?_eq_none (by omega)]; rfl
+
+/-- mid ↔ high -/
+lemma isConcatenation_eq_string
+    (fullStr : FString bn254 maxFullLen) (left : FString bn254 maxLeftLen)
+    (right : FString bn254 maxRightLen)
+    (hfull : valid fullStr) (hleft : valid left) (hright : valid right)
+    (hlen : fullStr.len.val = left.len.val + right.len.val)
+    (hbound : left.len.val + maxRightLen ≤ maxFullLen) :
+    IsConcatenation fullStr left right
+      ↔ IsConcatenationString (toString fullStr) (toString left) (toString right) := by
+  obtain ⟨hFb, hFlt, hFpad⟩ := hfull
+  obtain ⟨hLb, hLlt, hLpad⟩ := hleft
+  obtain ⟨hRb, hRlt, hRpad⟩ := hright
+  set L := left.len.val with hLdef
+  set R := right.len.val with hRdef
+  -- decoded lengths equal logical lengths
+  have hlenL : (Spec.FString.toString left).toList.length = L := by
+    rw [String.length_toList]; exact toString_length left hLlt
+  -- pointwise normal form: decoded index ↔ field data (truncated at `len`)
+  have hnf : ∀ (w : ℕ) (fs : FString bn254 w) (i : ℕ),
+      (Spec.FString.toString fs).toList[i]?
+        = if i < fs.len.val then (fs.data[i]?).map Spec.F8.toChar else none := by
+    intro w fs i
+    rw [toString_getElem?, List.getElem?_take, Vector.getElem?_toList]
+    by_cases h : i < fs.len.val
+    · rw [if_pos h, if_pos h]
+    · rw [if_neg h, if_neg h]; rfl
+  rw [IsConcatenationString, ← String.toList_inj, String.toList_append]
+  constructor
+  · -- forward: field concatenation → decoded-string equality
+    rintro ⟨_, hag2, hag3⟩
+    apply List.ext_getElem?
+    intro i
+    rw [hnf, List.getElem?_append, hlenL]
+    by_cases h1 : i < L
+    · -- inside `left`
+      rw [if_pos (show i < fullStr.len.val by omega), if_pos h1, hnf, if_pos h1, hag2 i h1]
+    · -- at or past `left.len`
+      rw [not_lt] at h1
+      rw [if_neg (not_lt.mpr h1), hnf]
+      by_cases h2 : i < fullStr.len.val
+      · -- inside the right window `[L, L+R)`
+        have hjR : i - L < R := by omega
+        rw [if_pos h2, if_pos hjR]
+        have hthis := hag3 (i - L) (show i - L < maxRightLen by omega)
+        rw [show L + (i - L) = i by omega] at hthis
+        rw [hthis]
+      · -- past all content: both sides `none`
+        rw [if_neg h2, if_neg (show ¬ i - L < R by omega)]
+  · -- backward: decoded-string equality → field concatenation
+    intro hEq
+    have hpt : ∀ i, (Spec.FString.toString fullStr).toList[i]?
+        = ((Spec.FString.toString left).toList ++ (Spec.FString.toString right).toList)[i]? :=
+      fun (i : ℕ) => congrArg (fun l : List Char => l[i]?) hEq
+    refine ⟨hLpad, ?_, ?_⟩
+    · -- agreement on `[0, L)`
+      intro i hi
+      have h := hpt i
+      rw [hnf, List.getElem?_append, hlenL, if_pos (show i < fullStr.len.val by omega),
+          if_pos hi, hnf, if_pos hi] at h
+      rw [Vector.getElem?_eq_getElem (show i < maxFullLen by omega),
+          Vector.getElem?_eq_getElem (show i < maxLeftLen by omega)] at h ⊢
+      simp only [Option.map_some] at h
+      have hva := hFb ⟨i, by omega⟩
+      have hvb := hLb ⟨i, by omega⟩
+      simp only [Fin.getElem_fin, Spec.F8.valid] at hva hvb
+      rw [Spec.F8.toChar_inj hva hvb (Option.some.inj h)]
+    · -- agreement on the shifted window `[L, L+maxRightLen)`
+      intro j hj
+      by_cases hjR : j < R
+      · -- inside the right content
+        have h := hpt (L + j)
+        rw [hnf, List.getElem?_append, hlenL, if_pos (show L + j < fullStr.len.val by omega),
+            if_neg (show ¬ L + j < L by omega), Nat.add_sub_cancel_left, hnf, if_pos hjR] at h
+        rw [Vector.getElem?_eq_getElem (show L + j < maxFullLen by omega),
+            Vector.getElem?_eq_getElem (show j < maxRightLen by omega)] at h ⊢
+        simp only [Option.map_some] at h
+        have hva := hFb ⟨L + j, by omega⟩
+        have hvb := hRb ⟨j, by omega⟩
+        simp only [Fin.getElem_fin, Spec.F8.valid] at hva hvb
+        rw [Spec.F8.toChar_inj hva hvb (Option.some.inj h)]
+      · -- past the right content: both sides `some 0`
+        rw [not_lt] at hjR
+        have hRz : right.data[j]? = some 0 := by
+          rw [Vector.getElem?_eq_getElem hj]
+          have := hRpad ⟨j, hj⟩ (by simpa using hjR)
+          simpa [Fin.getElem_fin] using this
+        have hFz : fullStr.data[L + j]? = some 0 := by
+          rw [Vector.getElem?_eq_getElem (show L + j < maxFullLen by omega)]
+          have := hFpad ⟨L + j, by omega⟩ (show fullStr.len.val ≤ L + j by omega)
+          simpa [Fin.getElem_fin] using this
+        rw [hFz, hRz]
+
+/-- `List.forM` over `eq0` reduces to a single decidable predicate: `some ()` iff `f` vanishes on
+    every element of `l`, `none` as soon as it doesn't. Used to reduce `assertIsConcatenation_aux`'s
+    left-0-padding loop to a plain `∀`. -/
+private lemma List.forM_eq0_iff {p : ℕ} {ι : Type*} (l : List ι) (f : ι → ZMod p) :
+    l.forM (fun i => eq0 (f i)) = if ∀ x ∈ l, f x = 0 then (some () : Option Unit) else none := by
+  induction l with
+  | nil => simp
+  | cons x xs ih =>
+    simp only [List.forM_eq_forM] at ih ⊢
+    rw [List.forM_cons]
+    by_cases hx : f x = 0
+    · have hstep : eq0 (f x) = some () := by simp only [eq0]; rw [if_pos hx]
+      rw [hstep]
+      simp only [bind, Option.bind]
+      rw [ih]
+      simp only [List.mem_cons, forall_eq_or_imp, hx, true_and]
+    · have hstep : eq0 (f x) = none := by simp only [eq0]; rw [if_neg hx]
+      rw [hstep]
+      simp only [bind, Option.bind]
+      rw [if_neg (fun h => hx (h x List.mem_cons_self))]
+
+/-- `assertIsConcatenation_aux` computes the low spec: it accepts (`some ()`) iff `assertIsConcatenation_aux_spec` holds. -/
+lemma assertIsConcatenation_aux_equiv
+    (_hl : maxLeftLen ≤ maxFullLen) (_hr : maxRightLen ≤ maxFullLen)
+    (fullStr : FString bn254 maxFullLen) (left : FString bn254 maxLeftLen)
+    (right : FString bn254 maxRightLen) (α : ZMod bn254)
+    (hlen : left.len.val < maxLeftLen)
+    (hlen0 : 0 < left.len.val)
+    (hmax : maxFullLen < 2 ^ 250) :
+    FString.assertIsConcatenation_aux _hl _hr fullStr left right (powersVec α maxFullLen)
+      = if assertIsConcatenation_aux_spec fullStr left right α then some () else none := by
+  -- numeric bounds
+  have hbn : (2 : ℕ) ^ 250 < bn254 := by decide
+  have hlenbn : maxLeftLen ≤ bn254 := le_of_lt (lt_of_le_of_lt _hl (lt_trans hmax hbn))
+  have hlenbnFull : maxFullLen ≤ bn254 := le_of_lt (lt_trans hmax hbn)
+  -- `(left.len - 1).val = left.len.val - 1`, using `hlen0` to avoid wraparound
+  have h1val : (1 : ZMod bn254).val = 1 := ZMod.val_one bn254
+  have hsub : (left.len - 1 : ZMod bn254).val = left.len.val - 1 := by
+    rw [ZMod.val_sub (by rw [h1val]; omega), h1val]
+  have hidxLt : (left.len - 1 : ZMod bn254).val < maxLeftLen := by rw [hsub]; omega
+  -- left-padding selector
+  have hsel := Spec.FArray.rightArraySelector_equiv maxLeftLen (left.len - 1) hidxLt hlenbn
+  have hbitmul : ∀ (P : Prop) [Decidable P] (x : ZMod bn254),
+      FB.ofBool (decide P) * x = 0 ↔ (P → x = 0) := by
+    intro P _ x
+    by_cases hP : P <;> simp [hP, FB.ofBool, FB.true, FB.false]
+  have hpad : (∀ i : Fin maxLeftLen,
+        ((Spec.FArray.rightArraySelector_spec maxLeftLen (left.len - 1).val).map
+          (FB.ofBool (p := bn254)))[i] * left.data[i] = 0)
+      ↔ (∀ i : Fin maxLeftLen, left.len.val ≤ i.val → left.data[i] = 0) := by
+    simp only [Vector.getElem_map, Spec.FArray.rightArraySelector_spec, Vector.getElem_ofFn,
+               Fin.getElem_fin, hbitmul, hsub]
+    constructor
+    · intro h i hi; exact h i (by omega)
+    · intro h i hi; exact h i (by omega)
+  have hforMval : (List.finRange maxLeftLen).forM
+        (fun i => eq0 (((Spec.FArray.rightArraySelector_spec maxLeftLen (left.len - 1).val).map
+          (FB.ofBool (p := bn254)))[i] * left.data[i]))
+      = if (∀ i : Fin maxLeftLen, left.len.val ≤ i.val → left.data[i] = 0)
+        then (some () : Option Unit) else none := by
+    rw [List.forM_eq0_iff]
+    simp only [List.mem_finRange, forall_true_left, hpad]
+  -- distinguishing value
+  have hlenFull : left.len.val < maxFullLen := lt_of_lt_of_le hlen _hl
+  have hsav : FArray.selectArrayValue (powersVec α maxFullLen) left.len
+      = some (α ^ left.len.val) := by
+    rw [Spec.FArray.selectArrayValue_equiv (powersVec α maxFullLen) left.len hlenbnFull]
+    simp only [Spec.FArray.selectArrayValue_spec, powersVec, Vector.getElem?_eq_getElem hlenFull,
+               Vector.getElem_ofFn]
+  -- recognise the dot products as polynomial evaluations
+  have hcastL : Vector.cast (Nat.min_eq_left _hl) ((powersVec α maxFullLen).take maxLeftLen)
+      = powersVec α maxLeftLen := by
+    apply Vector.ext; intro i hi
+    simp only [Vector.getElem_cast, Vector.getElem_take, powersVec, Vector.getElem_ofFn]
+  have hcastR : Vector.cast (Nat.min_eq_left _hr) ((powersVec α maxFullLen).take maxRightLen)
+      = powersVec α maxRightLen := by
+    apply Vector.ext; intro i hi
+    simp only [Vector.getElem_cast, Vector.getElem_take, powersVec, Vector.getElem_ofFn]
+  have hTL : F.dotProduct left.data
+        (Vector.cast (Nat.min_eq_left _hl) ((powersVec α maxFullLen).take maxLeftLen))
+      = (substrPoly left).eval α := by
+    rw [hcastL]; unfold substrPoly
+    rw [Spec.F.dotProduct_equiv]; unfold Spec.F.dotProduct_spec
+    rw [Polynomial.eval_finset_sum]
+    apply Finset.sum_congr rfl
+    intro j _
+    simp only [Fin.getElem_fin, powersVec, Vector.getElem_ofFn, eval_mul, eval_C, eval_pow, eval_X]
+  have hTR : F.dotProduct right.data
+        (Vector.cast (Nat.min_eq_left _hr) ((powersVec α maxFullLen).take maxRightLen))
+      = (substrPoly right).eval α := by
+    rw [hcastR]; unfold substrPoly
+    rw [Spec.F.dotProduct_equiv]; unfold Spec.F.dotProduct_spec
+    rw [Polynomial.eval_finset_sum]
+    apply Finset.sum_congr rfl
+    intro j _
+    simp only [Fin.getElem_fin, powersVec, Vector.getElem_ofFn, eval_mul, eval_C, eval_pow, eval_X]
+  have hTF : F.dotProduct fullStr.data (powersVec α maxFullLen) = (substrPoly fullStr).eval α := by
+    unfold substrPoly
+    rw [Spec.F.dotProduct_equiv]; unfold Spec.F.dotProduct_spec
+    rw [Polynomial.eval_finset_sum]
+    apply Finset.sum_congr rfl
+    intro j _
+    simp only [Fin.getElem_fin, powersVec, Vector.getElem_ofFn, eval_mul, eval_C, eval_pow, eval_X]
+  have hassert : F.assert_eq
+        (F.dotProduct fullStr.data (powersVec α maxFullLen))
+        (F.dotProduct left.data (Vector.cast (Nat.min_eq_left _hl) ((powersVec α maxFullLen).take maxLeftLen))
+          + α ^ left.len.val * F.dotProduct right.data
+              (Vector.cast (Nat.min_eq_left _hr) ((powersVec α maxFullLen).take maxRightLen)))
+      = if (substrPoly fullStr).eval α
+           = (substrPoly left).eval α + α ^ left.len.val * (substrPoly right).eval α
+        then (some () : Option Unit) else none := by
+    rw [Spec.F.assert_eq_eq_ite, hTF, hTL, hTR]
+  unfold FString.assertIsConcatenation_aux
+  rw [hsel]
+  simp only [bind, Option.bind]
+  rw [hforMval]
+  by_cases hpadc : (∀ i : Fin maxLeftLen, left.len.val ≤ i.val → left.data[i] = 0)
+  · rw [if_pos hpadc]
+    dsimp only
+    rw [hsav]
+    dsimp only
+    rw [hassert]
+    unfold assertIsConcatenation_aux_spec
+    by_cases hpoly : (substrPoly fullStr).eval α
+        = (substrPoly left).eval α + α ^ left.len.val * (substrPoly right).eval α
+    · rw [if_pos hpoly, if_pos (by simp only [decide_eq_true_eq]; exact ⟨hpadc, hpoly⟩)]
+    · rw [if_neg hpoly,
+          if_neg (by simp only [decide_eq_true_eq]; exact fun h => hpoly h.2)]
+  · rw [if_neg hpadc]
+    dsimp only
+    unfold assertIsConcatenation_aux_spec
+    rw [if_neg (by simp only [decide_eq_true_eq]; exact fun h => hpadc h.1)]
+
+lemma assertIsConcatenation_aux_complete
+    (fullStr : FString bn254 maxFullLen) (left : FString bn254 maxLeftLen)
+    (right : FString bn254 maxRightLen)
+    (hfull : valid fullStr) (hleft : valid left)
+    (hbound : left.len.val + maxRightLen ≤ maxFullLen)
+    (hfit : fullStr.len.val ≤ left.len.val + maxRightLen)
+    (hmatch : IsConcatenation fullStr left right) (α : ZMod bn254) :
+    assertIsConcatenation_aux_spec fullStr left right α = true := by
+  obtain ⟨hpad, hpoly⟩ :=
+    (assertIsConcatenation_diffPoly_eq_zero_iff
+      fullStr left right hfull hleft hbound hfit).mpr hmatch
+  have heval := congrArg (Polynomial.eval α) hpoly
+  simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_pow,
+             Polynomial.eval_X] at heval
+  unfold assertIsConcatenation_aux_spec
+  rw [decide_eq_true_eq]
+  exact ⟨hpad, heval⟩
+
+/-- (Soundness deterministic) If `fullStr` is not the concatenation, the accepting challenges number
+    at most `maxFullLen − 1` -/
+lemma assertIsConcatenation_aux_sound_card
+    (fullStr : FString bn254 maxFullLen) (left : FString bn254 maxLeftLen)
+    (right : FString bn254 maxRightLen)
+    -- (hfull : valid fullStr)
+    (hleft : valid left)
+    -- (hright : valid right)
+    (hbound : left.len.val + maxRightLen ≤ maxFullLen)
+    (hbad : ¬ IsConcatenation fullStr left right) :
+    (Finset.univ.filter
+        (fun α => assertIsConcatenation_aux_spec fullStr left right α = true)).card
+      ≤ maxFullLen - 1 := by
+  by_cases hpad : (∀ i : Fin maxLeftLen, left.len.val ≤ i.val → left.data[i] = 0)
+  · -- left-0-padding holds; `hbad` then forces the diff polynomial to be nonzero
+    obtain ⟨_, hLlt, hLpad⟩ := hleft
+    set L := left.len.val with hLdef
+    have hR : ∀ n, (X ^ L * substrPoly right).coeff n
+        = if L ≤ n then (right.data[n - L]?).getD 0 else 0 := by
+      intro n
+      rw [Polynomial.coeff_X_pow_mul']
+      by_cases h : L ≤ n
+      · rw [if_pos h, if_pos h, substrPoly_coeff]
+      · rw [if_neg h, if_neg h]
+    have hne : assertIsConcatenation_diffPoly fullStr left right ≠ 0 := by
+      intro hz
+      apply hbad
+      unfold assertIsConcatenation_diffPoly at hz
+      rw [sub_eq_zero] at hz
+      refine ⟨hpad, ?_, ?_⟩
+      · intro i hi
+        have key := Polynomial.ext_iff.mp hz i
+        rw [Polynomial.coeff_add, substrPoly_coeff, substrPoly_coeff, hR,
+            if_neg (show ¬ L ≤ i by omega), add_zero] at key
+        have hiF : i < maxFullLen := by omega
+        have hiL : i < maxLeftLen := by omega
+        rw [Vector.getElem?_eq_getElem hiF, Vector.getElem?_eq_getElem hiL] at key ⊢
+        simpa using key
+      · intro j hj
+        have key := Polynomial.ext_iff.mp hz (L + j)
+        rw [Polynomial.coeff_add, substrPoly_coeff, substrPoly_coeff, hR,
+            if_pos (show L ≤ L + j by omega), Nat.add_sub_cancel_left] at key
+        have hleftz : (left.data[L + j]?).getD 0 = 0 := by
+          by_cases hlj : L + j < maxLeftLen
+          · rw [Vector.getElem?_eq_getElem hlj]
+            have := hpad ⟨L + j, hlj⟩ (Nat.le_add_right L j)
+            simpa [Fin.getElem_fin] using this
+          · rw [Vector.getElem?_eq_none (by omega)]; rfl
+        rw [hleftz, zero_add] at key
+        have hjF : L + j < maxFullLen := by omega
+        rw [Vector.getElem?_eq_getElem hjF, Vector.getElem?_eq_getElem hj] at key ⊢
+        simpa using key
+    have hdeg : (assertIsConcatenation_diffPoly fullStr left right).natDegree ≤ maxFullLen - 1 := by
+      rw [Polynomial.natDegree_le_iff_coeff_eq_zero]
+      intro N hN
+      have hNm : maxFullLen ≤ N := by omega
+      unfold assertIsConcatenation_diffPoly
+      rw [Polynomial.coeff_sub, Polynomial.coeff_add, substrPoly_coeff, substrPoly_coeff, hR]
+      have hc1 : (fullStr.data[N]?).getD 0 = 0 := by
+        rw [Vector.getElem?_eq_none (by omega)]; rfl
+      have hc2 : (left.data[N]?).getD 0 = 0 := by
+        by_cases hNL : N < maxLeftLen
+        · rw [Vector.getElem?_eq_getElem hNL]
+          have := hLpad ⟨N, hNL⟩ (by show L ≤ N; omega)
+          simpa [Fin.getElem_fin] using this
+        · rw [Vector.getElem?_eq_none (by omega)]; rfl
+      have hc3 : (if L ≤ N then (right.data[N - L]?).getD 0 else 0) = 0 := by
+        rw [if_pos (show L ≤ N by omega), Vector.getElem?_eq_none (by omega)]; rfl
+      rw [hc1, hc2, hc3]; ring
+    have hsubR : (Finset.univ.filter
+        (fun α => assertIsConcatenation_aux_spec fullStr left right α = true)).val
+          ⊆ (assertIsConcatenation_diffPoly fullStr left right).roots := by
+      intro α hα
+      rw [Finset.mem_val, Finset.mem_filter] at hα
+      obtain ⟨_, hspec⟩ := hα
+      unfold assertIsConcatenation_aux_spec at hspec
+      rw [decide_eq_true_eq] at hspec
+      obtain ⟨_, heval⟩ := hspec
+      rw [Polynomial.mem_roots']
+      refine ⟨hne, ?_⟩
+      show (assertIsConcatenation_diffPoly fullStr left right).eval α = 0
+      unfold assertIsConcatenation_diffPoly
+      rw [Polynomial.eval_sub, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_pow,
+          Polynomial.eval_X, sub_eq_zero]
+      exact heval
+    calc (Finset.univ.filter
+        (fun α => assertIsConcatenation_aux_spec fullStr left right α = true)).card
+        ≤ (assertIsConcatenation_diffPoly fullStr left right).natDegree :=
+          Polynomial.card_le_degree_of_subset_roots hsubR
+      _ ≤ maxFullLen - 1 := hdeg
+  · -- left-0-padding fails: the accepting set is empty
+    have hempty : (Finset.univ.filter
+        (fun α => assertIsConcatenation_aux_spec fullStr left right α = true)) = ∅ := by
+      rw [Finset.filter_eq_empty_iff]
+      intro α _
+      unfold assertIsConcatenation_aux_spec
+      rw [decide_eq_true_eq]
+      exact fun h => hpad h.1
+    rw [hempty, Finset.card_empty]
+    exact Nat.zero_le _
+
+/-- (Soundness probabilistic) For a uniformly random challenge `α` (the random-oracle / Fiat–Shamir
+    heuristic on Poseidon), a non-concatenation is accepted with probability at most
+    `(maxFullLen − 1) / |F|` -/
+lemma assertIsConcatenation_aux_sound_prob
+    (fullStr : FString bn254 maxFullLen) (left : FString bn254 maxLeftLen)
+    (right : FString bn254 maxRightLen)
+    -- (hfull : valid fullStr)
+    (hleft : valid left)
+    -- (hright : valid right)
+    (hbound : left.len.val + maxRightLen ≤ maxFullLen)
+    (hbad : ¬ IsConcatenation fullStr left right) :
+    (PMF.uniformOfFintype (ZMod bn254)).toOuterMeasure
+        {α | assertIsConcatenation_aux_spec fullStr left right α = true}
+      ≤ ((maxFullLen - 1 : ℕ) : ENNReal) / (bn254 : ENNReal) := by
+  have hcard := assertIsConcatenation_aux_sound_card fullStr left right hleft hbound hbad
+  have hset_eq : {α : ZMod bn254 | assertIsConcatenation_aux_spec fullStr left right α = true} =
+      ↑(Finset.univ.filter (fun α => assertIsConcatenation_aux_spec fullStr left right α = true)) := by
+    ext α; simp
+  rw [hset_eq, PMF.toOuterMeasure_uniformOfFintype_apply, ZMod.card]
+  apply ENNReal.div_le_div_right
+  simp only [Finset.coe_sort_coe, Fintype.card_coe]
+  exact_mod_cast hcard
+
+/-! ### `assertIsConcatenation` the full circuit, with the challenge -/
+
+lemma assertIsConcatenation_factor
+    (_hl : maxLeftLen ≤ maxFullLen) (_hr : maxRightLen ≤ maxFullLen)
+    (fullStr : FString bn254 maxFullLen) (left : FString bn254 maxLeftLen)
+    (right : FString bn254 maxRightLen) :
+    FString.assertIsConcatenation _hl _hr fullStr left right
+      = (assertIsConcatenation_challenge fullStr left right).bind
+          (assertIsConcatenation_atChallenge _hl _hr fullStr left right) := by
+  unfold FString.assertIsConcatenation assertIsConcatenation_challenge
+    assertIsConcatenation_atChallenge
+  simp only [← Option.bind_eq_bind, bind_assoc]
+
+lemma assertIsConcatenation_equiv
+    (_hl : maxLeftLen ≤ maxFullLen) (_hr : maxRightLen ≤ maxFullLen)
+    (fullStr : FString bn254 maxFullLen) (left : FString bn254 maxLeftLen)
+    (right : FString bn254 maxRightLen)
+    (hlen : left.len.val < maxLeftLen)
+    (hlen0 : 0 < left.len.val)
+    (hmax : maxFullLen < 2 ^ 250) :
+    FString.assertIsConcatenation _hl _hr fullStr left right
+      = (assertIsConcatenation_challenge fullStr left right).bind
+          (fun α => if assertIsConcatenation_aux_spec fullStr left right α then some () else none) := by
+  rw [assertIsConcatenation_factor]
+  rcases assertIsConcatenation_challenge fullStr left right with _ | α
+  · simp
+  · simp only [Option.bind_some]
+    unfold assertIsConcatenation_atChallenge
+    rw [powers_eq, Option.bind_some]
+    exact assertIsConcatenation_aux_equiv _hl _hr fullStr left right α hlen hlen0 hmax
+
+/-- (RO soundness) Under the random-oracle model, a non-concatenation is accepted with probability at most `(maxFullLen − 1) / |F|`. -/
+lemma assertIsConcatenation_sound_RO (ro : ROModel bn254)
+    (_hl : maxLeftLen ≤ maxFullLen) (_hr : maxRightLen ≤ maxFullLen)
+    (fullStr : FString bn254 maxFullLen) (left : FString bn254 maxLeftLen)
+    (right : FString bn254 maxRightLen)
+    (leftHash rightHash fullHash : ZMod bn254)
+    (hfull : valid fullStr) (hleft : valid left) (hright : valid right)
+    (hlen0 : 0 < left.len.val)
+    (hlensum : fullStr.len.val = left.len.val + right.len.val)
+    (hbound : left.len.val + maxRightLen ≤ maxFullLen)
+    (hmax : maxFullLen < 2 ^ 250)
+    (hbad : ¬ IsConcatenationString (toString fullStr) (toString left) (toString right)) :
+    (ro.chal (assertIsConcatenation_Query leftHash rightHash fullHash left.len)).toOuterMeasure
+        {α | assertIsConcatenation_atChallenge _hl _hr fullStr left right α = some ()}
+      ≤ ((maxFullLen - 1 : ℕ) : ENNReal) / bn254 := by
+  rw [ro.uniform]
+  have hset : {α | assertIsConcatenation_atChallenge _hl _hr fullStr left right α = some ()} =
+      {α | assertIsConcatenation_aux_spec fullStr left right α = true} := by
+    ext α
+    simp only [Set.mem_setOf_eq]
+    unfold assertIsConcatenation_atChallenge
+    rw [powers_eq, Option.bind_some,
+        assertIsConcatenation_aux_equiv _hl _hr fullStr left right α hleft.2.1 hlen0 hmax]
+    cases assertIsConcatenation_aux_spec fullStr left right α <;> simp
+  rw [hset]
+  apply assertIsConcatenation_aux_sound_prob fullStr left right hleft hbound
+  exact mt (isConcatenation_eq_string fullStr left right hfull hleft hright hlensum hbound).mp hbad
+
+lemma assertIsConcatenation_complete
+    (hl : maxLeftLen ≤ maxFullLen) (hr : maxRightLen ≤ maxFullLen)
+    (fullStr : FString bn254 maxFullLen) (left : FString bn254 maxLeftLen)
+    (right : FString bn254 maxRightLen) (α : ZMod bn254)
+    (hfull : valid fullStr) (hleft : valid left) (hright : valid right)
+    (hlen0 : 0 < left.len.val)
+    (hlensum : fullStr.len.val = left.len.val + right.len.val)
+    (hbound : left.len.val + maxRightLen ≤ maxFullLen)
+    (hmax : maxFullLen < 2 ^ 250)
+    (hmatch : IsConcatenationString (toString fullStr) (toString left) (toString right))
+    (hchal : assertIsConcatenation_challenge fullStr left right = some α) :
+    FString.assertIsConcatenation hl hr fullStr left right = some () := by
+  have hIsConcat : IsConcatenation fullStr left right :=
+    (isConcatenation_eq_string fullStr left right hfull hleft hright hlensum hbound).mpr hmatch
+  obtain ⟨_, hRlt, _⟩ := hright
+  have hfit : fullStr.len.val ≤ left.len.val + maxRightLen := by omega
+  have hspec := assertIsConcatenation_aux_complete fullStr left right hfull hleft
+    hbound hfit hIsConcat α
+  rw [assertIsConcatenation_equiv hl hr fullStr left right hleft.2.1 hlen0 hmax, hchal,
+      Option.bind_some]
+  simp [hspec]
 
 end Spec.FString
 
