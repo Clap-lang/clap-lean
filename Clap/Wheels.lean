@@ -28,6 +28,32 @@ private lemma scanlAux_length {α β : Type} (f : β → α → β) (init : β) 
 def Vector.scanl {α β : Type} {n} (f : β → α → β) (init : β) (v : Vector α n) : Vector β n :=
   ⟨⟨scanlAux f init v.toList⟩, by simp [scanlAux_length]⟩
 
+/-- `scanlAux (· + ·)` builds the exclusive prefix sums: its `k`-th element is
+    `init` plus the sum of the first `k` elements. -/
+private lemma scanlAux_add_get {β : Type} [AddCommMonoid β] :
+    ∀ (l : List β) (init : β) (k : ℕ) (hk : k < (scanlAux (· + ·) init l).length),
+      (scanlAux (· + ·) init l)[k] = init + (l.take k).sum
+  | [], _, k, hk => by simp [scanlAux] at hk
+  | a :: t, init, 0, _ => by simp [scanlAux]
+  | a :: t, init, k + 1, hk => by
+      have hk' : k < (scanlAux (· + ·) (init + a) t).length := by
+        simpa [scanlAux] using hk
+      simp only [scanlAux, List.getElem_cons_succ]
+      rw [scanlAux_add_get t (init + a) k hk', List.take_succ_cons, List.sum_cons]
+      abel
+
+/-- Exclusive prefix sum: the `i`-th entry of `v.scanl (· + ·) 0` is the sum of the
+    first `i` entries of `v` (positions `0 ≤ j < i`). -/
+lemma Vector.getElem_scanl_add {β : Type} [AddCommMonoid β] {n : ℕ}
+    (v : Vector β n) (i : ℕ) (hi : i < n) :
+    (Vector.scanl (· + ·) (0 : β) v)[i] = (v.toList.take i).sum := by
+  have hk : i < (scanlAux (· + ·) (0 : β) v.toList).length := by
+    rw [scanlAux_length, Vector.length_toList]; exact hi
+  have hbridge : (Vector.scanl (· + ·) (0 : β) v)[i] = (scanlAux (· + ·) (0 : β) v.toList)[i]'hk := by
+    simp [Vector.scanl]
+  rw [hbridge, scanlAux_add_get v.toList (0 : β) i hk]
+  simp
+
 namespace Clap
 
 @[reducible]
@@ -73,6 +99,37 @@ def minBits (x : ℕ) : ℕ :=
   if x = 0 then 1 else
   let nb := Nat.log2 x
   if 2^nb ≤ x then nb + 1 else nb
+
+/-- For `n ≠ 0`, `minBits n = log₂ n + 1` (the `2 ^ log₂ n ≤ n` branch is always taken). -/
+lemma minBits_eq_log_succ {n : ℕ} (hn : n ≠ 0) : minBits n = Nat.log 2 n + 1 := by
+  have hle : 2 ^ Nat.log2 n ≤ n := by
+    rw [Nat.log2_eq_log_two]; exact Nat.pow_log_le_self 2 hn
+  unfold minBits
+  rw [if_neg hn]
+  dsimp only
+  rw [if_pos hle, Nat.log2_eq_log_two]
+
+/-- `n` fits in `minBits n` bits. -/
+lemma lt_two_pow_minBits (n : ℕ) : n < 2 ^ minBits n := by
+  rcases eq_or_ne n 0 with h | h
+  · subst h; decide
+  · rw [minBits_eq_log_succ h]
+    exact Nat.lt_pow_succ_log_self (by norm_num) n
+
+/-- `minBits` is monotone in its argument. -/
+lemma minBits_mono {a b : ℕ} (h : a ≤ b) : minBits a ≤ minBits b := by
+  have h1 : ∀ n, 1 ≤ minBits n := by
+    intro n
+    rcases eq_or_ne n 0 with hn | hn
+    · subst hn; decide
+    · rw [minBits_eq_log_succ hn]; omega
+  rcases eq_or_ne a 0 with ha | ha
+  · subst ha
+    have : minBits 0 = 1 := by decide
+    rw [this]; exact h1 b
+  · have hb : b ≠ 0 := fun hb0 => ha (Nat.le_zero.mp (hb0 ▸ h))
+    rw [minBits_eq_log_succ ha, minBits_eq_log_succ hb]
+    exact Nat.add_le_add_right (Nat.log_mono_right h) 1
 
 def minBytes (x : ℕ) : ℕ :=
   let nb := minBits x

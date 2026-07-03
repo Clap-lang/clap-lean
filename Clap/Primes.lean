@@ -43,4 +43,6 @@ instance : Fact (fits bn254 16) := by decide
 instance : Fact (fits bn254 32) := by decide
 instance : Fact (fits bn254 64) := by decide
 
+instance : NeZero bn254 := ⟨(Fact.out : Nat.Prime bn254).pos.ne'⟩
+
 end Primes

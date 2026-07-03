@@ -191,6 +191,42 @@ end F
 
 namespace Spec.F
 
+/-- Folding `(· + ·)` over a list from `0` is its sum. -/
+lemma list_foldl_add_zero (l : List (F p)) : l.foldl (· + ·) 0 = l.sum := by
+  have h : ∀ b : F p, l.foldl (· + ·) b = b + l.sum := by
+    induction l with
+    | nil => intro b; simp
+    | cons x xs ih =>
+        intro b
+        rw [List.foldl_cons, ih (b + x), List.sum_cons]
+        ring
+  simpa using h 0
+
+/-- `Vector.foldl (· + ·) 0` agrees with the sum of `toList`. -/
+lemma vector_foldl_add_toList {n : ℕ} (v : Vector (F p) n) :
+    v.foldl (· + ·) 0 = v.toList.sum := by
+  rcases v with ⟨arr, h⟩
+  simp only [Vector.foldl_mk, Vector.toList_mk]
+  rw [← Array.foldl_toList]
+  exact list_foldl_add_zero arr.toList
+
+/-- `Vector.foldl (· + ·) 0` of an `ofFn` vector is the `Finset` sum. -/
+lemma ofFn_foldl_add {n : ℕ} (g : Fin n → F p) :
+    (Vector.ofFn g).foldl (· + ·) 0 = ∑ i : Fin n, g i := by
+  rw [vector_foldl_add_toList, Vector.toList_ofFn]
+  exact Fin.sum_ofFn g
+
+def dotProduct_spec {w : ℕ} (a b : Vector (F p) w) : F p := ∑ i : Fin w, a[i] * b[i]
+
+lemma dotProduct_equiv {w : ℕ} (a b : Vector (F p) w) :
+    F.dotProduct a b = dotProduct_spec a b := by
+  unfold F.dotProduct dotProduct_spec
+  rw [show a.zipWith (· * ·) b = Vector.ofFn (fun i : Fin w => a[i] * b[i]) by
+        apply Vector.ext
+        intro i hi
+        simp [Vector.getElem_zipWith, Vector.getElem_ofFn],
+      ofFn_foldl_add]
+
 variable [Fact (Nat.Prime p)]
 
 private lemma num2bitsLsbPureV_aux_toList_eq {p : ℕ} (w : ℕ) (v : ZMod p) :
@@ -371,6 +407,12 @@ private lemma toChar_ofChar [NeZero p] {c : Char}
   unfold F8.ofChar F8.toChar
   rw [ofUInt8_toUInt8 _ hp]
   exact Char.ofUInt8_toUInt8 hc
+
+/-- `toChar` is injective on valid bytes. -/
+lemma toChar_inj [NeZero p] {a b : F8 p} (ha : a.val < 2^8) (hb : b.val < 2^8)
+    (h : toChar a = toChar b) : a = b := by
+  have h2 := congrArg (F8.ofChar (p := p)) h
+  rwa [ofChar_toChar ha, ofChar_toChar hb] at h2
 
 def lessThan_equiv [Fact (Nat.Prime p)] (a b : F p)
     (ha : valid a)
@@ -615,6 +657,11 @@ def toString {w:ℕ} (fs : FString p w) : String :=
 def valid {w} (fs : FString p w) : Prop :=
   (∀ i : Fin w, F8.valid fs.data[i]) ∧ fs.len.val < w ∧
   (∀ i : Fin w, fs.len.val ≤ i.val → fs.data[i] = 0)
+
+/-- A `valid` string with no embedded null bytes in its content: `len.val` is the genuine
+    length (nonzero up to `len`, zero after), so decoding to a `String` loses no information. -/
+def nonEmpty {w} (fs : FString p w) : Prop :=
+  valid fs ∧ ∀ j, j < fs.len.val → fs.data[j]? ≠ some 0
 
 private theorem eqRec_toList {α} {n m : ℕ} (h : n = m) (v : Vector α n) :
     (h ▸ v).toList = v.toList := by
@@ -1052,6 +1099,87 @@ def FByteArray (p w : ℕ) [Fact (Primes.fits p 8)] := Vector (FBV8 p) w
 namespace FByteArray
 
 end FByteArray
+
+/-! ### Specs for the `assert_eq` family -/
+
+namespace Spec.F
+
+lemma assert_eq_eq_ite (a b : F p) :
+    F.assert_eq a b = if a = b then some () else none := by
+  simp only [F.assert_eq, eq0, sub_eq_zero]
+
+@[simp] lemma assert_eq_spec (a b : F p) :
+    F.assert_eq a b = some () ↔ a = b := by
+  rw [assert_eq_eq_ite]; split <;> simp_all
+
+end Spec.F
+
+namespace Spec.FB
+
+lemma assert_eq_eq_ite (a b : FB p) :
+    FB.assert_eq a b = if a = b then some () else none := by
+  unfold FB.assert_eq; exact Spec.F.assert_eq_eq_ite a b
+
+@[simp] lemma assert_eq_spec (a b : FB p) :
+    FB.assert_eq a b = some () ↔ a = b := by
+  unfold FB.assert_eq; exact Spec.F.assert_eq_spec a b
+
+end Spec.FB
+
+namespace Spec.FBitVec
+
+/-- `Vector.foldlM` over `Option` agrees with `List.foldlM` on its `toList`. -/
+private lemma vector_foldlM_eq_toList {α β : Type} {n : ℕ}
+    (f : β → α → Option β) (b : β) (v : Vector α n) :
+    v.foldlM f b = v.toList.foldlM f b := by
+  rcases v with ⟨arr, h⟩
+  simp only [Vector.foldlM_mk, Vector.toList_mk, Array.foldlM_toList]
+
+/-- A fold of element-wise `FB.assert_eq`s over two zipped lists succeeds iff the
+    lists are equal (assuming equal lengths). -/
+private lemma assert_eq_foldlM_iff :
+    ∀ (l₁ l₂ : List (FB p)), l₁.length = l₂.length →
+      ((l₁.zip l₂).foldlM (fun () (a, b) => FB.assert_eq a b) () = some () ↔ l₁ = l₂) := by
+  intro l₁
+  induction l₁ with
+  | nil => intro l₂ _; cases l₂ <;> simp_all
+  | cons x xs ih =>
+    intro l₂ hlen
+    cases l₂ with
+    | nil => simp at hlen
+    | cons y ys =>
+      simp only [List.length_cons] at hlen
+      have hlen' : xs.length = ys.length := by omega
+      rw [List.zip_cons_cons, List.foldlM_cons]
+      show (FB.assert_eq x y >>= fun _ =>
+              (xs.zip ys).foldlM (fun () (a, b) => FB.assert_eq a b) ()) = some () ↔ x :: xs = y :: ys
+      by_cases hxy : x = y
+      · subst hxy
+        rw [Spec.FB.assert_eq_eq_ite, if_pos rfl]
+        show (xs.zip ys).foldlM (fun () (a, b) => FB.assert_eq a b) () = some () ↔ x :: xs = x :: ys
+        rw [ih ys hlen']; simp
+      · rw [Spec.FB.assert_eq_eq_ite, if_neg hxy]
+        show (none : Option Unit) = some () ↔ x :: xs = y :: ys
+        simp [hxy]
+
+@[simp] lemma assert_eq_spec {w} (a b : FBitVec p w) :
+    FBitVec.assert_eq a b = some () ↔ a = b := by
+  unfold FBitVec.assert_eq
+  rw [vector_foldlM_eq_toList]
+  have htoList : (a.zip b).toList = a.toList.zip b.toList := by
+    simp [Vector.zip_eq_zipWith, Vector.toList_zipWith, List.zip]
+  rw [htoList, assert_eq_foldlM_iff a.toList b.toList (by simp [Vector.length_toList]),
+    Vector.toList_inj]
+
+end Spec.FBitVec
+
+namespace Spec.F32
+
+@[simp] lemma assert_eq_spec (a b : F32 p) :
+    F32.assert_eq a b = some () ↔ a = b := by
+  unfold F32.assert_eq; exact Spec.FBitVec.assert_eq_spec a b
+
+end Spec.F32
 
 end Clap.Lang
 
