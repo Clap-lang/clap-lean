@@ -54,12 +54,6 @@ def isWhitespace [Inhabited var] (c : F8 p var) : Edsl.CircuitContM p var (FB p 
 def isWhitespace_spec (c:Char) : Bool :=
   (c.toNat > 8 && c.toNat < 14) || c.toNat = 32
 
--- TODO
--- we do not want to check result for equality,
--- because isWhitespace is a function that returns an Exp, we want to check equivalence under evaluation
--- this requires a slightly different matches_spec function, though we may be able to get away with
--- just having one for CircuitContM Unit, one for CircuitContM Exp, and something like CircuitContM (List Exp)
--- this just depends on what the functions we want to spec are
 lemma isWhitespace_matches_spec [Inhabited var] (varStore : var → ZMod p) (c : F8 p var):
   Spec.matches_spec
     (varStore := varStore)

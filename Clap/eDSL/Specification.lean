@@ -46,6 +46,37 @@ def equiv {p: ℕ} {var: Type} {ResultT: Type}
     eval varStore (circuit2 continuation)
   )
 
+-- TODO prove these lemmas
+-- TODO finish set of spec utility lemmas
+-- TODO Setoid
+lemma equiv_pure {p: ℕ} {var: Type}
+  (varStore : var → ZMod p)
+  (a b: Exp p var)
+  (h_equiv: eval_expr varStore a = eval_expr varStore b)
+:
+  equiv
+    varStore
+    (pure a)
+    (pure b)
+:= by
+  sorry
+
+lemma equiv_eq0 {p: ℕ} {var: Type} {ResultT: Type}
+  (varStore : var → ZMod p)
+  (a: Exp p var)
+  (rest: Edsl.CircuitContM p var ResultT)
+  (h_equiv: eval_expr varStore a = 0)
+:
+  equiv
+    varStore
+    (do
+      Edsl.eq0 a
+      rest
+    )
+    rest
+:= by
+  sorry
+
 def fails {p: ℕ} {var: Type} {ResultT: Type}
   (varStore : var → ZMod p)
   (circuit : Edsl.CircuitContM p var ResultT)
@@ -53,6 +84,65 @@ def fails {p: ℕ} {var: Type} {ResultT: Type}
   ∀ continuation,
     eval varStore (circuit continuation) =
     .n
+
+lemma fails_eq0 {p: ℕ} {var: Type} {ResultT: Type}
+  (varStore : var → ZMod p)
+  (a: Exp p var)
+  (h_equiv: eval_expr varStore a ≠ 0)
+:
+  fails
+    varStore
+    (Edsl.eq0 a)
+:= by
+  sorry
+
+lemma fails_of_head_fails {p: ℕ} {var: Type} {MidT ResultT: Type}
+  (varStore : var → ZMod p)
+  (head: Edsl.CircuitContM p var MidT)
+  (tail: MidT → Edsl.CircuitContM p var ResultT)
+  (h_fails: fails varStore head)
+:
+  fails
+    varStore
+    (bind head tail)
+:= by
+  simp [fails, bind] at ⊢ h_fails
+  intro continuation
+  rw [h_fails]
+
+-- TODO
+-- this is not true in general
+-- but can perhaps be proven for all Edsl constructs as head
+-- lemma fails_of_tail_fails {p: ℕ} {var: Type} {MidT ResultT: Type}
+--   (varStore : var → ZMod p)
+--   (head: Edsl.CircuitContM p var MidT)
+--   (tail: MidT → Edsl.CircuitContM p var ResultT)
+--   (h_fails: ∀ x, fails varStore (tail x))
+-- :
+--   fails
+--     varStore
+--     (bind head tail)
+-- := by
+--   simp [fails, bind] at ⊢ h_fails
+--   intro continuation
+
+-- TODO this requires the implementation of eval
+lemma fails_of_tail_fails {p: ℕ} {var: Type} {ResultT: Type}
+  (varStore : var → ZMod p)
+  (a: Exp p var)
+  (tail: Unit → Edsl.CircuitContM p var ResultT)
+  (h_fails: ∀ x, fails varStore (tail x))
+:
+  fails
+    varStore
+    (bind (Edsl.eq0 a) tail)
+:= by
+  simp [fails, bind] at ⊢ h_fails
+  intro continuation
+  simp [Edsl.eq0]
+  sorry
+
+
 
 def matches_spec {p: ℕ} {var : Type} {ResultT : Type}
   (varStore : var → ZMod p)
