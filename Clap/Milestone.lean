@@ -1,7 +1,7 @@
 import Clap.Lang
-import Clap.Compiler.Basic
+import Clap.Compiler.Front.Basic
 import Clap.Cfold
-import Clap.Compilation
+import Clap.Compiler.Back.Compilation
 import Clap.Quadratic
 
 open Primes

@@ -1,11 +1,11 @@
-import Clap.Compiler.Basic
+import Clap.Compiler.Front.Basic
 
 import R1Serialize.R1CS
 
 import Clap.Primes
-import Clap.Circuit
-import Clap.Simulation
-import Clap.Compilation
+import Clap.Compiler.Back.Circuit
+import Clap.Compiler.Back.Simulation
+import Clap.Compiler.Back.Compilation
 import Clap.Id
 import Clap.Cfold
 import Clap.Unshare
@@ -27,8 +27,8 @@ import Clap.Base64Len
 import Clap.Array
 import Clap.Keyless
 import Clap.RSA
-import Clap.Compiler.Basic
-import Clap.Compiler.Deep
+import Clap.Compiler.Front.Basic
+import Clap.Compiler.Front.Deep
 import Clap.Quadratic
 import Clap.Test.Wheels
 import Clap.Test.Compiler.Serialise

@@ -1,6 +1,6 @@
 import Clap.BitVec
-import Clap.Circuit
-import Clap.Simulation
+import Clap.Compiler.Back.Circuit
+import Clap.Compiler.Back.Simulation
 import Clap.Wheels
 
 namespace Clap

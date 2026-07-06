@@ -1,5 +1,5 @@
 import Clap.Spec
-import Clap.Compiler.Basic
+import Clap.Compiler.Front.Basic
 import Clap.Test.Wheels
 
 namespace Clap
