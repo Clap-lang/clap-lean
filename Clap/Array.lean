@@ -1,6 +1,33 @@
 import Clap.Lang
 import Clap.Wheels
 
+/-- In the `Option` monad, mapping a total (always-`some`) function over a list always succeeds. -/
+theorem list_mapM_some {α β : Type} (g : α → β) (l : List α) :
+    List.mapM (m := Option) (fun a => some (g a)) l = some (l.map g) := by
+  induction l with
+  | nil => rfl
+  | cons x xs ih => simp [List.mapM_cons, ih]
+
+/-- In the `Option` monad, mapping a total (always-`some`) function over an array always succeeds. -/
+theorem array_mapM_some {α β : Type} (g : α → β) (a : Array α) :
+    Array.mapM (m := Option) (fun x => some (g x)) a = some (a.map g) := by
+  rcases a with ⟨l⟩
+  rw [Array.mapM_eq_mapM_toList]
+  simp [list_mapM_some]
+
+/-- In the `Option` monad, mapping a total (always-`some`) function over a vector always succeeds. -/
+theorem vector_mapM_some {α β : Type} {n : ℕ} (g : α → β) (v : Vector α n) :
+    Vector.mapM (m := Option) (fun x => some (g x)) v = some (v.map g) := by
+  have h := @Vector.toArray_mapM Option α β n _ _ (fun x => some (g x)) v
+  rw [array_mapM_some] at h
+  cases hm : Vector.mapM (m := Option) (fun x => some (g x)) v with
+  | none => rw [hm] at h; simp at h
+  | some w =>
+    rw [hm] at h; simp at h
+    apply congrArg some
+    apply Vector.toArray_inj.mp
+    rw [h, Vector.toArray_map]
+
 namespace FArray
 
 open Clap.Lang
@@ -60,6 +87,139 @@ def arraySelectorComplex (len : ℕ) (startIdx endIdx : F p) : Option (Vector (F
   let right ← rightArraySelector len (startIdx - 1)
   let left ← leftArraySelector len endIdx
   return right.zipWith (· * ·) left
+
+/-
+`oneHotRaw` always succeeds and produces the one-hot indicator of `idx`:
+    position `i` is `1` exactly when `i = idx.val`.
+-/
+lemma oneHotRaw_eq (len : ℕ) (idx : F p) (hlen : len ≤ p) :
+    oneHotRaw len idx
+      = some (Vector.ofFn fun i : Fin len => if (i : ℕ) = idx.val then (1 : F p) else 0) := by
+  unfold oneHotRaw;
+  convert vector_mapM_some _ _ using 2;
+  rotate_right;
+  use fun i => if ( i : F p ) = idx then 1 else 0;
+  · ext; simp [F.eq, F.isZero_def];
+    grind;
+  · ext i; simp +decide [ Vector.getElem_range ] ;
+    split_ifs <;> simp_all +decide [ ZMod.natCast_eq_zero_iff ];
+    exact ‹¬i = idx.val› ( by rw [ ← ‹ ( i : F p ) = idx ›, ZMod.val_cast_of_lt ( by linarith ) ] )
+
+/-
+When `idx.val < len`, `singleOneArray` succeeds and is the one-hot indicator of `idx`.
+-/
+lemma singleOneArray_eq (len : ℕ) (idx : F p) (hlen : len ≤ p) (hidx : idx.val < len) :
+    singleOneArray len idx
+      = some (Vector.ofFn fun i : Fin len => if (i : ℕ) = idx.val then (1 : F p) else 0) := by
+  unfold singleOneArray;
+  rw [ oneHotRaw_eq len idx hlen ];
+  unfold F.assert_eq; simp +decide [ hidx ] ;
+  rw [ show ( Vector.foldl ( fun acc b => acc + b ) 0 ( Vector.ofFn fun i : Fin len => if ( i : ℕ ) = ZMod.val idx then ( 1 : F p ) else 0 ) ) = 1 from ?_ ] ; simp +decide [ eq0 ];
+  -- The sum of the vector is 1 because there's exactly one element that's 1, and the rest are 0.
+  have h_sum : (Vector.ofFn (fun i : Fin len => if i.val = idx.val then (1 : F p) else 0)).toList.sum = 1 := by
+    simp +decide [ Vector.ofFn ];
+    rw [ List.sum_ofFn ];
+    simp +decide [ Finset.sum_ite, hidx ];
+    rw [ Finset.card_eq_one.mpr ] ; aesop;
+    exact ⟨ ⟨ idx.val, hidx ⟩, by ext; aesop ⟩;
+  convert h_sum using 1;
+  induction ( Vector.ofFn fun i : Fin len => if ( i : ℕ ) = ZMod.val idx then ( 1 : F p ) else 0 ) using Vector.recOn ; simp +decide [ * ];
+  induction ‹Array ( F p ) › using Array.recOn ; simp +decide [ *, Array.sum ];
+  rw [ List.foldl_eq_foldr ]
+
+/-
+`singleEndArray` always succeeds and is the one-hot indicator of `idx`
+    (all zeros when `idx.val ≥ len`, which is captured by the indicator since no `i < len`
+    satisfies `i = idx.val`).
+-/
+lemma singleEndArray_eq (len : ℕ) (idx : F p) (hlen : len ≤ p) :
+    singleEndArray len idx
+      = some (Vector.ofFn fun i : Fin len => if (i : ℕ) = idx.val then (1 : F p) else 0) := by
+  -- By definition of `singleEndArray`, we know that it returns the one-hot vector.
+  have h_oneHot : oneHotRaw len idx = some (Vector.ofFn (fun i : Fin len => if (i : ℕ) = idx.val then (1 : F p) else 0)) := by
+    exact?;
+  -- By definition of `singleEndArray`, we know that it returns the one-hot vector when the condition is satisfied.
+  simp [singleEndArray, h_oneHot];
+  -- By definition of `Vector.foldl`, we can rewrite the left-hand side of the equation.
+  have h_foldl : Vector.foldl (fun acc b => acc + b) 0 (Vector.ofFn (fun i : Fin len => if (i : ℕ) = idx.val then (1 : F p) else 0)) = ∑ i : Fin len, (if (i : ℕ) = idx.val then (1 : F p) else 0) := by
+    have h_foldl : ∀ (v : Vector (F p) len), Vector.foldl (fun acc b => acc + b) 0 v = ∑ i : Fin len, v[i] := by
+      intro v
+      rcases v with ⟨v⟩
+      induction v using Array.recOn ; simp +decide [ *, Finset.sum_range_succ' ];
+      rw [ ← List.sum_eq_foldl ];
+      refine' congr_arg _ ( List.ext_get _ _ ) <;> aesop;
+    convert h_foldl _ using 2 ; aesop;
+  by_cases h : ∃ i : Fin len, ( i : ℕ ) = idx.val <;> simp_all +decide [ Finset.sum_ite ];
+  · obtain ⟨ i, hi ⟩ := h; rw [ show ( Finset.filter ( fun x : Fin len => ( x : ℕ ) = ZMod.val idx ) Finset.univ : Finset ( Fin len ) ) = { i } from Finset.eq_singleton_iff_unique_mem.mpr ⟨ Finset.mem_filter.mpr ⟨ Finset.mem_univ _, hi ⟩, fun j hj => Fin.ext <| by aesop ⟩ ] ; simp +decide ;
+    unfold F.assert_eq; simp +decide [ Clap.Spec.Compiler.eq0 ] ;
+  · simp +decide [ F.assert_eq ];
+    unfold eq0; aesop;
+
+/-
+`Clap.minBits` is monotone.
+-/
+lemma minBits_mono {a b : ℕ} (h : a ≤ b) : Clap.minBits a ≤ Clap.minBits b := by
+  -- Consider two cases: $a = 0$ and $a > 0$.
+  by_cases ha : a = 0;
+  · unfold Clap.minBits;
+    grind +qlia;
+  · rw [ Clap.minBits_eq a, Clap.minBits_eq b ];
+    unfold Clap.minBits';
+    simp +decide [ ha, Nat.log2_eq_log_two ];
+    exact Nat.lt_succ_of_le ( Nat.log_mono_right h ) |> fun x => by aesop;
+
+/-
+Invariant for the left-to-right scan inside `arraySelector`. After processing the first `m`
+    indices `0,1,…,m-1`, the running bit is `1` iff `s < m ≤ e` (the start index `s` has been
+    seen but the end index `e` has not yet been reached).
+-/
+lemma selector_fold (len s e : ℕ) (hse : s < e) :
+    ∀ m, m ≤ len →
+      List.foldl
+        (fun (prev : F p) (i : Fin len) =>
+          FB.and (FB.or prev (if (i : ℕ) = s then 1 else 0)) (FB.not (if (i : ℕ) = e then 1 else 0)))
+        FB.false ((List.finRange len).take m)
+      = if s < m ∧ m ≤ e then (1 : F p) else 0 := by
+  intro m hm
+  induction m with
+  | zero => aesop
+  | succ m ih =>
+    rw [ List.take_add_one, List.foldl_append ];
+    split_ifs <;> simp_all +decide;
+    · rw [ ih ( by linarith ) ] ; split_ifs <;> simp_all +decide [ FB.or, FB.and, FB.not ];
+      grind;
+    · by_cases h : m = s <;> by_cases h' : m = e <;> simp_all +decide [ FB.or, FB.and ];
+      · linarith;
+      · exact Or.inr ( by unfold FB.not; simp +decide );
+      · grind +qlia
+
+/-
+Closed form for `arraySelector`: under the size/bit hypotheses it succeeds and produces the
+    `{0,1}`-valued indicator of the half-open window `[startIdx.val, endIdx.val)`.
+-/
+lemma arraySelector_eq (len : ℕ) (startIdx endIdx : F p)
+    (hlen : len ≤ p) (hstart : startIdx.val < len)
+    (hlt : startIdx.val < endIdx.val)
+    (hend : endIdx.val < 2 ^ Clap.minBits len)
+    (hw : 2 ^ (Clap.minBits len + 1) < p) :
+    arraySelector len startIdx endIdx
+      = some (Vector.ofFn fun i : Fin len =>
+          if startIdx.val ≤ (i : ℕ) ∧ (i : ℕ) < endIdx.val then (1 : F p) else 0) := by
+  unfold arraySelector; simp +decide [ * ] ;
+  rw [ if_pos ( minBits_mono hlen ), Spec.F.lessThan_equiv ];
+  · rw [ singleOneArray_eq, singleEndArray_eq ];
+    · simp +decide [ FB.ofBool, FB.assert, hlt ];
+      rw [ show ( eq0 FB.true.not : Option Unit ) = some () from by
+            unfold eq0 FB.true FB.not; aesop; ] ; simp +decide [ Vector.ofFn ] ;
+      refine' Array.ext _ _ <;> simp +decide [ Array.getElem_ofFn ];
+      intro i hi₁ hi₂; convert selector_fold len startIdx.val endIdx.val hlt ( i + 1 ) ( by linarith ) using 1;
+      grind;
+    · linarith;
+    · linarith;
+    · exact hstart;
+  · grind +splitImp;
+  · exact hend;
+  · grind
 
 end FArray
 

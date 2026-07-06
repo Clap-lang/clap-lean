@@ -148,7 +148,7 @@ structure JSONStructure where
   payload          : FString bn254 MAX_JWT_PAYLOAD_LEN
   payloadHash      : F bn254
   stringBodies     : PaddedVector FB bn254 MAX_JWT_PAYLOAD_LEN
-  bracketsDepthMap : List (F bn254)
+  bracketsDepthMap : Vector (F bn254) MAX_JWT_PAYLOAD_LEN
 
 /-- Multiplexer for FString: `if sel = 1 then a else b`. CIRCOM: `out[i] = (a[i] - b[i]) * sel + b[i]` -/
 def muxFString {maxLen : ℕ} (sel : F bn254) (a b : FString bn254 maxLen) : FString bn254 maxLen :=
@@ -208,8 +208,8 @@ def computeJSONStructure (payload : FString bn254 MAX_JWT_PAYLOAD_LEN) : Option 
   -- JSON structural analysis on raw field elements
   let stringBodies ← JWT.stringBodies payload
   let inverted := stringBodies.data.map FB.not
-  let brackets_map : List (FB p) ← JWT.bracketsMap payload.data.toArray.toList
-  let unquoted_brackets := inverted.toArray.toList.zipWith (· * ·) brackets_map
+  let brackets_map : PaddedVector FB p _ ← JWT.bracketsMap payload
+  let unquoted_brackets := inverted.zipWith (· * ·) brackets_map.data
   let bracketsDepthMap ← JWT.bracketsDepthMap unquoted_brackets
   return { payload, payloadHash, stringBodies, bracketsDepthMap }
 
