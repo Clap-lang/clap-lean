@@ -1,4 +1,5 @@
 import Clap.eDSL.Basic
+import Mathlib.Data.FinEnum
 
 namespace Clap
 
@@ -45,19 +46,32 @@ def equiv {p: ℕ} {var: Type} {ResultT: Type}
     eval varStore (circuit1 continuation) =
     eval varStore (circuit2 continuation)
   )
+  
+-- instance {p : ℕ} {var : Type} {ResultT : Type}
+--   : Setoid (Edsl.CircuitContM p var ResultT) where
+--   r c₁ c₂ := ∀ Γ, equiv Γ c₁ c₂
+--   iseqv   := {
+--     refl  := by aesop (add simp equiv)
+--     symm  := by aesop (add simp equiv)
+--     trans := by aesop (add simp equiv)
+--   }
+
+def nix {p var} (x : Exp p var) : Edsl.CircuitContM p var (Exp p var) :=
+  _root_.Pure.pure x
+
+@[simp]
+lemma _root_.Clap.Edsl.CircuitContM.nothing_def {p var} (x : Exp p var) : nix x = pure x := rfl
 
 -- TODO prove these lemmas
 -- TODO finish set of spec utility lemmas
 -- TODO Setoid
-lemma equiv_pure {p: ℕ} {var: Type}
-  (varStore : var → ZMod p)
-  (a b: Exp p var)
-  (h_equiv: eval_expr varStore a = eval_expr varStore b)
-:
-  equiv
-    varStore
-    (pure a)
-    (pure b)
+open Edsl.CircuitContM in
+lemma equiv_pure {p : ℕ} {var : Type}
+  {a b : Exp p var}
+  {varStore : var → ZMod p}
+  (h_equiv : eval_expr varStore a = eval_expr varStore b)
+: 
+  equiv varStore (pure a) (pure b)
 := by
   sorry
 
@@ -142,8 +156,6 @@ lemma fails_of_tail_fails {p: ℕ} {var: Type} {ResultT: Type}
   simp [Edsl.eq0]
   sorry
 
-
-
 def matches_spec {p: ℕ} {var : Type} {ResultT : Type}
   (varStore : var → ZMod p)
   (guard : Prop)
@@ -155,6 +167,41 @@ def matches_spec {p: ℕ} {var : Type} {ResultT : Type}
     circuit
     (pure result)
   )) ∧ (¬guard → fails varStore circuit)
+
+namespace MonadExperiment
+
+abbrev ΓM (p : ℕ) (var : Type) := StateM (var → ZMod p)
+
+abbrev Γ {p : ℕ} {var : Type} (x : var) : ΓM p var (ZMod p) := get >>= fun Γ ↦ return Γ x
+
+def eval_expr {p : ℕ} {var : Type} (e : Exp p var) : ΓM p var (ZMod p) := do
+  match e with
+  | .c x => return x
+  | .v x => Γ x
+  | .add l r => return (←eval_expr l) + (←eval_expr r)
+  | .sub l r => return (←eval_expr l) - (←eval_expr r)
+  | .mul l r => return (←eval_expr l) * (←eval_expr r)
+
+def eval {p: ℕ} {var: Type} (circuit : Circuit p var) : ΓM p var (denotation var) :=
+  sorry
+
+def equiv {p : ℕ} {var : Type} {ResultT : Type}
+  (Γ : var → ZMod p)
+  (circuit1 circuit2 : Edsl.CircuitContM p var ResultT)
+   : Prop :=
+  ∀ continuation, (eval (circuit1 continuation)).run' Γ = (eval (circuit2 continuation)).run' Γ
+
+open Edsl.CircuitContM in
+lemma equiv_pure {p : ℕ} {var : Type}
+  {a b : Exp p var}
+  {varStore : var → ZMod p}
+  (h_equiv : (eval_expr a).run' varStore = (eval_expr b).run' varStore)
+: 
+  equiv varStore (pure a) (pure b)
+:= by
+  sorry
+
+end MonadExperiment
 
 end Spec
 

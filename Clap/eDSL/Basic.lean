@@ -107,7 +107,7 @@ example {var β : Type} {a : Exp p var} {c : FB p → Circuit p var}
   split_ifs with h
   rw [h]
   simp
-  sorry
+  repeat sorry
 
 example {var β : Type} {a : Exp p var} {c : FB p → CircuitContM p var β}
   (h : a = 42) : eval ((random a >>= c) (fun _ ↦ .nil)) = eval (c 4 fun _ ↦ .nil) := by
@@ -119,7 +119,7 @@ example {var β : Type} {a : Exp p var} {c : FB p → CircuitContM p var β}
 
 -- `if a = 42 then eval (c 4 fun _ ↦ .nil) else .n`
 
-#eval @Clap.Circuit.pretty _ _ _ X (@Clap.Edsl.CircuitContM.run _ _ _ (random (p := TestPrime) (ZMod TestPrime) 5))
+-- #eval @Clap.Circuit.pretty _ _ _ X (@Clap.Edsl.CircuitContM.run _ _ _ (random (p := TestPrime) (ZMod TestPrime) 5))
 -- #eval @Clap.Circuit.pretty _ _ _ X (@Clap.Edsl.CircuitContM.run _ _ _ (random' (p := TestPrime) 5 (ZMod TestPrime)))
 
 end EvalRandom
