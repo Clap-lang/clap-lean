@@ -169,7 +169,7 @@ def check_lt_wg {k : ℕ} (w : ℕ) (t : Vector (Expₑ p) k) (t' : Vector (Exp�
   check_lt_wg' w 0 t t' cont
 
 def fpmul_wg (w k : ℕ) (a b p' : Vector (Exp p (ZMod p)) k) (cont : Vector (ZMod p) k → Wg p) : Wg p :=
-  let ab := (toCompPoly (a.map (Exp.eval)))
+  let ab := toCompPoly (a.map (Exp.eval)) * toCompPoly (b.map (Exp.eval))
   range_check_vec_wg w a
     (
       range_check_vec_wg w b
@@ -179,8 +179,8 @@ def fpmul_wg (w k : ℕ) (a b p' : Vector (Exp p (ZMod p)) k) (cont : Vector (ZM
             let a_val : ℕ := ∑ i : Fin k, a[i].eval.val * (2 ^ w) ^ i.1
             let b_val : ℕ := ∑ i : Fin k, b[i].eval.val * (2 ^ w) ^ i.1
             let p_val : ℕ := ∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1
-            let q_val : ℕ := (a_val * b_val) / p
-            let r_val : ℕ := (a_val * b_val) % p
+            let q_val : ℕ := (a_val * b_val) / p_val
+            let r_val : ℕ := (a_val * b_val) % p_val
             let q_vec := Circuit.nat2words p w k q_val
             let r_vec := Circuit.nat2words p w k r_val
             List.foldr
