@@ -136,6 +136,15 @@ def minBytes (x : ℕ) : ℕ :=
   let nb8 := nb / 8
   if nb % 8 = 0 then nb8 else nb8 + 1
 
+/-
+`minBits n` bits always suffice to represent `n`, i.e. `n < 2 ^ (minBits n)`.
+-/
+lemma minBits_lt_two_pow (n : ℕ) : n < 2 ^ Clap.minBits n := by
+  by_cases hn : n = 0;
+  · aesop;
+  · unfold minBits;
+    grind +suggestions
+
 def natToHexChar : ℕ → Char
   | 0 => '0'
   | 1 => '1'

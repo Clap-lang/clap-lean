@@ -62,6 +62,131 @@ def arraySelectorComplex (len : ℕ) (startIdx endIdx : F p) : Option (Vector (F
   let left ← leftArraySelector len endIdx
   return right.zipWith (· * ·) left
 
+
+omit [Fact (Nat.Prime p)] in
+/-- Induction lemma for the prefix fold that builds the `arraySelector` output:
+    starting from `false`, OR-ing in a `1` only at position `0`, and AND-ing with
+    `¬(position = e)`, the fold over positions `[0, j]` equals `j < e`. -/
+lemma selector_fold_aux {len : ℕ} (e : ℕ) (he : 0 < e) :
+    ∀ (j : ℕ), j < len →
+      ((List.finRange len).take (j + 1)).foldl
+        (fun (prev : FB p) (i : Fin len) =>
+          FB.and (FB.or prev (FB.ofBool (i.val = 0))) (FB.not (FB.ofBool (e = i.val))))
+        FB.false
+      = FB.ofBool (j < e) := by
+  intro j;
+  induction j <;> simp_all +decide [ List.take_add_one ];
+  · simp +decide [ FB.false, FB.ofBool, FB.and, FB.or ];
+    simp +decide [ FB.true, FB.not ];
+    aesop;
+  · rename_i k hk;
+    intro hk';
+    convert congr_arg ( fun x : FB p => ( x.or ( FB.ofBool ( decide ( k + 1 = 0 ) ) ) ).and ( FB.ofBool !decide ( e = k + 1 ) ) ) ( hk ( Nat.lt_of_succ_lt hk' ) ) using 1;
+    · sorry
+    · simp +decide [ FB.ofBool, FB.or, FB.and ];
+      split_ifs <;> simp_all +decide [ FB.true, FB.false ];
+      · linarith;
+      · omega
+
+/-
+`oneHotRaw len idx` is the vector whose `i`-th entry is `1` iff `idx = i` in the field.
+-/
+lemma oneHotRaw_eq {len : ℕ} (idx : F p) :
+    oneHotRaw len idx =
+      some (Vector.ofFn fun i : Fin len => FB.ofBool (idx = (i.val : F p))) := by
+  unfold oneHotRaw; simp +decide [ F.eq ] ;
+  convert Vector.mapM_pure _ using 2;
+  rotate_right;
+  use fun i => FB.ofBool (idx = i);
+  · ext i; simp +decide [ isZero, FB.ofBool ] ;
+    split_ifs <;> simp_all +decide [ sub_eq_zero ]; all_goals exact Eq.congr_right rfl;
+  · ext i; simp +decide [ Vector.getElem_ofFn ] ;
+  · infer_instance
+
+/-
+`singleOneArray len 0` is the one-hot vector with a single `1` at position `0`,
+    provided `0 < len ≤ p`.
+-/
+lemma singleOneArray_zero_eq {len : ℕ} (hlen : 0 < len) (hp : len ≤ p) :
+    singleOneArray len (0 : F p) =
+      some (Vector.ofFn fun i : Fin len => FB.ofBool (i.val = 0)) := by
+  convert Option.bind_congr ?_;
+  rotate_left;
+  exact fun a => if Vector.foldl ( fun acc b => acc + b ) 0 a = 1 then some a else none;
+  · simp +decide [ F.assert_eq, eq0 ];
+    grind;
+  · rw [ oneHotRaw_eq ];
+    simp +decide [ Vector.foldl, Vector.ofFn ];
+    induction hlen <;> simp_all +decide [ Array.ofFn_succ ];
+    · rfl;
+    · rename_i k hk ih; specialize ih ( by linarith ) ; simp_all +decide [ eq_comm ] ;
+      simp_all +decide [ Fin.ext_iff, ZMod.natCast_eq_zero_iff ];
+      simp_all +decide [ Nat.dvd_iff_mod_eq_zero, Nat.mod_eq_of_lt hp ];
+      cases k <;> aesop
+
+/-
+`singleEndArray len endIdx`, when `endIdx.val < len ≤ p`, is the one-hot vector
+    with a single `1` at position `endIdx.val`.
+-/
+lemma singleEndArray_lt_eq {len : ℕ} (endIdx : F p)
+    (hlt : endIdx.val < len) (hp : len ≤ p) :
+    singleEndArray len endIdx =
+      some (Vector.ofFn fun i : Fin len => FB.ofBool (endIdx.val = i.val)) := by
+  -- By definition of `singleEndArray`, we know that it is equal to the vector of ones at the position `endIdx.val`.
+  have h_singleEndArray_eq : singleEndArray len endIdx = some (Vector.ofFn fun i : Fin len => FB.ofBool (endIdx = (i.val : F p))) := by
+    rw [singleEndArray, oneHotRaw_eq];
+    -- Since `endIdx.val < len`, there is exactly one index `i` such that `endIdx.val = i.val`.
+    have h_unique : ∃! i : Fin len, endIdx.val = i.val := by
+      exact ⟨ ⟨ endIdx.val, hlt ⟩, rfl, fun i hi => Fin.ext hi.symm ⟩;
+    obtain ⟨ i, hi, hiu ⟩ := h_unique;
+    have h_sum : (Vector.foldl (fun acc b => acc + b) 0 (Vector.ofFn fun i : Fin len => FB.ofBool (decide (endIdx = (i.val : F p)))) : F p) = 1 := by
+      have h_sum : (Vector.foldl (fun acc b => acc + b) 0 (Vector.ofFn (fun i : Fin len => FB.ofBool (endIdx = (i.val : F p)))) : F p) = ∑ j : Fin len, FB.ofBool (endIdx = (j.val : F p)) := by
+        simp +decide [ Vector.foldl, Finset.sum ];
+        rw [ List.sum_eq_foldl ];
+        rw [ Array.foldl_toList ];
+        grind;
+      rw [ h_sum, Finset.sum_eq_single i ] <;> simp_all +decide [ ZMod.natCast_zmod_val ];
+      · rw [ ← hi, ZMod.natCast_zmod_val ] ; aesop;
+      · intro j hj; contrapose! hj; simp_all +decide [ ZMod.natCast_zmod_val ] ;
+        by_cases h : endIdx = j.val <;> simp_all +decide [ FB.ofBool ];
+        · exact hiu j ( by rw [ ← hi, Nat.mod_eq_of_lt ( show ( j : ℕ ) < p from lt_of_lt_of_le j.2 hp ) ] );
+        · exact False.elim <| hj <| by rfl;
+    simp +decide [ h_sum, F.assert_eq ];
+    unfold eq0; aesop;
+  convert h_singleEndArray_eq;
+  constructor <;> intro h <;> rw [ ← ZMod.natCast_zmod_val endIdx ] at * <;> simp_all +decide [ ZMod.natCast_eq_natCast_iff' ];
+  exact Nat.mod_eq_of_lt ( lt_of_lt_of_le ( Fin.is_lt _ ) hp )
+/-
+Characterization of `arraySelector` with `startIdx = 0`: the result selects
+    exactly the positions `[0, endIdx.val)`.
+-/
+lemma arraySelector_zero_eq {len : ℕ} (endIdx : F p)
+    (h0 : 0 < endIdx.val) (hlt : endIdx.val < len)
+    (hfits : Clap.minBits len ≤ Clap.minBits p)
+    (hw : 2 ^ (Clap.minBits len + 1) < p) :
+    arraySelector len 0 endIdx =
+      some (Vector.ofFn fun i : Fin len => FB.ofBool (i.val < endIdx.val)) := by
+  convert Option.some_inj.mpr ( Vector.ext fun i => ?_ ) using 1;
+  rotate_left;
+  exact Vector.ofFn fun i : Fin len => ( List.finRange len |> List.take ( i.val + 1 ) |> List.foldl ( fun prev i => FB.and ( FB.or prev ( FB.ofBool ( i.val = 0 ) ) ) ( FB.not ( FB.ofBool ( endIdx.val = i.val ) ) ) ) FB.false );
+  · convert selector_fold_aux ( endIdx.val ) h0 i using 1;
+    rw [ Vector.getElem_ofFn, Vector.getElem_ofFn ];
+  · rw [arraySelector];
+    rw [ Spec.F.lessThan_equiv ];
+    · rw [ singleOneArray_zero_eq, singleEndArray_lt_eq ];
+      · simp +decide [ FB.assert ];
+        rw [ if_pos hfits, eq0 ];
+        rw [ if_pos ];
+        · sorry
+        · sorry
+      · exact hlt;
+      · exact le_trans ( Nat.le_of_lt ( Clap.minBits_lt_two_pow len ) ) ( Nat.le_of_lt ( lt_of_le_of_lt ( Nat.pow_le_pow_right ( by decide ) ( Nat.le_succ _ ) ) hw ) );
+      · grind;
+      · exact le_trans ( Nat.le_of_lt ( Clap.minBits_lt_two_pow len ) ) ( Nat.le_of_lt ( lt_of_le_of_lt ( Nat.pow_le_pow_right ( by decide ) ( Nat.le_succ _ ) ) hw ) );
+    · exact ZMod.val_zero.trans_lt ( pow_pos ( by decide ) _ );
+    · exact hlt.trans_le ( Nat.le_of_lt ( Clap.minBits_lt_two_pow len ) );
+    · exact hw
+
 end FArray
 
 -- We have all ingredients to specify  arraySelector. We have the specs for F.lessThan, singleOneArray and singleEndArray.

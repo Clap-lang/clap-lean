@@ -139,6 +139,131 @@ def asciiDigitsToScalar {maxLen : ℕ} (inp : FString p maxLen) : Option (F p) :
   F.assert_eq ieq_sum 1
   return acc
 
+/-
+General fact: a `for`-loop of `eq0` assertions in the `Option` monad succeeds
+    iff every asserted expression is zero.
+-/
+lemma forIn_eq0 {α : Type*} (l : List α) (g : α → F p) :
+    (forIn (m := Option) l PUnit.unit
+        (fun a (_ : PUnit) => do eq0 (g a); pure (ForInStep.yield PUnit.unit)))
+      = if (∀ a ∈ l, g a = 0) then some PUnit.unit else none := by
+  induction l <;> simp_all +decide [ eq0 ];
+  split_ifs <;> simp_all +decide [ ForInStep ]
+
+/-
+The circuit side, rewritten as the same decidable predicate.
+-/
+lemma assertIsAsciiDigits_eq {maxDigits : ℕ} (inp : FString p maxDigits)
+    (hvalid : Spec.FString.valid inp) (hlen : 1 ≤ inp.len.val)
+    (hp : 2 ^ (8 + 1) < p)
+    (hfits : Clap.minBits maxDigits ≤ Clap.minBits p)
+    (hpd : 2 ^ (Clap.minBits maxDigits + 1) < p) :
+    assertIsAsciiDigits inp =
+      Spec.FB.assert
+        (decide (∀ i : Fin maxDigits, i.val < inp.len.val →
+        47 < (inp.data[i]).val ∧ (inp.data[i]).val < 58)
+      )
+:= by
+  obtain ⟨selector, hselector⟩ : ∃ selector : Vector (FB p) maxDigits, FArray.arraySelector maxDigits 0 inp.len = some selector ∧ ∀ i : Fin maxDigits, selector[i] = FB.ofBool (i.val < inp.len.val) := by
+    have := FArray.arraySelector_zero_eq ( len := maxDigits ) inp.len hlen hvalid.2.1 hfits hpd; aesop;
+  unfold assertIsAsciiDigits;
+  have h_forIn : ∀ i : Fin maxDigits, F.greaterThan 8 inp.data[i] 47 = some (FB.ofBool (47 < (inp.data[i]).val)) ∧ F.lessThan 8 inp.data[i] 58 = some (FB.ofBool ((inp.data[i]).val < 58)) := by
+    intro i;
+    have h_gt_lt : (47 : F p).val = 47 ∧ (58 : F p).val = 58 := by
+      sorry
+    have := Spec.F.lessThan_equiv (inp.data[i]) 58 (hvalid.1 i) (by
+    exact h_gt_lt.2.symm ▸ by decide;) (by
+    exact hp)
+    generalize_proofs at *;
+    simp_all +decide [ F.greaterThan ];
+    convert Spec.F.lessThan_equiv 47 ( inp.data[i] ) ( by
+      exact h_gt_lt.1.symm ▸ by decide; ) ( hvalid.1 i ) ( by
+      exact hp.trans_le' ( by decide ) ) using 1
+    generalize_proofs at *;
+    exact h_gt_lt.1.symm ▸ rfl;
+  simp_all +decide [ Spec.FB.assert ];
+  convert congr_arg ( fun x : Option PUnit => x.bind fun _ => some PUnit.unit ) ( forIn_eq0 ( List.finRange maxDigits ) _ ) using 1;
+  · simp +decide [ FB.ofBool, FB.and ];
+    split_ifs <;> simp_all +decide [ FB.true, FB.false ];
+    grind;
+  · exact ⟨ Fact.out ⟩;
+  · grind
+
+def isAsciiDigits_spec (inp : String) : Bool :=
+  inp.all (fun c : Char ↦ 48 ≤ c.val && c.val ≤ 57)
+
+/-
+The spec side, rewritten as a decidable predicate over the first `len`
+    characters of the string.
+-/
+omit [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] in
+lemma isAsciiDigits_spec_toString_eq {maxDigits : ℕ} (inp : FString p maxDigits)
+    -- (hdw : Clap.SliceAll.RefDropWhileSpec)
+    (hvalid : Spec.FString.valid inp) :
+    isAsciiDigits_spec (Spec.FString.toString inp) =
+      decide (∀ i : Fin maxDigits, i.val < inp.len.val →
+        47 < (inp.data[i]).val ∧ (inp.data[i]).val < 58) := by
+  -- convert string_all_eq_toList_all hdw ( Spec.FString.toString inp ) ( fun c => 48 ≤ c.val && c.val ≤ 57 ) using 1;
+  unfold Spec.FString.toString; simp +decide [ List.all_eq_true ] ;
+  have h_all_eq : ∀ (l : List (ZMod p)), (∀ c ∈ l, Spec.F8.valid c) → (List.all (List.map Spec.F8.toChar l) (fun c => 48 ≤ c.val && c.val ≤ 57)) = (List.all l (fun c => 47 < c.val ∧ c.val < 58)) := by
+    intros l hl; induction l <;> simp_all +decide [ Spec.F8.toChar ] ;
+    unfold Spec.F8.toUInt8; simp +decide [ Char.ofUInt8 ] ;
+    have := hl.1; unfold Spec.F8.valid at this; simp_all +decide [ Nat.mod_eq_of_lt ] ;
+    interval_cases ( ‹ZMod p›.val : ℕ ) <;> trivial;
+  convert h_all_eq ( List.take ( ZMod.val inp.len ) ( inp.data.toArray.toList ) ) _ |> Eq.symm using 1;
+  · sorry
+  · sorry
+  · sorry
+  -- · rw [ List.all_eq ];
+    -- simp +decide [ List.mem_iff_getElem, List.getElem?_take ];
+  --   constructor;
+  --   · intro h x i hi₁ hi₂ hx; specialize h ⟨ i, hi₂ ⟩ hi₁; aesop;
+  --   · exact fun h i hi => h _ _ hi ( Fin.is_lt i ) rfl;
+  -- · rw [ List.map_take ];
+  -- · intro c hc; have := hvalid.1; simp_all +decide [ Spec.F8.valid ] ;
+  --   rw [ List.mem_iff_get ] at hc; obtain ⟨ i, hi ⟩ := hc; simp_all +decide [ List.get ] ;
+  --   exact hi ▸ this ⟨ i, by simpa using i.2.trans_le ( by simp ) ⟩
+
+-- lemma assertIsAsciiDigits_equiv {maxDigits : ℕ} (inp : FString p maxDigits) :
+--   assertIsAsciiDigits inp =
+--     Spec.FB.assert (isAsciiDigits_spec (Spec.FString.toString inp))
+-- := by
+--   sorry
+
+
+def asciiDigitsToScalar_spec (inp : String) : Option (F p) := do
+  Spec.FB.assert (isAsciiDigits_spec inp)
+  -- Similar to `String.Slice.toNat?`
+  some <| inp.foldl (fun n c => n * 10 + (c.toNat - '0'.toNat)) 0
+
+/-- Equivalence of `assertIsAsciiDigits` with its functional specification.
+
+    Hypotheses added relative to the original (unprovable) statement:
+    * `hvalid : Spec.FString.valid inp` — the characters are valid bytes (`< 256`)
+      and positions beyond `len` are zero;
+    * `hlen : 1 ≤ inp.len.val` — a nonempty string (`len = 0` is rejected by the
+      circuit but accepted by the spec);
+    * `hp`, `hfits`, `hpd` — size conditions on the prime `p` making the 8-bit
+      comparisons and the `arraySelector` bit-width well-defined. -/
+lemma assertIsAsciiDigits_equiv {maxDigits : ℕ} (inp : FString p maxDigits)
+    (hvalid : Spec.FString.valid inp) (hlen : 1 ≤ inp.len.val)
+    (hp : 2 ^ (8 + 1) < p)
+    (hfits : Clap.minBits maxDigits ≤ Clap.minBits p)
+    (hpd : 2 ^ (Clap.minBits maxDigits + 1) < p) :
+  assertIsAsciiDigits inp =
+    Spec.FB.assert (isAsciiDigits_spec (Spec.FString.toString inp))
+:= by
+  rw [assertIsAsciiDigits_eq inp hvalid hlen hp hfits hpd,
+      isAsciiDigits_spec_toString_eq inp hvalid]
+
+lemma asciiDigitsToScalar_equiv {maxDigits : ℕ} (inp : FString p maxDigits)
+  (hlen : 1 ≤ inp.len.val)
+  (hlen : inp.len.val < maxDigits) :
+  asciiDigitsToScalar inp = asciiDigitsToScalar_spec (Spec.FString.toString inp)
+:= by
+  sorry
+
+
 /--
   Checks whether `substr` appears in `str` starting at `startIndex`.
   Uses direct comparison: for each position j in the substring, extracts `str[startIndex + j]` via one-hot array and compares it with `substr[j]`.
@@ -993,6 +1118,7 @@ open Clap.Lang Clap.Spec
 open F8 FString
 
 abbrev p := Primes.babybear
+
 
 private def countTrailingZeros {maxLen : ℕ} (fs : Vector (F p) maxLen) : Option (F p) := do
   let res : F p × F p ← Vector.foldlM (fun (len,keepCounting) f ↦ do
