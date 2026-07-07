@@ -338,14 +338,13 @@ def someSpec (x : ZMod 57) : Option Unit := .none
 -- `cs.eval Γ` (eval takes a `Γ`)
 -- ^ does not work for any `Γ`, but WF `Γ`
 -- 
-
 -- The great Alin convincing:
 -- 1. hand-compile (with tactics?)
 -- 2. fail the contract, but deliver a model that is proven correct
 --    (this includes full specs for everything as well)
 -- 3. extract circom with Surveyor, prove with respect to 'the' specs
--- 4. `Cont`inue with `Cont`inuation monad
+-- 4. `Cont`inue with `Cont`inuation monad | 'old' 
 -- 5. use `ZKLean` / `Clean` (`ZKlean` > `Clean`?)
 -- 6. use `State` monad?
--- 7. `#justFinishTheMetaCompiler`
+-- 7[❌️]. `#justFinishTheMetaCompiler`
 -- 8. despair
