@@ -330,10 +330,10 @@ end Spec
 
 end Clap
 
-opaque Expr : Type
-abbrev Cs := List Expr
-abbrev OurM := StateM Cs
-def someSpec (x : ZMod 57) : Option Unit := .none
+-- opaque Expr : Type
+-- abbrev Cs := List Expr
+-- abbrev OurM := StateM Cs
+-- def someSpec (x : ZMod 57) : Option Unit := .none
 -- example (cs : Cs) : cs.eval ≈ someSpec
 -- `cs.eval Γ` (eval takes a `Γ`)
 -- ^ does not work for any `Γ`, but WF `Γ`
