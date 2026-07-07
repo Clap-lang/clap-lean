@@ -170,7 +170,9 @@ lemma assertIsAsciiDigits_eq {maxDigits : ℕ} (inp : FString p maxDigits)
   have h_forIn : ∀ i : Fin maxDigits, F.greaterThan 8 inp.data[i] 47 = some (FB.ofBool (47 < (inp.data[i]).val)) ∧ F.lessThan 8 inp.data[i] 58 = some (FB.ofBool ((inp.data[i]).val < 58)) := by
     intro i;
     have h_gt_lt : (47 : F p).val = 47 ∧ (58 : F p).val = 58 := by
-      sorry
+      constructor
+      · exact ZMod.val_natCast_of_lt (by linarith [show (47 : ℕ) < 2^(8+1) from by norm_num])
+      · exact ZMod.val_natCast_of_lt (by linarith [show (58 : ℕ) < 2^(8+1) from by norm_num])
     have := Spec.F.lessThan_equiv (inp.data[i]) 58 (hvalid.1 i) (by
     exact h_gt_lt.2.symm ▸ by decide;) (by
     exact hp)
@@ -190,7 +192,7 @@ lemma assertIsAsciiDigits_eq {maxDigits : ℕ} (inp : FString p maxDigits)
   · grind
 
 def isAsciiDigits_spec (inp : String) : Bool :=
-  inp.all (fun c : Char ↦ 48 ≤ c.val && c.val ≤ 57)
+  inp.toList.all (fun c : Char ↦ decide (48 ≤ c.val) && decide (c.val ≤ 57))
 
 /-
 The spec side, rewritten as a decidable predicate over the first `len`
@@ -198,31 +200,43 @@ The spec side, rewritten as a decidable predicate over the first `len`
 -/
 omit [Fact (Nat.Prime p)] [Fact (Primes.fits p 8)] in
 lemma isAsciiDigits_spec_toString_eq {maxDigits : ℕ} (inp : FString p maxDigits)
-    -- (hdw : Clap.SliceAll.RefDropWhileSpec)
     (hvalid : Spec.FString.valid inp) :
     isAsciiDigits_spec (Spec.FString.toString inp) =
       decide (∀ i : Fin maxDigits, i.val < inp.len.val →
         47 < (inp.data[i]).val ∧ (inp.data[i]).val < 58) := by
-  -- convert string_all_eq_toList_all hdw ( Spec.FString.toString inp ) ( fun c => 48 ≤ c.val && c.val ≤ 57 ) using 1;
-  unfold Spec.FString.toString; simp +decide [ List.all_eq_true ] ;
-  have h_all_eq : ∀ (l : List (ZMod p)), (∀ c ∈ l, Spec.F8.valid c) → (List.all (List.map Spec.F8.toChar l) (fun c => 48 ≤ c.val && c.val ≤ 57)) = (List.all l (fun c => 47 < c.val ∧ c.val < 58)) := by
+  unfold Spec.FString.toString isAsciiDigits_spec
+  simp only [String.toList_ofList, Vector.toList_toArray]
+  rw [Vector.toList_take]
+  have h_all_eq : ∀ (l : List (ZMod p)), (∀ c ∈ l, Spec.F8.valid c) →
+      (List.all (List.map Spec.F8.toChar l) (fun c => decide (48 ≤ c.val) && decide (c.val ≤ 57))) =
+      (List.all l (fun c => decide (47 < c.val ∧ c.val < 58))) := by
     intros l hl; induction l <;> simp_all +decide [ Spec.F8.toChar ] ;
     unfold Spec.F8.toUInt8; simp +decide [ Char.ofUInt8 ] ;
     have := hl.1; unfold Spec.F8.valid at this; simp_all +decide [ Nat.mod_eq_of_lt ] ;
     interval_cases ( ‹ZMod p›.val : ℕ ) <;> trivial;
-  convert h_all_eq ( List.take ( ZMod.val inp.len ) ( inp.data.toArray.toList ) ) _ |> Eq.symm using 1;
-  · sorry
-  · sorry
-  · sorry
-  -- · rw [ List.all_eq ];
-    -- simp +decide [ List.mem_iff_getElem, List.getElem?_take ];
-  --   constructor;
-  --   · intro h x i hi₁ hi₂ hx; specialize h ⟨ i, hi₂ ⟩ hi₁; aesop;
-  --   · exact fun h i hi => h _ _ hi ( Fin.is_lt i ) rfl;
-  -- · rw [ List.map_take ];
-  -- · intro c hc; have := hvalid.1; simp_all +decide [ Spec.F8.valid ] ;
-  --   rw [ List.mem_iff_get ] at hc; obtain ⟨ i, hi ⟩ := hc; simp_all +decide [ List.get ] ;
-  --   exact hi ▸ this ⟨ i, by simpa using i.2.trans_le ( by simp ) ⟩
+  have h_valid_take : ∀ c ∈ inp.data.toList.take (ZMod.val inp.len), Spec.F8.valid c := by
+    intro c hc
+    obtain ⟨i, hi, rfl⟩ := List.mem_take_iff_getElem.mp hc
+    rw [Vector.length_toList] at hi
+    rw [Vector.getElem_toList]
+    exact hvalid.1 ⟨i, (Nat.lt_min.mp hi).2⟩
+  rw [h_all_eq _ h_valid_take]
+  rw [Bool.eq_iff_iff]
+  simp only [List.all_eq_true, decide_eq_true_eq]
+  constructor
+  · intro h i hi
+    have hlen : inp.data.toList.length = maxDigits := Vector.length_toList
+    have hmem : inp.data.toList[i.val]'(by omega) ∈ inp.data.toList.take (ZMod.val inp.len) := by
+      rw [List.mem_take_iff_getElem]
+      exact ⟨i.val, Nat.lt_min.mpr ⟨hi, by omega⟩, rfl⟩
+    have := h _ hmem
+    rwa [Vector.getElem_toList] at this
+  · intro h c hc
+    rw [List.mem_take_iff_getElem] at hc
+    obtain ⟨j, hj, rfl⟩ := hc
+    rw [Vector.length_toList] at hj
+    rw [Vector.getElem_toList]
+    exact h ⟨j, (Nat.lt_min.mp hj).2⟩ (Nat.lt_min.mp hj).1
 
 -- lemma assertIsAsciiDigits_equiv {maxDigits : ℕ} (inp : FString p maxDigits) :
 --   assertIsAsciiDigits inp =
