@@ -62,6 +62,9 @@ instance : Mul (Exp p var) where
 instance : Sub (Exp p var) where
   sub a b := .sub a b
 
+instance : Coe ℕ (Exp p var) where
+  coe := (Exp.c ·)
+
 -- The typeclasses above add an abstraction layer,
 -- these lemmas show how to go through it
 section

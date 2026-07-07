@@ -49,11 +49,11 @@ end F
 
 namespace FB
 
-def true : FB p := 1
+def true : FB p := 1 -- Edsl'd
 
-def false : FB p := 0
+def false : FB p := 0 -- Edsl'd
 
-def ofBool (b:Bool) : FB p :=
+def ofBool (b:Bool) : FB p := -- Edsl'd
   if b then FB.true else FB.false
 
 instance : Inhabited (FB p) where
@@ -98,12 +98,12 @@ namespace Spec.FB
 
 variable [Fact (Nat.Prime p)]
 
-def valid (a: ZMod p) : Prop := a = FB.false ∨ a = FB.true
+def valid (a: ZMod p) : Prop := a = FB.false ∨ a = FB.true --Edsl'd (isValid)
 
-def toBool (f:ZMod p) : Bool :=
+def toBool (f:ZMod p) : Bool := --Edsl'd
   if f = FB.false then false else true
 
-def valid_ofBool (b:Bool) : valid (FB.ofBool (p:=p) b) := by
+def valid_ofBool (b:Bool) : valid (FB.ofBool (p:=p) b) := by --Edsl'd (isValid_ofBool)
   simp [valid,FB.ofBool,FB.false,FB.true]
 
 lemma right_inv (f: ZMod p) (h : valid f) : FB.ofBool (toBool f) = f := by

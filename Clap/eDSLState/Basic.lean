@@ -22,6 +22,14 @@ end Circuit
 abbrev FixedExp (p : ℕ) := Clap.Exp p ℕ
 abbrev FixedCircuit (p : ℕ) := Clap.Circuit p ℕ
 
+def FixedExp.eval {p : ℕ} (varStore : ℕ → Option (ZMod p)) (x : FixedExp p) : Option (ZMod p) :=
+  match x with
+  | .c x => .some x
+  | .v x => varStore x
+  | .add l r => do (←eval varStore l) + (←eval varStore r)
+  | .sub l r => do (←eval varStore l) - (←eval varStore r)
+  | .mul l r => do (←eval varStore l) * (←eval varStore r)
+
 inductive CircuitusPlanus (p : ℕ) where
   | nil
   | eq0 (e : FixedExp p)
