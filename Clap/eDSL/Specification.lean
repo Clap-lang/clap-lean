@@ -25,13 +25,16 @@ abbrev Exp (p: ℕ) := Clap.Exp p ℕ
 abbrev Circuit (p: ℕ) := (Clap.Circuit p ℕ)
 
 structure AllocatedCircuit (p : ℕ) where
-  varStore : Std.TreeMap ℕ (ZMod p)
+  varStore : Std.ExtTreeMap ℕ (ZMod p)
   circuit : Circuit p
 
-def isVarAllocated {p : ℕ} (numAlloc : ℕ) (e : Exp p) : Bool :=
-  match e with
-  | .v n => n < numAlloc
-  | _ => true
+-- def isVarAllocated {p : ℕ} (numAlloc : ℕ) (e : Exp p) : Bool :=
+--   match e with
+--   | .v n => n < numAlloc -- `n < varStore.size ↔ n ∈ varStore`; I think
+--   | .add e₁ e₂ => isVarAllocated numAlloc e₁ && isVarAllocated numAlloc e₂
+--   | .mul e₁ e₂ => isVarAllocated numAlloc e₁ && isVarAllocated numAlloc e₂
+--   | .sub e₁ e₂ => isVarAllocated numAlloc e₁ && isVarAllocated numAlloc e₂
+--   | .c _ => true
 
 -- @[aesop safe [constructors, cases]]
 -- inductive WFAllocatedCircuit (p : ℕ) : AllocatedCircuit p → Prop where
@@ -42,7 +45,7 @@ def isVarAllocated {p : ℕ} (numAlloc : ℕ) (e : Exp p) : Bool :=
 --         (rec : WFAllocatedCircuit p ⟨numAlloc, c⟩) :
 --         WFAllocatedCircuit p ⟨numAlloc, .eq0 e c⟩
 --   | lam {numAlloc : ℕ} {cont : ℕ → Circuit p}
---         (rec : WFAllocatedCircuit p ⟨numAlloc.succ, cont numAlloc⟩) :
+--         (rec : WFAllocatedCircuit p ⟨varStore.insert varStore.size.succ _, cont numAlloc⟩) :
 --         WFAllocatedCircuit p ⟨numAlloc, .lam cont⟩
 --   -- |
 
@@ -54,7 +57,7 @@ def isVarAllocated {p : ℕ} (numAlloc : ℕ) (e : Exp p) : Bool :=
 --   unfold ex
   -- aesop (add simp ex)
 
-def eval_expr {p : ℕ} (varStore : Std.TreeMap ℕ (ZMod p)) (e : Exp p) : Option (ZMod p) := match e with
+def eval_expr {p : ℕ} (varStore : Std.ExtTreeMap ℕ (ZMod p)) (e : Exp p) : Option (ZMod p) := match e with
   | .c x => .some x
   | .v x => varStore.get? x
   | .add l r => do (←eval_expr varStore l) + (←eval_expr varStore r)
@@ -63,7 +66,7 @@ def eval_expr {p : ℕ} (varStore : Std.TreeMap ℕ (ZMod p)) (e : Exp p) : Opti
 
 -- split varstore and circuit to not have to manually prove termination
 -- TODO do we even still need AllocatedCircuit?
-def eval_impl {p: ℕ} (varStore: Std.TreeMap ℕ (ZMod p)) (circuit : Circuit p) : denotation (ZMod p) :=
+def eval_impl {p: ℕ} (varStore: Std.ExtTreeMap ℕ (ZMod p)) (circuit : Circuit p) : denotation (ZMod p) :=
   match circuit with
   | .nil =>
     .u
@@ -326,3 +329,23 @@ end MonadExperiment
 end Spec
 
 end Clap
+
+opaque Expr : Type
+abbrev Cs := List Expr
+abbrev OurM := StateM Cs
+def someSpec (x : ZMod 57) : Option Unit := .none
+-- example (cs : Cs) : cs.eval ≈ someSpec
+-- `cs.eval Γ` (eval takes a `Γ`)
+-- ^ does not work for any `Γ`, but WF `Γ`
+-- 
+
+-- The great Alin convincing:
+-- 1. hand-compile (with tactics?)
+-- 2. fail the contract, but deliver a model that is proven correct
+--    (this includes full specs for everything as well)
+-- 3. extract circom with Surveyor, prove with respect to 'the' specs
+-- 4. `Cont`inue with `Cont`inuation monad
+-- 5. use `ZKLean` / `Clean` (`ZKlean` > `Clean`?)
+-- 6. use `State` monad?
+-- 7. `#justFinishTheMetaCompiler`
+-- 8. despair

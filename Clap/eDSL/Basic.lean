@@ -22,7 +22,7 @@ section
 
 variable {p : ℕ}
 
-abbrev CircuitContM (p : ℕ) (var : Type) (α : Type) : Type := Cont (Circuit p var) α
+abbrev CircuitContM (p : ℕ) (α : Type) : Type := Cont (Circuit p ℕ) α
 
 def CircuitContM.run (α var : Type) (m : CircuitContM p var α) : Circuit p var :=
   ContT.run m fun _ ↦ .nil
@@ -37,7 +37,7 @@ def eq0 (e : Exp p var) : CircuitContM p var Unit := fun c ↦
 
 @[irreducible]
 def lam : CircuitContM p var var :=
-  Clap.Circuit.lam 
+  Clap.Circuit.lam
 
 @[irreducible]
 def share (e : Exp p var) : CircuitContM p var var :=
