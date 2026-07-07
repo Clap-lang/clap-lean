@@ -1,7 +1,5 @@
 import Clap.Circuit
-import Clap.Lang
 
-import Clap.eDSLState.Preprocess
 import Clap.eDSLState.Wheels
 
 namespace Clap
@@ -90,10 +88,6 @@ def test : CircuitStateM p Unit := do
   discard <| [1, 2, (.v y)].mapM eq0
   eq0 4
 
-set_option trace.Clap.Preprocessor true in
-run_meta Preprocessor.addLambdas (.const ``Clap.Circuit.p []) ``testWithInput
--- run_meta Preprocessor.addLambdas ``testWithInput
-
 #eval test.run (p := 57)
 
 -- Something like this?
@@ -158,7 +152,7 @@ end Edsl
 
 -- open Classical in
 -- example {var β : Type} {a : Exp p var} {c : FB p → Circuit p var}
---   : 
+--   :
 --   eval (random a c) =
 --   if a = 42
 --   then eval ((pure 4 : CircuitContM p var (FB p)) c)

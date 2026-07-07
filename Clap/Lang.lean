@@ -14,8 +14,8 @@ export Clap.Spec.Compiler (
 
 variable {p : ℕ}
 
-abbrev F p := ZMod p
-abbrev FB p := F p
+abbrev F p := ZMod p --EDSL'd
+abbrev FB p := F p --EDSL'd
 
 namespace F
 
@@ -82,7 +82,7 @@ def xor (a b : FB p) : FB p := a + b - 2 * a * b
 instance : HXor (FB p) (FB p) (FB p) where
   hXor := xor
 
-def assert (a : FB p) : Option Unit := do
+def assert (a : FB p) : Option Unit := do --EDSL'd
   eq0 (not a)
 
 def assert_eq (a b : FB p) : Option Unit := do
