@@ -31,9 +31,8 @@ def FixedExp.eval {p : ℕ} (varStore : ℕ → Option (ZMod p)) (x : FixedExp p
   | .mul l r => do (←eval varStore l) * (←eval varStore r)
 
 inductive CircuitusPlanus (p : ℕ) where
-  | nil
   | eq0 (e : FixedExp p)
-  | lam (n : ℕ)
+  | lam
   | share (e : FixedExp p)
   | isZero (e : FixedExp p)
   | num2bits (w : ℕ) (e : FixedExp p)
@@ -66,6 +65,195 @@ def CircuitStateM.alloc {p : ℕ} : CircuitStateM p ℕ :=
 def CircuitStateM.run (α : Type) (m : CircuitStateM p α) : CircuitState p :=
   (·.2) <$> StateT.run m (CircuitState.init _)
 
+structure CircuitResult (p : ℕ) where
+  numAlloc : ℕ
+  varStore : Std.TreeMap ℕ (ZMod p)
+  constraints : Prop
+
+def CircuitResult.step {p : ℕ} (result : CircuitResult p) (next : CircuitusPlanus p) : CircuitResult p :=
+  let ⟨numAlloc, varStore, constraints⟩ := result
+  match next with
+    | .eq0 e => ⟨
+      numAlloc,
+      varStore,
+      constraints ∧ (e.eval varStore.get?) = .some 0
+    ⟩
+    | .lam => ⟨
+      numAlloc + 1,
+      varStore,
+      constraints
+    ⟩
+    | .share e => ⟨
+      numAlloc + 1,
+      varStore.insert numAlloc ((e.eval varStore.get?).getD 0),
+      constraints ∧ (e.eval varStore.get?).isSome
+    ⟩
+    | .isZero e => ⟨
+      numAlloc + 1,
+      varStore.insert numAlloc (if (e.eval varStore.get?) = .some 0 then 1 else 0),
+      constraints ∧ (e.eval varStore.get?).isSome
+    ⟩
+    | .num2bits width e => ⟨
+      numAlloc + width,
+      varStore.insertMany ((Vector.range width).zip (num2bitsLsbPureV width ((e.eval varStore.get?).getD 0))),
+      constraints ∧ (e.eval varStore.get?).isSome
+    ⟩
+
+def CircuitState.eval {p : ℕ} (circuit : CircuitState p) (varStore : Std.TreeMap ℕ (ZMod p)) : CircuitResult p :=
+  circuit.circuit.foldl CircuitResult.step ⟨circuit.numAlloc, varStore, True⟩
+
+lemma CircuitResult.ext {p : ℕ} {r1 r2 : CircuitResult p}
+  (h_numAlloc : r1.numAlloc = r2.numAlloc)
+  (h_varStore : r1.varStore = r2.varStore)
+  (h_constraints : r1.constraints = r2.constraints)
+:
+  r1 = r2
+:= by
+  obtain ⟨a1, b1, c1⟩ := r1
+  obtain ⟨a2, b2, c2⟩ := r2
+  simp_all
+
+lemma CircuitResult.foldl_step_numAlloc_independent_of_constraints
+  {numAlloc : ℕ}
+  {varStore : Std.TreeMap ℕ (ZMod p)}
+  {constraints1 constraints2 : Prop}
+  {circuit : Circuitus p}
+:
+  (circuit.foldl CircuitResult.step ⟨numAlloc, varStore, constraints1⟩).numAlloc =
+  (circuit.foldl CircuitResult.step ⟨numAlloc, varStore, constraints2⟩).numAlloc
+:= by
+  obtain ⟨list⟩ := circuit
+  rewrite [←List.reverse_reverse list]
+  induction list.reverse with
+    | nil =>
+      simp
+    | cons head tail h_tail =>
+      simp at h_tail
+      simp
+      set x := List.foldr _ _ _
+      set y := List.foldr _ _ _
+      cases head
+      all_goals simp [CircuitResult.step, h_tail]
+
+lemma CircuitResult.foldr_step_numAlloc_independent_of_constraints
+  {numAlloc : ℕ}
+  {varStore : Std.TreeMap ℕ (ZMod p)}
+  {constraints1 constraints2 : Prop}
+  {circuit : List (CircuitusPlanus p)}
+:
+  (List.foldr (λ x y => CircuitResult.step y x) ⟨numAlloc, varStore, constraints1⟩ circuit).numAlloc =
+  (List.foldr (λ x y => CircuitResult.step y x) ⟨numAlloc, varStore, constraints2⟩ circuit).numAlloc
+:= by
+  rewrite [←List.reverse_reverse circuit]
+  simp only [List.foldr_reverse, ←List.foldl_toArray]
+  exact CircuitResult.foldl_step_numAlloc_independent_of_constraints
+
+lemma CircuitResult.foldl_step_varStore_independent_of_constraints
+  {numAlloc : ℕ}
+  {varStore : Std.TreeMap ℕ (ZMod p)}
+  {constraints1 constraints2 : Prop}
+  {circuit : Circuitus p}
+:
+  (circuit.foldl CircuitResult.step ⟨numAlloc, varStore, constraints1⟩).varStore =
+  (circuit.foldl CircuitResult.step ⟨numAlloc, varStore, constraints2⟩).varStore
+:= by
+  obtain ⟨list⟩ := circuit
+  rewrite [←List.reverse_reverse list]
+  induction list.reverse with
+    | nil =>
+      simp
+    | cons head tail h_tail =>
+      simp at h_tail
+      simp
+      set x := List.foldr _ _ _
+      set y := List.foldr _ _ _
+      have h_numAlloc : x.numAlloc = y.numAlloc := CircuitResult.foldr_step_numAlloc_independent_of_constraints
+      cases head
+      all_goals simp [CircuitResult.step, h_tail, h_numAlloc]
+
+lemma CircuitResult.foldr_step_varStore_independent_of_constraints
+  {numAlloc : ℕ}
+  {varStore : Std.TreeMap ℕ (ZMod p)}
+  {constraints1 constraints2 : Prop}
+  {circuit : List (CircuitusPlanus p)}
+:
+  (List.foldr (λ x y => CircuitResult.step y x) ⟨numAlloc, varStore, constraints1⟩ circuit).varStore =
+  (List.foldr (λ x y => CircuitResult.step y x) ⟨numAlloc, varStore, constraints2⟩ circuit).varStore
+:= by
+  rewrite [←List.reverse_reverse circuit]
+  simp only [List.foldr_reverse, ←List.foldl_toArray]
+  exact CircuitResult.foldl_step_varStore_independent_of_constraints
+
+lemma CircuitResult.foldl_step_constraints_and
+  {result : CircuitResult p}
+  {circuit : Circuitus p}
+:
+  (circuit.foldl CircuitResult.step result).constraints = (
+    result.constraints ∧
+    (circuit.foldl CircuitResult.step ⟨result.numAlloc, result.varStore, True⟩).constraints
+  )
+:= by
+  obtain ⟨list⟩ := circuit
+  rewrite [←List.reverse_reverse list]
+  induction list.reverse with
+    | nil =>
+      simp
+    | cons head tail h_tail =>
+      simp at h_tail
+      simp
+      set x := List.foldr _ _ _
+      set y := List.foldr _ _ _
+      have h_varStore : x.varStore = y.varStore := CircuitResult.foldr_step_varStore_independent_of_constraints
+      cases head
+      all_goals simp [CircuitResult.step, h_tail, h_varStore, and_assoc]
+
+lemma CircuitState.eval_append
+  {p : ℕ}
+  {numAlloc}
+  {circuit1 circuit2 : Circuitus p}
+  {varStore}
+:
+  CircuitState.eval ⟨numAlloc, circuit1 ++ circuit2⟩ varStore = (
+    let ⟨numAllocMid, varStoreMid, constraintsMid⟩ := CircuitState.eval ⟨numAlloc, circuit1⟩ varStore
+    let ⟨numAllocPost, varStorePost, constraintsPost⟩ := CircuitState.eval ⟨numAllocMid, circuit2⟩ varStoreMid
+    ⟨numAllocPost, varStorePost, constraintsMid ∧ constraintsPost⟩
+  )
+:= by
+  simp [CircuitState.eval]
+  set first := Array.foldl _ _ circuit1
+  apply CircuitResult.ext
+  all_goals dsimp
+  . exact CircuitResult.foldl_step_numAlloc_independent_of_constraints
+  . exact CircuitResult.foldl_step_varStore_independent_of_constraints
+  . exact CircuitResult.foldl_step_constraints_and
+
+def well_behaved {α : Type} (action : CircuitStateM p α) : Prop :=
+  ∀ state, ∃ alloced rest, (action state).2 = ⟨state.numAlloc + alloced, state.circuit.append rest⟩
+
+lemma CircuitState.eval_bind
+  (α β: Type)
+  (varStore : Std.TreeMap ℕ (ZMod p))
+  (action : CircuitStateM p α)
+  (function : α → CircuitStateM p β)
+  (h_well_behaved : ∀ a, well_behaved (function a))
+:
+  CircuitState.eval (CircuitStateM.run β (bind action function)) varStore = {
+    numAlloc := sorry
+    varStore := sorry
+    constraints := sorry
+  }
+:= by
+  simp [CircuitStateM.run, bind, init, Functor.map, StateT.run, StateT.bind]
+  obtain ⟨data, state_post_action⟩ := action _
+  dsimp
+  replace h_well_behaved := h_well_behaved data
+  simp [well_behaved] at h_well_behaved
+  obtain ⟨alloced, rest, h⟩ := h_well_behaved state_post_action
+  simp [h]
+  rewrite [CircuitState.eval_append]
+  simp
+  split_ands
+
 section
 
 variable {var : Type}
@@ -75,25 +263,41 @@ def eq0 (e : FixedExp p) : CircuitStateM p Unit := do
   CircuitStateM.push (.eq0 e)
 
 @[irreducible]
-def lam : CircuitStateM p ℕ := do
-  CircuitStateM.alloc
+def lam : CircuitStateM p (FixedExp p) := do
+  CircuitStateM.push (.lam)
+  let varIdx ← CircuitStateM.alloc
+  return .v varIdx
 
 @[irreducible]
-def share (e : FixedExp p) : CircuitStateM p ℕ := do
+def share (e : FixedExp p) : CircuitStateM p (FixedExp p) := do
   CircuitStateM.push (.share e)
-  CircuitStateM.alloc
+  let varIdx ← CircuitStateM.alloc
+  return .v varIdx
+
+@[irreducible]
+def isZero (e : FixedExp p) : CircuitStateM p (FixedExp p) := do
+  CircuitStateM.push (.isZero e)
+  let varIdx ← CircuitStateM.alloc
+  return .v varIdx
+
+@[irreducible]
+def num2bits (width : ℕ) (e : FixedExp p) : CircuitStateM p (Vector (FixedExp p) width) := do
+  CircuitStateM.push (.isZero e)
+  Vector.ofFnM fun _ ↦ do
+    let varIdx ← CircuitStateM.alloc
+    return .v varIdx
 
 def testWithInput (x : ZMod 57) : CircuitStateM 57 Unit := do
   eq0 (.c x)
   let y ← share (.add 1 1)
-  discard <| [1, 2, (.v y)].mapM eq0
+  discard <| [1, 2, y].mapM eq0
   eq0 4
 
 def test : CircuitStateM p Unit := do
   let x ← lam
-  eq0 (.v x)
+  eq0 x
   let y ← share (.add 1 1)
-  discard <| [1, 2, (.v y)].mapM eq0
+  discard <| [1, 2, y].mapM eq0
   eq0 4
 
 #eval test.run (p := 57)

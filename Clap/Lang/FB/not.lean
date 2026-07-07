@@ -2,30 +2,48 @@ import Clap.Lang.FB.FB
 
 namespace Clap.Lang.FB
 
-def not {p : ℕ} (a : FB p) : FB p := 1 - a
+def not {p : ℕ} [Fact (p ≥ 2)] (a : FB p) : FB p := 1 - a
 
 namespace not
 
-def spec (p : ℕ) : Prop := matchesUnaryFunction p (!·) FB.not
+def spec (p : ℕ) [Fact (p ≥ 2)] : Prop := matchesUnaryFunction p (!·) FB.not
 
-#synth HSub (FB 2) (FB 2) (FB 2)
-
-lemma equiv (p : ℕ): spec p
+lemma equiv {p : ℕ} [Fact (p ≥ 2)]: spec p
 := by
   unfold spec matchesUnaryFunction
   intro a varStore h_isValid
+  expose_names
+  obtain ⟨h_p⟩ := inst
   obtain h | h := h_isValid
-  all_goals simp [FB.not]
-  unfold FixedExp.eval
-  rewrite [show 1 - a = (Exp.c ↑1).sub a by {
-    simp [HSub.hSub, Sub.sub]
-  }]
-  rewrite []
-  unfold FB.not
-  unfold_projs
-  unfold Nat.cast NatCast.natCast
-  aesop (add simp [FB.isValid, FB.toBool, FB.ofBool])
-  done
+  . simp [
+      FB.not,
+      show 1 - a = (Exp.c ↑1).sub a by {
+        simp [HSub.hSub, Sub.sub, OfNat.ofNat]
+      },
+      FixedExp.eval,
+      h,
+      FB.toBool,
+      beq_eq_decide,
+      show ((0: ZMod p) = 1) = (1 = (0: ZMod p)) by grind,
+      ZMod.one_eq_zero_iff,
+      show (p = 1) = False by {
+        simp
+        omega
+      },
+      FB.ofBool,
+      FB.true
+    ]
+  . simp [
+      FB.not,
+      show 1 - a = (Exp.c ↑1).sub a by {
+        simp [HSub.hSub, Sub.sub, OfNat.ofNat]
+      },
+      FixedExp.eval,
+      h,
+      FB.toBool,
+      FB.ofBool,
+      FB.false
+    ]
 
 end not
 
