@@ -331,6 +331,68 @@ def lessThan_equiv {w} (a b : F p)
           show (decide (a.val < b.val) : Bool) = false from
             decide_eq_false_iff_not.mpr (Nat.not_lt.mpr hab)]
 
+def greaterThan_spec (a b : ℕ) : Bool := b < a
+
+lemma greaterThan_equiv {w} (a b : F p)
+    (ha : a.val < 2^w) (hb : b.val < 2^w) (hw : 2^(w+1) < p) :
+    F.greaterThan w a b = some (FB.ofBool (greaterThan_spec a.val b.val)) := by
+  unfold F.greaterThan greaterThan_spec
+  exact lessThan_equiv b a hb ha hw
+
+/-- Adding `1` to a field element that already fits in `w` bits (with `w+1` bits still
+    below the field's characteristic) does not wrap around. -/
+private lemma val_add_one_of_lt {w} {x : F p} (hx : x.val < 2^w) (hw : 2^(w+1) < p) :
+    (x + 1).val = x.val + 1 := by
+  have h2w_lt_p : 2^w < p :=
+    lt_trans (Nat.pow_lt_pow_right (by norm_num) (Nat.lt_succ_self w)) hw
+  have h1 : (1 : ZMod p).val = 1 := ZMod.val_one p
+  have h := ZMod.val_add_of_lt (a := x) (b := (1 : ZMod p)) (by rw [h1]; omega)
+  rwa [h1] at h
+
+def greaterEqThan_spec (a b : ℕ) : Bool := b ≤ a
+
+lemma greaterEqThan_equiv {w} (a b : F p)
+    (ha : a.val + 1 < 2^w) (hb : b.val < 2^w) (hw : 2^(w+1) < p) :
+    F.greaterEqThan w a b = some (FB.ofBool (greaterEqThan_spec a.val b.val)) := by
+  unfold F.greaterEqThan greaterEqThan_spec
+  have ha' : a.val < 2^w := by omega
+  have ha1 : (a + 1).val = a.val + 1 := val_add_one_of_lt ha' hw
+  rw [lessThan_equiv b (a + 1) hb (by rw [ha1]; exact ha) hw, ha1]
+  congr 1
+  congr 1
+  exact decide_eq_decide.mpr (by omega)
+
+def lessEqThan_spec (a b : ℕ) : Bool := a ≤ b
+
+lemma lessEqThan_equiv {w} (a b : F p)
+    (ha : a.val < 2^w) (hb : b.val + 1 < 2^w) (hw : 2^(w+1) < p) :
+    F.lessEqThan w a b = some (FB.ofBool (lessEqThan_spec a.val b.val)) := by
+  unfold F.lessEqThan lessEqThan_spec
+  have hb' : b.val < 2^w := by omega
+  have hb1 : (b + 1).val = b.val + 1 := val_add_one_of_lt hb' hw
+  rw [lessThan_equiv a (b + 1) ha (by rw [hb1]; exact hb) hw, hb1]
+  congr 1
+  congr 1
+  exact decide_eq_decide.mpr (by omega)
+
+def guardedEq0_spec (guard : Bool) (constraint : F p) : Option Unit :=
+  Spec.FB.conditionallyAssert guard (decide (constraint = 0))
+
+lemma guardedEq0_equiv (guard : FB p) (constraint : F p) (h : Spec.FB.valid guard) :
+    F.guardedEq0 guard constraint = guardedEq0_spec (Spec.FB.toBool guard) constraint := by
+  unfold F.guardedEq0 guardedEq0_spec Spec.FB.conditionallyAssert Spec.FB.assert
+  rcases h with h | h <;> simp [h, FB.false, FB.true, eq0, Spec.FB.toBool]
+
+def guardedAssertEq_spec (guard : Bool) (a b : F p) : Option Unit :=
+  Spec.FB.conditionallyAssert guard (decide (a = b))
+
+lemma guardedAssertEq_equiv (guard : FB p) (a b : F p) (h : Spec.FB.valid guard) :
+    F.guardedAssertEq guard a b = guardedAssertEq_spec (Spec.FB.toBool guard) a b := by
+  unfold F.guardedAssertEq
+  rw [guardedEq0_equiv guard (a - b) h]
+  unfold guardedEq0_spec guardedAssertEq_spec
+  simp [sub_eq_zero]
+
 end Spec.F
 
 
