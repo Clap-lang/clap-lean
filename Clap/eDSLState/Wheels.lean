@@ -11,6 +11,8 @@ initialize Lean.registerTraceClass `Clap.Preprocessor
 
 initialize Lean.registerTraceClass `Clap.Preprocessor.addLambdas (inherited := true)
 
+register_simp_attr Clap.monads
+
 @[simp, grind .]
 lemma ZMod.zero_ne_one
   {p : ℕ}
