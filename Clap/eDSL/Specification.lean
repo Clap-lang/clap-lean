@@ -25,7 +25,7 @@ abbrev Exp (p: ℕ) := Clap.Exp p ℕ
 abbrev Circuit (p: ℕ) := (Clap.Circuit p ℕ)
 
 structure AllocatedCircuit (p : ℕ) where
-  varStore : Std.ExtTreeMap ℕ (ZMod p)
+  varStore : Std.ExtExtTreeMap ℕ (ZMod p)
   circuit : Circuit p
 
 -- def isVarAllocated {p : ℕ} (numAlloc : ℕ) (e : Exp p) : Bool :=
@@ -57,7 +57,7 @@ structure AllocatedCircuit (p : ℕ) where
 --   unfold ex
   -- aesop (add simp ex)
 
-def eval_expr {p : ℕ} (varStore : Std.ExtTreeMap ℕ (ZMod p)) (e : Exp p) : Option (ZMod p) := match e with
+def eval_expr {p : ℕ} (varStore : Std.ExtExtTreeMap ℕ (ZMod p)) (e : Exp p) : Option (ZMod p) := match e with
   | .c x => .some x
   | .v x => varStore.get? x
   | .add l r => do (←eval_expr varStore l) + (←eval_expr varStore r)
@@ -66,7 +66,7 @@ def eval_expr {p : ℕ} (varStore : Std.ExtTreeMap ℕ (ZMod p)) (e : Exp p) : O
 
 -- split varstore and circuit to not have to manually prove termination
 -- TODO do we even still need AllocatedCircuit?
-def eval_impl {p: ℕ} (varStore: Std.ExtTreeMap ℕ (ZMod p)) (circuit : Circuit p) : denotation (ZMod p) :=
+def eval_impl {p: ℕ} (varStore: Std.ExtExtTreeMap ℕ (ZMod p)) (circuit : Circuit p) : denotation (ZMod p) :=
   match circuit with
   | .nil =>
     .u
@@ -113,7 +113,7 @@ def eval {p: ℕ} (circuit: AllocatedCircuit p) : denotation (ZMod p) :=
 
 
 def equiv {p: ℕ} {ResultT: Type}
-  (varStore : Std.TreeMap ℕ (ZMod p))
+  (varStore : Std.ExtTreeMap ℕ (ZMod p))
   (circuit1 circuit2 : Edsl.CircuitContM p ℕ ResultT)
 : Prop :=
   ∀ continuation, (
@@ -123,7 +123,7 @@ def equiv {p: ℕ} {ResultT: Type}
 
 lemma equiv_refl
   {p : ℕ}
-  {varStore : Std.TreeMap ℕ (ZMod p)}
+  {varStore : Std.ExtTreeMap ℕ (ZMod p)}
   {ResultT : Type}
   {x : Edsl.CircuitContM p ℕ ResultT}
 :
@@ -133,7 +133,7 @@ lemma equiv_refl
 
 lemma equiv_symm
   {p : ℕ}
-  {varStore : Std.TreeMap ℕ (ZMod p)}
+  {varStore : Std.ExtTreeMap ℕ (ZMod p)}
   {ResultT : Type}
   {x y : Edsl.CircuitContM p ℕ ResultT}
 :
@@ -143,7 +143,7 @@ lemma equiv_symm
 
 lemma equiv_trans
   {p : ℕ}
-  {varStore : Std.TreeMap ℕ (ZMod p)}
+  {varStore : Std.ExtTreeMap ℕ (ZMod p)}
   {ResultT : Type}
   {x y z : Edsl.CircuitContM p ℕ ResultT}
 :
@@ -166,13 +166,13 @@ lemma _root_.Clap.Edsl.CircuitContM.nothing_def
 
 open Edsl.CircuitContM in
 lemma equiv_pure_unit {p : ℕ}
-  {varStore : Std.TreeMap ℕ (ZMod p)}
+  {varStore : Std.ExtTreeMap ℕ (ZMod p)}
 :
   equiv varStore (pure ()) (pure ())
 := equiv_refl
 
 lemma equiv_eq0 {p: ℕ} {ResultT: Type}
-  {varStore : Std.TreeMap ℕ (ZMod p)}
+  {varStore : Std.ExtTreeMap ℕ (ZMod p)}
   (a: Exp p)
   (rest : Edsl.CircuitContM p ℕ ResultT)
   (h_equiv: eval_expr varStore a = .some 0)
@@ -191,7 +191,7 @@ lemma equiv_eq0 {p: ℕ} {ResultT: Type}
 
 -- TODO do we want Edsl.share to return an exp?
 lemma equiv_share {p: ℕ} {ResultT: Type} {val : ZMod p} {other}
-  {varStore : Std.TreeMap ℕ (ZMod p)}
+  {varStore : Std.ExtTreeMap ℕ (ZMod p)}
   (a: Exp p)
   (rest: (Exp p) → Edsl.CircuitContM p ℕ ResultT)
   (h_a : eval_expr varStore a = .some val)
@@ -216,14 +216,14 @@ lemma equiv_share {p: ℕ} {ResultT: Type} {val : ZMod p} {other}
     done
 
 def fails {p: ℕ} {ResultT: Type}
-  (varStore : Std.TreeMap ℕ (ZMod p))
+  (varStore : Std.ExtTreeMap ℕ (ZMod p))
   (circuit : Edsl.CircuitContM p ℕ ResultT)
 : Prop :=
     eval ⟨varStore, circuit (λ _result => .nil)⟩ =
     .n
 
 lemma fails_eq0 {p: ℕ}
-  (varStore : Std.TreeMap ℕ (ZMod p))
+  (varStore : Std.ExtTreeMap ℕ (ZMod p))
   (a: Exp p)
   (h_equiv: eval_expr varStore a ≠ .some 0)
 :
@@ -234,7 +234,7 @@ lemma fails_eq0 {p: ℕ}
   simp [fails, eval, Edsl.eq0, eval_impl, h_equiv]
 
 lemma fails_of_head_fails {p: ℕ} {ResultT: Type}
-  (varStore : Std.TreeMap ℕ (ZMod p))
+  (varStore : Std.ExtTreeMap ℕ (ZMod p))
   (a: Exp p)
   (tail: Unit → Edsl.CircuitContM p ℕ ResultT)
   (h_fails: fails varStore (Edsl.eq0 a))

@@ -67,7 +67,7 @@ def CircuitStateM.run (α : Type) (m : CircuitStateM p α) : CircuitState p :=
 
 structure CircuitResult (p : ℕ) where
   numAlloc : ℕ
-  varStore : Std.TreeMap ℕ (ZMod p)
+  varStore : Std.ExtTreeMap ℕ (ZMod p)
   constraints : Prop
 
 def CircuitResult.step {p : ℕ} (result : CircuitResult p) (next : CircuitusPlanus p) : CircuitResult p :=
@@ -99,7 +99,7 @@ def CircuitResult.step {p : ℕ} (result : CircuitResult p) (next : CircuitusPla
       constraints ∧ (e.eval varStore.get?).isSome
     ⟩
 
-def CircuitState.eval {p : ℕ} (circuit : CircuitState p) (varStore : Std.TreeMap ℕ (ZMod p)) : CircuitResult p :=
+def CircuitState.eval {p : ℕ} (circuit : CircuitState p) (varStore : Std.ExtTreeMap ℕ (ZMod p)) : CircuitResult p :=
   circuit.circuit.foldl CircuitResult.step ⟨circuit.numAlloc, varStore, True⟩
 
 lemma CircuitResult.ext {p : ℕ} {r1 r2 : CircuitResult p}
@@ -115,7 +115,7 @@ lemma CircuitResult.ext {p : ℕ} {r1 r2 : CircuitResult p}
 
 lemma CircuitResult.foldl_step_numAlloc_independent_of_constraints
   {numAlloc : ℕ}
-  {varStore : Std.TreeMap ℕ (ZMod p)}
+  {varStore : Std.ExtTreeMap ℕ (ZMod p)}
   {constraints1 constraints2 : Prop}
   {circuit : Circuitus p}
 :
@@ -137,7 +137,7 @@ lemma CircuitResult.foldl_step_numAlloc_independent_of_constraints
 
 lemma CircuitResult.foldr_step_numAlloc_independent_of_constraints
   {numAlloc : ℕ}
-  {varStore : Std.TreeMap ℕ (ZMod p)}
+  {varStore : Std.ExtTreeMap ℕ (ZMod p)}
   {constraints1 constraints2 : Prop}
   {circuit : List (CircuitusPlanus p)}
 :
@@ -150,7 +150,7 @@ lemma CircuitResult.foldr_step_numAlloc_independent_of_constraints
 
 lemma CircuitResult.foldl_step_varStore_independent_of_constraints
   {numAlloc : ℕ}
-  {varStore : Std.TreeMap ℕ (ZMod p)}
+  {varStore : Std.ExtTreeMap ℕ (ZMod p)}
   {constraints1 constraints2 : Prop}
   {circuit : Circuitus p}
 :
@@ -173,7 +173,7 @@ lemma CircuitResult.foldl_step_varStore_independent_of_constraints
 
 lemma CircuitResult.foldr_step_varStore_independent_of_constraints
   {numAlloc : ℕ}
-  {varStore : Std.TreeMap ℕ (ZMod p)}
+  {varStore : Std.ExtTreeMap ℕ (ZMod p)}
   {constraints1 constraints2 : Prop}
   {circuit : List (CircuitusPlanus p)}
 :
@@ -232,7 +232,7 @@ def well_behaved {α : Type} (action : CircuitStateM p α) : Prop :=
 
 lemma CircuitState.eval_bind
   (α β: Type)
-  (varStore : Std.TreeMap ℕ (ZMod p))
+  (varStore : Std.ExtTreeMap ℕ (ZMod p))
   (action : CircuitStateM p α)
   (function : α → CircuitStateM p β)
   (h_well_behaved : ∀ a, well_behaved (function a))
