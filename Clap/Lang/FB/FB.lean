@@ -35,6 +35,27 @@ def matchesUnaryFunction (p : ℕ) [Fact (p ≥ 2)] (spec_function: Bool → Boo
 
 -- def matchesConstraints (p : ℕ) [Fact (p ≥ 2)] (constraints: Prop) (function : Edsl.CircuitStateM p Unit) : Prop :=
 
+lemma right_inv
+  {p : ℕ}
+  {varStore : ℕ → Option (ZMod p)}
+  (f: FB p)
+  (h : f.isValid varStore)
+  [Fact (p ≥ 2)]
+:
+  (FB.ofBool p (f.toBool varStore)).eval varStore = f.eval varStore
+:= by
+  aesop (add simp [toBool,FB.ofBool,FB.isValid])
+
+lemma left_inv
+  {p : ℕ}
+  {varStore : ℕ → Option (ZMod p)}
+  (b: Bool)
+  [Fact (p ≥ 2)]
+:
+  (FB.ofBool p b).toBool varStore = b
+:= by
+  aesop (add simp [toBool,FB.ofBool,FB.true,FB.false])
+
 
 end FB
 

@@ -106,10 +106,10 @@ def toBool (f:ZMod p) : Bool := --Edsl'd
 def valid_ofBool (b:Bool) : valid (FB.ofBool (p:=p) b) := by --Edsl'd (isValid_ofBool)
   simp [valid,FB.ofBool,FB.false,FB.true]
 
-lemma right_inv (f: ZMod p) (h : valid f) : FB.ofBool (toBool f) = f := by
+lemma right_inv (f: ZMod p) (h : valid f) : FB.ofBool (toBool f) = f := by --Edsl'd
   aesop (add simp [toBool,FB.ofBool,valid])
 
-lemma left_inv (b: Bool) : toBool (p:=p) (FB.ofBool b) = b := by
+lemma left_inv (b: Bool) : toBool (p:=p) (FB.ofBool b) = b := by --Edsl'd
   aesop (add simp [toBool,FB.ofBool,FB.true,FB.false])
 
 -- noncomputable def boolEquiv :
@@ -133,7 +133,7 @@ lemma or_equiv (a b : ZMod p) (ha : valid a) (hb : valid b) :
   a ||| b = FB.ofBool (toBool a || toBool b) := by
   aesop (add simp [HOr.hOr,FB.or,left_inv,right_inv,toBool,FB.false,FB.true,valid])
 
-lemma not_equiv (a : ZMod p) (ha : valid a) :
+lemma not_equiv (a : ZMod p) (ha : valid a) : --Edsl'd
   FB.not a = FB.ofBool (not (toBool a)) := by
   aesop (add simp [FB.not,left_inv,right_inv,toBool,FB.false,FB.true,valid])
 
