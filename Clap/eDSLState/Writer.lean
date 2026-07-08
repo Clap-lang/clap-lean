@@ -49,10 +49,10 @@ section
 
 variable {p : ℕ}
 
-abbrev CircuitStateM (p : ℕ) (α : Type) : Type := WriterT (CircuitState p) (ReaderM ℕ) α
+abbrev CircuitStateM (p : ℕ) (α : Type) : Type := WriterT (CircuitState p) (StateM ℕ) α
 
-def CircuitStateM.run {p : ℕ} {α : Type} (cmd : CircuitStateM p α) (numAlloc : ℕ): (α × CircuitState p) :=
-  ReaderT.run WriterT.run cmd numAlloc
+def CircuitStateM.run {p : ℕ} {α : Type} (cmd : CircuitStateM p α) (numAlloc : ℕ) :=
+  StateT.run (WriterT.run cmd) numAlloc
 
 structure CircuitResult (p : ℕ) where
   numAlloc : ℕ
@@ -282,7 +282,7 @@ lemma foldr_step_varStore_independent_of_constraints'
 := by
   rewrite [←List.reverse_reverse circuit]
   simp only [List.foldr_reverse, ←List.foldl_toArray]
-  grind [cases CircuitResult, foldl_step_varStore_independent_of_constraints]
+  grind [cases CircuitResult]
 
 lemma foldl_step_constraints_and
   {result : CircuitResult p}
@@ -329,9 +329,9 @@ lemma eval_bind
   {action : CircuitStateM p α}
   {function : α → CircuitStateM p β}
 :
-  eval (CircuitStateM.run (action >>= function) numAlloc).2 varStore numAlloc =
-  let (result, action_circuit) := action.run numAlloc
-  let (_, function_circuit) := (function result).run numAlloc
+  eval (CircuitStateM.run (action >>= function) numAlloc).1.2 varStore numAlloc =
+  let ((result, action_circuit), numAlloc') := action.run numAlloc
+  let ((_, function_circuit), _) := (function result).run numAlloc'
   let first_eval := eval action_circuit varStore numAlloc
   let second_eval := eval function_circuit first_eval.varStore first_eval.numAlloc
   {
@@ -340,8 +340,8 @@ lemma eval_bind
     constraints := first_eval.constraints ∧ second_eval.constraints
   }
 := by
-  simp only [CircuitStateM.run, ReaderT.run, WriterT.run, bind, WriterT.mk, ReaderT.bind, Functor.map]
-  grind
+  simp only [CircuitStateM.run, StateT.run, WriterT.run, bind, WriterT.mk, StateT.bind, Functor.map, StateT.map, pure]
+  grind  
 
 end CircuitState
 
@@ -361,7 +361,7 @@ def lam {α : Type} (action: (FixedExp p) → CircuitStateM p α) : CircuitState
 
 @[irreducible]
 def share (e : FixedExp p) : CircuitStateM p (FixedExp p) := do
-  CircuitStateM.push (.share e)
+  tell #[.share e]
   let varIdx ← CircuitStateM.alloc
   return .v varIdx
 
