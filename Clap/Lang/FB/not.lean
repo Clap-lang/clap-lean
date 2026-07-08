@@ -11,9 +11,8 @@ def spec (p : ℕ) [Fact (p ≥ 2)] : Prop := matchesUnaryFunction p (!·) FB.no
 lemma equiv {p : ℕ} [Fact (p ≥ 2)] : spec p
 := by
   intro a varStore h_isValid
-  have : p ≥ 2 := by aesop (add simp Fact.out)
+  have : p ≥ 2 := Fact.out
   simp
-  
   obtain h | h := h_isValid
   . simp [
       FB.not,

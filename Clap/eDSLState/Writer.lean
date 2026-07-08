@@ -54,6 +54,17 @@ abbrev CircuitStateM (p : ℕ) (α : Type) : Type := WriterT (CircuitState p) (S
 def CircuitStateM.run {p : ℕ} {α : Type} (cmd : CircuitStateM p α) (numAlloc : ℕ) :=
   StateT.run (WriterT.run cmd) numAlloc
 
+attribute [Clap.monads]
+  CircuitStateM.run
+  StateT.run
+  WriterT.run
+  bind
+  WriterT.mk
+  StateT.bind
+  Functor.map
+  StateT.map
+  pure
+
 def CircuitStateM.alloc {p : ℕ} : CircuitStateM p ℕ:=
   getModify (· + 1)
 
@@ -336,7 +347,7 @@ lemma eval_bind
     constraints := first_eval.constraints ∧ second_eval.constraints
   }
 := by
-  simp only [CircuitStateM.run, StateT.run, WriterT.run, bind, WriterT.mk, StateT.bind, Functor.map, StateT.map, pure]
+  simp only [Clap.monads]
   grind
 
 end CircuitState
