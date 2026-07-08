@@ -107,20 +107,20 @@ lemma getD_eq_get?_getD : result.getD e = (result.get? e |>.getD 0) := rfl
 @[simp, grind =]
 lemma constraints_allocAnonymous : result.allocAnonymous.constraints = result.constraints := rfl
 
-def init (result : CircuitResult p) (e : FixedExp p) :=
+def assertAllocated (result : CircuitResult p) (e : FixedExp p) : CircuitResult p :=
   result.addConstraint (result.get? e).isSome
 
 @[simp, grind =]
 lemma numAlloc_init :
-  (result.init e).numAlloc = result.numAlloc := rfl
+  (result.assertAllocated e).numAlloc = result.numAlloc := rfl
 
 @[simp, grind =]
 lemma varStore_init :
-  (result.init e).varStore = result.varStore := rfl
+  (result.assertAllocated e).varStore = result.varStore := rfl
 
 @[simp, grind =]
 lemma constraints_init :
-  (result.init e).constraints = (result.constraints ∧ (result.get? e).isSome = true) := rfl
+  (result.assertAllocated e).constraints = (result.constraints ∧ (result.get? e).isSome = true) := rfl
 
 def alloc {k p : ℕ} (result : CircuitResult p) (vars : Vector (ZMod p) k) :=
   let indexed := (Vector.range k).map (·+result.numAlloc) |>.zip vars
@@ -144,16 +144,9 @@ def step {p : ℕ} (result : CircuitResult p) (next : CircuitusPlanus p) : Circu
   match next with
   | .eq0 e => result.addConstraint (result.get? e = .some 0)
   | .lam => result.allocAnonymous
-  | .share e => result.init e |>.alloc #v[result.getD e]
-  | .isZero e => result.init e |>.alloc #v[if result.get? e = .some 0 then 1 else 0]
-  | .num2bits width e => result.init e |>.alloc (num2bitsLsbPureV width (result.getD e))
-  -- num2bits width e => ⟨
-  --   numAlloc + width,
-  --   varStore.insertMany ((Vector.range width).zip (num2bitsLsbPureV width ((e.eval varStore.get?).getD 0))),
-  --   TODO(check):         ^^^^^^^^^^^^^^^^^^^ I think we want `Vector.range width |>.map (·+numAlloc)` here,
-  --                                            and in general, in the impl. of `alloc`
-  --   constraints ∧ (e.eval varStore.get?).isSome
-  -- ⟩
+  | .share e => result.assertAllocated e |>.alloc #v[result.getD e]
+  | .isZero e => result.assertAllocated e |>.alloc #v[if result.get? e = .some 0 then 1 else 0]
+  | .num2bits width e => result.assertAllocated e |>.alloc (num2bitsLsbPureV width (result.getD e))
 
 def split (result : CircuitResult p) : CircuitResult p :=
   {result with constraints := True}
@@ -181,15 +174,15 @@ lemma step_lam :
 
 @[simp, grind =]
 lemma step_share :
-  result.step (.share e) = (result.init e |>.alloc #v[result.getD e]) := rfl
+  result.step (.share e) = (result.assertAllocated e |>.alloc #v[result.getD e]) := rfl
 
 @[simp, grind =]
 lemma step_isZero :
-  result.step (.isZero e) = (result.init e |>.alloc #v[if result.get? e = .some 0 then 1 else 0]) := rfl
+  result.step (.isZero e) = (result.assertAllocated e |>.alloc #v[if result.get? e = .some 0 then 1 else 0]) := rfl
 
 @[simp, grind =]
 lemma step_num2bits :
-  result.step (.num2bits width e) = (result.init e |>.alloc (num2bitsLsbPureV width (result.getD e))) := rfl
+  result.step (.num2bits width e) = (result.assertAllocated e |>.alloc (num2bitsLsbPureV width (result.getD e))) := rfl
 
 end
 
@@ -344,7 +337,7 @@ lemma eval_bind
   }
 := by
   simp only [CircuitStateM.run, StateT.run, WriterT.run, bind, WriterT.mk, StateT.bind, Functor.map, StateT.map, pure]
-  grind  
+  grind
 
 end CircuitState
 
@@ -357,10 +350,10 @@ def eq0 (e : FixedExp p) : CircuitStateM p Unit := do
   tell #[.eq0 e]
 
 @[irreducible]
-def lam {α : Type} (action : FixedExp p → CircuitStateM p α) : CircuitStateM p α := do
+def lam : CircuitStateM p (FixedExp p) := do
   tell #[.lam]
   let numAlloc ← CircuitStateM.alloc
-  action (.v numAlloc)
+  return .v numAlloc
 
 @[irreducible]
 def share (e : FixedExp p) : CircuitStateM p (FixedExp p) := do
@@ -382,12 +375,19 @@ def num2bits (width : ℕ) (e : FixedExp p) : CircuitStateM p (Vector (FixedExp 
     return .v varIdx
 
 def test : CircuitStateM p Unit := do
-  lam fun x ↦ do
+  let x ← lam
   eq0 x
   let y ← share (.add 1 1)
   discard <| [1, 2, y].mapM eq0
   eq0 4
 
+/--
+info: (((),
+  #[Clap.CircuitusPlanus.lam, Clap.CircuitusPlanus.eq0 v0, Clap.CircuitusPlanus.share (1 + 1),
+    Clap.CircuitusPlanus.eq0 1, Clap.CircuitusPlanus.eq0 2, Clap.CircuitusPlanus.eq0 v1, Clap.CircuitusPlanus.eq0 4]),
+ 2)
+-/
+#guard_msgs in
 #eval test.run (p := 57) 0
 
 end
