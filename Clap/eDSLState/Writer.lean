@@ -54,6 +54,9 @@ abbrev CircuitStateM (p : ℕ) (α : Type) : Type := WriterT (CircuitState p) (S
 def CircuitStateM.run {p : ℕ} {α : Type} (cmd : CircuitStateM p α) (numAlloc : ℕ) :=
   StateT.run (WriterT.run cmd) numAlloc
 
+def CircuitStateM.alloc {p : ℕ} : CircuitStateM p ℕ:=
+  getModify (· + 1)
+
 structure CircuitResult (p : ℕ) where
   numAlloc : ℕ
   varStore : Std.ExtTreeMap ℕ (ZMod p)
@@ -354,47 +357,38 @@ def eq0 (e : FixedExp p) : CircuitStateM p Unit := do
   tell #[.eq0 e]
 
 @[irreducible]
-def lam {α : Type} (action: (FixedExp p) → CircuitStateM p α) : CircuitStateM p α := do
+def lam {α : Type} (action : FixedExp p → CircuitStateM p α) : CircuitStateM p α := do
   tell #[.lam]
-  let numAlloc ← read
-  withReader (· + 1) (action (.v numAlloc))
+  let numAlloc ← CircuitStateM.alloc
+  action (.v numAlloc)
 
 @[irreducible]
 def share (e : FixedExp p) : CircuitStateM p (FixedExp p) := do
   tell #[.share e]
-  let varIdx ← CircuitStateM.alloc
-  return .v varIdx
+  let numAlloc ← CircuitStateM.alloc
+  return (.v numAlloc)
 
 @[irreducible]
 def isZero (e : FixedExp p) : CircuitStateM p (FixedExp p) := do
-  CircuitStateM.push (.isZero e)
-  let varIdx ← CircuitStateM.alloc
-  return .v varIdx
+  tell #[.isZero e]
+  let numAlloc ← CircuitStateM.alloc -- (un)just one
+  return .v numAlloc
 
 @[irreducible]
 def num2bits (width : ℕ) (e : FixedExp p) : CircuitStateM p (Vector (FixedExp p) width) := do
-  CircuitStateM.push (.isZero e)
+  tell #[.num2bits width e]
   Vector.ofFnM fun _ ↦ do
     let varIdx ← CircuitStateM.alloc
     return .v varIdx
 
-def testWithInput (x : ZMod 57) : CircuitStateM 57 Unit := do
-  eq0 (.c x)
-  let y ← share (.add 1 1)
-  discard <| [1, 2, y].mapM eq0
-  eq0 4
-
 def test : CircuitStateM p Unit := do
-  let x ← lam
+  lam fun x ↦ do
   eq0 x
   let y ← share (.add 1 1)
   discard <| [1, 2, y].mapM eq0
   eq0 4
 
-#eval test.run (p := 57)
-
--- Something like this?
--- Aaanyway... now I need to make sure to produce `.lam`s from initial arguments
+#eval test.run (p := 57) 0
 
 end
 
