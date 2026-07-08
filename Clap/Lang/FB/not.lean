@@ -8,12 +8,12 @@ namespace not
 
 def spec (p : ℕ) [Fact (p ≥ 2)] : Prop := matchesUnaryFunction p (!·) FB.not
 
-lemma equiv {p : ℕ} [Fact (p ≥ 2)]: spec p
+lemma equiv {p : ℕ} [Fact (p ≥ 2)] : spec p
 := by
-  unfold spec matchesUnaryFunction
   intro a varStore h_isValid
-  expose_names
-  obtain ⟨h_p⟩ := inst
+  have : p ≥ 2 := by aesop (add simp Fact.out)
+  simp
+  
   obtain h | h := h_isValid
   . simp [
       FB.not,

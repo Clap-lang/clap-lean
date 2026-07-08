@@ -33,7 +33,7 @@ def matchesUnaryFunction (p : ℕ) [Fact (p ≥ 2)] (spec_function: Bool → Boo
     (function a).eval varStore =
     (FB.ofBool p (spec_function (a.toBool varStore))).eval varStore
 
-def matchesConstraints (p : ℕ) [Fact (p ≥ 2)] (constraints: Prop) (function : Edsl.CircuitStateM p Unit) : Prop :=
+-- def matchesConstraints (p : ℕ) [Fact (p ≥ 2)] (constraints: Prop) (function : Edsl.CircuitStateM p Unit) : Prop :=
 
 
 end FB
