@@ -1,10 +1,7 @@
 import Clap.Lang.FB.FB
 import Clap.Lang.FB.not
 
-import Clap.eDSLState.Writer
-import Clap.eDSLState.Wheels
-
-namespace Clap.Lang.FB
+namespace Clap.Edsl.Lang.FB
 
 def assert {p : ℕ} [Fact (p ≥ 2)] (a : FB p) : Edsl.CircuitStateM p Unit := do
   Edsl.eq0 (not a)
@@ -29,13 +26,18 @@ def matchesUnaryPredicatePure
 
 def spec (p : ℕ) [Fact (p ≥ 2)] : Prop := matchesUnaryPredicatePure p (·) FB.assert
 
-lemma equiv {p : ℕ} [Fact (p ≥ 2)] :
+lemma equiv (p : ℕ) [Fact (p ≥ 2)] :
   spec p
 := by
   intro a varStore numAlloc h_isValid
-  simp [Clap.monads, FB.assert]
-  done
+  simp [
+    Clap.monads,
+    FB.assert,
+    h_isValid,
+    not.equiv a,
+    ofBool.equiv
+  ]
 
 end assert
 
-end Clap.Lang.FB
+end Clap.Edsl.Lang.FB

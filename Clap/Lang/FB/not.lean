@@ -1,6 +1,6 @@
 import Clap.Lang.FB.FB
 
-namespace Clap.Lang.FB
+namespace Clap.Edsl.Lang.FB
 
 def not {p : ℕ} [Fact (p ≥ 2)] (a : FB p) : FB p := 1 - a
 
@@ -19,4 +19,4 @@ lemma equiv {p : ℕ} [Fact (p ≥ 2)] :
 
 end not
 
-end Clap.Lang.FB
+end Clap.Edsl.Lang.FB

@@ -25,4 +25,34 @@ lemma ZMod.zero_ne_one
   simp only [ne_eq, ZMod.one_eq_zero_iff]
   omega
 
+@[simp, grind .]
+lemma ZMod.one_ne_zero
+  {p : ℕ}
+  [p_ge_2 : Fact (p ≥ 2)]
+:
+  (1: ZMod p) ≠ (0 : ZMod p)
+:= by
+  symm
+  simp
+
+@[simp, grind =]
+lemma Std.ExtTreeMap.insertMany_single
+  (α)
+  (β)
+  (cmp)
+  [Std.TransCmp cmp]
+  (x: Std.ExtTreeMap α β cmp)
+  (y)
+  (z)
+: x.insertMany #v[(y, z)] = x.insert y z
+:= by rfl
+
+@[simp, grind =]
+lemma Array.foldl_empty_collection
+  (α β)
+  (f : β → α → β)
+  (init)
+: Array.foldl f init ∅ = init
+:= by rfl
+
 end Clap

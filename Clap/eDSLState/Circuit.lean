@@ -1,79 +1,8 @@
 import Mathlib.Control.Monad.Writer
 
-import Clap.Circuit
-
-import Clap.eDSLState.Wheels
+import Clap.eDSLState.Exp
 
 namespace Clap
-
-namespace Circuit
-
-section
-
-def p : ℕ := 57
-
-variable {var : Type}
-
-
-def pretty [Repr var] [Index var] (c : Circuit p var) := repr 0 c
-
-end
-
-end Circuit
-
-abbrev FixedExp (p : ℕ) := Clap.Exp p ℕ
-abbrev FixedCircuit (p : ℕ) := Clap.Circuit p ℕ
-
-def FixedExp.eval {p : ℕ} (varStore : ℕ → Option (ZMod p)) (x : FixedExp p) : Option (ZMod p) :=
-  match x with
-  | .c x => .some x
-  | .v x => varStore x
-  | .add l r => do (←eval varStore l) + (←eval varStore r)
-  | .sub l r => do (←eval varStore l) - (←eval varStore r)
-  | .mul l r => do (←eval varStore l) * (←eval varStore r)
-
-@[simp, grind =]
-lemma eval_const
-  {p : ℕ}
-  {k : ZMod p}
-  {varStore : ℕ → Option (ZMod p)}
-:
-  FixedExp.eval varStore (Exp.c k) = .some k
-:= by
-  simp [FixedExp.eval]
-
-@[simp, grind =]
-lemma FixedExp.eval_add
-  {p : ℕ}
-  {varStore : ℕ → Option (ZMod p)}
-  {a b : FixedExp p}
-:
-  FixedExp.eval varStore (a + b) =
-  FixedExp.eval varStore (Exp.add a b)
-:= by
-  simp [HAdd.hAdd, Add.add]
-
-@[simp, grind =]
-lemma FixedExp.eval_sub
-  {p : ℕ}
-  {varStore : ℕ → Option (ZMod p)}
-  {a b : FixedExp p}
-:
-  FixedExp.eval varStore (a - b) =
-  FixedExp.eval varStore (Exp.sub a b)
-:= by
-  simp [HSub.hSub, Sub.sub]
-
-@[simp, grind =]
-lemma FixedExp.eval_mul
-  {p : ℕ}
-  {varStore : ℕ → Option (ZMod p)}
-  {a b : FixedExp p}
-:
-  FixedExp.eval varStore (a * b) =
-  FixedExp.eval varStore (Exp.mul a b)
-:= by
-  simp [HMul.hMul, Mul.mul]
 
 @[grind cases]
 inductive CircuitusPlanus (p : ℕ) where
@@ -88,29 +17,6 @@ abbrev CircuitState (p : ℕ) := Array (CircuitusPlanus p)
 
 namespace Edsl
 
-section
-
-variable {p : ℕ}
-
-abbrev CircuitStateM (p : ℕ) (α : Type) : Type := WriterT (CircuitState p) (StateM ℕ) α
-
-def CircuitStateM.run {p : ℕ} {α : Type} (cmd : CircuitStateM p α) (numAlloc : ℕ) :=
-  StateT.run (WriterT.run cmd) numAlloc
-
-attribute [Clap.monads]
-  CircuitStateM.run
-  StateT.run
-  WriterT.run
-  bind
-  WriterT.mk
-  StateT.bind
-  Functor.map
-  StateT.map
-  pure
-
-def CircuitStateM.alloc {p : ℕ} : CircuitStateM p ℕ:=
-  getModify (· + 1)
-
 structure CircuitResult (p : ℕ) where
   numAlloc : ℕ
   varStore : Std.ExtTreeMap ℕ (ZMod p)
@@ -120,11 +26,22 @@ namespace CircuitResult
 
 section
 
-variable {k : ℕ} {result result' : CircuitResult p}
+-- TODO do we need all of these?
+variable {p : ℕ} {k : ℕ} {result result' : CircuitResult p}
          {constraint : Prop} {vars : Vector (ZMod p) k} {e : FixedExp p}
 
-def addConstraint (result : CircuitResult p) (constraint : Prop) :=
+def addConstraint (result : CircuitResult p) (constraint : Prop) : CircuitResult p :=
   {result with constraints := result.constraints ∧ constraint}
+
+@[simp, grind =]
+lemma addConstraint_mk
+  (numAlloc : ℕ)
+  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+  (constraints constraint : Prop)
+:
+  (Edsl.CircuitResult.mk numAlloc varStore constraints).addConstraint constraint =
+  Edsl.CircuitResult.mk numAlloc varStore (constraints ∧ constraint)
+:= rfl
 
 @[simp, grind =]
 lemma numAlloc_addConstraint : (result.addConstraint constraint).numAlloc = result.numAlloc := rfl
@@ -136,8 +53,18 @@ lemma varStore_addConstraint : (result.addConstraint constraint).varStore = resu
 lemma constraints_addConstraint : (result.addConstraint constraint).constraints =
                                   (result.constraints ∧ constraint) := rfl
 
-def allocAnonymous (result : CircuitResult p) :=
+def allocAnonymous (result : CircuitResult p) : CircuitResult p :=
   {result with numAlloc := result.numAlloc + 1}
+
+@[simp, grind =]
+lemma allocAnonymous_mk
+  (numAlloc : ℕ)
+  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+  (constraints : Prop)
+:
+  (Edsl.CircuitResult.mk numAlloc varStore constraints).allocAnonymous =
+  Edsl.CircuitResult.mk (numAlloc + 1) varStore constraints
+:= rfl
 
 @[simp, grind =]
 lemma numAlloc_allocAnonymous : result.allocAnonymous.numAlloc = result.numAlloc + 1 := rfl
@@ -145,8 +72,22 @@ lemma numAlloc_allocAnonymous : result.allocAnonymous.numAlloc = result.numAlloc
 @[simp, grind =]
 lemma varStore_allocAnonymous : result.allocAnonymous.varStore = result.varStore := rfl
 
-def get? (result : CircuitResult p) (e : FixedExp p) :=
+@[simp, grind =]
+lemma constraints_allocAnonymous : result.allocAnonymous.constraints = result.constraints := rfl
+
+def get? (result : CircuitResult p) (e : FixedExp p) : Option (ZMod p) :=
   e.eval result.varStore.get?
+
+@[simp, grind =]
+lemma get?_mk
+  (e : FixedExp p)
+  (numAlloc : ℕ)
+  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+  (constraints : Prop)
+:
+  (Edsl.CircuitResult.mk numAlloc varStore constraints).get? e =
+  FixedExp.eval varStore.get? e
+:= rfl
 
 @[grind =>]
 lemma get?_of_varStore_eq_varStore (h : result.varStore = result'.varStore) : result.get? e = result'.get? e := by
@@ -158,28 +99,50 @@ def getD (result : CircuitResult p) (e : FixedExp p) :=
 @[simp, grind =]
 lemma getD_eq_get?_getD : result.getD e = (result.get? e |>.getD 0) := rfl
 
-@[simp, grind =]
-lemma constraints_allocAnonymous : result.allocAnonymous.constraints = result.constraints := rfl
-
 def assertAllocated (result : CircuitResult p) (e : FixedExp p) : CircuitResult p :=
   result.addConstraint (result.get? e).isSome
 
 @[simp, grind =]
-lemma numAlloc_init :
+lemma assertAllocated_mk
+  (e : FixedExp p)
+  (numAlloc : ℕ)
+  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+  (constraints : Prop)
+:
+  (Edsl.CircuitResult.mk numAlloc varStore constraints).assertAllocated e =
+  Edsl.CircuitResult.mk numAlloc varStore (constraints ∧ (e.eval varStore.get?).isSome)
+:= rfl
+
+@[simp, grind =]
+lemma numAlloc_assertAllocated :
   (result.assertAllocated e).numAlloc = result.numAlloc := rfl
 
 @[simp, grind =]
-lemma varStore_init :
+lemma varStore_assertAllocated :
   (result.assertAllocated e).varStore = result.varStore := rfl
 
 @[simp, grind =]
-lemma constraints_init :
+lemma constraints_assertAllocated :
   (result.assertAllocated e).constraints = (result.constraints ∧ (result.get? e).isSome = true) := rfl
 
-def alloc {k p : ℕ} (result : CircuitResult p) (vars : Vector (ZMod p) k) :=
-  let indexed := (Vector.range k).map (·+result.numAlloc) |>.zip vars
+def alloc {k p : ℕ} (result : CircuitResult p) (vals : Vector (ZMod p) k) : CircuitResult p :=
+  let indexed := (Vector.range k).map (·+result.numAlloc) |>.zip vals
   let varStore := result.varStore.insertMany indexed
   {result with varStore := varStore, numAlloc := result.numAlloc + k}
+
+@[simp, grind =]
+lemma alloc_mk
+  (vals : Vector (ZMod p) k)
+  (numAlloc : ℕ)
+  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+  (constraints : Prop)
+:
+  (Edsl.CircuitResult.mk numAlloc varStore constraints).alloc vals =
+  Edsl.CircuitResult.mk
+    (numAlloc + k)
+    (varStore.insertMany ((Vector.range k).map (·+numAlloc) |>.zip vals))
+    constraints
+:= rfl
 
 @[simp, grind =]
 lemma numAlloc_alloc {vars : Vector (ZMod p) k} :
@@ -194,13 +157,49 @@ lemma varStore_alloc {vars : Vector (ZMod p) k} :
 lemma constraints_alloc {vars : Vector (ZMod p) k} :
   (result.alloc vars).constraints = result.constraints := rfl
 
-def step {p : ℕ} (result : CircuitResult p) (next : CircuitusPlanus p) : CircuitResult p :=
+def step (result : CircuitResult p) (next : CircuitusPlanus p) : CircuitResult p :=
   match next with
   | .eq0 e => result.addConstraint (result.get? e = .some 0)
   | .lam => result.allocAnonymous
   | .share e => result.assertAllocated e |>.alloc #v[result.getD e]
   | .isZero e => result.assertAllocated e |>.alloc #v[if result.get? e = .some 0 then 1 else 0]
   | .num2bits width e => result.assertAllocated e |>.alloc (num2bitsLsbPureV width (result.getD e))
+
+-- TODO do we want to make individual functions for these parts and prove properties about them
+@[simp, grind =]
+lemma step_mk
+  (numAlloc : ℕ)
+  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+  (constraints : Prop)
+  (next : CircuitusPlanus p)
+: (Edsl.CircuitResult.mk numAlloc varStore constraints).step next =
+  Edsl.CircuitResult.mk
+    (match next with
+      | .eq0 _ => numAlloc
+      | .lam => numAlloc + 1
+      | .share e => numAlloc + 1
+      | .isZero e => numAlloc + 1
+      | .num2bits width _ => numAlloc + width
+    )
+    (match next with
+      | .eq0 _ => varStore
+      | .lam => varStore
+      | .share e => varStore.insert numAlloc ((e.eval varStore.get?).getD 0)
+      | .isZero e => varStore.insert numAlloc (if (e.eval varStore.get?) = .some 0 then 1 else 0)
+      | .num2bits width e => varStore.insertMany
+        ((Vector.map (fun x => x + numAlloc) (Vector.range width)).zip
+          (num2bitsLsbPureV width ((FixedExp.eval varStore.get? e).getD 0)))
+    )
+    (match next with
+      | .eq0 e => constraints ∧ (e.eval varStore.get?) = .some 0
+      | .lam => constraints
+      | .share e => constraints ∧ (e.eval varStore.get?).isSome
+      | .isZero e => constraints ∧ (e.eval varStore.get?).isSome
+      | .num2bits width e => constraints ∧ (e.eval varStore.get?).isSome
+    )
+:= by
+  cases next <;> simp [CircuitResult.step]
+  rfl
 
 def split (result : CircuitResult p) : CircuitResult p :=
   {result with constraints := True}
@@ -250,6 +249,8 @@ def CircuitState.eval {p : ℕ} (circuit : CircuitState p) (varStore : Std.ExtTr
   CircuitState.evalInOrder circuit ⟨numAlloc, varStore, True⟩
 
 namespace CircuitResult
+
+variable {p : ℕ}
 
 @[ext]
 lemma ext {p : ℕ} {r1 r2 : CircuitResult p}
@@ -351,9 +352,10 @@ end CircuitResult
 
 namespace CircuitState
 
+variable {p : ℕ}
+
 @[simp, grind =]
 lemma eval_append
-  {p : ℕ}
   {numAlloc}
   {circuit1 circuit2 : CircuitState p}
   {varStore}
@@ -372,81 +374,107 @@ lemma eval_append
   . exact CircuitResult.foldl_step_constraints_and
 
 @[simp, grind =]
-lemma eval_bind
-  {α β : Type}
-  {varStore : Std.ExtTreeMap ℕ (ZMod p)}
-  {numAlloc : ℕ}
-  {action : CircuitStateM p α}
-  {function : α → CircuitStateM p β}
+lemma eval_empty
+  (numAlloc : ℕ)
+  (varStore : Std.ExtTreeMap ℕ (ZMod p))
 :
-  eval (CircuitStateM.run (action >>= function) numAlloc).1.2 varStore numAlloc =
-  let ((result, action_circuit), numAlloc') := action.run numAlloc
-  let ((_, function_circuit), _) := (function result).run numAlloc'
-  let first_eval := eval action_circuit varStore numAlloc
-  let second_eval := eval function_circuit first_eval.varStore first_eval.numAlloc
-  {
-    numAlloc := second_eval.numAlloc
-    varStore := second_eval.varStore
-    constraints := first_eval.constraints ∧ second_eval.constraints
-  }
+  Edsl.CircuitState.eval #[] varStore numAlloc =
+  ⟨numAlloc, varStore, True⟩
+:= by rfl
+
+@[simp, grind =]
+lemma eval_empty_collection
+  (numAlloc : ℕ)
+  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+:
+  Edsl.CircuitState.eval ∅ varStore numAlloc =
+  ⟨numAlloc, varStore, True⟩
+:= by rfl
+
+@[simp, grind =]
+lemma eval_eq0
+  (e: FixedExp p)
+  (numAlloc : ℕ)
+  (varStore)
+:
+  Edsl.CircuitState.eval #[.eq0 e] varStore numAlloc =
+  ⟨numAlloc, varStore, e.eval varStore.get? = .some 0⟩
 := by
-  simp only [Clap.monads]
-  grind
+  simp [
+    Clap.monads,
+    Edsl.CircuitState.eval
+  ]
 
+@[simp, grind =]
+lemma eval_lam
+  (numAlloc : ℕ)
+  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+:
+  Edsl.CircuitState.eval #[.lam] varStore numAlloc =
+  ⟨numAlloc + 1, varStore, True⟩
+:= by
+  simp [
+    Edsl.CircuitState.eval
+  ]
+
+@[simp, grind =]
+lemma eval_share
+  (e : FixedExp p)
+  (numAlloc : ℕ)
+  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+:
+  Edsl.CircuitState.eval #[.share e] varStore numAlloc =
+  ⟨
+    numAlloc + 1,
+    varStore.insert numAlloc ((e.eval varStore.get?).getD 0),
+    (e.eval varStore.get?).isSome
+  ⟩
+:= by
+  simp [
+    Clap.monads,
+    Edsl.CircuitState.eval
+  ]
+
+@[simp, grind =]
+lemma eval_isZero
+  (e : FixedExp p)
+  (numAlloc : ℕ)
+  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+:
+  Edsl.CircuitState.eval #[.isZero e] varStore numAlloc =
+  ⟨
+    numAlloc + 1,
+    varStore.insert numAlloc (if (e.eval varStore.get?) = .some 0 then 1 else 0),
+    (e.eval varStore.get?).isSome
+  ⟩
+:= by
+  simp [
+    Clap.monads,
+    Edsl.CircuitState.eval
+  ]
+  rfl
+
+@[simp, grind =]
+lemma eval_num2bits
+  (width : ℕ)
+  (e : FixedExp p)
+  (numAlloc : ℕ)
+  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+:
+  Edsl.CircuitState.eval #[.num2bits width e] varStore numAlloc =
+  ⟨
+    numAlloc + width,
+    varStore.insertMany
+      ((Vector.map (fun x => x + numAlloc) (Vector.range width)).zip
+        (num2bitsLsbPureV width ((FixedExp.eval varStore.get? e).getD 0))),
+    (e.eval varStore.get?).isSome
+  ⟩
+:= by
+  simp [
+    Clap.monads,
+    Edsl.CircuitState.eval
+  ]
 end CircuitState
-
-section
-
-variable {var : Type}
-
-@[irreducible]
-def eq0 (e : FixedExp p) : CircuitStateM p Unit := do
-  tell #[.eq0 e]
-
-@[irreducible]
-def lam : CircuitStateM p (FixedExp p) := do
-  tell #[.lam]
-  let numAlloc ← CircuitStateM.alloc
-  return .v numAlloc
-
-@[irreducible]
-def share (e : FixedExp p) : CircuitStateM p (FixedExp p) := do
-  tell #[.share e]
-  let numAlloc ← CircuitStateM.alloc
-  return (.v numAlloc)
-
-@[irreducible]
-def isZero (e : FixedExp p) : CircuitStateM p (FixedExp p) := do
-  tell #[.isZero e]
-  let numAlloc ← CircuitStateM.alloc -- (un)just one
-  return .v numAlloc
-
-@[irreducible]
-def num2bits (width : ℕ) (e : FixedExp p) : CircuitStateM p (Vector (FixedExp p) width) := do
-  tell #[.num2bits width e]
-  Vector.ofFnM fun _ ↦ do
-    let varIdx ← CircuitStateM.alloc
-    return .v varIdx
-
-def test : CircuitStateM p Unit := do
-  let x ← lam
-  eq0 x
-  let y ← share (.add 1 1)
-  discard <| [1, 2, y].mapM eq0
-  eq0 4
-
-/--
-info: (((),
-  #[Clap.CircuitusPlanus.lam, Clap.CircuitusPlanus.eq0 v0, Clap.CircuitusPlanus.share (1 + 1),
-    Clap.CircuitusPlanus.eq0 1, Clap.CircuitusPlanus.eq0 2, Clap.CircuitusPlanus.eq0 v1, Clap.CircuitusPlanus.eq0 4]),
- 2)
--/
-#guard_msgs in
-#eval test.run (p := 57) 0
-
-end
-
-end
 
 end Edsl
 

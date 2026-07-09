@@ -12,6 +12,7 @@ import Clap.Unshare
 import Clap.Dedup
 import Clap.Spec
 import Clap.Lang
+import Clap.Lang.All
 import Clap.Wheels
 import Clap.Milestone
 import Clap.FString

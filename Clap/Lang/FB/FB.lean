@@ -1,6 +1,6 @@
 import Clap.Lang.F.F
 
-namespace Clap.Lang
+namespace Clap.Edsl.Lang
 
 abbrev FB p := F p
 
@@ -24,11 +24,27 @@ def toBool (x : FB p) (varStore : ℕ → Option (ZMod p)) : Bool :=
 def ofBool (p : ℕ) [Fact (p ≥ 2)] (x : Bool) : FB p :=
   if x then FB.true p else FB.false p
 
-lemma isValid_ofBool (b:Bool) : isAlwaysValid (FB.ofBool p b) := by
-  unfold isAlwaysValid isValid FB.ofBool
+namespace ofBool
+
+lemma isAlwaysValid (b:Bool) : isAlwaysValid (FB.ofBool p b) := by
+  unfold FB.isAlwaysValid isValid FB.ofBool
   aesop
 
-def matchesUnaryFunction (p : ℕ) [Fact (p ≥ 2)] (spec_function: Bool → Bool) (function : FB p → FB p) : Prop :=
+lemma equiv (varStore) (b) : FixedExp.eval varStore (ofBool p b) =
+  if b then .some 1 else .some 0
+:= by
+  simp [ofBool]
+  cases b
+  all_goals simp [FB.false, FB.true]
+
+end ofBool
+
+def matchesUnaryFunction
+  (p : ℕ)
+  [Fact (p ≥ 2)]
+  (spec_function: Bool → Bool)
+  (function : FB p → FB p)
+: Prop :=
   ∀ (a: FB p) varStore, a.isValid varStore →
     (function a).eval varStore =
     (FB.ofBool p (spec_function (a.toBool varStore))).eval varStore
@@ -59,4 +75,4 @@ lemma left_inv
 
 end FB
 
-end Clap.Lang
+end Clap.Edsl.Lang

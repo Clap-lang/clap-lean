@@ -1,7 +1,7 @@
-import Clap.eDSLState.Writer
+import Clap.eDSLState.eDSL
 
-namespace Clap.Lang
+namespace Clap.Edsl.Lang
 
 abbrev F p := FixedExp p
 
-end Clap.Lang
+end Clap.Edsl.Lang
