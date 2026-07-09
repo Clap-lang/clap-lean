@@ -12,23 +12,21 @@ abbrev CircuitStateM (p : ℕ) (α : Type) : Type := WriterT (CircuitState p) (S
 
 -- TODO do we really want this instance, or do we create it locally in order to create LawfulMonad manually?
 instance (p : ℕ) : Monoid (CircuitState p) where
-  mul := Array.append
-  mul_assoc := by apply Array.append_assoc
-  one := #[]
-  one_mul := by apply Array.empty_append
-  mul_one := by apply Array.append_empty
+  mul := List.append
+  mul_assoc := List.append_assoc
+  one := []
+  one_mul := List.nil_append
+  mul_one := List.append_nil
 
 @[simp, grind =]
-lemma CircuitState.mul_eq_append (a b: CircuitState p) :
+lemma CircuitState.mul_eq_append {a b: CircuitState p} :
   a * b = a ++ b
 := rfl
 
 @[simp, grind =]
-lemma CircuitState.one_eq_empty :
-  (1: CircuitState p) = #[]
+lemma CircuitState.one_eq_nil :
+  (1 : CircuitState p) = []
 := rfl
-
-#synth LawfulMonad (CircuitStateM 57)
 
 def CircuitStateM.run {p : ℕ} {α : Type} (cmd : CircuitStateM p α) (numAlloc : ℕ) :=
   StateT.run (WriterT.run cmd) numAlloc
@@ -86,39 +84,38 @@ end CircuitState
 
 namespace CircuitStateM
 
+section
+
+variable {numAlloc : ℕ}
+
 @[Clap.monads]
 lemma getModify_eq
-  (numAlloc : ℕ) (f : ℕ → ℕ)
+  (f : ℕ → ℕ)
 :
   @getModify
     ℕ
     (CircuitStateM p)
     (instMonadStateOfMonadStateOf ℕ (CircuitStateM p))
     f
-    numAlloc =
-    ((numAlloc, #[]), f numAlloc)
+    numAlloc = ((numAlloc, []), f numAlloc)
 := rfl
 
 @[simp, grind =]
-lemma alloc_eq
-  (numAlloc : ℕ)
-:
+lemma alloc_eq :
   CircuitStateM.alloc (p := p) numAlloc =
-  ((numAlloc, #[]), numAlloc + 1)
+  ((numAlloc, []), numAlloc + 1)
 := by
   simp [CircuitStateM.alloc, Clap.monads]
 
--- TODO should this be in just simp, and/or grind?
 @[Clap.monads]
 lemma Vector_ofFnM_empty_state
-  (α)
-  (n)
-  (a : Fin n → ℕ → α)
-  (c : Fin n → ℕ → ℕ)
-  (numAlloc: ℕ)
+  {α}
+  {n}
+  {a : Fin n → ℕ → α}
+  {c : Fin n → ℕ → ℕ}
 :
-  (@Vector.ofFnM (CircuitStateM p) _ n _ (λ x s => ⟨⟨a x s, #[]⟩, c x s⟩) numAlloc).1.2 =
-  #[]
+  (@Vector.ofFnM (CircuitStateM p) _ n _ (λ x s => ⟨⟨a x s, []⟩, c x s⟩) numAlloc).1.2 =
+  []
 := by
   induction n with
   | zero =>
@@ -130,6 +127,8 @@ lemma Vector_ofFnM_empty_state
     have : x = ⟨x.1, x.2⟩ := rfl
     rewrite [this]; clear this
     simp [x, h]
+
+end
 
 end CircuitStateM
 

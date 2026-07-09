@@ -75,7 +75,7 @@ def or (a b : FB p) : FB p := a + b - a * b
 instance : HOr (FB p) (FB p) (FB p) where
   hOr := or
 
-def not (a : FB p) : FB p := 1 - a
+def not (a : FB p) : FB p := 1 - a -- EDSL'd
 
 def xor (a b : FB p) : FB p := a + b - 2 * a * b
 

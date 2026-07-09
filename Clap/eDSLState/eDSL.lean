@@ -7,29 +7,29 @@ variable {p : ℕ}
 -- TODO split this into a file
 @[irreducible]
 def eq0 (e : FixedExp p) : CircuitStateM p Unit := do
-  tell #[.eq0 e]
+  tell [.eq0 e]
 
 @[irreducible]
 def lam : CircuitStateM p (FixedExp p) := do
-  tell #[.lam]
+  tell [.lam]
   let numAlloc ← CircuitStateM.alloc
   return .v numAlloc
 
 @[irreducible]
 def share (e : FixedExp p) : CircuitStateM p (FixedExp p) := do
-  tell #[.share e]
+  tell [.share e]
   let numAlloc ← CircuitStateM.alloc
   return (.v numAlloc)
 
 @[irreducible]
 def isZero (e : FixedExp p) : CircuitStateM p (FixedExp p) := do
-  tell #[.isZero e]
+  tell [.isZero e]
   let numAlloc ← CircuitStateM.alloc -- (un)just one
   return .v numAlloc
 
 @[irreducible]
 def num2bits (width : ℕ) (e : FixedExp p) : CircuitStateM p (Vector (FixedExp p) width) := do
-  tell #[.num2bits width e]
+  tell [.num2bits width e]
   Vector.ofFnM fun _ ↦ do
     let varIdx ← CircuitStateM.alloc
     return .v varIdx
@@ -43,27 +43,23 @@ def test : CircuitStateM p Unit := do
 
 namespace CircuitState
 
+section
+
+variable {e : FixedExp p} {numAlloc : ℕ} {varStore : Std.ExtTreeMap ℕ (ZMod p)}
+
 @[simp, grind =]
 lemma eval_edsl_eq0
-  (e: FixedExp p)
-  (numAlloc : ℕ)
-  (varStore)
 :
-  Edsl.CircuitState.eval (Edsl.eq0 e numAlloc).1.2 varStore numAlloc =
-  ⟨numAlloc, varStore, e.eval varStore.get? = .some 0⟩
+  eval (Edsl.eq0 e numAlloc).1.2 varStore numAlloc =
+  eval [CircuitusPlanus.eq0 e] varStore numAlloc
 := by
-  simp [
-    Clap.monads,
-    Edsl.eq0
-  ]
+  simp only [eq0, Clap.monads]
 
 @[simp, grind =]
 lemma eval_edsl_lam
-  (numAlloc : ℕ)
-  (varStore : Std.ExtTreeMap ℕ (ZMod p))
 :
-  Edsl.CircuitState.eval (Edsl.lam numAlloc).1.2 varStore numAlloc =
-  ⟨numAlloc + 1, varStore, True⟩
+  eval (Edsl.lam numAlloc).1.2 varStore numAlloc =
+  eval [CircuitusPlanus.lam] varStore numAlloc
 := by
   simp [
     Clap.monads,
@@ -72,16 +68,9 @@ lemma eval_edsl_lam
 
 @[simp, grind =]
 lemma eval_edsl_share
-  (e : FixedExp p)
-  (numAlloc : ℕ)
-  (varStore : Std.ExtTreeMap ℕ (ZMod p))
 :
-  Edsl.CircuitState.eval (Edsl.share e numAlloc).1.2 varStore numAlloc =
-  ⟨
-    numAlloc + 1,
-    varStore.insert numAlloc ((e.eval varStore.get?).getD 0),
-    (e.eval varStore.get?).isSome
-  ⟩
+  eval (Edsl.share e numAlloc).1.2 varStore numAlloc =
+  eval [CircuitusPlanus.share e] varStore numAlloc
 := by
   simp [
     Clap.monads,
@@ -89,22 +78,31 @@ lemma eval_edsl_share
   ]
 
 @[simp, grind =]
-lemma eval_edsl_isZero
-  (e : FixedExp p)
-  (numAlloc : ℕ)
-  (varStore : Std.ExtTreeMap ℕ (ZMod p))
-:
-  Edsl.CircuitState.eval (Edsl.isZero e numAlloc).1.2 varStore numAlloc =
-  ⟨
-    numAlloc + 1,
-    varStore.insert numAlloc (if (e.eval varStore.get?) = .some 0 then 1 else 0),
-    (e.eval varStore.get?).isSome
-  ⟩
+lemma eval_edsl_isZero :
+  eval (Edsl.isZero e numAlloc).1.2 varStore numAlloc =
+  eval [CircuitusPlanus.isZero e] varStore numAlloc
 := by
   simp [
     Clap.monads,
     Edsl.isZero
   ]
+
+example : eval (Edsl.isZero e numAlloc).1.2 varStore numAlloc = sorry := by
+  -- simp
+  rw [eval_edsl_isZero]
+  rw [eval_singleton]
+  rw [CircuitResult.step_isZero]
+  rw [CircuitResult.assertAllocated_withNoConstraints]
+  rw [CircuitResult.get?_withNoConstraints]
+
+  simp only [CircuitResult.addConstraint_withNoConstraints]
+  
+  simp only [CircuitResult.addConstraint_withNoConstraints, CircuitResult.alloc_mk,
+    Vector.range_one, Vector.map_mk, List.map_toArray, List.map_cons, zero_add, List.map_nil,
+    Vector.mk_zip_mk, List.zip_toArray, List.zip_cons_cons, List.zip_nil_right,
+    Std.ExtTreeMap.insertMany_single]
+
+  sorry
 
 -- TODO, trying to use this instead of the set, have, subst combo
 @[simp]
@@ -121,7 +119,6 @@ lemma match_pair
 @[simp, grind =]
 lemma eval_edsl_num2bits
   (width : ℕ)
-  (e : FixedExp p)
   (numAlloc : ℕ)
   (varStore : Std.ExtTreeMap ℕ (ZMod p))
 :
@@ -147,16 +144,23 @@ lemma eval_edsl_num2bits
   subst x
   simp [Clap.monads]
 
+end
+
 end CircuitState
 
 /--
 info: (((),
-  #[Clap.CircuitusPlanus.lam, Clap.CircuitusPlanus.eq0 v0, Clap.CircuitusPlanus.share (1 + 1),
-    Clap.CircuitusPlanus.eq0 1, Clap.CircuitusPlanus.eq0 2, Clap.CircuitusPlanus.eq0 v1, Clap.CircuitusPlanus.eq0 4]),
+  [Clap.CircuitusPlanus.lam,
+   Clap.CircuitusPlanus.eq0 v0,
+   Clap.CircuitusPlanus.share (1 + 1),
+   Clap.CircuitusPlanus.eq0 1,
+   Clap.CircuitusPlanus.eq0 2,
+   Clap.CircuitusPlanus.eq0 v1,
+   Clap.CircuitusPlanus.eq0 4]),
  2)
 -/
 #guard_msgs in
-#eval test.run (p := 57) 0
+#eval (test).run (p := 57) 0
 
 end Edsl
 

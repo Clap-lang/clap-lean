@@ -36,14 +36,21 @@ def init (p : ℕ) : CircuitResult p := ⟨0, ∅, True⟩
 def withNoConstraints (numAlloc : ℕ) (varStore : Std.ExtTreeMap ℕ (ZMod p)) : CircuitResult p :=
   ⟨numAlloc, varStore, True⟩
 
-@[simp, grind =]
-lemma numAlloc_withNoConstraints : (withNoConstraints numAlloc varStore).numAlloc = numAlloc := rfl
+/--
+Preferred spelling: `withNoConstraints`
+-/
+notation (name := notationα) "α[" numAlloc:arg "]" "[" varStore:arg "]" => withNoConstraints numAlloc varStore
+
+recommended_spelling "withNoConstraints" for "α" in [withNoConstraints, notationα]
 
 @[simp, grind =]
-lemma varStore_withNoConstraints : (withNoConstraints numAlloc varStore).varStore = varStore := rfl
+lemma numAlloc_withNoConstraints : α[numAlloc][varStore].numAlloc = numAlloc := rfl
 
 @[simp, grind =]
-lemma constraints_withNoConstraints : (withNoConstraints numAlloc varStore).constraints = True := rfl
+lemma varStore_withNoConstraints : α[numAlloc][varStore].varStore = varStore := rfl
+
+@[simp, grind =]
+lemma constraints_withNoConstraints : α[numAlloc][varStore].constraints = True := rfl
 
 def addConstraint (result : CircuitResult p) (constraint : Prop) : CircuitResult p :=
   {result with constraints := result.constraints ∧ constraint}
@@ -58,9 +65,9 @@ lemma addConstraint_mk
   Edsl.CircuitResult.mk numAlloc varStore (constraints ∧ constraint)
 := rfl
 
-@[simp, grind =]
+-- @[simp, grind =]
 lemma addConstraint_withNoConstraints {constraint : Prop} :
-  (withNoConstraints numAlloc varStore).addConstraint constraint =
+  α[numAlloc][varStore].addConstraint constraint =
   ⟨numAlloc, varStore, constraint⟩ := by simp [withNoConstraints]
 
 @[simp, grind =]
@@ -88,7 +95,7 @@ lemma allocAnonymous_mk
 
 @[simp, grind =]
 lemma allocAnonymous_withNoConstraints :
-  (CircuitResult.withNoConstraints numAlloc varStore).allocAnonymous =
+  α[numAlloc][varStore].allocAnonymous =
   ⟨numAlloc + 1, varStore, True⟩ := by rfl
 
 @[simp, grind =]
@@ -102,6 +109,11 @@ lemma constraints_allocAnonymous : result.allocAnonymous.constraints = result.co
 
 def get? (result : CircuitResult p) (e : FixedExp p) : Option (ZMod p) :=
   e.eval result.varStore.get?
+
+-- instance : GetElem? (CircuitResult p) (FixedExp p) (ZMod p) (fun result e ↦ result.get? e |>.isSome)
+--   where
+--     getElem := _
+--     getElem? := _
 
 @[simp, grind =]
 lemma get?_mk
@@ -126,7 +138,7 @@ lemma getD_eq_get?_getD : result.getD e = (result.get? e |>.getD 0) := rfl
 
 @[simp, grind =]
 lemma get?_withNoConstraints :
-  (withNoConstraints numAlloc varStore).get? e =
+  α[numAlloc][varStore].get? e =
   e.eval varStore.get? := by simp [withNoConstraints]
 
 def assertAllocated (result : CircuitResult p) (e : FixedExp p) : CircuitResult p :=
@@ -157,9 +169,9 @@ lemma constraints_assertAllocated :
 
 @[simp, grind =]
 lemma assertAllocated_withNoConstraints :
-  (withNoConstraints numAlloc varStore).assertAllocated e =
-  (withNoConstraints numAlloc varStore).addConstraint
-  ((withNoConstraints numAlloc varStore).get? e).isSome := rfl
+  α[numAlloc][varStore].assertAllocated e =
+  letI α := α[numAlloc][varStore]
+  α.addConstraint (α.get? e).isSome := rfl
 
 def alloc {k p : ℕ} (result : CircuitResult p) (vals : Vector (ZMod p) k) : CircuitResult p :=
   let indexed := (Vector.range k).map (·+result.numAlloc) |>.zip vals
@@ -237,6 +249,11 @@ lemma step_mk
   cases next <;> simp [CircuitResult.step]
   rfl
 
+@[simp, grind =]
+lemma step_withNoConstraints {command : CircuitusPlanus p} :
+  α[numAlloc][varStore].step command = 
+  (⟨numAlloc, varStore, True⟩ : CircuitResult p).step command := rfl
+
 def split (result : CircuitResult p) : CircuitResult p :=
   {result with constraints := True}
 
@@ -272,6 +289,23 @@ lemma step_isZero :
 @[simp, grind =]
 lemma step_num2bits :
   result.step (.num2bits width e) = (result.assertAllocated e |>.alloc (num2bitsLsbPureV width (result.getD e))) := rfl
+
+lemma addConstraint_eq_mk :
+  result.addConstraint constraint =
+  ⟨result.numAlloc, result.varStore, result.constraints ∧ constraint⟩ := rfl
+
+lemma allocAnonymous_eq_mk :
+  result.allocAnonymous =
+  ⟨result.numAlloc + 1, result.varStore, result.constraints⟩ := rfl
+
+lemma alloc_eq_mk {k} {vals : Vector _ k} :
+  result.alloc vals =
+  ⟨result.numAlloc + k,
+   result.varStore.insertMany (((Vector.range k).map (· + result.numAlloc)).zip vals),
+   result.constraints⟩ := by rfl
+
+lemma assertAllocated_eq_addConstraint :
+  result.assertAllocated e = result.addConstraint ((result.get? e).isSome) := rfl
 
 end
 
@@ -406,6 +440,16 @@ lemma eval_append
   . exact CircuitResult.foldl_step_varStore_independent_of_constraints
   . exact CircuitResult.foldl_step_constraints_and
 
+@[simp high, grind =]
+lemma eval_singleton
+  {numAlloc}
+  {command : CircuitusPlanus p}
+  {varStore}
+:
+  eval [command] varStore numAlloc =
+  α[numAlloc][varStore].step command := by
+  simp [eval]
+
 @[simp, grind =]
 lemma eval_cons
   {numAlloc}
@@ -428,49 +472,49 @@ variable {numAlloc : ℕ} {varStore : Std.ExtTreeMap ℕ (ZMod p)} {e: FixedExp 
 @[simp, grind =]
 lemma eval_empty :
   Edsl.CircuitState.eval [] varStore numAlloc =
-  ⟨numAlloc, varStore, True⟩
+  α[numAlloc][varStore]
 := by rfl
 
 @[simp, grind =]
 lemma eval_empty_collection :
   Edsl.CircuitState.eval ∅ varStore numAlloc =
-  ⟨numAlloc, varStore, True⟩
+  α[numAlloc][varStore]
 := by rfl
 
 @[simp, grind =]
 lemma eval_eq0 :
   Edsl.CircuitState.eval [.eq0 e] varStore numAlloc =  
-  (CircuitResult.withNoConstraints numAlloc varStore).step (.eq0 e)
-:= by simp [eval]
+  α[numAlloc][varStore].step (.eq0 e)
+:= by simp [eval, CircuitResult.addConstraint_withNoConstraints]
 
 @[simp, grind =]
 lemma eval_lam :
   Edsl.CircuitState.eval [.lam] varStore numAlloc =
-  (CircuitResult.withNoConstraints numAlloc varStore).step (.lam)
+  α[numAlloc][varStore].step (.lam)
 := by
   simp [eval]
 
 @[simp, grind =]
 lemma eval_share :
   Edsl.CircuitState.eval [.share e] varStore numAlloc =
-  (CircuitResult.withNoConstraints numAlloc varStore).step (.share e)
+  α[numAlloc][varStore].step (.share e)
 := by
-  simp [eval]
+  simp [eval, CircuitResult.addConstraint_withNoConstraints]
 
 @[simp, grind =]
 lemma eval_isZero :
   Edsl.CircuitState.eval [.isZero e] varStore numAlloc =
-  (CircuitResult.withNoConstraints numAlloc varStore).step (.isZero e)
+  α[numAlloc][varStore].step (.isZero e)
 := by
-  simp [eval]
+  simp [eval, CircuitResult.addConstraint_withNoConstraints]
   rfl
 
 @[simp, grind =]
 lemma eval_num2bits {width : ℕ} :
   Edsl.CircuitState.eval [.num2bits width e] varStore numAlloc =
-  (CircuitResult.withNoConstraints numAlloc varStore).step (.num2bits width e)
+  α[numAlloc][varStore].step (.num2bits width e)
 := by
-  simp [eval]
+  simp [eval, CircuitResult.addConstraint_withNoConstraints]
 
 end
 
