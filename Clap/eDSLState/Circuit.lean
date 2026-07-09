@@ -13,7 +13,7 @@ inductive CircuitusPlanus (p : ℕ) where
   | num2bits (w : ℕ) (e : FixedExp p)
   deriving Repr
 
-abbrev CircuitState (p : ℕ) := Array (CircuitusPlanus p)
+abbrev CircuitState (p : ℕ) := List (CircuitusPlanus p)
 
 namespace Edsl
 
@@ -27,8 +27,23 @@ namespace CircuitResult
 section
 
 -- TODO do we need all of these?
-variable {p : ℕ} {k : ℕ} {result result' : CircuitResult p}
+variable {p k numAlloc : ℕ} {result result' : CircuitResult p}
          {constraint : Prop} {vars : Vector (ZMod p) k} {e : FixedExp p}
+         {varStore : Std.ExtTreeMap ℕ (ZMod p)}
+
+def init (p : ℕ) : CircuitResult p := ⟨0, ∅, True⟩
+
+def withNoConstraints (numAlloc : ℕ) (varStore : Std.ExtTreeMap ℕ (ZMod p)) : CircuitResult p :=
+  ⟨numAlloc, varStore, True⟩
+
+@[simp, grind =]
+lemma numAlloc_withNoConstraints : (withNoConstraints numAlloc varStore).numAlloc = numAlloc := rfl
+
+@[simp, grind =]
+lemma varStore_withNoConstraints : (withNoConstraints numAlloc varStore).varStore = varStore := rfl
+
+@[simp, grind =]
+lemma constraints_withNoConstraints : (withNoConstraints numAlloc varStore).constraints = True := rfl
 
 def addConstraint (result : CircuitResult p) (constraint : Prop) : CircuitResult p :=
   {result with constraints := result.constraints ∧ constraint}
@@ -42,6 +57,11 @@ lemma addConstraint_mk
   (Edsl.CircuitResult.mk numAlloc varStore constraints).addConstraint constraint =
   Edsl.CircuitResult.mk numAlloc varStore (constraints ∧ constraint)
 := rfl
+
+@[simp, grind =]
+lemma addConstraint_withNoConstraints {constraint : Prop} :
+  (withNoConstraints numAlloc varStore).addConstraint constraint =
+  ⟨numAlloc, varStore, constraint⟩ := by simp [withNoConstraints]
 
 @[simp, grind =]
 lemma numAlloc_addConstraint : (result.addConstraint constraint).numAlloc = result.numAlloc := rfl
@@ -65,6 +85,11 @@ lemma allocAnonymous_mk
   (Edsl.CircuitResult.mk numAlloc varStore constraints).allocAnonymous =
   Edsl.CircuitResult.mk (numAlloc + 1) varStore constraints
 := rfl
+
+@[simp, grind =]
+lemma allocAnonymous_withNoConstraints :
+  (CircuitResult.withNoConstraints numAlloc varStore).allocAnonymous =
+  ⟨numAlloc + 1, varStore, True⟩ := by rfl
 
 @[simp, grind =]
 lemma numAlloc_allocAnonymous : result.allocAnonymous.numAlloc = result.numAlloc + 1 := rfl
@@ -99,6 +124,11 @@ def getD (result : CircuitResult p) (e : FixedExp p) :=
 @[simp, grind =]
 lemma getD_eq_get?_getD : result.getD e = (result.get? e |>.getD 0) := rfl
 
+@[simp, grind =]
+lemma get?_withNoConstraints :
+  (withNoConstraints numAlloc varStore).get? e =
+  e.eval varStore.get? := by simp [withNoConstraints]
+
 def assertAllocated (result : CircuitResult p) (e : FixedExp p) : CircuitResult p :=
   result.addConstraint (result.get? e).isSome
 
@@ -124,6 +154,12 @@ lemma varStore_assertAllocated :
 @[simp, grind =]
 lemma constraints_assertAllocated :
   (result.assertAllocated e).constraints = (result.constraints ∧ (result.get? e).isSome = true) := rfl
+
+@[simp, grind =]
+lemma assertAllocated_withNoConstraints :
+  (withNoConstraints numAlloc varStore).assertAllocated e =
+  (withNoConstraints numAlloc varStore).addConstraint
+  ((withNoConstraints numAlloc varStore).get? e).isSome := rfl
 
 def alloc {k p : ℕ} (result : CircuitResult p) (vals : Vector (ZMod p) k) : CircuitResult p :=
   let indexed := (Vector.range k).map (·+result.numAlloc) |>.zip vals
@@ -273,9 +309,8 @@ lemma foldl_step_numAlloc_independent_of_constraints
   (CircuitState.evalInOrder circuit ⟨numAlloc, varStore, constraints1⟩).numAlloc =
   (CircuitState.evalInOrder circuit ⟨numAlloc, varStore, constraints2⟩).numAlloc
 := by
-  obtain ⟨list⟩ := circuit
-  rewrite [←List.reverse_reverse list]
-  induction list.reverse <;> grind
+  rewrite [←List.reverse_reverse circuit]
+  induction circuit.reverse <;> grind
 
 @[grind =>]
 lemma foldr_step_numAlloc_independent_of_constraints
@@ -288,7 +323,7 @@ lemma foldr_step_numAlloc_independent_of_constraints
   (List.foldr (λ x y => step y x) ⟨numAlloc, varStore, constraints2⟩ circuit).numAlloc
 := by
   rewrite [←List.reverse_reverse circuit]
-  simp only [List.foldr_reverse, ←List.foldl_toArray]
+  simp only [List.foldr_reverse]
   exact foldl_step_numAlloc_independent_of_constraints
 
 lemma foldl_step_varStore_independent_of_constraints
@@ -300,9 +335,8 @@ lemma foldl_step_varStore_independent_of_constraints
   (circuit.foldl step ⟨numAlloc, varStore, constraints1⟩).varStore =
   (circuit.foldl step ⟨numAlloc, varStore, constraints2⟩).varStore
 := by
-  obtain ⟨list⟩ := circuit
-  rewrite [←List.reverse_reverse list]
-  induction list.reverse <;> grind
+  rewrite [←List.reverse_reverse circuit]
+  induction circuit.reverse <;> grind
 
 @[grind .]
 lemma foldr_step_varStore_independent_of_constraints
@@ -315,7 +349,7 @@ lemma foldr_step_varStore_independent_of_constraints
   (List.foldr (λ x y => step y x) ⟨numAlloc, varStore, constraints2⟩ circuit).varStore
 := by
   rewrite [←List.reverse_reverse circuit]
-  simp only [List.foldr_reverse, ←List.foldl_toArray]
+  simp only [List.foldr_reverse]
   exact foldl_step_varStore_independent_of_constraints
 
 /--
@@ -344,9 +378,8 @@ lemma foldl_step_constraints_and
     (CircuitState.evalInOrder circuit result.split).constraints
   )
 := by
-  obtain ⟨list⟩ := circuit
-  rewrite [←List.reverse_reverse list]
-  induction list.reverse <;> grind
+  rewrite [←List.reverse_reverse circuit]
+  induction circuit.reverse <;> grind
 
 end CircuitResult
 
@@ -374,106 +407,71 @@ lemma eval_append
   . exact CircuitResult.foldl_step_constraints_and
 
 @[simp, grind =]
-lemma eval_empty
-  (numAlloc : ℕ)
-  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+lemma eval_cons
+  {numAlloc}
+  {command : CircuitusPlanus p}
+  {circuit : CircuitState p}
+  {varStore}
 :
+  eval (command :: circuit) varStore numAlloc = (
+    let ⟨numAllocMid, varStoreMid, constraintsMid⟩ := eval command varStore numAlloc
+    let ⟨numAllocPost, varStorePost, constraintsPost⟩ := eval circuit2 varStoreMid numAllocMid
+    ⟨numAllocPost, varStorePost, constraintsMid ∧ constraintsPost⟩
+  ) := sorry
+
+section
+
+variable {numAlloc : ℕ} {varStore : Std.ExtTreeMap ℕ (ZMod p)} {e: FixedExp p}
+
+@[simp, grind =]
+lemma eval_empty :
   Edsl.CircuitState.eval #[] varStore numAlloc =
   ⟨numAlloc, varStore, True⟩
 := by rfl
 
 @[simp, grind =]
-lemma eval_empty_collection
-  (numAlloc : ℕ)
-  (varStore : Std.ExtTreeMap ℕ (ZMod p))
-:
+lemma eval_empty_collection :
   Edsl.CircuitState.eval ∅ varStore numAlloc =
   ⟨numAlloc, varStore, True⟩
 := by rfl
 
 @[simp, grind =]
-lemma eval_eq0
-  (e: FixedExp p)
-  (numAlloc : ℕ)
-  (varStore)
-:
-  Edsl.CircuitState.eval #[.eq0 e] varStore numAlloc =
-  ⟨numAlloc, varStore, e.eval varStore.get? = .some 0⟩
-:= by
-  simp [
-    Clap.monads,
-    Edsl.CircuitState.eval
-  ]
+lemma eval_eq0 :
+  Edsl.CircuitState.eval #[.eq0 e] varStore numAlloc =  
+  (CircuitResult.withNoConstraints numAlloc varStore).step (.eq0 e)
+:= by simp [eval]
 
 @[simp, grind =]
-lemma eval_lam
-  (numAlloc : ℕ)
-  (varStore : Std.ExtTreeMap ℕ (ZMod p))
-:
+lemma eval_lam :
   Edsl.CircuitState.eval #[.lam] varStore numAlloc =
-  ⟨numAlloc + 1, varStore, True⟩
+  (CircuitResult.withNoConstraints numAlloc varStore).step (.lam)
 := by
-  simp [
-    Edsl.CircuitState.eval
-  ]
+  simp [eval]
 
 @[simp, grind =]
-lemma eval_share
-  (e : FixedExp p)
-  (numAlloc : ℕ)
-  (varStore : Std.ExtTreeMap ℕ (ZMod p))
-:
+lemma eval_share :
   Edsl.CircuitState.eval #[.share e] varStore numAlloc =
-  ⟨
-    numAlloc + 1,
-    varStore.insert numAlloc ((e.eval varStore.get?).getD 0),
-    (e.eval varStore.get?).isSome
-  ⟩
+  (CircuitResult.withNoConstraints numAlloc varStore).step (.share e)
 := by
-  simp [
-    Clap.monads,
-    Edsl.CircuitState.eval
-  ]
+  simp [eval]
 
 @[simp, grind =]
-lemma eval_isZero
-  (e : FixedExp p)
-  (numAlloc : ℕ)
-  (varStore : Std.ExtTreeMap ℕ (ZMod p))
-:
+lemma eval_isZero :
   Edsl.CircuitState.eval #[.isZero e] varStore numAlloc =
-  ⟨
-    numAlloc + 1,
-    varStore.insert numAlloc (if (e.eval varStore.get?) = .some 0 then 1 else 0),
-    (e.eval varStore.get?).isSome
-  ⟩
+  (CircuitResult.withNoConstraints numAlloc varStore).step (.isZero e)
 := by
-  simp [
-    Clap.monads,
-    Edsl.CircuitState.eval
-  ]
+  simp [eval]
   rfl
 
 @[simp, grind =]
-lemma eval_num2bits
-  (width : ℕ)
-  (e : FixedExp p)
-  (numAlloc : ℕ)
-  (varStore : Std.ExtTreeMap ℕ (ZMod p))
-:
+lemma eval_num2bits {width : ℕ} :
   Edsl.CircuitState.eval #[.num2bits width e] varStore numAlloc =
-  ⟨
-    numAlloc + width,
-    varStore.insertMany
-      ((Vector.map (fun x => x + numAlloc) (Vector.range width)).zip
-        (num2bitsLsbPureV width ((FixedExp.eval varStore.get? e).getD 0))),
-    (e.eval varStore.get?).isSome
-  ⟩
+  (CircuitResult.withNoConstraints numAlloc varStore).step (.num2bits width e)
 := by
-  simp [
-    Clap.monads,
-    Edsl.CircuitState.eval
-  ]
+  simp [eval]
+
+end
+
 end CircuitState
 
 end Edsl
