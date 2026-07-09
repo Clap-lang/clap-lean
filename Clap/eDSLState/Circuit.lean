@@ -414,10 +414,12 @@ lemma eval_cons
   {varStore}
 :
   eval (command :: circuit) varStore numAlloc = (
-    let ⟨numAllocMid, varStoreMid, constraintsMid⟩ := eval command varStore numAlloc
-    let ⟨numAllocPost, varStorePost, constraintsPost⟩ := eval circuit2 varStoreMid numAllocMid
+    let ⟨numAllocMid, varStoreMid, constraintsMid⟩ := eval [command] varStore numAlloc
+    let ⟨numAllocPost, varStorePost, constraintsPost⟩ := eval circuit varStoreMid numAllocMid
     ⟨numAllocPost, varStorePost, constraintsMid ∧ constraintsPost⟩
-  ) := sorry
+  ) := by
+  rw [show command :: circuit = [command] ++ circuit from rfl]
+  exact eval_append
 
 section
 
@@ -425,7 +427,7 @@ variable {numAlloc : ℕ} {varStore : Std.ExtTreeMap ℕ (ZMod p)} {e: FixedExp 
 
 @[simp, grind =]
 lemma eval_empty :
-  Edsl.CircuitState.eval #[] varStore numAlloc =
+  Edsl.CircuitState.eval [] varStore numAlloc =
   ⟨numAlloc, varStore, True⟩
 := by rfl
 
@@ -437,27 +439,27 @@ lemma eval_empty_collection :
 
 @[simp, grind =]
 lemma eval_eq0 :
-  Edsl.CircuitState.eval #[.eq0 e] varStore numAlloc =  
+  Edsl.CircuitState.eval [.eq0 e] varStore numAlloc =  
   (CircuitResult.withNoConstraints numAlloc varStore).step (.eq0 e)
 := by simp [eval]
 
 @[simp, grind =]
 lemma eval_lam :
-  Edsl.CircuitState.eval #[.lam] varStore numAlloc =
+  Edsl.CircuitState.eval [.lam] varStore numAlloc =
   (CircuitResult.withNoConstraints numAlloc varStore).step (.lam)
 := by
   simp [eval]
 
 @[simp, grind =]
 lemma eval_share :
-  Edsl.CircuitState.eval #[.share e] varStore numAlloc =
+  Edsl.CircuitState.eval [.share e] varStore numAlloc =
   (CircuitResult.withNoConstraints numAlloc varStore).step (.share e)
 := by
   simp [eval]
 
 @[simp, grind =]
 lemma eval_isZero :
-  Edsl.CircuitState.eval #[.isZero e] varStore numAlloc =
+  Edsl.CircuitState.eval [.isZero e] varStore numAlloc =
   (CircuitResult.withNoConstraints numAlloc varStore).step (.isZero e)
 := by
   simp [eval]
@@ -465,7 +467,7 @@ lemma eval_isZero :
 
 @[simp, grind =]
 lemma eval_num2bits {width : ℕ} :
-  Edsl.CircuitState.eval #[.num2bits width e] varStore numAlloc =
+  Edsl.CircuitState.eval [.num2bits width e] varStore numAlloc =
   (CircuitResult.withNoConstraints numAlloc varStore).step (.num2bits width e)
 := by
   simp [eval]
