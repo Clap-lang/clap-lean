@@ -88,16 +88,15 @@ lemma eval_edsl_isZero :
   ]
 
 example : eval (Edsl.isZero e numAlloc).1.2 varStore numAlloc = sorry := by
-  -- simp
   rw [eval_edsl_isZero]
   rw [eval_singleton]
   rw [CircuitResult.step_isZero]
-  rw [CircuitResult.assertAllocated_withNoConstraints]
-  rw [CircuitResult.get?_withNoConstraints]
+  rw [CircuitResult.assertAllocated_unconstrained]
+  rw [CircuitResult.get?_unconstrained]
 
-  simp only [CircuitResult.addConstraint_withNoConstraints]
+  simp only [CircuitResult.addConstraint_unconstrained]
   
-  simp only [CircuitResult.addConstraint_withNoConstraints, CircuitResult.alloc_mk,
+  simp only [CircuitResult.addConstraint_unconstrained, CircuitResult.alloc_mk,
     Vector.range_one, Vector.map_mk, List.map_toArray, List.map_cons, zero_add, List.map_nil,
     Vector.mk_zip_mk, List.zip_toArray, List.zip_cons_cons, List.zip_nil_right,
     Std.ExtTreeMap.insertMany_single]
@@ -137,12 +136,23 @@ lemma eval_edsl_num2bits
     CircuitStateM.alloc
   ]
   unfold StateT.pure StateT.map StateT.bind
+  unfold getModify
+  unfold modifyGet
+  unfold instMonadStateOfMonadStateOf
+  dsimp only
+  conv =>
+    enter [1, 1, 1, 1, 2, 1, x, s, 1]
+    unfold_projs
+    unfold StateT.modifyGet
+    
+
+    skip
   simp [Clap.monads]
   set x := @Vector.ofFnM (CircuitStateM p) _ _ _ _ _
   have : x = ⟨x.1, x.2⟩ := rfl
   rewrite [this]; clear this
   subst x
-  simp [Clap.monads]
+  simp [Clap.monads, CircuitResult.addConstraint_unconstrained]
 
 end
 

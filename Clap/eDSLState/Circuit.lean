@@ -33,24 +33,21 @@ variable {p k numAlloc : ℕ} {result result' : CircuitResult p}
 
 def init (p : ℕ) : CircuitResult p := ⟨0, ∅, True⟩
 
-def withNoConstraints (numAlloc : ℕ) (varStore : Std.ExtTreeMap ℕ (ZMod p)) : CircuitResult p :=
+def unconstrained (numAlloc : ℕ) (varStore : Std.ExtTreeMap ℕ (ZMod p)) : CircuitResult p :=
   ⟨numAlloc, varStore, True⟩
 
-/--
-Preferred spelling: `withNoConstraints`
--/
-notation (name := notationα) "α[" numAlloc:arg "]" "[" varStore:arg "]" => withNoConstraints numAlloc varStore
+notation (name := notationα) "unconstrained[" numAlloc:arg "]" "[" varStore:arg "]" => unconstrained numAlloc varStore
 
-recommended_spelling "withNoConstraints" for "α" in [withNoConstraints, notationα]
+recommended_spelling "unconstrained" for "α" in [unconstrained, notationα]
 
 @[simp, grind =]
-lemma numAlloc_withNoConstraints : α[numAlloc][varStore].numAlloc = numAlloc := rfl
+lemma numAlloc_unconstrained : unconstrained[numAlloc][varStore].numAlloc = numAlloc := rfl
 
 @[simp, grind =]
-lemma varStore_withNoConstraints : α[numAlloc][varStore].varStore = varStore := rfl
+lemma varStore_unconstrained : unconstrained[numAlloc][varStore].varStore = varStore := rfl
 
 @[simp, grind =]
-lemma constraints_withNoConstraints : α[numAlloc][varStore].constraints = True := rfl
+lemma constraints_unconstrained : unconstrained[numAlloc][varStore].constraints = True := rfl
 
 def addConstraint (result : CircuitResult p) (constraint : Prop) : CircuitResult p :=
   {result with constraints := result.constraints ∧ constraint}
@@ -66,9 +63,9 @@ lemma addConstraint_mk
 := rfl
 
 -- @[simp, grind =]
-lemma addConstraint_withNoConstraints {constraint : Prop} :
-  α[numAlloc][varStore].addConstraint constraint =
-  ⟨numAlloc, varStore, constraint⟩ := by simp [withNoConstraints]
+lemma addConstraint_unconstrained {constraint : Prop} :
+  unconstrained[numAlloc][varStore].addConstraint constraint =
+  ⟨numAlloc, varStore, constraint⟩ := by simp [unconstrained]
 
 @[simp, grind =]
 lemma numAlloc_addConstraint : (result.addConstraint constraint).numAlloc = result.numAlloc := rfl
@@ -94,8 +91,8 @@ lemma allocAnonymous_mk
 := rfl
 
 @[simp, grind =]
-lemma allocAnonymous_withNoConstraints :
-  α[numAlloc][varStore].allocAnonymous =
+lemma allocAnonymous_unconstrained :
+  unconstrained[numAlloc][varStore].allocAnonymous =
   ⟨numAlloc + 1, varStore, True⟩ := by rfl
 
 @[simp, grind =]
@@ -137,9 +134,9 @@ def getD (result : CircuitResult p) (e : FixedExp p) :=
 lemma getD_eq_get?_getD : result.getD e = (result.get? e |>.getD 0) := rfl
 
 @[simp, grind =]
-lemma get?_withNoConstraints :
-  α[numAlloc][varStore].get? e =
-  e.eval varStore.get? := by simp [withNoConstraints]
+lemma get?_unconstrained :
+  unconstrained[numAlloc][varStore].get? e =
+  e.eval varStore.get? := by simp [unconstrained]
 
 def assertAllocated (result : CircuitResult p) (e : FixedExp p) : CircuitResult p :=
   result.addConstraint (result.get? e).isSome
@@ -168,9 +165,9 @@ lemma constraints_assertAllocated :
   (result.assertAllocated e).constraints = (result.constraints ∧ (result.get? e).isSome = true) := rfl
 
 @[simp, grind =]
-lemma assertAllocated_withNoConstraints :
-  α[numAlloc][varStore].assertAllocated e =
-  letI α := α[numAlloc][varStore]
+lemma assertAllocated_unconstrained :
+  unconstrained[numAlloc][varStore].assertAllocated e =
+  letI α := unconstrained[numAlloc][varStore]
   α.addConstraint (α.get? e).isSome := rfl
 
 def alloc {k p : ℕ} (result : CircuitResult p) (vals : Vector (ZMod p) k) : CircuitResult p :=
@@ -250,8 +247,8 @@ lemma step_mk
   rfl
 
 @[simp, grind =]
-lemma step_withNoConstraints {command : CircuitusPlanus p} :
-  α[numAlloc][varStore].step command = 
+lemma step_unconstrained {command : CircuitusPlanus p} :
+  unconstrained[numAlloc][varStore].step command = 
   (⟨numAlloc, varStore, True⟩ : CircuitResult p).step command := rfl
 
 def split (result : CircuitResult p) : CircuitResult p :=
@@ -447,7 +444,7 @@ lemma eval_singleton
   {varStore}
 :
   eval [command] varStore numAlloc =
-  α[numAlloc][varStore].step command := by
+  unconstrained[numAlloc][varStore].step command := by
   simp [eval]
 
 @[simp, grind =]
@@ -472,49 +469,49 @@ variable {numAlloc : ℕ} {varStore : Std.ExtTreeMap ℕ (ZMod p)} {e: FixedExp 
 @[simp, grind =]
 lemma eval_empty :
   Edsl.CircuitState.eval [] varStore numAlloc =
-  α[numAlloc][varStore]
+  unconstrained[numAlloc][varStore]
 := by rfl
 
 @[simp, grind =]
 lemma eval_empty_collection :
   Edsl.CircuitState.eval ∅ varStore numAlloc =
-  α[numAlloc][varStore]
+  unconstrained[numAlloc][varStore]
 := by rfl
 
 @[simp, grind =]
 lemma eval_eq0 :
   Edsl.CircuitState.eval [.eq0 e] varStore numAlloc =  
-  α[numAlloc][varStore].step (.eq0 e)
-:= by simp [eval, CircuitResult.addConstraint_withNoConstraints]
+  unconstrained[numAlloc][varStore].step (.eq0 e)
+:= by simp [eval, CircuitResult.addConstraint_unconstrained]
 
 @[simp, grind =]
 lemma eval_lam :
   Edsl.CircuitState.eval [.lam] varStore numAlloc =
-  α[numAlloc][varStore].step (.lam)
+  unconstrained[numAlloc][varStore].step (.lam)
 := by
   simp [eval]
 
 @[simp, grind =]
 lemma eval_share :
   Edsl.CircuitState.eval [.share e] varStore numAlloc =
-  α[numAlloc][varStore].step (.share e)
+  unconstrained[numAlloc][varStore].step (.share e)
 := by
-  simp [eval, CircuitResult.addConstraint_withNoConstraints]
+  simp [eval, CircuitResult.addConstraint_unconstrained]
 
 @[simp, grind =]
 lemma eval_isZero :
   Edsl.CircuitState.eval [.isZero e] varStore numAlloc =
-  α[numAlloc][varStore].step (.isZero e)
+  unconstrained[numAlloc][varStore].step (.isZero e)
 := by
-  simp [eval, CircuitResult.addConstraint_withNoConstraints]
+  simp [eval, CircuitResult.addConstraint_unconstrained]
   rfl
 
 @[simp, grind =]
 lemma eval_num2bits {width : ℕ} :
   Edsl.CircuitState.eval [.num2bits width e] varStore numAlloc =
-  α[numAlloc][varStore].step (.num2bits width e)
+  unconstrained[numAlloc][varStore].step (.num2bits width e)
 := by
-  simp [eval, CircuitResult.addConstraint_withNoConstraints]
+  simp [eval, CircuitResult.addConstraint_unconstrained]
 
 end
 
