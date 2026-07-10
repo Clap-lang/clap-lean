@@ -246,7 +246,7 @@ lemma step_mk
   cases next <;> simp [CircuitResult.step]
   rfl
 
-@[simp, grind =]
+-- @[simp, grind =]
 lemma step_unconstrained {command : CircuitusPlanus p} :
   unconstrained[numAlloc][varStore].step command = 
   (⟨numAlloc, varStore, True⟩ : CircuitResult p).step command := rfl
@@ -418,21 +418,24 @@ namespace CircuitState
 
 variable {p : ℕ}
 
+def seq (circuit₁ circuit₂ : CircuitState p)
+        (varStore : Std.ExtTreeMap ℕ (ZMod p))
+        (numAlloc : ℕ) : CircuitResult p :=
+  let ⟨numAllocMid, varStoreMid, constraintsMid⟩ := eval circuit₁ varStore numAlloc
+  let ⟨numAllocPost, varStorePost, constraintsPost⟩ := eval circuit₂ varStoreMid numAllocMid
+  ⟨numAllocPost, varStorePost, constraintsMid ∧ constraintsPost⟩
+
 @[simp, grind =]
 lemma eval_append
   {numAlloc}
   {circuit1 circuit2 : CircuitState p}
   {varStore}
 :
-  eval (circuit1 ++ circuit2) varStore numAlloc = (
-    let ⟨numAllocMid, varStoreMid, constraintsMid⟩ := eval circuit1 varStore numAlloc
-    let ⟨numAllocPost, varStorePost, constraintsPost⟩ := eval circuit2 varStoreMid numAllocMid
-    ⟨numAllocPost, varStorePost, constraintsMid ∧ constraintsPost⟩
-  )
+  eval (circuit1 ++ circuit2) varStore numAlloc = seq circuit1 circuit2 varStore numAlloc
 := by
   simp [eval]
   ext1
-  all_goals dsimp
+  all_goals dsimp [seq]
   . exact CircuitResult.foldl_step_numAlloc_independent_of_constraints
   . exact CircuitResult.foldl_step_varStore_independent_of_constraints
   . exact CircuitResult.foldl_step_constraints_and
@@ -445,7 +448,7 @@ lemma eval_singleton
 :
   eval [command] varStore numAlloc =
   unconstrained[numAlloc][varStore].step command := by
-  simp [eval]
+  simp [eval, CircuitResult.step_unconstrained]
 
 @[simp, grind =]
 lemma eval_cons
@@ -454,11 +457,8 @@ lemma eval_cons
   {circuit : CircuitState p}
   {varStore}
 :
-  eval (command :: circuit) varStore numAlloc = (
-    let ⟨numAllocMid, varStoreMid, constraintsMid⟩ := eval [command] varStore numAlloc
-    let ⟨numAllocPost, varStorePost, constraintsPost⟩ := eval circuit varStoreMid numAllocMid
-    ⟨numAllocPost, varStorePost, constraintsMid ∧ constraintsPost⟩
-  ) := by
+  eval (command :: circuit) varStore numAlloc =
+  seq [command] circuit varStore numAlloc := by
   rw [show command :: circuit = [command] ++ circuit from rfl]
   exact eval_append
 
@@ -512,6 +512,18 @@ lemma eval_num2bits {width : ℕ} :
   unconstrained[numAlloc][varStore].step (.num2bits width e)
 := by
   simp [eval, CircuitResult.addConstraint_unconstrained]
+
+@[simp, grind =]
+lemma seq_cons_nil {cmd : CircuitusPlanus p} {circuit : CircuitState p} {varStore} {numAlloc} :
+  seq (cmd :: circuit) [] varStore numAlloc =
+  seq [cmd] circuit varStore numAlloc := by
+  aesop (add simp seq)
+
+@[simp high, grind =]
+lemma seq_singleton_nil {cmd : CircuitusPlanus p} {varStore} {numAlloc} :
+  seq [cmd] [] varStore numAlloc =
+  eval [cmd] varStore numAlloc := by
+  simp [seq]
 
 end
 

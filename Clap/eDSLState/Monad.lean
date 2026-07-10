@@ -37,6 +37,10 @@ namespace CircuitStateM
 def run {p : ℕ} {α : Type} (cmd : CircuitStateM p α) (numAlloc : ℕ) :=
   StateT.run (WriterT.run cmd) numAlloc
 
+@[simp, grind =]
+lemma run_def {α} {cmd : CircuitStateM p α} {numAlloc} :
+  CircuitStateM.run cmd numAlloc = cmd numAlloc := rfl
+
 def runAndEval
   {p : ℕ} {α : Type} (cmd : CircuitStateM p α) (numAlloc : ℕ) (varStore : Std.ExtTreeMap ℕ (ZMod p))
 :
@@ -63,7 +67,7 @@ abbrev getNumAlloc
 : ℕ :=
   (cmd.run numAlloc).2
 
-def alloc {p : ℕ} : CircuitStateM p ℕ:=
+def alloc {p : ℕ} : CircuitStateM p ℕ :=
   getModify (· + 1)
 
 def wellFormed
@@ -109,13 +113,7 @@ lemma eval_bind
   eval (CircuitStateM.run (action >>= function) numAlloc).1.2 varStore numAlloc =
   let ((result, action_circuit), numAlloc') := action.run numAlloc
   let ((_, function_circuit), _) := (function result).run numAlloc'
-  let first_eval := eval action_circuit varStore numAlloc
-  let second_eval := eval function_circuit first_eval.varStore first_eval.numAlloc
-  {
-    numAlloc := second_eval.numAlloc
-    varStore := second_eval.varStore
-    constraints := first_eval.constraints ∧ second_eval.constraints
-  }
+  seq action_circuit function_circuit varStore numAlloc
 := by
   simp only [Clap.monads]
   grind
@@ -141,7 +139,7 @@ lemma runAndEval_bind
   obtain ⟨a, b⟩ := x
   simp [this]
   obtain ⟨c, d⟩ := function a.1 b
-  simp [this]
+  simp [seq, this]
   ext <;> grind
 
 end CircuitState

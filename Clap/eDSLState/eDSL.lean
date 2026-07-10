@@ -1,4 +1,5 @@
 import Clap.eDSLState.Monad
+import Mathlib.Tactic
 
 namespace Clap.Edsl
 
@@ -43,105 +44,105 @@ def test : CircuitStateM p Unit := do
 
 section wellFormed
 
+@[simp]
 lemma eq0_wellFormed (e : FixedExp p) :
   (eq0 e).wellFormed
 := by
   simp [Clap.monads, eq0, CircuitStateM.wellFormed]
 
+@[simp]
 lemma lam_wellFormed :
   (lam : CircuitStateM p _).wellFormed
 := by
   simp [Clap.monads, lam, CircuitStateM.wellFormed]
 
+@[simp]
 lemma share_wellFormed (e : FixedExp p) :
   (share e).wellFormed
 := by
   simp [Clap.monads, share, CircuitStateM.wellFormed]
 
+
+@[simp]
 lemma isZero_wellFormed (e : FixedExp p) :
   (isZero e).wellFormed
 := by
   simp [Clap.monads, isZero, CircuitStateM.wellFormed]
 
+@[simp]
+abbrev num2bitsSansTellApply (p w numAlloc : ℕ) : ((List (Exp p ℕ) × CircuitState p) × ℕ) :=
+  List.ofFnM (n := w) (m := CircuitStateM p)
+    (
+      fun _ => do
+        let varIdx ← CircuitStateM.alloc
+        pure (Exp.v (p := p) varIdx)
+    )
+    numAlloc
+
+def num2bitsButSane (width : ℕ) (e : FixedExp p) : CircuitStateM p (List (FixedExp p)) := do
+  tell [.num2bits width e]
+  num2bitsSansTellApply p width
+
+lemma map_toList_num2bits_eq_num2bitsButSane {w e} :
+  Vector.toList <$> num2bits (p := p) w e = num2bitsButSane w e := by
+  unfold num2bitsButSane num2bitsSansTellApply 
+  simp [num2bits]
+  
+lemma wellFormed_of_wellFormed_toList {α} {w} {action : CircuitStateM p (Vector α w)}
+  (h : (Vector.toList <$> action).wellFormed) :
+  action.wellFormed := by
+  aesop (add simp [CircuitStateM.wellFormed, Clap.monads])
+
+section
+
+/-
+Oh my god why are these so hard to write...
+-/
+
+@[simp, grind =]
+lemma bind_alloc {α} {numAlloc} {f : ℕ → CircuitStateM p α} :
+  (CircuitStateM.alloc >>= f) numAlloc = f numAlloc (numAlloc + 1) := rfl
+
+@[simp, grind =]
+lemma CircuitStateM.map_apply {α β} {numAlloc} {f : α → β} {action : CircuitStateM p α} :
+  (f <$> action) numAlloc =
+  ((f (action numAlloc).1.1, (action numAlloc).1.2), (action numAlloc).2) := rfl
+
+end
+
+lemma num2bitsSansTellApply_fst_fst {w} {numAlloc} :
+  (num2bitsSansTellApply p w numAlloc).1.1 = (List.range' numAlloc w).map .v := by
+  induction w generalizing numAlloc <;> aesop (add simp List.ofFnM_succ)
+
+lemma num2bitsSansTellApply_fst_snd {w} {numAlloc} :
+  (num2bitsSansTellApply p w numAlloc).1.2 = [] := by
+  induction w generalizing numAlloc <;> aesop (add simp List.ofFnM_succ)
+
+lemma num2bitsSansTellApply_snd {w} {numAlloc} :
+  (num2bitsSansTellApply p w numAlloc).2 = numAlloc + w := by
+  induction w generalizing numAlloc <;> aesop (add simp List.ofFnM_succ) (add safe (by grind))
+
+@[simp]
+lemma getNumAlloc_bind_tell {f : Unit → CircuitStateM p (List (FixedExp p))} {l} :
+  (tell l >>= f).getNumAlloc = CircuitStateM.getNumAlloc (f ()) := rfl
+
+@[simp]
+lemma getState_bind_tell {f : Unit → CircuitStateM p (List (FixedExp p))} {l} {numAlloc} :
+  (tell l >>= f).getState numAlloc = l ++ (f () numAlloc).1.2 := by
+  aesop (add simp Clap.monads)
+
+@[simp]
 lemma num2bits_wellFormed (width : ℕ) (e : FixedExp p) :
   (num2bits width e).wellFormed
 := by
-  unfold CircuitStateM.wellFormed num2bits
+  apply wellFormed_of_wellFormed_toList
+  rw [map_toList_num2bits_eq_num2bitsButSane]
   intro numAlloc varStore
-  simp [Clap.monads]
-  split
-  expose_names
-  simp
-  set varStore := @varStore.insertMany _ _ _ _ (Vector _ width) _ _
-  have (α β : Type) (a : α × β) (b: α) (c: β) : a = (b, c) → b = a.1 := by
-    grind
-  have := this _ _ _ _ _ heq
-  rewrite [this]
-  unfold StateT.bind CircuitStateM.alloc StateT.map StateT.pure pure Id.instMonad at ⊢ heq
-  unfold_projs at ⊢ heq
-  simp at ⊢ heq
-  rewrite [heq]
-  simp
-
-  -- have (α) (m : Type → Type) (k : ℕ) (f : Fin k → m α) [Monad m] [LawfulMonad m] : (Vector.finRange k).mapM f = Vector.ofFnM f := by
-  --   clear *-k f
-  --   induction k with
-  --     | zero => simp
-  --     | succ k h =>
-  --       rewrite [Vector.ofFnM_succ', Vector.finRange_succ]
-  --       specialize h (fun i => f i.succ)
-  --       rewrite [←h]
-  --       simp [Vector.cast, ]
-  --       have (xs : Vector (Fin (k + 1)) (k + 1)) : Functor.map (Vector.toList) (Vector.mapM f xs) = List.mapM f xs.toList := by
-  --         simp [Vector.toList_]
-
-  --       done
-  --   done
-
-  -- I dislike Vector.ofFnM now
-  -- also Vector.ofMapM
-  -- :(
-  -----------
-
-
-  -- induction width with
-  -- | zero => simp [Clap.monads]
-  -- | succ width h =>
-  --   simp [Vector.ofFnM_succ, Clap.monads] at ⊢ h
-  --   have : (match
-  --     Vector.ofFnM
-  --       (fun x =>
-  --         StateT.bind CircuitStateM.alloc fun x =>
-  --           StateT.map (fun x_1 => (x_1.1, x.2 ++ x_1.2)) (StateT.pure (Exp.v x.1, [])))
-  --       numAlloc with
-  --   | (a, s) => ((a.1, CircuitusPlanus.num2bits width e :: a.2), s)) = sorry
-  --   := by
-  --     done
-
-  --   split
-  --   split at h
-  --   expose_names
-  --   split at heq
-  --   expose_names
-  --   dsimp at ⊢ h
-  --   rewrite [
-  --     show s = s_2 + 1 by grind,
-  --     show a = (a_2.1.push (Exp.v s_2), a_2.2) by grind
-  --   ]
-  --   have : a_1 = a_2 := by grind
-  --   have : s_1 = s_2 := by grind
-  --   simp_all
-
-
-
-  --   rewrite [h]
-  --   specialize h numAlloc varStore
-
-  --   simp [
-  --     Clap.monads,
-  --   ]
-
-
+  unfold num2bitsButSane
+  rw [getNumAlloc_bind_tell, getState_bind_tell]
+  rw [CircuitState.eval_append, num2bitsSansTellApply_fst_snd]
+  suffices (num2bitsSansTellApply p width numAlloc).2 = numAlloc + width by simpa
+  rw [num2bitsSansTellApply_snd]
 
 end wellFormed
 
