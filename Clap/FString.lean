@@ -104,7 +104,8 @@ def assertIsAsciiDigits {maxDigits : ℕ} (inp : FString p maxDigits) : Option U
     let gt ← F.greaterThan 8 c 47
     let lt ← F.lessThan 8 c 58
     let isAsciiDigit := FB.and gt lt
-    eq0 ((1 - isAsciiDigit) * (selector[i]))
+    -- eq0 ((1 - isAsciiDigit) * (selector[i]))
+    (isAsciiDigit.or selector[i].not).assert
 
 /--
   Given a vector of ASCII digit characters and a length, interprets the digits as a

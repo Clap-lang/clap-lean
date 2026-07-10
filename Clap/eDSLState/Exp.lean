@@ -15,8 +15,10 @@ def FixedExp.eval {p : ℕ} (varStore : ℕ → Option (ZMod p)) (x : FixedExp p
   | .sub l r => do (←eval varStore l) - (←eval varStore r)
   | .mul l r => do (←eval varStore l) * (←eval varStore r)
 
+namespace FixedExp
+
 @[simp, grind =]
-lemma eval_const
+lemma eval_c
   {p : ℕ}
   {k : ZMod p}
   {varStore : ℕ → Option (ZMod p)}
@@ -26,36 +28,76 @@ lemma eval_const
   simp [FixedExp.eval]
 
 @[simp, grind =]
-lemma FixedExp.eval_add
+lemma eval_v
   {p : ℕ}
+  {varIdx : ℕ}
   {varStore : ℕ → Option (ZMod p)}
+:
+  FixedExp.eval varStore (Exp.v varIdx) =
+  varStore varIdx
+:= by
+  simp [FixedExp.eval]
+
+@[simp, grind =]
+lemma add_def
+  {p : ℕ}
   {a b : FixedExp p}
 :
-  FixedExp.eval varStore (a + b) =
-  FixedExp.eval varStore (Exp.add a b)
+  a + b =
+  Exp.add a b
 := by
   simp [HAdd.hAdd, Add.add]
 
 @[simp, grind =]
-lemma FixedExp.eval_sub
+lemma sub_def
   {p : ℕ}
-  {varStore : ℕ → Option (ZMod p)}
   {a b : FixedExp p}
 :
-  FixedExp.eval varStore (a - b) =
-  FixedExp.eval varStore (Exp.sub a b)
+  a - b =
+  Exp.sub a b
 := by
   simp [HSub.hSub, Sub.sub]
 
 @[simp, grind =]
-lemma FixedExp.eval_mul
+lemma mul_def
+  {p : ℕ}
+  {a b : FixedExp p}
+:
+  a * b =
+  Exp.mul a b
+:= by
+  simp [HMul.hMul, Mul.mul]
+
+@[simp, grind =]
+lemma eval_add
   {p : ℕ}
   {varStore : ℕ → Option (ZMod p)}
   {a b : FixedExp p}
 :
-  FixedExp.eval varStore (a * b) =
-  FixedExp.eval varStore (Exp.mul a b)
-:= by
-  simp [HMul.hMul, Mul.mul]
+  FixedExp.eval varStore (Exp.add a b) =
+  (do (←eval varStore a) + (←eval varStore b))
+:= rfl
+
+@[simp, grind =]
+lemma eval_sub
+  {p : ℕ}
+  {varStore : ℕ → Option (ZMod p)}
+  {a b : FixedExp p}
+:
+  FixedExp.eval varStore (Exp.sub a b) =
+  (do (←eval varStore a) - (←eval varStore b))
+:= rfl
+
+@[simp, grind =]
+lemma eval_mul
+  {p : ℕ}
+  {varStore : ℕ → Option (ZMod p)}
+  {a b : FixedExp p}
+:
+  FixedExp.eval varStore (Exp.mul a b) =
+  (do (←eval varStore a) * (←eval varStore b))
+:= rfl
+
+end FixedExp
 
 end Clap

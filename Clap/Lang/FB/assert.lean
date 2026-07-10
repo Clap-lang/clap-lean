@@ -17,7 +17,7 @@ def matchesUnaryPredicatePure
 : Prop :=
   ∀ (a : FB p) varStore numAlloc, a.isValid (varStore.get?) →
     let ⟨numAllocPost, varStorePost, constraints⟩ := Edsl.CircuitState.eval
-      ((function a).run numAlloc).1.2
+      ((function a).getState numAlloc)
       varStore
       numAlloc
     constraints = spec_function (a.toBool varStore.get?) ∧
