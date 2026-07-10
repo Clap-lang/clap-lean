@@ -49,6 +49,19 @@ def matchesUnaryFunction
     (function a).eval varStore =
     (FB.ofBool p (spec_function (a.toBool varStore))).eval varStore
 
+def matchesBinaryFunction
+  (p : ℕ)
+  [Fact (p ≥ 2)]
+  (spec_function: Bool → Bool → Bool)
+  (function : FB p → FB p → FB p)
+: Prop :=
+  ∀ (a b: FB p) varStore,
+    a.isValid varStore →
+    b.isValid varStore →
+    (function a b).eval varStore =
+      (FB.ofBool p (spec_function (a.toBool varStore) (b.toBool varStore))).eval
+        varStore
+
 -- def matchesConstraints (p : ℕ) [Fact (p ≥ 2)] (constraints: Prop) (function : Edsl.CircuitStateM p Unit) : Prop :=
 
 lemma right_inv
