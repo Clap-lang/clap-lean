@@ -62,35 +62,35 @@ instance : Inhabited (FB p) where
 def eq (a b : FB p) : Option (FB p) :=
   F.eq a b
 
-def assertBool (f: FB p) : Option Unit :=
+def assertBool (f: FB p) : Option Unit := -- Edsl'd
   eq0 (f * (1 - f))
 
-def and (a b : FB p) : FB p := a * b
+def and (a b : FB p) : FB p := a * b -- Edsl'd
 
 instance : HAnd (FB p) (FB p) (FB p) where
   hAnd := and
 
-def or (a b : FB p) : FB p := a + b - a * b
+def or (a b : FB p) : FB p := a + b - a * b -- Edsl'd
 
 instance : HOr (FB p) (FB p) (FB p) where
   hOr := or
 
-def not (a : FB p) : FB p := 1 - a
+def not (a : FB p) : FB p := 1 - a -- Edsl'd
 
-def xor (a b : FB p) : FB p := a + b - 2 * a * b
+def xor (a b : FB p) : FB p := a + b - 2 * a * b -- Edsl'd
 
 instance : HXor (FB p) (FB p) (FB p) where
   hXor := xor
 
-def assert (a : FB p) : Option Unit := do --EDSL'd
+def assert (a : FB p) : Option Unit := do -- EDSL'd
   eq0 (not a)
 
 def assert_eq (a b : FB p) : Option Unit := do
   F.assert_eq a b
 
-def conditionallyAssert (antecedent consequent : FB p) : Option Unit :=
-    -- a → c ≡ ¬(a ∧ ¬c)
-    eq0 (antecedent &&& FB.not consequent)
+def conditionallyAssert (antecedent consequent : FB p) : Option Unit := -- EDSL'd
+  -- a → c ≡ ¬(a ∧ ¬c)
+  eq0 (antecedent &&& FB.not consequent)
 
 end FB
 
