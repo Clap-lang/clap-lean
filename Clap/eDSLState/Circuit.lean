@@ -21,6 +21,7 @@ structure CircuitResult (p : ℕ) where
   numAlloc : ℕ
   varStore : Std.ExtTreeMap ℕ (ZMod p)
   constraints : Prop
+  deriving Inhabited
 
 namespace CircuitResult
 
