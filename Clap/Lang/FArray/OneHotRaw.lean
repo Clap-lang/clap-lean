@@ -58,7 +58,8 @@ lemma eval_of_isValidRange
   grind [Option.any_eq_true]
 
 -- TODO there must surely be a better name for this
-lemma eval_get_val_mod_p_lt_k_of_isValidRange
+-- DONE Yes, it's this name.
+lemma val_get_eval_mod_lt
   {varStore : ℕ → Option (ZMod p)}
   {k : ℕ}
   {x : F p}
@@ -91,11 +92,12 @@ instance {k p} [inst_lt : Fact (k ≤ p)] : FB.Convert p (F p) (Fin k) where
     have : x.val % p = x.val := Nat.mod_eq_of_lt (Nat.lt_of_lt_of_le h_range inst_lt.out)
     simp [h_some, this]
 
-lemma vector_mapM_isSome_eq_list_mapM
+@[grind _=_]
+lemma _root_.Vector.isSome_mapM_eq_all_isSome
   {elemT resultT}
   {length}
-  (f : elemT → Option resultT)
-  (xs : Vector elemT length)
+  {f : elemT → Option resultT}
+  {xs : Vector elemT length}
 :
   (Vector.mapM f xs).isSome =
   (xs.map f).all Option.isSome
@@ -130,7 +132,8 @@ lemma vector_mapM_isSome_eq_list_mapM
       | none => simp
       | some rest => simp
 
-lemma toIdeal_pure_of_isValid
+@[grind =_]
+lemma toIdeal_eq_pure_get_of_isValid
   {representsT idealT}
   {varStore : ℕ → Option (ZMod p)}
   {x : representsT}
@@ -142,7 +145,8 @@ lemma toIdeal_pure_of_isValid
 := by
   simp
 
-lemma list_mapM_toRepresentstoIdeal
+@[grind =]
+lemma _root_.List.mapM_toRepresentstoIdeal
   {representsT idealT}
   {varStore : ℕ → Option (ZMod p)}
   {xs : List representsT}
@@ -158,13 +162,14 @@ lemma list_mapM_toRepresentstoIdeal
   | cons head tail h_tail =>
     simp [h_tail, base.toIdealtoRepresents]
 
-lemma list_mapM_isSome_of_isSome_of_mem
+@[grind .]
+lemma _root_.List.isSome_mapM_of_isSome
   {T T'}
   {list : List T}
   {f : T → Option T'}
-  (h : ∀ x ∈ list, (f x).isSome = true)
+  (h : ∀ x ∈ list, (f x).isSome)
 :
-  (List.mapM f list).isSome = true
+  (List.mapM f list).isSome
 := by
   induction list with
   | nil => simp
@@ -176,6 +181,9 @@ lemma list_mapM_isSome_of_isSome_of_mem
     obtain ⟨tail, h_tail⟩ := Option.isSome_iff_exists.mp h_tail
     simp [h_tail]
 
+attribute [local grind _=_] Array.toList_mapM Vector.toArray_mapM
+attribute [local grind =] Vector.map_id_fun Vector.map_id
+attribute [local grind .] Vector.mem_toArray_iff
 
 instance
   {representsT idealT length}
@@ -192,41 +200,21 @@ instance
   toRepresents xs :=
     xs.map base.toRepresents
   someOfIsValid varStore x h_isValid := by
-    simp [vector_mapM_isSome_eq_list_mapM]
-    intro i h_i
-    specialize h_isValid x[i] (by simp)
-    exact base.someOfIsValid _ _ h_isValid
+    grind
   toIdealtoRepresents varStore xs := by
-    have := @Vector.mapM_pure Option _ _ _ _ _ xs (id : idealT → idealT)
-    simp [-Option.pure_def] at this
-    simp [Vector.mapM_map, Function.comp_def, (base.toIdealtoRepresents varStore), ←Option.pure_def, this]
+    simp only [Function.comp_def, Vector.mapM_map]
+    have := Vector.mapM_pure (m := Option) (xs := xs) (id : idealT → idealT)
+    grind
   toRepresentstoIdeal varStore xs h := by
     simp
     rewrite [←Vector.map_toArray_inj, ←Array.map_toList_inj]
-    have {α} {n} (xs : Vector α n) (x : α) : (x ∈ xs) = (x ∈ xs.toArray.toList) := by simp
-    have h_isValid : ∀ x ∈ xs.toArray.toList, FB.IsValid.isValid varStore x := by
-      intro x h_x
-      rewrite [←this] at h_x
-      exact h x h_x
     simp
-    have (h : (Vector.mapM (FB.Convert.toIdeal varStore) xs).isSome = true) (h') :
+    have (h : (Vector.mapM (FB.Convert.toIdeal varStore) xs).isSome) (h') :
       ((Vector.mapM (base.toIdeal varStore) xs).get h).toArray.toList =
       (Array.toList <$> Vector.toArray <$> (Vector.mapM (base.toIdeal varStore) xs)).get h'
     := by
-      obtain ⟨x, h_x⟩ := Option.isSome_iff_exists.mp h
-      simp [h_x]
-    rewrite [this]
-    simp
-    set xs := xs.toArray.toList with h_xs
-    simp [←h_xs]
-    apply list_mapM_toRepresentstoIdeal
-    clear this
-    simp
-    apply list_mapM_isSome_of_isSome_of_mem
-    intro x h_x
-    specialize h_isValid x h_x
-    apply base.someOfIsValid
-    exact h_isValid -- forgive me for this proof also
+      grind
+    grind
 
 def spec (p : ℕ) (length : ℕ) [Fact (p ≥ 2)] [Fact (length ≤ p)] : Prop :=
   Clap.Edsl.Lang.FB.matchesUnaryMonadFunction

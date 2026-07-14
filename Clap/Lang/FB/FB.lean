@@ -100,6 +100,18 @@ class Convert (p : ℕ) (representsT idealT : Type) extends IsValid p represents
 
 def varStoreSize (p : ℕ) (α : Type) [φ : VarStoreSize p α] : ℕ := φ.size
 
+@[grind .]
+lemma someOfIsValid_of_convert {p} {α β : Type} [Convert p α β]
+  {varStore : ℕ → Option (ZMod p)} {x : α} (h : FB.IsValid.isValid varStore x) :
+  (Convert.toIdeal (idealT := β) varStore x).isSome := by
+  aesop (add safe cases Convert)
+
+@[grind .]
+lemma toIdealtoRepresents_of_convert {p} {α β : Type} [Convert p α β]
+  {varStore : ℕ → Option (ZMod p)} {x : β} :
+  Convert.toIdeal (representsT := α) varStore (Convert.toRepresents p x) = .some x := by
+  aesop (add safe cases Convert)
+
 instance : IsValid p (FB p) := ⟨fun Γ a ↦ FB.isValid a Γ⟩
 
 instance {p} : VarStoreSize p (FB p) where
