@@ -1,4 +1,8 @@
 import Clap.Lang.F.F
+import Clap.Lang.F.assert_eq
+import Clap.Lang.F.conditionalSwap
+import Clap.Lang.F.dotProduct
+import Clap.Lang.F.guardedEq0
 import Clap.Lang.FB.assert
 import Clap.Lang.FB.FB
 import Clap.Lang.FB.not
