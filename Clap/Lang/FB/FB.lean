@@ -12,14 +12,14 @@ def false (p : ℕ) [Fact (p ≥ 2)] : FB p := .c 0
 
 variable {p : ℕ} [Fact (p ≥ 2)]
 
-def isValid (x : FB p) (varStore : ℕ → Option (ZMod p)) : Prop :=
+def isValid (x : FB p) (varStore : VarStore p) : Prop :=
   x.eval varStore = .some 0 ∨
   x.eval varStore = .some 1
 
 def isAlwaysValid (x : FB p) : Prop :=
   ∀ varStore, x.isValid varStore
 
-def toBool (x : FB p) (varStore : ℕ → Option (ZMod p)) : Bool :=
+def toBool (x : FB p) (varStore : VarStore p) : Bool :=
   x.eval varStore == .some 1
 
 def ofBool (p : ℕ) [Fact (p ≥ 2)] (x : Bool) : FB p :=
@@ -28,7 +28,7 @@ def ofBool (p : ℕ) [Fact (p ≥ 2)] (x : Bool) : FB p :=
 @[simp, grind .] -- TODO(provisional `simp`)
 lemma eval_ofBool_toBool_of_isValid
   {p : ℕ}
-  {varStore : ℕ → Option (ZMod p)}
+  {varStore : VarStore p}
   (f: FB p)
   (h : f.isValid varStore)
   [Fact (p ≥ 2)]
@@ -40,7 +40,7 @@ lemma eval_ofBool_toBool_of_isValid
 @[simp, grind =]
 lemma toBool_ofBool
   {p : ℕ}
-  {varStore : ℕ → Option (ZMod p)}
+  {varStore : VarStore p}
   (b: Bool)
   [Fact (p ≥ 2)]
 :

@@ -1,5 +1,6 @@
 import Clap.Circuit
 
+import Clap.eDSLState.Varstore
 import Clap.eDSLState.Wheels
 
 namespace Clap
@@ -7,13 +8,17 @@ namespace Clap
 abbrev FixedExp (p : ℕ) := Clap.Exp p ℕ
 abbrev FixedCircuit (p : ℕ) := Clap.Circuit p ℕ
 
-def FixedExp.eval {p : ℕ} (varStore : ℕ → Option (ZMod p)) (x : FixedExp p) : Option (ZMod p) :=
+def FixedExp.eval {p : ℕ} (varStore : VarStore p) (x : FixedExp p) : Option (ZMod p) :=
   match x with
   | .c x => .some x
-  | .v x => varStore x
+  | .v x => varStore[x]?
   | .add l r => do (←eval varStore l) + (←eval varStore r)
   | .sub l r => do (←eval varStore l) - (←eval varStore r)
   | .mul l r => do (←eval varStore l) * (←eval varStore r)
+
+notation "[" varStore "|" x "]" => FixedExp.eval varStore x
+
+instance {p} : Membership (FixedExp p) (VarStore p) := ⟨fun Γ x ↦ [Γ|x].isSome⟩
 
 namespace FixedExp
 
@@ -21,25 +26,24 @@ namespace FixedExp
 lemma eval_c
   {p : ℕ}
   {k : ZMod p}
-  {varStore : ℕ → Option (ZMod p)}
+  {varStore : VarStore p}
 :
-  FixedExp.eval varStore (Exp.c k) = .some k
+  [varStore|Exp.c k] = .some k
 := by
   simp [FixedExp.eval]
 
 @[simp]
-lemma eval_ofNat {p n : ℕ} {varStore : ℕ → Option (ZMod p)} :
-  FixedExp.eval varStore (no_index (OfNat.ofNat n)) = .some n := by
+lemma eval_ofNat {p n : ℕ} {varStore : VarStore p} :
+  [varStore|no_index (OfNat.ofNat n)] = .some n := by
   simp [FixedExp.eval]
 
 @[simp, grind =]
 lemma eval_v
   {p : ℕ}
   {varIdx : ℕ}
-  {varStore : ℕ → Option (ZMod p)}
+  {varStore : VarStore p}
 :
-  FixedExp.eval varStore (Exp.v varIdx) =
-  varStore varIdx
+  [varStore|Exp.v varIdx] = varStore[varIdx]?
 := by
   simp [FixedExp.eval]
 
@@ -76,30 +80,30 @@ lemma mul_def
 @[simp, grind =]
 lemma eval_add
   {p : ℕ}
-  {varStore : ℕ → Option (ZMod p)}
+  {varStore : VarStore p}
   {a b : FixedExp p}
 :
-  FixedExp.eval varStore (Exp.add a b) =
+  [varStore|Exp.add a b] =
   (do (←eval varStore a) + (←eval varStore b))
 := rfl
 
 @[simp, grind =]
 lemma eval_sub
   {p : ℕ}
-  {varStore : ℕ → Option (ZMod p)}
+  {varStore : VarStore p}
   {a b : FixedExp p}
 :
-  FixedExp.eval varStore (Exp.sub a b) =
+  [varStore|Exp.sub a b] =
   (do (←eval varStore a) - (←eval varStore b))
 := rfl
 
 @[simp, grind =]
 lemma eval_mul
   {p : ℕ}
-  {varStore : ℕ → Option (ZMod p)}
+  {varStore : VarStore p}
   {a b : FixedExp p}
 :
-  FixedExp.eval varStore (Exp.mul a b) =
+  [varStore|Exp.mul a b] =
   (do (←eval varStore a) * (←eval varStore b))
 := rfl
 

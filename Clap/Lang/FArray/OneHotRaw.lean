@@ -43,11 +43,11 @@ def runAndEval
 def specFunction (n : ℕ) : Fin n → Vector Bool n := fun i ↦
   Vector.ofFn λ (idx : Fin n) => idx.val == i
 
-def isValidRange (varStore : ℕ → Option (ZMod p)) (x : F p) (lt : ℕ) : Prop :=
+def isValidRange (varStore : VarStore p) (x : F p) (lt : ℕ) : Prop :=
   (x.eval varStore).any (λ val => val.val < lt)
 
 lemma eval_of_isValidRange
-  {varStore : ℕ → Option (ZMod p)}
+  {varStore : VarStore p}
   {x : F p}
   {lt : ℕ}
   (h: isValidRange varStore x lt)
@@ -60,7 +60,7 @@ lemma eval_of_isValidRange
 -- TODO there must surely be a better name for this
 -- DONE Yes, it's this name.
 lemma val_get_eval_mod_lt
-  {varStore : ℕ → Option (ZMod p)}
+  {varStore : VarStore p}
   {k : ℕ}
   {x : F p}
   {h : (FixedExp.eval varStore x).isSome = true}
@@ -139,7 +139,7 @@ lemma _root_.Vector.isSome_mapM_eq_all_isSome
 @[grind =_]
 lemma toIdeal_eq_pure_get_of_isValid
   {representsT idealT}
-  {varStore : ℕ → Option (ZMod p)}
+  {varStore : VarStore p}
   {x : representsT}
   [FB.Convert p representsT idealT]
   (h : FB.IsValid.isValid varStore x)
@@ -152,7 +152,7 @@ lemma toIdeal_eq_pure_get_of_isValid
 @[grind =]
 lemma _root_.List.mapM_toRepresentstoIdeal
   {representsT idealT}
-  {varStore : ℕ → Option (ZMod p)}
+  {varStore : VarStore p}
   {xs : List representsT}
   [base : FB.Convert p representsT idealT]
   {h}

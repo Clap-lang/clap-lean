@@ -10,7 +10,7 @@ namespace F
 
 variable {p : ℕ}
 
-def isValid (x : F p) (varStore : ℕ → Option (ZMod p)) : Prop :=
+def isValid (x : F p) (varStore : VarStore p) : Prop :=
   (x.eval varStore).isSome
 
 end F

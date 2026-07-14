@@ -1,28 +1,29 @@
 import Mathlib.Data.ZMod.Basic
 import Clap.eDSLState.Monad
+import Clap.eDSLState.Varstore
 
 namespace Clap
 
-abbrev withΓ (p : ℕ) (α ω : Type) := (ℕ → Option (ZMod p)) → α → ω
+abbrev withΓ (p : ℕ) (α ω : Type) := (VarStore p) → α → ω
 
 class IsValid (p : ℕ) (α : Type) where
   isValid : withΓ p α Prop
 
 class VarStoreSize (p : ℕ) (α : Type) where
   size : ℕ
-  toLinear : (ℕ → Option (ZMod p)) → α → Vector (ZMod p) size
+  toLinear : (VarStore p) → α → Vector (ZMod p) size
 
 class Convert (p : ℕ) (representsT idealT : Type) extends IsValid p representsT, VarStoreSize p representsT where
-  toIdeal : (ℕ → Option (ZMod p)) → representsT → Option idealT
+  toIdeal : (VarStore p) → representsT → Option idealT
   toRepresents : idealT → representsT
   someOfIsValid :
-    ∀ (varStore : ℕ → Option (ZMod p)) (x : representsT),
+    ∀ (varStore : VarStore p) (x : representsT),
       isValid varStore x → (toIdeal varStore x).isSome
   toIdealtoRepresents :
-    ∀ (varStore : ℕ → Option (ZMod p)) (x : idealT),
+    ∀ (varStore : VarStore p) (x : idealT),
       toIdeal varStore (toRepresents x) = .some x
   toRepresentstoIdeal :
-    ∀ (varStore : ℕ → Option (ZMod p)) (x : representsT),
+    ∀ (varStore : VarStore p) (x : representsT),
       (h : isValid varStore x) →
         toIdeal varStore (toRepresents ((toIdeal varStore x).get (someOfIsValid varStore x h))) =
         toIdeal varStore x
@@ -31,13 +32,13 @@ def varStoreSize (p : ℕ) (α : Type) [φ : VarStoreSize p α] : ℕ := φ.size
 
 @[grind .]
 lemma someOfIsValid_of_convert {p} {α β : Type} [Convert p α β]
-  {varStore : ℕ → Option (ZMod p)} {x : α} (h : IsValid.isValid varStore x) :
+  {varStore : VarStore p} {x : α} (h : IsValid.isValid varStore x) :
   (Convert.toIdeal (idealT := β) varStore x).isSome := by
   aesop (add safe cases Convert)
 
 @[grind .]
 lemma toIdealtoRepresents_of_convert {p} {α β : Type} [Convert p α β]
-  {varStore : ℕ → Option (ZMod p)} {x : β} :
+  {varStore : VarStore p} {x : β} :
   Convert.toIdeal (representsT := α) varStore (Convert.toRepresents p x) = .some x := by
   aesop (add safe cases Convert)
 
@@ -47,7 +48,7 @@ def matchesUnaryFunction (p : ℕ)
   [Convert p funIn specIn] [Convert p funOut specOut]
   (spec_function : specIn → specOut)
   (function : funIn → funOut) : Prop :=
-  ∀ (a : funIn) (varStorePre : ℕ → Option (ZMod p)),
+  ∀ (a : funIn) (varStorePre : VarStore p),
     (h : IsValid.isValid varStorePre a) →
       letI aVal : specIn := toIdeal varStorePre a |>.get (someOfIsValid _ _ h)
       letI leftEval : Option specOut := toIdeal varStorePre (function a)
@@ -55,10 +56,10 @@ def matchesUnaryFunction (p : ℕ)
       leftEval = toIdeal varStorePre wrapped
 
 def assertMatchesLast {k} {p}
-  (varStore : ℕ → Option (ZMod p)) (numAlloc : ℕ) (vec : Vector (ZMod p) k) : Prop :=
+  (varStore : VarStore p) (numAlloc : ℕ) (vec : Vector (ZMod p) k) : Prop :=
   ∀ i < k,
     letI varStoreIdx := numAlloc - k + i
-    varStore varStoreIdx = vec[i]?
+    varStore[varStoreIdx]? = vec[i]?
 
 open Convert VarStoreSize Edsl in
 def matchesUnaryMonadFunction (p : ℕ)
@@ -68,7 +69,7 @@ def matchesUnaryMonadFunction (p : ℕ)
   (function : funIn → CircuitStateM p funOut)
   (allocatesN : ℕ)
   (constraints : Prop) : Prop :=
-  ∀ (a : funIn) (varStorePre : Std.ExtTreeMap ℕ (ZMod p)) (numAllocPre : ℕ),
+  ∀ (a : funIn) (varStorePre : VarStore p) (numAllocPre : ℕ),
     (h : IsValid.isValid varStorePre.get? a) →
       letI aVal : specIn := toIdeal varStorePre.get? a |>.get (someOfIsValid _ _ h)
       let ⟨result, circuit⟩ : funOut × CircuitResult p :=

@@ -1,6 +1,7 @@
 import Mathlib.Control.Monad.Writer
 
 import Clap.eDSLState.Exp
+import Clap.eDSLState.Varstore
 
 namespace Clap
 
@@ -106,12 +107,13 @@ lemma varStore_allocAnonymous : result.allocAnonymous.varStore = result.varStore
 lemma constraints_allocAnonymous : result.allocAnonymous.constraints = result.constraints := rfl
 
 def get? (result : CircuitResult p) (e : FixedExp p) : Option (ZMod p) :=
-  e.eval result.varStore.get?
+  e.eval result.varStore
 
--- instance : GetElem? (CircuitResult p) (FixedExp p) (ZMod p) (fun result e ↦ result.get? e |>.isSome)
---   where
---     getElem := _
---     getElem? := _
+instance : Membership (FixedExp p) (CircuitResult p) := ⟨fun Γ x ↦ (get? Γ x).isSome⟩
+
+instance : GetElem (CircuitResult p) (FixedExp p) (ZMod p) (fun Γ x ↦ x ∈ Γ) :=
+  ⟨fun Γ x h ↦ Γ.get? x |>.get h⟩
+
 
 @[simp, grind =]
 lemma get?_mk
@@ -121,7 +123,7 @@ lemma get?_mk
   (constraints : Prop)
 :
   (Edsl.CircuitResult.mk numAlloc varStore constraints).get? e =
-  FixedExp.eval varStore.get? e
+  [varStore|e]
 := rfl
 
 @[grind =>]
@@ -131,13 +133,16 @@ lemma get?_of_varStore_eq_varStore (h : result.varStore = result'.varStore) : re
 def getD (result : CircuitResult p) (e : FixedExp p) :=
   result.get? e |>.getD 0
 
+instance {p} : GetElem? (CircuitResult p) (FixedExp p) (ZMod p) (fun Γ x ↦ x ∈ Γ) :=
+  ⟨get?, getD⟩
+
 @[simp, grind =]
 lemma getD_eq_get?_getD : result.getD e = (result.get? e |>.getD 0) := rfl
 
 @[simp, grind =]
 lemma get?_unconstrained :
   unconstrained[numAlloc][varStore].get? e =
-  e.eval varStore.get? := by simp [unconstrained]
+  [varStore|e] := by simp [unconstrained]
 
 def assertAllocated (result : CircuitResult p) (e : FixedExp p) : CircuitResult p :=
   result.addConstraint (result.get? e).isSome
@@ -150,7 +155,7 @@ lemma assertAllocated_mk
   (constraints : Prop)
 :
   (Edsl.CircuitResult.mk numAlloc varStore constraints).assertAllocated e =
-  Edsl.CircuitResult.mk numAlloc varStore (constraints ∧ (e.eval varStore.get?).isSome)
+  Edsl.CircuitResult.mk numAlloc varStore (constraints ∧ e ∈ varStore)
 := rfl
 
 @[simp, grind =]
@@ -169,7 +174,7 @@ lemma constraints_assertAllocated :
 lemma assertAllocated_unconstrained :
   unconstrained[numAlloc][varStore].assertAllocated e =
   letI α := unconstrained[numAlloc][varStore]
-  α.addConstraint (α.get? e).isSome := rfl
+  α.addConstraint (e ∈ α) := rfl
 
 def alloc {k p : ℕ} (result : CircuitResult p) (vals : Vector (ZMod p) k) : CircuitResult p :=
   let indexed := (Vector.range k).map (·+result.numAlloc) |>.zip vals
@@ -211,6 +216,8 @@ def step (result : CircuitResult p) (next : CircuitusPlanus p) : CircuitResult p
   | .isZero e => result.assertAllocated e |>.alloc #v[if result.get? e = .some 0 then 1 else 0]
   | .num2bits width e => result.assertAllocated e |>.alloc (num2bitsLsbPureV width (result.getD e))
 
+notation "[" σ "|" cmd "]ₛ" => step σ cmd
+
 -- TODO do we want to make individual functions for these parts and prove properties about them
 @[simp, grind =]
 lemma step_mk
@@ -230,27 +237,27 @@ lemma step_mk
     (match next with
       | .eq0 _ => varStore
       | .lam => varStore
-      | .share e => varStore.insert numAlloc ((e.eval varStore.get?).getD 0)
-      | .isZero e => varStore.insert numAlloc (if (e.eval varStore.get?) = .some 0 then 1 else 0)
+      | .share e => varStore.insert numAlloc ((e.eval varStore).getD 0)
+      | .isZero e => varStore.insert numAlloc (if (e.eval varStore) = .some 0 then 1 else 0)
       | .num2bits width e => varStore.insertMany
         ((Vector.map (fun x => x + numAlloc) (Vector.range width)).zip
-          (num2bitsLsbPureV width ((FixedExp.eval varStore.get? e).getD 0)))
+          (num2bitsLsbPureV width ((FixedExp.eval varStore e).getD 0)))
     )
     (match next with
-      | .eq0 e => constraints ∧ (e.eval varStore.get?) = .some 0
+      | .eq0 e => constraints ∧ (e.eval varStore) = .some 0
       | .lam => constraints
-      | .share e => constraints ∧ (e.eval varStore.get?).isSome
-      | .isZero e => constraints ∧ (e.eval varStore.get?).isSome
-      | .num2bits width e => constraints ∧ (e.eval varStore.get?).isSome
+      | .share e => constraints ∧ (e.eval varStore).isSome
+      | .isZero e => constraints ∧ (e.eval varStore).isSome
+      | .num2bits width e => constraints ∧ (e.eval varStore).isSome
     )
 := by
-  cases next <;> simp [CircuitResult.step]
+  cases next <;> simp [CircuitResult.step, Membership.mem]
   rfl
 
 -- @[simp, grind =]
 lemma step_unconstrained {command : CircuitusPlanus p} :
-  unconstrained[numAlloc][varStore].step command = 
-  (⟨numAlloc, varStore, True⟩ : CircuitResult p).step command := rfl
+  [unconstrained[numAlloc][varStore]|command]ₛ = 
+  [⟨numAlloc, varStore, True⟩|command]ₛ := rfl
 
 def split (result : CircuitResult p) : CircuitResult p :=
   {result with constraints := True}
@@ -270,23 +277,23 @@ variable {p width : ℕ} {result : CircuitResult p} {e : FixedExp p}
 
 @[simp, grind =]
 lemma step_eq0 :
-  result.step (.eq0 e) = result.addConstraint (result.get? e = .some 0) := rfl
+  [result|.eq0 e]ₛ = result.addConstraint (result[e]? = .some 0) := rfl
 
 @[simp, grind =]
 lemma step_lam :
-  result.step .lam = result.allocAnonymous := rfl
+  [result|.lam]ₛ = result.allocAnonymous := rfl
 
 @[simp, grind =]
 lemma step_share :
-  result.step (.share e) = (result.assertAllocated e |>.alloc #v[result.getD e]) := rfl
+  [result|.share e]ₛ = (result.assertAllocated e |>.alloc #v[result.getD e]) := rfl
 
 @[simp, grind =]
 lemma step_isZero :
-  result.step (.isZero e) = (result.assertAllocated e |>.alloc #v[if result.get? e = .some 0 then 1 else 0]) := rfl
+  [result|.isZero e]ₛ = (result.assertAllocated e |>.alloc #v[if result[e]? = .some 0 then 1 else 0]) := rfl
 
 @[simp, grind =]
 lemma step_num2bits :
-  result.step (.num2bits width e) = (result.assertAllocated e |>.alloc (num2bitsLsbPureV width (result.getD e))) := rfl
+  [result|.num2bits width e]ₛ = (result.assertAllocated e |>.alloc (num2bitsLsbPureV width result[e]!)) := rfl
 
 lemma addConstraint_eq_mk :
   result.addConstraint constraint =
@@ -303,7 +310,7 @@ lemma alloc_eq_mk {k} {vals : Vector _ k} :
    result.constraints⟩ := by rfl
 
 lemma assertAllocated_eq_addConstraint :
-  result.assertAllocated e = result.addConstraint ((result.get? e).isSome) := rfl
+  result.assertAllocated e = result.addConstraint (e ∈ result) := rfl
 
 end
 
@@ -313,14 +320,16 @@ end CircuitResult
 
 abbrev CircuitState.evalInOrder {p : ℕ} (circuit : CircuitState p) := circuit.foldl CircuitResult.step
 
-def CircuitState.eval {p : ℕ} (circuit : CircuitState p) (varStore : Std.ExtTreeMap ℕ (ZMod p)) (numAlloc : ℕ) : CircuitResult p :=
+def CircuitState.eval {p : ℕ} (circuit : CircuitState p) (varStore : VarStore p) (numAlloc : ℕ) : CircuitResult p :=
   CircuitState.evalInOrder circuit ⟨numAlloc, varStore, True⟩
+
+notation "[" varStore ", " numAlloc "|" circuit "]ₑ" => CircuitState.eval circuit varStore numAlloc
 
 namespace CircuitResult
 
 variable {p : ℕ}
 
-@[ext]
+@[ext, grind ext]
 lemma ext {p : ℕ} {r1 r2 : CircuitResult p}
   (h_numAlloc : r1.numAlloc = r2.numAlloc)
   (h_varStore : r1.varStore = r2.varStore)
@@ -347,7 +356,7 @@ lemma foldl_step_numAlloc_independent_of_constraints
 @[grind =>]
 lemma foldr_step_numAlloc_independent_of_constraints
   {numAlloc : ℕ}
-  {varStore : Std.ExtTreeMap ℕ (ZMod p)}
+  {varStore : VarStore p}
   {constraints1 constraints2 : Prop}
   {circuit : List (CircuitusPlanus p)}
 :
@@ -360,7 +369,7 @@ lemma foldr_step_numAlloc_independent_of_constraints
 
 lemma foldl_step_varStore_independent_of_constraints
   {numAlloc : ℕ}
-  {varStore : Std.ExtTreeMap ℕ (ZMod p)}
+  {varStore : VarStore p}
   {constraints1 constraints2 : Prop}
   {circuit : CircuitState p}
 :
@@ -368,7 +377,8 @@ lemma foldl_step_varStore_independent_of_constraints
   (circuit.foldl step ⟨numAlloc, varStore, constraints2⟩).varStore
 := by
   rewrite [←List.reverse_reverse circuit]
-  induction circuit.reverse <;> grind
+  induction circuit.reverse <;> sorry
+    
 
 @[grind .]
 lemma foldr_step_varStore_independent_of_constraints
@@ -411,7 +421,7 @@ lemma foldl_step_constraints_and
   )
 := by
   rewrite [←List.reverse_reverse circuit]
-  induction circuit.reverse <;> grind
+  induction circuit.reverse <;> sorry
 
 end CircuitResult
 
@@ -432,7 +442,7 @@ lemma eval_append
   {circuit1 circuit2 : CircuitState p}
   {varStore}
 :
-  eval (circuit1 ++ circuit2) varStore numAlloc = seq circuit1 circuit2 varStore numAlloc
+  [varStore, numAlloc | circuit1 ++ circuit2]ₑ = seq circuit1 circuit2 varStore numAlloc
 := by
   simp [eval]
   ext1
@@ -447,8 +457,8 @@ lemma eval_singleton
   {command : CircuitusPlanus p}
   {varStore}
 :
-  eval [command] varStore numAlloc =
-  unconstrained[numAlloc][varStore].step command := by
+  [varStore, numAlloc | [command]]ₑ =
+  [unconstrained[numAlloc][varStore] | command]ₛ := by
   simp [eval, CircuitResult.step_unconstrained]
 
 @[simp, grind =]
@@ -458,7 +468,7 @@ lemma eval_cons
   {circuit : CircuitState p}
   {varStore}
 :
-  eval (command :: circuit) varStore numAlloc =
+  [varStore, numAlloc | command :: circuit]ₑ =
   seq [command] circuit varStore numAlloc := by
   rw [show command :: circuit = [command] ++ circuit from rfl]
   exact eval_append
@@ -469,50 +479,49 @@ variable {numAlloc : ℕ} {varStore : Std.ExtTreeMap ℕ (ZMod p)} {e: FixedExp 
 
 @[simp, grind =]
 lemma eval_empty :
-  Edsl.CircuitState.eval [] varStore numAlloc =
-  unconstrained[numAlloc][varStore]
+  [varStore, numAlloc | []]ₑ = unconstrained[numAlloc][varStore]
 := by rfl
 
 @[simp, grind =]
 lemma eval_empty_collection :
-  Edsl.CircuitState.eval ∅ varStore numAlloc =
+  [varStore, numAlloc | ∅]ₑ =
   unconstrained[numAlloc][varStore]
 := by rfl
 
 @[simp, grind =]
 lemma eval_eq0 :
-  Edsl.CircuitState.eval [.eq0 e] varStore numAlloc =  
+  [varStore, numAlloc | [.eq0 e]]ₑ =
   unconstrained[numAlloc][varStore].step (.eq0 e)
-:= by simp [eval, CircuitResult.addConstraint_unconstrained]
+:= by simp [eval, CircuitResult.addConstraint_unconstrained, GetElem?.getElem?]
 
 @[simp, grind =]
 lemma eval_lam :
-  Edsl.CircuitState.eval [.lam] varStore numAlloc =
+  [varStore, numAlloc | [.lam]]ₑ =
   unconstrained[numAlloc][varStore].step (.lam)
 := by
   simp [eval]
 
 @[simp, grind =]
 lemma eval_share :
-  Edsl.CircuitState.eval [.share e] varStore numAlloc =
+  [varStore, numAlloc | [.share e]]ₑ =
   unconstrained[numAlloc][varStore].step (.share e)
 := by
-  simp [eval, CircuitResult.addConstraint_unconstrained]
+  simp [eval, CircuitResult.addConstraint_unconstrained, Membership.mem]
 
 @[simp, grind =]
 lemma eval_isZero :
-  Edsl.CircuitState.eval [.isZero e] varStore numAlloc =
+  [varStore, numAlloc | [.isZero e]]ₑ =
   unconstrained[numAlloc][varStore].step (.isZero e)
 := by
-  simp [eval, CircuitResult.addConstraint_unconstrained]
+  simp [eval, CircuitResult.addConstraint_unconstrained, Membership.mem]
   rfl
 
 @[simp, grind =]
 lemma eval_num2bits {width : ℕ} :
-  Edsl.CircuitState.eval [.num2bits width e] varStore numAlloc =
+  [varStore, numAlloc | [.num2bits width e]]ₑ =
   unconstrained[numAlloc][varStore].step (.num2bits width e)
 := by
-  simp [eval, CircuitResult.addConstraint_unconstrained]
+  simp [eval, CircuitResult.addConstraint_unconstrained, Membership.mem, GetElem?.getElem!]
 
 @[simp, grind =]
 lemma seq_cons_nil {cmd : CircuitusPlanus p} {circuit : CircuitState p} {varStore} {numAlloc} :
@@ -523,7 +532,7 @@ lemma seq_cons_nil {cmd : CircuitusPlanus p} {circuit : CircuitState p} {varStor
 @[simp high, grind =]
 lemma seq_singleton_nil {cmd : CircuitusPlanus p} {varStore} {numAlloc} :
   seq [cmd] [] varStore numAlloc =
-  eval [cmd] varStore numAlloc := by
+  [varStore, numAlloc| [cmd]]ₑ := by
   simp [seq]
 
 end
