@@ -25,24 +25,24 @@ instance : Inhabited (F p) where
 def assert_range (w : ℕ) (e : F p) : Option Unit := do
   let _ <- num2bits w e ; ()
 
-def assert_eq (a b : F p) : Option Unit := do
+def assert_eq (a b : F p) : Option Unit := do -- Edsl'd
   eq0 (a - b)
 
 def eq (a b : F p) : Option (FB p) :=
   isZero (a - b)
 
-def dotProduct {w : ℕ} (a b : Vector (F p) w) : F p :=
+def dotProduct {w : ℕ} (a b : Vector (F p) w) : F p := -- Edsl'd
   (a.zipWith (· * ·) b).foldl (· + ·) 0
 
 /-- Gated assertion: asserts `constraint == 0` only when `guard == 1` -/
-def guardedEq0 (guard : FB p) (constraint : F p) : Option Unit :=
+def guardedEq0 (guard : FB p) (constraint : F p) : Option Unit := -- Edsl'd
   eq0 (guard * constraint)
 
 /-- Gated equality: asserts `a == b` only when `guard == 1` -/
-def guardedAssertEq (guard : FB p) (a b : F p) : Option Unit :=
+def guardedAssertEq (guard : FB p) (a b : F p) : Option Unit := -- Edsl'd
   guardedEq0 guard (a - b)
 
-def conditionalSwap (sel : FB p) (a b : F p) : F p :=
+def conditionalSwap (sel : FB p) (a b : F p) : F p := -- Edsl'd
   (a - b) * sel + b
 
 end F
