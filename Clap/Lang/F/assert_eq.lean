@@ -8,7 +8,7 @@ def assert_eq {p : ℕ} [Fact (p ≥ 2)] (a b : F p) : Edsl.CircuitStateM p Unit
 namespace assert_eq
 
 def spec (p : ℕ) [Fact (p ≥ 2)] : Prop :=
-  matchesBinaryPredicatePure p (fun a b : ZMod p ↦ a = b) assert_eq
+  matchesBinaryPredicatePure p (fun a b ↦ Unit) assert_eq (constraints := fun a b : ZMod p ↦ a = b)
 
 lemma equiv (p : ℕ) [Fact (p ≥ 2)] : spec p := by sorry
 
