@@ -72,6 +72,10 @@ lemma val_get_eval_mod_lt
   apply Nat.mod_lt_of_lt
   grind [eval_of_isValidRange]
 
+attribute [local grind _=_] Array.toList_mapM Vector.toArray_mapM
+attribute [local grind =] Vector.map_id_fun Vector.map_id ZMod.val_natCast
+attribute [local grind .] Vector.mem_toArray_iff
+
 instance {k p} [inst_lt : Fact (k ≤ p)] : FB.Convert p (F p) (Fin k) where
   isValid varStore x :=
     isValidRange varStore x k
@@ -90,7 +94,7 @@ instance {k p} [inst_lt : Fact (k ≤ p)] : FB.Convert p (F p) (Fin k) where
   toRepresentstoIdeal varStore x h_isValidRange:= by
     obtain ⟨x, ⟨h_some, h_range⟩⟩ := eval_of_isValidRange h_isValidRange
     have : x.val % p = x.val := Nat.mod_eq_of_lt (Nat.lt_of_lt_of_le h_range inst_lt.out)
-    simp [h_some, this]
+    grind
 
 @[grind _=_]
 lemma _root_.Vector.isSome_mapM_eq_all_isSome
@@ -129,8 +133,8 @@ lemma _root_.Vector.isSome_mapM_eq_all_isSome
       rewrite [←h_tail]
       simp
       cases (List.mapM f tail) with
-      | none => simp
-      | some rest => simp
+      | none => grind
+      | some rest => grind
 
 @[grind =_]
 lemma toIdeal_eq_pure_get_of_isValid
@@ -180,10 +184,6 @@ lemma _root_.List.isSome_mapM_of_isSome
     simp_all -- forgive me
     obtain ⟨tail, h_tail⟩ := Option.isSome_iff_exists.mp h_tail
     simp [h_tail]
-
-attribute [local grind _=_] Array.toList_mapM Vector.toArray_mapM
-attribute [local grind =] Vector.map_id_fun Vector.map_id
-attribute [local grind .] Vector.mem_toArray_iff
 
 instance
   {representsT idealT length}

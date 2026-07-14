@@ -27,6 +27,11 @@ lemma eval_c
 := by
   simp [FixedExp.eval]
 
+@[simp]
+lemma eval_ofNat {p n : ℕ} {varStore : ℕ → Option (ZMod p)} :
+  FixedExp.eval varStore (no_index (OfNat.ofNat n)) = .some n := by
+  simp [FixedExp.eval]
+
 @[simp, grind =]
 lemma eval_v
   {p : ℕ}
