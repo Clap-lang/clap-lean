@@ -85,9 +85,9 @@ def num2bitsButSane (width : ℕ) (e : FixedExp p) : CircuitStateM p (List (Fixe
 
 lemma map_toList_num2bits_eq_num2bitsButSane {w e} :
   Vector.toList <$> num2bits (p := p) w e = num2bitsButSane w e := by
-  unfold num2bitsButSane num2bitsSansTellApply 
+  unfold num2bitsButSane num2bitsSansTellApply
   simp [num2bits]
-  
+
 lemma wellFormed_of_wellFormed_toList {α} {w} {action : CircuitStateM p (Vector α w)}
   (h : (Vector.toList <$> action).wellFormed) :
   action.wellFormed := by
@@ -106,7 +106,7 @@ lemma bind_alloc {α} {numAlloc} {f : ℕ → CircuitStateM p α} :
 @[simp, grind =]
 lemma CircuitStateM.map_apply {α β} {numAlloc} {f : α → β} {action : CircuitStateM p α} :
   (f <$> action) numAlloc =
-  ((f (action numAlloc).1.1, (action numAlloc).1.2), (action numAlloc).2) := rfl
+  ((f (action.getResult numAlloc), (action.getState numAlloc)), (action.getNumAlloc numAlloc)) := rfl
 
 end
 

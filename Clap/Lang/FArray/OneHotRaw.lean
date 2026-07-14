@@ -43,20 +43,192 @@ def runAndEval
 def specFunction (n : ℕ) : Fin n → Vector Bool n := fun i ↦
   Vector.ofFn λ (idx : Fin n) => idx.val == i
 
-def isValidRange (x : F p) (varStore : ℕ → Option (ZMod p)) : Prop :=
-  let x.eval varStore
+def isValidRange (varStore : ℕ → Option (ZMod p)) (x : F p) (lt : ℕ) : Prop :=
+  (x.eval varStore).any (λ val => val.val < lt)
 
-instance {k p} [Fact (k ≤ p)] : FB.Convert p (F p) (Fin k) where
-  isValid varStore x := _
-  size := _
-  toLinear := _
-  toIdeal := _
-  toRepresents := _
-  someOfIsValid := _
-  toIdealtoRepresents := _
-  toRepresentstoIdeal := _
+lemma eval_of_isValidRange
+  {varStore : ℕ → Option (ZMod p)}
+  {x : F p}
+  {lt : ℕ}
+  (h: isValidRange varStore x lt)
+:
+  ∃ val, x.eval varStore = .some val ∧ val.val < lt
+:= by
+  unfold isValidRange at h
+  grind [Option.any_eq_true]
 
-def spec (p : ℕ) (length : ℕ) [Fact (p ≥ 2)] : Prop :=
+-- TODO there must surely be a better name for this
+lemma eval_get_val_mod_p_lt_k_of_isValidRange
+  {varStore : ℕ → Option (ZMod p)}
+  {k : ℕ}
+  {x : F p}
+  {h : (FixedExp.eval varStore x).isSome = true}
+  [Fact (k ≤ p)]
+  (h_isValid : isValidRange varStore x k)
+:
+  ((x.eval varStore).get h).val % p < k
+:= by
+  apply Nat.mod_lt_of_lt
+  grind [eval_of_isValidRange]
+
+instance {k p} [inst_lt : Fact (k ≤ p)] : FB.Convert p (F p) (Fin k) where
+  isValid varStore x :=
+    isValidRange varStore x k
+  size :=
+    1
+  toLinear varStore x :=
+    #v[x.eval varStore |>.getD 42]
+  toIdeal varStore x :=
+    (x.eval varStore).bind (λ x => if h: x.val < k then .some ⟨x.val, h⟩ else .none)
+  toRepresents x :=
+    x.val
+  someOfIsValid varStore x h_isValid := by
+    grind [eval_of_isValidRange]
+  toIdealtoRepresents varStore x := by
+    simp [Nat.mod_eq_of_lt (lt_of_lt_of_le x.2 inst_lt.out)]
+  toRepresentstoIdeal varStore x h_isValidRange:= by
+    obtain ⟨x, ⟨h_some, h_range⟩⟩ := eval_of_isValidRange h_isValidRange
+    have : x.val % p = x.val := Nat.mod_eq_of_lt (Nat.lt_of_lt_of_le h_range inst_lt.out)
+    simp [h_some, this]
+
+lemma vector_mapM_isSome_eq_list_mapM
+  {elemT resultT}
+  {length}
+  (f : elemT → Option resultT)
+  (xs : Vector elemT length)
+:
+  (Vector.mapM f xs).isSome =
+  (xs.map f).all Option.isSome
+:= by
+  have :
+    (Vector.mapM f xs).isSome =
+    (Vector.toArray <$> (Vector.mapM f xs)).isSome
+  := by grind
+  rewrite [this]; clear this
+  simp
+  rewrite [Array.mapM_eq_mapM_toList]
+  have :
+    xs.toArray.toList = xs.toList
+  := rfl
+  rewrite [this]; clear this
+  have :
+    (xs.all λ a => (f a).isSome) =
+    xs.toList.all fun a => (f a).isSome
+  := by
+    rw [←Vector.all_toList]
+  rewrite [this]; clear this
+  induction xs.toList with
+  | nil => simp
+  | cons head tail h_tail =>
+    simp
+    cases (f head) with
+    | none => simp
+    | some head =>
+      rewrite [←h_tail]
+      simp
+      cases (List.mapM f tail) with
+      | none => simp
+      | some rest => simp
+
+lemma toIdeal_pure_of_isValid
+  {representsT idealT}
+  {varStore : ℕ → Option (ZMod p)}
+  {x : representsT}
+  [FB.Convert p representsT idealT]
+  (h : FB.IsValid.isValid varStore x)
+:
+  FB.Convert.toIdeal varStore x =
+  pure ((FB.Convert.toIdeal varStore x).get (FB.Convert.someOfIsValid varStore x h))
+:= by
+  simp
+
+lemma list_mapM_toRepresentstoIdeal
+  {representsT idealT}
+  {varStore : ℕ → Option (ZMod p)}
+  {xs : List representsT}
+  [base : FB.Convert p representsT idealT]
+  {h}
+:
+  List.mapM (base.toIdeal varStore ∘ base.toRepresents)
+    ((List.mapM (FB.Convert.toIdeal varStore) xs).get h) =
+  List.mapM (FB.Convert.toIdeal varStore) xs
+:= by
+  induction xs with
+  | nil => simp
+  | cons head tail h_tail =>
+    simp [h_tail, base.toIdealtoRepresents]
+
+lemma list_mapM_isSome_of_isSome_of_mem
+  {T T'}
+  {list : List T}
+  {f : T → Option T'}
+  (h : ∀ x ∈ list, (f x).isSome = true)
+:
+  (List.mapM f list).isSome = true
+:= by
+  induction list with
+  | nil => simp
+  | cons head tail h_tail =>
+    have h_head := h head (by simp)
+    obtain ⟨head, h_head⟩ := Option.isSome_iff_exists.mp h_head
+    simp [h_head]
+    simp_all -- forgive me
+    obtain ⟨tail, h_tail⟩ := Option.isSome_iff_exists.mp h_tail
+    simp [h_tail]
+
+
+instance
+  {representsT idealT length}
+  [base: FB.Convert p representsT idealT]
+: FB.Convert p (Vector representsT length) (Vector idealT length) where
+  isValid varStore xs :=
+    ∀ x ∈ xs, base.isValid varStore x
+  size := length * base.size
+  toLinear varStore xs :=
+    xs.flatMap (base.toLinear varStore)
+  toIdeal varStore xs :=
+    let ideals := xs.map (base.toIdeal varStore)
+    ideals.mapM id
+  toRepresents xs :=
+    xs.map base.toRepresents
+  someOfIsValid varStore x h_isValid := by
+    simp [vector_mapM_isSome_eq_list_mapM]
+    intro i h_i
+    specialize h_isValid x[i] (by simp)
+    exact base.someOfIsValid _ _ h_isValid
+  toIdealtoRepresents varStore xs := by
+    have := @Vector.mapM_pure Option _ _ _ _ _ xs (id : idealT → idealT)
+    simp [-Option.pure_def] at this
+    simp [Vector.mapM_map, Function.comp_def, (base.toIdealtoRepresents varStore), ←Option.pure_def, this]
+  toRepresentstoIdeal varStore xs h := by
+    simp
+    rewrite [←Vector.map_toArray_inj, ←Array.map_toList_inj]
+    have {α} {n} (xs : Vector α n) (x : α) : (x ∈ xs) = (x ∈ xs.toArray.toList) := by simp
+    have h_isValid : ∀ x ∈ xs.toArray.toList, FB.IsValid.isValid varStore x := by
+      intro x h_x
+      rewrite [←this] at h_x
+      exact h x h_x
+    simp
+    have (h : (Vector.mapM (FB.Convert.toIdeal varStore) xs).isSome = true) (h') :
+      ((Vector.mapM (base.toIdeal varStore) xs).get h).toArray.toList =
+      (Array.toList <$> Vector.toArray <$> (Vector.mapM (base.toIdeal varStore) xs)).get h'
+    := by
+      obtain ⟨x, h_x⟩ := Option.isSome_iff_exists.mp h
+      simp [h_x]
+    rewrite [this]
+    simp
+    set xs := xs.toArray.toList with h_xs
+    simp [←h_xs]
+    apply list_mapM_toRepresentstoIdeal
+    clear this
+    simp
+    apply list_mapM_isSome_of_isSome_of_mem
+    intro x h_x
+    specialize h_isValid x h_x
+    apply base.someOfIsValid
+    exact h_isValid -- forgive me for this proof also
+
+def spec (p : ℕ) (length : ℕ) [Fact (p ≥ 2)] [Fact (length ≤ p)] : Prop :=
   Clap.Edsl.Lang.FB.matchesUnaryMonadFunction
   p
   (specFunction length)

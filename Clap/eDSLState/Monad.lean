@@ -110,12 +110,12 @@ lemma eval_bind
   {action : CircuitStateM p α}
   {function : α → CircuitStateM p β}
 :
-  eval (CircuitStateM.run (action >>= function) numAlloc).1.2 varStore numAlloc =
+  eval ((action >>= function).getState numAlloc) varStore numAlloc =
   let ((result, action_circuit), numAlloc') := action.run numAlloc
   let ((_, function_circuit), _) := (function result).run numAlloc'
   seq action_circuit function_circuit varStore numAlloc
 := by
-  simp only [Clap.monads]
+  simp only [Clap.monads, CircuitStateM.getState]
   grind
 
 lemma runAndEval_bind
