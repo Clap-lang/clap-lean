@@ -17,6 +17,20 @@ variable {p : ℕ}
 abbrev F p := ZMod p
 abbrev FB p := F p
 
+namespace Option
+
+/-- Two independent `Option` computations commute past each other: discarding `u`'s value before
+    running `m.bind k` gives the same result as running `m` first and discarding `u`'s value
+    inside the continuation. Lets a circuit's deterministic checks be reordered around an
+    unrelated Fiat-Shamir challenge computation, e.g. to prove a composite `_factor` lemma for a
+    circuit that makes multiple Fiat-Shamir calls (see `RO-PROOF-WORKFLOW.md`'s "N-call circuit"
+    pattern). -/
+lemma bind_discard_comm {γ α β : Type*} (u : Option γ) (m : Option α) (k : α → Option β) :
+    u.bind (fun _ => m.bind k) = m.bind (fun a => u.bind (fun _ => k a)) := by
+  cases u <;> cases m <;> rfl
+
+end Option
+
 namespace F
 
 instance : Inhabited (F p) where

@@ -267,6 +267,310 @@ private def parseJWTFieldSharedLogic
   -- Enforce (lastChar - 44) * (lastChar - 125) == 0
   F.guardedEq0 perform ((lastChar - (',' : F _)) &&& (lastChar - ('}' : F _)))
 
+namespace Spec.JWT
+
+open Clap.Lang Primes HashToField FString FArray
+
+/-- A parsed JWT key-value field, decomposed exactly the way `parseJWTFieldSharedLogic`'s
+    9 checks carve up `field`. The quotes around `name`, the colon, and the terminator are
+    fixed characters; `ws2`/`ws3`/`ws4` are the three gaps the shared logic leaves
+    unconstrained (see the "NOT secure on its own" warning above — whitespace-ness of the
+    gaps is added later by the `WithQuotedValue`/`WithUnquotedValue` wrappers). -/
+structure JWTField where
+  name   : String
+  ws2    : String  -- between the closing name-quote and the colon
+  ws3    : String  -- between the colon and the value
+  value  : String
+  ws4    : String  -- between the value and the terminator
+  ending : Char     -- ',' or '}'
+
+/-- Reassembles a `JWTField` into the literal `field` bytes it was parsed from. -/
+def serialize (f : JWTField) : String :=
+  "\"" ++ f.name ++ "\"" ++ f.ws2 ++ ":" ++ f.ws3 ++ f.value ++ f.ws4 ++ String.singleton f.ending
+
+/-- `field` decomposes (at the claimed `colonIndex`/`valueIndex`) into a name/value pair whose
+    gaps satisfy `P` — or `skip` is set, in which case the circuit degenerates to a no-op. -/
+def ReconstructsWith (P : JWTField → Prop) (field name value : String)
+    (colonIndex valueIndex : ℕ) (skip : Bool) : Prop :=
+  skip ∨ ∃ f : JWTField,
+    field = serialize f ∧
+    f.name = name ∧ f.value = value ∧
+    (f.ending = ',' ∨ f.ending = '}') ∧
+    colonIndex = name.length + 2 + f.ws2.length ∧
+    valueIndex = colonIndex + 1 + f.ws3.length ∧
+    P f
+
+/-- The true meaning of `parseJWTFieldSharedLogic`: no constraint on the gap contents. -/
+def Reconstructs (field name value : String) (colonIndex valueIndex : ℕ) (skip : Bool) : Prop :=
+  ReconstructsWith (fun _ => True) field name value colonIndex valueIndex skip
+
+/-- `parseJWTFieldSharedLogic` with its two internal Fiat-Shamir challenges (one for the name
+    substring check, one for the value substring check) factored out as free parameters
+    `αName`/`αValue`, in place of the two Poseidon draws. Mirrors
+    `Spec.FString.assertIsConcatenation_atChallenge`; reuses the already-specified
+    `Spec.FString.isSubstringFS_atChallenge` for checks 4 and 7, leaving the other 7 checks
+    (all deterministic) untouched. -/
+def parseJWTFieldSharedLogic_atChallenge
+    {maxKVPairLen maxNameLen maxValueLen : ℕ}
+    (h_name  : maxNameLen  ≤ maxKVPairLen)
+    (h_value : maxValueLen ≤ maxKVPairLen)
+    (field       : FString bn254 maxKVPairLen)
+    (name        : FString bn254 maxNameLen)
+    (value       : FString bn254 maxValueLen)
+    (colon_index : F bn254)
+    (value_index : F bn254)
+    (skipChecks  : FB bn254)
+    (αName αValue : ZMod bn254)
+    : Option Unit := do
+  let perform : FB bn254 := FB.not skipChecks
+  let w := 20
+  F.guardedEq0 perform (FB.not (← F.lessThan w name.len colon_index))
+  F.guardedEq0 perform (FB.not (← F.lessThan w colon_index value_index))
+  F.guardedEq0 perform (FB.not (← F.greaterThan w field.len (name.len + value.len)))
+  let firstChar ← selectArrayValue field.data 0
+  F.guardedAssertEq perform firstChar '\"'
+  let nameOk ← Spec.FString.isSubstringFS_atChallenge h_name field name 1 αName
+  F.guardedEq0 perform (FB.not nameOk)
+  let nameClosingQuote ← selectArrayValue field.data (name.len + 1)
+  F.guardedAssertEq perform nameClosingQuote '\"'
+  let colonChar ← selectArrayValue field.data colon_index
+  F.guardedAssertEq perform colonChar ':'
+  let valueOk ← Spec.FString.isSubstringFS_atChallenge h_value field value value_index αValue
+  F.guardedEq0 perform (FB.not valueOk)
+  let lastChar ← selectArrayValue field.data (field.len - 1)
+  F.guardedEq0 perform ((lastChar - (',' : F _)) &&& (lastChar - ('}' : F _)))
+
+/-- Any `Option` computation whose continuation unconditionally fails collapses to `none`,
+    regardless of what the computation itself produces. Lets a `none` deep inside a long chain
+    of unrelated preceding binds (e.g. `parseJWTFieldSharedLogic`'s checks 0–2 before a failed
+    Fiat-Shamir challenge) propagate outward without needing to know anything about those
+    preceding binds. -/
+private lemma bind_none {γ β : Type*} (u : Option γ) :
+    u.bind (fun _ => (none : Option β)) = none := by
+  cases u <;> rfl
+
+/-- Two independent `Option` computations may be run in either order: nothing downstream
+    depends on their relative order, only on their bound values. Lets a Fiat-Shamir challenge
+    draw (or any other `Option`-valued step) be hoisted past an unrelated preceding step in a
+    `do`-chain, e.g. moving `parseJWTFieldSharedLogic`'s checks 0–2 past the `fieldHash`/challenge
+    draws in `parseJWTFieldSharedLogic_factor`. -/
+private lemma bind_comm {α β γ : Type*} (a : Option α) (b : Option β) (f : α → β → Option γ) :
+    a.bind (fun x => b.bind (fun y => f x y)) = b.bind (fun y => a.bind (fun x => f x y)) := by
+  cases a <;> cases b <;> rfl
+
+/-- Like `bind_comm`, but for hoisting a step `b` past a *pair* `(a, g)` where `g` is a
+    dependent check consuming `a`'s bound value (e.g. a `lessThan`/`greaterThan` draw immediately
+    followed by the `guardedEq0` that consumes it). Lets such a pair be treated as one atomic
+    independent unit when reordering `parseJWTFieldSharedLogic`'s checks. -/
+private lemma bind_comm3 {α β γ : Type*} (a : Option α) (g : α → Option Unit)
+    (b : Option β) (f : β → Option γ) :
+    a.bind (fun x => (g x).bind fun _ => b.bind f)
+      = b.bind (fun y => a.bind fun x => (g x).bind fun _ => f y) := by
+  cases a with
+  | none => simp
+  | some x =>
+    rcases hgx : g x with _ | u
+    · simp [hgx]
+    · simp [hgx]
+
+/-- Factors `parseJWTFieldSharedLogic` into: hash `field`, derive the two Fiat-Shamir
+    challenges (name-check, value-check) from that hash, then run the challenge-free body.
+    Mirrors `Spec.FString.isSubstringFS_factor`/`assertIsConcatenation_factor`. -/
+lemma parseJWTFieldSharedLogic_factor
+    {maxKVPairLen maxNameLen maxValueLen : ℕ}
+    (h_name  : maxNameLen  ≤ maxKVPairLen)
+    (h_value : maxValueLen ≤ maxKVPairLen)
+    (field       : FString bn254 maxKVPairLen)
+    (name        : FString bn254 maxNameLen)
+    (value       : FString bn254 maxValueLen)
+    (colon_index : F bn254)
+    (value_index : F bn254)
+    (skipChecks  : FB bn254) :
+    _root_.JWT.parseJWTFieldSharedLogic h_name h_value field name value colon_index value_index skipChecks
+      = (hashBytesToField field).bind fun fieldHash =>
+          (Spec.FString.challenge fieldHash name 1).bind fun αName =>
+            (Spec.FString.challenge fieldHash value value_index).bind fun αValue =>
+              parseJWTFieldSharedLogic_atChallenge h_name h_value field name value
+                colon_index value_index skipChecks αName αValue := by
+  unfold _root_.JWT.parseJWTFieldSharedLogic
+  simp only [Spec.FString.isSubstringFS_factor, ← Option.bind_eq_bind, bind_assoc]
+  show
+    ((F.lessThan 20 name.len colon_index).bind fun r0 =>
+      (F.guardedEq0 skipChecks.not r0.not).bind fun _ =>
+      (F.lessThan 20 colon_index value_index).bind fun r1 =>
+      (F.guardedEq0 skipChecks.not r1.not).bind fun _ =>
+      (F.greaterThan 20 field.len (name.len + value.len)).bind fun r2 =>
+      (F.guardedEq0 skipChecks.not r2.not).bind fun _ =>
+      (hashBytesToField field).bind fun fieldHash =>
+      (selectArrayValue field.data 0).bind fun firstChar =>
+      (F.guardedAssertEq skipChecks.not firstChar ('\"' : F bn254)).bind fun _ =>
+      (Spec.FString.challenge fieldHash name 1).bind fun αName =>
+      (Spec.FString.isSubstringFS_atChallenge h_name field name 1 αName).bind fun nameOk =>
+      (F.guardedEq0 skipChecks.not nameOk.not).bind fun _ =>
+      (selectArrayValue field.data (name.len + 1)).bind fun nameClosingQuote =>
+      (F.guardedAssertEq skipChecks.not nameClosingQuote ('\"' : F bn254)).bind fun _ =>
+      (selectArrayValue field.data colon_index).bind fun colonChar =>
+      (F.guardedAssertEq skipChecks.not colonChar (':' : F bn254)).bind fun _ =>
+      (Spec.FString.challenge fieldHash value value_index).bind fun αValue =>
+      (Spec.FString.isSubstringFS_atChallenge h_value field value value_index αValue).bind fun valueOk =>
+      (F.guardedEq0 skipChecks.not valueOk.not).bind fun _ =>
+      (selectArrayValue field.data (field.len - 1)).bind fun lastChar =>
+      F.guardedEq0 skipChecks.not ((lastChar - (',' : F bn254)) &&& (lastChar - ('}' : F bn254))))
+    =
+    ((hashBytesToField field).bind fun fieldHash =>
+      (Spec.FString.challenge fieldHash name 1).bind fun αName =>
+      (Spec.FString.challenge fieldHash value value_index).bind fun αValue =>
+      parseJWTFieldSharedLogic_atChallenge h_name h_value field name value
+        colon_index value_index skipChecks αName αValue)
+  -- swap1: hoist fieldHash past check2 (peel 4)
+  conv_lhs => enter [2]; ext _; enter [2]; ext _; enter [2]; ext _; enter [2]; ext _
+              rw [bind_comm3]
+  -- swap2: hoist fieldHash past check1 (peel 2)
+  conv_lhs => enter [2]; ext _; enter [2]; ext _
+              rw [bind_comm3]
+  -- swap3: hoist fieldHash past check0 (peel 0)
+  conv_lhs => rw [bind_comm3]
+  -- swap4: hoist αName past S0/check3 (peel 7)
+  conv_lhs => enter [2]; ext _; enter [2]; ext _; enter [2]; ext _; enter [2]; ext _
+              enter [2]; ext _; enter [2]; ext _; enter [2]; ext _
+              rw [bind_comm3]
+  -- swap5: hoist αName past check2 (peel 5)
+  conv_lhs => enter [2]; ext _; enter [2]; ext _; enter [2]; ext _; enter [2]; ext _
+              enter [2]; ext _
+              rw [bind_comm3]
+  -- swap6: hoist αName past check1 (peel 3)
+  conv_lhs => enter [2]; ext _; enter [2]; ext _; enter [2]; ext _
+              rw [bind_comm3]
+  -- swap7: hoist αName past check0 (peel 1)
+  conv_lhs => enter [2]; ext _
+              rw [bind_comm3]
+  -- swap8: hoist αValue past check6/S2 (peel 14)
+  conv_lhs => enter [2]; ext _; enter [2]; ext _; enter [2]; ext _; enter [2]; ext _
+              enter [2]; ext _; enter [2]; ext _; enter [2]; ext _; enter [2]; ext _
+              enter [2]; ext _; enter [2]; ext _; enter [2]; ext _; enter [2]; ext _
+              enter [2]; ext _; enter [2]; ext _
+              rw [bind_comm3]
+  -- swap9: hoist αValue past check5/S1 (peel 12)
+  conv_lhs => enter [2]; ext _; enter [2]; ext _; enter [2]; ext _; enter [2]; ext _
+              enter [2]; ext _; enter [2]; ext _; enter [2]; ext _; enter [2]; ext _
+              enter [2]; ext _; enter [2]; ext _; enter [2]; ext _; enter [2]; ext _
+              rw [bind_comm3]
+  -- swap10: hoist αValue past check4grp (peel 10)
+  conv_lhs => enter [2]; ext _; enter [2]; ext _; enter [2]; ext _; enter [2]; ext _
+              enter [2]; ext _; enter [2]; ext _; enter [2]; ext _; enter [2]; ext _
+              enter [2]; ext _; enter [2]; ext _
+              rw [bind_comm3]
+  -- swap11: hoist αValue past S0/check3 (peel 8)
+  conv_lhs => enter [2]; ext _; enter [2]; ext _; enter [2]; ext _; enter [2]; ext _
+              enter [2]; ext _; enter [2]; ext _; enter [2]; ext _; enter [2]; ext _
+              rw [bind_comm3]
+  -- swap12: hoist αValue past check2 (peel 6)
+  conv_lhs => enter [2]; ext _; enter [2]; ext _; enter [2]; ext _; enter [2]; ext _
+              enter [2]; ext _; enter [2]; ext _
+              rw [bind_comm3]
+  -- swap13: hoist αValue past check1 (peel 4)
+  conv_lhs => enter [2]; ext _; enter [2]; ext _; enter [2]; ext _; enter [2]; ext _
+              rw [bind_comm3]
+  -- swap14: hoist αValue past check0 (peel 2)
+  conv_lhs => enter [2]; ext _; enter [2]; ext _
+              rw [bind_comm3]
+  unfold parseJWTFieldSharedLogic_atChallenge
+  rfl
+
+/-- Completeness: a genuine reconstruction is accepted, provided both Fiat-Shamir challenges
+    avoid their (finite) bad sets — one `isSubstringFS_complete`-style non-degeneracy
+    hypothesis per substring check. No separate index/length-range hypotheses are needed:
+    they're implied by `Reconstructs` via the `serialize` equation, exactly as
+    `isSubstringFS_complete` derives them from its own match hypothesis. -/
+lemma parseJWTFieldSharedLogic_complete
+    {maxKVPairLen maxNameLen maxValueLen : ℕ}
+    (h_name  : maxNameLen  ≤ maxKVPairLen)
+    (h_value : maxValueLen ≤ maxKVPairLen)
+    (field       : FString bn254 maxKVPairLen)
+    (name        : FString bn254 maxNameLen)
+    (value       : FString bn254 maxValueLen)
+    (colon_index : F bn254)
+    (value_index : F bn254)
+    (skipChecks  : FB bn254)
+    (αName αValue : ZMod bn254)
+    (hfield : Spec.FString.valid field) (hname : Spec.FString.valid name) (hvalue : Spec.FString.valid value)
+    (hmax : maxKVPairLen < 2 ^ 250)
+    (hchalName  : (hashBytesToField field).bind (Spec.FString.challenge · name 1) = some αName)
+    (hchalValue : (hashBytesToField field).bind (Spec.FString.challenge · value value_index) = some αValue)
+    (hαName  : (Spec.FString.selectedStrPoly field name.len.val 1).eval αName ≠ 0)
+    (hαValue : (Spec.FString.selectedStrPoly field value.len.val value_index.val).eval αValue ≠ 0)
+    (hmatch : Reconstructs (Spec.FString.toString field) (Spec.FString.toString name)
+                (Spec.FString.toString value) colon_index.val value_index.val (Spec.FB.toBool skipChecks)) :
+    _root_.JWT.parseJWTFieldSharedLogic h_name h_value field name value colon_index value_index skipChecks
+      = some () := by
+  sorry
+
+/-- Soundness: if `field`/`name`/`value` do NOT genuinely reconstruct, the probability (under
+    the random-oracle model) that the circuit still accepts is bounded by the union of the two
+    `isSubstringFS` false-accept probabilities. Mirrors
+    `Spec.FString.assertIsConcatenation_sound_RO`, composed over 2 calls via `ro_union_bound`
+    (per `RO-PROOF-WORKFLOW.md`'s "two-call circuit" pattern, named after this very function). -/
+lemma parseJWTFieldSharedLogic_sound_RO (ro : Spec.FString.ROModel bn254)
+    {maxKVPairLen maxNameLen maxValueLen : ℕ}
+    (h_name  : maxNameLen  ≤ maxKVPairLen)
+    (h_value : maxValueLen ≤ maxKVPairLen)
+    (field       : FString bn254 maxKVPairLen)
+    (name        : FString bn254 maxNameLen)
+    (value       : FString bn254 maxValueLen)
+    (colon_index : F bn254)
+    (value_index : F bn254)
+    (skipChecks  : FB bn254)
+    (fieldHash nameHash valueHash : ZMod bn254)
+    (hfield : Spec.FString.valid field)
+    (hname : Spec.FString.nonEmpty name) (hvalue : Spec.FString.nonEmpty value)
+    (hidxName  : (1 : ZMod bn254).val + name.len.val ≤ maxKVPairLen)
+    (hidxValue : value_index.val + value.len.val ≤ maxKVPairLen)
+    (hlenName  : 0 < name.len.val) (hlenValue : 0 < value.len.val)
+    (hmax : maxKVPairLen < 2 ^ 250)
+    (hbad : ¬ Reconstructs (Spec.FString.toString field) (Spec.FString.toString name)
+              (Spec.FString.toString value) colon_index.val value_index.val (Spec.FB.toBool skipChecks)) :
+    ((ro.chal (Spec.FString.isSubstringFS_Query fieldHash nameHash name.len 1)).bind fun αName =>
+     (ro.chal (Spec.FString.isSubstringFS_Query fieldHash valueHash value.len value_index)).map
+        fun αValue => (αName, αValue)).toOuterMeasure
+      {p | parseJWTFieldSharedLogic_atChallenge h_name h_value field name value
+              colon_index value_index skipChecks p.1 p.2 = some ()}
+      ≤ ((maxNameLen - 1 : ℕ) : ENNReal) / bn254 + ((maxValueLen - 1 : ℕ) : ENNReal) / bn254 := by
+  sorry
+
+/-- Deterministic two-way version of `_complete`/`_sound_RO`: assuming both Fiat-Shamir
+    challenges are "good" (a false accept at that specific challenge would require an actual
+    match — `hgoodName`/`hgoodValue`), the circuit's acceptance is exactly `Reconstructs`. This
+    is the extra guard `how-to-issubstring.md` names as the condition under which a
+    deterministic `↔` becomes provable (in general it does not hold — see that note). -/
+lemma parseJWTFieldSharedLogic_reconstructs_equiv
+    {maxKVPairLen maxNameLen maxValueLen : ℕ}
+    (h_name  : maxNameLen  ≤ maxKVPairLen)
+    (h_value : maxValueLen ≤ maxKVPairLen)
+    (field       : FString bn254 maxKVPairLen)
+    (name        : FString bn254 maxNameLen)
+    (value       : FString bn254 maxValueLen)
+    (colon_index : F bn254)
+    (value_index : F bn254)
+    (skipChecks  : FB bn254)
+    (αName αValue : ZMod bn254)
+    (hfield : Spec.FString.valid field) (hname : Spec.FString.valid name) (hvalue : Spec.FString.valid value)
+    (hmax : maxKVPairLen < 2 ^ 250)
+    (hchalName  : (hashBytesToField field).bind (Spec.FString.challenge · name 1) = some αName)
+    (hchalValue : (hashBytesToField field).bind (Spec.FString.challenge · value value_index) = some αValue)
+    (hαName  : (Spec.FString.selectedStrPoly field name.len.val 1).eval αName ≠ 0)
+    (hαValue : (Spec.FString.selectedStrPoly field value.len.val value_index.val).eval αValue ≠ 0)
+    (hgoodName  : (Spec.FString.isSubstringFS_diffPoly field name 1).eval αName = 0
+                    → Spec.FString.SubstringAt field name 1)
+    (hgoodValue : (Spec.FString.isSubstringFS_diffPoly field value value_index.val).eval αValue = 0
+                    → Spec.FString.SubstringAt field value value_index.val) :
+    _root_.JWT.parseJWTFieldSharedLogic h_name h_value field name value colon_index value_index skipChecks
+        = some ()
+      ↔ Reconstructs (Spec.FString.toString field) (Spec.FString.toString name)
+          (Spec.FString.toString value) colon_index.val value_index.val (Spec.FB.toBool skipChecks) := by
+  sorry
+
+end Spec.JWT
+
 /-- JWT field with an unquoted value (iat). -/
 structure UnquotedFieldInput (maxPairLen maxNameLen maxValueLen : ℕ) where
   field      : FString bn254 maxPairLen
