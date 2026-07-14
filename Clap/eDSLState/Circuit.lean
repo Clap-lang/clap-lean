@@ -256,7 +256,7 @@ lemma step_mk
 
 -- @[simp, grind =]
 lemma step_unconstrained {command : CircuitusPlanus p} :
-  [unconstrained[numAlloc][varStore]|command]ₛ = 
+  [unconstrained[numAlloc][varStore]|command]ₛ =
   [⟨numAlloc, varStore, True⟩|command]ₛ := rfl
 
 def split (result : CircuitResult p) : CircuitResult p :=
@@ -378,7 +378,7 @@ lemma foldl_step_varStore_independent_of_constraints
 := by
   rewrite [←List.reverse_reverse circuit]
   induction circuit.reverse <;> sorry
-    
+
 
 @[grind .]
 lemma foldr_step_varStore_independent_of_constraints
@@ -435,6 +435,27 @@ def seq (circuit₁ circuit₂ : CircuitState p)
   let ⟨numAllocMid, varStoreMid, constraintsMid⟩ := eval circuit₁ varStore numAlloc
   let ⟨numAllocPost, varStorePost, constraintsPost⟩ := eval circuit₂ varStoreMid numAllocMid
   ⟨numAllocPost, varStorePost, constraintsMid ∧ constraintsPost⟩
+
+@[simp, grind=]
+lemma numAlloc_seq (circuit1 circuit2 : CircuitState p) (varStore : VarStore p) (numAlloc : ℕ):
+  (CircuitState.seq circuit1 circuit2 varStore numAlloc).numAlloc =
+  let mid := [varStore, numAlloc|circuit1]ₑ
+  [mid.varStore, mid.numAlloc|circuit2]ₑ.numAlloc
+:= rfl
+
+@[simp, grind=]
+lemma varStore_seq (circuit1 circuit2 : CircuitState p) (varStore : VarStore p) (numAlloc : ℕ):
+  (CircuitState.seq circuit1 circuit2 varStore numAlloc).varStore =
+  let mid := [varStore, numAlloc|circuit1]ₑ
+  [mid.varStore, mid.numAlloc|circuit2]ₑ.varStore
+:= rfl
+
+@[simp, grind=]
+lemma constraints_seq (circuit1 circuit2 : CircuitState p) (varStore : VarStore p) (numAlloc : ℕ):
+  (CircuitState.seq circuit1 circuit2 varStore numAlloc).constraints =
+  let mid := [varStore, numAlloc|circuit1]ₑ
+  mid.constraints ∧ [mid.varStore, mid.numAlloc|circuit2]ₑ.constraints
+:= rfl
 
 @[simp, grind =]
 lemma eval_append

@@ -70,20 +70,19 @@ def matchesUnaryMonadFunction (p : ℕ)
   (allocatesN : ℕ)
   (constraints : Prop) : Prop :=
   ∀ (a : funIn) (varStorePre : VarStore p) (numAllocPre : ℕ),
-    (h : IsValid.isValid varStorePre.get? a) →
-      letI aVal : specIn := toIdeal varStorePre.get? a |>.get (someOfIsValid _ _ h)
+    (h : IsValid.isValid varStorePre a) →
+      letI aVal : specIn := toIdeal varStorePre a |>.get (someOfIsValid _ _ h)
       let ⟨result, circuit⟩ : funOut × CircuitResult p :=
         CircuitStateM.runAndEval (function a) numAllocPre varStorePre
-      let resultIsValid := IsValid.isValid circuit.varStore.get? result
-      letI resultVal : Option specOut := toIdeal circuit.varStore.get? result
+      let resultIsValid := IsValid.isValid circuit.varStore result
+      letI resultVal : Option specOut := toIdeal circuit.varStore result
       letI wrapped : funOut := toRepresents p (spec_function aVal)
-      let resultCorrect := resultVal = toIdeal varStorePre.get? wrapped
+      let resultCorrect := resultVal = toIdeal varStorePre wrapped
       let constraintsCorrect := circuit.constraints = constraints
       let allocatesCorrect := circuit.numAlloc = numAllocPre + allocatesN
       let frameRule := ∀ n < numAllocPre, circuit.varStore[n]? = varStorePre[n]?
-      letI resultSize : ℕ := varStoreSize p funOut
-      letI linearRepr := toLinear circuit.varStore.get? result
-      let resultInVarStore := assertMatchesLast circuit.varStore.get? circuit.numAlloc linearRepr
+      letI linearRepr := toLinear circuit.varStore result
+      let resultInVarStore := assertMatchesLast circuit.varStore circuit.numAlloc linearRepr
       resultIsValid ∧
       resultCorrect ∧
       constraintsCorrect ∧

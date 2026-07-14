@@ -49,26 +49,131 @@ def runAndEval
   let ⟨⟨result, circuit⟩, _numAlloc⟩ := (cmd.run numAlloc)
   ⟨result, Edsl.CircuitState.eval circuit varStore numAlloc⟩
 
-@[simp]
+def alloc {p : ℕ} : CircuitStateM p ℕ :=
+  getModify (· + 1)
+
+section Getters
+
 abbrev getResult
   {p : ℕ} {α : Type} (cmd : CircuitStateM p α) (numAlloc : ℕ)
 : α :=
   (cmd.run numAlloc).1.1
 
-@[simp]
-abbrev getState
+abbrev getCircuit
   {p : ℕ} {α : Type} (cmd : CircuitStateM p α) (numAlloc : ℕ)
 : CircuitState p :=
   (cmd.run numAlloc).1.2
 
-@[simp]
 abbrev getNumAlloc
   {p : ℕ} {α : Type} (cmd : CircuitStateM p α) (numAlloc : ℕ)
 : ℕ :=
   (cmd.run numAlloc).2
 
-def alloc {p : ℕ} : CircuitStateM p ℕ :=
-  getModify (· + 1)
+@[simp, grind=]
+lemma getResult_alloc (numAlloc : ℕ):
+  (CircuitStateM.alloc (p := p)).getResult numAlloc =
+  numAlloc
+:= rfl
+
+@[simp, grind=]
+lemma getCircuit_alloc (numAlloc : ℕ):
+  (CircuitStateM.alloc (p := p)).getCircuit numAlloc =
+  []
+:= rfl
+
+@[simp, grind=]
+lemma getNumAlloc_alloc (numAlloc : ℕ):
+  (CircuitStateM.alloc (p := p)).getNumAlloc numAlloc = numAlloc + 1
+:= rfl
+
+@[simp, grind =]
+lemma getResult_bind
+  {α β}
+  {action : CircuitStateM p α}
+  {function : α → CircuitStateM p β}
+  {numAlloc : ℕ}
+:
+  (action >>= function).getResult numAlloc =
+  ((function (action.getResult numAlloc)).getResult (action.getNumAlloc numAlloc))
+:= rfl
+
+@[simp, grind =]
+lemma getCircuit_bind
+  {α β}
+  {action : CircuitStateM p α}
+  {function : α → CircuitStateM p β}
+  {numAlloc : ℕ}
+:
+  (action >>= function).getCircuit numAlloc =
+  (action.getCircuit numAlloc) ++
+  ((function (action.getResult numAlloc)).getCircuit (action.getNumAlloc numAlloc))
+:= rfl
+
+@[simp, grind =]
+lemma getNumAlloc_bind
+  {α β}
+  {action : CircuitStateM p α}
+  {function : α → CircuitStateM p β}
+  {numAlloc : ℕ}
+:
+  (action >>= function).getNumAlloc numAlloc =
+  ((function (action.getResult numAlloc)).getNumAlloc (action.getNumAlloc numAlloc))
+:= rfl
+
+@[simp, grind =]
+lemma getResult_tell (numAlloc : ℕ) (xs : List (CircuitusPlanus p)):
+  CircuitStateM.getResult (tell xs) numAlloc = ()
+:= rfl
+
+@[simp, grind =]
+lemma getCircuit_tell (numAlloc : ℕ) (xs : List (CircuitusPlanus p)):
+  CircuitStateM.getCircuit (tell xs) numAlloc =
+  xs
+:= rfl
+
+@[simp, grind =]
+lemma getNumAlloc_tell (numAlloc : ℕ) (xs : List (CircuitusPlanus p)):
+  CircuitStateM.getNumAlloc (tell xs) numAlloc =
+  numAlloc
+:= rfl
+
+@[simp, grind=]
+lemma getResult_pure {α} (numAlloc : ℕ) (x : α):
+  CircuitStateM.getResult (p := p) (pure x) numAlloc =
+  x
+:= rfl
+
+@[simp, grind=]
+lemma getCircuit_pure {α} (numAlloc : ℕ) (x : α):
+  CircuitStateM.getCircuit (p := p) (pure x) numAlloc =
+  []
+:= rfl
+
+@[simp, grind=]
+lemma getNumAlloc_pure {α} (numAlloc : ℕ) (x : α) :
+  CircuitStateM.getNumAlloc (p := p) (pure x) numAlloc =
+  numAlloc
+:= rfl
+
+@[simp, grind=]
+lemma getResult_map {α β} (f : α → β) (numAlloc : ℕ) (cmd : CircuitStateM p α):
+  (f <$> cmd).getResult numAlloc =
+  f (cmd.getResult numAlloc)
+:= rfl
+
+@[simp, grind=]
+lemma getNumAlloc_map {α β} (f : α → β) (numAlloc : ℕ) (cmd : CircuitStateM p α):
+  (f <$> cmd).getNumAlloc numAlloc =
+  (cmd.getNumAlloc) numAlloc
+:= rfl
+
+@[simp, grind=]
+lemma getCircuit_map {α β} (f : α → β) (numAlloc : ℕ) (cmd : CircuitStateM p α):
+  (f <$> cmd).getCircuit numAlloc =
+  (cmd.getCircuit) numAlloc
+:= rfl
+
+end Getters
 
 def wellFormed
   {α : Type}
@@ -78,7 +183,7 @@ def wellFormed
 :=
   ∀ numAlloc varStore,
     (action.getNumAlloc numAlloc) =
-    (CircuitState.eval (action.getState numAlloc) varStore numAlloc).numAlloc
+    (CircuitState.eval (action.getCircuit numAlloc) varStore numAlloc).numAlloc
 
 end CircuitStateM
 
@@ -110,12 +215,11 @@ lemma eval_bind
   {action : CircuitStateM p α}
   {function : α → CircuitStateM p β}
 :
-  eval ((action >>= function).getState numAlloc) varStore numAlloc =
+  eval ((action >>= function).getCircuit numAlloc) varStore numAlloc =
   let ((result, action_circuit), numAlloc') := action.run numAlloc
   let ((_, function_circuit), _) := (function result).run numAlloc'
   seq action_circuit function_circuit varStore numAlloc
 := by
-  simp only [Clap.monads, CircuitStateM.getState]
   grind
 
 lemma runAndEval_bind

@@ -44,30 +44,30 @@ def test : CircuitStateM p Unit := do
 
 section wellFormed
 
-@[simp]
-lemma eq0_wellFormed (e : FixedExp p) :
+@[simp, grind .]
+lemma eq0_wellFormed {e : FixedExp p} :
   (eq0 e).wellFormed
 := by
-  simp [Clap.monads, eq0, CircuitStateM.wellFormed]
+  simp [eq0, CircuitStateM.wellFormed]
 
-@[simp]
+@[simp, grind .]
 lemma lam_wellFormed :
   (lam : CircuitStateM p _).wellFormed
 := by
-  simp [Clap.monads, lam, CircuitStateM.wellFormed]
+  simp [lam, CircuitStateM.wellFormed]
 
-@[simp]
-lemma share_wellFormed (e : FixedExp p) :
+@[simp, grind .]
+lemma share_wellFormed {e : FixedExp p} :
   (share e).wellFormed
 := by
-  simp [Clap.monads, share, CircuitStateM.wellFormed]
+  simp [share, CircuitStateM.wellFormed]
 
 
-@[simp]
-lemma isZero_wellFormed (e : FixedExp p) :
+@[simp, grind .]
+lemma isZero_wellFormed {e : FixedExp p} :
   (isZero e).wellFormed
 := by
-  simp [Clap.monads, isZero, CircuitStateM.wellFormed]
+  simp [isZero, CircuitStateM.wellFormed]
 
 @[simp]
 abbrev num2bitsSansTellApply (p w numAlloc : ℕ) : ((List (Exp p ℕ) × CircuitState p) × ℕ) :=
@@ -106,13 +106,23 @@ lemma bind_alloc {α} {numAlloc} {f : ℕ → CircuitStateM p α} :
 @[simp, grind =]
 lemma CircuitStateM.map_apply {α β} {numAlloc} {f : α → β} {action : CircuitStateM p α} :
   (f <$> action) numAlloc =
-  ((f (action.getResult numAlloc), (action.getState numAlloc)), (action.getNumAlloc numAlloc)) := rfl
+  ((f (action.getResult numAlloc), (action.getCircuit numAlloc)), (action.getNumAlloc numAlloc)) := rfl
 
 end
 
+lemma _root_.List.ofFnM_eq_map_map_ofFnM {α β} {n : ℕ} {m} [Monad m] [LawfulMonad m] (f : (Fin n) → m α) (map_f : α → β):
+  (List.ofFnM (fun idx => map_f <$> f idx)) =
+  List.map map_f <$> List.ofFnM f
+:= by
+  induction n with
+  | zero => simp
+  | succ n h_n =>
+    simp [List.ofFnM_succ, h_n]
+
+
 lemma num2bitsSansTellApply_fst_fst {w} {numAlloc} :
   (num2bitsSansTellApply p w numAlloc).1.1 = (List.range' numAlloc w).map .v := by
-  induction w generalizing numAlloc <;> aesop (add simp List.ofFnM_succ)
+  induction w generalizing numAlloc <;> aesop (add simp [List.ofFnM_succ, _root_.List.ofFnM_eq_map_map_ofFnM])
 
 lemma num2bitsSansTellApply_fst_snd {w} {numAlloc} :
   (num2bitsSansTellApply p w numAlloc).1.2 = [] := by
@@ -127,8 +137,8 @@ lemma getNumAlloc_bind_tell {f : Unit → CircuitStateM p (List (FixedExp p))} {
   (tell l >>= f).getNumAlloc = CircuitStateM.getNumAlloc (f ()) := rfl
 
 @[simp]
-lemma getState_bind_tell {f : Unit → CircuitStateM p (List (FixedExp p))} {l} {numAlloc} :
-  (tell l >>= f).getState numAlloc = l ++ (f () numAlloc).1.2 := by
+lemma getCircuit_bind_tell {f : Unit → CircuitStateM p (List (FixedExp p))} {l} {numAlloc} :
+  (tell l >>= f).getCircuit numAlloc = l ++ (f () numAlloc).1.2 := by
   aesop (add simp Clap.monads)
 
 @[simp]
@@ -192,21 +202,21 @@ lemma eval_edsl_isZero :
     Edsl.isZero
   ]
 
-example : eval (Edsl.isZero e numAlloc).1.2 varStore numAlloc = sorry := by
-  rw [eval_edsl_isZero]
-  rw [eval_singleton]
-  rw [CircuitResult.step_isZero]
-  rw [CircuitResult.assertAllocated_unconstrained]
-  rw [CircuitResult.get?_unconstrained]
+-- example : eval (Edsl.isZero e numAlloc).1.2 varStore numAlloc = sorry := by
+--   rw [eval_edsl_isZero]
+--   rw [eval_singleton]
+--   rw [CircuitResult.step_isZero]
+--   rw [CircuitResult.assertAllocated_unconstrained]
+--   rw [CircuitResult.get?_unconstrained]
 
-  simp only [CircuitResult.addConstraint_unconstrained]
+--   simp only [CircuitResult.addConstraint_unconstrained]
 
-  simp only [CircuitResult.addConstraint_unconstrained, CircuitResult.alloc_mk,
-    Vector.range_one, Vector.map_mk, List.map_toArray, List.map_cons, zero_add, List.map_nil,
-    Vector.mk_zip_mk, List.zip_toArray, List.zip_cons_cons, List.zip_nil_right,
-    Std.ExtTreeMap.insertMany_single]
+--   simp only [CircuitResult.addConstraint_unconstrained, CircuitResult.alloc_mk,
+--     Vector.range_one, Vector.map_mk, List.map_toArray, List.map_cons, zero_add, List.map_nil,
+--     Vector.mk_zip_mk, List.zip_toArray, List.zip_cons_cons, List.zip_nil_right,
+--     Std.ExtTreeMap.insertMany_single]
 
-  sorry
+--   sorry
 
 @[simp, grind =]
 lemma eval_edsl_num2bits
@@ -214,13 +224,13 @@ lemma eval_edsl_num2bits
   (numAlloc : ℕ)
   (varStore : Std.ExtTreeMap ℕ (ZMod p))
 :
-  Edsl.CircuitState.eval (Edsl.num2bits width e numAlloc).1.2 varStore numAlloc =
+  Edsl.CircuitState.eval ((Edsl.num2bits width e).getState numAlloc) varStore numAlloc =
   ⟨
     numAlloc + width,
     varStore.insertMany
       ((Vector.map (fun x => x + numAlloc) (Vector.range width)).zip
-        (num2bitsLsbPureV width ((FixedExp.eval varStore.get? e).getD 0))),
-    (e.eval varStore.get?).isSome
+        (num2bitsLsbPureV width ((FixedExp.eval varStore e).getD 0))),
+    (e.eval varStore).isSome
   ⟩
 := by
   simp [
