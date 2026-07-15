@@ -42,7 +42,7 @@ lemma run_def {α} {cmd : CircuitStateM p α} {numAlloc} :
   CircuitStateM.run cmd numAlloc = cmd numAlloc := rfl
 
 def runAndEval
-  {p : ℕ} {α : Type} (cmd : CircuitStateM p α) (numAlloc : ℕ) (varStore : Std.ExtTreeMap ℕ (ZMod p))
+  {p : ℕ} {α : Type} (cmd : CircuitStateM p α) (numAlloc : ℕ) (varStore : VarStore p)
 :
   α × CircuitResult p
 :=
@@ -210,7 +210,7 @@ namespace CircuitState
 @[simp, grind =]
 lemma eval_bind
   {α β : Type}
-  {varStore : Std.ExtTreeMap ℕ (ZMod p)}
+  {varStore : VarStore p}
   {numAlloc : ℕ}
   {action : CircuitStateM p α}
   {function : α → CircuitStateM p β}
@@ -224,7 +224,7 @@ lemma eval_bind
 
 lemma runAndEval_bind
   {α β : Type}
-  {varStore : Std.ExtTreeMap ℕ (ZMod p)}
+  {varStore : VarStore p}
   {numAlloc : ℕ}
   {action : CircuitStateM p α}
   {function : α → CircuitStateM p β}

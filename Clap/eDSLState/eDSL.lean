@@ -5,7 +5,6 @@ namespace Clap.Edsl
 
 variable {p : ℕ}
 
--- TODO split this into a file
 @[irreducible]
 def eq0 (e : FixedExp p) : CircuitStateM p Unit := do
   tell [.eq0 e]
@@ -149,7 +148,7 @@ lemma num2bits_wellFormed (width : ℕ) (e : FixedExp p) :
   rw [map_toList_num2bits_eq_num2bitsButSane]
   intro numAlloc varStore
   unfold num2bitsButSane
-  rw [getNumAlloc_bind_tell, getState_bind_tell]
+  rw [getNumAlloc_bind_tell, getCircuit_bind_tell]
   rw [CircuitState.eval_append, num2bitsSansTellApply_fst_snd]
   suffices (num2bitsSansTellApply p width numAlloc).2 = numAlloc + width by simpa
   rw [num2bitsSansTellApply_snd]
@@ -165,42 +164,33 @@ variable {e : FixedExp p} {numAlloc : ℕ} {varStore : Std.ExtTreeMap ℕ (ZMod 
 @[simp, grind =]
 lemma eval_edsl_eq0
 :
-  eval (Edsl.eq0 e numAlloc).1.2 varStore numAlloc =
+  eval ((Edsl.eq0 e).getCircuit numAlloc) varStore numAlloc =
   eval [CircuitusPlanus.eq0 e] varStore numAlloc
 := by
-  simp only [eq0, Clap.monads]
+  simp [eq0]
 
 @[simp, grind =]
 lemma eval_edsl_lam
 :
-  eval (Edsl.lam numAlloc).1.2 varStore numAlloc =
+  eval ((Edsl.lam).getCircuit numAlloc) varStore numAlloc =
   eval [CircuitusPlanus.lam] varStore numAlloc
 := by
-  simp [
-    Clap.monads,
-    Edsl.lam
-  ]
+  simp [Edsl.lam]
 
 @[simp, grind =]
 lemma eval_edsl_share
 :
-  eval (Edsl.share e numAlloc).1.2 varStore numAlloc =
+  eval ((Edsl.share e).getCircuit numAlloc) varStore numAlloc =
   eval [CircuitusPlanus.share e] varStore numAlloc
 := by
-  simp [
-    Clap.monads,
-    Edsl.share
-  ]
+  simp [Edsl.share]
 
 @[simp, grind =]
 lemma eval_edsl_isZero :
-  eval (Edsl.isZero e numAlloc).1.2 varStore numAlloc =
+  eval ((Edsl.isZero e).getCircuit numAlloc) varStore numAlloc =
   eval [CircuitusPlanus.isZero e] varStore numAlloc
 := by
-  simp [
-    Clap.monads,
-    Edsl.isZero
-  ]
+  simp [Edsl.isZero]
 
 -- example : eval (Edsl.isZero e numAlloc).1.2 varStore numAlloc = sorry := by
 --   rw [eval_edsl_isZero]
@@ -218,44 +208,27 @@ lemma eval_edsl_isZero :
 
 --   sorry
 
+@[grind ←]
+lemma getCircuit_ofFnM_of_getCircuit_eq_nil {α} (n: ℕ) (f : Fin n → CircuitStateM p α) (numAlloc)
+  (h_no_circuit: ∀ idx numAlloc, (f idx).getCircuit numAlloc = [])
+:
+  (Vector.ofFnM f).getCircuit numAlloc =
+  []
+:= by
+  induction n generalizing numAlloc with
+  | zero => simp [Vector.ofFnM_zero]
+  | succ n h_n =>
+    rewrite [Vector.ofFnM_succ]
+    simp [h_n, h_no_circuit]
+
 @[simp, grind =]
 lemma eval_edsl_num2bits
-  (width : ℕ)
-  (numAlloc : ℕ)
-  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+  {width : ℕ}
 :
-  Edsl.CircuitState.eval ((Edsl.num2bits width e).getState numAlloc) varStore numAlloc =
-  ⟨
-    numAlloc + width,
-    varStore.insertMany
-      ((Vector.map (fun x => x + numAlloc) (Vector.range width)).zip
-        (num2bitsLsbPureV width ((FixedExp.eval varStore e).getD 0))),
-    (e.eval varStore).isSome
-  ⟩
+  eval ((Edsl.num2bits width e).getCircuit numAlloc) varStore numAlloc =
+  eval [CircuitusPlanus.num2bits width e] varStore numAlloc
 := by
-  simp [
-    Clap.monads,
-    Edsl.num2bits,
-    CircuitStateM.alloc
-  ]
-  unfold StateT.pure StateT.map StateT.bind
-  unfold getModify
-  unfold modifyGet
-  unfold instMonadStateOfMonadStateOf
-  dsimp only
-  conv =>
-    enter [1, 1, 1, 1, 2, 1, x, s, 1]
-    unfold_projs
-    unfold StateT.modifyGet
-
-
-    skip
-  simp [Clap.monads]
-  set x := @Vector.ofFnM (CircuitStateM p) _ _ _ _ _
-  have : x = ⟨x.1, x.2⟩ := rfl
-  rewrite [this]; clear this
-  subst x
-  simp [Clap.monads, CircuitResult.addConstraint_unconstrained]
+  simp [Edsl.num2bits, getCircuit_ofFnM_of_getCircuit_eq_nil]
 
 end
 

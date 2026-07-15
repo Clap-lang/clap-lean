@@ -6,14 +6,17 @@ def not {p : ℕ} [Fact (p ≥ 2)] (a : FB p) : FB p := 1 - a
 
 namespace not
 
-def spec (p : ℕ) [Fact (p ≥ 2)] : Prop := matchesUnaryFunction p (!·) (FB.not (p := p))
-
+-- TODO we may want to do proofs about [varStore|false/true p].bind
 lemma equiv {p : ℕ} [Fact (p ≥ 2)] :
-  spec p
+  matchesUnaryFunction p (!·) (FB.not (p := p))
 := by
   intro a varStore h_isValid
   -- NB `Convert.toIdealtoRepresents` in `simp` magics a lot of the reasoning away
-  aesop (add simp [FB.isValid_iff, FB.toIdeal_def, FB.not, toBool])
+  have := isValid_iff_eval_eq_eval_false_or_eval_true.mp h_isValid
+  unfold_projs
+  simp [FB.toBool, FB.not]
+  obtain h | h := this
+  <;> simp [h, eval_false, eval_true]
 
 end not
 

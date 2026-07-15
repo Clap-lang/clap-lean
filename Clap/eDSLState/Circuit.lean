@@ -20,7 +20,7 @@ namespace Edsl
 
 structure CircuitResult (p : ℕ) where
   numAlloc : ℕ
-  varStore : Std.ExtTreeMap ℕ (ZMod p)
+  varStore : VarStore p
   constraints : Prop
   deriving Inhabited
 
@@ -31,11 +31,11 @@ section
 -- TODO do we need all of these?
 variable {p k numAlloc : ℕ} {result result' : CircuitResult p}
          {constraint : Prop} {vars : Vector (ZMod p) k} {e : FixedExp p}
-         {varStore : Std.ExtTreeMap ℕ (ZMod p)}
+         {varStore : VarStore p}
 
 def init (p : ℕ) : CircuitResult p := ⟨0, ∅, True⟩
 
-def unconstrained (numAlloc : ℕ) (varStore : Std.ExtTreeMap ℕ (ZMod p)) : CircuitResult p :=
+def unconstrained (numAlloc : ℕ) (varStore : VarStore p) : CircuitResult p :=
   ⟨numAlloc, varStore, True⟩
 
 notation (name := notationα) "unconstrained[" numAlloc:arg "]" "[" varStore:arg "]" => unconstrained numAlloc varStore
@@ -57,7 +57,7 @@ def addConstraint (result : CircuitResult p) (constraint : Prop) : CircuitResult
 @[simp, grind =]
 lemma addConstraint_mk
   (numAlloc : ℕ)
-  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+  (varStore : VarStore p)
   (constraints constraint : Prop)
 :
   (Edsl.CircuitResult.mk numAlloc varStore constraints).addConstraint constraint =
@@ -85,7 +85,7 @@ def allocAnonymous (result : CircuitResult p) : CircuitResult p :=
 @[simp, grind =]
 lemma allocAnonymous_mk
   (numAlloc : ℕ)
-  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+  (varStore : VarStore p)
   (constraints : Prop)
 :
   (Edsl.CircuitResult.mk numAlloc varStore constraints).allocAnonymous =
@@ -119,7 +119,7 @@ instance : GetElem (CircuitResult p) (FixedExp p) (ZMod p) (fun Γ x ↦ x ∈ �
 lemma get?_mk
   (e : FixedExp p)
   (numAlloc : ℕ)
-  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+  (varStore : VarStore p)
   (constraints : Prop)
 :
   (Edsl.CircuitResult.mk numAlloc varStore constraints).get? e =
@@ -151,7 +151,7 @@ def assertAllocated (result : CircuitResult p) (e : FixedExp p) : CircuitResult 
 lemma assertAllocated_mk
   (e : FixedExp p)
   (numAlloc : ℕ)
-  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+  (varStore : VarStore p)
   (constraints : Prop)
 :
   (Edsl.CircuitResult.mk numAlloc varStore constraints).assertAllocated e =
@@ -185,7 +185,7 @@ def alloc {k p : ℕ} (result : CircuitResult p) (vals : Vector (ZMod p) k) : Ci
 lemma alloc_mk
   (vals : Vector (ZMod p) k)
   (numAlloc : ℕ)
-  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+  (varStore : VarStore p)
   (constraints : Prop)
 :
   (Edsl.CircuitResult.mk numAlloc varStore constraints).alloc vals =
@@ -222,7 +222,7 @@ notation "[" σ "|" cmd "]ₛ" => step σ cmd
 @[simp, grind =]
 lemma step_mk
   (numAlloc : ℕ)
-  (varStore : Std.ExtTreeMap ℕ (ZMod p))
+  (varStore : VarStore p)
   (constraints : Prop)
   (next : CircuitusPlanus p)
 : (Edsl.CircuitResult.mk numAlloc varStore constraints).step next =
@@ -343,7 +343,7 @@ lemma ext {p : ℕ} {r1 r2 : CircuitResult p}
 
 lemma foldl_step_numAlloc_independent_of_constraints
   {numAlloc : ℕ}
-  {varStore : Std.ExtTreeMap ℕ (ZMod p)}
+  {varStore : VarStore p}
   {constraints1 constraints2 : Prop}
   {circuit : CircuitState p}
 :
@@ -383,7 +383,7 @@ lemma foldl_step_varStore_independent_of_constraints
 @[grind .]
 lemma foldr_step_varStore_independent_of_constraints
   {numAlloc : ℕ}
-  {varStore : Std.ExtTreeMap ℕ (ZMod p)}
+  {varStore : VarStore p}
   {constraints1 constraints2 : Prop}
   {circuit : List (CircuitusPlanus p)}
 :
@@ -430,7 +430,7 @@ namespace CircuitState
 variable {p : ℕ}
 
 def seq (circuit₁ circuit₂ : CircuitState p)
-        (varStore : Std.ExtTreeMap ℕ (ZMod p))
+        (varStore : VarStore p)
         (numAlloc : ℕ) : CircuitResult p :=
   let ⟨numAllocMid, varStoreMid, constraintsMid⟩ := eval circuit₁ varStore numAlloc
   let ⟨numAllocPost, varStorePost, constraintsPost⟩ := eval circuit₂ varStoreMid numAllocMid
@@ -496,7 +496,7 @@ lemma eval_cons
 
 section
 
-variable {numAlloc : ℕ} {varStore : Std.ExtTreeMap ℕ (ZMod p)} {e: FixedExp p}
+variable {numAlloc : ℕ} {varStore : VarStore p} {e: FixedExp p}
 
 @[simp, grind =]
 lemma eval_empty :
