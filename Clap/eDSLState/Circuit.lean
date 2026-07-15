@@ -106,6 +106,7 @@ lemma varStore_allocAnonymous : result.allocAnonymous.varStore = result.varStore
 @[simp, grind =]
 lemma constraints_allocAnonymous : result.allocAnonymous.constraints = result.constraints := rfl
 
+@[grind =]
 def get? (result : CircuitResult p) (e : FixedExp p) : Option (ZMod p) :=
   e.eval result.varStore
 
@@ -377,8 +378,25 @@ lemma foldl_step_varStore_independent_of_constraints
   (circuit.foldl step ⟨numAlloc, varStore, constraints2⟩).varStore
 := by
   rewrite [←List.reverse_reverse circuit]
-  induction circuit.reverse <;> sorry
-
+  induction circuit.reverse
+  -- TODO This used to be just `induction <;> grind`, now we need lemmas in terms of `GetElem?`
+  -- to push through
+  grind [=GetElem?.getElem?]
+  simp
+  next hd tl ih =>
+    simp at *
+    rcases hd with _ | _ | _ | _ | _
+    · grind
+    · grind
+    · grind
+    · simp only [step_isZero]
+      unfold GetElem?.getElem?
+      unfold instGetElem?FixedExpZModMem
+      grind [GetElem?.getElem?, instGetElem?FixedExpZModMem]
+    · simp
+      unfold GetElem?.getElem!
+      unfold instGetElem?FixedExpZModMem
+      grind
 
 @[grind .]
 lemma foldr_step_varStore_independent_of_constraints
@@ -421,7 +439,27 @@ lemma foldl_step_constraints_and
   )
 := by
   rewrite [←List.reverse_reverse circuit]
-  induction circuit.reverse <;> sorry
+  induction circuit.reverse
+  -- TODO This used to be just `induction <;> grind`, now we need lemmas in terms of `GetElem?`
+  -- to push through
+  grind
+  simp
+  next hd tl ih =>
+    simp at *
+    rcases hd with _ | _ | _ | _ | _
+    · simp
+      unfold GetElem?.getElem?
+      unfold instGetElem?FixedExpZModMem
+      grind [GetElem?.getElem?, instGetElem?FixedExpZModMem]
+    · grind
+    · grind
+    · simp only [step_isZero]
+      unfold GetElem?.getElem?
+      unfold instGetElem?FixedExpZModMem
+      grind [GetElem?.getElem?, instGetElem?FixedExpZModMem]
+    · simp
+      unfold get?
+      grind
 
 end CircuitResult
 

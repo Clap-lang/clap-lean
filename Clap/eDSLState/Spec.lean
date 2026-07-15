@@ -56,7 +56,7 @@ def matchesUnaryFunction (p : ℕ)
       resultVal = toIdeal varStorePre wrapped
 
 @[grind .]
-lemma isValid_of_isValid_of_matchesUnaryFunction(p : ℕ)
+lemma isValid_of_isValid_of_matchesUnaryFunction {p : ℕ}
   {funIn funOut specIn specOut : Type}
   [Convert p funIn specIn] [inst_out: Convert p funOut specOut]
   {spec_function : specIn → specOut}
