@@ -73,7 +73,6 @@ lemma isValid_of_isValid_of_matchesUnaryFunction(p : ℕ)
   apply (inst_out.someOfIsValid varStore (function a)).mpr
   grind
 
-
 def assertMatchesLast {k} {p}
   (varStore : VarStore p) (numAlloc : ℕ) (vec : Vector (ZMod p) k) : Prop :=
   ∀ i < k,

@@ -3,7 +3,7 @@ import Clap.Lang.FB.not
 
 namespace Clap.Edsl.Lang.FB
 
-def assert {p : ℕ} [Fact (p ≥ 2)] (a : FB p) : Edsl.CircuitStateM p Unit := do
+def assert {p : ℕ} [p.AtLeastTwo] (a : FB p) : Edsl.CircuitStateM p Unit := do
   Edsl.eq0 (not a)
 
 namespace assert
@@ -24,12 +24,12 @@ def matchesUnaryPredicatePure
     numAllocPost = numAlloc ∧
     varStorePost = varStore
 
-def spec (p : ℕ) [Fact (p ≥ 2)] : Prop := matchesUnaryPredicatePure p (·) FB.assert
+def spec (p : ℕ) [p.AtLeastTwo] : Prop := matchesUnaryPredicatePure p (·) FB.assert
 
 lemma aux
   {p : ℕ}
   {varStore : VarStore p}
-  [Fact (p ≥ 2)]
+  [p.AtLeastTwo]
   {a : FB p}
 :
   [varStore|a] = [varStore|false p] →
@@ -45,7 +45,7 @@ lemma aux
   have :
     [varStore|a.not] = [varStore|Convert.toRepresents p (Convert.toIdeal varStore a.not).get (Convert.someOfIsValid)]
 
-lemma equiv (p : ℕ) [Fact (p ≥ 2)] :
+lemma equiv (p : ℕ) [p.AtLeastTwo] :
   spec p
 := by
   intro a varStore numAlloc h_isValid

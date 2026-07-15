@@ -2,22 +2,36 @@ import Clap.Lang.FB.FB
 
 namespace Clap.Edsl.Lang.FB
 
-def not {p : ℕ} [Fact (p ≥ 2)] (a : FB p) : FB p := 1 - a
+section
+
+variable {p : ℕ} [p.AtLeastTwo] {varStore : VarStore p} {x : FB p}
+
+def not {p : ℕ} [p.AtLeastTwo] (a : FB p) : FB p := 1 - a
 
 namespace not
 
+/--
+I mean, yes, but also no...
+(Unused.)
+-/
+@[aesop simp, grind .]
+lemma _isValid_not_iff :
+  IsValid.isValid varStore (not x) ↔ IsValid.isValid varStore x := by
+  unfold not
+  refine Iff.intro (fun h ↦ ?p₁) (fun h ↦ ?p₂) <;>
+  aesop (add simp [FB.isValid_iff, Option.bind, FixedExp.sub_def])
+
 -- TODO we may want to do proofs about [varStore|false/true p].bind
-lemma equiv {p : ℕ} [Fact (p ≥ 2)] :
+lemma equiv {p : ℕ} [p.AtLeastTwo] :
   matchesUnaryFunction p (!·) (FB.not (p := p))
 := by
-  intro a varStore h_isValid
-  -- NB `Convert.toIdealtoRepresents` in `simp` magics a lot of the reasoning away
-  have := isValid_iff_eval_eq_eval_false_or_eval_true.mp h_isValid
-  unfold_projs
-  simp [FB.toBool, FB.not]
-  obtain h | h := this
-  <;> simp [h, eval_false, eval_true]
+  intro a varStore h₁
+  unfold not at *
+  simp [FixedExp.sub_def, toIdeal_def, toBool]
+  grind
 
 end not
+
+end
 
 end Clap.Edsl.Lang.FB

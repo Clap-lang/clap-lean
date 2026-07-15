@@ -4,7 +4,7 @@ namespace Clap.Edsl.Lang.FArray
 
 variable {p : ℕ}
 
-def oneHotRaw [Fact (p ≥ 2)] (len : ℕ) (idx : F p) : Edsl.CircuitStateM p (Vector (FB p) len) :=
+def oneHotRaw [p.AtLeastTwo] (len : ℕ) (idx : F p) : Edsl.CircuitStateM p (Vector (FB p) len) :=
   (Vector.range len).mapM (fun (i:ℕ) ↦ F.eq idx i)
 
 namespace oneHotRaw
@@ -21,7 +21,7 @@ def runAndEval
 -- def matchesUnaryBitVecFunctionWithSideEffects
 --   {length: ℕ}
 --   (p : ℕ)
---   [Fact (p ≥ 2)]
+--   [p.AtLeastTwo]
 --   (spec_function : (ZMod p) → Vector Bool length)
 --   (function : (F p) → Edsl.CircuitStateM p (Vector (FB p) length))
 --   (allocates : ℕ)
@@ -216,14 +216,14 @@ instance
       grind
     grind
 
-def spec (p : ℕ) (length : ℕ) [Fact (p ≥ 2)] [Fact (length ≤ p)] : Prop :=
+def spec (p : ℕ) (length : ℕ) [p.AtLeastTwo] [Fact (length ≤ p)] : Prop :=
   Clap.Edsl.Lang.FB.matchesUnaryMonadFunction
   p
   (specFunction length)
   (oneHotRaw length)
   length
 
-lemma equiv (p : ℕ) (length : ℕ) [Fact (p ≥ 2)] :
+lemma equiv (p : ℕ) (length : ℕ) [p.AtLeastTwo] :
   spec p length
 := by
   unfold spec

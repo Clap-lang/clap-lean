@@ -32,7 +32,7 @@ lemma eval_c
 := by
   simp [FixedExp.eval]
 
-@[simp]
+@[simp, grind .]
 lemma eval_ofNat {p n : ℕ} {varStore : VarStore p} :
   [varStore|no_index (OfNat.ofNat n)] = .some n := by
   simp [FixedExp.eval]
@@ -57,7 +57,8 @@ lemma add_def
 := by
   simp [HAdd.hAdd, Add.add]
 
-@[simp, grind =]
+-- @[simp, grind =]
+@[grind =]
 lemma sub_def
   {p : ℕ}
   {a b : FixedExp p}

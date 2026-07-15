@@ -7,38 +7,42 @@ abbrev FB p := F p
 
 namespace FB
 
-def true (p : ℕ) [Fact (p ≥ 2)] : FB p := .c 1
-def false (p : ℕ) [Fact (p ≥ 2)] : FB p := .c 0
+def true (p : ℕ) [p.AtLeastTwo] : FB p := .c 1
+def false (p : ℕ) [p.AtLeastTwo] : FB p := .c 0
 
-lemma eval_true {p : ℕ} {varStore : VarStore p} [Fact (p ≥ 2)]:
+@[simp, grind =]
+lemma eval_true {p : ℕ} {varStore : VarStore p} [p.AtLeastTwo]:
   [varStore|true p] = .some 1
 := by
   simp [FB.true]
 
-lemma eval_false {p : ℕ} {varStore : VarStore p} [Fact (p ≥ 2)]:
+@[simp, grind =]
+lemma eval_false {p : ℕ} {varStore : VarStore p} [p.AtLeastTwo]:
   [varStore|false p] = .some 0
 := by
   simp [FB.false]
 
 @[simp, grind =]
-lemma eval_true_isSome {p : ℕ} {varStore : VarStore p} [Fact (p ≥ 2)]:
+lemma eval_true_isSome {p : ℕ} {varStore : VarStore p} [p.AtLeastTwo]:
   [varStore|true p].isSome = Bool.true
 := by
-  grind [eval_true]
+  grind
 
 @[simp, grind =]
-lemma eval_false_isSome {p : ℕ} {varStore : VarStore p} [Fact (p ≥ 2)]:
+lemma eval_false_isSome {p : ℕ} {varStore : VarStore p} [p.AtLeastTwo]:
   [varStore|false p].isSome = Bool.true
 := by
-  grind [eval_false]
+  grind
 
-variable {p : ℕ} [Fact (p ≥ 2)]
+variable {p : ℕ} [p.AtLeastTwo]
 
 def isValid (x : FB p) (varStore : VarStore p) : Prop :=
   x.eval varStore = .some 0 ∨
   x.eval varStore = .some 1
 
 -- TODO there must be a better way of putting this
+-- Well, this is just `isValid_iff` with an extra step.
+-- I think this is good, and it `simp`s down to `true | false` via `eval_<t|f>`.
 @[grind .]
 lemma isValid_iff_eval_eq_eval_false_or_eval_true
   {x : FB p} {varStore : VarStore p}
@@ -48,7 +52,7 @@ lemma isValid_iff_eval_eq_eval_false_or_eval_true
     [varStore|x] = [varStore|(true p)]
   )
 := by
-  simp [isValid, eval_true, eval_false]
+  simp [isValid]
 
 def isAlwaysValid (x : FB p) : Prop :=
   ∀ varStore, x.isValid varStore
@@ -56,17 +60,17 @@ def isAlwaysValid (x : FB p) : Prop :=
 def toBool (x : FB p) (varStore : VarStore p) : Option Bool :=
   [varStore|x].bind (λ x => if x == 1 then Bool.true else if x == 0 then Bool.false else .none)
 
-@[grind =]
+@[grind .]
 lemma toBool_isSome_eq_true_of_isValid
   {x : FB p} {varStore : VarStore p}
   (h_isValid : x.isValid varStore)
 :
   (x.toBool varStore).isSome = Bool.true
 := by
-  grind [eval_false, eval_true, toBool]
+  grind [toBool]
 
-omit [Fact (p ≥ 2)] in
-@[grind =]
+omit [p.AtLeastTwo] in
+@[grind .]
 lemma toBool_isSome_eq_false_of_isValid
   {x : FB p} {varStore : VarStore p}
   (h_isValid : ¬x.isValid varStore)
@@ -78,11 +82,11 @@ lemma toBool_isSome_eq_false_of_isValid
   set y := [varStore|x]
   obtain _ | ⟨y⟩ := y <;> grind
 
-def ofBool (p : ℕ) [Fact (p ≥ 2)] (x : Bool) : FB p :=
+def ofBool (p : ℕ) [p.AtLeastTwo] (x : Bool) : FB p :=
   if x then FB.true p else FB.false p
 
 @[simp, grind =]
-lemma eval_ofBool {p : ℕ} {varStore : VarStore p} [Fact (p ≥ 2)] (b : Bool):
+lemma eval_ofBool {p : ℕ} {varStore : VarStore p} [p.AtLeastTwo] {b : Bool} :
   [varStore|ofBool p b] = if b then [varStore|true p] else [varStore|false p]
 := by
   grind [FB.ofBool]
@@ -92,7 +96,7 @@ lemma toBool_ofBool
   {p : ℕ}
   {varStore : VarStore p}
   (b: Bool)
-  [Fact (p ≥ 2)]
+  [p.AtLeastTwo]
 :
   (FB.ofBool p b).toBool varStore = b
 := by
@@ -106,7 +110,7 @@ lemma toBool_false
 := by
   simp [FB.false, FB.toBool]
 
-@[grind =]
+@[grind .]
 lemma toBool_of_eval_eq_eval_false
   {varStore : VarStore p}
   {x : FB p}
@@ -116,7 +120,7 @@ lemma toBool_of_eval_eq_eval_false
 := by
   grind [FB.toBool, false]
 
-@[grind =]
+@[grind .]
 lemma toBool_of_eval_eq_eval_true
   {varStore : VarStore p}
   {x : FB p}
@@ -140,7 +144,7 @@ lemma eval_ofBool_toBool_of_isValid
   {varStore : VarStore p}
   {x: FB p}
   (h : x.isValid varStore)
-  [Fact (p ≥ 2)]
+  [p.AtLeastTwo]
 :
   [varStore|(FB.ofBool p ((x.toBool varStore).get (by grind)))] = [varStore|x]
 := by
@@ -163,7 +167,8 @@ end ofBool
 
 instance : IsValid p (FB p) := ⟨fun Γ a ↦ FB.isValid a Γ⟩
 
-omit [Fact (p ≥ 2)] in
+omit [p.AtLeastTwo] in
+@[grind =]
 lemma isValid_iff {varStore} {x} :
   IsValid.isValid (α := FB p) varStore x ↔
   x.eval varStore = .some 0 ∨

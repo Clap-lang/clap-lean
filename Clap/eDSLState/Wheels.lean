@@ -16,7 +16,7 @@ register_simp_attr Clap.monads
 @[simp, grind .]
 lemma ZMod.zero_ne_one
   {p : ℕ}
-  [p_ge_2 : Fact (p ≥ 2)]
+  [p_ge_2 : p.AtLeastTwo]
 :
   (0: ZMod p) ≠ (1 : ZMod p)
 := by
@@ -28,7 +28,7 @@ lemma ZMod.zero_ne_one
 @[simp, grind .]
 lemma ZMod.one_ne_zero
   {p : ℕ}
-  [p_ge_2 : Fact (p ≥ 2)]
+  [p_ge_2 : p.AtLeastTwo]
 :
   (1: ZMod p) ≠ (0 : ZMod p)
 := by
