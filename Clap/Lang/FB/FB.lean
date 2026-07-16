@@ -10,13 +10,13 @@ namespace FB
 def true (p : ℕ) [p.AtLeastTwo] : FB p := .c 1
 def false (p : ℕ) [p.AtLeastTwo] : FB p := .c 0
 
-@[simp, grind =]
+@[grind =]
 lemma eval_true {p : ℕ} {varStore : VarStore p} [p.AtLeastTwo]:
   [varStore|true p] = .some 1
 := by
   simp [FB.true]
 
-@[simp, grind =]
+@[grind =]
 lemma eval_false {p : ℕ} {varStore : VarStore p} [p.AtLeastTwo]:
   [varStore|false p] = .some 0
 := by
@@ -52,7 +52,7 @@ lemma isValid_iff_eval_eq_eval_false_or_eval_true
     [varStore|x] = [varStore|(true p)]
   )
 := by
-  simp [isValid]
+  simp [isValid, eval_true, eval_false]
 
 def isAlwaysValid (x : FB p) : Prop :=
   ∀ varStore, x.isValid varStore
@@ -168,7 +168,6 @@ end ofBool
 instance : IsValid p (FB p) := ⟨fun Γ a ↦ FB.isValid a Γ⟩
 
 omit [p.AtLeastTwo] in
-@[grind =]
 lemma isValid_iff {varStore} {x} :
   IsValid.isValid (α := FB p) varStore x ↔
   x.eval varStore = .some 0 ∨
@@ -181,14 +180,14 @@ instance {p} : VarStoreSize p (FB p) where
 instance : Convert p (FB p) Bool where
   toIdeal Γ x := FB.toBool x Γ
   toRepresents := FB.ofBool p
-  someOfIsValid Γ x := by unfold_projs; grind [IsValid.isValid]
-  toIdealtoRepresents := by simp
-  toRepresentstoIdeal := by simp
+  isValid_iff_isSome_toIdeal Γ x := by unfold_projs; grind [IsValid.isValid]
+  toIdeal_toRepresents := by simp
+  toRepresents_toIdeal := by simp
 
 /-
 TODO Provisional simp
 -/
-attribute [simp, grind =] Convert.toIdealtoRepresents Convert.toRepresentstoIdeal
+attribute [simp, grind =] Convert.toIdeal_toRepresents Convert.toRepresents_toIdeal
 
 lemma toIdeal_def {varStore} {x} :
   Convert.toIdeal (representsT := FB p) (idealT := Bool) varStore x =
@@ -197,6 +196,76 @@ lemma toIdeal_def {varStore} {x} :
 lemma toRepresents_def {x} :
   Convert.toRepresents p (representsT := FB p) (idealT := Bool) x =
   FB.ofBool p x := rfl
+
+-- TODO rename
+@[grind .]
+lemma isValid_iff_oddly_specific
+  {x : FB p} {varStore : VarStore p}
+:
+  x.isValid varStore ↔ (
+    ∃ b,
+    [varStore|x] = [varStore|FB.ofBool p b]
+  )
+:= by
+  simp [isValid, eval_true, eval_false]
+
+-- This is breaking the instance abstraction layer
+-- and secretly proving something only about the specific
+-- Convert FB p Bool instance isn't it?
+-- Seems bad
+@[grind .]
+lemma toIdeal_isSome_of_eval_eq_true
+  {varStore : VarStore p}
+  {a : FB p}
+  (h : [varStore|a] = [varStore|true p])
+:
+  (Convert.toIdeal (idealT := Bool) varStore a).isSome = Bool.true
+:= by
+  have := Convert.isValid_iff_isSome_toIdeal varStore a (idealT := Bool)
+  rw [this.mp]
+  have := isValid_iff_oddly_specific (x := a) (varStore := varStore)
+  unfold_projs
+  grind
+
+@[grind .]
+lemma toIdeal_isSome_of_eval_eq_false
+  {varStore : VarStore p}
+  {a : FB p}
+  (h : [varStore|a] = [varStore|false p])
+:
+  (Convert.toIdeal (idealT := Bool) varStore a).isSome = Bool.true
+:= by
+  have := Convert.isValid_iff_isSome_toIdeal varStore a (idealT := Bool)
+  rw [this.mp]
+  have := isValid_iff_oddly_specific (x := a) (varStore := varStore)
+  unfold_projs
+  grind
+
+@[grind =]
+lemma toIdeal_true_iff_eval_eq_true
+  {varStore : VarStore p}
+  {a : FB p}
+:
+  ([varStore|a] = [varStore|true p]) ↔
+  ((Convert.toIdeal varStore a) = .some Bool.true)
+:= by
+  unfold_projs
+  simp [toBool]
+  obtain _ | x := [varStore|a]
+  <;> grind
+
+@[grind =]
+lemma toIdeal_false_of_eval_eq_false
+  {varStore : VarStore p}
+  {a : FB p}
+:
+  ([varStore|a] = [varStore|false p]) ↔
+  ((Convert.toIdeal varStore a) = .some Bool.false)
+:= by
+  unfold_projs
+  simp [toBool]
+  obtain _ | x := [varStore|a]
+  <;> grind
 
 end FB
 

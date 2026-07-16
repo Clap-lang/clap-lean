@@ -8,26 +8,68 @@ variable {p : ℕ} [p.AtLeastTwo] {varStore : VarStore p} {x : FB p}
 
 def not {p : ℕ} [p.AtLeastTwo] (a : FB p) : FB p := 1 - a
 
+@[simp, grind =]
+lemma bind_true {α} {varStore : VarStore p} {f : ZMod p → Option α} :
+  [varStore|true p].bind f = f ([varStore|true p].get (by grind))
+:= by
+  aesop (add simp [Option.bind, FB.true])
+
+@[simp, grind =]
+lemma bind_false {α} {varStore : VarStore p} {f : ZMod p → Option α} :
+  [varStore|false p].bind f = f ([varStore|false p].get (by grind))
+:= by
+  aesop (add simp [Option.bind, FB.false])
+
+@[grind .]
+lemma not_true:
+  ([varStore|x] = [varStore|FB.true p]) ↔
+  ([varStore|x.not] = [varStore|FB.false p])
+:= by
+  simp [FB.not, FixedExp.sub_def, eval_false, eval_true]
+  obtain _ | x := [varStore|x] <;> grind
+
+@[grind .]
+lemma not_false
+:
+  ([varStore|x] = [varStore|FB.false p]) ↔
+  ([varStore|x.not] = [varStore|FB.true p])
+:= by
+  simp [FB.not, FixedExp.sub_def, eval_false, eval_true]
+  obtain _ | x := [varStore|x] <;> grind
+
+lemma not_ofBool {b : Bool} (h: [varStore|x] = [varStore|FB.ofBool p b]) :
+  [varStore|x.not] = [varStore|FB.ofBool p !b]
+:= by
+  grind
+
+@[grind .]
+lemma toIdeal_not {a : FB p} {b : Bool}
+  (h : Convert.toIdeal varStore a = .some b)
+:
+  Convert.toIdeal varStore a.not =
+  .some !b
+:= by
+  have := (Convert.isValid_iff_isSome_toIdeal varStore a).mpr (by
+    rw! [h]
+    rfl
+  )
+  rewrite [toIdeal_def] at h ⊢
+  unfold toBool at h ⊢
+  grind [isValid_iff]
+
 namespace not
 
-/--
-I mean, yes, but also no...
-(Unused.)
--/
 @[aesop simp, grind .]
-lemma _isValid_not_iff :
+lemma isValid_not_iff :
   IsValid.isValid varStore (not x) ↔ IsValid.isValid varStore x := by
   unfold not
   refine Iff.intro (fun h ↦ ?p₁) (fun h ↦ ?p₂) <;>
   aesop (add simp [FB.isValid_iff, Option.bind, FixedExp.sub_def])
 
--- TODO we may want to do proofs about [varStore|false/true p].bind
 lemma equiv {p : ℕ} [p.AtLeastTwo] :
   matchesUnaryFunction p (!·) (FB.not (p := p))
 := by
-  intro a varStore h₁
-  unfold not at *
-  simp [FixedExp.sub_def, toIdeal_def, toBool]
+  unfold matchesUnaryFunction
   grind
 
 end not

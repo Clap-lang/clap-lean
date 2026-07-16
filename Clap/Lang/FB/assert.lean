@@ -8,68 +8,143 @@ def assert {p : ℕ} [p.AtLeastTwo] (a : FB p) : Edsl.CircuitStateM p Unit := do
 
 namespace assert
 
--- TODO do we need a relation between varStore and numAlloc
--- perhaps that varStore is full up to numAlloc?
-def matchesUnaryPredicatePure
-  (p : ℕ)
-  (spec_function : Bool → Prop)
-  (function : FB p → Edsl.CircuitStateM p Unit)
-: Prop :=
-  ∀ (a : FB p) varStore numAlloc, a.isValid (varStore) →
-    let ⟨numAllocPost, varStorePost, constraints⟩ := Edsl.CircuitState.eval
-      ((function a).getCircuit numAlloc)
-      varStore
-      numAlloc
-    constraints = spec_function (a.toBool varStore) ∧
-    numAllocPost = numAlloc ∧
-    varStorePost = varStore
+@[simp, grind .]
+lemma isAlwaysValid_unit
+  {p : ℕ}
+  [p.AtLeastTwo]
+  {numAlloc : ℕ}
+  {varStore : VarStore p}
+  {f : Edsl.CircuitStateM p Unit}
+:
+  IsValid.isValid varStore (f.getResult numAlloc)
+:= by
+  trivial
 
-def spec (p : ℕ) [p.AtLeastTwo] : Prop := matchesUnaryPredicatePure p (·) FB.assert
-
-lemma aux
+@[simp, grind =]
+lemma toIdeal_unit
   {p : ℕ}
   {varStore : VarStore p}
+  {x : Unit}
+:
+  Convert.toIdeal varStore x = .some ()
+:= by
+  trivial
+
+@[simp, grind =]
+lemma getResult_unit
+  {p : ℕ}
+  {numAlloc : ℕ}
+  {f : Edsl.CircuitStateM p Unit}
+:
+  f.getResult numAlloc = ()
+:= rfl
+
+@[grind =]
+lemma step_eq0_fb
+  {p : ℕ}
   [p.AtLeastTwo]
   {a : FB p}
+  {result : CircuitResult p}
 :
-  [varStore|a] = [varStore|false p] →
-  [varStore|a.not] = [varStore|FB.ofBool p ((λ x => !x) (FB.toBool (false p) varStore))]
-:= by
-  simp
-  have := FB.not.equiv (p := p)
-  have :=
+  [result|CircuitusPlanus.eq0 a]ₛ =
+  result.addConstraint ([result.varStore|a] = [result.varStore|false p])
+:= rfl
 
-  intro h_a_false
-  specialize this a varStore (by simp [h_a_false, IsValid.isValid, FB.isValid, eval_false])
-  simp at this
-  have :
-    [varStore|a.not] = [varStore|Convert.toRepresents p (Convert.toIdeal varStore a.not).get (Convert.someOfIsValid)]
+@[grind =]
+lemma assert_constraints
+  {p : ℕ}
+  [p.AtLeastTwo]
+  {varStore : VarStore p}
+  {a : FB p}
+  {numAlloc : ℕ}
+  (h: IsValid.isValid varStore a)
+:
+  [varStore, numAlloc|(a.assert.getCircuit numAlloc)]ₑ.constraints =
+  ((Convert.toIdeal varStore a).get (by grind) = Bool.true)
+:= by
+  unfold assert
+  grind
+
+@[grind =]
+lemma assert_numAlloc
+  {p : ℕ}
+  [p.AtLeastTwo]
+  {varStore : VarStore p}
+  {a : FB p}
+  {numAlloc : ℕ}
+:
+  [varStore, numAlloc|(a.assert.getCircuit numAlloc)]ₑ.numAlloc =
+  numAlloc
+:= by
+  unfold assert
+  grind
+
+@[grind =]
+lemma assert_frameRule
+  {p : ℕ}
+  [p.AtLeastTwo]
+  {varStore : VarStore p}
+  {a : FB p}
+  {numAlloc : ℕ}
+:
+  ∀ n, n < numAlloc →
+    [varStore, numAlloc|(a.assert.getCircuit numAlloc)]ₑ.varStore[n]? =
+    varStore[n]?
+:= by
+  intro n h_n
+  unfold assert
+  grind
+
+@[simp, grind =]
+lemma toLinear_unit
+  {p : ℕ}
+  [p.AtLeastTwo]
+  {varStore : VarStore p}
+:
+  VarStoreSize.toLinear varStore () =
+  #v[]
+:= by
+  rfl
+
+@[simp, grind .]
+lemma assertMatchesLast_empty
+  {p : ℕ}
+  [p.AtLeastTwo]
+  {varStore : VarStore p}
+  {numAlloc : ℕ}
+:
+  assertMatchesLast
+    varStore
+    numAlloc
+    #v[]
+:= by
+  unfold assertMatchesLast
+  grind
+
 
 lemma equiv (p : ℕ) [p.AtLeastTwo] :
-  spec p
+  matchesUnaryMonadFunction p
+    (spec_function := λ _ => ())
+    (function := FB.assert)
+    (allocatesN := 0)
+    (constraints := λ input => input = Bool.true)
 := by
   intro a varStore numAlloc h_isValid
-  have := FB.not.equiv (p := p)
-  simp [FB.assert]
-  have :
-    unconstrained[numAlloc][varStore][a.not]? =
-    unconstrained[numAlloc][varStore][FB.ofBool p ((fun x => !x) (a.toBool varStore))]?
-  := by
-    unfold matchesUnaryFunction at this
-    specialize this a varStore h_isValid
-    simp [Convert.toIdeal, FB.toBool] at this
-    simp [getElem?, FB.toBool]
-    apply isValid_iff_eval_eq_eval_false_or_eval_true.mp at h_isValid
-    grind
-    obtain h_val | h_val := h_isValid
-    -- have : [varStore|a.not] = [varStore|a]
-    <;> simp [h_val, this]
+  have : (a.assert.runAndEval numAlloc varStore) =
+    ⟨
+      (a.assert.getResult numAlloc),
+      [varStore, numAlloc|a.assert.getCircuit numAlloc]ₑ
+    ⟩
+  := by rfl
+  rewrite [this]
+  split_ands
+  . grind [not.equiv]
+  . grind [not.equiv]
+  . grind [not.equiv]
+  . grind [not.equiv]
+  . grind [not.equiv]
+  . exact assertMatchesLast_empty -- TODO this is marked grind, why won't it use it?
 
-  have getElem?_unconstrained (e : FixedExp p):
-    unconstrained[numAlloc][varStore][e]? =
-    [varStore|e]
-  := rfl
-  simp [this, getElem?_unconstrained]
 
 end assert
 

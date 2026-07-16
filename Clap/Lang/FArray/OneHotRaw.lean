@@ -87,7 +87,7 @@ instance {k p} [inst_lt : Fact (k ≤ p)] : FB.Convert p (F p) (Fin k) where
     (x.eval varStore).bind (λ x => if h: x.val < k then .some ⟨x.val, h⟩ else .none)
   toRepresents x :=
     x.val
-  someOfIsValid varStore x h_isValid := by
+  isValid_iff_isSome_toIdeal varStore x h_isValid := by
     grind [eval_of_isValidRange]
   toIdealtoRepresents varStore x := by
     simp [Nat.mod_eq_of_lt (lt_of_lt_of_le x.2 inst_lt.out)]
@@ -145,7 +145,7 @@ lemma toIdeal_eq_pure_get_of_isValid
   (h : FB.IsValid.isValid varStore x)
 :
   FB.Convert.toIdeal varStore x =
-  pure ((FB.Convert.toIdeal varStore x).get (FB.Convert.someOfIsValid varStore x h))
+  pure ((FB.Convert.toIdeal varStore x).get (FB.Convert.isValid_iff_isSome_toIdeal varStore x h))
 := by
   simp
 
@@ -199,7 +199,7 @@ instance
     ideals.mapM id
   toRepresents xs :=
     xs.map base.toRepresents
-  someOfIsValid varStore x h_isValid := by
+  isValid_iff_isSome_toIdeal varStore x h_isValid := by
     grind
   toIdealtoRepresents varStore xs := by
     simp only [Function.comp_def, Vector.mapM_map]

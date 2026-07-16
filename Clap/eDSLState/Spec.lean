@@ -6,32 +6,51 @@ namespace Clap
 
 abbrev withΓ (p : ℕ) (α ω : Type) := (VarStore p) → α → ω
 
+
 class IsValid (p : ℕ) (α : Type) where
   isValid : withΓ p α Prop
+
+instance (p : ℕ) : IsValid p Unit where
+  isValid _ _ := True
+
 
 class VarStoreSize (p : ℕ) (α : Type) where
   size : ℕ
   toLinear : (VarStore p) → α → Vector (ZMod p) size
 
+instance (p : ℕ) : VarStoreSize p Unit where
+  size := 0
+  toLinear _ _ := #v[]
+
+
 class Convert (p : ℕ) (representsT idealT : Type) extends IsValid p representsT, VarStoreSize p representsT where
   toIdeal : (VarStore p) → representsT → Option idealT
   toRepresents : idealT → representsT
-  someOfIsValid :
+  isValid_iff_isSome_toIdeal :
     ∀ (varStore : VarStore p) (x : representsT),
       isValid varStore x ↔ (toIdeal varStore x).isSome
-  toIdealtoRepresents :
+  toIdeal_toRepresents :
     ∀ (varStore : VarStore p) (x : idealT),
       toIdeal varStore (toRepresents x) = .some x
-  toRepresentstoIdeal :
+  toRepresents_toIdeal :
     ∀ (varStore : VarStore p) (x : representsT),
       (h : isValid varStore x) →
-        toIdeal varStore (toRepresents ((toIdeal varStore x).get ((someOfIsValid varStore x).mp h))) =
+        toIdeal varStore (toRepresents ((toIdeal varStore x).get ((isValid_iff_isSome_toIdeal varStore x).mp h))) =
         toIdeal varStore x
+
+instance (p : ℕ) : Convert p Unit Unit where
+  toIdeal _ _ := .some ()
+  toRepresents _ := ()
+  isValid_iff_isSome_toIdeal _ _ := by
+    unfold_projs
+    grind
+  toIdeal_toRepresents _ _ := by grind
+  toRepresents_toIdeal _ _ _ := by grind
 
 def varStoreSize (p : ℕ) (α : Type) [φ : VarStoreSize p α] : ℕ := φ.size
 
 @[grind .]
-lemma someOfIsValid_of_convert {p} {α β : Type} [Convert p α β]
+lemma isValid_iff_isSome_toIdeal_of_convert {p} {α β : Type} [Convert p α β]
   {varStore : VarStore p} {x : α} (h : IsValid.isValid varStore x) :
   (Convert.toIdeal (idealT := β) varStore x).isSome := by
   aesop (add safe cases Convert)
@@ -50,7 +69,7 @@ def matchesUnaryFunction (p : ℕ)
   (function : funIn → funOut) : Prop :=
   ∀ (a : funIn) (varStorePre : VarStore p),
     (h : IsValid.isValid varStorePre a) →
-      letI aVal : specIn := toIdeal varStorePre a |>.get ((someOfIsValid _ _).mp h)
+      letI aVal : specIn := toIdeal varStorePre a |>.get ((isValid_iff_isSome_toIdeal _ _).mp h)
       letI resultVal : Option specOut := toIdeal varStorePre (function a)
       letI wrapped : funOut := toRepresents p (spec_function aVal)
       resultVal = toIdeal varStorePre wrapped
@@ -70,7 +89,7 @@ lemma isValid_of_isValid_of_matchesUnaryFunction {p : ℕ}
 := by
   unfold matchesUnaryFunction at h_equiv
   specialize h_equiv a varStore h_isValid
-  apply (inst_out.someOfIsValid varStore (function a)).mpr
+  apply (inst_out.isValid_iff_isSome_toIdeal varStore (function a)).mpr
   grind
 
 def assertMatchesLast {k} {p}
@@ -86,17 +105,17 @@ def matchesUnaryMonadFunction (p : ℕ)
   (spec_function : specIn → specOut)
   (function : funIn → CircuitStateM p funOut)
   (allocatesN : ℕ)
-  (constraints : Prop) : Prop :=
+  (constraints : specIn → Prop) : Prop :=
   ∀ (a : funIn) (varStorePre : VarStore p) (numAllocPre : ℕ),
     (h : IsValid.isValid varStorePre a) →
-      letI aVal : specIn := toIdeal varStorePre a |>.get ((someOfIsValid _ _).mp h)
+      letI aVal : specIn := toIdeal varStorePre a |>.get ((isValid_iff_isSome_toIdeal _ _).mp h)
       let ⟨result, circuit⟩ : funOut × CircuitResult p :=
         CircuitStateM.runAndEval (function a) numAllocPre varStorePre
       let resultIsValid := IsValid.isValid circuit.varStore result
       letI resultVal : Option specOut := toIdeal circuit.varStore result
       letI wrapped : funOut := toRepresents p (spec_function aVal)
       let resultCorrect := resultVal = toIdeal varStorePre wrapped
-      let constraintsCorrect := circuit.constraints = constraints
+      let constraintsCorrect := circuit.constraints = (constraints aVal)
       let allocatesCorrect := circuit.numAlloc = numAllocPre + allocatesN
       let frameRule := ∀ n < numAllocPre, circuit.varStore[n]? = varStorePre[n]?
       letI linearRepr := toLinear circuit.varStore result
