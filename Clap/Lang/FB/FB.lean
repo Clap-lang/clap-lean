@@ -48,8 +48,8 @@ lemma isValid_iff_eval_eq_eval_false_or_eval_true
   {x : FB p} {varStore : VarStore p}
 :
   x.isValid varStore ↔ (
-    [varStore|x] = [varStore|(false p)] ∨
-    [varStore|x] = [varStore|(true p)]
+    [varStore|x =Γ false p] ∨
+    [varStore|x =Γ true p]
   )
 := by
   simp [isValid, eval_true, eval_false]
@@ -111,10 +111,10 @@ lemma toBool_false
   simp [FB.false, FB.toBool]
 
 @[grind .]
-lemma toBool_of_eval_eq_eval_false
+lemma toBool_eq_false_of_eval_eq
   {varStore : VarStore p}
   {x : FB p}
-  (h : [varStore|x] = [varStore|false p])
+  (h : [varStore|x =Γ false p])
 :
   x.toBool varStore = .some Bool.false
 := by
@@ -124,7 +124,7 @@ lemma toBool_of_eval_eq_eval_false
 lemma toBool_of_eval_eq_eval_true
   {varStore : VarStore p}
   {x : FB p}
-  (h : [varStore|x] = [varStore|true p])
+  (h : [varStore|x =Γ true p])
 :
   x.toBool varStore = .some Bool.true
 := by
@@ -146,7 +146,7 @@ lemma eval_ofBool_toBool_of_isValid
   (h : x.isValid varStore)
   [p.AtLeastTwo]
 :
-  [varStore|(FB.ofBool p ((x.toBool varStore).get (by grind)))] = [varStore|x]
+  [varStore|(FB.ofBool p ((x.toBool varStore).get (by grind))) =Γ x]
 := by
   grind
 
@@ -199,73 +199,78 @@ lemma toRepresents_def {x} :
 
 -- TODO rename
 @[grind .]
-lemma isValid_iff_oddly_specific
+lemma isValid_iff_exists_eq_eval
   {x : FB p} {varStore : VarStore p}
 :
-  x.isValid varStore ↔ (
-    ∃ b,
-    [varStore|x] = [varStore|FB.ofBool p b]
-  )
+  x.isValid varStore ↔ ∃ b, [varStore|x =Γ FB.ofBool p b]
 := by
   simp [isValid, eval_true, eval_false]
 
--- This is breaking the instance abstraction layer
--- and secretly proving something only about the specific
--- Convert FB p Bool instance isn't it?
--- Seems bad
-@[grind .]
-lemma toIdeal_isSome_of_eval_eq_true
-  {varStore : VarStore p}
-  {a : FB p}
-  (h : [varStore|a] = [varStore|true p])
-:
-  (Convert.toIdeal (idealT := Bool) varStore a).isSome = Bool.true
-:= by
-  have := Convert.isValid_iff_isSome_toIdeal varStore a (idealT := Bool)
-  rw [this.mp]
-  have := isValid_iff_oddly_specific (x := a) (varStore := varStore)
-  unfold_projs
-  grind
+-- -- This is breaking the instance abstraction layer
+-- -- and secretly proving something only about the specific
+-- -- Convert FB p Bool instance isn't it?
+-- -- Seems bad
+-- @[grind .]
+-- lemma toIdeal_isSome_of_eval_eq_true
+--   {varStore : VarStore p}
+--   {a : FB p}
+--   (h : [varStore|a =Γ true p])
+-- :
+--   (Convert.toIdeal (idealT := Bool) varStore a).isSome = Bool.true
+-- := by
+--   have := Convert.isValid_iff_isSome_toIdeal varStore a (idealT := Bool)
+--   rw [this.mp]
+--   have := isValid_iff_exists_eq_eval (x := a) (varStore := varStore)
+--   unfold_projs
+--   grind
 
-@[grind .]
-lemma toIdeal_isSome_of_eval_eq_false
-  {varStore : VarStore p}
-  {a : FB p}
-  (h : [varStore|a] = [varStore|false p])
-:
-  (Convert.toIdeal (idealT := Bool) varStore a).isSome = Bool.true
-:= by
-  have := Convert.isValid_iff_isSome_toIdeal varStore a (idealT := Bool)
-  rw [this.mp]
-  have := isValid_iff_oddly_specific (x := a) (varStore := varStore)
-  unfold_projs
-  grind
+-- @[grind .]
+-- lemma toIdeal_isSome_of_eval_eq_false
+--   {varStore : VarStore p}
+--   {a : FB p}
+--   (h : [varStore|a =Γ false p])
+-- :
+--   (Convert.toIdeal (idealT := Bool) varStore a).isSome = Bool.true
+-- := by
+--   have := Convert.isValid_iff_isSome_toIdeal varStore a (idealT := Bool)
+--   rw [this.mp]
+--   have := isValid_iff_exists_eq_eval (x := a) (varStore := varStore)
+--   unfold_projs
+--   grind
 
-@[grind =]
-lemma toIdeal_true_iff_eval_eq_true
-  {varStore : VarStore p}
-  {a : FB p}
-:
-  ([varStore|a] = [varStore|true p]) ↔
-  ((Convert.toIdeal varStore a) = .some Bool.true)
-:= by
-  unfold_projs
-  simp [toBool]
-  obtain _ | x := [varStore|a]
-  <;> grind
+-- @[grind =]
+-- lemma toIdeal_true_iff_eval_eq_true
+--   {varStore : VarStore p}
+--   {a : FB p}
+-- :
+--   ([varStore|a =Γ true p]) ↔
+--   ((Convert.toIdeal varStore a) = .some Bool.true)
+-- := by
+--   unfold_projs
+--   simp [toBool]
+--   obtain _ | x := [varStore|a]
+--   <;> grind
 
-@[grind =]
-lemma toIdeal_false_of_eval_eq_false
-  {varStore : VarStore p}
-  {a : FB p}
-:
-  ([varStore|a] = [varStore|false p]) ↔
-  ((Convert.toIdeal varStore a) = .some Bool.false)
-:= by
-  unfold_projs
-  simp [toBool]
-  obtain _ | x := [varStore|a]
-  <;> grind
+-- @[grind =]
+-- lemma eval_eq_false_iff_toIdeal_eq_false
+--   {varStore : VarStore p}
+--   {a : FB p}
+-- :
+--   ([varStore|a] = [varStore|false p]) ↔
+--   ((Convert.toIdeal varStore a) = .some Bool.false)
+-- := by
+--   unfold_projs
+--   simp [toBool]
+--   obtain _ | x := [varStore|a]
+--   <;> grind
+
+/--
+Just like `@[simp] _root_.Option.bind_eq` says `Bind.bind a b = Option.bind a b`.
+-/
+@[simp, grind =]
+lemma toIdeal_eq {p : ℕ} [p.AtLeastTwo] {varStore : VarStore p} {x : FB p} :
+  (Convert.toIdeal (representsT := FB p) (idealT := Bool)) varStore x =
+  x.toBool varStore := rfl
 
 end FB
 

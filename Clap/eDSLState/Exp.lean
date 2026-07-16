@@ -18,6 +18,23 @@ def FixedExp.eval {p : ℕ} (varStore : VarStore p) (x : FixedExp p) : Option (Z
 
 notation "[" varStore "|" x "]" => FixedExp.eval varStore x
 
+-- /--
+-- I think this should just be notation
+-- -/
+-- def FixedExp.eqΓ {p : ℕ} (varStore : VarStore p) (e₁ e₂ : FixedExp p) : Prop :=
+--   [varStore| e₁] = [varStore | e₂]
+
+-- notation "[" varStore "|" x " =Γ " y "]" => FixedExp.eqΓ varStore x y
+
+/--
+NB:
+  This is a poor man's monad-style thing that doesn't introduce abstraction layers.
+
+  Another option is something that says `x =ΓvarStore y` but that would be too much clutter
+  unless we use the symbol `Γ` consistently instead of `varStore`.
+-/
+notation "[" varStore "|" x " =Γ " y "]" => [varStore|x] = [varStore|y]
+
 instance {p} : Membership (FixedExp p) (VarStore p) := ⟨fun Γ x ↦ [Γ|x].isSome⟩
 
 namespace FixedExp

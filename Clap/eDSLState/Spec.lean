@@ -6,13 +6,8 @@ namespace Clap
 
 abbrev withΓ (p : ℕ) (α ω : Type) := (VarStore p) → α → ω
 
-
 class IsValid (p : ℕ) (α : Type) where
   isValid : withΓ p α Prop
-
-instance (p : ℕ) : IsValid p Unit where
-  isValid _ _ := True
-
 
 class VarStoreSize (p : ℕ) (α : Type) where
   size : ℕ
@@ -22,8 +17,7 @@ instance (p : ℕ) : VarStoreSize p Unit where
   size := 0
   toLinear _ _ := #v[]
 
-
-class Convert (p : ℕ) (representsT idealT : Type) extends IsValid p representsT, VarStoreSize p representsT where
+class Convert (p : ℕ) (representsT idealT : Type) extends IsValid p representsT where
   toIdeal : (VarStore p) → representsT → Option idealT
   toRepresents : idealT → representsT
   isValid_iff_isSome_toIdeal :
@@ -38,16 +32,13 @@ class Convert (p : ℕ) (representsT idealT : Type) extends IsValid p represents
         toIdeal varStore (toRepresents ((toIdeal varStore x).get ((isValid_iff_isSome_toIdeal varStore x).mp h))) =
         toIdeal varStore x
 
-instance (p : ℕ) : Convert p Unit Unit where
-  toIdeal _ _ := .some ()
-  toRepresents _ := ()
-  isValid_iff_isSome_toIdeal _ _ := by
-    unfold_projs
-    grind
+instance {p : ℕ} {α} [VarStoreSize p α] : Convert p α α where
+  isValid := fun _ _ ↦ True
+  toIdeal _ x := .some x
+  toRepresents x := x
+  isValid_iff_isSome_toIdeal _ _ := by grind
   toIdeal_toRepresents _ _ := by grind
   toRepresents_toIdeal _ _ _ := by grind
-
-def varStoreSize (p : ℕ) (α : Type) [φ : VarStoreSize p α] : ℕ := φ.size
 
 @[grind .]
 lemma isValid_iff_isSome_toIdeal_of_convert {p} {α β : Type} [Convert p α β]
@@ -98,10 +89,18 @@ def assertMatchesLast {k} {p}
     letI varStoreIdx := numAlloc - k + i
     varStore[varStoreIdx]? = vec[i]?
 
+/-
+Generalised the `Unit → Unit` `Convert` instance to `α → α`.
+Removed `VarStoreSize` from `Convert`, it doesn't belong in there. Nothing from the class
+needs its axioms, it's only subsequent defs. This furthermore loosens the requirements on
+specs, because now we only need `VarStoreSize` on `funOut`, whereas before, it was also on `specOut`.
+-/
+
 open Convert VarStoreSize Edsl in
 def matchesUnaryMonadFunction (p : ℕ)
   {funIn funOut specIn specOut : Type}
   [Convert p funIn specIn] [Convert p funOut specOut]
+  [VarStoreSize p funOut]
   (spec_function : specIn → specOut)
   (function : funIn → CircuitStateM p funOut)
   (allocatesN : ℕ)
