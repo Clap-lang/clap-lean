@@ -18,14 +18,6 @@ def FixedExp.eval {p : ℕ} (varStore : VarStore p) (x : FixedExp p) : Option (Z
 
 notation "[" varStore "|" x "]" => FixedExp.eval varStore x
 
--- /--
--- I think this should just be notation
--- -/
--- def FixedExp.eqΓ {p : ℕ} (varStore : VarStore p) (e₁ e₂ : FixedExp p) : Prop :=
---   [varStore| e₁] = [varStore | e₂]
-
--- notation "[" varStore "|" x " =Γ " y "]" => FixedExp.eqΓ varStore x y
-
 /--
 NB:
   This is a poor man's monad-style thing that doesn't introduce abstraction layers.
@@ -105,6 +97,30 @@ lemma eval_add
   (do (←eval varStore a) + (←eval varStore b))
 := rfl
 
+@[grind .]
+lemma eval_none_add
+  {p : ℕ}
+  {varStore : VarStore p}
+  {a b : FixedExp p}
+  (h : [varStore|a] = .none)
+:
+  [varStore|Exp.add a b] =
+  .none
+:= by
+  simp [FixedExp.eval, h]
+
+@[grind .]
+lemma eval_add_none
+  {p : ℕ}
+  {varStore : VarStore p}
+  {a b : FixedExp p}
+  (h : [varStore|b] = .none)
+:
+  [varStore|Exp.add a b] =
+  .none
+:= by
+  simp [FixedExp.eval, h]
+
 @[simp, grind =]
 lemma eval_sub
   {p : ℕ}
@@ -115,6 +131,30 @@ lemma eval_sub
   (do (←eval varStore a) - (←eval varStore b))
 := rfl
 
+@[grind .]
+lemma eval_none_sub
+  {p : ℕ}
+  {varStore : VarStore p}
+  {a b : FixedExp p}
+  (h : [varStore|a] = .none)
+:
+  [varStore|Exp.sub a b] =
+  .none
+:= by
+  simp [FixedExp.eval, h]
+
+@[grind .]
+lemma eval_sub_none
+  {p : ℕ}
+  {varStore : VarStore p}
+  {a b : FixedExp p}
+  (h : [varStore|b] = .none)
+:
+  [varStore|Exp.sub a b] =
+  .none
+:= by
+  simp [FixedExp.eval, h]
+
 @[simp, grind =]
 lemma eval_mul
   {p : ℕ}
@@ -124,6 +164,30 @@ lemma eval_mul
   [varStore|Exp.mul a b] =
   (do (←eval varStore a) * (←eval varStore b))
 := rfl
+
+@[grind .]
+lemma eval_none_mul
+  {p : ℕ}
+  {varStore : VarStore p}
+  {a b : FixedExp p}
+  (h : [varStore|a] = .none)
+:
+  [varStore|Exp.mul a b] =
+  .none
+:= by
+  simp [FixedExp.eval, h]
+
+@[grind .]
+lemma eval_mul_none
+  {p : ℕ}
+  {varStore : VarStore p}
+  {a b : FixedExp p}
+  (h : [varStore|b] = .none)
+:
+  [varStore|Exp.mul a b] =
+  .none
+:= by
+  simp [FixedExp.eval, h]
 
 end FixedExp
 

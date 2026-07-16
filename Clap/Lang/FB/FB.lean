@@ -197,7 +197,6 @@ lemma toRepresents_def {x} :
   Convert.toRepresents p (representsT := FB p) (idealT := Bool) x =
   FB.ofBool p x := rfl
 
--- TODO rename
 @[grind .]
 lemma isValid_iff_exists_eq_eval
   {x : FB p} {varStore : VarStore p}
@@ -205,6 +204,36 @@ lemma isValid_iff_exists_eq_eval
   x.isValid varStore ↔ ∃ b, [varStore|x =Γ FB.ofBool p b]
 := by
   simp [isValid, eval_true, eval_false]
+
+omit [p.AtLeastTwo] in
+@[grind ←]
+lemma toBool_eq_none_of_eval_eq_none
+  {x : FB p} {varStore : VarStore p}
+  (h : [varStore|x] = .none)
+:
+  (x.toBool varStore = .none)
+:= by
+  grind [FB.toBool]
+
+@[grind .]
+lemma not_IsValid_of_toBool_eq_none
+  {x : FB p} {varStore : VarStore p}
+  (h : x.toBool varStore = .none)
+:
+  ¬IsValid.isValid varStore x
+:= by
+  unfold_projs
+  grind
+
+@[grind! .]
+lemma IsValid_iff_toBool_isSome
+  {x : FB p} {varStore : VarStore p}
+:
+  (x.toBool varStore).isSome ↔
+  IsValid.isValid varStore x
+:= by
+  unfold_projs
+  grind
 
 -- -- This is breaking the instance abstraction layer
 -- -- and secretly proving something only about the specific

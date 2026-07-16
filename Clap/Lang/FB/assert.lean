@@ -121,10 +121,43 @@ lemma assertMatchesLast_empty
   unfold assertMatchesLast
   grind
 
-set_option allowUnsafeReducibility true
-attribute [local reducible] instVarStoreSizeUnit
+@[simp, grind .]
+lemma assertMatchesLast_toLinear_unit
+  {p : ℕ}
+  [p.AtLeastTwo]
+  {varStore1 varStore2 : VarStore p}
+  {numAlloc : ℕ}
+  {x : Unit}
+:
+  assertMatchesLast
+    varStore1
+    numAlloc
+    (VarStoreSize.toLinear varStore2 x)
+:= by
+  unfold assertMatchesLast
+  grind
 
-set_option pp.all true in
+@[grind .]
+lemma result_IsValid_iff
+  {p : ℕ}
+  [p.AtLeastTwo]
+  {numAlloc : ℕ}
+:
+  unaryFunctionResultIsValidIff p (λ x => (FB.assert (p := p) x).getResult numAlloc)
+:= by
+  unfold unaryFunctionResultIsValidIff assert
+  have (a : FB p) (varStorePre : VarStore p) : IsValid.isValid varStorePre ((eq0 (not a)).run numAlloc).1.1 := by
+    grind
+  grind
+
+@[grind .]
+lemma result_correct
+:
+  unaryFunctionResultIsCorrect p (!·) (FB.not (p := p))
+:= by
+  unfold unaryFunctionResultIsCorrect
+  grind [FB.toRepresents_def]
+
 lemma equiv (p : ℕ) [p.AtLeastTwo] :
   matchesUnaryMonadFunction p
     (spec_function := λ _ => ())

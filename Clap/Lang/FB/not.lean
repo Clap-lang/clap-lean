@@ -37,6 +37,14 @@ lemma not_false
   simp [FB.not, FixedExp.sub_def, eval_false, eval_true]
   obtain _ | x := [varStore|x] <;> grind
 
+@[grind .]
+lemma not_none
+  (h : [varStore|x] = .none)
+:
+  [varStore|x.not] = .none
+:= by
+  grind [FB.not]
+
 lemma not_ofBool {b : Bool} (h: [varStore|x] = [varStore|FB.ofBool p b]) :
   [varStore|x.not] = [varStore|FB.ofBool p !b]
 := by
@@ -61,15 +69,32 @@ namespace not
 
 @[aesop simp, grind .]
 lemma isValid_not_iff :
-  IsValid.isValid varStore (not x) ↔ IsValid.isValid varStore x := by
+  IsValid.isValid varStore (not x) ↔ IsValid.isValid varStore x
+:= by
   unfold not
   refine Iff.intro (fun h ↦ ?p₁) (fun h ↦ ?p₂) <;>
   aesop (add simp [FB.isValid_iff, Option.bind, FixedExp.sub_def])
 
-lemma equiv {p : ℕ} [p.AtLeastTwo] :
+@[grind .]
+lemma result_IsValid_iff
+:
+  unaryFunctionResultIsValidIff p (FB.not (p := p))
+:= by
+  unfold unaryFunctionResultIsValidIff
+  grind
+
+@[grind .]
+lemma result_correct
+:
+  unaryFunctionResultIsCorrect p (!·) (FB.not (p := p))
+:= by
+  unfold unaryFunctionResultIsCorrect
+  grind [FB.toRepresents_def]
+
+@[grind .]
+lemma equiv :
   matchesUnaryFunction p (!·) (FB.not (p := p))
 := by
-  unfold matchesUnaryFunction
   grind
 
 end not

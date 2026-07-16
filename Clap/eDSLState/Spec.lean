@@ -19,6 +19,27 @@ instance instVarStoreSizeUnit {p : ℕ} : VarStoreSize p Unit where
   size := 0
   toLinear _ _ := #v[]
 
+@[grind =]
+lemma instVarStoreSizeUnit_size {p : ℕ}:
+  (@instVarStoreSizeUnit p).size = 0
+:= rfl
+
+@[grind =]
+lemma instVarStoreSizeUnit_size' {p : ℕ}:
+  @VarStoreSize.size p Unit instVarStoreSizeUnit = 0
+:= rfl
+
+-- set_option pp.all true in
+@[grind =]
+lemma instVarStoreSizeUnit_toLinear
+  {p : ℕ}
+  {varStore : VarStore p}
+  {x : Unit}
+:
+  (@instVarStoreSizeUnit p).toLinear varStore x =
+  @Vector.mk _ 0 #[] (by simp)
+:= rfl
+
 class Convert (p : ℕ) (representsT idealT : Type) extends IsValid p representsT where
   toIdeal : (VarStore p) → representsT → Option idealT
   toRepresents : idealT → representsT
@@ -34,7 +55,7 @@ class Convert (p : ℕ) (representsT idealT : Type) extends IsValid p represents
         toIdeal varStore (toRepresents ((toIdeal varStore x).get ((isValid_iff_isSome_toIdeal varStore x).mp h))) =
         toIdeal varStore x
 
-instance {p : ℕ} {α} [VarStoreSize p α] : Convert p α α where
+instance {p : ℕ} : Convert p Unit Unit where
   isValid := fun _ _ ↦ True
   toIdeal _ x := .some x
   toRepresents x := x
@@ -42,32 +63,112 @@ instance {p : ℕ} {α} [VarStoreSize p α] : Convert p α α where
   toIdeal_toRepresents _ _ := by grind
   toRepresents_toIdeal _ _ _ := by grind
 
-@[grind .]
-lemma isValid_iff_isSome_toIdeal_of_convert {p} {α β : Type} [Convert p α β]
-  {varStore : VarStore p} {x : α} (h : IsValid.isValid varStore x) :
-  (Convert.toIdeal (idealT := β) varStore x).isSome := by
+@[simp, grind .]
+lemma isValid_iff_isSome_toIdeal {p} {α β : Type} [Convert p α β]
+  {varStore : VarStore p} {x : α}
+:
+  (Convert.toIdeal (idealT := β) varStore x).isSome ↔
+  IsValid.isValid varStore x
+:= by
   aesop (add safe cases Convert)
 
 @[grind .]
+lemma isValid_of_toIdeal_eq_some {p} {α β : Type} [Convert p α β]
+  {varStore : VarStore p} {x : α} {b : β}
+  (h : (Convert.toIdeal (idealT := β) varStore x) = .some b)
+:
+  IsValid.isValid varStore x
+:= by
+  have := Option.isSome_of_eq_some h
+  grind
+
+@[simp, grind .]
 lemma toIdealtoRepresents_of_convert {p} {α β : Type} [Convert p α β]
-  {varStore : VarStore p} {x : β} :
-  Convert.toIdeal (representsT := α) varStore (Convert.toRepresents p x) = .some x := by
+  {varStore : VarStore p} {x : β}
+:
+  Convert.toIdeal (representsT := α) varStore (Convert.toRepresents p x) = .some x
+:= by
   aesop (add safe cases Convert)
 
-open Convert in
-def matchesUnaryFunction (p : ℕ)
+def unaryFunctionResultIsValidIff (p : ℕ)
+  {funIn funOut : Type}
+  [IsValid p funIn] [IsValid p funOut]
+  (function : funIn → funOut)
+: Prop :=
+  ∀ (a : funIn) (varStorePre : VarStore p),
+    (IsValid.isValid varStorePre a ↔
+    IsValid.isValid varStorePre (function a))
+
+@[grind .]
+lemma unaryFunctionResultIsValidIff_def {p : ℕ}
+  {funIn funOut : Type}
+  [IsValid p funIn] [IsValid p funOut]
+  {function : funIn → funOut}
+  {a : funIn}
+  {varStore : VarStore p}
+  (h : unaryFunctionResultIsValidIff p function)
+:
+  (IsValid.isValid varStore a ↔
+  IsValid.isValid varStore (function a))
+:= h a varStore
+
+def unaryFunctionResultIsCorrect (p : ℕ)
   {funIn funOut specIn specOut : Type}
   [Convert p funIn specIn] [Convert p funOut specOut]
   (spec_function : specIn → specOut)
   (function : funIn → funOut) : Prop :=
   ∀ (a : funIn) (varStorePre : VarStore p),
-    (h : IsValid.isValid varStorePre a) →
-      letI aVal : specIn := toIdeal varStorePre a |>.get ((isValid_iff_isSome_toIdeal _ _).mp h)
-      letI resultVal : Option specOut := toIdeal varStorePre (function a)
-      letI wrapped : funOut := toRepresents p (spec_function aVal)
-      resultVal = toIdeal varStorePre wrapped
+    letI aVal : Option specIn := Convert.toIdeal varStorePre a
+    letI resultVal : Option specOut := Convert.toIdeal varStorePre (function a)
+    letI wrapped : Option funOut := (aVal.map spec_function).map (Convert.toRepresents p)
+    resultVal = wrapped.bind (Convert.toIdeal varStorePre)
 
-open Convert in
+def matchesUnaryFunction (p : ℕ)
+  {funIn funOut specIn specOut : Type}
+  [Convert p funIn specIn] [Convert p funOut specOut]
+  (spec_function : specIn → specOut)
+  (function : funIn → funOut)
+: Prop :=
+  unaryFunctionResultIsValidIff p function ∧
+  unaryFunctionResultIsCorrect p spec_function function
+
+@[grind .]
+lemma matchesUnaryFunction_of_valid_ofs_correct {p : ℕ}
+  {funIn funOut specIn specOut : Type}
+  [Convert p funIn specIn] [Convert p funOut specOut]
+  {spec_function : specIn → specOut}
+  {function : funIn → funOut}
+  (hValid : unaryFunctionResultIsValidIff p function)
+  (hCorrect : unaryFunctionResultIsCorrect p spec_function function)
+:
+  matchesUnaryFunction p spec_function function
+:= by
+  unfold matchesUnaryFunction
+  grind
+
+@[grind →]
+lemma resultIsValidIff_of_matchesUnaryFunction {p : ℕ}
+  {funIn funOut specIn specOut : Type}
+  [Convert p funIn specIn] [Convert p funOut specOut]
+  {spec_function : specIn → specOut}
+  {function : funIn → funOut}
+  (h : matchesUnaryFunction p spec_function function)
+:
+  unaryFunctionResultIsValidIff p function
+:= h.1
+
+@[grind →]
+lemma resultIsCorrect_of_matchesUnaryFunction {p : ℕ}
+  {funIn funOut specIn specOut : Type}
+  [Convert p funIn specIn] [Convert p funOut specOut]
+  {spec_function : specIn → specOut}
+  {function : funIn → funOut}
+  (h : matchesUnaryFunction p spec_function function)
+:
+  unaryFunctionResultIsCorrect p spec_function function
+:= h.2
+
+
 def matchesBinaryFunction (p : ℕ)
   {funIn funOut specIn specOut : Type}
   [Convert p funIn specIn] [Convert p funOut specOut]
@@ -77,12 +178,12 @@ def matchesBinaryFunction (p : ℕ)
     (h₁ : IsValid.isValid varStorePre a) →
     (h₂ : IsValid.isValid varStorePre b) →
       letI aVal : specIn :=
-        toIdeal varStorePre a |>.get ((isValid_iff_isSome_toIdeal _ _).mp h₁)
+        Convert.toIdeal varStorePre a |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp h₁)
       letI bVal : specIn :=
-        toIdeal varStorePre b |>.get ((isValid_iff_isSome_toIdeal _ _).mp h₂)
-      letI resultVal : Option specOut := toIdeal varStorePre (function a b)
-      letI wrapped : funOut := toRepresents p (spec_function aVal bVal)
-      resultVal = toIdeal varStorePre wrapped
+        Convert.toIdeal varStorePre b |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp h₂)
+      letI resultVal : Option specOut := Convert.toIdeal varStorePre (function a b)
+      letI wrapped : funOut := Convert.toRepresents p (spec_function aVal bVal)
+      resultVal = Convert.toIdeal varStorePre wrapped
 
 @[grind .]
 lemma isValid_of_isValid_of_matchesUnaryFunction {p : ℕ}
@@ -97,9 +198,6 @@ lemma isValid_of_isValid_of_matchesUnaryFunction {p : ℕ}
 :
     IsValid.isValid varStore (function a)
 := by
-  unfold matchesUnaryFunction at h_equiv
-  specialize h_equiv a varStore h_isValid
-  apply (inst_out.isValid_iff_isSome_toIdeal varStore (function a)).mpr
   grind
 
 def assertMatchesLast {k} {p}
@@ -108,12 +206,10 @@ def assertMatchesLast {k} {p}
     letI varStoreIdx := numAlloc - k + i
     varStore[varStoreIdx]? = vec[i]?
 
-/-
-Generalised the `Unit → Unit` `Convert` instance to `α → α`.
-Removed `VarStoreSize` from `Convert`, it doesn't belong in there. Nothing from the class
-needs its axioms, it's only subsequent defs. This furthermore loosens the requirements on
-specs, because now we only need `VarStoreSize` on `funOut`, whereas before, it was also on `specOut`.
--/
+instance (p : ℕ) {α} [IsValid p α] : IsValid p (Edsl.CircuitStateM p α) where
+  isValid varStore x := ∀ numAlloc,
+    IsValid.isValid varStore (x.getResult numAlloc) ∧
+    [varStore,numAlloc|(x.getCircuit numAlloc)]ₑ.constraints
 
 open Convert VarStoreSize Edsl in
 def matchesUnaryMonadFunction (p : ℕ)
@@ -123,23 +219,20 @@ def matchesUnaryMonadFunction (p : ℕ)
   (spec_function : specIn → specOut)
   (function : funIn → CircuitStateM p funOut)
   (allocatesN : ℕ)
-  (constraints : specIn → Prop) : Prop :=
+  (constraints : specIn → Prop)
+: Prop :=
+  unaryFunctionResultIsValidIff p function ∧
+  (∀ numAllocPre, unaryFunctionResultIsCorrect p spec_function (λ a => (function a).getResult numAllocPre)) ∧
   ∀ (a : funIn) (varStorePre : VarStore p) (numAllocPre : ℕ),
     (h : IsValid.isValid varStorePre a) →
-      letI aVal : specIn := toIdeal varStorePre a |>.get ((isValid_iff_isSome_toIdeal _ _).mp h)
+      letI aVal : specIn := toIdeal varStorePre a |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp h)
       let ⟨result, circuit⟩ : funOut × CircuitResult p :=
         CircuitStateM.runAndEval (function a) numAllocPre varStorePre
-      let resultIsValid := IsValid.isValid circuit.varStore result
-      letI resultVal : Option specOut := toIdeal circuit.varStore result
-      letI wrapped : funOut := toRepresents p (spec_function aVal)
-      let resultCorrect := resultVal = toIdeal varStorePre wrapped
       let constraintsCorrect := circuit.constraints = (constraints aVal)
       let allocatesCorrect := circuit.numAlloc = numAllocPre + allocatesN
       let frameRule := ∀ n < numAllocPre, circuit.varStore[n]? = varStorePre[n]?
       letI linearRepr := toLinear circuit.varStore result
       let resultInVarStore := assertMatchesLast circuit.varStore circuit.numAlloc linearRepr
-      resultIsValid ∧
-      resultCorrect ∧
       constraintsCorrect ∧
       allocatesCorrect ∧
       frameRule ∧
