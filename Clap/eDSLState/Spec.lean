@@ -74,6 +74,23 @@ def matchesUnaryFunction (p : ℕ)
       letI wrapped : funOut := toRepresents p (spec_function aVal)
       resultVal = toIdeal varStorePre wrapped
 
+open Convert in
+def matchesBinaryFunction (p : ℕ)
+  {funIn funOut specIn specOut : Type}
+  [Convert p funIn specIn] [Convert p funOut specOut]
+  (spec_function : specIn → specIn → specOut)
+  (function : funIn → funIn → funOut) : Prop :=
+  ∀ (a b : funIn) (varStorePre : VarStore p),
+    (h₁ : IsValid.isValid varStorePre a) →
+    (h₂ : IsValid.isValid varStorePre b) →
+      letI aVal : specIn :=
+        toIdeal varStorePre a |>.get ((isValid_iff_isSome_toIdeal _ _).mp h₁)
+      letI bVal : specIn :=
+        toIdeal varStorePre b |>.get ((isValid_iff_isSome_toIdeal _ _).mp h₂)
+      letI resultVal : Option specOut := toIdeal varStorePre (function a b)
+      letI wrapped : funOut := toRepresents p (spec_function aVal bVal)
+      resultVal = toIdeal varStorePre wrapped
+
 @[grind .]
 lemma isValid_of_isValid_of_matchesUnaryFunction {p : ℕ}
   {funIn funOut specIn specOut : Type}
