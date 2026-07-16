@@ -138,11 +138,11 @@ lemma equiv (p : ℕ) [p.AtLeastTwo] :
   := by rfl
   rewrite [this]
   split_ands
-  . grind [not.equiv]
-  . grind [not.equiv]
-  . grind [not.equiv]
-  . grind [not.equiv]
-  . grind [not.equiv]
+  . grind
+  . grind
+  . grind
+  . grind
+  . grind
   . exact assertMatchesLast_empty -- TODO this is marked grind, why won't it use it?
 
 
