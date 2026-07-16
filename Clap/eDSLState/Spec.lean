@@ -13,7 +13,9 @@ class VarStoreSize (p : ℕ) (α : Type) where
   size : ℕ
   toLinear : (VarStore p) → α → Vector (ZMod p) size
 
-instance (p : ℕ) : VarStoreSize p Unit where
+attribute [reducible] VarStoreSize.size
+
+instance instVarStoreSizeUnit {p : ℕ} : VarStoreSize p Unit where
   size := 0
   toLinear _ _ := #v[]
 

@@ -22,8 +22,8 @@ lemma bind_false {α} {varStore : VarStore p} {f : ZMod p → Option α} :
 
 @[grind .]
 lemma not_true:
-  ([varStore|x] = [varStore|FB.true p]) ↔
-  ([varStore|x.not] = [varStore|FB.false p])
+  ([varStore|x =Γ FB.true p]) ↔
+  ([varStore|x.not =Γ FB.false p])
 := by
   simp [FB.not, FixedExp.sub_def, eval_false, eval_true]
   obtain _ | x := [varStore|x] <;> grind
@@ -31,8 +31,8 @@ lemma not_true:
 @[grind .]
 lemma not_false
 :
-  ([varStore|x] = [varStore|FB.false p]) ↔
-  ([varStore|x.not] = [varStore|FB.true p])
+  ([varStore|x =Γ FB.false p]) ↔
+  ([varStore|x.not =Γ FB.true p])
 := by
   simp [FB.not, FixedExp.sub_def, eval_false, eval_true]
   obtain _ | x := [varStore|x] <;> grind

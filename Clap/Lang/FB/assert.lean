@@ -121,7 +121,10 @@ lemma assertMatchesLast_empty
   unfold assertMatchesLast
   grind
 
+set_option allowUnsafeReducibility true
+attribute [local reducible] instVarStoreSizeUnit
 
+set_option pp.all true in
 lemma equiv (p : ℕ) [p.AtLeastTwo] :
   matchesUnaryMonadFunction p
     (spec_function := λ _ => ())
@@ -136,15 +139,7 @@ lemma equiv (p : ℕ) [p.AtLeastTwo] :
       [varStore, numAlloc|a.assert.getCircuit numAlloc]ₑ
     ⟩
   := by rfl
-  rewrite [this]
-  split_ands
-  . grind
-  . grind
-  . grind
-  . grind
-  . grind
-  . exact assertMatchesLast_empty -- TODO this is marked grind, why won't it use it?
-
+  grind
 
 end assert
 
