@@ -1741,11 +1741,57 @@ lemma fpmul_soundness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : Vect
       apply h
       exact p'_rc
 
+lemma range_check_vec_completeness_succ {w k : ℕ} {a : Vector (Exp p (ZMod p)) k} {c_wg : Wg p} {c_cs : Csₑ p} :
+    (∀ (i : Fin k), a[i].eval.val < 2 ^ w) →
+      (wrap (range_check_vec_wg w a c_wg) (range_check_vec_circuit w a c_cs)).eval = (wrap c_wg c_cs).eval := by
+  sorry
+
+lemma range_check_vec_completeness_fail {w k : ℕ} {a : Vector (Exp p (ZMod p)) k} {c_wg : Wg p} {c_cs : Csₑ p} :
+    ¬ (∀ (i : Fin k), a[i].eval.val < 2 ^ w) →
+      (wrap (range_check_vec_wg w a c_wg) (range_check_vec_circuit w a c_cs)).eval = .n := by
+  sorry
+
+-- -- #check Exp.eval
+-- lemma bla {k : ℕ  } {a b : Vector (Expₑ p) k} {ab : Vector (Expₑ p) (2 * k - 1)} {c_wg : Wg p} {c_cs : Csₑ p} :
+--   Exp.eval ∘ ab.get = (fun i : Fin (2 * k - 1) ↦ (toCompPoly (Vector.map Exp.eval a) * toCompPoly (Vector.map Exp.eval b)).coeff i.1) →
+--     List.foldr (fun i => Wg.cons ((toCompPoly (Vector.map Exp.eval a) * toCompPoly (Vector.map Exp.eval b)).coeff ↑i)) c_wg =
+--       sorry := sorry
+
+lemma assert_poly_eq_prod_wrap {k : ℕ} {wg : Wg p} {a b : Vector (Expₑ p) k} {c : Vector (Expₑ p) (2 * k - 1)} {rest : Cs p (ZMod p)} :
+    wrap wg (assert_poly_eq_prod a b c rest) = assert_poly_eq_prod a b c (wrap wg rest) := by
+  unfold FpMul.assert_poly_eq_prod
+  sorry
+  -- induction ls with
+  -- | nil => simp
+  -- | cons l ls ih => simpa [wrap] using ih
+
+#check assert_poly_eq_prod
+
 lemma fpmul_completeness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : Vector (ZMod p) k → Circuit p (ZMod p)}
       (ih : ∀ (a : Vector (ZMod p) k), circuitWF (c a) → (c a).eval = (wrap (c a).toWg (c a).toCs).eval) :
     circuitWF (Circuit.fpmul w k a b p' c) →
       (Circuit.fpmul w k a b p' c).eval = (wrap (Circuit.fpmul w k a b p' c).toWg (Circuit.fpmul w k a b p' c).toCs).eval := by
   intros h
-  sorry
+  unfold Circuit.eval Circuit.toWg Circuit.toCs
+  split_ifs with cond
+  · simp only [fpMul_circuit, fpMul_wg]
+    rw [range_check_vec_completeness_succ cond.1]
+    rw [range_check_vec_completeness_succ cond.2.1]
+    rw [range_check_vec_completeness_succ cond.2.2]
+    rw [← List.foldr_map]
+    rw [foldr_curry (by simp)]
+    rw [← List.foldr_map]
+    rw [assert_poly_eq_prod_wrap]
+    rw [← List.foldr_map]
+    rw [foldr_curry (by simp)]
+
+    -- here
+    sorry
+  · simp only [fpMul_circuit, fpMul_wg]
+    simp only [Fin.getElem_fin, Classical.not_and_iff_not_or_not] at cond
+    rcases cond with cond | cond | cond
+    · rw [range_check_vec_completeness_fail cond]
+    repeat sorry
+
 
 end Clap.FpMul

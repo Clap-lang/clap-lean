@@ -76,7 +76,7 @@ def Circuit.toWg (c : Circuitₑ p) : Wg p :=
   | .num2bits w e c =>
     Num2Bits.num2bits_wg w e (fun ls => (c ls).toWg)
   | .fpmul w k a b p' cont =>
-    FpMul.fpmul_wg w k a b p' (fun i => (cont i).toWg)
+    FpMul.fpMul_wg w k a b p' (fun i => (cont i).toWg)
 
 
 def toWg' (c:Circuit' p) : Wg p := (c (ZMod p)).toWg

@@ -168,7 +168,7 @@ def check_lt_wg' {k : ℕ} (w : ℕ) (isLt : Expₑ p) (t₀ : Vector (Expₑ p)
 def check_lt_wg {k : ℕ} (w : ℕ) (t : Vector (Expₑ p) k) (t' : Vector (Expₑ p) k) (cont : Wg p) : Wg p :=
   check_lt_wg' w 0 t t' cont
 
-def fpmul_wg (w k : ℕ) (a b p' : Vector (Exp p (ZMod p)) k) (cont : Vector (ZMod p) k → Wg p) : Wg p :=
+def fpMul_wg (w k : ℕ) (a b p' : Vector (Exp p (ZMod p)) k) (cont : Vector (ZMod p) k → Wg p) : Wg p :=
   let ab := toCompPoly (a.map (Exp.eval)) * toCompPoly (b.map (Exp.eval))
   range_check_vec_wg w a
     (
