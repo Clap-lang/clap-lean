@@ -51,7 +51,6 @@ def Cs.curry (n : ℕ) (k : Vector var n -> Cs p var) : Cs p var :=
   | 0 => k #v[]
   | n+1 => .lam (fun (x : var) => Cs.curry n (fun l => k ⟨⟨x :: l.toList⟩, by simp⟩ ))
 
-omit inst in
 omit inst' in
 lemma rw_bisim_uncurry : ∀ (w : ℕ) (d : denotation (ZMod p)) (k : Vector (ZMod p) w -> Cs p (ZMod p)),
  (∀ args : Vector (ZMod p) w, Simulation.wrBisim d (k args).eval) ->
