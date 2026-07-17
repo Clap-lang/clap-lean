@@ -22,8 +22,8 @@ lemma assert_bit_e_spec {b : ZMod p} {rest : Cs p (ZMod p)} :
     have : 1 - b = 0 ↔ b = 1 := by
       rw [sub_eq_iff_eq_add, zero_add]
       aesop
-    rw [this]
-  simp only [this]
+    aesop (add simp sub_eq_zero)
+  grind
 
 def assert_bits_e (bs : List var) (rest : Cs p var) : Cs p var :=
   List.foldr assert_bit_e rest bs
@@ -121,6 +121,7 @@ lemma bits2num_val_lt_2_pow_w_of_assert_bits  {args : List (ZMod p)} : assert_bi
     · simp [cond₁]
     · simp [cond₁]
       convert ZMod.val_pow_le
+      rfl
       refine Eq.symm (ZMod.val_ofNat_of_lt inst'.out)
       constructor
       linarith [inst'.out]
@@ -140,7 +141,7 @@ def bits2num_e (bits : List var) : Exp p var :=
 omit inst' in
 lemma bits2num_eq_eval_bits2num_e {bits : List (ZMod p)} : (bits2num_e bits).eval = bits2num bits := by
   unfold bits2num bits2num_e
-  generalize e_eq : Exp.c 0 = e
+  generalize e_eq : Exp.c (p := p) 0 = e
   generalize v_eq : (0 : ZMod p) = v
   have h : v = e.eval := by
     rw [←v_eq, ←e_eq, Exp.eval]
@@ -167,10 +168,9 @@ lemma reduce₂ :
     e.eval = bits2num args -> (Cs.eq0 (bits2num_e args - e) cs).eval = cs.eval := by
   intros args e cs h
   rw (occs := .pos [1]) [Cs.eval]
-  unfold Exp.eval
-  rw [bits2num_spec] at h
-  rw [bits2num_eq_eval_bits2num_e, h, bits2num_spec]
-  simp
+  rw [Exp.eval_sub, bits2num_eq_eval_bits2num_e]
+  rw [bits2num_spec] at h ⊢
+  simp [h]
 
 omit inst' in
 lemma reduce {args : List (ZMod p)} {e : Expₑ p} {cs : Cs p (ZMod p)} :
@@ -201,7 +201,9 @@ lemma fail₂ :
   ∀ {args : List (ZMod p)} {e : Expₑ p} {cs : Cs p (ZMod p)},
     e.eval ≠ (bits2num args) -> (Cs.eq0 (bits2num_e args - e) cs).eval = .n := by
   intros args e cs h
-  unfold Cs.eval Exp.eval
+  
+  unfold Cs.eval
+  rw [Exp.eval_sub]
   rw [bits2num_eq_eval_bits2num_e]
   split_ifs with h'
   · exfalso

@@ -439,7 +439,7 @@ theorem num2bits_congr {w : ℕ} {kl kr : List (ZMod p) -> Circuitₑ p} (he: el
   num2bits w el kl ≈ num2bits w er kr := by
   aesop
 
-@[gcongr]
+@[gcongr only]
 theorem fpmul_congr {w k : ℕ} {al ar bl br pl' pr' : Vector (Expₑ p) k} {contl contr : Vector (ZMod p) k → Circuitₑ p}
     (ha_equiv : ∀ i : Fin _, al[i] ≈ ar[i])
     (hb_equiv : ∀ i : Fin _, bl[i] ≈ br[i])

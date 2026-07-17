@@ -20,7 +20,7 @@ lemma isZero_soundness {e : Exp p (ZMod p)} {c : ZMod p → Circuit p (ZMod p)}
   intro o
   simp [Exp.eval,Circuit.eval,Cs.eval]
   split
-  case h.h.isTrue he0 =>
+  case isTrue he0 =>
     split
     case isTrue hsub =>
       split
@@ -31,7 +31,7 @@ lemma isZero_soundness {e : Exp p (ZMod p)} {c : ZMod p → Circuit p (ZMod p)}
         apply ih _ (h 1)
       case isFalse hmul => constructor
     case isFalse hsub => constructor
-  case h.h.isFalse he0 =>
+  case isFalse he0 =>
     split
     case isTrue hsub =>
       split
