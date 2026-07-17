@@ -97,6 +97,8 @@ lemma equiv :
 := by
   grind
 
+#spec Bool.not (∀ p, (p.AtLeastTwo) → FB.not (p := p))
+
 end not
 
 end

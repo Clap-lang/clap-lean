@@ -209,7 +209,7 @@ def assertMatchesLast {k} {p}
 instance (p : ℕ) {α} [IsValid p α] : IsValid p (Edsl.CircuitStateM p α) where
   isValid varStore x := ∀ numAlloc,
     IsValid.isValid varStore (x.getResult numAlloc) ∧
-    [varStore,numAlloc|(x.getCircuit numAlloc)]ₑ.constraints
+    [varStore,numAlloc|x.getCircuit numAlloc]ₑ.constraints
 
 open Convert VarStoreSize Edsl in
 def matchesUnaryMonadFunction (p : ℕ)
@@ -237,5 +237,19 @@ def matchesUnaryMonadFunction (p : ℕ)
       allocatesCorrect ∧
       frameRule ∧
       resultInVarStore
+
+open Lean Meta Elab Term Command in
+elab "#spec" prime:term spec:ident f:term : command => do
+  let prime ← liftTermElabM (elabTerm prime .none)
+  let inst ← synthInstance (mkAppM ``Nat.AtLeastTwo _))
+
+  let spec ← liftCoreM (realizeGlobalConstNoOverload spec)
+  -- let f ← liftCoreM (realizeGlobalConstNoOverload f)
+  let env ← getEnv
+  let .some spec := env.find? spec | unreachable!
+  -- let .some f := env.find? f | unreachable!
+  logInfo m!"f: { ← liftTermElabM (elabTerm f .none)}"
+  logInfo m!"Spec: {spec.name} : {spec.type}\n" -- Function: {f.name} : {f.type}"
+  logInfo m!""
 
 end Clap
