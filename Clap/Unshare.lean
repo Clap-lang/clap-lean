@@ -72,7 +72,7 @@ namespace TestUnshare
 def a : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.share (.c 1 + .v x) (fun x => Circuit.eq0 (.v x) Circuit.nil))
 def expected_a : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.eq0 (.c 1 + .v x) Circuit.nil)
 
--- #guard s!"{unshareAll' a Nat}" = s!"{expected_a Nat}"
+#guard s!"{unshareAll' a Nat}" = s!"{expected_a Nat}"
 
 end TestUnshare
 

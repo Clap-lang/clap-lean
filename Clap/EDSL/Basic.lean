@@ -1,6 +1,6 @@
 import Mathlib.Control.Monad.Cont
 
-import Clap.Circuit
+import Clap.Compiler.Back.Circuit
 
 namespace Clap.DSL
 

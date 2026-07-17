@@ -44,7 +44,7 @@ lemma isZero_completeness {e : Exp p (ZMod p)} {c : ZMod p → Circuit p (ZMod p
       (h : ∀ (a : ZMod p), circuitWF (c a) → (c a).eval = (wrap (c a).toWg (c a).toCs).eval) :
     circuitWF (Circuit.isZero e c) →
       (Circuit.isZero e c).eval = (wrap (Circuit.isZero e c).toWg (Circuit.isZero e c).toCs).eval := by
-  aesop (add simp [Circuit.eval, Circuit.toCs, Circuit.toWg, IsZero.isZero_circuit, Exp.eval, Cs.eval, wrap])
+  aesop (add simp [Circuit.eval, Circuit.toCs, Circuit.toWg, IsZero.isZero_circuit, IsZero.isZero_wg, Exp.eval, Cs.eval, wrap])
 
 
 end Clap.IsZero
