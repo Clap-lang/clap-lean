@@ -218,6 +218,7 @@ def repr [Repr var] [Index var]
   (l : ℕ) (c : Circuit p var) : Std.Format :=
   letI go (l : ℕ) (k : var → Circuit p var) := repr (l+1) (k (index l)) -- `k ∘ index : ℕ (→ var) → Circuit ..`
   letI gos (w l : ℕ) (k : List var → Circuit p var) := repr (l+w) (k ((List.range w).map index))
+  letI gosv {w : ℕ} (l : ℕ) (k : Vector var w → Circuit p var) := repr (l+w) (k ⟨⟨((List.range w).map index)⟩, by simp⟩)
   match c with
   | .nil => "nil"
   | .lam k => s!"λ{l} {go l k}"
@@ -225,8 +226,7 @@ def repr [Repr var] [Index var]
   | .share e k => s!"share {_root_.repr e} {go l k}"
   | .isZero e k => s!"isZero {_root_.repr e} {go l k}"
   | .num2bits w e k => s!"num2bits {w} {_root_.repr e} {gos w l k}"
-  | .fpmul w k a b p' _ => s!"num2bits {w} {k} {_root_.repr  a} {_root_.repr  b} {_root_.repr  p'}"
-    -- TODO figure out what to do with continuation `cont`.
+  | .fpmul w k a b p' c => s!"num2bits {w} {k} {_root_.repr  a} {_root_.repr  b} {_root_.repr  p'} {gosv l c}"
 
 instance [Repr var] [Index var] : Repr (Circuit p var) where
   reprPrec c _ := c.repr 0
