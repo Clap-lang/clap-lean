@@ -1,4 +1,4 @@
-import Clap.Compilation
+import Clap.Compiler.Back.Compilation
 import Clap.Cfold
 import R1Serialize.R1CS
 

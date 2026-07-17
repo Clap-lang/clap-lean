@@ -1,5 +1,5 @@
-import Clap.Compiler.Basic
-import Clap.Compilation
+import Clap.Compiler.Front.Basic
+import Clap.Compiler.Back.Compilation
 import Clap.Quadratic
 import Clap.Lang
 
