@@ -1833,10 +1833,48 @@ lemma range_check_vec_completeness_fail {w k : ℕ} {a : Vector (Exp p (ZMod p))
       simpa using ih'
     · exact num2bits_wrap_step_fail (ea := a[0]) h0
 
+omit inst' in
 lemma assert_poly_eq_prod_eval_succ {k : ℕ} {a b : Vector (Expₑ p) k} {c : Vector (Expₑ p) (2 * k - 1)} {rest : Cs p (ZMod p)} :
     -- let prod : Vector (Expₑ p) (2 * k - 1) := Vector.ofFn (fun i ↦ (toCompPoly (Vector.map Exp.eval a) * toCompPoly (Vector.map Exp.eval b)).coeff i.1)
     (∀ i, (c.get i).eval = (toCompPoly (Vector.map Exp.eval a) * toCompPoly (Vector.map Exp.eval b)).coeff i.1) →
-      (assert_poly_eq_prod a b c rest).eval = rest.eval := by sorry
+      (assert_poly_eq_prod a b c rest).eval = rest.eval := by
+  intros h_coeff
+  have h_eq : toCompPoly (c.map Exp.eval) =
+              toCompPoly (a.map Exp.eval) * toCompPoly (b.map Exp.eval) := by
+    apply CPolynomial.eq_iff_coeff.mpr
+    intro i
+    rw [coeff_toCompPoly]
+    by_cases h : i < 2 * k - 1
+    · rw [dif_pos h]
+      have hh := h_coeff ⟨i, h⟩
+      simp only [Vector.getElem_map] at hh ⊢
+      exact hh
+    · rw [dif_neg h]
+      push_neg at h
+      symm
+      rw [CPolynomial.coeff_mul]
+      apply Finset.sum_eq_zero
+      intros j hj
+      rw [Finset.mem_range] at hj
+      rw [coeff_toCompPoly, coeff_toCompPoly]
+      by_cases hj_k : j < k
+      · have hij : ¬ (i - j < k) := by omega
+        rw [dif_pos hj_k, dif_neg hij, MulZeroClass.mul_zero]
+      · rw [dif_neg hj_k, MulZeroClass.zero_mul]
+  unfold assert_poly_eq_prod
+  generalize List.range (2 * k - 1) = ls
+  induction ls with
+  | nil => rfl
+  | cons head tail ih =>
+    show (Cs.eq0 _ _).eval = rest.eval
+    rw [show ∀ e c, (Cs.eq0 e c : Csₑ p).eval = if e.eval = 0 then c.eval else .n from fun _ _ ↦ rfl]
+    split_ifs with h_zero
+    · exact ih
+    · exfalso
+      apply h_zero
+      simp only [Exp.eval_sub, Exp.eval_mul, sub_eq_zero]
+      rw [eval_poly_eval_eq, eval_poly_eval_eq, eval_poly_eval_eq, h_eq]
+      rw [eval_toPoly, eval_toPoly, eval_toPoly, toPoly_mul, Polynomial.eval_mul]
 
 omit inst' in
 lemma assert_poly_eq_prod_wrap {k : ℕ} {wg : Wg p} {a b : Vector (Expₑ p) k} {c : Vector (Expₑ p) (2 * k - 1)} {rest : Cs p (ZMod p)} :
@@ -1929,7 +1967,22 @@ lemma fpmul_completeness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : V
     simp only [Fin.getElem_fin, Classical.not_and_iff_not_or_not] at cond
     rcases cond with cond | cond | cond
     · rw [range_check_vec_completeness_fail cond]
-    repeat sorry
+    · by_cases h : ¬∀ (i : Fin k), a[i].eval.val < 2 ^ w
+      · rw [range_check_vec_completeness_fail h]
+      · rw [not_not] at h
+        rw [range_check_vec_completeness_succ h (by simp)]
+        rw [range_check_vec_completeness_fail cond]
+    · by_cases h : ¬∀ (i : Fin k), a[i].eval.val < 2 ^ w
+      · rw [range_check_vec_completeness_fail h]
+      · rw [not_not] at h
+        rw [range_check_vec_completeness_succ h (by simp)]
+        by_cases h' : ¬∀ (i : Fin k), b[i].eval.val < 2 ^ w
+        · rw [range_check_vec_completeness_fail h']
+        · rw [not_not] at h'
+          rw [range_check_vec_completeness_succ h' (by simp)]
+          rw [range_check_vec_completeness_fail cond]
+
+    -- repeat sorry
 
 
 end Clap.FpMul
