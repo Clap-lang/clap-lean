@@ -1792,10 +1792,46 @@ lemma range_check_vec_completeness_succ {w k : ℕ} {a b : Vector (Exp p (ZMod p
                     (fun i ↦ by simpa using h_eq i.succ)
     simpa using ih'
 
+private lemma num2bits_wrap_step_fail
+    {w : ℕ} {ea : Expₑ p} {wg : Wg p} {cs : Csₑ p}
+    (h_fail : ¬ ea.eval.val < 2 ^ w) :
+    (wrap (Num2Bits.num2bits_wg w ea (fun _ ↦ wg))
+          (Num2Bits.num2bits_circuit w ea (fun _ ↦ cs))).eval = .n := by
+  unfold Num2Bits.num2bits_wg Num2Bits.num2bits_circuit
+  rw [foldr_curry num2bitsLsbPure_length]
+  rw [Vector.toList, Num2Bits.assert_bits_e_wrap, wrap_eq0]
+  rw [Num2Bits.reduce₁ Num2Bits.assert_bits_of_num2bits]
+  apply Num2Bits.fail₂
+  intro h
+  apply h_fail
+  rw [h]
+  have := @bits2num_bound p _ _ (num2bitsLsbPure w ea.eval) num2bitsLsbPure_bits
+  rw [num2bitsLsbPure_length] at this
+  exact this
+
 lemma range_check_vec_completeness_fail {w k : ℕ} {a : Vector (Exp p (ZMod p)) k} {c_wg : Wg p} {c_cs : Csₑ p} :
     ¬ (∀ (i : Fin k), a[i].eval.val < 2 ^ w) →
       (wrap (range_check_vec_wg w a c_wg) (range_check_vec_circuit w a c_cs)).eval = .n := by
-  sorry
+  unfold range_check_vec_wg range_check_vec_circuit
+  rw [vector_foldr_eq_finRange_foldr]
+  induction k generalizing c_wg c_cs with
+  | zero =>
+    intro h_fail
+    exfalso
+    exact h_fail (fun i ↦ i.elim0)
+  | succ k ih =>
+    intro h_fail
+    rw [List.finRange_succ]
+    simp only [List.foldr_cons, List.foldr_map]
+    by_cases h0 : a[0].eval.val < 2 ^ w
+    · refine (num2bits_wrap_step (ea := a[0]) (eb := a[0]) h0 rfl).trans ?_
+      have ih' := @ih (Vector.ofFn (fun i : Fin k ↦ a[i.succ])) c_wg c_cs
+                      (fun h_all ↦ h_fail (fun i ↦ by
+                        rcases Fin.eq_zero_or_eq_succ i with rfl | ⟨j, rfl⟩
+                        · exact h0
+                        · simpa using h_all j))
+      simpa using ih'
+    · exact num2bits_wrap_step_fail (ea := a[0]) h0
 
 lemma assert_poly_eq_prod_eval_succ {k : ℕ} {a b : Vector (Expₑ p) k} {c : Vector (Expₑ p) (2 * k - 1)} {rest : Cs p (ZMod p)} :
     -- let prod : Vector (Expₑ p) (2 * k - 1) := Vector.ofFn (fun i ↦ (toCompPoly (Vector.map Exp.eval a) * toCompPoly (Vector.map Exp.eval b)).coeff i.1)
