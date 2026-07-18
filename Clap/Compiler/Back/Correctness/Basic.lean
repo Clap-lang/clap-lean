@@ -244,7 +244,7 @@ open Clap Simulation
 --   rw [add_no_overflow h hf hg]
 --   grind
 
-omit inst inst' in
+omit inst' in
 lemma foldr_eq0_wrBisim {d : denotation (ZMod p)} {rest : Csₑ p}
     {f : ℕ → Expₑ p} {l : List ℕ} :
     ((∀ i ∈ l, (f i).eval = 0) → wrBisim d rest.eval) →
@@ -253,7 +253,7 @@ lemma foldr_eq0_wrBisim {d : denotation (ZMod p)} {rest : Csₑ p}
         split_ifs <;> simp_all;
         exact ih
 
-omit inst inst' in
+omit inst' in
 lemma eq0_wrBisim_cont {d : denotation (ZMod p)} {e : Expₑ p} (cont : Csₑ p) :
   (e.eval = 0 → wrBisim d cont.eval)
     → wrBisim d (Cs.eq0 e cont).eval := by

@@ -36,7 +36,7 @@ lemma num2bits_soundness {w : ℕ} {e : Exp p (ZMod p)} {c : List (ZMod p) → C
     have : (num2bitsLsbPure w (bits2num args.toList)) = args.toList := by
       rw [Num2Bits.assert_bits_spec] at cond₁
       have : args.toArray.toList.length = w := by simp
-      convert num2bitsLsbPure_of_bits2num_eq (by convert inv) cond₁
+      convert num2bitsLsbPure_of_bits2num_eq (by convert inv; grind) cond₁
       exact this.symm
     unfold Vector.toList at this
     erw [cond₂, this]

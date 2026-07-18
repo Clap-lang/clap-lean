@@ -34,7 +34,7 @@ private lemma num2bits_wrBisim_cont
   · simp only [Cs.eval]
     split_ifs with h'
     · apply hbisim
-      unfold Exp.eval at h'
+      rw [Exp.eval_sub] at h'
       rw [sub_eq_zero] at h'
       rw [←h']
       generalize h_eq : args.toList = ls
@@ -97,6 +97,8 @@ lemma eval_poly_eq_sum {n : ℕ} (v : Vector (Expₑ p) n) (x : ZMod p) :
         intro l; induction l <;> simp_all +decide [ Exp.eval ] ;
         ring;
       convert h_expand_eval ( List.finRange n ) using 1
+      aesop
+      aesop
 
 /-! ### Part 2: toCompPoly evaluated equals the expected sum -/
 /-
@@ -321,9 +323,11 @@ lemma eq_check_spec {k : ℕ} {t ab : Vector (Expₑ p) (2*k - 1)} {q r p' : Vec
     · intro i hi
       specialize h' i (List.mem_range.mpr hi)
       -- h' : (eval_poly t i - (eval_poly ab i - (eval_poly p' i * eval_poly q i + eval_poly r i))).eval = 0
-      simp only [Exp.eval, eval_poly_eval_eq] at h'
+      rw [Exp.eval_sub, Exp.eval_sub, Exp.eval_add, Exp.eval_mul] at h'
+      
+      simp only [eval_poly_eval_eq] at h'
       rw [cpoly_eval_sub, cpoly_eval_sub, cpoly_eval_mul]
-      linear_combination h'
+      grind
   · -- foldr structural equality: bridge do-notation list to map then apply foldr_flatMap.
     simp only [List.flatMap, pure, bind]
     rw [← List.flatMap_def, List.foldr_flatMap]
@@ -1006,6 +1010,7 @@ lemma check_carry_spec {k w : ℕ} {t_pol : Vector (ZMod p) (2 * k - 1)} {cont :
   intro _hp hbisim
   apply check_carry_zero_circuit_wrBisim _hp hbisim
 
+set_option maxHeartbeats 400000 in
 /--
   Generalized auxiliary lemma for `check_lt'`. The recursion accumulates the
   `isLt` flag, so the spec is parametrized over the current value of `isLt`.
@@ -1111,7 +1116,7 @@ private lemma check_lt'_wrBisim {k w : ℕ}
         · exact Or.inl ho
         · right
           have he' : r_pol[Fin.last k] - p'[Fin.last k].eval = 0 := by
-            simpa using he
+            aesop
           exact sub_eq_zero.mp he'
       have h_map_ofFn :
           Vector.ofFn (fun i : Fin k ↦ (Vector.map Exp.v r_pol)[i.castSucc]) =
@@ -1150,9 +1155,9 @@ private lemma check_lt'_wrBisim {k w : ℕ}
                 ZMod.val_injective p h_val_eq
               have h_simp : (1 : ZMod p) - inv * (r_pol[Fin.last k] - p'[Fin.last k].eval) - o = 0 := by
                 have := h_iz1
-                simp only [Vector.getElem_map,
-                  Fin.getElem_fin, Fin.val_last, Exp.eval] at this
-                convert this using 2
+                rw [Exp.eval_sub, Exp.eval_sub, Exp.eval_mul, Exp.eval_sub] at this
+                simp [Vector.getElem_map, Fin.getElem_fin, Fin.val_last, Exp.eval] at this
+                simpa
               rw [h_e_eq, sub_self, MulZeroClass.mul_zero, sub_zero] at h_simp
               have h_o_one : o = 1 := (sub_eq_zero.mp h_simp).symm
               rw [ho] at h_o_one
@@ -1357,7 +1362,7 @@ lemma fpmul_soundness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : Vect
         have h1 : (2 : ℕ) ^ (w + 1) ≤ 2 ^ (2 * w + Nat.clog 2 (2 * k - 1) + 4) :=
           Nat.pow_le_pow_right (by norm_num) (by omega)
         omega)
-      (fun i => by simpa using r_rc i)
+      (fun i => by aesop)
       p'_rc
     intros r_lt_p'
     simp
@@ -1417,13 +1422,13 @@ lemma fpmul_soundness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : Vect
         have h_qint_bound : ∀ j, 0 ≤ qint j ∧ qint j < (2 ^ w : ℤ) := fun j => by
           simp only [qint]; split_ifs with hj
           · refine ⟨Int.natCast_nonneg _, ?_⟩
-            have h_nat : q_pol[j].val < 2 ^ w := by simpa using q_rc ⟨j, hj⟩
+            have h_nat : q_pol[j].val < 2 ^ w := by simpa [Exp.eval] using q_rc ⟨j, hj⟩
             exact_mod_cast h_nat
           · exact ⟨le_refl 0, by positivity⟩
         have h_rint_bound : ∀ j, 0 ≤ rint j ∧ rint j < (2 ^ w : ℤ) := fun j => by
           simp only [rint]; split_ifs with hj
           · refine ⟨Int.natCast_nonneg _, ?_⟩
-            have h_nat : r_pol[j].val < 2 ^ w := by simpa using r_rc ⟨j, hj⟩
+            have h_nat : r_pol[j].val < 2 ^ w := by simpa [Exp.eval] using r_rc ⟨j, hj⟩
             exact_mod_cast h_nat
           · exact ⟨le_refl 0, by positivity⟩
         have h_2w_pos : (0 : ℤ) < (2 ^ w : ℤ) := by positivity
@@ -1719,7 +1724,7 @@ lemma fpmul_soundness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : Vect
         omega
       · intro i
         have := r_rc i
-        simpa using this
+        simpa [Exp.eval] using this
     simp at this
     rw [this]
     exact (ih r_pol ∘ fun a => h r_pol) p
