@@ -1,3 +1,5 @@
+import Mathlib.Control.Fold
+
 import Clap.Compiler.Back.Cs
 import Clap.Compiler.Back.Correctness.WF
 import Clap.Compiler.Back.FpMul
@@ -116,3 +118,10 @@ lemma foldr_curry {n : ℕ} {ls : List (ZMod p)} {wg : Wg p} {f : Vector (ZMod p
     simp only [h', List.foldr_cons]
     rw (occs := .pos [1]) [wrap, ih (by aesop)]
     rfl
+
+omit inst' in
+lemma foldr_curry_v {n : ℕ} {ls : Vector (ZMod p) n} {wg : Wg p} {f : Vector (ZMod p) n → Cs p (ZMod p)} :
+    wrap (Vector.foldr (fun b acc => Wg.cons b acc) wg ls) (Cs.curry n f) = wrap wg (f ls) := by
+  obtain ⟨⟨ls⟩, h⟩ := ls
+  simp only [Vector.foldr_mk, ← Array.foldr_toList]
+  exact foldr_curry h

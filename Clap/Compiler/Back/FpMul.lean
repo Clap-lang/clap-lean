@@ -187,18 +187,18 @@ def fpMul_wg (w k : ℕ) (a b p' : Vector (Exp p (ZMod p)) k) (cont : Vector (ZM
               (fun i ↦ Wg.cons (ab.coeff i.1))
               (
                 q_vec.foldr Wg.cons
-                  (range_check_vec_wg w (q_vec.map .v) $
+                  (range_check_vec_wg w (q_vec.map .c) $
                     r_vec.foldr Wg.cons
                       (
-                        range_check_vec_wg w (r_vec.map .v) $
+                        range_check_vec_wg w (r_vec.map .c) $
                         -- -(2 ^ (2*n + 1) * k) < - (2^(2*n)*k + 2^n)  < t[i] < (2 ^ (2 * n) * k)
                         let t := ab - (toCompPoly (p'.map (Exp.eval))) * (toCompPoly q_vec) - (toCompPoly r_vec)
                         List.foldr
                           (fun i ↦ Wg.cons (t.coeff i))
                           (
-                            check_carry_zero_wg w (Vector.ofFn (fun i : Fin (2 * k - 1) ↦ .v (t.coeff i.1)))
+                            check_carry_zero_wg w (Vector.ofFn (fun i : Fin (2 * k - 1) ↦ .c (t.coeff i.1)))
                               (
-                                check_lt_wg w (r_vec.map .v) p'
+                                check_lt_wg w (r_vec.map .c) p'
                                 (cont r_vec)
                               )
                           )

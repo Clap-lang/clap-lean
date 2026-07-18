@@ -6,6 +6,7 @@ import CompPoly.Univariate.ToPoly.Degree
 
 import Clap.Compiler.Back.Compilation
 import Clap.Compiler.Back.Correctness.Basic
+import Clap.Compiler.Back.Correctness.Num2Bits
 import Clap.Compiler.Back.Correctness.WF
 import Clap.Compiler.Back.IsZero
 import Clap.Compiler.Back.Num2Bits
@@ -1741,31 +1742,106 @@ lemma fpmul_soundness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : Vect
       apply h
       exact p'_rc
 
-lemma range_check_vec_completeness_succ {w k : ℕ} {a : Vector (Exp p (ZMod p)) k} {c_wg : Wg p} {c_cs : Csₑ p} :
-    (∀ (i : Fin k), a[i].eval.val < 2 ^ w) →
-      (wrap (range_check_vec_wg w a c_wg) (range_check_vec_circuit w a c_cs)).eval = (wrap c_wg c_cs).eval := by
-  sorry
+omit inst' in
+private lemma wrap_eq0 {wg : Wg p} {e : Expₑ p} {cs : Csₑ p} :
+    wrap wg (Cs.eq0 e cs) = Cs.eq0 e (wrap wg cs) := by
+  cases wg <;> rfl
+
+private lemma num2bits_wrap_step
+    {w : ℕ} {ea eb : Expₑ p} {wg : Wg p} {cs : Csₑ p}
+    (h_range : ea.eval.val < 2 ^ w) (h_eq : ea.eval = eb.eval) :
+    (wrap (Num2Bits.num2bits_wg w ea (fun _ ↦ wg))
+          (Num2Bits.num2bits_circuit w eb (fun _ ↦ cs))).eval
+      = (wrap wg cs).eval := by
+  unfold Num2Bits.num2bits_wg Num2Bits.num2bits_circuit
+  rw [foldr_curry num2bitsLsbPure_length]
+  rw [Vector.toList, Num2Bits.assert_bits_e_wrap, wrap_eq0]
+  rw [Num2Bits.reduce₁ Num2Bits.assert_bits_of_num2bits]
+  apply Num2Bits.reduce₂
+  rw [← h_eq]
+  exact (bits2num_of_num2bitsLsbPure_eq h_range).symm
+
+omit inst inst' in
+private lemma vector_foldr_eq_finRange_foldr {α β : Type*} {n : ℕ}
+    (f : α → β → β) (init : β) (v : Vector α n) :
+    v.foldr f init =
+      List.foldr (fun i acc ↦ f v[i] acc) init (List.finRange n) := by
+  have h : v = Vector.ofFn (fun i ↦ v[i]) := by
+    apply Vector.ext; intros i hi; simp
+  conv_lhs => rw [h]
+  simp only [Vector.foldr, Vector.toArray_ofFn, ← Array.foldr_toList,
+             Array.toList_ofFn, List.ofFn_eq_map, List.foldr_map]
+
+lemma range_check_vec_completeness_succ {w k : ℕ} {a b : Vector (Exp p (ZMod p)) k} {c_wg : Wg p} {c_cs : Csₑ p} :
+    (∀ (i : Fin k), a[i].eval.val < 2 ^ w) → (∀ i : Fin _, a[i].eval = b[i].eval) →
+      (wrap (range_check_vec_wg w a c_wg) (range_check_vec_circuit w b c_cs)).eval = (wrap c_wg c_cs).eval := by
+  unfold range_check_vec_wg range_check_vec_circuit
+  rw [vector_foldr_eq_finRange_foldr]
+  induction k generalizing c_wg c_cs with
+  | zero =>
+    intros _ _
+    simp
+  | succ k ih =>
+    intros h_range h_eq
+    rw [List.finRange_succ]
+    simp only [List.foldr_cons, List.foldr_map]
+    rw [num2bits_wrap_step (h_range 0) (h_eq 0)]
+    have ih' := @ih (Vector.ofFn (fun i : Fin k ↦ a[i.succ]))
+                    (Vector.ofFn (fun i : Fin k ↦ b[i.succ])) c_wg c_cs
+                    (fun i ↦ by simpa using h_range i.succ)
+                    (fun i ↦ by simpa using h_eq i.succ)
+    simpa using ih'
 
 lemma range_check_vec_completeness_fail {w k : ℕ} {a : Vector (Exp p (ZMod p)) k} {c_wg : Wg p} {c_cs : Csₑ p} :
     ¬ (∀ (i : Fin k), a[i].eval.val < 2 ^ w) →
       (wrap (range_check_vec_wg w a c_wg) (range_check_vec_circuit w a c_cs)).eval = .n := by
   sorry
 
--- -- #check Exp.eval
--- lemma bla {k : ℕ  } {a b : Vector (Expₑ p) k} {ab : Vector (Expₑ p) (2 * k - 1)} {c_wg : Wg p} {c_cs : Csₑ p} :
---   Exp.eval ∘ ab.get = (fun i : Fin (2 * k - 1) ↦ (toCompPoly (Vector.map Exp.eval a) * toCompPoly (Vector.map Exp.eval b)).coeff i.1) →
---     List.foldr (fun i => Wg.cons ((toCompPoly (Vector.map Exp.eval a) * toCompPoly (Vector.map Exp.eval b)).coeff ↑i)) c_wg =
---       sorry := sorry
+lemma assert_poly_eq_prod_eval_succ {k : ℕ} {a b : Vector (Expₑ p) k} {c : Vector (Expₑ p) (2 * k - 1)} {rest : Cs p (ZMod p)} :
+    -- let prod : Vector (Expₑ p) (2 * k - 1) := Vector.ofFn (fun i ↦ (toCompPoly (Vector.map Exp.eval a) * toCompPoly (Vector.map Exp.eval b)).coeff i.1)
+    (∀ i, (c.get i).eval = (toCompPoly (Vector.map Exp.eval a) * toCompPoly (Vector.map Exp.eval b)).coeff i.1) →
+      (assert_poly_eq_prod a b c rest).eval = rest.eval := by sorry
 
+omit inst' in
 lemma assert_poly_eq_prod_wrap {k : ℕ} {wg : Wg p} {a b : Vector (Expₑ p) k} {c : Vector (Expₑ p) (2 * k - 1)} {rest : Cs p (ZMod p)} :
     wrap wg (assert_poly_eq_prod a b c rest) = assert_poly_eq_prod a b c (wrap wg rest) := by
   unfold FpMul.assert_poly_eq_prod
-  sorry
-  -- induction ls with
-  -- | nil => simp
-  -- | cons l ls ih => simpa [wrap] using ih
+  generalize List.range (2 * k - 1) = ls
+  induction ls with
+  | nil => simp
+  | cons l ls ih => simpa [wrap] using ih
 
-#check assert_poly_eq_prod
+omit inst' in
+private lemma nat2words_val_lt {w : ℕ} :
+    ∀ (k n i : ℕ) (h : i < k), ((Circuit.nat2words p w k n)[i]'h).val < 2 ^ w := by
+  have hp_pos : 0 < p := (Fact.out (p := Nat.Prime p)).pos
+  haveI : NeZero p := ⟨Nat.pos_iff_ne_zero.mp hp_pos⟩
+  have h2w : 0 < 2 ^ w := pow_pos (by norm_num) _
+  intro k
+  induction k with
+  | zero => intro _ _ h; exact absurd h (Nat.not_lt_zero _)
+  | succ k ih =>
+    intro n i h
+    match i, h with
+    | 0, _ =>
+      have h_zero : (Circuit.nat2words p w (k + 1) n)[0] = ((n % 2 ^ w : ℕ) : ZMod p) :=
+        Lean.Grind.Semiring.ofNat_eq_natCast _
+      rw [h_zero, ZMod.val_natCast]
+      exact Nat.lt_of_le_of_lt (Nat.mod_le _ _) (Nat.mod_lt _ h2w)
+    | j + 1, h =>
+      have h_succ : (Circuit.nat2words p w (k + 1) n)[j + 1]'h =
+          (Circuit.nat2words p w k (n / 2 ^ w))[j]'(by omega) := rfl
+      rw [h_succ]
+      exact ih (n / 2 ^ w) j (by omega)
+
+omit inst' in
+private lemma nat2words_map_c_val_lt {w k : ℕ} (n : ℕ) :
+    ∀ i : Fin k, ((Circuit.nat2words p w k n).map Exp.c)[i].eval.val < 2 ^ w := by
+  intro i
+  rw [show ((Circuit.nat2words p w k n).map Exp.c)[i] =
+        Exp.c ((Circuit.nat2words p w k n)[i.1]'i.2) from
+      by simp [Fin.getElem_fin]]
+  exact nat2words_val_lt k n i.1 i.2
 
 lemma fpmul_completeness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : Vector (ZMod p) k → Circuit p (ZMod p)}
       (ih : ∀ (a : Vector (ZMod p) k), circuitWF (c a) → (c a).eval = (wrap (c a).toWg (c a).toCs).eval) :
@@ -1775,18 +1851,44 @@ lemma fpmul_completeness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : V
   unfold Circuit.eval Circuit.toWg Circuit.toCs
   split_ifs with cond
   · simp only [fpMul_circuit, fpMul_wg]
-    rw [range_check_vec_completeness_succ cond.1]
-    rw [range_check_vec_completeness_succ cond.2.1]
-    rw [range_check_vec_completeness_succ cond.2.2]
+    rw [range_check_vec_completeness_succ cond.1 (by simp)]
+    rw [range_check_vec_completeness_succ cond.2.1 (by simp)]
+    rw [range_check_vec_completeness_succ cond.2.2 (by simp)]
     rw [← List.foldr_map]
     rw [foldr_curry (by simp)]
     rw [← List.foldr_map]
     rw [assert_poly_eq_prod_wrap]
-    rw [← List.foldr_map]
+    rw [foldr_curry_v]
+    rw [assert_poly_eq_prod_eval_succ (fun i ↦ by simp [Vector.get, Exp.eval])]
+    rw [range_check_vec_completeness_succ (nat2words_map_c_val_lt _) (by simp [Exp.eval])]
+    rw [foldr_curry_v]
+    rw [range_check_vec_completeness_succ (nat2words_map_c_val_lt _) (by simp [Exp.eval])]
     rw [foldr_curry (by simp)]
+    simp only [Fin.getElem_fin, Array.getD_eq_getD_getElem?, Vector.map_mk, List.map_toArray,
+      List.map_map, List.pure_def, List.bind_eq_flatMap]
 
-    -- here
-    sorry
+
+
+
+    -- unfold assert_poly_eq_prod
+    -- by_cases cond₁ :
+    --   (∀ (i : Fin k),
+    --   (Vector.map Exp.v
+    --             (Circuit.nat2words p w k
+    --               (((∑ i : Fin _, a[i].eval.val * (2 ^ w) ^ i.1) * ∑ i : Fin _, b[i].eval.val * (2 ^ w) ^ i.1) /
+    --                 ∑ i : Fin _, p'[i].eval.val * (2 ^ w) ^ i.1)))[i].eval.val <
+    --     2 ^ w)
+    -- · have bla c_wg c_cs := @range_check_vec_completeness_succ p _ _ w k
+    --                 (Vector.map Exp.v
+    --                   (Circuit.nat2words p w k
+    --                     (((∑ i : Fin _, a[i].eval.val * (2 ^ w) ^ i.1) * ∑ i : Fin _, b[i].eval.val * (2 ^ w) ^ i.1) /
+    --                       ∑ i : Fin _, p'[i].eval.val * (2 ^ w) ^ i.1))) c_wg c_cs cond₁
+
+
+
+    -- · sorry
+    -- · sorry
+    repeat sorry
   · simp only [fpMul_circuit, fpMul_wg]
     simp only [Fin.getElem_fin, Classical.not_and_iff_not_or_not] at cond
     rcases cond with cond | cond | cond
