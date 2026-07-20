@@ -16,6 +16,16 @@ inductive CircuitusPlanus (p : ℕ) where
 
 abbrev CircuitState (p : ℕ) := List (CircuitusPlanus p)
 
+-- isZero : input → Bool
+-- need to allocate the output of this thing
+-- the input is index 0, the output is index 1 
+-- this becomes 2x eq0 (this needs an auxiliary thing, the inverse or some such)
+-- thus, wire 0 maps to 0 when you go down to cs
+-- 1 maps to 2, and the inverse becomes 1
+-- this 'invalidates' the mapping between input | output (careful)
+-- this shift is statically known (we know that isZero will need an extra thing -
+-- as such, we can already bump by two, if we so desire - thus, we'll keep 1:1 mapping between input|output)
+
 namespace Edsl
 
 structure CircuitResult (p : ℕ) where
