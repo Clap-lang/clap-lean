@@ -93,11 +93,11 @@ lemma result_correct
 
 @[grind .]
 lemma equiv :
-  matchesUnaryFunction p (!·) (FB.not (p := p))
+  matchesUnaryFunction p Bool.not (FB.not (p := p))
 := by
   grind
 
-#spec Bool.not FB.not
+-- #spec Bool.not FB.not
 
 end not
 

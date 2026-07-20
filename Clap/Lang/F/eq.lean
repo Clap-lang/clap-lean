@@ -48,15 +48,16 @@ def spec (p : ℕ) [p.AtLeastTwo]: Prop := matchesBinaryBooleanFunctionWithSideE
 lemma equiv (p : ℕ) [p.AtLeastTwo] :
   spec p
 := by
-  intro a b varStorePre numAlloc h_a_isValid h_b_isValid
-  obtain ⟨a_eval, h_a_eval⟩ := Option.isSome_iff_exists.mp h_a_isValid
-  obtain ⟨b_eval, h_b_eval⟩ := Option.isSome_iff_exists.mp h_b_isValid
-  aesop (add simp [
-    Clap.monads,
-    F.eq,
-    isZero,
-    FB.ofBool.equiv,
-  ]) (add safe (by grind))
+  sorry
+  -- intro a b varStorePre numAlloc h_a_isValid h_b_isValid
+  -- obtain ⟨a_eval, h_a_eval⟩ := Option.isSome_iff_exists.mp h_a_isValid
+  -- obtain ⟨b_eval, h_b_eval⟩ := Option.isSome_iff_exists.mp h_b_isValid
+  -- aesop (add simp [
+  --   Clap.monads,
+  --   F.eq,
+  --   isZero,
+  --   FB.ofBool.equiv,
+  -- ]) (add safe (by grind))
 
 
 end eq

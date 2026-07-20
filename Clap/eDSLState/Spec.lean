@@ -39,7 +39,8 @@ lemma instVarStoreSizeUnit_toLinear
   (@instVarStoreSizeUnit p).toLinear varStore x =
   @Vector.mk _ 0 #[] (by simp)
 := rfl
-
+-- `FB = represetnsT`
+-- `bool = idealT`
 class Convert (p : ℕ) (representsT idealT : Type) extends IsValid p representsT where
   toIdeal : (VarStore p) → representsT → Option idealT
   toRepresents : idealT → representsT
@@ -299,10 +300,6 @@ elab "#spec" spec:ident f:ident : command => liftTermElabM do
   let .some f := env.find? f | unreachable!
 
   let arity := spec.type.getForallArity
-
-  
-
-
 
   logInfo m!"Spec (arity := {arity}) = {spec.name} : {spec.type}\n"
   logInfo m!"Function = {f.name} : {f.type}\n"
