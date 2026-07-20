@@ -430,8 +430,8 @@ lemma foldr_step_varStore_independent_of_constraints
 := by
   rcases circuit with ⟨circuit⟩
   rewrite [←List.reverse_reverse circuit]
-  simp only [List.foldr_reverse]
-  
+  rw [show Array.mk circuit.reverse.reverse = Array.reverse ⟨circuit.reverse⟩ by simp]
+  simp only [Array.foldr_reverse]
   exact foldl_step_varStore_independent_of_constraints
 
 /--
@@ -439,16 +439,16 @@ This exists to appease `grind`.
 -/
 @[grind! .]
 lemma foldr_step_varStore_independent_of_constraints'
-  {circuit : List (CircuitusPlanus p)}
+  {circuit : CircuitState p}
   {σ₁ σ₂ : CircuitResult p}
   (h₁ : σ₁.numAlloc = σ₂.numAlloc)
   (h₂ : σ₁.varStore = σ₂.varStore)
 :
-  (List.foldr (λ x y => step y x) σ₁ circuit).varStore =
-  (List.foldr (λ x y => step y x) σ₂ circuit).varStore
+  (Array.foldr (λ x y => step y x) σ₁ circuit).varStore =
+  (Array.foldr (λ x y => step y x) σ₂ circuit).varStore
 := by
-  rewrite [←List.reverse_reverse circuit]
-  simp only [List.foldr_reverse, ←List.foldl_toArray]
+  rewrite [←Array.reverse_reverse circuit]
+  simp only [Array.foldr_reverse]
   grind [cases CircuitResult]
 
 lemma foldl_step_constraints_and
@@ -460,6 +460,7 @@ lemma foldl_step_constraints_and
     (CircuitState.evalInOrder circuit result.split).constraints
   )
 := by
+  rcases circuit with ⟨circuit⟩
   rewrite [←List.reverse_reverse circuit]
   induction circuit.reverse
   -- TODO This used to be just `induction <;> grind`, now we need lemmas in terms of `GetElem?`
@@ -469,18 +470,23 @@ lemma foldl_step_constraints_and
   next hd tl ih =>
     simp at *
     rcases hd with _ | _ | _ | _ | _
-    · simp
+    · 
+      simp
       unfold GetElem?.getElem?
       unfold instGetElem?FixedExpZModMem
+      rw [Array.foldr_toList, Array.foldr_toList]
       grind [GetElem?.getElem?, instGetElem?FixedExpZModMem]
     · grind
-    · grind
+    · rw [Array.foldr_toList, Array.foldr_toList]
+      grind
     · simp only [step_isZero]
       unfold GetElem?.getElem?
       unfold instGetElem?FixedExpZModMem
+      rw [Array.foldr_toList, Array.foldr_toList]
       grind [GetElem?.getElem?, instGetElem?FixedExpZModMem]
     · simp
       unfold get?
+      rw [Array.foldr_toList, Array.foldr_toList]
       grind
 
 end CircuitResult
@@ -538,7 +544,7 @@ lemma eval_singleton
   {command : CircuitusPlanus p}
   {varStore}
 :
-  [varStore, numAlloc | [command]]ₑ =
+  [varStore, numAlloc | #[command]]ₑ =
   [unconstrained[numAlloc][varStore] | command]ₛ := by
   simp [eval, CircuitResult.step_unconstrained]
 
@@ -549,9 +555,9 @@ lemma eval_cons
   {circuit : CircuitState p}
   {varStore}
 :
-  [varStore, numAlloc | command :: circuit]ₑ =
-  seq [command] circuit varStore numAlloc := by
-  rw [show command :: circuit = [command] ++ circuit from rfl]
+  [varStore, numAlloc | ⟨command :: circuit.toList⟩]ₑ =
+  seq #[command] circuit varStore numAlloc := by
+  rw [show ⟨command :: circuit.toList⟩ = #[command] ++ circuit by simp]
   exact eval_append
 
 section
@@ -560,7 +566,7 @@ variable {numAlloc : ℕ} {varStore : VarStore p} {e: FixedExp p}
 
 @[simp, grind =]
 lemma eval_empty :
-  [varStore, numAlloc | []]ₑ = unconstrained[numAlloc][varStore]
+  [varStore, numAlloc | #[]]ₑ = unconstrained[numAlloc][varStore]
 := by rfl
 
 @[simp, grind =]
@@ -571,27 +577,27 @@ lemma eval_empty_collection :
 
 @[simp, grind =]
 lemma eval_eq0 :
-  [varStore, numAlloc | [.eq0 e]]ₑ =
+  [varStore, numAlloc | #[.eq0 e]]ₑ =
   unconstrained[numAlloc][varStore].step (.eq0 e)
 := by simp [eval, CircuitResult.addConstraint_unconstrained, GetElem?.getElem?]
 
 @[simp, grind =]
 lemma eval_lam :
-  [varStore, numAlloc | [.lam]]ₑ =
+  [varStore, numAlloc | #[.lam]]ₑ =
   unconstrained[numAlloc][varStore].step (.lam)
 := by
   simp [eval]
 
 @[simp, grind =]
 lemma eval_share :
-  [varStore, numAlloc | [.share e]]ₑ =
+  [varStore, numAlloc | #[.share e]]ₑ =
   unconstrained[numAlloc][varStore].step (.share e)
 := by
   simp [eval, CircuitResult.addConstraint_unconstrained, Membership.mem]
 
 @[simp, grind =]
 lemma eval_isZero :
-  [varStore, numAlloc | [.isZero e]]ₑ =
+  [varStore, numAlloc | #[.isZero e]]ₑ =
   unconstrained[numAlloc][varStore].step (.isZero e)
 := by
   simp [eval, CircuitResult.addConstraint_unconstrained, Membership.mem]
@@ -599,21 +605,21 @@ lemma eval_isZero :
 
 @[simp, grind =]
 lemma eval_num2bits {width : ℕ} :
-  [varStore, numAlloc | [.num2bits width e]]ₑ =
+  [varStore, numAlloc | #[.num2bits width e]]ₑ =
   unconstrained[numAlloc][varStore].step (.num2bits width e)
 := by
   simp [eval, CircuitResult.addConstraint_unconstrained, Membership.mem, GetElem?.getElem!]
 
 @[simp, grind =]
 lemma seq_cons_nil {cmd : CircuitusPlanus p} {circuit : CircuitState p} {varStore} {numAlloc} :
-  seq (cmd :: circuit) [] varStore numAlloc =
-  seq [cmd] circuit varStore numAlloc := by
+  seq (⟨cmd :: circuit.toList⟩) #[] varStore numAlloc =
+  seq #[cmd] circuit varStore numAlloc := by
   aesop (add simp seq)
 
 @[simp high, grind =]
 lemma seq_singleton_nil {cmd : CircuitusPlanus p} {varStore} {numAlloc} :
-  seq [cmd] [] varStore numAlloc =
-  [varStore, numAlloc| [cmd]]ₑ := by
+  seq #[cmd] #[] varStore numAlloc =
+  [varStore, numAlloc| #[cmd]]ₑ := by
   simp [seq]
 
 end

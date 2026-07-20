@@ -7,29 +7,29 @@ variable {p : ℕ}
 
 @[irreducible]
 def eq0 (e : FixedExp p) : CircuitStateM p Unit := do
-  tell [.eq0 e]
+  tell #[.eq0 e]
 
 @[irreducible]
 def lam : CircuitStateM p (FixedExp p) := do
-  tell [.lam]
+  tell #[.lam]
   let numAlloc ← CircuitStateM.alloc
   return .v numAlloc
 
 @[irreducible]
 def share (e : FixedExp p) : CircuitStateM p (FixedExp p) := do
-  tell [.share e]
+  tell #[.share e]
   let numAlloc ← CircuitStateM.alloc
   return (.v numAlloc)
 
 @[irreducible]
 def isZero (e : FixedExp p) : CircuitStateM p (FixedExp p) := do
-  tell [.isZero e]
+  tell #[.isZero e]
   let numAlloc ← CircuitStateM.alloc -- (un)just one
   return .v numAlloc
 
 @[irreducible]
 def num2bits (width : ℕ) (e : FixedExp p) : CircuitStateM p (Vector (FixedExp p) width) := do
-  tell [.num2bits width e]
+  tell #[.num2bits width e]
   Vector.ofFnM fun _ ↦ do
     let varIdx ← CircuitStateM.alloc
     return .v varIdx
@@ -79,7 +79,7 @@ abbrev num2bitsSansTellApply (p w numAlloc : ℕ) : ((List (Exp p ℕ) × Circui
     numAlloc
 
 def num2bitsButSane (width : ℕ) (e : FixedExp p) : CircuitStateM p (List (FixedExp p)) := do
-  tell [.num2bits width e]
+  tell #[.num2bits width e]
   num2bitsSansTellApply p width
 
 lemma map_toList_num2bits_eq_num2bitsButSane {w e} :
@@ -96,11 +96,19 @@ section
 
 /-
 Oh my god why are these so hard to write...
+
+Wait why do I have to yoga after I changed to the array...
 -/
 
 @[simp, grind =]
 lemma bind_alloc {α} {numAlloc} {f : ℕ → CircuitStateM p α} :
-  (CircuitStateM.alloc >>= f) numAlloc = f numAlloc (numAlloc + 1) := rfl
+  (CircuitStateM.alloc >>= f) numAlloc = f numAlloc (numAlloc + 1) := by
+  unfold_projs
+  have : (getModify (m := (CircuitStateM p)) (fun x => x + 1) numAlloc).2 = numAlloc + 1 := rfl
+  have : (getModify (m := (CircuitStateM p)) (fun x => x + 1) numAlloc).1.1 = numAlloc := by rfl
+  simp [WriterT.run, CircuitStateM.alloc, WriterT.mk, StateT.bind, Id]
+  simp [StateT.map, Bind.bind, Pure.pure]
+  aesop
 
 @[simp, grind =]
 lemma CircuitStateM.map_apply {α β} {numAlloc} {f : α → β} {action : CircuitStateM p α} :
@@ -124,7 +132,7 @@ lemma num2bitsSansTellApply_fst_fst {w} {numAlloc} :
   induction w generalizing numAlloc <;> aesop (add simp [List.ofFnM_succ, _root_.List.ofFnM_eq_map_map_ofFnM])
 
 lemma num2bitsSansTellApply_fst_snd {w} {numAlloc} :
-  (num2bitsSansTellApply p w numAlloc).1.2 = [] := by
+  (num2bitsSansTellApply p w numAlloc).1.2 = #[] := by
   induction w generalizing numAlloc <;> aesop (add simp List.ofFnM_succ)
 
 lemma num2bitsSansTellApply_snd {w} {numAlloc} :
@@ -165,7 +173,7 @@ variable {e : FixedExp p} {numAlloc : ℕ} {varStore : Std.ExtTreeMap ℕ (ZMod 
 lemma eval_edsl_eq0
 :
   eval ((Edsl.eq0 e).getCircuit numAlloc) varStore numAlloc =
-  eval [CircuitusPlanus.eq0 e] varStore numAlloc
+  eval #[CircuitusPlanus.eq0 e] varStore numAlloc
 := by
   simp [eq0]
 
@@ -173,7 +181,7 @@ lemma eval_edsl_eq0
 lemma eval_edsl_lam
 :
   eval ((Edsl.lam).getCircuit numAlloc) varStore numAlloc =
-  eval [CircuitusPlanus.lam] varStore numAlloc
+  eval #[CircuitusPlanus.lam] varStore numAlloc
 := by
   simp [Edsl.lam]
 
@@ -181,14 +189,14 @@ lemma eval_edsl_lam
 lemma eval_edsl_share
 :
   eval ((Edsl.share e).getCircuit numAlloc) varStore numAlloc =
-  eval [CircuitusPlanus.share e] varStore numAlloc
+  eval #[CircuitusPlanus.share e] varStore numAlloc
 := by
   simp [Edsl.share]
 
 @[simp, grind =]
 lemma eval_edsl_isZero :
   eval ((Edsl.isZero e).getCircuit numAlloc) varStore numAlloc =
-  eval [CircuitusPlanus.isZero e] varStore numAlloc
+  eval #[CircuitusPlanus.isZero e] varStore numAlloc
 := by
   simp [Edsl.isZero]
 
@@ -210,10 +218,10 @@ lemma eval_edsl_isZero :
 
 @[grind ←]
 lemma getCircuit_ofFnM_of_getCircuit_eq_nil {α} (n: ℕ) (f : Fin n → CircuitStateM p α) (numAlloc)
-  (h_no_circuit: ∀ idx numAlloc, (f idx).getCircuit numAlloc = [])
+  (h_no_circuit: ∀ idx numAlloc, (f idx).getCircuit numAlloc = #[])
 :
   (Vector.ofFnM f).getCircuit numAlloc =
-  []
+  #[]
 := by
   induction n generalizing numAlloc with
   | zero => simp [Vector.ofFnM_zero]
@@ -226,7 +234,7 @@ lemma eval_edsl_num2bits
   {width : ℕ}
 :
   eval ((Edsl.num2bits width e).getCircuit numAlloc) varStore numAlloc =
-  eval [CircuitusPlanus.num2bits width e] varStore numAlloc
+  eval #[CircuitusPlanus.num2bits width e] varStore numAlloc
 := by
   simp [Edsl.num2bits, getCircuit_ofFnM_of_getCircuit_eq_nil]
 
@@ -236,16 +244,16 @@ end CircuitState
 
 /--
 info: (((),
-  [Clap.CircuitusPlanus.lam,
-   Clap.CircuitusPlanus.eq0 v0,
-   Clap.CircuitusPlanus.share (1 + 1),
-   Clap.CircuitusPlanus.eq0 1,
-   Clap.CircuitusPlanus.eq0 2,
-   Clap.CircuitusPlanus.eq0 v1,
-   Clap.CircuitusPlanus.eq0 4]),
+  #[Clap.CircuitusPlanus.lam,
+    Clap.CircuitusPlanus.eq0 v0,
+    Clap.CircuitusPlanus.share (1 + 1),
+    Clap.CircuitusPlanus.eq0 1,
+    Clap.CircuitusPlanus.eq0 2,
+    Clap.CircuitusPlanus.eq0 v1,
+    Clap.CircuitusPlanus.eq0 4]),
  2)
 -/
-#guard_msgs in
+#guard_msgs(whitespace := lax) in
 #eval (test).run (p := 57) 0
 
 end Edsl

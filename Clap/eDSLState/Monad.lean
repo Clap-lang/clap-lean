@@ -14,11 +14,11 @@ section Monoid
 
 -- TODO do we really want this instance, or do we create it locally in order to create LawfulMonad manually?
 instance (p : ℕ) : Monoid (CircuitState p) where
-  mul := List.append
-  mul_assoc := List.append_assoc
-  one := []
-  one_mul := List.nil_append
-  mul_one := List.append_nil
+  mul := Array.append
+  mul_assoc a b c := by exact Array.append_assoc
+  one := #[]
+  one_mul := by unfold_projs; simp
+  mul_one := by unfold_projs; simp
 
 @[simp, grind =]
 lemma CircuitState.mul_eq_append {a b: CircuitState p} :
@@ -27,7 +27,7 @@ lemma CircuitState.mul_eq_append {a b: CircuitState p} :
 
 @[simp, grind =]
 lemma CircuitState.one_eq_nil :
-  (1 : CircuitState p) = []
+  (1 : CircuitState p) = #[]
 := rfl
 
 end Monoid
@@ -78,7 +78,7 @@ lemma getResult_alloc (numAlloc : ℕ):
 @[simp, grind=]
 lemma getCircuit_alloc (numAlloc : ℕ):
   (CircuitStateM.alloc (p := p)).getCircuit numAlloc =
-  []
+  #[]
 := rfl
 
 @[simp, grind=]
@@ -121,18 +121,18 @@ lemma getNumAlloc_bind
 := rfl
 
 @[simp, grind =]
-lemma getResult_tell (numAlloc : ℕ) (xs : List (CircuitusPlanus p)):
+lemma getResult_tell (numAlloc : ℕ) (xs : CircuitState p):
   CircuitStateM.getResult (tell xs) numAlloc = ()
 := rfl
 
 @[simp, grind =]
-lemma getCircuit_tell (numAlloc : ℕ) (xs : List (CircuitusPlanus p)):
+lemma getCircuit_tell (numAlloc : ℕ) (xs : CircuitState p):
   CircuitStateM.getCircuit (tell xs) numAlloc =
   xs
 := rfl
 
 @[simp, grind =]
-lemma getNumAlloc_tell (numAlloc : ℕ) (xs : List (CircuitusPlanus p)):
+lemma getNumAlloc_tell (numAlloc : ℕ) (xs : CircuitState p):
   CircuitStateM.getNumAlloc (tell xs) numAlloc =
   numAlloc
 := rfl
@@ -146,7 +146,7 @@ lemma getResult_pure {α} (numAlloc : ℕ) (x : α):
 @[simp, grind=]
 lemma getCircuit_pure {α} (numAlloc : ℕ) (x : α):
   CircuitStateM.getCircuit (p := p) (pure x) numAlloc =
-  []
+  #[]
 := rfl
 
 @[simp, grind=]
@@ -263,13 +263,13 @@ lemma getModify_eq
     (CircuitStateM p)
     (instMonadStateOfMonadStateOf ℕ (CircuitStateM p))
     f
-    numAlloc = ((numAlloc, []), f numAlloc)
+    numAlloc = ((numAlloc, #[]), f numAlloc)
 := rfl
 
 @[simp, grind =]
 lemma alloc_eq :
   CircuitStateM.alloc (p := p) numAlloc =
-  ((numAlloc, []), numAlloc + 1)
+  ((numAlloc, #[]), numAlloc + 1)
 := by
   simp [CircuitStateM.alloc, Clap.monads]
 
@@ -280,8 +280,8 @@ lemma Vector_ofFnM_empty_state
   {a : Fin n → ℕ → α}
   {c : Fin n → ℕ → ℕ}
 :
-  (@Vector.ofFnM (CircuitStateM p) _ n _ (λ x s => ⟨⟨a x s, []⟩, c x s⟩) numAlloc).1.2 =
-  []
+  (@Vector.ofFnM (CircuitStateM p) _ n _ (λ x s => ⟨⟨a x s, #[]⟩, c x s⟩) numAlloc).1.2 =
+  #[]
 := by
   induction n with
   | zero =>
