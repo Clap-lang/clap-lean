@@ -149,13 +149,13 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (Edsl.Lang.F p) n) (initState : Ed
     let s0 := (← sigma state[0]!) + C[(half + 1) * t + r]!
     return mixS r (state.set 0 s0) S) state
 
-  -- -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
-  -- let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
-  --   let l ← state.mapM sigma
-  --   return mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
+  -- Phase 3: second-half full rounds (r = 0 … half−2), mix with M
+  let state ← (List.range (half - 1)).foldlM (fun state r ↦ do
+    let l ← state.mapM sigma
+    return mix (ark l C ((half + 1) * t + nRoundsP + r * t)) M) state
 
-  -- -- Final round: sigma on all, then extract nOuts elements via MixLast
-  -- let state ← state.mapM sigma
+  -- Final round: sigma on all, then extract nOuts elements via MixLast
+  let state ← state.mapM sigma
   return mixLast state M 0
 
 /-- **Poseidon:** Single-output Poseidon hash. Wraps `poseidonEx` with
@@ -178,7 +178,7 @@ def poseidonBN254 {n} (inputs : Vector (Edsl.Lang.F bn254) n) : Clap.Edsl.Circui
   let P := Clap.Poseidon.Constant.P t
   poseidon inputs C S M P
 
--- #eval! (poseidonBN254 #v[1, 2]).getResult 0
+#eval! (poseidonBN254 #v[1, 2]).getResult 0
 
 end Poseidon254
 
