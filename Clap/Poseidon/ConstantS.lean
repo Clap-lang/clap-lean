@@ -1,11 +1,12 @@
 import Clap.Primes
+import Clap.Lang.F.F
 
 namespace Clap.Poseidon.Constant.S
 
 open Primes
 
 @[reducible]
-def S02 : List (ZMod bn254) := [
+def S02 : List (Edsl.Lang.F bn254) := List.map Exp.c [
   0x66f6f85d6f68a85ec10345351a23a3aaf07f38af8c952a7bceca70bd2af7ad5,
   0x1fd20dcb58503896fd52998d6a5be6f12ec33b3cbd590c793e45de825ff8cb5f,
   0x8c8295df0ba11861e97f0cdde8f202a7096c1e6452d33d64a11b5be4e0a1efb,
@@ -177,7 +178,7 @@ def S02 : List (ZMod bn254) := [
 ]
 
 @[reducible]
-def S03 : List (ZMod bn254) := [
+def S03 : List (Edsl.Lang.F bn254) := List.map Exp.c [
   0x109b7f411ba0e4c9b2b70caf5c36a7b194be7c11ad24378bfedb68592ba8118b,
   0x3f0815ab463f1b76ee25a9b8768b3231a89752f427f4f063ab718e707576b31,
   0x15648bf46f60d82954c7e33029b3617357012a3d3b1d34c8e008859f1dbfb317,
@@ -466,7 +467,7 @@ def S03 : List (ZMod bn254) := [
 ]
 
 @[reducible]
-def S04 : List (ZMod bn254) := [
+def S04 : List (Edsl.Lang.F bn254) := List.map Exp.c [
   0x236d13393ef85cc48a351dd786dd7a1de5e39942296127fd87947223ae5108ad,
   0x2ca7b911ea4f6a11da0bd5e72ab3cc621c5908b59ff3d76c609ea9c2fba8fa41,
   0x2de5f3a5bbe5b20d77ba6a6f8ffe2db01ff5000901b9ce0140df133385fd9506,
@@ -862,7 +863,7 @@ def S04 : List (ZMod bn254) := [
 ]
 
 @[reducible]
-def S05 : List (ZMod bn254) := [
+def S05 : List (Edsl.Lang.F bn254) := List.map Exp.c [
   0x251e7fdf99591080080b0af133b9e4369f22e57ace3cd7f64fc6fdbcf38d7da1,
   0x351d582486c39726623750495e297970b0e19787b49173a9388a0d5b08788ab,
   0x10e1a3beae297a472a31a3b51514c664abb12ec2d15860a29d2a9352d3ce8ba,
@@ -1406,7 +1407,7 @@ def S05 : List (ZMod bn254) := [
 ]
 
 @[reducible]
-def S06 : List (ZMod bn254) := [
+def S06 : List (Edsl.Lang.F bn254) := List.map Exp.c [
   0x124666f80561ed5916f2f070b1bd248c6d53f44d273d956a0c87b917692a4d18,
   0x6fac61a13c7139a37697a657fafd9c12611f196b60aab2342eb6e869de7069,
   0x27b4b4ea2ab70bb1a791b43c0571329ee6e44da480d8f0bfed4eb43125bdfdc4,
@@ -2070,7 +2071,7 @@ def S06 : List (ZMod bn254) := [
 ]
 
 @[reducible]
-def S07 : List (ZMod bn254) := [
+def S07 : List (Edsl.Lang.F bn254) := List.map Exp.c [
   0x2abd9e16b7b48289aa19cdfec726fa3fa15cc1625102ae511bca45f39d337e9d,
   0x277ac8a3178a356b9072bb7b469ccd57a0a63dbf08fd0dd7356008d5307bb3e6,
   0x24903bdf5d3968a8e49c6bfafc0e28d539ec1e2756e69301a8e38dab87c6c402,
@@ -2893,7 +2894,7 @@ def S07 : List (ZMod bn254) := [
 ]
 
 @[reducible]
-def S08 : List (ZMod bn254) := [
+def S08 : List (Edsl.Lang.F bn254) := List.map Exp.c [
   0x1aa4d470abeaa2357079129d114bab1170944f929fc178216ad847d4430f3f27,
   0x1aaae08b891f5b2046c0e697f481c70f34b0c71e81cadc7603c7e5d31139d196,
   0x2693bc2b2377f44f7d8c291f332a6bf184d993289445a794fd3f815824c7a4aa,
@@ -3857,7 +3858,7 @@ def S08 : List (ZMod bn254) := [
 ]
 
 @[reducible]
-def S09 : List (ZMod bn254) := [
+def S09 : List (Edsl.Lang.F bn254) := List.map Exp.c [
   0x190f922d97c8a7dcf0a142a3be27749d1c64bc22f1c556aaa24925d158cac56,
   0x152fa675f337216339a9274b97b08d74eba0f31110688589baac5df73d06ba99,
   0xa60560c145b77121171f32dc6d2fa22fb894749d2686475001e0b4563ddf68e,
@@ -4932,7 +4933,7 @@ def S09 : List (ZMod bn254) := [
 ]
 
 @[reducible]
-def S10 : List (ZMod bn254) := [
+def S10 : List (Edsl.Lang.F bn254) := List.map Exp.c [
   0xb1e797eee3f15b88ce3a1fafec88da1d6329ac3c34712db570de886cf569098,
   0x199593eecc85367004177e717d8adae09206aac28506281403748f85ebe9985f,
   0x8dd94e1b09d8b9823fde4d4fc4a3794d631616a2c192a47fe257bfbdbccb7d,
@@ -6076,7 +6077,7 @@ def S10 : List (ZMod bn254) := [
 ]
 
 @[reducible]
-def S11 : List (ZMod bn254) := [
+def S11 : List (Edsl.Lang.F bn254) := List.map Exp.c [
   0x26dba58ade8cda188f49e52fce7167b8f219dbd924d7786b0f98fb799fefa2e,
   0x239bbee0bd0536587314f5429186856d92bf093cb902a7513b11373dbcbf7134,
   0xac0bca8c1a15d53ce77475eaa398fc316f791caa305403407056f9b14f47f64,
@@ -7466,7 +7467,7 @@ def S11 : List (ZMod bn254) := [
 ]
 
 @[reducible]
-def S12 : List (ZMod bn254) := [
+def S12 : List (Edsl.Lang.F bn254) := List.map Exp.c [
   0x2cb13179d6e8a4ad1b9fec37376253cf64386ad905e240575fca86539b272dc6,
   0x2e57ee9089adcc51f2ec7d5fc42821e67fdf0a2f3d1add870823002a1e9ff4a9,
   0x2346c226491dde21f38b9eb1be8c16084774e9dd941895eb362c2bf763050cbe,
@@ -8850,7 +8851,7 @@ def S12 : List (ZMod bn254) := [
 ]
 
 @[reducible]
-def S13 : List (ZMod bn254) := [
+def S13 : List (Edsl.Lang.F bn254) := List.map Exp.c [
   0xd064dee824928d39f2a8be7d2fa583223c33995784d228839adde2559592592,
   0x235ce940dbc6ae2af119016151581b3928bbf5dc663dc5f4b6cbf02305a440a5,
   0x1f41f49e23f371de6ee0539e873506283ef7303dcf1d6171a47311e9fabc25fe,
@@ -10479,7 +10480,7 @@ def S13 : List (ZMod bn254) := [
 ]
 
 @[reducible]
-def S14 : List (ZMod bn254) := [
+def S14 : List (Edsl.Lang.F bn254) := List.map Exp.c [
   0xe30a774c353a2cbf244d3d014d1a0e5ff0bac5e242673ae33f1bb2030feff68,
   0x1578623ddfe303311ac327a432aee9ac8552cf37d7be9b4323c9a792c5776c4,
   0x17536451518c265209c2d9d8512a80f5abe4df372bd9aeb5eebc2b799fb1d978,
@@ -12373,7 +12374,7 @@ def S14 : List (ZMod bn254) := [
 ]
 
 @[reducible]
-def S15 : List (ZMod bn254) := [
+def S15 : List (Edsl.Lang.F bn254) := List.map Exp.c [
   0x4523bf1a8f284c6d95b310dec2b54e0e00e59b571dd9d46b6201c18e1b56dfe,
   0xd4e118218c553f4fd17f1dbb39ba942efd76cd18298bd6b72e1fde271c74372,
   0x1c9814a36ea57e27bd838375e1c1a562dcd2af6a66aad460bfc8afcf3d63ab8b,
@@ -14118,7 +14119,7 @@ def S15 : List (ZMod bn254) := [
 
 set_option maxRecDepth 10000 in
 @[reducible]
-def S16 : List (ZMod bn254) := [
+def S16 : List (Edsl.Lang.F bn254) := List.map Exp.c [
   0x2b6fd7bc3a3b595c206c43daac752b765a12255c37ab51ae183933737a8b8099,
   0x2fb280a1f23df0c4566f310cf31beafdc3e238a7d873fdc50655fe827868e909,
   0x36f175c993f4e409a6275e71558b9e1a0fcd7e4183891a7471ea6f987d6d0f2,
@@ -16107,7 +16108,7 @@ def S16 : List (ZMod bn254) := [
 
 set_option maxRecDepth 10000 in
 @[reducible]
-def S17 : List (ZMod bn254) := [
+def S17 : List (Edsl.Lang.F bn254) := List.map Exp.c [
   0x196b76cefdcc7f6a54c71d40114a0bb82694c936f1573ac7ac1ea3fcce1fe938,
   0x2cbd265ce3e5beccb09bb3189ca08832cd4fe102f39f9ee2bfe851a8038ce383,
   0x1e0217f13e7f212053e2de966a7ad7fbde6a7d47335bb58b2b148ac4ad7b8cc0,

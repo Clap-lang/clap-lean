@@ -14,7 +14,7 @@ inductive CircuitusPlanus (p : ℕ) where
   | num2bits (w : ℕ) (e : FixedExp p)
   deriving Repr
 
-abbrev CircuitState (p : ℕ) := List (CircuitusPlanus p)
+abbrev CircuitState (p : ℕ) := Array (CircuitusPlanus p)
 
 -- isZero : input → Bool
 -- need to allocate the output of this thing
@@ -361,6 +361,8 @@ lemma foldl_step_numAlloc_independent_of_constraints
   (CircuitState.evalInOrder circuit ⟨numAlloc, varStore, constraints1⟩).numAlloc =
   (CircuitState.evalInOrder circuit ⟨numAlloc, varStore, constraints2⟩).numAlloc
 := by
+  rcases circuit with ⟨circuit⟩
+  simp only [List.size_toArray, List.foldl_toArray']
   rewrite [←List.reverse_reverse circuit]
   induction circuit.reverse <;> grind
 
@@ -369,13 +371,15 @@ lemma foldr_step_numAlloc_independent_of_constraints
   {numAlloc : ℕ}
   {varStore : VarStore p}
   {constraints1 constraints2 : Prop}
-  {circuit : List (CircuitusPlanus p)}
+  {circuit : CircuitState p}
 :
-  (List.foldr (λ x y => step y x) ⟨numAlloc, varStore, constraints1⟩ circuit).numAlloc =
-  (List.foldr (λ x y => step y x) ⟨numAlloc, varStore, constraints2⟩ circuit).numAlloc
+  (Array.foldr (λ x y => step y x) ⟨numAlloc, varStore, constraints1⟩ circuit).numAlloc =
+  (Array.foldr (λ x y => step y x) ⟨numAlloc, varStore, constraints2⟩ circuit).numAlloc
 := by
+  rcases circuit with ⟨circuit⟩
   rewrite [←List.reverse_reverse circuit]
-  simp only [List.foldr_reverse]
+  rw [show Array.mk circuit.reverse.reverse = Array.reverse ⟨circuit.reverse⟩ by simp]
+  simp only [Array.foldr_reverse]
   exact foldl_step_numAlloc_independent_of_constraints
 
 lemma foldl_step_varStore_independent_of_constraints
@@ -387,6 +391,7 @@ lemma foldl_step_varStore_independent_of_constraints
   (circuit.foldl step ⟨numAlloc, varStore, constraints1⟩).varStore =
   (circuit.foldl step ⟨numAlloc, varStore, constraints2⟩).varStore
 := by
+  rcases circuit with ⟨circuit⟩
   rewrite [←List.reverse_reverse circuit]
   induction circuit.reverse
   -- TODO This used to be just `induction <;> grind`, now we need lemmas in terms of `GetElem?`
@@ -398,14 +403,19 @@ lemma foldl_step_varStore_independent_of_constraints
     rcases hd with _ | _ | _ | _ | _
     · grind
     · grind
-    · grind
-    · simp only [step_isZero]
+    · rw [Array.foldr_toList, Array.foldr_toList]
+      grind
+    · rw [Array.foldr_toList, Array.foldr_toList]
+      simp only [step_isZero]
       unfold GetElem?.getElem?
       unfold instGetElem?FixedExpZModMem
       grind [GetElem?.getElem?, instGetElem?FixedExpZModMem]
-    · simp
+    · 
+      simp
       unfold GetElem?.getElem!
       unfold instGetElem?FixedExpZModMem
+      simp
+      rw [Array.foldr_toList, Array.foldr_toList]
       grind
 
 @[grind .]
@@ -413,13 +423,15 @@ lemma foldr_step_varStore_independent_of_constraints
   {numAlloc : ℕ}
   {varStore : VarStore p}
   {constraints1 constraints2 : Prop}
-  {circuit : List (CircuitusPlanus p)}
+  {circuit : CircuitState p}
 :
-  (List.foldr (λ x y => step y x) ⟨numAlloc, varStore, constraints1⟩ circuit).varStore =
-  (List.foldr (λ x y => step y x) ⟨numAlloc, varStore, constraints2⟩ circuit).varStore
+  (Array.foldr (λ x y => step y x) ⟨numAlloc, varStore, constraints1⟩ circuit).varStore =
+  (Array.foldr (λ x y => step y x) ⟨numAlloc, varStore, constraints2⟩ circuit).varStore
 := by
+  rcases circuit with ⟨circuit⟩
   rewrite [←List.reverse_reverse circuit]
   simp only [List.foldr_reverse]
+  
   exact foldl_step_varStore_independent_of_constraints
 
 /--
