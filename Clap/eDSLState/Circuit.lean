@@ -145,6 +145,11 @@ lemma get?_unconstrained :
   unconstrained[numAlloc][varStore].get? e =
   [varStore|e] := by simp [unconstrained]
 
+@[simp, grind =]
+lemma getElem?_unconstrained :
+  (unconstrained[numAlloc][varStore] : CircuitResult p)[e]? =
+  [varStore|e] := get?_unconstrained
+
 def assertAllocated (result : CircuitResult p) (e : FixedExp p) : CircuitResult p :=
   result.addConstraint (result.get? e).isSome
 

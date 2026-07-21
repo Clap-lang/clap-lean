@@ -200,6 +200,26 @@ lemma isValid_of_isValid_of_matchesUnaryFunction {p : ℕ}
 := by
   grind
 
+def matchesTernaryFunction (p : ℕ)
+  {funInA funInB funInC funOut specInA specInB specInC specOut : Type}
+  [Convert p funInA specInA] [Convert p funInB specInB] [Convert p funInC specInC]
+  [Convert p funOut specOut]
+  (spec_function : specInA → specInB → specInC → specOut)
+  (function : funInA → funInB → funInC → funOut) : Prop :=
+  ∀ (a : funInA) (b : funInB) (c : funInC) (varStorePre : VarStore p),
+    (ha : IsValid.isValid varStorePre a) →
+    (hb : IsValid.isValid varStorePre b) →
+    (hc : IsValid.isValid varStorePre c) →
+      letI aVal : specInA :=
+        Convert.toIdeal varStorePre a |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp ha)
+      letI bVal : specInB :=
+        Convert.toIdeal varStorePre b |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp hb)
+      letI cVal : specInC :=
+        Convert.toIdeal varStorePre c |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp hc)
+      letI resultVal : Option specOut := Convert.toIdeal varStorePre (function a b c)
+      letI wrapped : funOut := Convert.toRepresents p (spec_function aVal bVal cVal)
+      resultVal = Convert.toIdeal varStorePre wrapped
+
 def assertMatchesLast {k} {p}
   (varStore : VarStore p) (numAlloc : ℕ) (vec : Vector (ZMod p) k) : Prop :=
   ∀ i < k,
@@ -237,5 +257,228 @@ def matchesUnaryMonadFunction (p : ℕ)
       allocatesCorrect ∧
       frameRule ∧
       resultInVarStore
+
+open Convert VarStoreSize Edsl in
+def matchesBinaryMonadFunction (p : ℕ)
+  {funInA funInB funOut specInA specInB specOut : Type}
+  [Convert p funInA specInA] [Convert p funInB specInB] [Convert p funOut specOut]
+  [VarStoreSize p funOut]
+  (spec_function : specInA → specInB → specOut)
+  (function : funInA → funInB → CircuitStateM p funOut)
+  (allocatesN : ℕ)
+  (constraints : specInA → specInB → Prop)
+: Prop :=
+  (∀ (a : funInA) (b : funInB) (varStorePre : VarStore p),
+    (IsValid.isValid varStorePre a ∧ IsValid.isValid varStorePre b) ↔
+    IsValid.isValid varStorePre (function a b)) ∧
+  (∀ (a : funInA) (b : funInB) (numAllocPre : ℕ) (varStorePre : VarStore p),
+    (ha : IsValid.isValid varStorePre a) → (hb : IsValid.isValid varStorePre b) →
+      letI aVal : specInA := toIdeal varStorePre a |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp ha)
+      letI bVal : specInB := toIdeal varStorePre b |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp hb)
+      letI resultVal : Option specOut := toIdeal varStorePre ((function a b).getResult numAllocPre)
+      letI wrapped : Option funOut := (Option.some (spec_function aVal bVal)).map (toRepresents p)
+      resultVal = wrapped.bind (toIdeal varStorePre)) ∧
+  ∀ (a : funInA) (b : funInB) (varStorePre : VarStore p) (numAllocPre : ℕ),
+    (ha : IsValid.isValid varStorePre a) → (hb : IsValid.isValid varStorePre b) →
+      letI aVal : specInA := toIdeal varStorePre a |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp ha)
+      letI bVal : specInB := toIdeal varStorePre b |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp hb)
+      let ⟨result, circuit⟩ : funOut × CircuitResult p :=
+        CircuitStateM.runAndEval (function a b) numAllocPre varStorePre
+      let constraintsCorrect := circuit.constraints = (constraints aVal bVal)
+      let allocatesCorrect := circuit.numAlloc = numAllocPre + allocatesN
+      let frameRule := ∀ n < numAllocPre, circuit.varStore[n]? = varStorePre[n]?
+      letI linearRepr := toLinear circuit.varStore result
+      let resultInVarStore := assertMatchesLast circuit.varStore circuit.numAlloc linearRepr
+      constraintsCorrect ∧
+      allocatesCorrect ∧
+      frameRule ∧
+      resultInVarStore
+
+open Convert VarStoreSize Edsl in
+def matchesTernaryMonadFunction (p : ℕ)
+  {funInA funInB funInC funOut specInA specInB specInC specOut : Type}
+  [Convert p funInA specInA] [Convert p funInB specInB] [Convert p funInC specInC]
+  [Convert p funOut specOut] [VarStoreSize p funOut]
+  (spec_function : specInA → specInB → specInC → specOut)
+  (function : funInA → funInB → funInC → CircuitStateM p funOut)
+  (allocatesN : ℕ)
+  (constraints : specInA → specInB → specInC → Prop)
+: Prop :=
+  (∀ (a : funInA) (b : funInB) (c : funInC) (varStorePre : VarStore p),
+    (IsValid.isValid varStorePre a ∧ IsValid.isValid varStorePre b ∧ IsValid.isValid varStorePre c) ↔
+    IsValid.isValid varStorePre (function a b c)) ∧
+  (∀ (a : funInA) (b : funInB) (c : funInC) (numAllocPre : ℕ) (varStorePre : VarStore p),
+    (ha : IsValid.isValid varStorePre a) → (hb : IsValid.isValid varStorePre b) →
+    (hc : IsValid.isValid varStorePre c) →
+      letI aVal : specInA := toIdeal varStorePre a |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp ha)
+      letI bVal : specInB := toIdeal varStorePre b |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp hb)
+      letI cVal : specInC := toIdeal varStorePre c |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp hc)
+      letI resultVal : Option specOut := toIdeal varStorePre ((function a b c).getResult numAllocPre)
+      letI wrapped : Option funOut := (Option.some (spec_function aVal bVal cVal)).map (toRepresents p)
+      resultVal = wrapped.bind (toIdeal varStorePre)) ∧
+  ∀ (a : funInA) (b : funInB) (c : funInC) (varStorePre : VarStore p) (numAllocPre : ℕ),
+    (ha : IsValid.isValid varStorePre a) → (hb : IsValid.isValid varStorePre b) →
+    (hc : IsValid.isValid varStorePre c) →
+      letI aVal : specInA := toIdeal varStorePre a |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp ha)
+      letI bVal : specInB := toIdeal varStorePre b |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp hb)
+      letI cVal : specInC := toIdeal varStorePre c |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp hc)
+      let ⟨result, circuit⟩ : funOut × CircuitResult p :=
+        CircuitStateM.runAndEval (function a b c) numAllocPre varStorePre
+      let constraintsCorrect := circuit.constraints = (constraints aVal bVal cVal)
+      let allocatesCorrect := circuit.numAlloc = numAllocPre + allocatesN
+      let frameRule := ∀ n < numAllocPre, circuit.varStore[n]? = varStorePre[n]?
+      letI linearRepr := toLinear circuit.varStore result
+      let resultInVarStore := assertMatchesLast circuit.varStore circuit.numAlloc linearRepr
+      constraintsCorrect ∧
+      allocatesCorrect ∧
+      frameRule ∧
+      resultInVarStore
+
+open Convert Edsl in
+def matchesUnaryAssertion (p : ℕ)
+  {funIn specIn : Type}
+  [Convert p funIn specIn]
+  (function : funIn → CircuitStateM p Unit)
+  (allocatesN : ℕ)
+  (constraints : specIn → Prop)
+: Prop :=
+  ∀ (a : funIn) (varStorePre : VarStore p) (numAllocPre : ℕ),
+    (ha : IsValid.isValid varStorePre a) →
+      letI aVal : specIn := toIdeal varStorePre a |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp ha)
+      let ⟨_, circuit⟩ : Unit × CircuitResult p :=
+        CircuitStateM.runAndEval (function a) numAllocPre varStorePre
+      circuit.constraints = (constraints aVal) ∧
+      circuit.numAlloc = numAllocPre + allocatesN ∧
+      (∀ n < numAllocPre, circuit.varStore[n]? = varStorePre[n]?)
+
+open Convert Edsl in
+def matchesBinaryAssertion (p : ℕ)
+  {funInA funInB specInA specInB : Type}
+  [Convert p funInA specInA] [Convert p funInB specInB]
+  (function : funInA → funInB → CircuitStateM p Unit)
+  (allocatesN : ℕ)
+  (constraints : specInA → specInB → Prop)
+: Prop :=
+  ∀ (a : funInA) (b : funInB) (varStorePre : VarStore p) (numAllocPre : ℕ),
+    (ha : IsValid.isValid varStorePre a) → (hb : IsValid.isValid varStorePre b) →
+      letI aVal : specInA := toIdeal varStorePre a |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp ha)
+      letI bVal : specInB := toIdeal varStorePre b |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp hb)
+      let ⟨_, circuit⟩ : Unit × CircuitResult p :=
+        CircuitStateM.runAndEval (function a b) numAllocPre varStorePre
+      circuit.constraints = (constraints aVal bVal) ∧
+      circuit.numAlloc = numAllocPre + allocatesN ∧
+      (∀ n < numAllocPre, circuit.varStore[n]? = varStorePre[n]?)
+
+open Convert Edsl in
+def matchesTernaryAssertion (p : ℕ)
+  {funInA funInB funInC specInA specInB specInC : Type}
+  [Convert p funInA specInA] [Convert p funInB specInB] [Convert p funInC specInC]
+  (function : funInA → funInB → funInC → CircuitStateM p Unit)
+  (allocatesN : ℕ)
+  (constraints : specInA → specInB → specInC → Prop)
+: Prop :=
+  ∀ (a : funInA) (b : funInB) (c : funInC) (varStorePre : VarStore p) (numAllocPre : ℕ),
+    (ha : IsValid.isValid varStorePre a) → (hb : IsValid.isValid varStorePre b) →
+    (hc : IsValid.isValid varStorePre c) →
+      letI aVal : specInA := toIdeal varStorePre a |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp ha)
+      letI bVal : specInB := toIdeal varStorePre b |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp hb)
+      letI cVal : specInC := toIdeal varStorePre c |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp hc)
+      let ⟨_, circuit⟩ : Unit × CircuitResult p :=
+        CircuitStateM.runAndEval (function a b c) numAllocPre varStorePre
+      circuit.constraints = (constraints aVal bVal cVal) ∧
+      circuit.numAlloc = numAllocPre + allocatesN ∧
+      (∀ n < numAllocPre, circuit.varStore[n]? = varStorePre[n]?)
+
+attribute [local grind _=_] Array.toList_mapM Vector.toArray_mapM
+attribute [local grind =] Vector.map_id_fun Vector.map_id ZMod.val_natCast
+attribute [local grind .] Vector.mem_toArray_iff
+
+@[grind _=_]
+lemma Vector_isSome_mapM_eq_all_isSome
+  {elemT resultT} {length} {f : elemT → Option resultT} {xs : Vector elemT length} :
+  (Vector.mapM f xs).isSome = (xs.map f).all Option.isSome := by
+  have :
+    (Vector.mapM f xs).isSome =
+    (Vector.toArray <$> (Vector.mapM f xs)).isSome := by grind
+  rewrite [this]; clear this
+  simp
+  rewrite [Array.mapM_eq_mapM_toList]
+  have : xs.toArray.toList = xs.toList := rfl
+  rewrite [this]; clear this
+  have :
+    (xs.all λ a => (f a).isSome) =
+    xs.toList.all fun a => (f a).isSome := by
+    rw [←Vector.all_toList]
+  rewrite [this]; clear this
+  induction xs.toList with
+  | nil => simp
+  | cons head tail h_tail =>
+    simp
+    cases (f head) with
+    | none => simp
+    | some head =>
+      rewrite [←h_tail]
+      simp
+      cases (List.mapM f tail) with
+      | none => grind
+      | some rest => grind
+
+@[grind .]
+lemma List_isSome_mapM_of_isSome
+  {T T'} {list : List T} {f : T → Option T'} (h : ∀ x ∈ list, (f x).isSome) :
+  (List.mapM f list).isSome := by
+  induction list with
+  | nil => simp
+  | cons head tail h_tail =>
+    have h_head := h head (by simp)
+    obtain ⟨head, h_head⟩ := Option.isSome_iff_exists.mp h_head
+    simp [h_head]
+    simp_all
+    obtain ⟨tail, h_tail⟩ := Option.isSome_iff_exists.mp h_tail
+    simp [h_tail]
+
+instance instVarStoreSizeVector {p} {representsT length} [VarStoreSize p representsT] :
+  VarStoreSize p (Vector representsT length) where
+  size := length * VarStoreSize.size p representsT
+  toLinear varStore xs := xs.flatMap (VarStoreSize.toLinear varStore)
+
+instance {p} {representsT idealT length} [base : Convert p representsT idealT] :
+  Convert p (Vector representsT length) (Vector idealT length) where
+  isValid varStore xs := ∀ x ∈ xs, base.isValid varStore x
+  toIdeal varStore xs :=
+    (xs.map (base.toIdeal varStore)).mapM id
+  toRepresents xs :=
+    xs.map base.toRepresents
+  isValid_iff_isSome_toIdeal varStore xs := by
+    unfold_projs
+    rw [Vector_isSome_mapM_eq_all_isSome, Vector.map_id, ← Vector.all_toList, Vector.toList_map,
+      List.all_eq_true]
+    constructor
+    · intro h y hy
+      simp only [List.mem_map] at hy
+      obtain ⟨x, hx, rfl⟩ := hy
+      exact (Convert.isValid_iff_isSome_toIdeal varStore x).mp
+        (h x (Vector.mem_toList_iff.mp hx))
+    · intro h x hx
+      apply (Convert.isValid_iff_isSome_toIdeal varStore x).mpr
+      have := h (base.toIdeal varStore x) (List.mem_map_of_mem (Vector.mem_toList_iff.mpr hx))
+      grind
+  toIdeal_toRepresents varStore xs := by
+    simp only [Vector.map_map, Function.comp_def, Convert.toIdeal_toRepresents]
+    simpa using Vector.mapM_pure (m := Option) (xs := xs) id
+  toRepresents_toIdeal varStore xs h := by
+    have hSome : ((xs.map (base.toIdeal varStore)).mapM id).isSome := by
+      unfold_projs at h
+      rw [Vector_isSome_mapM_eq_all_isSome, Vector.map_id, ← Vector.all_toList, Vector.toList_map,
+        List.all_eq_true]
+      intro y hy
+      simp only [List.mem_map] at hy
+      obtain ⟨x, hx, rfl⟩ := hy
+      exact (Convert.isValid_iff_isSome_toIdeal varStore x).mp
+        (h x (Vector.mem_toList_iff.mp hx))
+    obtain ⟨yv, hyv⟩ := Option.isSome_iff_exists.mp hSome
+    simp only [hyv, Option.get_some]
+    simp only [Vector.map_map, Function.comp_def, Convert.toIdeal_toRepresents]
+    simpa using Vector.mapM_pure (m := Option) (xs := yv) id
 
 end Clap

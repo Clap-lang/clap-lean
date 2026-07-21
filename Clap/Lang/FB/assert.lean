@@ -137,7 +137,6 @@ lemma assertMatchesLast_toLinear_unit
   unfold assertMatchesLast
   grind
 
-@[grind .]
 lemma result_IsValid_iff
   {p : ℕ}
   [p.AtLeastTwo]
@@ -145,13 +144,16 @@ lemma result_IsValid_iff
 :
   unaryFunctionResultIsValidIff p (λ x => (FB.assert (p := p) x).getResult numAlloc)
 := by
-  unfold unaryFunctionResultIsValidIff assert
-  have (a : FB p) (varStorePre : VarStore p) : IsValid.isValid varStorePre ((eq0 (not a)).run numAlloc).1.1 := by
-    grind
-  grind
+  -- Pre-existing, uncompiled before this change: `getResult` always returns
+  -- `Unit`, so the RHS of the iff is trivially `True`, making this claim
+  -- "every `FB p` expression is valid" — false in general. Left unproved
+  -- rather than inventing a new statement for unrelated pre-existing content.
+  sorry
 
 @[grind .]
 lemma result_correct
+  {p : ℕ}
+  [p.AtLeastTwo]
 :
   unaryFunctionResultIsCorrect p (!·) (FB.not (p := p))
 := by
@@ -165,14 +167,13 @@ lemma equiv (p : ℕ) [p.AtLeastTwo] :
     (allocatesN := 0)
     (constraints := λ input => input = Bool.true)
 := by
-  intro a varStore numAlloc h_isValid
-  have : (a.assert.runAndEval numAlloc varStore) =
-    ⟨
-      (a.assert.getResult numAlloc),
-      [varStore, numAlloc|a.assert.getCircuit numAlloc]ₑ
-    ⟩
-  := by rfl
-  grind
+  -- The first conjunct (`unaryFunctionResultIsValidIff p assert`) asks for
+  -- `IsValid.isValid varStore a ↔ IsValid.isValid varStore (assert a)`, but the
+  -- RHS folds in `assert`'s constraint (`a = true`), which is strictly stronger
+  -- than `a`'s own well-formedness (`a = true ∨ a = false`) — false when `a =
+  -- false p`. This predates this change (pre-existing, uncompiled); leaving
+  -- unproved rather than inventing a new predicate shape for assertions.
+  sorry
 
 end assert
 

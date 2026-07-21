@@ -173,6 +173,14 @@ lemma getCircuit_map {α β} (f : α → β) (numAlloc : ℕ) (cmd : CircuitStat
   (cmd.getCircuit) numAlloc
 := rfl
 
+@[simp, grind =]
+lemma runAndEval_eq
+  {p : ℕ} {α : Type} (cmd : CircuitStateM p α) (numAlloc : ℕ) (varStore : VarStore p)
+:
+  cmd.runAndEval numAlloc varStore =
+  ⟨cmd.getResult numAlloc, [varStore, numAlloc|cmd.getCircuit numAlloc]ₑ⟩
+:= rfl
+
 end Getters
 
 def wellFormed

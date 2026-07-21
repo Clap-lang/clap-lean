@@ -121,6 +121,19 @@ lemma eval_add_none
 := by
   simp [FixedExp.eval, h]
 
+lemma eval_add_some
+  {p : ℕ}
+  {varStore : VarStore p}
+  {a b : FixedExp p}
+  {x y : ZMod p}
+  (ha : [varStore|a] = .some x)
+  (hb : [varStore|b] = .some y)
+:
+  [varStore|a + b] =
+  .some (x + y)
+:= by
+  simp [add_def, eval_add, ha, hb]
+
 @[simp, grind =]
 lemma eval_sub
   {p : ℕ}
@@ -155,6 +168,19 @@ lemma eval_sub_none
 := by
   simp [FixedExp.eval, h]
 
+lemma eval_sub_some
+  {p : ℕ}
+  {varStore : VarStore p}
+  {a b : FixedExp p}
+  {x y : ZMod p}
+  (ha : [varStore|a] = .some x)
+  (hb : [varStore|b] = .some y)
+:
+  [varStore|a - b] =
+  .some (x - y)
+:= by
+  simp [sub_def, eval_sub, ha, hb]
+
 @[simp, grind =]
 lemma eval_mul
   {p : ℕ}
@@ -188,6 +214,19 @@ lemma eval_mul_none
   .none
 := by
   simp [FixedExp.eval, h]
+
+lemma eval_mul_some
+  {p : ℕ}
+  {varStore : VarStore p}
+  {a b : FixedExp p}
+  {x y : ZMod p}
+  (ha : [varStore|a] = .some x)
+  (hb : [varStore|b] = .some y)
+:
+  [varStore|a * b] =
+  .some (x * y)
+:= by
+  simp [mul_def, eval_mul, ha, hb]
 
 end FixedExp
 

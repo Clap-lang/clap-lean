@@ -8,9 +8,19 @@ def assert_eq {p : ℕ} [Fact (p ≥ 2)] (a b : F p) : Edsl.CircuitStateM p Unit
 namespace assert_eq
 
 def spec (p : ℕ) [Fact (p ≥ 2)] : Prop :=
-  matchesBinaryPredicatePure p (fun a b ↦ Unit) assert_eq (constraints := fun a b : ZMod p ↦ a = b)
+  matchesBinaryAssertion p assert_eq (allocatesN := 0)
+    (constraints := fun a b : ZMod p ↦ a = b)
 
-lemma equiv (p : ℕ) [Fact (p ≥ 2)] : spec p := by sorry
+lemma equiv (p : ℕ) [Fact (p ≥ 2)] : spec p := by
+  intro a b varStore numAlloc ha hb
+  obtain ⟨av, hav⟩ := Option.isSome_iff_exists.mp ha
+  obtain ⟨bv, hbv⟩ := Option.isSome_iff_exists.mp hb
+  rw [CircuitStateM.runAndEval_eq]
+  unfold assert_eq
+  refine ⟨?_, ?_, ?_⟩
+  · grind [FixedExp.eval_sub_some hav hbv, sub_eq_zero]
+  · grind
+  · intro n h_n; grind
 
 end assert_eq
 
