@@ -220,7 +220,7 @@ lemma constraints_alloc {vars : Vector (ZMod p) k} :
   (result.alloc vars).constraints = result.constraints := rfl
 
 def step (result : CircuitResult p) (next : CircuitusPlanus p) : CircuitResult p :=
-  dbg_trace s!"running: {repr next}"
+  -- dbg_trace s!"running: {repr next}"
   match next with
   | .eq0 e => result.addConstraint (result.get? e = .some 0)
   | .lam => result.allocAnonymous

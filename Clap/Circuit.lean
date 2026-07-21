@@ -29,13 +29,16 @@ import Mathlib.FieldTheory.Finite.Basic -- field operations
 
 namespace Clap
 
+instance {p} : Hashable (ZMod p) where
+  hash x := UInt64.ofNat x.val
+
 inductive Exp (p : ℕ) (var : Type) where
   | v   (_ : var)
   | c   (_ : ZMod p)
   | add (_ _ : Exp p var)
   | mul (_ _ : Exp p var)
   | sub (_ _ : Exp p var)
-  deriving DecidableEq
+  deriving DecidableEq, Hashable
 
 abbrev Expₑ (p : Nat) := Exp p (ZMod p)
 

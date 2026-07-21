@@ -128,7 +128,7 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (Edsl.Lang.F p) n) (initState : Ed
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := 1 + n
   let nRoundsF : ℕ := 8
-  let nRoundsP : ℕ := 8 -- N_ROUNDS_P[t - 2]!
+  let nRoundsP : ℕ := N_ROUNDS_P[t - 2]!
   let half : ℕ := nRoundsF / 2
 
   let state : Vector (Edsl.Lang.F p) t := Vector.append #v[initState] inputs
@@ -190,10 +190,10 @@ abbrev p := Primes.bn254
 
 open Clap Lang Poseidon
 
--- TODO(ok, how did I break these)
+-- TODO(ok, why slow)
 -- -- circomlib test vector: hash([1, 2]) with t=3
 -- -- https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L50
--- example : (poseidonBN254 #v[1, 2]).getResult 0 =
+-- example : ((poseidonBN254 #v[1, 2]).runAndEval 0 ∅).1 =
 --   7853200120776062878684798364095072458815029376092732009249414926327459813530
 --   := by native_decide
 
