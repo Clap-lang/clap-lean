@@ -43,6 +43,16 @@ namespace Exp
 
 variable {p : ℕ} {var : Type} {n : ℕ}
 
+-- instance [Repr var] : Repr (Exp p var) where
+--   reprPrec expr _ := go expr
+--   where go (e : Exp p var) : Std.Format :=
+--     match e with
+--     | .v s => s!"v{repr s}"
+--     | .c n => s!"{repr n}"
+--     | .add e1 e2 => s!"({go e1} + {go e2})"
+--     | .mul e1 e2 => s!"({go e1} * {go e2})"
+--     | .sub e1 e2 => s!"({go e1} - {go e2})"
+
 instance [Repr var] : Repr (Exp p var) where
   reprPrec expr _ := go expr
   where go (e : Exp p var) : Std.Format :=

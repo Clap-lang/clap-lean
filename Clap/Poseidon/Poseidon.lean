@@ -128,7 +128,7 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (Edsl.Lang.F p) n) (initState : Ed
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
   let t : ℕ := 1 + n
   let nRoundsF : ℕ := 8
-  let nRoundsP : ℕ := N_ROUNDS_P[t - 2]!
+  let nRoundsP : ℕ := 8 -- N_ROUNDS_P[t - 2]!
   let half : ℕ := nRoundsF / 2
 
   let state : Vector (Edsl.Lang.F p) t := Vector.append #v[initState] inputs
@@ -178,7 +178,7 @@ def poseidonBN254 {n} (inputs : Vector (Edsl.Lang.F bn254) n) : Clap.Edsl.Circui
   let P := Clap.Poseidon.Constant.P t
   poseidon inputs C S M P
 
-#eval! (poseidonBN254 #v[1, 2]).getResult 0
+-- #eval! (poseidonBN254 #v[1, 2]).getResult 0
 
 end Poseidon254
 

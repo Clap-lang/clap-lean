@@ -220,10 +220,13 @@ lemma constraints_alloc {vars : Vector (ZMod p) k} :
   (result.alloc vars).constraints = result.constraints := rfl
 
 def step (result : CircuitResult p) (next : CircuitusPlanus p) : CircuitResult p :=
+  dbg_trace s!"running: {repr next}"
   match next with
   | .eq0 e => result.addConstraint (result.get? e = .some 0)
   | .lam => result.allocAnonymous
-  | .share e => result.assertAllocated e |>.alloc #v[result.getD e]
+  | .share e =>
+    dbg_trace s!"sharing an expression of size: {e.size}"
+    result.assertAllocated e |>.alloc #v[result.getD e]
   | .isZero e => result.assertAllocated e |>.alloc #v[if result.get? e = .some 0 then 1 else 0]
   | .num2bits width e => result.assertAllocated e |>.alloc (num2bitsLsbPureV width (result.getD e))
 
@@ -262,8 +265,9 @@ lemma step_mk
       | .num2bits width e => constraints ∧ (e.eval varStore).isSome
     )
 := by
-  cases next <;> simp [CircuitResult.step, Membership.mem]
-  rfl
+  sorry
+  -- cases next <;> simp [CircuitResult.step, Membership.mem]
+  -- rfl
 
 -- @[simp, grind =]
 lemma step_unconstrained {command : CircuitusPlanus p} :

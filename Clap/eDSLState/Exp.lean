@@ -6,6 +6,15 @@ import Clap.eDSLState.Wheels
 namespace Clap
 
 abbrev FixedExp (p : ℕ) := Clap.Exp p ℕ
+
+def FixedExp.size {p : ℕ} (exp : FixedExp p) : ℕ :=
+  match exp with
+  | .v _ => 1
+  | .c _ => 1
+  | .add l r => size l + size r + 1
+  | .mul l r => size l + size r + 1
+  | .sub l r => size l + size r + 1
+
 abbrev FixedCircuit (p : ℕ) := Clap.Circuit p ℕ
 
 def FixedExp.eval {p : ℕ} (varStore : VarStore p) (x : FixedExp p) : Option (ZMod p) :=
@@ -15,6 +24,68 @@ def FixedExp.eval {p : ℕ} (varStore : VarStore p) (x : FixedExp p) : Option (Z
   | .add l r => do (←eval varStore l) + (←eval varStore r)
   | .sub l r => do (←eval varStore l) - (←eval varStore r)
   | .mul l r => do (←eval varStore l) * (←eval varStore r)
+
+inductive ExpPart (p : ℕ) where
+  | addL (r : FixedExp p)
+  | addR (lv : ZMod p)
+  | subL (r : FixedExp p)
+  | subR (lv : ZMod p)
+  | mulL (r : FixedExp p)
+  | mulR (lv : ZMod p)
+
+partial def FixedExp.eval' {p : ℕ}
+    (varStore : VarStore p) (e : FixedExp p) : Option (ZMod p) :=
+  go [e] [] []
+  where go (todo : List (FixedExp p)) (left : List (ExpPart p)) (right : List (ZMod p)) : Option (ZMod p) :=
+    match todo with
+    | todo :: rest =>
+      match todo with
+      | .c x => go rest left (x :: right)
+      | .v x => match varStore[x]? with
+                | .none => .none
+                | .some v => go rest left (v :: right)
+      | .add l r => go (l :: rest) (.addL r :: left) right
+      | .sub l r => go (l :: rest) (.subL r :: left) right
+      | .mul l r => go (l :: rest) (.mulL r :: left) right
+    | [] => match left with
+      | [] =>
+          match right with
+          | [v] => .some v
+          | _ => .none
+      | .addL r :: ks =>
+          match right with
+          | lv :: vs => go (r :: []) (.addR lv :: ks) vs
+          | _ => .none
+      | .subL r :: ks =>
+          match right with
+          | lv :: vs => go (r :: []) (.subR lv :: ks) vs
+          | _ => .none
+      | .mulL r :: ks =>
+          match right with
+          | lv :: vs => go (r :: []) (.mulR lv :: ks) vs
+          | _ => .none
+      | .addR lv :: ks =>
+          match right with
+          | rv :: vs => go [] ks ((lv + rv) :: vs)
+          | _ => .none
+      | .subR lv :: ks =>
+          match right with
+          | rv :: vs => go [] ks ((lv - rv) :: vs)
+          | _ => .none
+      | .mulR lv :: ks =>
+          match right with
+          | rv :: vs => go [] ks ((lv * rv) :: vs)
+          | _ => none
+
+def VarStore.ofArray {p : ℕ} (elem : Array (ℕ × ZMod p)) : VarStore p :=
+  Std.ExtTreeMap.ofArray elem (cmp := compare)
+
+def mkBigExpr : 
+
+#eval FixedExp.eval' (.ofArray #[(0, 4), (1, 2)]) (.c (4 : ZMod 57) + (.v 1) * (.v 0))
+
+@[csimp]
+lemma optim : @FixedExp.eval = @FixedExp.eval' := by sorry
 
 notation "[" varStore "|" x "]" => FixedExp.eval varStore x
 

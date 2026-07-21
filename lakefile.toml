@@ -10,8 +10,9 @@ leanOptions = [
 ]
 
 [[lean_exe]]
-name = "Milestone"
-root = "Clap.Milestone"
+name = "Poseidon"
+root = "Clap.Poseidon.Run"
+main = "main"
 
 [[lean_lib]]
 name = "R1Serialize"

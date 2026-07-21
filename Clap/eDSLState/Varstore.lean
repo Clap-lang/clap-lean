@@ -4,7 +4,7 @@ import Std.Data.ExtTreeMap
 namespace Clap
 
 def VarStore (p : ℕ) := Std.ExtTreeMap ℕ (ZMod p) (cmp := compare)
-deriving Inhabited
+deriving Inhabited, Repr
 
 instance {p : ℕ} : EmptyCollection (VarStore p) := inferInstanceAs (EmptyCollection (Std.ExtTreeMap ℕ (ZMod p)))
 
