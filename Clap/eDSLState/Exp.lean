@@ -33,10 +33,8 @@ def FixedExp.eval' {p : ℕ} (varStore : VarStore p) (x : FixedExp p) : Option (
     let cache ← get
     if h : cache.contains x
     then 
-      dbg_trace s!"cache hit: {repr x} [{repr cache[x]}]"
       return cache[x]
     else
-      dbg_trace s!"cache miss: {repr x}"
       match x with
       | .c val =>
         let res := val
@@ -59,10 +57,8 @@ def FixedExp.eval' {p : ℕ} (varStore : VarStore p) (x : FixedExp p) : Option (
         modify fun σ ↦ σ.insert r r'
         return (·-·) <$> l' <*> r'
       | .mul l r => do
-        dbg_trace s!"(*) ←"
         let l' ← go varStore l
         modify fun σ ↦ σ.insert l l'
-        dbg_trace s!"(*) →"
         let r' ← go varStore r
         modify fun σ ↦ σ.insert r r'
         return (·*·) <$> l' <*> r'
@@ -149,8 +145,8 @@ def mkSigmaExpr (n : ℕ) : FixedExp 2188824287183927522224640574525727508869631
 set_option profiler true
 #eval FixedExp.eval (.ofArray #[(0, 4), (1, 2)]) (.c (4 : ZMod 57) + (.v 1) * (.v 0))
 #eval FixedExp.eval (.ofArray #[(0, 2), (1, 2)]) mkBigExpr
-#eval FixedExp.eval (.ofArray #[(0, 2), (1, 2)]) (mkSigmaExpr 8)
-#eval FixedExp.eval' (.ofArray #[(0, 2), (1, 2)]) (mkSigmaExpr 2)
+#eval FixedExp.eval (.ofArray #[(0, 2), (1, 2)]) (mkSigmaExpr 5)
+#eval FixedExp.eval' (.ofArray #[(0, 2), (1, 2)]) (mkSigmaExpr 5)
 -- #eval FixedExp.eval' (.ofArray #[(0, 2), (1, 2)]) mkBigExpr
 -- #eval FixedExp.eval' (.ofArray #[(0, 2), (1, 2)]) mkBigExpr
 -- #eval FixedExp.eval' (.ofArray #[(0, 2), (1, 2)]) mkBigExpr
