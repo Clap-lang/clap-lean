@@ -2,16 +2,16 @@ import Clap.Lang.F.F
 
 namespace Clap.Edsl.Lang.F
 
-def assert_eq {p : ℕ} [Fact (p ≥ 2)] (a b : F p) : Edsl.CircuitStateM p Unit := do
+def assert_eq {p : ℕ} [p.AtLeastTwo] (a b : F p) : Edsl.CircuitStateM p Unit := do
   Edsl.eq0 (a - b)
 
 namespace assert_eq
 
-def spec (p : ℕ) [Fact (p ≥ 2)] : Prop :=
+def spec (p : ℕ) [p.AtLeastTwo] : Prop :=
   matchesBinaryAssertion p assert_eq (allocatesN := 0)
     (constraints := fun a b : ZMod p ↦ a = b)
 
-lemma equiv (p : ℕ) [Fact (p ≥ 2)] : spec p := by
+lemma equiv (p : ℕ) [p.AtLeastTwo] : spec p := by
   intro a b varStore numAlloc ha hb
   obtain ⟨av, hav⟩ := Option.isSome_iff_exists.mp ha
   obtain ⟨bv, hbv⟩ := Option.isSome_iff_exists.mp hb

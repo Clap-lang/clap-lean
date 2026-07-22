@@ -131,6 +131,22 @@ lemma num2bitsSansTellApply_snd {w} {numAlloc} :
   (num2bitsSansTellApply p w numAlloc).2 = numAlloc + w := by
   induction w generalizing numAlloc <;> aesop (add simp List.ofFnM_succ) (add safe (by grind))
 
+/-- Sequential `alloc`-then-`Vector.ofFnM` numbers its fresh variables `numAlloc, numAlloc+1, ...,
+    numAlloc+width-1` in order — i.e. the `i`-th slot of `num2bits`'s symbolic result is exactly
+    the variable reference `.v (numAlloc+i)`. -/
+lemma getResult_num2bits_getElem? {width numAlloc i : ℕ} {e : FixedExp p} (hi : i < width) :
+  ((Edsl.num2bits width e).getResult numAlloc)[i]? = some (Exp.v (p := p) (numAlloc + i)) := by
+  have htoList : Vector.toList ((Edsl.num2bits width e).getResult numAlloc)
+      = (List.range' numAlloc width).map (Exp.v (p := p)) := by
+    have h := congrArg (fun act => CircuitStateM.getResult act numAlloc)
+      (map_toList_num2bits_eq_num2bitsButSane (w := width) (e := e))
+    simp only [CircuitStateM.getResult_map] at h
+    unfold num2bitsButSane at h
+    simp only [CircuitStateM.getResult_bind, CircuitStateM.getNumAlloc_tell] at h
+    exact h.trans num2bitsSansTellApply_fst_fst
+  rw [← Vector.getElem?_toList, htoList, List.getElem?_map, List.getElem?_range' hi]
+  simp
+
 @[simp]
 lemma getNumAlloc_bind_tell {f : Unit → CircuitStateM p (List (FixedExp p))} {l} :
   (tell l >>= f).getNumAlloc = CircuitStateM.getNumAlloc (f ()) := rfl
