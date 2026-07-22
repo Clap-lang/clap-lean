@@ -11,6 +11,7 @@ def timeMs {α} (k : IO α) : IO (α × Float) := do
 def main : IO Unit := do
   let s ← IO.monoNanosNow
   let ((res, σ), n) ← pure (Clap.Poseidon.poseidonBN254 #v[1, 2] |>.run 0)
+  IO.println s!"{repr σ}"
   let e ← IO.monoNanosNow
   let s' ← IO.monoNanosNow
   let eval ← pure (Clap.Edsl.CircuitState.eval σ ∅ 0)

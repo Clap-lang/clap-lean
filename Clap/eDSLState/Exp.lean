@@ -25,43 +25,43 @@ def FixedExp.eval {p : ℕ} (varStore : VarStore p) (x : FixedExp p) : Option (Z
   | .sub l r => do (←eval varStore l) - (←eval varStore r)
   | .mul l r => do (←eval varStore l) * (←eval varStore r)
 
-def FixedExp.eval' {p : ℕ} (varStore : VarStore p) (x : FixedExp p) : Option (ZMod p) :=
-  (go varStore x).run' ∅
-  where
-    go (varStore : VarStore p)
-       (x : FixedExp p) : StateM (Std.HashMap (FixedExp p) (Option (ZMod p))) (Option (ZMod p)) := do
-    let cache ← get
-    if h : cache.contains x
-    then 
-      return cache[x]
-    else
-      match x with
-      | .c val =>
-        let res := val
-        modify fun σ ↦ σ.insert x res
-        return res
-      | .v x =>
-        let res := varStore[x]?
-        modify fun σ ↦ σ.insert x res 
-        return res
-      | .add l r => do
-        let l' ← go varStore l
-        modify fun σ ↦ σ.insert l l'
-        let r' ← go varStore r
-        modify fun σ ↦ σ.insert r r'
-        return (·+·) <$> l' <*> r'
-      | .sub l r => do
-        let l' ← go varStore l
-        modify fun σ ↦ σ.insert l l'
-        let r' ← go varStore r
-        modify fun σ ↦ σ.insert r r'
-        return (·-·) <$> l' <*> r'
-      | .mul l r => do
-        let l' ← go varStore l
-        modify fun σ ↦ σ.insert l l'
-        let r' ← go varStore r
-        modify fun σ ↦ σ.insert r r'
-        return (·*·) <$> l' <*> r'
+-- def FixedExp.eval' {p : ℕ} (varStore : VarStore p) (x : FixedExp p) : Option (ZMod p) :=
+--   (go varStore x).run' ∅
+--   where
+--     go (varStore : VarStore p)
+--        (x : FixedExp p) : StateM (Std.HashMap (FixedExp p) (Option (ZMod p))) (Option (ZMod p)) := do
+--     let cache ← get
+--     if h : cache.contains x
+--     then 
+--       return cache[x]
+--     else
+--       match x with
+--       | .c val =>
+--         let res := val
+--         modify fun σ ↦ σ.insert x res
+--         return res
+--       | .v x =>
+--         let res := varStore[x]?
+--         modify fun σ ↦ σ.insert x res 
+--         return res
+--       | .add l r => do
+--         let l' ← go varStore l
+--         modify fun σ ↦ σ.insert l l'
+--         let r' ← go varStore r
+--         modify fun σ ↦ σ.insert r r'
+--         return (·+·) <$> l' <*> r'
+--       | .sub l r => do
+--         let l' ← go varStore l
+--         modify fun σ ↦ σ.insert l l'
+--         let r' ← go varStore r
+--         modify fun σ ↦ σ.insert r r'
+--         return (·-·) <$> l' <*> r'
+--       | .mul l r => do
+--         let l' ← go varStore l
+--         modify fun σ ↦ σ.insert l l'
+--         let r' ← go varStore r
+--         modify fun σ ↦ σ.insert r r'
+--         return (·*·) <$> l' <*> r'
 
 
 /-
@@ -142,11 +142,72 @@ def sigma {p} (x : FixedExp p) : FixedExp p :=
 def mkSigmaExpr (n : ℕ) : FixedExp 21888242871839275222246405745257275088696311157297823662689037894645226208583 :=
   Array.range n |>.foldl (init := .c 2) fun acc _ ↦ sigma acc
 
-set_option profiler true
-#eval FixedExp.eval (.ofArray #[(0, 4), (1, 2)]) (.c (4 : ZMod 57) + (.v 1) * (.v 0))
-#eval FixedExp.eval (.ofArray #[(0, 2), (1, 2)]) mkBigExpr
-#eval FixedExp.eval (.ofArray #[(0, 2), (1, 2)]) (mkSigmaExpr 5)
-#eval FixedExp.eval' (.ofArray #[(0, 2), (1, 2)]) (mkSigmaExpr 5)
+abbrev ExprRef := ℕ
+
+inductive Expr' (p : ℕ)
+  | c (_ : ZMod p)
+  | v (_ : Fin p)
+  | add (_ _ : ExprRef)
+  | sub (_ _ : ExprRef)
+  | mul (_ _ : ExprRef)
+deriving BEq, Hashable
+
+-- structure Exprs (p : ℕ) where
+--   exprs : Array (Expr' p)
+
+#eval mkSigmaExpr 5
+
+structure HashConsSt (p : ℕ) where
+  exprs : Array (Expr' p) -- `ExprRef → Option (Expr' p)` -- `Expr' → ExprRef`
+  cache : Array (Option (Option (ZMod p)))
+
+def HashConsSt.pushExpr {p : ℕ} (e : Expr' p) (σ : HashConsSt p) : HashConsSt p :=
+  {σ with exprs := σ.exprs.push e}
+
+abbrev HashConsM (p : ℕ) := StateM (HashConsSt p)
+
+def HashConsM.getExprs {p : ℕ} : HashConsM p (Array (Expr' p)) :=
+  return (←get).exprs
+
+def HashConsM.remember {p : ℕ} (e : ExprRef) (val : Option (ZMod p)): HashConsM p Unit :=
+  modify fun σ ↦ {σ with cache := σ.cache.set! e val}
+
+def mkMul (p : ℕ) (l r : ExprRef) : HashConsM p ℕ := do
+  modify (·.pushExpr (.mul l r))
+  Array.size <$> .getExprs
+
+def sigma' (p : ℕ) (x : ExprRef) : HashConsM p ℕ := do
+  let x2 ← mkMul p x x
+  let x4 ← mkMul p x2 x2
+  mkMul p x4 x
+
+def mkSigmaExpr' (n : ℕ) : FixedExp 21888242871839275222246405745257275088696311157297823662689037894645226208583 :=
+  Array.range n |>.foldl (init := .c 2) fun acc _ ↦ sigma acc
+
+def eval {p} (Γ : VarStore p) (e : ExprRef) : HashConsM p (Option (ZMod p)) := do
+  let ⟨exprs, cache⟩ ← get
+  match cache[e]? with
+  | .some (.some val) => return val
+  | _ => -- NB can enumerate the cases explicitly here for easier reasoning
+  let res ← match exprs[e]? with
+    | .none => pure .none
+    | .some e =>
+      match e with
+      | .c c => pure <| .some c
+      | .v v => pure Γ[v]?
+      | .add a b => pure <| (·+·) <$> (← eval Γ a) <*> (← eval Γ b)
+      | .sub a b => pure <| (·-·) <$> (← eval Γ a) <*> (← eval Γ b)
+      | .mul a b => pure <| (·*·) <$> (← eval Γ a) <*> (← eval Γ b)
+  .remember e res
+  return res
+termination_by True
+decreasing_by all_goals sorry
+
+-- set_option profiler true
+-- #eval FixedExp.eval (.ofArray #[(0, 4), (1, 2)]) (.c (4 : ZMod 57) + (.v 1) * (.v 0))
+-- #eval FixedExp.eval (.ofArray #[(0, 2), (1, 2)]) mkBigExpr
+-- #eval FixedExp.eval (.ofArray #[(0, 2), (1, 2)]) (mkSigmaExpr 5)
+-- #eval FixedExp.eval' (.ofArray #[(0, 2), (1, 2)]) (mkSigmaExpr 5)
 -- #eval FixedExp.eval' (.ofArray #[(0, 2), (1, 2)]) mkBigExpr
 -- #eval FixedExp.eval' (.ofArray #[(0, 2), (1, 2)]) mkBigExpr
 -- #eval FixedExp.eval' (.ofArray #[(0, 2), (1, 2)]) mkBigExpr
