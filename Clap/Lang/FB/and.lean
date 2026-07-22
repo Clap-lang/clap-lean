@@ -22,9 +22,8 @@ lemma and_false (x_valid : x.isValid varStore) (y_valid : y.isValid varStore) :
 
 @[grind .]
 lemma and_true :
-  ([varStore|x] = [varStore|FB.true p]) ∧ ([varStore|y] = [varStore|FB.true p])
-  ↔
-  (x.isValid varStore ∧ y.isValid varStore ∧ [varStore|x.and y] = [varStore|FB.true p])
+  [varStore|x] = [varStore|FB.true p] ∧ [varStore|y] = [varStore|FB.true p] ↔
+  x.isValid varStore ∧ y.isValid varStore ∧ [varStore|x.and y] = [varStore|FB.true p]
 := by
   simp [FB.and, FixedExp.mul_def, eval_true]
   rcases _ : [varStore|y] <;> rcases _ : [varStore|x] <;> grind

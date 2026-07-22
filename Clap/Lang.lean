@@ -298,13 +298,13 @@ def lessThan_equiv {w} (a b : F p)
 end Spec.F
 
 
-abbrev F8 := F
+abbrev F8 := F -- eDSL'd
 
 namespace F8
 
-def ofUInt8 (u:UInt8) : F8 p := UInt8.toFin u
+def ofUInt8 (u:UInt8) : F8 p := UInt8.toFin u -- eDSL'd
 
-def ofChar (c:Char) : F8 p := ofUInt8 c.toUInt8
+def ofChar (c:Char) : F8 p := ofUInt8 c.toUInt8  -- eDSL'd
 
 abbrev eq (a b : F8 p) := F.eq a b
 
@@ -318,11 +318,11 @@ end F8
 
 namespace Spec.F8
 
-def valid (x: F p) : Prop := x.val < 2^8
+def valid (x: F p) : Prop := x.val < 2^8  -- eDSL'd (`isValid`)
 
-def toUInt8 (f:F8 p) : UInt8 := UInt8.ofNat f.val
+def toUInt8 (f:F8 p) : UInt8 := UInt8.ofNat f.val -- eDSL'd
 
-private lemma ofUInt8_toUInt8 [NeZero p] (u : UInt8) (hp : 2^8 < p) :
+private lemma ofUInt8_toUInt8 [NeZero p] (u : UInt8) (hp : 2^8 < p) :  -- eDSL'd
     Spec.F8.toUInt8 (F8.ofUInt8 (p := p) u) = u := by
   unfold F8.ofUInt8 Spec.F8.toUInt8
   show UInt8.ofNat ((((UInt8.toFin u).val : ℕ) : ZMod p).val) = u
@@ -335,12 +335,12 @@ private lemma ofUInt8_toUInt8 [NeZero p] (u : UInt8) (hp : 2^8 < p) :
   rw [UInt8.toNat_ofNat', h_toFin]
   exact Nat.mod_eq_of_lt hu
 
-private lemma Char.toUInt8_ofUInt8 (n : UInt8) : Char.toUInt8 (Char.ofUInt8 n) = n := by
+private lemma Char.toUInt8_ofUInt8 (n : UInt8) : Char.toUInt8 (Char.ofUInt8 n) = n := by  -- eDSL'd
   show (Char.ofUInt8 n).val.toUInt8 = n
   show n.toUInt32.toUInt8 = n
   exact UInt8.toUInt8_toUInt32 n
 
-private lemma Char.ofUInt8_toUInt8 {c : Char} (hc : c.toNat < 256) :
+private lemma Char.ofUInt8_toUInt8 {c : Char} (hc : c.toNat < 256) :  -- eDSL'd
     Char.ofUInt8 (Char.toUInt8 c) = c := by
   apply Char.ext
   apply UInt32.toNat.inj
@@ -350,9 +350,9 @@ private lemma Char.ofUInt8_toUInt8 {c : Char} (hc : c.toNat < 256) :
   rw [UInt32.toNat_toUInt8]
   exact Nat.mod_eq_of_lt hc
 
-def toChar (c:F8 p) : Char := Char.ofUInt8 (F8.toUInt8 c)
+def toChar (c:F8 p) : Char := Char.ofUInt8 (F8.toUInt8 c)  -- eDSL'd
 
-private lemma ofChar_toChar [NeZero p] {f : F p} (h : f.val < 2^8) :
+private lemma ofChar_toChar [NeZero p] {f : F p} (h : f.val < 2^8) :  -- eDSL'd
     F8.ofChar (F8.toChar f) = f := by
   unfold F8.ofChar F8.toChar
   rw [Char.toUInt8_ofUInt8]
@@ -365,7 +365,7 @@ private lemma ofChar_toChar [NeZero p] {f : F p} (h : f.val < 2^8) :
     omega
   rw [Nat.mod_eq_of_lt h256, ZMod.natCast_zmod_val]
 
-private lemma toChar_ofChar [NeZero p] {c : Char}
+private lemma toChar_ofChar [NeZero p] {c : Char}  -- eDSL'd
     (hc : c.toNat < 256) (hp : 2^8 < p) :
     F8.toChar (F8.ofChar (p:=p) c) = c := by
   unfold F8.ofChar F8.toChar
