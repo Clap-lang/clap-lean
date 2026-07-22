@@ -146,7 +146,7 @@ abbrev ExprRef := ℕ
 
 inductive Expr' (p : ℕ)
   | c (_ : ZMod p)
-  | v (_ : Fin p)
+  | v (idx : ℕ)
   | add (_ _ : ExprRef)
   | sub (_ _ : ExprRef)
   | mul (_ _ : ExprRef)
@@ -158,7 +158,7 @@ deriving BEq, Hashable
 #eval mkSigmaExpr 5
 
 structure HashConsSt (p : ℕ) where
-  exprs : Array (Expr' p) -- `ExprRef → Option (Expr' p)` -- `Expr' → ExprRef`
+  exprs : Array (Expr' p) -- `ExprRef → Option (Expr' p)`
   cache : Array (Option (Option (ZMod p)))
 
 def HashConsSt.pushExpr {p : ℕ} (e : Expr' p) (σ : HashConsSt p) : HashConsSt p :=
@@ -202,6 +202,7 @@ def eval {p} (Γ : VarStore p) (e : ExprRef) : HashConsM p (Option (ZMod p)) := 
   return res
 termination_by True
 decreasing_by all_goals sorry
+
 
 -- set_option profiler true
 -- #eval FixedExp.eval (.ofArray #[(0, 4), (1, 2)]) (.c (4 : ZMod 57) + (.v 1) * (.v 0))
