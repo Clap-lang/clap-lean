@@ -32,7 +32,7 @@ def FixedExp.eval {p : ℕ} (varStore : VarStore p) (x : FixedExp p) : Option (Z
 --        (x : FixedExp p) : StateM (Std.HashMap (FixedExp p) (Option (ZMod p))) (Option (ZMod p)) := do
 --     let cache ← get
 --     if h : cache.contains x
---     then 
+--     then
 --       return cache[x]
 --     else
 --       match x with
@@ -42,7 +42,7 @@ def FixedExp.eval {p : ℕ} (varStore : VarStore p) (x : FixedExp p) : Option (Z
 --         return res
 --       | .v x =>
 --         let res := varStore[x]?
---         modify fun σ ↦ σ.insert x res 
+--         modify fun σ ↦ σ.insert x res
 --         return res
 --       | .add l r => do
 --         let l' ← go varStore l
@@ -134,74 +134,144 @@ def mkBigExpr : FixedExp 57 :=
       | 0 => res
       | n + 1 => go n (res.add (.v 0))
 
-def sigma {p} (x : FixedExp p) : FixedExp p :=
-  let x2 := x * x
-  let x4 := x2 * x2
-  x4 * x
+-- def sigma {p} (x : FixedExp p) : FixedExp p :=
+--   let x2 := x * x
+--   let x4 := x2 * x2
+--   x4 * x
 
-def mkSigmaExpr (n : ℕ) : FixedExp 21888242871839275222246405745257275088696311157297823662689037894645226208583 :=
-  Array.range n |>.foldl (init := .c 2) fun acc _ ↦ sigma acc
+-- def mkSigmaExpr (n : ℕ) : FixedExp 21888242871839275222246405745257275088696311157297823662689037894645226208583 :=
+--   Array.range n |>.foldl (init := .c 2) fun acc _ ↦ sigma acc
 
 abbrev ExprRef := ℕ
 
-inductive Expr' (p : ℕ)
+inductive BinaryOp
+  | add
+  | sub
+  | mul
+deriving BEq, Hashable
+
+inductive CacheExpr (p : ℕ)
   | c (_ : ZMod p)
   | v (idx : ℕ)
-  | add (_ _ : ExprRef)
-  | sub (_ _ : ExprRef)
-  | mul (_ _ : ExprRef)
+  | binary_op (lhs rhs : ExprRef) (op : BinaryOp)
 deriving BEq, Hashable
 
 -- structure Exprs (p : ℕ) where
 --   exprs : Array (Expr' p)
 
-#eval mkSigmaExpr 5
+-- #eval mkSigmaExpr 5
+
+def CacheExpr.wellFormed {p : ℕ} (e : CacheExpr p) (idx : ExprRef) : Bool :=
+  match e with
+    | c _ => True
+    | v _ => True
+    | binary_op lhs rhs _ =>
+      lhs < idx ∧
+      rhs < idx
+
+/-
+ options
+1a. pushExpr can fail if references are not extant, and store a proof that they are
+1b. wrap pushExpr with the check, take proof?
+2. child references are jumps (1+stored value backwards)
+-/
+
 
 structure HashConsSt (p : ℕ) where
-  exprs : Array (Expr' p) -- `ExprRef → Option (Expr' p)`
-  cache : Array (Option (Option (ZMod p)))
+  exprs : Array (CacheExpr p)-- `ExprRef → Option (Expr' p)`
+  wellFormed : ∀ i < exprs.size, exprs[i]?.any (λ e => e.wellFormed i)
 
-def HashConsSt.pushExpr {p : ℕ} (e : Expr' p) (σ : HashConsSt p) : HashConsSt p :=
-  {σ with exprs := σ.exprs.push e}
+def HashConsSt.empty (p : ℕ) : HashConsSt p where
+  exprs := #[]
+  wellFormed := by simp
+
+def HashConsSt.pushExpr {p : ℕ}
+  (e : CacheExpr p)
+  (σ : HashConsSt p)
+  (h_wellFormed : e.wellFormed σ.exprs.size)
+: HashConsSt p where
+  exprs :=  σ.exprs.push e
+  wellFormed := by
+    intro i h_i
+    simp at h_i
+    obtain ⟨exprs, exprs_wellformed⟩ := σ
+    simp_all only [CacheExpr.wellFormed.eq_def]
+    by_cases h_eq : i = exprs.size
+    . aesop
+    . have h_lt : i < exprs.size := by omega
+      specialize exprs_wellformed i h_lt
+      convert exprs_wellformed using 2
+      . rfl
+      . grind
 
 abbrev HashConsM (p : ℕ) := StateM (HashConsSt p)
 
-def HashConsM.getExprs {p : ℕ} : HashConsM p (Array (Expr' p)) :=
+def HashConsM.getExprs {p : ℕ} : HashConsM p (Array (CacheExpr p)) :=
   return (←get).exprs
 
-def HashConsM.remember {p : ℕ} (e : ExprRef) (val : Option (ZMod p)): HashConsM p Unit :=
-  modify fun σ ↦ {σ with cache := σ.cache.set! e val}
+def HashConsM.saveExpr {p : ℕ} (e : CacheExpr p) : HashConsM p (ExprRef) := do
+  let state ← get
+  if state.exprs.contains e then
+    return state.exprs.idxOf e
+  else if h: e.wellFormed state.exprs.size then
+    let post_state := state.pushExpr e h
+    set post_state
+    return state.exprs.size
+  else pure 42
 
-def mkMul (p : ℕ) (l r : ExprRef) : HashConsM p ℕ := do
-  modify (·.pushExpr (.mul l r))
-  Array.size <$> .getExprs
+def mkConstant {p : ℕ} (x : ZMod p) : HashConsM p ExprRef := do
+  HashConsM.saveExpr (.c x)
 
-def sigma' (p : ℕ) (x : ExprRef) : HashConsM p ℕ := do
-  let x2 ← mkMul p x x
-  let x4 ← mkMul p x2 x2
-  mkMul p x4 x
+def mkAdd {p : ℕ} (l r : ExprRef) : HashConsM p ExprRef := do
+  HashConsM.saveExpr (.binary_op l r .add)
 
-def mkSigmaExpr' (n : ℕ) : FixedExp 21888242871839275222246405745257275088696311157297823662689037894645226208583 :=
-  Array.range n |>.foldl (init := .c 2) fun acc _ ↦ sigma acc
+def mkSub {p : ℕ} (l r : ExprRef) : HashConsM p ExprRef := do
+  HashConsM.saveExpr (.binary_op l r .sub)
+
+def mkMul {p : ℕ} (l r : ExprRef) : HashConsM p ExprRef := do
+  HashConsM.saveExpr (.binary_op l r .mul)
+
+def eval_impl {p}
+  (Γ : VarStore p)
+  (e : ExprRef)
+  (cache : Std.ExtHashMap ExprRef (Option (ZMod p)))
+  (state : HashConsSt p)
+:
+  Std.ExtHashMap ExprRef (Option (ZMod p))
+:=
+  let cached_result := cache.get? e
+  match cached_result with
+  | .some result => cache
+  | .none =>
+    match h: state.exprs[e]? with
+    | .none => cache
+    | .some expr =>
+      match expr with
+      | .c value => cache.insert e (.some value)
+      | .v idx => cache.insert e (Γ.get? idx)
+      | .binary_op lhs rhs op =>
+        have lhs_precedes_your_index : lhs < e := by
+          grind [HashConsSt.wellFormed, CacheExpr.wellFormed]
+        let lhs_cache := eval_impl Γ lhs cache state
+        let lhs_val := (lhs_cache.get? lhs).join
+        have rhs_precedes_your_index : rhs < e := by
+          grind [HashConsSt.wellFormed, CacheExpr.wellFormed]
+        let rhs_cache := eval_impl Γ rhs lhs_cache state
+        let rhs_val := (rhs_cache.get? rhs).join
+        rhs_cache.insert e ((match op with
+          | .add => (· + ·)
+          | .sub => (· - ·)
+          | .mul => (· * ·)
+        ) <$> (rhs_cache.get? lhs).join <*> (rhs_cache.get? rhs).join)
+termination_by e
+
 
 def eval {p} (Γ : VarStore p) (e : ExprRef) : HashConsM p (Option (ZMod p)) := do
-  let ⟨exprs, cache⟩ ← get
-  match cache[e]? with
-  | .some (.some val) => return val
-  | _ => -- NB can enumerate the cases explicitly here for easier reasoning
-  let res ← match exprs[e]? with
-    | .none => pure .none
-    | .some e =>
-      match e with
-      | .c c => pure <| .some c
-      | .v v => pure Γ[v]?
-      | .add a b => pure <| (·+·) <$> (← eval Γ a) <*> (← eval Γ b)
-      | .sub a b => pure <| (·-·) <$> (← eval Γ a) <*> (← eval Γ b)
-      | .mul a b => pure <| (·*·) <$> (← eval Γ a) <*> (← eval Γ b)
-  .remember e res
-  return res
-termination_by True
-decreasing_by all_goals sorry
+  let cache : Std.ExtHashMap ExprRef (Option (ZMod p)) := {}
+  let post_cache := eval_impl Γ e cache (←get)
+  return (post_cache.get? e).join
+
+
 
 
 -- set_option profiler true

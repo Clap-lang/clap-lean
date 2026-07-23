@@ -6,7 +6,7 @@ namespace Clap.Poseidon.Constant.M
 open Primes
 
 @[reducible]
-def M02 : Vector (Vector (Edsl.Lang.F bn254) 2) 2 := #v[
+def M02 : Vector (Vector (ZMod bn254) 2) 2 := #v[
   #v[
       0x66f6f85d6f68a85ec10345351a23a3aaf07f38af8c952a7bceca70bd2af7ad5,
       0xcc57cdbb08507d62bf67a4493cc262fb6c09d557013fff1f573f431221f8ff9
@@ -18,7 +18,7 @@ def M02 : Vector (Vector (Edsl.Lang.F bn254) 2) 2 := #v[
 ]
 
 @[reducible]
-def M03 : Vector (Vector (Edsl.Lang.F bn254) 3) 3 := #v[
+def M03 : Vector (Vector (ZMod bn254) 3) 3 := #v[
   #v[
       0x109b7f411ba0e4c9b2b70caf5c36a7b194be7c11ad24378bfedb68592ba8118b,
       0x2969f27eed31a480b9c36c764379dbca2cc8fdd1415c3dded62940bcde0bd771,
@@ -37,7 +37,7 @@ def M03 : Vector (Vector (Edsl.Lang.F bn254) 3) 3 := #v[
 ]
 
 @[reducible]
-def M04 : Vector (Vector (Edsl.Lang.F bn254) 4) 4 := #v[
+def M04 : Vector (Vector (ZMod bn254) 4) 4 := #v[
   #v[
       0x236d13393ef85cc48a351dd786dd7a1de5e39942296127fd87947223ae5108ad,
       0x2a75a171563b807db525be259699ab28fe9bc7fb1f70943ff049bc970e841a0c,
@@ -65,7 +65,7 @@ def M04 : Vector (Vector (Edsl.Lang.F bn254) 4) 4 := #v[
 ]
 
 @[reducible]
-def M05 : Vector (Vector (Edsl.Lang.F bn254) 5) 5 := #v[
+def M05 : Vector (Vector (ZMod bn254) 5) 5 := #v[
   #v[
       0x251e7fdf99591080080b0af133b9e4369f22e57ace3cd7f64fc6fdbcf38d7da1,
       0x2a70b9f1d4bbccdbc03e17c1d1dcdb02052903dc6609ea6969f661b2eb74c839,
@@ -104,7 +104,7 @@ def M05 : Vector (Vector (Edsl.Lang.F bn254) 5) 5 := #v[
 ]
 
 @[reducible]
-def M06 : Vector (Vector (Edsl.Lang.F bn254) 6) 6 := #v[
+def M06 : Vector (Vector (ZMod bn254) 6) 6 := #v[
   #v[
       0x124666f80561ed5916f2f070b1bd248c6d53f44d273d956a0c87b917692a4d18,
       0xa514a5c227f4cec95dfa029e8dd124c34895aa46bb27c0911f3780d5015540a,
@@ -156,7 +156,7 @@ def M06 : Vector (Vector (Edsl.Lang.F bn254) 6) 6 := #v[
 ]
 
 @[reducible]
-def M07 : Vector (Vector (Edsl.Lang.F bn254) 7) 7 := #v[
+def M07 : Vector (Vector (ZMod bn254) 7) 7 := #v[
   #v[
       0x2abd9e16b7b48289aa19cdfec726fa3fa15cc1625102ae511bca45f39d337e9d,
       0x1fe9feb5c7f7c7a426bff032cd6a3158278b6c6b2cc57a871213fcafd6427989,
@@ -223,7 +223,7 @@ def M07 : Vector (Vector (Edsl.Lang.F bn254) 7) 7 := #v[
 ]
 
 @[reducible]
-def M08 : Vector (Vector (Edsl.Lang.F bn254) 8) 8 := #v[
+def M08 : Vector (Vector (ZMod bn254) 8) 8 := #v[
   #v[
       0x1aa4d470abeaa2357079129d114bab1170944f929fc178216ad847d4430f3f27,
       0x254b8126f45243f14dd8211df41fe5516b35952d56c62678c148e73cdbad3718,
@@ -307,7 +307,7 @@ def M08 : Vector (Vector (Edsl.Lang.F bn254) 8) 8 := #v[
 ]
 
 @[reducible]
-def M09 : Vector (Vector (Edsl.Lang.F bn254) 9) 9 := #v[
+def M09 : Vector (Vector (ZMod bn254) 9) 9 := #v[
   #v[
       0x190f922d97c8a7dcf0a142a3be27749d1c64bc22f1c556aaa24925d158cac56,
       0x607cd8ff9b889773c9eb68b8a4366469d470cd7c6004106caae95c10c424419,
@@ -410,7 +410,7 @@ def M09 : Vector (Vector (Edsl.Lang.F bn254) 9) 9 := #v[
 ]
 
 @[reducible]
-def M10 : Vector (Vector (Edsl.Lang.F bn254) 10) 10 := #v[
+def M10 : Vector (Vector (ZMod bn254) 10) 10 := #v[
   #v[
       0xb1e797eee3f15b88ce3a1fafec88da1d6329ac3c34712db570de886cf569098,
       0x1abb95b6e33243a050e563b5c4fd059de5513ec28994a6f60e57c98d3bc8f586,
@@ -534,7 +534,7 @@ def M10 : Vector (Vector (Edsl.Lang.F bn254) 10) 10 := #v[
 ]
 
 @[reducible]
-def M11 : Vector (Vector (Edsl.Lang.F bn254) 11) 11 := #v[
+def M11 : Vector (Vector (ZMod bn254) 11) 11 := #v[
   #v[
       0x26dba58ade8cda188f49e52fce7167b8f219dbd924d7786b0f98fb799fefa2e,
       0x9813c803ff84a3694eedaf4b1c2172615275dc18ca654c799a70440946ccf0,
@@ -681,7 +681,7 @@ def M11 : Vector (Vector (Edsl.Lang.F bn254) 11) 11 := #v[
 ]
 
 @[reducible]
-def M12 : Vector (Vector (Edsl.Lang.F bn254) 12) 12 := #v[
+def M12 : Vector (Vector (ZMod bn254) 12) 12 := #v[
   #v[
       0x2cb13179d6e8a4ad1b9fec37376253cf64386ad905e240575fca86539b272dc6,
       0x1f930557a284998225f5f4e4dfbcf5ac211f1b12d91b0562ed3d63285d7a714a,
@@ -853,7 +853,7 @@ def M12 : Vector (Vector (Edsl.Lang.F bn254) 12) 12 := #v[
 ]
 
 @[reducible]
-def M13 : Vector (Vector (Edsl.Lang.F bn254) 13) 13 := #v[
+def M13 : Vector (Vector (ZMod bn254) 13) 13 := #v[
   #v[
       0xd064dee824928d39f2a8be7d2fa583223c33995784d228839adde2559592592,
       0x2d8c70035731ad9efba92821a88119f6b8183a362be641729a93d6a327c03809,
@@ -1052,7 +1052,7 @@ def M13 : Vector (Vector (Edsl.Lang.F bn254) 13) 13 := #v[
 ]
 
 @[reducible]
-def M14 : Vector (Vector (Edsl.Lang.F bn254) 14) 14 := #v[
+def M14 : Vector (Vector (ZMod bn254) 14) 14 := #v[
   #v[
       0xe30a774c353a2cbf244d3d014d1a0e5ff0bac5e242673ae33f1bb2030feff68,
       0x12826e5b9be1c9b85f7c98aaca9ce28a870687d3628d60def0ab3072b57b09b8,
@@ -1280,7 +1280,7 @@ def M14 : Vector (Vector (Edsl.Lang.F bn254) 14) 14 := #v[
 ]
 
 @[reducible]
-def M15 : Vector (Vector (Edsl.Lang.F bn254) 15) 15 := #v[
+def M15 : Vector (Vector (ZMod bn254) 15) 15 := #v[
   #v[
       0x4523bf1a8f284c6d95b310dec2b54e0e00e59b571dd9d46b6201c18e1b56dfe,
       0x113ad8b46c3eec20c9965b5a7b2e8a51529871d0401b4de6f63de9e5211623e2,
@@ -1539,7 +1539,7 @@ def M15 : Vector (Vector (Edsl.Lang.F bn254) 15) 15 := #v[
 ]
 
 @[reducible]
-def M16 : Vector (Vector (Edsl.Lang.F bn254) 16) 16 := #v[
+def M16 : Vector (Vector (ZMod bn254) 16) 16 := #v[
   #v[
       0x2b6fd7bc3a3b595c206c43daac752b765a12255c37ab51ae183933737a8b8099,
       0x111d04c083f51a6fdf87412a537f6601076d61f435094ea16946efbfa4893e97,
@@ -1831,7 +1831,7 @@ def M16 : Vector (Vector (Edsl.Lang.F bn254) 16) 16 := #v[
 ]
 
 @[reducible]
-def M17 : Vector (Vector (Edsl.Lang.F bn254) 17) 17 := #v[
+def M17 : Vector (Vector (ZMod bn254) 17) 17 := #v[
   #v[
       0x196b76cefdcc7f6a54c71d40114a0bb82694c936f1573ac7ac1ea3fcce1fe938,
       0x130fc54477fd953377fc23abbd7a41be6764892a8787c759c1440fe0133c852d,

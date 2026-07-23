@@ -31,7 +31,7 @@ def Cl (t:ℕ) := match t with
   | 17 => 204
   | _ => 0
 
-def C (i:ℕ) : Vector (Clap.Edsl.Lang.F bn254) (Cl i) :=
+def C (i:ℕ) : Vector (ZMod bn254) (Cl i) :=
   if h: i=2  then ⟨C02.toArray, by aesop⟩ else
   if h: i=3  then ⟨C03.toArray, by aesop⟩ else
   if h: i=4  then ⟨C04.toArray, by aesop⟩ else
@@ -52,10 +52,10 @@ def C (i:ℕ) : Vector (Clap.Edsl.Lang.F bn254) (Cl i) :=
 
 def Ms (i:ℕ) := if i < 18 then i else 0
 
-def Vector.squareMatrix (k:ℕ) : Vector (Vector (Clap.Edsl.Lang.F bn254) k) k :=
+def Vector.squareMatrix (k:ℕ) : Vector (Vector (ZMod bn254) k) k :=
   Vector.replicate k (Vector.replicate k 0)
 
-def M (i:ℕ) : Vector (Vector (Clap.Edsl.Lang.F bn254) i) i :=
+def M (i:ℕ) : Vector (Vector (ZMod bn254) i) i :=
   match h : i with
   |  2 => M02
   |  3 => M03
@@ -75,7 +75,7 @@ def M (i:ℕ) : Vector (Vector (Clap.Edsl.Lang.F bn254) i) i :=
   | 17 => M17
   | _ => h ▸ Vector.squareMatrix i
 
-def P (i:ℕ) : Vector (Vector (Clap.Edsl.Lang.F bn254) i) i :=
+def P (i:ℕ) : Vector (Vector (ZMod bn254) i) i :=
   match h : i with
   |  2 => P02
   |  3 => P03
@@ -115,7 +115,7 @@ def Sl (t:ℕ) := match t with
   | 17 => 2244
   | _ => 0
 
-def S (i:ℕ) : Vector (Clap.Edsl.Lang.F bn254) (Sl i) :=
+def S (i:ℕ) : Vector (ZMod bn254) (Sl i) :=
   if h2:  i=2  then ⟨S02.toArray, by aesop⟩ else
   if h3:  i=3  then ⟨S03.toArray, by aesop⟩ else
   if h4:  i=4  then ⟨S04.toArray, by aesop⟩ else

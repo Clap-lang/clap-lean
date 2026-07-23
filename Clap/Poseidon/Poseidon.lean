@@ -170,13 +170,13 @@ section Poseidon254
 
 open Primes
 
-def poseidonBN254 {n} (inputs : Vector (Edsl.Lang.F bn254) n) : Clap.Edsl.CircuitStateM p (Edsl.Lang.F bn254) :=
-  let t := 1 + n -- element 2 is at list index 0 and so on
-  let C := Clap.Poseidon.Constant.C t
-  let S := Clap.Poseidon.Constant.S t
-  let M := Clap.Poseidon.Constant.M t
-  let P := Clap.Poseidon.Constant.P t
-  poseidon inputs C S M P -- v0 * 2437582374823748237184728134732 * 23472348237842738478234 * v1 * v1 * .... → ZMod p
+-- def poseidonBN254 {n} (inputs : Vector (Edsl.Lang.F bn254) n) : Clap.Edsl.CircuitStateM p (Edsl.Lang.F bn254) :=
+--   let t := 1 + n -- element 2 is at list index 0 and so on
+--   let C := Clap.Poseidon.Constant.C t
+--   let S := Clap.Poseidon.Constant.S t
+--   let M := Clap.Poseidon.Constant.M t
+--   let P := Clap.Poseidon.Constant.P t
+--   poseidon inputs C S M P -- v0 * 2437582374823748237184728134732 * 23472348237842738478234 * v1 * v1 * .... → ZMod p
 
 -- #eval! (poseidonBN254 #v[1, 2]).getResult 0
 

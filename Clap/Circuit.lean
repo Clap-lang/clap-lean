@@ -38,7 +38,7 @@ inductive Exp (p : ℕ) (var : Type) where
   | add (_ _ : Exp p var)
   | mul (_ _ : Exp p var)
   | sub (_ _ : Exp p var)
-  deriving DecidableEq, Hashable
+  deriving DecidableEq, Hashable, Inhabited
 
 abbrev Expₑ (p : Nat) := Exp p (ZMod p)
 
