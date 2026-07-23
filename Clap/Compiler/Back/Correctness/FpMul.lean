@@ -324,7 +324,7 @@ lemma eq_check_spec {k : ℕ} {t ab : Vector (Expₑ p) (2*k - 1)} {q r p' : Vec
       specialize h' i (List.mem_range.mpr hi)
       -- h' : (eval_poly t i - (eval_poly ab i - (eval_poly p' i * eval_poly q i + eval_poly r i))).eval = 0
       rw [Exp.eval_sub, Exp.eval_sub, Exp.eval_add, Exp.eval_mul] at h'
-      
+
       simp only [eval_poly_eval_eq] at h'
       rw [cpoly_eval_sub, cpoly_eval_sub, cpoly_eval_mul]
       grind
@@ -1922,11 +1922,33 @@ private lemma nat2words_map_c_val_lt {w k : ℕ} (n : ℕ) :
       by simp [Fin.getElem_fin]]
   exact nat2words_val_lt k n i.1 i.2
 
+omit inst' in
+lemma foldr_eq0_wrap {α : Type} {wg : Wg p} {cs : Csₑ p} {ls : List α} {f : α → Expₑ p} : wrap wg (List.foldr (fun i ↦ Cs.eq0 (f i)) cs ls) = List.foldr (fun i ↦ Cs.eq0 (f i)) (wrap wg cs) ls := by
+  induction ls with
+  | nil => rfl
+  | cons l ls ih =>
+    simp only [List.foldr_cons]
+    rewrite (occs := .pos [1]) [wrap, ih]; rfl
+
+-- example {k w : ℕ} {t : Vector (Expₑ p) k} {wg : Wg p} {cs : Csₑ p} : (wrap (check_carry_zero_wg w t wg) (check_carry_zero_circuit w t cs)).eval = (wrap wg cs).eval := by sorry
+
+-- example {k w : ℕ} {t : Vector (Expₑ p) k} {wg : Wg p} {cs : Csₑ p} : (wrap (check_carry_zero_wg w t wg) (check_carry_zero_circuit w t cs)).eval = .n := by sorry
+
+lemma check_carry_zero_wrap_succ {α : Type} {ls : List α} {f : α → Expₑ p}
+    {k w : ℕ} {t_wg t_cs : Vector (Expₑ p) k} {wg : Wg p} {cs : Csₑ p} :
+  2 ^ (2 * w + Nat.clog 2 k + 4) ≤ p →
+  (∀ i : Fin k, t_wg[i].eval = t_cs[i].eval) →
+  ∑ i : Fin k, zmod_int_cast (2 ^ (2 * w + Nat.clog 2 k + 3)) t_wg[i].eval * (2 ^ w : ℤ) ^ i.1 = 0 →
+    (List.foldr (fun i ↦ Cs.eq0 (f i))
+        (wrap (check_carry_zero_wg w t_wg wg) (check_carry_zero_circuit w t_cs cs)) ls).eval =
+      (List.foldr (fun i ↦ Cs.eq0 (f i)) (wrap wg cs) ls).eval := by sorry
+
 lemma fpmul_completeness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : Vector (ZMod p) k → Circuit p (ZMod p)}
       (ih : ∀ (a : Vector (ZMod p) k), circuitWF (c a) → (c a).eval = (wrap (c a).toWg (c a).toCs).eval) :
     circuitWF (Circuit.fpmul w k a b p' c) →
       (Circuit.fpmul w k a b p' c).eval = (wrap (Circuit.fpmul w k a b p' c).toWg (Circuit.fpmul w k a b p' c).toCs).eval := by
   intros h
+  unfold circuitWF at h
   unfold Circuit.eval Circuit.toWg Circuit.toCs
   split_ifs with cond
   · simp only [fpMul_circuit, fpMul_wg]
@@ -1945,6 +1967,12 @@ lemma fpmul_completeness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : V
     rw [foldr_curry (by simp)]
     simp only [Fin.getElem_fin, Array.getD_eq_getD_getElem?, Vector.map_mk, List.map_toArray,
       List.map_map, List.pure_def, List.bind_eq_flatMap]
+    rw [foldr_eq0_wrap]
+    rw [check_carry_zero_wrap_succ h.1 (by simp [Exp.eval]) (by simp [Exp.eval]; sorry)]
+
+    -- rw [foldr_curry (by simp)]
+    -- rw [check_carry_zero_wrap_succ sorry sorry]
+
 
 
 
