@@ -129,7 +129,6 @@ def poseidonBN254 {n} (inputs : Vector ExprRef n) : HashConsM Primes.bn254 ExprR
   let P ← (Clap.Poseidon.Constant.P t).mapM allocateVector
   poseidon inputs C S M P
 
-
 def mkSigmaExpr (p : ℕ) (n : ℕ) : HashConsM p ExprRef := do
   let x ← HashConsM.saveExpr (.c 2)
   Array.range n |>.foldlM (init := x) (λ x _ => sigma x)

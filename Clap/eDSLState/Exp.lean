@@ -5,134 +5,36 @@ import Clap.eDSLState.Wheels
 
 namespace Clap
 
-abbrev FixedExp (p : ℕ) := Clap.Exp p ℕ
+-- abbrev FixedExp (p : ℕ) := Clap.Exp p ℕ
 
-def FixedExp.size {p : ℕ} (exp : FixedExp p) : ℕ :=
-  match exp with
-  | .v _ => 1
-  | .c _ => 1
-  | .add l r => size l + size r + 1
-  | .mul l r => size l + size r + 1
-  | .sub l r => size l + size r + 1
+-- def FixedExp.size {p : ℕ} (exp : FixedExp p) : ℕ :=
+--   match exp with
+--   | .v _ => 1
+--   | .c _ => 1
+--   | .add l r => size l + size r + 1
+--   | .mul l r => size l + size r + 1
+--   | .sub l r => size l + size r + 1
 
-abbrev FixedCircuit (p : ℕ) := Clap.Circuit p ℕ
+-- abbrev FixedCircuit (p : ℕ) := Clap.Circuit p ℕ
 
-def FixedExp.eval {p : ℕ} (varStore : VarStore p) (x : FixedExp p) : Option (ZMod p) :=
-  match x with
-  | .c x => .some x
-  | .v x => varStore[x]?
-  | .add l r => do (←eval varStore l) + (←eval varStore r)
-  | .sub l r => do (←eval varStore l) - (←eval varStore r)
-  | .mul l r => do (←eval varStore l) * (←eval varStore r)
-
--- def FixedExp.eval' {p : ℕ} (varStore : VarStore p) (x : FixedExp p) : Option (ZMod p) :=
---   (go varStore x).run' ∅
---   where
---     go (varStore : VarStore p)
---        (x : FixedExp p) : StateM (Std.HashMap (FixedExp p) (Option (ZMod p))) (Option (ZMod p)) := do
---     let cache ← get
---     if h : cache.contains x
---     then
---       return cache[x]
---     else
---       match x with
---       | .c val =>
---         let res := val
---         modify fun σ ↦ σ.insert x res
---         return res
---       | .v x =>
---         let res := varStore[x]?
---         modify fun σ ↦ σ.insert x res
---         return res
---       | .add l r => do
---         let l' ← go varStore l
---         modify fun σ ↦ σ.insert l l'
---         let r' ← go varStore r
---         modify fun σ ↦ σ.insert r r'
---         return (·+·) <$> l' <*> r'
---       | .sub l r => do
---         let l' ← go varStore l
---         modify fun σ ↦ σ.insert l l'
---         let r' ← go varStore r
---         modify fun σ ↦ σ.insert r r'
---         return (·-·) <$> l' <*> r'
---       | .mul l r => do
---         let l' ← go varStore l
---         modify fun σ ↦ σ.insert l l'
---         let r' ← go varStore r
---         modify fun σ ↦ σ.insert r r'
---         return (·*·) <$> l' <*> r'
-
-
-/-
-10/10 the tail rec version is slower
--/
-
--- inductive ExpPart (p : ℕ) where
---   | addL (_ : FixedExp p)
---   | addR (_ : ZMod p)
---   | subL (_ : FixedExp p)
---   | subR (_ : ZMod p)
---   | mulL (_ : FixedExp p)
---   | mulR (_ : ZMod p)
-
--- partial def FixedExp.eval' {p : ℕ}
---     (varStore : VarStore p) (e : FixedExp p) : Option (ZMod p) :=
---   go [e] [] []
---   where go (todo : List (FixedExp p)) (left : List (ExpPart p)) (right : List (ZMod p)) : Option (ZMod p) :=
---     match todo with
---     | todo :: rest =>
---       match todo with
---       | .c x => go rest left (x :: right)
---       | .v x => match varStore[x]? with
---                 | .none => .none
---                 | .some v => go rest left (v :: right)
---       | .add l r => go (l :: rest) (.addL r :: left) right
---       | .sub l r => go (l :: rest) (.subL r :: left) right
---       | .mul l r => go (l :: rest) (.mulL r :: left) right
---     | [] => match left with
---       | [] =>
---           match right with
---           | [v] => .some v
---           | _ => .none
---       | .addL r :: ks =>
---           match right with
---           | lv :: vs => go (r :: []) (.addR lv :: ks) vs
---           | _ => .none
---       | .subL r :: ks =>
---           match right with
---           | lv :: vs => go (r :: []) (.subR lv :: ks) vs
---           | _ => .none
---       | .mulL r :: ks =>
---           match right with
---           | lv :: vs => go (r :: []) (.mulR lv :: ks) vs
---           | _ => .none
---       | .addR lv :: ks =>
---           match right with
---           | rv :: vs => go [] ks ((lv + rv) :: vs)
---           | _ => .none
---       | .subR lv :: ks =>
---           match right with
---           | rv :: vs => go [] ks ((lv - rv) :: vs)
---           | _ => .none
---       | .mulR lv :: ks =>
---           match right with
---           | rv :: vs => go [] ks ((lv * rv) :: vs)
---           | _ => none
-
--- @[csimp]
--- lemma optim : @FixedExp.eval' = @FixedExp.eval := by sorry
+-- def FixedExp.eval {p : ℕ} (varStore : VarStore p) (x : FixedExp p) : Option (ZMod p) :=
+--   match x with
+--   | .c x => .some x
+--   | .v x => varStore[x]?
+--   | .add l r => do (←eval varStore l) + (←eval varStore r)
+--   | .sub l r => do (←eval varStore l) - (←eval varStore r)
+--   | .mul l r => do (←eval varStore l) * (←eval varStore r)
 
 def VarStore.ofArray {p : ℕ} (elem : Array (ℕ × ZMod p)) : VarStore p :=
   Std.ExtTreeMap.ofArray elem (cmp := compare)
 
-def mkBigExpr : FixedExp 57 :=
-  go 1_000_00 (.c 4)
-  where
-    go (n : ℕ) (res : FixedExp 57) : FixedExp 57 :=
-      match n with
-      | 0 => res
-      | n + 1 => go n (res.add (.v 0))
+-- def mkBigExpr : FixedExp 57 :=
+--   go 1_000_00 (.c 4)
+--   where
+--     go (n : ℕ) (res : FixedExp 57) : FixedExp 57 :=
+--       match n with
+--       | 0 => res
+--       | n + 1 => go n (res.add (.v 0))
 
 -- def sigma {p} (x : FixedExp p) : FixedExp p :=
 --   let x2 := x * x
@@ -161,13 +63,17 @@ deriving BEq, Hashable
 
 -- #eval mkSigmaExpr 5
 
-def CacheExpr.wellFormed {p : ℕ} (e : CacheExpr p) (idx : ExprRef) : Bool :=
+def CacheExpr.wellFormed {p : ℕ} (e : CacheExpr p) (idx : ExprRef) : Prop :=
   match e with
     | c _ => True
     | v _ => True
     | binary_op lhs rhs _ =>
       lhs < idx ∧
       rhs < idx
+
+instance {p} {e : CacheExpr p} {idx : ExprRef} : Decidable (CacheExpr.wellFormed e idx) := by
+  unfold CacheExpr.wellFormed
+  split <;> infer_instance
 
 /-
  options
@@ -176,14 +82,15 @@ def CacheExpr.wellFormed {p : ℕ} (e : CacheExpr p) (idx : ExprRef) : Bool :=
 2. child references are jumps (1+stored value backwards)
 -/
 
-
 structure HashConsSt (p : ℕ) where
-  exprs : Array (CacheExpr p)-- `ExprRef → Option (Expr' p)`
-  wellFormed : ∀ i < exprs.size, exprs[i]?.any (λ e => e.wellFormed i)
+  exprs : Array (CacheExpr p)
+  wellFormed : ∀ i < exprs.size, exprs[i]?.any (·.wellFormed i)
 
 def HashConsSt.empty (p : ℕ) : HashConsSt p where
   exprs := #[]
   wellFormed := by simp
+
+instance {p} : EmptyCollection (HashConsSt p) := ⟨HashConsSt.empty p⟩
 
 def HashConsSt.pushExpr {p : ℕ}
   (e : CacheExpr p)
@@ -201,7 +108,6 @@ def HashConsSt.pushExpr {p : ℕ}
     . have h_lt : i < exprs.size := by omega
       specialize exprs_wellformed i h_lt
       convert exprs_wellformed using 2
-      . rfl
       . grind
 
 abbrev HashConsM (p : ℕ) := StateM (HashConsSt p)
@@ -265,27 +171,12 @@ def eval_impl {p}
         ) <$> (rhs_cache.get? lhs).join <*> (rhs_cache.get? rhs).join)
 termination_by e
 
-
 def eval {p} (Γ : VarStore p) (e : ExprRef) : HashConsM p (Option (ZMod p)) := do
   let cache : Std.ExtHashMap ExprRef (Option (ZMod p)) := {}
   let post_cache := eval_impl Γ e cache (←get)
   return (post_cache.get? e).join
 
-
-
-
--- set_option profiler true
--- #eval FixedExp.eval (.ofArray #[(0, 4), (1, 2)]) (.c (4 : ZMod 57) + (.v 1) * (.v 0))
--- #eval FixedExp.eval (.ofArray #[(0, 2), (1, 2)]) mkBigExpr
--- #eval FixedExp.eval (.ofArray #[(0, 2), (1, 2)]) (mkSigmaExpr 5)
--- #eval FixedExp.eval' (.ofArray #[(0, 2), (1, 2)]) (mkSigmaExpr 5)
--- #eval FixedExp.eval' (.ofArray #[(0, 2), (1, 2)]) mkBigExpr
--- #eval FixedExp.eval' (.ofArray #[(0, 2), (1, 2)]) mkBigExpr
--- #eval FixedExp.eval' (.ofArray #[(0, 2), (1, 2)]) mkBigExpr
--- #eval FixedExp.eval (.ofArray #[(0, 2), (1, 2)]) mkBigExpr
-
-
-notation "[" varStore "|" x "]" => FixedExp.eval varStore x
+notation "[" varStore "|" x "]" => eval varStore x
 
 /--
 NB:
@@ -296,9 +187,45 @@ NB:
 -/
 notation "[" varStore "|" x " =Γ " y "]" => [varStore|x] = [varStore|y]
 
-instance {p} : Membership (FixedExp p) (VarStore p) := ⟨fun Γ x ↦ [Γ|x].isSome⟩
+-- def evalSigma (p : ℕ) : HashConsM p (Option (ZMod p)) := do
+--   let x ← mkSigmaExpr p 1028
+--   let val ← eval {} x
+--   return val
+
+-- instance {p} : Membership (FixedExp p) (VarStore p) := ⟨fun Γ x ↦ [Γ|x].isSome⟩
 
 namespace FixedExp
+
+variable {p : ℕ} {e : CacheExpr p} {σ : HashConsSt p}
+
+lemma HashConsM.run_saveExpr_of_wellFormed (h : e.wellFormed σ.exprs.size) :
+  (HashConsM.saveExpr e).run σ =
+  if σ.exprs.contains e
+  then (σ.exprs.idxOf e, σ)
+  else (σ.exprs.size, HashConsSt.pushExpr e σ h) := by
+  unfold HashConsM.saveExpr
+  aesop
+
+@[simp, grind .]
+lemma wellFormed_c {p} {k : ZMod p} {n : ℕ} : (CacheExpr.c k).wellFormed n := trivial
+
+@[simp, grind =]
+lemma HashConsM.run_mkConstant {p} {k : ZMod p} {σ : HashConsSt p} :
+  (mkConstant k).run σ =
+  if σ.exprs.contains (.c k)
+  then (σ.exprs.idxOf (.c k), σ) 
+  else (σ.exprs.size, σ.pushExpr (.c k) (by simp)) :=
+  run_saveExpr_of_wellFormed wellFormed_c
+
+@[simp, grind =]
+lemma HashConsM.bind_mkConstant_of_contains {p} {σ} {α} {k : ZMod p} {f : ExprRef → HashConsM p α}
+  (h : σ.exprs.constains (.c k)):
+  ((mkConstant k) >>= f).run σ = _ := by
+  unfold_projs
+  unfold StateT.bind
+  ext1 x
+  unfold mkConstant HashConsM.saveExpr
+
 
 @[simp, grind =]
 lemma eval_c
@@ -306,7 +233,33 @@ lemma eval_c
   {k : ZMod p}
   {varStore : VarStore p}
 :
-  [varStore|Exp.c k] = .some k
+  (mkConstant k >>= fun constant ↦ eval varStore constant) =
+  pure (.some k)
+:= by
+  unfold_projs
+  ext1 σ
+  
+
+  unfold mkConstant
+
+  apply Iff.intro
+  · intros h
+    rw [←h]
+    have : (((StateT.pure (some k)).run σ) : Id (Option (ZMod p) × HashConsSt p)).run.1 = k := by rfl
+    rw [this]
+    unfold mkConstant
+    unfold HashConsM.saveExpr
+    simp
+    done
+  
+
+@[simp, grind =]
+lemma eval_c
+  {p : ℕ}
+  {k : ZMod p}
+  {varStore : VarStore p}
+:
+  [varStore|mkConstant k] = .some k
 := by
   simp [FixedExp.eval]
 
