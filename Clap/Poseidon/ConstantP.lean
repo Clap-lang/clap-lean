@@ -1,5 +1,4 @@
 import Clap.Primes
-import Clap.Lang.F.F
 
 namespace Clap.Poseidon.Constant.P
 

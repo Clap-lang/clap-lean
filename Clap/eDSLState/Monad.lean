@@ -48,8 +48,7 @@ def runAndEval
 :
   α × CircuitResult p
 :=
-  let ⟨⟨result, circuit⟩, _numAlloc⟩ := (cmd.run numAlloc)
-  dbg_trace s!"{repr circuit}"
+  let ⟨⟨result, circuit⟩, _numAlloc⟩ := cmd.run numAlloc
   ⟨result, Edsl.CircuitState.eval circuit varStore numAlloc⟩
 
 def alloc {p : ℕ} : CircuitStateM p ℕ :=

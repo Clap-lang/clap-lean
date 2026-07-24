@@ -3,7 +3,6 @@ import Clap.Poseidon.ConstantC
 import Clap.Poseidon.ConstantM
 import Clap.Poseidon.ConstantP
 import Clap.Poseidon.ConstantS
-import Clap.Lang.F.F
 
 namespace Clap.Poseidon.Constant
 

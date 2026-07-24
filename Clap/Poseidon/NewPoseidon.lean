@@ -1,4 +1,5 @@
-import Clap.Poseidon.Poseidon
+import Clap.eDSLState.Exp
+import Clap.Poseidon.Constant
 
 namespace Clap
 
@@ -138,15 +139,38 @@ def evalSigma (p : ℕ) : HashConsM p (Option (ZMod p)) := do
   let val ← eval {} x
   return val
 
-def evalPoseidon : HashConsM Primes.bn254 (Option (ZMod Primes.bn254)) := do
+section examples
+
+private def test₁ : HashConsM Primes.bn254 (Option (ZMod Primes.bn254)) := do
   let x ← mkConstant 1
   let y ← mkConstant 2
   let z ← poseidonBN254 #v[x, y]
   eval {} z
 
-#eval! StateT.run' evalPoseidon (HashConsSt.empty Primes.bn254)
+/--
+circomlib test vector: hash([1, 2]) with t=3
+https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L50
+-/
+example :
+  (StateT.run' test₁ (HashConsSt.empty Primes.bn254)).run =
+  .some 7853200120776062878684798364095072458815029376092732009249414926327459813530 := by
+  native_decide
 
-7853200120776062878684798364095072458815029376092732009249414926327459813530
-7853200120776062878684798364095072458815029376092732009249414926327459813530
+private def test₂ : HashConsM Primes.bn254 (Option (ZMod Primes.bn254)) := do
+  let x ← mkConstant 3
+  let y ← mkConstant 4
+  let z ← poseidonBN254 #v[x, y]
+  eval {} z
+
+/--
+circomlib test vector: hash([3, 4]) with t=3
+https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L60
+-/
+example :
+  (StateT.run' test₂ (HashConsSt.empty Primes.bn254)).run =
+  some 14763215145315200506921711489642608356394854266165572616578112107564877678998 := by
+  native_decide
+
+end examples
 
 end Clap
