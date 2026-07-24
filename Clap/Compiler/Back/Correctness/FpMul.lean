@@ -705,6 +705,51 @@ lemma zmod_int_cast_eq_of_repr (offset : ℕ) (a : ZMod p) (z : ℤ)
     rw [if_pos h_val_lt, ha_val]
 
 /--
+  Numeric bounds shared by the soundness and completeness proofs of
+  `check_carry_zero`. Both directions need the same relationships between the
+  constants `c_off = 2^(w+1) * n`, `c_bd = 2^(w + clog 2 n + 2)`, and
+  `t_off = 2^(2w + clog 2 n + 3)`, all rooted in the single input hypothesis
+  `2^(2w + clog 2 n + 4) ≤ p`.
+-/
+private structure CheckCarryBounds (p n w : ℕ) : Prop where
+  /-- `2 * c_off ≤ c_bd` -/
+  two_coff_le_cbd : 2 * (2 ^ (w + 1) * n) ≤ 2 ^ (w + Nat.clog 2 n + 2)
+  /-- `c_off ≤ c_bd` -/
+  coff_le_cbd : 2 ^ (w + 1) * n ≤ 2 ^ (w + Nat.clog 2 n + 2)
+  /-- `c_bd * 2 ≤ t_off` -/
+  cbd_two_le_toff : 2 ^ (w + Nat.clog 2 n + 2) * 2 ≤ 2 ^ (2 * w + Nat.clog 2 n + 3)
+  /-- `2 * t_off ≤ p` -/
+  two_toff_le_p : 2 * 2 ^ (2 * w + Nat.clog 2 n + 3) ≤ p
+  /-- `t_off ≤ p` -/
+  toff_le_p : 2 ^ (2 * w + Nat.clog 2 n + 3) ≤ p
+  /-- `c_bd ≤ p` -/
+  cbd_le_p : 2 ^ (w + Nat.clog 2 n + 2) ≤ p
+  /-- `2 * c_bd ≤ p` -/
+  two_cbd_le_p : 2 * 2 ^ (w + Nat.clog 2 n + 2) ≤ p
+  /-- `c_off ≤ p` -/
+  coff_le_p : 2 ^ (w + 1) * n ≤ p
+
+omit inst' in
+private lemma check_carry_bounds {n w : ℕ}
+    (hp_bound : 2 ^ (2 * w + Nat.clog 2 n + 4) ≤ p) :
+    CheckCarryBounds p n w := by
+  have hn_le_clog : n ≤ 2 ^ Nat.clog 2 n := Nat.le_pow_clog (by omega) n
+  have two_coff_le_cbd : 2 * (2 ^ (w + 1) * n) ≤ 2 ^ (w + Nat.clog 2 n + 2) := by
+    calc 2 * (2 ^ (w + 1) * n)
+        = 2 ^ (w + 2) * n := by ring
+      _ ≤ 2 ^ (w + 2) * 2 ^ Nat.clog 2 n := Nat.mul_le_mul_left _ hn_le_clog
+      _ = 2 ^ (w + Nat.clog 2 n + 2) := by rw [← pow_add]; congr 1; ring
+  have cbd_two_le_toff : 2 ^ (w + Nat.clog 2 n + 2) * 2 ≤ 2 ^ (2 * w + Nat.clog 2 n + 3) := by
+    calc 2 ^ (w + Nat.clog 2 n + 2) * 2
+        = 2 ^ (w + Nat.clog 2 n + 3) := by ring
+      _ ≤ 2 ^ (2 * w + Nat.clog 2 n + 3) :=
+          Nat.pow_le_pow_right (by norm_num) (by omega)
+  have two_toff_le_p : 2 * 2 ^ (2 * w + Nat.clog 2 n + 3) ≤ p := by
+    have h_eq : 2 * 2 ^ (2 * w + Nat.clog 2 n + 3) = 2 ^ (2 * w + Nat.clog 2 n + 4) := by ring
+    rw [h_eq]; exact hp_bound
+  refine ⟨two_coff_le_cbd, by omega, cbd_two_le_toff, two_toff_le_p, ?_, ?_, ?_, ?_⟩ <;> omega
+
+/--
   Generalized version of `check_carry_spec` over any vector length `n`.
 -/
 private lemma check_carry_zero_circuit_wrBisim {n w : ℕ}
@@ -726,35 +771,16 @@ private lemma check_carry_zero_circuit_wrBisim {n w : ℕ}
     set c_off : ℕ := 2 ^ (w + 1) * n with hc_off
     set c_bd : ℕ := 2 ^ (w + Nat.clog 2 n + 2) with hc_bd
     set t_off : ℕ := 2 ^ (2 * w + Nat.clog 2 n + 3) with ht_off
-    -- Bounds for clog
-    have hn_le_clog : n ≤ 2 ^ Nat.clog 2 n := Nat.le_pow_clog (by omega) n
-    have h_clog_pos : 0 < 2 ^ Nat.clog 2 n := Nat.pos_of_neZero _
-    -- Numeric: c_off ≤ c_bd / 2 (i.e. 2 * c_off ≤ c_bd)
-    have h_2coff_le_cbd : 2 * c_off ≤ c_bd := by
-      simp only [hc_off, hc_bd]
-      calc 2 * (2 ^ (w + 1) * n)
-          = 2 ^ (w + 2) * n := by ring
-        _ ≤ 2 ^ (w + 2) * 2 ^ Nat.clog 2 n :=
-            Nat.mul_le_mul_left _ hn_le_clog
-        _ = 2 ^ (w + Nat.clog 2 n + 2) := by
-            rw [← pow_add]; congr 1; ring
-    have h_coff_le_cbd : c_off ≤ c_bd := by omega
-    -- p bounds
-    have h_p_pos : 0 < p := Nat.pos_of_ne_zero (NeZero.ne p)
-    have h_cbd_le_toff : c_bd * 2 ≤ t_off := by
-      simp only [hc_bd, ht_off]
-      calc 2 ^ (w + Nat.clog 2 n + 2) * 2
-          = 2 ^ (w + Nat.clog 2 n + 3) := by ring
-        _ ≤ 2 ^ (2 * w + Nat.clog 2 n + 3) :=
-            Nat.pow_le_pow_right (by norm_num) (by omega)
-    have h_toff_2_le_p : 2 * t_off ≤ p := by
-      have : 2 * t_off = 2 ^ (2 * w + Nat.clog 2 n + 4) := by
-        simp only [ht_off]; ring
-      omega
-    have h_toff_le_p : t_off ≤ p := by omega
-    have h_cbd_le_p : c_bd ≤ p := by omega
-    have h_cbd_2_le_p : 2 * c_bd ≤ p := by omega
-    have h_coff_le_p : c_off ≤ p := by omega
+    -- Numeric bounds derived from `hp_bound`, shared with the completeness proof.
+    have h_bounds := check_carry_bounds hp_bound
+    have h_2coff_le_cbd : 2 * c_off ≤ c_bd := h_bounds.two_coff_le_cbd
+    have h_coff_le_cbd : c_off ≤ c_bd := h_bounds.coff_le_cbd
+    have h_cbd_le_toff : c_bd * 2 ≤ t_off := h_bounds.cbd_two_le_toff
+    have h_toff_2_le_p : 2 * t_off ≤ p := h_bounds.two_toff_le_p
+    have h_toff_le_p : t_off ≤ p := h_bounds.toff_le_p
+    have h_cbd_le_p : c_bd ≤ p := h_bounds.cbd_le_p
+    have h_cbd_2_le_p : 2 * c_bd ≤ p := h_bounds.two_cbd_le_p
+    have h_coff_le_p : c_off ≤ p := h_bounds.coff_le_p
     apply check_carry_foldr_wrBisim t_pol carry cont d h_n_pos
       (lst := List.finRange (n - 1))
     · intro heq hbase hrc
@@ -1934,14 +1960,71 @@ lemma foldr_eq0_wrap {α : Type} {wg : Wg p} {cs : Csₑ p} {ls : List α} {f : 
 
 -- example {k w : ℕ} {t : Vector (Expₑ p) k} {wg : Wg p} {cs : Csₑ p} : (wrap (check_carry_zero_wg w t wg) (check_carry_zero_circuit w t cs)).eval = .n := by sorry
 
-lemma check_carry_zero_wrap_succ {α : Type} {ls : List α} {f : α → Expₑ p}
-    {k w : ℕ} {t_wg t_cs : Vector (Expₑ p) k} {wg : Wg p} {cs : Csₑ p} :
+omit inst' in
+private lemma carry_length {w : ℕ} : ∀ (ls : List (ZMod p)) (c : ZMod p),
+    (carry w ls c).length = ls.length - 1
+  | [], _ => rfl
+  | [_], _ => rfl
+  | l :: l' :: ls, c => by
+    show ((l + c) / (2 ^ w) :: carry w (l' :: ls) ((l + c) / (2 ^ w))).length = _
+    rw [List.length_cons, carry_length (l' :: ls) _]
+    simp
+
+lemma check_carry_zero_wrap_succ {k w : ℕ} {t_wg t_cs : Vector (Expₑ p) k}
+    {wg : Wg p} {cs : Csₑ p} :
   2 ^ (2 * w + Nat.clog 2 k + 4) ≤ p →
   (∀ i : Fin k, t_wg[i].eval = t_cs[i].eval) →
   ∑ i : Fin k, zmod_int_cast (2 ^ (2 * w + Nat.clog 2 k + 3)) t_wg[i].eval * (2 ^ w : ℤ) ^ i.1 = 0 →
-    (List.foldr (fun i ↦ Cs.eq0 (f i))
-        (wrap (check_carry_zero_wg w t_wg wg) (check_carry_zero_circuit w t_cs cs)) ls).eval =
-      (List.foldr (fun i ↦ Cs.eq0 (f i)) (wrap wg cs) ls).eval := by sorry
+    (wrap (check_carry_zero_wg w t_wg wg) (check_carry_zero_circuit w t_cs cs)).eval =
+      (wrap wg cs).eval := by
+  intros hp_bound hval_eq hsum
+  by_cases hk : k = 0
+  · subst hk
+    have h_toList : t_wg.toList = [] := by
+      apply List.eq_nil_of_length_eq_zero
+      rw [Vector.length_toList]
+    have h_wg_eq : check_carry_zero_wg w t_wg wg = wg := by
+      unfold check_carry_zero_wg
+      simp only [h_toList, List.map_nil]
+      show List.foldr _ (List.foldr _ wg (carry w [] 0)) (carry w [] 0) = wg
+      rfl
+    have h_cs_eq : check_carry_zero_circuit w t_cs cs = cs := by
+      unfold check_carry_zero_circuit
+      simp
+    rw [h_wg_eq, h_cs_eq]
+  · -- k ≥ 1: completeness counterpart of `check_carry_zero_circuit_wrBisim`.
+    have h_k_pos : 0 < k := Nat.pos_of_ne_zero hk
+    unfold check_carry_zero_wg check_carry_zero_circuit
+    simp only [hk, ↓reduceDIte]
+    set carries : List (ZMod p) := carry w (t_wg.toList.map Exp.eval) 0 with h_carries_def
+    have h_carries_len : carries.length = k - 1 := by
+      rw [h_carries_def, carry_length, List.length_map, Vector.length_toList]
+    -- Consume the k-1 Wg.cons's against Cs.curry (k-1).
+    rw [foldr_curry h_carries_len]
+    -- Remaining: peel off each Cs.eq0 carry-equation and each num2bits pair
+    -- (honest carries satisfy all constraints under hp_bound + hsum), then the
+    -- final base Cs.eq0. Analog of `check_carry_zero_circuit_wrBisim`'s ~500 lines.
+    sorry
+
+-- #check check_lt_wg
+-- #check check_lt_circuit
+
+lemma check_lt_wrap_succ {k w : ℕ} {wg : Wg p} {cs : Csₑ p} {t t' p' :  Vector (Expₑ p) k}
+    (hp_bound : 2 ^ (w + 1) ≤ p)
+    (hr_rc : ∀ i : Fin k, t[i].eval.val < 2 ^ w)
+    (h_equiv : ∀ i : Fin k, t[i].eval = t'[i].eval)
+    (hp_rc : ∀ i : Fin k, p'[i].eval.val < 2 ^ w) :
+  (∑ i : Fin _, t[i].eval.val * (2 ^ w) ^ i.1 < ∑ i : Fin _, p'[i].eval.val * (2 ^ w) ^ i.1) → (wrap (check_lt_wg w t p' wg) (check_lt_circuit w t' p' cs)).eval = (wrap wg cs).eval := by sorry
+
+omit inst' in
+lemma eq0_foldr_wrap_succ {α : Type} {ls : List α} {f : α → Expₑ p} {wg : Wg p} {cs : Csₑ p} :
+    (∀ i ∈ ls, (f i).eval = 0) →
+      (List.foldr (fun i ↦ Cs.eq0 (f i)) (wrap wg cs) ls).eval = (wrap wg cs).eval := by
+  intros h
+  induction ls with
+  | nil => simp
+  | cons l ls ih =>
+    simp_all only [List.foldr_cons, Cs.eval, h l (by simp), ↓reduceIte, List.mem_cons, or_true, implies_true, forall_const, forall_eq_or_imp]
 
 lemma fpmul_completeness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : Vector (ZMod p) k → Circuit p (ZMod p)}
       (ih : ∀ (a : Vector (ZMod p) k), circuitWF (c a) → (c a).eval = (wrap (c a).toWg (c a).toCs).eval) :
@@ -1967,35 +2050,10 @@ lemma fpmul_completeness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : V
     rw [foldr_curry (by simp)]
     simp only [Fin.getElem_fin, Array.getD_eq_getD_getElem?, Vector.map_mk, List.map_toArray,
       List.map_map, List.pure_def, List.bind_eq_flatMap]
-    rw [foldr_eq0_wrap]
+    rw [foldr_eq0_wrap, eq0_foldr_wrap_succ (by sorry)]
     rw [check_carry_zero_wrap_succ h.1 (by simp [Exp.eval]) (by simp [Exp.eval]; sorry)]
-
-    -- rw [foldr_curry (by simp)]
-    -- rw [check_carry_zero_wrap_succ sorry sorry]
-
-
-
-
-
-    -- unfold assert_poly_eq_prod
-    -- by_cases cond₁ :
-    --   (∀ (i : Fin k),
-    --   (Vector.map Exp.v
-    --             (Circuit.nat2words p w k
-    --               (((∑ i : Fin _, a[i].eval.val * (2 ^ w) ^ i.1) * ∑ i : Fin _, b[i].eval.val * (2 ^ w) ^ i.1) /
-    --                 ∑ i : Fin _, p'[i].eval.val * (2 ^ w) ^ i.1)))[i].eval.val <
-    --     2 ^ w)
-    -- · have bla c_wg c_cs := @range_check_vec_completeness_succ p _ _ w k
-    --                 (Vector.map Exp.v
-    --                   (Circuit.nat2words p w k
-    --                     (((∑ i : Fin _, a[i].eval.val * (2 ^ w) ^ i.1) * ∑ i : Fin _, b[i].eval.val * (2 ^ w) ^ i.1) /
-    --                       ∑ i : Fin _, p'[i].eval.val * (2 ^ w) ^ i.1))) c_wg c_cs cond₁
-
-
-
-    -- · sorry
-    -- · sorry
-    repeat sorry
+    rw [check_lt_wrap_succ (by sorry) sorry sorry sorry sorry]
+    rw [ih _ (h.2 _)]
   · simp only [fpMul_circuit, fpMul_wg]
     simp only [Fin.getElem_fin, Classical.not_and_iff_not_or_not] at cond
     rcases cond with cond | cond | cond
@@ -2014,8 +2072,6 @@ lemma fpmul_completeness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : V
         · rw [not_not] at h'
           rw [range_check_vec_completeness_succ h' (by simp)]
           rw [range_check_vec_completeness_fail cond]
-
-    -- repeat sorry
 
 
 end Clap.FpMul
