@@ -116,7 +116,7 @@ def HashConsSt.pushExpr {p : ℕ}
   (σ : HashConsSt p)
   (h_wellFormed : e.wellFormed σ.exprs.size)
 : HashConsSt p where
-  exprs :=  σ.exprs.push e
+  exprs := σ.exprs.push e
   wellFormed := by
     intro i h_i
     simp at h_i
@@ -331,23 +331,45 @@ lemma run_eval_idxOf_c_of_contains' {varStore : VarStore p} {k : ZMod p}
   [varStore|σ.exprs.idxOf (.c k)] σ = (some k, σ) :=
   run_eval_idxOf_c_of_contains h
 
+@[aesop unsafe, grind .]
+lemma HashConsSt.exprs_mem_pushExpr (h : e.wellFormed σ.exprs.size) :
+  e ∈ (σ.pushExpr e h).exprs := by
+  simp [HashConsSt.pushExpr]
+
+lemma eval_pushExpr (h : (CacheExpr.c k).wellFormed σ.exprs.size) :
+  [varStore|σ.exprs.size] (σ.pushExpr (.c k) h) = (_, _) := by
+  sorry
+
 @[simp, grind =]
-lemma eval_c
+lemma run_mkConstant_eval_c_of_mem
   {p : ℕ}
   {k : ZMod p}
   {varStore : VarStore p}
+  {σ : HashConsSt p}
+  (h : .c k ∈ σ.exprs)
 :
-  (mkConstant k >>= ([varStore|·])) = pure (.some k)
-:= by
-  ext1 σ
+  (mkConstant k >>= ([varStore|·])).run σ = (.some k, σ)
+:= by  
   simp
-  by_cases h : .c k ∈ σ.exprs
-  · simp [StateT.run, h]
-    unfold_projs
-    grind
-  · simp [StateT.run, h]
-    unfold_projs
-    
+  simp [StateT.run, h]
+  unfold_projs
+  grind
+
+@[simp, grind =]
+lemma run_mkConstant_eval_c_of_notMem
+  {p : ℕ}
+  {k : ZMod p}
+  {varStore : VarStore p}
+  {σ : HashConsSt p}
+  (h : .c k ∉ σ.exprs)
+:
+  (mkConstant k >>= ([varStore|·])).run σ = (.some k, σ.pushExpr (.c k) sorry)
+:= by  
+  simp
+  simp [StateT.run, h]
+  unfold_projs
+  simp
+
 
 end
 
