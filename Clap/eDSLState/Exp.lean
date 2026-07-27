@@ -213,10 +213,15 @@ termination_by e
 lemma evalAux_of_mem_cache (h : ref ∈ cache) :
   evalAux varStore ref cache σ = cache := by grind [=evalAux]
 
-def eval {p} (Γ : VarStore p) (e : ExprRef) : HashConsM p (Option (ZMod p)) := do
-  letI cache : Std.ExtHashMap ExprRef (Option (ZMod p)) := {}
-  letI post_cache := evalAux Γ e cache (←get)
-  return (post_cache.get? e).join
+-- def eval {p} (Γ : VarStore p) (e : ExprRef) : HashConsM p (Option (ZMod p)) := do
+--   letI cache : Std.ExtHashMap ExprRef (Option (ZMod p)) := {}
+--   letI post_cache := evalAux Γ e cache (←get)
+--   return (post_cache.get? e).join
+
+def eval {p} (Γ : VarStore p) (e : HashConsM p ExprRef) : HashConsM p (Option (ZMod p)) := do
+  let expr ← e
+  letI post_cache := evalAux Γ expr {} (←get)
+  return (post_cache.get? expr).join
 
 notation "[" varStore "|" x "]" => eval varStore x
 
@@ -297,7 +302,7 @@ TODO Obviously we can't be writing these proofs like this.
 -/
 @[aesop unsafe, grind .]
 lemma eval_eq_some_of_mem_eq_const (h : σ[ref]? = .some (.c k)) :
-  eval varStore ref σ = (.some k, σ) := by
+  eval varStore (pure ref) σ = (.some k, σ) := by
   unfold eval
   simp
   unfold Functor.map
@@ -308,6 +313,36 @@ lemma eval_eq_some_of_mem_eq_const (h : σ[ref]? = .some (.c k)) :
   unfold Functor.map
   unfold_projs
   grind
+
+def f (ref : ExprRef) : HashConsM p (Option (CacheExpr p)) := fun σ ↦ (σ[ref]?, σ)
+
+end
+
+end FixedExp
+
+def HashConsM.runGet? (ref : HashConsM p ExprRef) (σ : HashConsSt p) : Option (CacheExpr p) :=
+  let (ref', σ') := ref.run σ
+  σ'[ref']?
+
+namespace FixedExp
+
+section
+
+variable {varStore : VarStore p} {k : ZMod p} {cache : Std.ExtHashMap ExprRef (Option (ZMod p))}
+         {σ : HashConsSt p} {ref : ExprRef}
+
+@[grind _=_]
+lemma runGet_def {ref : HashConsM p ExprRef} :
+  ref.runGet? σ = (StateT.run ref σ).2[(StateT.run ref σ).1]? := rfl
+
+attribute [local grind ext]
+  Option.ext Prod.ext Id.ext
+
+lemma blah {ref : HashConsM p ExprRef}
+           (h : ref.runGet? σ = .some (.c k)) :
+  [varStore|ref].run σ = (.some k, (ref.run σ).2) := by
+  simp [eval]
+  grind [=Id.run, Functor.map]
 
 @[simp, grind =]
 lemma _root_.Array.getElem_idxOf {α : Type} {a : Array α} {x : α} [BEq α] [LawfulBEq α] (h : a.idxOf x < a.size) :
