@@ -8,9 +8,12 @@ namespace Edsl
 
 variable {p : ℕ}
 
+--StateT numAlloc
 abbrev CircuitStateT (p : ℕ) (m : Type → Type) (α : Type) : Type := WriterT (CircuitState p) (StateT ℕ m) α
 
-abbrev CircuitStateM (p : ℕ) (α : Type) : Type := CircuitStateT p (HashConsM p) α
+abbrev CircuitStateM (p : ℕ) (α : Type) : Type := CircuitStateT p Id α
+
+abbrev ClapM (p : ℕ) (α : Type) : Type := CircuitStateT p (HashConsM p) α
 
 section Monoid
 

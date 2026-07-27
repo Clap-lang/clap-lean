@@ -13,6 +13,7 @@ initialize Lean.registerTraceClass `Clap.Preprocessor.addLambdas (inherited := t
 
 register_simp_attr Clap.monads
 
+-- TODO move out of Clap namespace?
 @[simp, grind .]
 lemma ZMod.zero_ne_one
   {p : ℕ}
@@ -56,3 +57,12 @@ lemma Array.foldl_empty_collection
 := by rfl
 
 end Clap
+
+@[simp, grind =]
+lemma _root_.Array.getElem_idxOf {α : Type} {a : Array α} {x : α} [BEq α] [LawfulBEq α] (h : a.idxOf x < a.size) :
+  a[a.idxOf x]'h = x := by
+  rcases a with ⟨a⟩
+  simp
+
+@[grind =]
+lemma _root_.Id.pure_eq {α : Type} {x : α} : pure (f := Id) x = x := by rfl

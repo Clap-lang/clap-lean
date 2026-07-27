@@ -12,4 +12,7 @@ instance {p : ℕ} : GetElem? (VarStore p) ℕ (ZMod p) (λ Γ x ↦ Γ.contains
   getElem  Γ x h := Γ.get x h
   getElem? Γ x   := Γ.get? x
 
+def VarStore.ofArray {p : ℕ} (elem : Array (ℕ × ZMod p)) : VarStore p :=
+  Std.ExtTreeMap.ofArray elem (cmp := compare)
+
 end Clap
