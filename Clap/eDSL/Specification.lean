@@ -66,21 +66,21 @@ def eval_expr {p : ℕ} (varStore : Std.ExtExtTreeMap ℕ (ZMod p)) (e : Exp p) 
 
 -- split varstore and circuit to not have to manually prove termination
 -- TODO do we even still need AllocatedCircuit?
-def eval_impl {p: ℕ} (varStore: Std.ExtExtTreeMap ℕ (ZMod p)) (circuit : Circuit p) : denotation (ZMod p) :=
+def evalAux {p: ℕ} (varStore: Std.ExtExtTreeMap ℕ (ZMod p)) (circuit : Circuit p) : denotation (ZMod p) :=
   match circuit with
   | .nil =>
     .u
   | .lam k =>
     .l fun x =>
     let newIdx := varStore.size
-    eval_impl (varStore.insert newIdx x) (k newIdx)
+    evalAux (varStore.insert newIdx x) (k newIdx)
   | .eq0 e c =>
-    if eval_expr varStore e = .some 0 then eval_impl varStore c else .n
+    if eval_expr varStore e = .some 0 then evalAux varStore c else .n
   | .share e k =>
     let newIdx := varStore.size
     let val := eval_expr varStore e
     match val with
-    | .some val => eval_impl (varStore.insert newIdx val) (k newIdx)
+    | .some val => evalAux (varStore.insert newIdx val) (k newIdx)
     | .none => .n
   | .isZero e k =>
     let invIdx := varStore.size
@@ -89,8 +89,8 @@ def eval_impl {p: ℕ} (varStore: Std.ExtExtTreeMap ℕ (ZMod p)) (circuit : Cir
     | .some val =>
       let inv := val⁻¹
       if val = 0
-      then eval_impl (varStore.insert invIdx inv |>.insert oIdx 1) (k oIdx)
-      else eval_impl (varStore.insert invIdx inv |>.insert oIdx 0) (k oIdx)
+      then evalAux (varStore.insert invIdx inv |>.insert oIdx 1) (k oIdx)
+      else evalAux (varStore.insert invIdx inv |>.insert oIdx 0) (k oIdx)
     | .none =>
       .n
   | .num2bits w e k =>
@@ -103,12 +103,12 @@ def eval_impl {p: ℕ} (varStore: Std.ExtExtTreeMap ℕ (ZMod p)) (circuit : Cir
           let idxs := List.range' oldSize w
           let bits := idxs.zip (num2bitsLsbPure w val)
           let varStore := varStore.insertMany bits
-          eval_impl varStore (k idxs)
+          evalAux varStore (k idxs)
         else .n
       | .none => .n
 
 def eval {p: ℕ} (circuit: AllocatedCircuit p) : denotation (ZMod p) :=
-  eval_impl circuit.varStore circuit.circuit
+  evalAux circuit.varStore circuit.circuit
 
 
 
@@ -187,7 +187,7 @@ lemma equiv_eq0 {p: ℕ} {ResultT: Type}
 := by
   simp [equiv]
   intro continuation
-  simp [eval, bind, Edsl.eq0, eval_impl, h_equiv]
+  simp [eval, bind, Edsl.eq0, evalAux, h_equiv]
 
 -- TODO do we want Edsl.share to return an exp?
 lemma equiv_share {p: ℕ} {ResultT: Type} {val : ZMod p} {other}
@@ -208,7 +208,7 @@ lemma equiv_share {p: ℕ} {ResultT: Type} {val : ZMod p} {other}
     (rest (.v varStore.size))
     other
 := by
-  simp [equiv, bind, Edsl.share, eval, eval_impl, h_a]
+  simp [equiv, bind, Edsl.share, eval, evalAux, h_a]
   apply Iff.intro
   . intro h continuation
     replace h := h continuation
@@ -231,7 +231,7 @@ lemma fails_eq0 {p: ℕ}
     varStore
     (Edsl.eq0 a)
 := by
-  simp [fails, eval, Edsl.eq0, eval_impl, h_equiv]
+  simp [fails, eval, Edsl.eq0, evalAux, h_equiv]
 
 lemma fails_of_head_fails {p: ℕ} {ResultT: Type}
   (varStore : Std.ExtTreeMap ℕ (ZMod p))
@@ -244,8 +244,8 @@ lemma fails_of_head_fails {p: ℕ} {ResultT: Type}
     (bind (Edsl.eq0 a) tail)
 := by
   simp [fails, Edsl.eq0] at ⊢ h_fails
-  simp [eval, eval_impl] at h_fails
-  simp [h_fails, Edsl.eq0, eval, eval_impl, bind]
+  simp [eval, evalAux] at h_fails
+  simp [h_fails, Edsl.eq0, eval, evalAux, bind]
 
 -- TODO
 -- this is not true in general
