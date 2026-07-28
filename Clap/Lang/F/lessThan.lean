@@ -46,8 +46,20 @@ def matchesBinaryComparisonFunction
 def spec (p : ℕ) [p.AtLeastTwo] (w : ℕ) : Prop :=
   matchesBinaryComparisonFunction p w (· < ·) (lessThan w) (allocatesN := w + 1)
 
-lemma equiv (p : ℕ) [p.AtLeastTwo] (w : ℕ) : spec p w := by
-  unfold spec matchesBinaryComparisonFunction lessThan
+/-- like `equiv`, but with `hbRange` relaxed to `≤ 2 ^ w` -/
+lemma equiv_le (p : ℕ) [p.AtLeastTwo] (w : ℕ) :
+  ∀ (a b : F p) (varStorePre : VarStore p) (numAllocPre : ℕ),
+    (ha : a.isValid varStorePre) → (hb : b.isValid varStorePre) →
+      letI aVal := (a.toZMod varStorePre).get ha
+      letI bVal := (b.toZMod varStorePre).get hb
+      (haRange : aVal.val < 2 ^ w) → (hbRange : bVal.val ≤ 2 ^ w) → (hw : 2 ^ (w + 1) < p) →
+        let ⟨result, circuit⟩ := CircuitStateM.runAndEval (lessThan w a b) numAllocPre varStorePre
+        circuit.constraints ∧
+        circuit.numAlloc = numAllocPre + (w + 1) ∧
+        (∀ n < numAllocPre, circuit.varStore[n]? = varStorePre[n]?) ∧
+        Convert.toIdeal circuit.varStore result = .some (aVal.val < bVal.val : Bool)
+:= by
+  unfold lessThan
   intro a b varStorePre numAllocPre ha hb haRange hbRange hw
   set aVal := (a.toZMod varStorePre).get ha with haVal_def
   set bVal := (b.toZMod varStorePre).get hb with hbVal_def
@@ -117,6 +129,11 @@ lemma equiv (p : ℕ) [p.AtLeastTwo] (w : ℕ) : spec p w := by
   · rw [FB.toIdeal_not hbit, htestBit]
     by_cases hab : aVal.val < bVal.val <;> simp [hab]
 
+lemma equiv (p : ℕ) [p.AtLeastTwo] (w : ℕ) : spec p w := by
+  unfold spec matchesBinaryComparisonFunction
+  intro a b varStorePre numAllocPre ha hb haRange hbRange hw
+  exact equiv_le p w a b varStorePre numAllocPre ha hb haRange (le_of_lt hbRange) hw
+
 end lessThan
 
 namespace lessEqThan
@@ -124,7 +141,36 @@ namespace lessEqThan
 def spec (p : ℕ) [p.AtLeastTwo] (w : ℕ) : Prop :=
   lessThan.matchesBinaryComparisonFunction p w (· ≤ ·) (lessEqThan w) (allocatesN := w + 1)
 
-lemma equiv (p : ℕ) [p.AtLeastTwo] (w : ℕ) : spec p w := by sorry
+lemma equiv (p : ℕ) [p.AtLeastTwo] (w : ℕ) : spec p w := by
+  unfold spec lessThan.matchesBinaryComparisonFunction lessEqThan
+  intro a b varStorePre numAllocPre ha hb haRange hbRange hw
+  set aVal := (a.toZMod varStorePre).get ha with haVal_def
+  set bVal := (b.toZMod varStorePre).get hb with hbVal_def
+  have hBVal : b.toZMod varStorePre = some bVal := (Option.some_get hb).symm
+  have hBVal1 : [varStorePre | b + 1] = .some (bVal + 1) := by
+    simpa using FixedExp.eval_add_some hBVal (FixedExp.eval_ofNat (n := 1))
+  have hb1Valid : (b + 1).isValid varStorePre := Option.isSome_iff_exists.mpr ⟨bVal + 1, hBVal1⟩
+  have h2w_lt_p : 2 ^ w < p :=
+    lt_trans (Nat.pow_lt_pow_right (by norm_num) (Nat.lt_succ_self w)) hw
+  have hb1_val : (bVal + 1).val = bVal.val + 1 := by
+    have h2w_pos : 1 ≤ 2 ^ w := Nat.one_le_pow w 2 (by norm_num)
+    have h1p : 1 < p := by omega
+    have h1 : (1 : ZMod p).val = 1 := by
+      have hc : (1 : ZMod p) = ((1 : ℕ) : ZMod p) := by push_cast; ring
+      rw [hc]; exact ZMod.val_cast_of_lt h1p
+    have h := ZMod.val_add_of_lt (a := bVal) (b := (1 : ZMod p)) (by rw [h1]; omega)
+    rwa [h1] at h
+  have hget : ((b + 1).toZMod varStorePre).get hb1Valid = bVal + 1 :=
+    Option.some.inj ((Option.some_get hb1Valid).trans hBVal1)
+  have hb1Range : (((b + 1).toZMod varStorePre).get hb1Valid).val ≤ 2 ^ w := by
+    rw [hget, hb1_val]; omega
+  have h := lessThan.equiv_le p w a (b + 1) varStorePre numAllocPre ha hb1Valid haRange hb1Range hw
+  rw [hget, hb1_val, ← haVal_def] at h
+  refine ⟨h.1, h.2.1, h.2.2.1, ?_⟩
+  rw [h.2.2.2]
+  congr 1
+  simp only [decide_eq_decide]
+  omega
 
 end lessEqThan
 
@@ -133,7 +179,13 @@ namespace greaterThan
 def spec (p : ℕ) [p.AtLeastTwo] (w : ℕ) : Prop :=
   lessThan.matchesBinaryComparisonFunction p w (· > ·) (greaterThan w) (allocatesN := w + 1)
 
-lemma equiv (p : ℕ) [p.AtLeastTwo] (w : ℕ) : spec p w := by sorry
+lemma equiv (p : ℕ) [p.AtLeastTwo] (w : ℕ) : spec p w := by
+  unfold spec lessThan.matchesBinaryComparisonFunction greaterThan
+  intro a b varStorePre numAllocPre ha hb haRange hbRange hw
+  have h := lessThan.equiv p w b a varStorePre numAllocPre hb ha hbRange haRange hw
+  refine ⟨h.1, h.2.1, h.2.2.1, ?_⟩
+  -- `aVal.val > bVal.val` is definitionally `bVal.val < aVal.val`, so `rw` closes the goal
+  rw [h.2.2.2]
 
 end greaterThan
 
@@ -142,7 +194,36 @@ namespace greaterEqThan
 def spec (p : ℕ) [p.AtLeastTwo] (w : ℕ) : Prop :=
   lessThan.matchesBinaryComparisonFunction p w (· ≥ ·) (greaterEqThan w) (allocatesN := w + 1)
 
-lemma equiv (p : ℕ) [p.AtLeastTwo] (w : ℕ) : spec p w := by sorry
+lemma equiv (p : ℕ) [p.AtLeastTwo] (w : ℕ) : spec p w := by
+  unfold spec lessThan.matchesBinaryComparisonFunction greaterEqThan
+  intro a b varStorePre numAllocPre ha hb haRange hbRange hw
+  set aVal := (a.toZMod varStorePre).get ha with haVal_def
+  set bVal := (b.toZMod varStorePre).get hb with hbVal_def
+  have hAVal : a.toZMod varStorePre = some aVal := (Option.some_get ha).symm
+  have hAVal1 : [varStorePre | a + 1] = .some (aVal + 1) := by
+    simpa using FixedExp.eval_add_some hAVal (FixedExp.eval_ofNat (n := 1))
+  have ha1Valid : (a + 1).isValid varStorePre := Option.isSome_iff_exists.mpr ⟨aVal + 1, hAVal1⟩
+  have h2w_lt_p : 2 ^ w < p :=
+    lt_trans (Nat.pow_lt_pow_right (by norm_num) (Nat.lt_succ_self w)) hw
+  have ha1_val : (aVal + 1).val = aVal.val + 1 := by
+    have h2w_pos : 1 ≤ 2 ^ w := Nat.one_le_pow w 2 (by norm_num)
+    have h1p : 1 < p := by omega
+    have h1 : (1 : ZMod p).val = 1 := by
+      have hc : (1 : ZMod p) = ((1 : ℕ) : ZMod p) := by push_cast; ring
+      rw [hc]; exact ZMod.val_cast_of_lt h1p
+    have h := ZMod.val_add_of_lt (a := aVal) (b := (1 : ZMod p)) (by rw [h1]; omega)
+    rwa [h1] at h
+  have hget : ((a + 1).toZMod varStorePre).get ha1Valid = aVal + 1 :=
+    Option.some.inj ((Option.some_get ha1Valid).trans hAVal1)
+  have ha1Range : (((a + 1).toZMod varStorePre).get ha1Valid).val ≤ 2 ^ w := by
+    rw [hget, ha1_val]; omega
+  have h := lessThan.equiv_le p w b (a + 1) varStorePre numAllocPre hb ha1Valid hbRange ha1Range hw
+  rw [hget, ha1_val, ← hbVal_def] at h
+  refine ⟨h.1, h.2.1, h.2.2.1, ?_⟩
+  rw [h.2.2.2]
+  congr 1
+  simp only [decide_eq_decide]
+  omega
 
 end greaterEqThan
 
