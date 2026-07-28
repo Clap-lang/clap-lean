@@ -2,46 +2,46 @@ import Clap.eDSLState.HashCons.HashConsM
 
 namespace Clap.HashConsM
 
-abbrev ValueCache (p : ℕ) := Std.ExtHashMap ExprRef (Option (ZMod p))
+-- abbrev ValueCache (p : ℕ) := Std.ExtHashMap ExprRef (Option (ZMod p))
 
--- Given a cache mapping exprRefs to their value in a given varstore,
--- add an entry for e
-def evalAux {p}
-  (Γ : VarStore p)
-  (e : ExprRef)
-  (cache : ValueCache p)
-  (state : HashConsSt p)
-:
-  ValueCache p
-:=
-  -- if e already has a cached value, no modification needed
-  match cache[e]? with
-  | .some result => cache
-  | .none =>
-    -- if e is not a reference into the Hash Cons State, no modification needed
-    match h : state[e]? with
-    | .none => cache
-    | .some expr =>
-      match expr with
-      -- for leaves, insert their value, looking at the varstore if needed
-      | .c value => cache.insert e (.some value)
-      | .v idx => cache.insert e (Γ.get? idx)
-      -- for branch nodes, recurse, adding the childrens' values if needed
-      | .binary_op lhs rhs op =>
-        have lhs_precedes_your_index : lhs < e := by
-          grind [HashConsSt.wellFormed, CacheExpr.wellFormed]
-        letI lhs_cache := evalAux Γ lhs cache state
-        letI lhs_val := lhs_cache[lhs]?.join
-        have rhs_precedes_your_index : rhs < e := by
-          grind [HashConsSt.wellFormed, CacheExpr.wellFormed]
-        letI rhs_cache := evalAux Γ rhs lhs_cache state
-        letI rhs_val := rhs_cache[rhs]?.join
-        rhs_cache.insert e ((match op with
-          | .add => (· + ·)
-          | .sub => (· - ·)
-          | .mul => (· * ·)
-        ) <$> rhs_cache[lhs]?.join <*> rhs_cache[rhs]?.join)
-termination_by e
+-- -- Given a cache mapping exprRefs to their value in a given varstore,
+-- -- add an entry for e
+-- def evalAux {p}
+--   (Γ : VarStore p)
+--   (e : ExprRef)
+--   (cache : ValueCache p)
+--   (state : HashConsSt p)
+-- :
+--   ValueCache p
+-- :=
+--   -- if e already has a cached value, no modification needed
+--   match cache[e]? with
+--   | .some result => cache
+--   | .none =>
+--     -- if e is not a reference into the Hash Cons State, no modification needed
+--     match h : state[e]? with
+--     | .none => cache
+--     | .some expr =>
+--       match expr with
+--       -- for leaves, insert their value, looking at the varstore if needed
+--       | .c value => cache.insert e (.some value)
+--       | .v idx => cache.insert e (Γ.get? idx)
+--       -- for branch nodes, recurse, adding the childrens' values if needed
+--       | .binary_op lhs rhs op =>
+--         have lhs_precedes_your_index : lhs < e := by
+--           grind [HashConsSt.wellFormed, CacheExpr.wellFormed]
+--         letI lhs_cache := evalAux Γ lhs cache state
+--         letI lhs_val := lhs_cache[lhs]?.join
+--         have rhs_precedes_your_index : rhs < e := by
+--           grind [HashConsSt.wellFormed, CacheExpr.wellFormed]
+--         letI rhs_cache := evalAux Γ rhs lhs_cache state
+--         letI rhs_val := rhs_cache[rhs]?.join
+--         rhs_cache.insert e ((match op with
+--           | .add => (· + ·)
+--           | .sub => (· - ·)
+--           | .mul => (· * ·)
+--         ) <$> rhs_cache[lhs]?.join <*> rhs_cache[rhs]?.join)
+-- termination_by e
 
 -- TODO some form of wellFormedness to say that cached values came from evalAux?
 
@@ -50,6 +50,11 @@ variable {p : ℕ} {ref : ExprRef} {cache : ValueCache p} {σ : HashConsSt p} {v
 @[aesop unsafe, grind .]
 lemma evalAux_of_mem_cache (h : ref ∈ cache) :
   evalAux varStore ref cache σ = cache := by grind [=evalAux]
+
+def evalWithCache (varStore : VarStore p) (e : HashConsM p ExprRef) (k : ExprRef) : HashConsM p (Option (ZMod p)) := do
+  let expr ← e
+  letI post_cache := evalAux varStore expr {} (←get)
+  return (post_cache.get? expr).join
 
 def eval (varStore : VarStore p) (e : HashConsM p ExprRef) : HashConsM p (Option (ZMod p)) := do
   let expr ← e
@@ -174,12 +179,19 @@ lemma eval_run_of_runGet?_eq_some_c {ref : HashConsM p ExprRef}
   grind [=Id.run, Functor.map]
 
 def ValueCache.wellFormed {p} (Γ : VarStore p) (σ : HashConsSt p) (cache : ValueCache p) : Prop :=
-  ∀ (e : ExprRef) (r : Option (ZMod p)),
-    cache[e]? = .some r → (evalAux Γ e ∅ σ)[e]? = r
+  ∀ (e : ExprRef) (res : Option (ZMod p)),
+    cache[e]? = .some res → (evalAux Γ e ∅ σ)[e]? = .some res
 
 theorem ValueCahcke.wellFormed_evalAux_of_wellFormed {Γ : VarStore p} {e}
-  (h : ValueCache.wellFormed Γ σ cache) : ValueCache.wellFormed Γ σ (evalAux Γ e cache σ) := by
-  sorry    
+  (h_wellFormed : ValueCache.wellFormed Γ σ cache) : ValueCache.wellFormed Γ σ (evalAux Γ e cache σ) := by
+  unfold ValueCache.wellFormed at *
+  intros EXPR res hres
+  by_cases eq : cache[EXPR]? = some res
+  · specialize h_wellFormed EXPR res eq
+    grind
+  · unfold evalAux
+    simp
+    rcases eq₁ : cache[e]?
 
 -- TODO move evalAux into hypothesis?
 -- TODO generalise to wellFormed cache
