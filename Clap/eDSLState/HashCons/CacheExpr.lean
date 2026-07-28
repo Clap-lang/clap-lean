@@ -11,13 +11,13 @@ inductive BinaryOp
   | add
   | sub
   | mul
-deriving BEq, Hashable, ReflBEq, LawfulBEq
+deriving BEq, Hashable, ReflBEq, LawfulBEq, Repr
 
 inductive CacheExpr (p : ℕ)
   | c (_ : ZMod p)
   | v (idx : ℕ)
   | binary_op (lhs rhs : ExprRef) (op : BinaryOp)
-deriving BEq, Hashable, ReflBEq, LawfulBEq
+deriving BEq, Hashable, ReflBEq, LawfulBEq, Repr
 
 def CacheExpr.wellFormed {p : ℕ} (e : CacheExpr p) (idx : ExprRef) : Prop :=
   match e with

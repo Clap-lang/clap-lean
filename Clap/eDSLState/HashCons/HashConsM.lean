@@ -11,7 +11,6 @@ variable {p : ℕ}
 def getExprs : HashConsM p (Array (CacheExpr p)) :=
   return (←get).exprs
 
-
 section SaveExpr
 
 def saveExpr (e : CacheExpr p) : HashConsM p ExprRef := do

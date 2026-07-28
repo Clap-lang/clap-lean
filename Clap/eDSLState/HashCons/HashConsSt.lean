@@ -30,7 +30,7 @@ def pushExpr
     all_goals aesop (add simp CacheExpr.wellFormed.eq_def) (add safe (by grind))
 
 @[simp, grind =]
-lemma pushExpr_get?_size {e} {σ : HashConsSt p} {h_wellFormed} :
+lemma getElem?_pushExpr {e} {σ : HashConsSt p} {h_wellFormed} :
   (pushExpr e σ h_wellFormed).exprs[σ.exprs.size]? =
   .some e
 := by
