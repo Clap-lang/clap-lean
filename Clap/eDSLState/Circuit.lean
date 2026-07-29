@@ -218,10 +218,10 @@ def assertAllocatedM (result : CircuitResult p) (e : HashConsM p ExprRef) : Hash
 
 @[simp, grind =]
 lemma assertAllocated_mk
-  (e : ExprRef)
-  (numAlloc : ℕ)
-  (varStore : VarStore p)
-  (constraints : Prop)
+  {e : ExprRef}
+  {numAlloc : ℕ}
+  {varStore : VarStore p}
+  {constraints : Prop}
 :
   (Edsl.CircuitResult.mk numAlloc varStore constraints).assertAllocated e σ =
   Edsl.CircuitResult.mk
@@ -232,10 +232,10 @@ lemma assertAllocated_mk
 
 @[simp, grind =]
 lemma assertAllocatedM_mk
-  (e : HashConsM p ExprRef)
-  (numAlloc : ℕ)
-  (varStore : VarStore p)
-  (constraints : Prop)
+  {e : HashConsM p ExprRef}
+  {numAlloc : ℕ}
+  {varStore : VarStore p}
+  {constraints : Prop}
 :
   ((Edsl.CircuitResult.mk numAlloc varStore constraints).assertAllocatedM e).run σ =
   (
@@ -248,18 +248,17 @@ lemma assertAllocatedM_mk
   )
 := rfl
 
+@[simp, grind =]
+lemma numAlloc_assertAllocated :
+  (result.assertAllocated e! σ).numAlloc = result.numAlloc := rfl
 
--- @[simp, grind =]
--- lemma numAlloc_assertAllocated :
---   (result.assertAllocated e).numAlloc = result.numAlloc := rfl
+@[simp, grind =]
+lemma varStore_assertAllocated :
+  (result.assertAllocated e! σ).varStore = result.varStore := rfl
 
--- @[simp, grind =]
--- lemma varStore_assertAllocated :
---   (result.assertAllocated e).varStore = result.varStore := rfl
-
--- @[simp, grind =]
--- lemma constraints_assertAllocated :
---   (result.assertAllocated e).constraints = (result.constraints ∧ (result.get? e).isSome = true) := rfl
+@[simp, grind =]
+lemma constraints_assertAllocated :
+  (result.assertAllocated e! σ).constraints = (result.constraints ∧ (result[(e!, σ)]?).isSome) := rfl
 
 -- @[simp, grind =]
 -- lemma assertAllocated_unconstrained :
@@ -377,34 +376,37 @@ lemma step_lam :
 
 @[simp, grind =]
 lemma step_share :
-  [result, σ|.share e!]ₛ = (result.assertAllocated e! σ |>.alloc #v[result.getD e! σ]) := rfl
+  [result, σ|.share e!]ₛ =
+  (result.assertAllocated e! σ |>.alloc #v[result.getD e! σ]) := rfl
 
 @[simp, grind =]
 lemma step_isZero :
-  [result, σ|.isZero e!]ₛ = (result.assertAllocated e! σ |>.alloc #v[if result[(e, σ)]? = .some 0 then 1 else 0]) := rfl
+  [result, σ|.isZero e!]ₛ =
+  (result.assertAllocated e! σ |>.alloc #v[if result[(e!, σ)]? = .some 0 then 1 else 0]) := rfl
 
--- @[simp, grind =]
--- lemma step_num2bits :
---   [result|.num2bits width e]ₛ = (result.assertAllocated e |>.alloc (num2bitsLsbPureV width result[e]!)) := rfl
+@[simp, grind =]
+lemma step_num2bits {width} :
+  [result, σ|.num2bits width e!]ₛ =
+  (result.assertAllocated e! σ |>.alloc (num2bitsLsbPureV width result[(e!, σ)]!)) := rfl
 
--- lemma addConstraint_eq_mk :
---   result.addConstraint constraint =
---   ⟨result.numAlloc, result.varStore, result.constraints ∧ constraint⟩ := rfl
+@[aesop unsafe, grind =]
+lemma addConstraint_eq_mk :
+  result.addConstraint constraint =
+  ⟨result.numAlloc, result.varStore, result.constraints ∧ constraint⟩ := rfl
 
--- lemma allocAnonymous_eq_mk :
---   result.allocAnonymous =
---   ⟨result.numAlloc + 1, result.varStore, result.constraints⟩ := rfl
+@[aesop unsafe, grind =]
+lemma allocAnonymous_eq_mk :
+  result.allocAnonymous =
+  ⟨result.numAlloc + 1, result.varStore, result.constraints⟩ := rfl
 
--- lemma alloc_eq_mk {k} {vals : Vector _ k} :
---   result.alloc vals =
---   ⟨result.numAlloc + k,
---    result.varStore.insertMany (((Vector.range k).map (· + result.numAlloc)).zip vals),
---    result.constraints⟩ := by rfl
+lemma alloc_eq_mk {k} {vals : Vector _ k} :
+  result.alloc vals =
+  ⟨result.numAlloc + k,
+   result.varStore.insertMany (((Vector.range k).map (· + result.numAlloc)).zip vals),
+   result.constraints⟩ := by rfl
 
--- lemma assertAllocated_eq_addConstraint :
---   result.assertAllocated e = result.addConstraint (e ∈ result) := rfl
-
--- end
+lemma assertAllocated_eq_addConstraint :
+  result.assertAllocated e! σ = result.addConstraint ((e!, σ) ∈ result) := rfl
 
 end
 
@@ -446,15 +448,7 @@ lemma foldl_step_numAlloc_independent_of_constraints
   rcases circuit with ⟨circuit⟩
   simp only [List.size_toArray, List.foldl_toArray']
   rewrite [←List.reverse_reverse circuit]
-  induction circuit.reverse
-  · simp
-  next head tail ih =>
-    rcases head
-    aesop
-    simp at ih ⊢
-    
-
-      
+  induction circuit.reverse <;> grind
 
 @[grind =>]
 lemma foldr_step_numAlloc_independent_of_constraints
