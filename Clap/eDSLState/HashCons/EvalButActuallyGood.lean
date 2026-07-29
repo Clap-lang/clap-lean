@@ -27,8 +27,17 @@ def evalWithCache {p}
                        evalWithCache varStore e (cache.push val) σ
   termination_by (e + 1) - cache.size
   decreasing_by grind
- 
+
 def eval {p} (varStore : VarStore p) (e : ExprRef) (σ : HashConsSt p) : Option (ZMod p) :=
   (evalWithCache varStore e #[] σ)[e]!
+
+notation "[" varStore "," state "|" x "]" => eval varStore x state
+
+abbrev evalM {p} (varStore : VarStore p) (e : HashConsM p ExprRef) : HashConsM p (Option (ZMod p)) := do
+  let expr ← e
+  let state ← get
+  return [varStore,state|expr]
+
+notation "[" varStore "," state "|" "←" x "]" => HashConsM.run (evalM varStore x) state
 
 end Clap.HashConsM

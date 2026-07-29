@@ -108,7 +108,7 @@ end MkExpr
 
 section Run
 
-@[simp, grind =]
+@[grind =]
 def run {α} (cmd : HashConsM p α) (state : HashConsSt p) : α × (HashConsSt p) :=
   (StateT.run cmd state).run
 
