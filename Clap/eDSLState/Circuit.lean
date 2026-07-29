@@ -272,7 +272,7 @@ lemma varStore_assertAllocated :
 
 @[simp, grind =]
 lemma constraints_assertAllocated :
-  (result.assertAllocated e! σ).constraints = (result.constraints ∧ (result[(e!, σ)]?).isSome) := rfl
+  (result.assertAllocated e! σ).constraints = (result.constraints ∧ result[(e!, σ)]?.isSome) := rfl
 
 @[simp, grind =]
 lemma assertAllocated_unconstrained :
@@ -432,7 +432,7 @@ abbrev CircuitState.evalInOrder {p : ℕ} (circuit : CircuitState p) (σ : HashC
 def CircuitState.eval {p : ℕ} (circuit : CircuitState p) (varStore : VarStore p) (numAlloc : ℕ) (σ : HashConsSt p) : CircuitResult p :=
   CircuitState.evalInOrder circuit σ ⟨numAlloc, varStore, True⟩
 
--- notation "[" varStore ", " numAlloc "|" circuit "]ₑ" => CircuitState.eval circuit varStore numAlloc
+notation "[" varStore ", " σ ", " numAlloc "|" circuit "]ₑ" => CircuitState.eval circuit varStore numAlloc σ
 
 namespace CircuitResult
 
@@ -554,6 +554,7 @@ lemma foldr_step_varStore_independent_of_constraints'
   {varStore : VarStore p}
   {constraints1 constraints2 : Prop}
   {circuit : CircuitState p}
+  (σ : HashConsSt p)
 :
   (List.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩ circuit.toList).varStore =
   (List.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints2⟩ circuit.toList).varStore
@@ -680,26 +681,36 @@ def seq (circuit₁ circuit₂ : CircuitState p)
   let ⟨numAllocPost, varStorePost, constraintsPost⟩ := eval circuit₂ varStoreMid numAllocMid σ
   ⟨numAllocPost, varStorePost, constraintsMid ∧ constraintsPost⟩
 
--- @[simp, grind=]
--- lemma numAlloc_seq (circuit1 circuit2 : CircuitState p) (varStore : VarStore p) (numAlloc : ℕ):
---   (CircuitState.seq circuit1 circuit2 varStore numAlloc).numAlloc =
---   let mid := [varStore, numAlloc|circuit1]ₑ
---   [mid.varStore, mid.numAlloc|circuit2]ₑ.numAlloc
--- := rfl
+syntax "[" term ", " term ", " term "|" term "; " term "]" : term
+macro_rules
+  | `(term| [$Γ, $σ, $numAlloc | $c₁; $c₂]) => `(seq $c₁ $c₂ $Γ $numAlloc $σ)
 
--- @[simp, grind=]
--- lemma varStore_seq (circuit1 circuit2 : CircuitState p) (varStore : VarStore p) (numAlloc : ℕ):
---   (CircuitState.seq circuit1 circuit2 varStore numAlloc).varStore =
---   let mid := [varStore, numAlloc|circuit1]ₑ
---   [mid.varStore, mid.numAlloc|circuit2]ₑ.varStore
--- := rfl
+@[app_unexpander seq]
+def unexpandSeq : Lean.PrettyPrinter.Unexpander
+  | `($_ $c₁ $c₂ $Γ $numAlloc $σ) =>
+    `([$Γ, $numAlloc, $σ | $c₁; $c₂])
+  | _ => throw ()
 
--- @[simp, grind=]
--- lemma constraints_seq (circuit1 circuit2 : CircuitState p) (varStore : VarStore p) (numAlloc : ℕ):
---   (CircuitState.seq circuit1 circuit2 varStore numAlloc).constraints =
---   let mid := [varStore, numAlloc|circuit1]ₑ
---   mid.constraints ∧ [mid.varStore, mid.numAlloc|circuit2]ₑ.constraints
--- := rfl
+@[simp, grind=]
+lemma numAlloc_seq {circuit1 circuit2 : CircuitState p} {varStore : VarStore p} {numAlloc : ℕ} {σ}:
+  [varStore, σ, numAlloc | circuit1; circuit2].numAlloc =
+  let mid := [varStore, σ, numAlloc|circuit1]ₑ
+  [mid.varStore, σ, mid.numAlloc|circuit2]ₑ.numAlloc
+:= rfl
+
+@[simp]
+lemma varStore_seq (circuit1 circuit2 : CircuitState p) (varStore : VarStore p) (numAlloc : ℕ) {σ}:
+  (CircuitState.seq circuit1 circuit2 varStore numAlloc σ).varStore =
+  let mid := [varStore, σ, numAlloc|circuit1]ₑ
+  [mid.varStore, σ, mid.numAlloc|circuit2]ₑ.varStore
+:= rfl
+
+@[simp, grind=]
+lemma constraints_seq (circuit1 circuit2 : CircuitState p) (varStore : VarStore p) (numAlloc : ℕ):
+  (CircuitState.seq circuit1 circuit2 varStore numAlloc).constraints =
+  let mid := [varStore, numAlloc|circuit1]ₑ
+  mid.constraints ∧ [mid.varStore, mid.numAlloc|circuit2]ₑ.constraints
+:= rfl
 
 -- @[simp, grind =]
 -- lemma eval_append
