@@ -69,7 +69,7 @@ section
 
 -- TODO do we need all of these?
 variable {p k numAlloc : ℕ} {result result' : CircuitResult p}
-         {constraint : Prop} {vars : Vector (ZMod p) k} {e : HashConsM p ExprRef}
+         {constraint : Prop} {vars : Vector (ZMod p) k} {e : HashConsM p ExprRef} {e! : ExprRef}
          {varStore : VarStore p}
          {σ : HashConsSt p}
 
@@ -147,18 +147,18 @@ def allocAnonymous (result : CircuitResult p) : CircuitResult p :=
 -- lemma constraints_allocAnonymous : result.allocAnonymous.constraints = result.constraints := rfl
 
 @[grind =]
-def get? (result : CircuitResult p) (e : ExprRef) (σ : HashConsSt p): (Option (ZMod p)) := do
+def get? (result : CircuitResult p) (e : ExprRef) (σ : HashConsSt p) : (Option (ZMod p)) := do
   HashConsM.eval result.varStore e σ
 
 @[grind =]
 def getM? (result : CircuitResult p) (e : HashConsM p ExprRef) : HashConsM p (Option (ZMod p)) := do
   HashConsM.evalM result.varStore e
 
--- instance : Membership (HashConsM p ExprRef) (HashConsM p (CircuitResult p)) :=
---   ⟨fun Γ x ↦ (get? Γ x).isSome⟩
+instance : Membership (ExprRef × HashConsSt p) (CircuitResult p) :=
+  ⟨fun Γ (x, σ) ↦ (get? Γ x σ).isSome⟩
 
--- instance : GetElem (CircuitResult p) (CacheExpr p) (ZMod p) (fun Γ x ↦ x ∈ Γ) :=
---   ⟨fun Γ x h ↦ Γ.get? x |>.get h⟩
+instance : GetElem (CircuitResult p) (ExprRef × HashConsSt p) (ZMod p) (fun Γ x ↦ x ∈ Γ) :=
+  ⟨fun Γ (x, σ) h ↦ Γ.get? x σ |>.get h⟩
 
 @[simp, grind =]
 lemma get?_mk
@@ -192,8 +192,8 @@ def getD (result : CircuitResult p) (e : ExprRef) (σ : HashConsSt p) : ZMod p :
 def getDM (result : CircuitResult p) (e : HashConsM p ExprRef) : HashConsM p (ZMod p) := do
   result.getM? e <&> Option.getD (dflt := 0)
 
--- instance {p} : GetElem? (CircuitResult p) (HashConsM p ExprRef) (ZMod p) (fun Γ x ↦ x ∈ Γ) :=
---   ⟨get?, getD⟩
+instance {p} : GetElem? (CircuitResult p) (ExprRef × HashConsSt p) (ZMod p) (fun Γ x ↦ x ∈ Γ) :=
+  ⟨Function.uncurry ∘ get?, Function.uncurry ∘ getD⟩
 
 @[simp, grind =]
 lemma getD_eq_getM?_getD {e : ExprRef} : result.getD e σ = (result.get? e σ).getD (dflt := 0) := rfl
@@ -299,21 +299,15 @@ lemma varStore_alloc {vars : Vector (ZMod p) k} :
 lemma constraints_alloc {vars : Vector (ZMod p) k} :
   (result.alloc vars).constraints = result.constraints := rfl
 
-def step (result : CircuitResult p) (next : CircuitusPlanus p) (σ : HashConsSt p) :CircuitResult p :=
-  -- dbg_trace s!"running: {repr next}"
+def step (result : CircuitResult p) (next : CircuitusPlanus p) (σ : HashConsSt p) : CircuitResult p :=
   match next with
-  | .eq0 e =>
-    let x := result.get? e σ
-    result.addConstraint (x = .some 0)
+  | .eq0 e => result.addConstraint (result[(e, σ)]? = .some 0)
   | .lam => result.allocAnonymous
-  | .share e =>
-    (result.assertAllocated e σ).alloc #v[result.getD e σ]
-  | .isZero e =>
-    (result.assertAllocated e σ).alloc #v[if (result.get? e σ) = .some 0 then 1 else 0]
-  | .num2bits width e =>
-    (result.assertAllocated e σ).alloc (num2bitsLsbPureV width (result.getD e σ))
+  | .share e => (result.assertAllocated e σ).alloc #v[result[(e, σ)]!]
+  | .isZero e => (result.assertAllocated e σ).alloc #v[if result[(e, σ)]? = .some 0 then 1 else 0]
+  | .num2bits width e => (result.assertAllocated e σ).alloc (num2bitsLsbPureV width (result[(e, σ)]!))
 
--- notation "[" σ "|" cmd "]ₛ" => step σ cmd
+notation "[" res ", " σ "|" cmd "]ₛ" => step res cmd σ
 
 -- -- TODO do we want to make individual functions for these parts and prove properties about them
 -- @[simp, grind =]
@@ -373,21 +367,21 @@ def step (result : CircuitResult p) (next : CircuitusPlanus p) (σ : HashConsSt 
 
 -- variable {p width : ℕ} {result : CircuitResult p} {e : FixedExp p}
 
--- @[simp, grind =]
--- lemma step_eq0 :
---   [result|.eq0 e]ₛ = result.addConstraint (result[e]? = .some 0) := rfl
+@[simp, grind =]
+lemma step_eq0 :
+  [result,σ|.eq0 e!]ₛ = result.addConstraint (result[(e!, σ)]? = .some 0) := rfl
 
--- @[simp, grind =]
--- lemma step_lam :
---   [result|.lam]ₛ = result.allocAnonymous := rfl
+@[simp, grind =]
+lemma step_lam :
+  [result,σ|.lam]ₛ = result.allocAnonymous := rfl
 
--- @[simp, grind =]
--- lemma step_share :
---   [result|.share e]ₛ = (result.assertAllocated e |>.alloc #v[result.getD e]) := rfl
+@[simp, grind =]
+lemma step_share :
+  [result, σ|.share e!]ₛ = (result.assertAllocated e! σ |>.alloc #v[result.getD e! σ]) := rfl
 
--- @[simp, grind =]
--- lemma step_isZero :
---   [result|.isZero e]ₛ = (result.assertAllocated e |>.alloc #v[if result[e]? = .some 0 then 1 else 0]) := rfl
+@[simp, grind =]
+lemma step_isZero :
+  [result, σ|.isZero e!]ₛ = (result.assertAllocated e! σ |>.alloc #v[if result[(e, σ)]? = .some 0 then 1 else 0]) := rfl
 
 -- @[simp, grind =]
 -- lemma step_num2bits :
@@ -416,7 +410,8 @@ end
 
 end CircuitResult
 
-abbrev CircuitState.evalInOrder {p : ℕ} (circuit : CircuitState p) (σ : HashConsSt p) := circuit.foldl (CircuitResult.step (σ := σ))
+abbrev CircuitState.evalInOrder {p : ℕ} (circuit : CircuitState p) (σ : HashConsSt p) :=
+  circuit.foldl (CircuitResult.step (σ := σ))
 
 def CircuitState.eval {p : ℕ} (circuit : CircuitState p) (varStore : VarStore p) (numAlloc : ℕ) (σ : HashConsSt p) : CircuitResult p :=
   CircuitState.evalInOrder circuit σ ⟨numAlloc, varStore, True⟩
@@ -451,7 +446,15 @@ lemma foldl_step_numAlloc_independent_of_constraints
   rcases circuit with ⟨circuit⟩
   simp only [List.size_toArray, List.foldl_toArray']
   rewrite [←List.reverse_reverse circuit]
-  induction circuit.reverse <;> grind
+  induction circuit.reverse
+  · simp
+  next head tail ih =>
+    rcases head
+    aesop
+    simp at ih ⊢
+    
+
+      
 
 @[grind =>]
 lemma foldr_step_numAlloc_independent_of_constraints

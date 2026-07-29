@@ -4,7 +4,7 @@ namespace Clap.HashConsM
 
 abbrev ValueCache (p : ℕ) := Array (Option (ZMod p))
 
-def Barney {p} (Γ : VarStore p) (expr : CacheExpr p) (cache : ValueCache p) : Option (ZMod p) :=
+def evalCore {p} (Γ : VarStore p) (expr : CacheExpr p) (cache : ValueCache p) : Option (ZMod p) :=
   match expr with
   | .c k => .some k
   | .v idx => Γ[idx]?
@@ -21,10 +21,12 @@ def evalWithCache {p}
   (varStore : VarStore p) (e : ExprRef) (cache : ValueCache p) (σ : HashConsSt p) : ValueCache p :=
   if e < cache.size
   then cache
-  else match σ[e]? with
-       | .none => cache
-       | .some expr => let val := Barney varStore expr cache
-                       evalWithCache varStore e (cache.push val) σ
+  else
+    match σ[e]? with
+    | .none => cache
+    | .some expr =>
+      let val := evalCore varStore expr cache
+      evalWithCache varStore e (cache.push val) σ
   termination_by (e + 1) - cache.size
   decreasing_by grind
 
