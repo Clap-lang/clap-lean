@@ -561,6 +561,24 @@ lemma foldr_step_varStore_independent_of_constraints'
   simp only [Array.foldr_toList]
   exact foldr_step_varStore_independent_of_constraints
 
+@[grind .]
+lemma getElem_foldr_independent_of_constraints
+  {numAlloc : ℕ}
+  {varStore : VarStore p}
+  {constraints1 constraints2 : Prop}
+  {circuit : CircuitState p}
+  {e : ExprRef}
+:
+  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩ circuit)[(e, σ)]? =
+  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints2⟩ circuit)[(e, σ)]?
+:= by
+  rcases circuit with ⟨circuit⟩
+  rewrite [←List.reverse_reverse circuit]
+  rw [show Array.mk circuit.reverse.reverse = Array.reverse ⟨circuit.reverse⟩ by simp]
+  simp only [Array.foldr_reverse]
+  simp [GetElem?.getElem?, get?]
+  rw [foldr_step_varStore_independent_of_constraints']
+
 /--
 This exists to appease `grind`.
 
@@ -587,6 +605,22 @@ lemma foldr_step_varStore_independent_of_constraints'''
   (List.foldr (λ x y => [y, σ|x]ₛ) σ₂ circuit.toList).varStore := by
   simp [Array.foldr_toList]
   apply foldr_step_varStore_independent_of_constraints'' <;> grind
+
+@[simp, grind .]
+lemma isSome_foldr_split {result : CircuitResult p} {circuit : CircuitState p} {e : ExprRef} :
+  (List.foldr (fun x y => [y, σ|x]ₛ) result.split circuit.toList)[(e, σ)]?.isSome ↔
+  (List.foldr (fun x y => [y, σ|x]ₛ) result circuit.toList)[(e, σ)]?.isSome := by
+  rcases result
+  simp [split]
+  grind
+
+@[simp, grind .]
+lemma isSome_foldr_split' {result : CircuitResult p} {circuit : CircuitState p} {e : ExprRef} :
+  (Array.foldr (fun x y => [y, σ|x]ₛ) result.split circuit)[(e, σ)]?.isSome ↔
+  (Array.foldr (fun x y => [y, σ|x]ₛ) result circuit)[(e, σ)]?.isSome := by
+  rcases result
+  simp [split]
+  grind
 
 lemma foldl_step_constraints_and
   {result : CircuitResult p}
@@ -617,14 +651,17 @@ lemma foldl_step_constraints_and
       aesop
     · grind
     · rw [Array.foldr_toList, Array.foldr_toList]
-      grind
+      simp [ih]
+      expose_names
+      rw [isSome_foldr_split]
+      aesop
     · simp only [step_isZero]
       unfold GetElem?.getElem?
-      unfold instGetElem?FixedExpZModMem
+      unfold instGetElem?ProdExprRefHashConsStZModMem
       rw [Array.foldr_toList, Array.foldr_toList]
-      grind [GetElem?.getElem?, instGetElem?FixedExpZModMem]
+      grind [GetElem?.getElem?, instGetElemProdExprRefHashConsStZModMem]
     · simp
-      unfold get?
+      unfold GetElem?.getElem?
       rw [Array.foldr_toList, Array.foldr_toList]
       grind
 
