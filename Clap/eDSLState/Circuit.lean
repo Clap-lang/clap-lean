@@ -534,7 +534,6 @@ lemma foldl_step_varStore_independent_of_constraints
       simp [GetElem?.getElem?, get?]
       rw [ih]
 
-@[grind .]
 lemma foldr_step_varStore_independent_of_constraints
   {numAlloc : ℕ}
   {varStore : VarStore p}
@@ -550,60 +549,84 @@ lemma foldr_step_varStore_independent_of_constraints
   simp only [Array.foldr_reverse]
   exact foldl_step_varStore_independent_of_constraints
 
--- /--
--- This exists to appease `grind`.
--- -/
--- @[grind! .]
--- lemma foldr_step_varStore_independent_of_constraints'
---   {circuit : CircuitState p}
---   {σ₁ σ₂ : CircuitResult p}
---   (h₁ : σ₁.numAlloc = σ₂.numAlloc)
---   (h₂ : σ₁.varStore = σ₂.varStore)
--- :
---   (Array.foldr (λ x y => step y x) σ₁ circuit).varStore =
---   (Array.foldr (λ x y => step y x) σ₂ circuit).varStore
--- := by
---   rewrite [←Array.reverse_reverse circuit]
---   simp only [Array.foldr_reverse]
---   grind [cases CircuitResult]
+lemma foldr_step_varStore_independent_of_constraints'
+  {numAlloc : ℕ}
+  {varStore : VarStore p}
+  {constraints1 constraints2 : Prop}
+  {circuit : CircuitState p}
+:
+  (List.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩ circuit.toList).varStore =
+  (List.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints2⟩ circuit.toList).varStore
+:= by
+  simp only [Array.foldr_toList]
+  exact foldr_step_varStore_independent_of_constraints
 
--- lemma foldl_step_constraints_and
---   {result : CircuitResult p}
---   {circuit : CircuitState p}
--- :
---   (CircuitState.evalInOrder circuit result).constraints = (
---     result.constraints ∧
---     (CircuitState.evalInOrder circuit result.split).constraints
---   )
--- := by
---   rcases circuit with ⟨circuit⟩
---   rewrite [←List.reverse_reverse circuit]
---   induction circuit.reverse
---   -- TODO This used to be just `induction <;> grind`, now we need lemmas in terms of `GetElem?`
---   -- to push through
---   grind
---   simp
---   next hd tl ih =>
---     simp at *
---     rcases hd with _ | _ | _ | _ | _
---     ·
---       simp
---       unfold GetElem?.getElem?
---       unfold instGetElem?FixedExpZModMem
---       rw [Array.foldr_toList, Array.foldr_toList]
---       grind [GetElem?.getElem?, instGetElem?FixedExpZModMem]
---     · grind
---     · rw [Array.foldr_toList, Array.foldr_toList]
---       grind
---     · simp only [step_isZero]
---       unfold GetElem?.getElem?
---       unfold instGetElem?FixedExpZModMem
---       rw [Array.foldr_toList, Array.foldr_toList]
---       grind [GetElem?.getElem?, instGetElem?FixedExpZModMem]
---     · simp
---       unfold get?
---       rw [Array.foldr_toList, Array.foldr_toList]
---       grind
+/--
+This exists to appease `grind`.
+
+NB this is useless now.
+-/
+-- @[grind! .] -- I don't think there's an easy way to teach grind about the `σ` under the lambda
+lemma foldr_step_varStore_independent_of_constraints''
+  {circuit : CircuitState p}
+  {σ₁ σ₂ : CircuitResult p}
+  (h₁ : σ₁.numAlloc = σ₂.numAlloc)
+  (h₂ : σ₁.varStore = σ₂.varStore)
+:
+  (Array.foldr (λ x y => [y, σ|x]ₛ) σ₁ circuit).varStore =
+  (Array.foldr (λ x y => [y, σ|x]ₛ) σ₂ circuit).varStore
+:= by
+  convert foldr_step_varStore_independent_of_constraints using 4 <;> grind
+
+lemma foldr_step_varStore_independent_of_constraints'''
+  {circuit : CircuitState p}
+  {σ₁ σ₂ : CircuitResult p}
+  (h₁ : σ₁.numAlloc = σ₂.numAlloc)
+  (h₂ : σ₁.varStore = σ₂.varStore) :
+  (List.foldr (λ x y => [y, σ|x]ₛ) σ₁ circuit.toList).varStore =
+  (List.foldr (λ x y => [y, σ|x]ₛ) σ₂ circuit.toList).varStore := by
+  simp [Array.foldr_toList]
+  apply foldr_step_varStore_independent_of_constraints'' <;> grind
+
+lemma foldl_step_constraints_and
+  {result : CircuitResult p}
+  {circuit : CircuitState p}
+:
+  (CircuitState.evalInOrder circuit σ result).constraints = (
+    result.constraints ∧
+    (CircuitState.evalInOrder circuit σ result.split).constraints
+  )
+:= by
+  rcases circuit with ⟨circuit⟩
+  rewrite [←List.reverse_reverse circuit]
+  induction circuit.reverse
+  -- TODO This used to be just `induction <;> grind`, now we need lemmas in terms of `GetElem?`
+  -- to push through
+  grind
+  simp
+  next hd tl ih =>
+    simp at *
+    rcases hd with _ | _ | _ | _ | _
+    · simp
+      unfold GetElem?.getElem?
+      unfold instGetElem?ProdExprRefHashConsStZModMem
+      rw [Array.foldr_toList, Array.foldr_toList]
+      simp [get?]
+      rw [ih]
+      rw [foldr_step_varStore_independent_of_constraints''' (σ₂ := result.split)] <;>
+      aesop
+    · grind
+    · rw [Array.foldr_toList, Array.foldr_toList]
+      grind
+    · simp only [step_isZero]
+      unfold GetElem?.getElem?
+      unfold instGetElem?FixedExpZModMem
+      rw [Array.foldr_toList, Array.foldr_toList]
+      grind [GetElem?.getElem?, instGetElem?FixedExpZModMem]
+    · simp
+      unfold get?
+      rw [Array.foldr_toList, Array.foldr_toList]
+      grind
 
 end CircuitResult
 
