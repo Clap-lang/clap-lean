@@ -79,35 +79,27 @@ end Monoid
 lemma run_def {α} {cmd : ClapM p α} {numAlloc} :
   ClapM.run cmd numAlloc = cmd numAlloc := rfl
 
-def runAndEval
-  {p : ℕ} {α : Type} (cmd : ClapM p α) (numAlloc : ℕ) (varStore : VarStore p) (σ : HashConsSt p)
-:
-  α × CircuitResult p
-:=
-  let ⟨⟨⟨result, circuit⟩, _numAlloc⟩, σ⟩ := cmd.run numAlloc σ
-  ⟨result, CircuitState.eval circuit varStore numAlloc σ⟩
-
 def alloc {p : ℕ} : ClapM p ℕ :=
   getModify (· + 1)
 
 section Getters
 
-abbrev getResult
+def getResult
   {p : ℕ} {α : Type} (cmd : ClapM p α) (numAlloc : ℕ) (σ : HashConsSt p)
 : α :=
   (cmd.run numAlloc σ).1.1.1
 
-abbrev getCircuit
+def getCircuit
   {p : ℕ} {α : Type} (cmd : ClapM p α) (numAlloc : ℕ) (σ : HashConsSt p)
 : CircuitState p :=
   (cmd.run numAlloc σ).1.1.2
 
-abbrev getNumAlloc
+def getNumAlloc
   {p : ℕ} {α : Type} (cmd : ClapM p α) (numAlloc : ℕ) (σ : HashConsSt p)
 : ℕ :=
   (cmd.run numAlloc σ).1.2
 
-abbrev getHashConsState
+def getHashConsState
   {p : ℕ} {α : Type} (cmd : ClapM p α) (numAlloc : ℕ) (σ : HashConsSt p)
 : HashConsSt p :=
   (cmd.run numAlloc σ).2
@@ -256,18 +248,17 @@ lemma getHashConsState_map {α β} (f : α → β) (numAlloc : ℕ) (cmd : ClapM
 
 end Getters
 
--- StateT is more powerful than we technically need, so we can restrict here
--- numAlloc must not decrease
--- hashConsState must only be appended to
--- TODO? circuit exprRefs are less than the state length
--- TODO? circuit varIdxs are less than numAlloc
--- TODO? pure, and bind lemmas
-def LawfulClapM {p} {α} (cmd : ClapM p α) : Prop :=
-  ∀ numAlloc hashConsState,
-    let (((_result, _circuit), numAllocPost), hashConsStatePost) := cmd.run numAlloc hashConsState
-    numAllocPost ≥ numAlloc ∧
-    ∃ newExprs, hashConsStatePost.exprs = hashConsState.exprs ++ newExprs
+def runAndEval
+  {p : ℕ} {α : Type} (cmd : ClapM p α) (numAlloc : ℕ) (varStore : VarStore p) (σ : HashConsSt p)
+:
+  α × CircuitResult p
+:=
+  ⟨
+    cmd.getResult numAlloc σ,
+    [varStore,(cmd.getHashConsState numAlloc σ),numAlloc|(cmd.getCircuit numAlloc σ)]ₑ
+  ⟩
 
+@[grind =]
 def circuitState_wellFormed
   {α : Type}
   (action : ClapM p α)
@@ -279,6 +270,7 @@ def circuitState_wellFormed
   (action.getCircuit numAlloc σ).refsValid (action.getHashConsState numAlloc σ).exprs.size ∧
   (action.getCircuit numAlloc σ).varsAllocated varStore (action.getHashConsState numAlloc σ)
 
+@[grind =]
 def numAlloc_wellFormed
   {α : Type}
   (action : ClapM p α)
@@ -289,8 +281,9 @@ def numAlloc_wellFormed
   Prop
 :=
   (action.getNumAlloc numAlloc σ) =
-  (CircuitState.eval (action.getCircuit numAlloc σ) varStore numAlloc σ).numAlloc
+  (CircuitState.eval (action.getCircuit numAlloc σ) varStore numAlloc (action.getHashConsState numAlloc σ)).numAlloc
 
+@[grind =]
 def hashConsState_wellFormed
   {α : Type}
   (action : ClapM p α)
@@ -299,8 +292,9 @@ def hashConsState_wellFormed
 :
   Prop
 :=
-  ∃ newExprs, (action.getHashConsState numAlloc σ).exprs = σ.exprs ++ newExprs
+  σ.exprs.isPrefixOf (action.getHashConsState numAlloc σ).exprs
 
+@[grind =]
 def wellFormed
   {α : Type}
   (action : ClapM p α)
@@ -346,15 +340,45 @@ lemma eval_bind
   {σ : HashConsSt p}
 :
   eval ((action >>= function).getCircuit numAlloc σ) varStore numAlloc σ =
-  let (((result, action_circuit), numAlloc'), σ') := action.run numAlloc σ
-  let (((_, function_circuit), _), _) := (function result).run numAlloc' σ'
-  seq action_circuit function_circuit varStore numAlloc σ
+  letI numAlloc' := (action.getNumAlloc numAlloc σ)
+  letI σ' := (action.getHashConsState numAlloc σ)
+  letI result := (action.getResult numAlloc σ)
+  seq (action.getCircuit numAlloc σ) ((function result).getCircuit numAlloc' σ') varStore numAlloc σ
 := by
-  simp [seq, eval, evalInOrder, ←ClapM.getCircuit.eq_def]
-  set x := (Array.foldl (λ result next => result.step next σ) { numAlloc := numAlloc, varStore := varStore, constraints := True : CircuitResult p} (action.getCircuit numAlloc σ))
-  simp [←ClapM.getCircuit.eq_def, ←ClapM.getResult.eq_def, ←ClapM.getNumAlloc.eq_def, ←ClapM.getHashConsState.eq_def]
+  simp [seq, eval, evalInOrder]
   ext <;> simp
-  grind
+  . exact CircuitResult.foldl_step_numAlloc_independent_of_constraints
+  . exact CircuitResult.foldl_step_varStore_independent_of_constraints
+  . rewrite [iff_eq_eq]
+    exact CircuitResult.foldl_step_constraints_and
+
+-- TODO prove for eval
+lemma step_of_refsValid_prefix
+  {σ σ' : HashConsSt p}
+  {circuit : CircuitusPlanus p}
+  {result: CircuitResult p}
+  (h_prefix : σ.exprs.isPrefixOf σ'.exprs)
+  (h_refsValid : circuit.refsValid (σ.exprs.size))
+:
+  [result, σ'|circuit]ₛ =
+  [result, σ|circuit]ₛ
+:= by
+  unfold CircuitResult.step
+  cases circuit <;> [skip; simp; skip; skip; skip]
+  all_goals {
+    simp
+    expose_names
+    have : e < σ.exprs.size := by
+      unfold CircuitusPlanus.refsValid at h_refsValid
+      grind
+    have : result[(e, σ')]? = result[(e, σ)]? := by
+      unfold_projs
+      simp [CircuitResult.get?, HashConsM.eval]
+      congr 1
+      symm
+      exact HashConsM.evalCache_of_lt_prefix h_prefix this
+    grind
+  }
 
 lemma runAndEval_bind
   {α β : Type}
@@ -362,24 +386,40 @@ lemma runAndEval_bind
   {numAlloc : ℕ}
   {action : ClapM p α}
   {function : α → ClapM p β}
-  (h_wf : action.wellFormed)
+  {σ : HashConsSt p}
+  (h_wf_action : action.wellFormed numAlloc varStore σ)
+  (
+    h_wf_function :
+      (function (action.getResult numAlloc σ)).wellFormed
+        (action.getNumAlloc numAlloc σ)
+        (action.runAndEval numAlloc varStore σ).2.varStore
+        (action.getHashConsState numAlloc σ)
+  )
 :
-  (action >>= function).runAndEval numAlloc varStore =
-  let ⟨actionData, actionCircuitResult⟩ := action.runAndEval numAlloc varStore
-  let ⟨functionData, functionCircuitResult⟩ := ((function actionData).runAndEval actionCircuitResult.numAlloc actionCircuitResult.varStore)
+  (action >>= function).runAndEval numAlloc varStore σ =
+  let ⟨actionData, actionCircuitResult⟩ := action.runAndEval numAlloc varStore σ
+  let ⟨functionData, functionCircuitResult⟩ := ((function actionData).runAndEval actionCircuitResult.numAlloc actionCircuitResult.varStore) (action.getHashConsState numAlloc σ)
   ⟨functionData, functionCircuitResult.addConstraint actionCircuitResult.constraints⟩
 := by
-  sorry
-  -- simp [ClapM.runAndEval, Clap.monads]
-  -- have : (eval (action numAlloc).1.2 varStore numAlloc).numAlloc = (action numAlloc).2 := by
-  --   simp [ClapM.wellFormed, Clap.monads] at h_wf
-  --   exact (h_wf numAlloc varStore).symm
-  -- set x := action numAlloc
-  -- obtain ⟨a, b⟩ := x
-  -- simp [this]
-  -- obtain ⟨c, d⟩ := function a.1 b
-  -- simp [seq, this]
-  -- ext <;> grind
+  simp [ClapM.runAndEval]
+  split_ands
+  . grind
+  . simp [seq]
+    set result := (action.getResult numAlloc σ)
+    set numAlloc' := (action.getNumAlloc numAlloc σ)
+    set σ' := (action.getHashConsState numAlloc σ)
+    set circuit := (action.getCircuit numAlloc σ)
+    set varStore' := [varStore, σ', numAlloc|circuit]ₑ.varStore
+    ext
+    . simp
+      have : [varStore, σ', numAlloc|circuit]ₑ.numAlloc = numAlloc' := by
+        grind
+      rewrite [this]; clear this
+      congr 3
+      grind
+    . grind
+    . grind
+
 
 end CircuitState
 
