@@ -79,8 +79,10 @@ end Monoid
 lemma run_def {α} {cmd : ClapM p α} {numAlloc} :
   ClapM.run cmd numAlloc = cmd numAlloc := rfl
 
-def alloc {p : ℕ} : ClapM p ℕ :=
-  getModify (· + 1)
+-- Allocates new variable and returns reference to it
+def alloc {p : ℕ} : ClapM p ExprRef := do
+  let varIdx ← getModify (· + 1)
+  HashConsM.mkVar (p := p) varIdx
 
 section Getters
 
@@ -106,24 +108,25 @@ def getHashConsState
 
 @[simp, grind=]
 lemma getResult_alloc (numAlloc : ℕ) (σ : HashConsSt p):
-  (ClapM.alloc (p := p)).getResult numAlloc σ =
-  numAlloc
+  ClapM.alloc.getResult numAlloc σ =
+  (HashConsM.mkVar numAlloc σ).1
 := rfl
 
 @[simp, grind=]
 lemma getCircuit_alloc (numAlloc : ℕ) (σ : HashConsSt p):
-  (ClapM.alloc (p := p)).getCircuit numAlloc σ =
+  ClapM.alloc.getCircuit numAlloc σ =
   #[]
 := rfl
 
 @[simp, grind=]
 lemma getNumAlloc_alloc (numAlloc : ℕ) (σ : HashConsSt p):
-  (ClapM.alloc (p := p)).getNumAlloc numAlloc σ = numAlloc + 1
+  ClapM.alloc.getNumAlloc numAlloc σ = numAlloc + 1
 := rfl
 
 @[simp, grind=]
 lemma getHashConsState_alloc (numAlloc : ℕ) (σ : HashConsSt p):
-  (ClapM.alloc (p := p)).getHashConsState numAlloc σ = σ
+  ClapM.alloc.getHashConsState numAlloc σ =
+  (HashConsM.mkVar numAlloc σ).2
 := rfl
 
 @[simp, grind =]
@@ -444,13 +447,6 @@ lemma getModify_eq
     f
     numAlloc = pure ((numAlloc, #[]), f numAlloc)
 := rfl
-
-@[simp, grind =]
-lemma alloc_eq :
-  ClapM.alloc (p := p) numAlloc =
-  pure ((numAlloc, #[]), numAlloc + 1)
-:= by
-  simp [ClapM.alloc, Clap.monads]
 
 @[Clap.monads]
 lemma Vector_ofFnM_empty_state

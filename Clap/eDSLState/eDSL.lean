@@ -12,14 +12,14 @@ def eq0 (e : ExprRef) : ClapM p Unit := do
 @[irreducible]
 def lam : ClapM p ExprRef := do
   tell #[.lam]
-  let numAlloc ← ClapM.alloc
-  return numAlloc
+  let varIdx ← ClapM.alloc
+  HashConsM.mkVar (p := p) varIdx
 
 @[irreducible]
 def share (e : ExprRef) : ClapM p (ExprRef) := do
   tell #[.share e]
-  let numAlloc ← ClapM.alloc
-  return numAlloc
+  let varIdx ← ClapM.alloc
+  HashConsM.mkVar (p := p) varIdx
 
 @[irreducible]
 def isZero (e : ExprRef) : ClapM p (ExprRef) := do
@@ -43,8 +43,11 @@ def test : ClapM p Unit := do
 
 section wellFormed
 
-@[simp, grind .]
-lemma eq0_wellFormed {e : ExprRef} {Γ} {σ} (h : e < σ.exprs.size) :
+@[aesop unsafe, grind .]
+lemma eq0_wellFormed {e : ExprRef} {Γ} {σ}
+  (h_ref : e < σ.exprs.size)
+  (h_var: [Γ,σ|e].isSome = true)
+:
   (eq0 e).wellFormed (p := p) e Γ σ
 := by
   simp [eq0, ClapM.wellFormed]
@@ -52,8 +55,10 @@ lemma eq0_wellFormed {e : ExprRef} {Γ} {σ} (h : e < σ.exprs.size) :
   · suffices (CircuitusPlanus.eq0 e).refsValid σ.exprs.size by simpa [CircuitState.refsValid]
     simpa!
   · aesop (add simp CircuitState.varsAllocated)
-    unfold CircuitusPlanus.varsAllocated
-    
+  . simp [ClapM.numAlloc_wellFormed]
+  . simp [ClapM.hashConsState_wellFormed]
+
+
 
 
 

@@ -73,7 +73,8 @@ section MkExpr
 def mkConstant (x : ZMod p) : HashConsM p ExprRef := do
   HashConsM.saveExpr (.c x)
 
--- TODO mkVar?
+def mkVar (x : ℕ) : HashConsM p ExprRef := do
+  HashConsM.saveExpr (.v x)
 
 def mkAdd (l r : ExprRef) : HashConsM p ExprRef := do
   HashConsM.saveExpr (.binary_op l r .add)
@@ -93,6 +94,14 @@ lemma run_mkConstant {p} {k : ZMod p} {σ : HashConsSt p} :
   run_saveExpr_of_wellFormed wellFormed_c
 
 @[simp, grind =]
+lemma run_mkVar {p} {k : ℕ} {σ : HashConsSt p} :
+  (mkVar k).run σ =
+  if σ.exprs.contains (.v k)
+  then (σ.exprs.idxOf (.v k), σ)
+  else (σ.exprs.size, σ.pushExpr (.v k) (by simp)) :=
+  run_saveExpr_of_wellFormed wellFormed_v
+
+@[simp, grind =]
 lemma bind_mkConstant_of_contains {p} {σ} {α} {k : ZMod p} {f : ExprRef → HashConsM p α}
   (h : σ.exprs.contains (.c k)) :
   (mkConstant k >>= f).run σ = (f (σ.exprs.idxOf (.c k))).run σ := by aesop
@@ -102,6 +111,17 @@ lemma bind_mkConstant_of_contains' {p} {σ} {α} {k : ZMod p} {f : ExprRef → H
   (h : σ.exprs.contains (.c k)) :
   ((mkConstant k).bind f).run σ = (f (σ.exprs.idxOf (.c k))).run σ :=
   HashConsM.bind_mkConstant_of_contains h
+
+@[simp, grind =]
+lemma bind_mkVar_of_contains {p} {σ} {α} {k : ℕ} {f : ExprRef → HashConsM p α}
+  (h : σ.exprs.contains (.v k)) :
+  (mkVar k >>= f).run σ = (f (σ.exprs.idxOf (.v k))).run σ := by aesop
+
+@[simp, grind =]
+lemma bind_mkVar_of_contains' {p} {σ} {α} {k : ℕ} {f : ExprRef → HashConsM p α}
+  (h : σ.exprs.contains (.v k)) :
+  ((mkVar k).bind f).run σ = (f (σ.exprs.idxOf (.v k))).run σ :=
+  HashConsM.bind_mkVar_of_contains h
 
 end MkExpr
 
