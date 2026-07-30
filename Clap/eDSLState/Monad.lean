@@ -84,6 +84,8 @@ def alloc {p : ℕ} : ClapM p ℕ :=
 
 section Getters
 
+variable {numAlloc : ℕ} {σ : HashConsSt p}
+
 def getResult
   {p : ℕ} {α : Type} (cmd : ClapM p α) (numAlloc : ℕ) (σ : HashConsSt p)
 : α :=
@@ -105,25 +107,24 @@ def getHashConsState
   (cmd.run numAlloc σ).2
 
 @[simp, grind=]
-lemma getResult_alloc (numAlloc : ℕ) (σ : HashConsSt p):
-  (ClapM.alloc (p := p)).getResult numAlloc σ =
+lemma getResult_alloc :
+  ClapM.alloc.getResult numAlloc σ =
   numAlloc
 := rfl
 
-@[simp, grind=]
-lemma getCircuit_alloc (numAlloc : ℕ) (σ : HashConsSt p):
-  (ClapM.alloc (p := p)).getCircuit numAlloc σ =
-  #[]
+@[simp, grind =]
+lemma getCircuit_alloc :
+  ClapM.alloc.getCircuit numAlloc σ = #[]
 := rfl
 
 @[simp, grind=]
-lemma getNumAlloc_alloc (numAlloc : ℕ) (σ : HashConsSt p):
-  (ClapM.alloc (p := p)).getNumAlloc numAlloc σ = numAlloc + 1
+lemma getNumAlloc_alloc :
+  ClapM.alloc.getNumAlloc numAlloc σ = numAlloc + 1
 := rfl
 
 @[simp, grind=]
-lemma getHashConsState_alloc (numAlloc : ℕ) (σ : HashConsSt p):
-  (ClapM.alloc (p := p)).getHashConsState numAlloc σ = σ
+lemma getHashConsState_alloc :
+  ClapM.alloc.getHashConsState numAlloc σ = σ
 := rfl
 
 @[simp, grind =]
@@ -176,72 +177,72 @@ lemma getHashConsState_bind
 := rfl
 
 @[simp, grind =]
-lemma getResult_tell (numAlloc : ℕ) (xs : CircuitState p) (σ : HashConsSt p):
+lemma getResult_tell {numAlloc : ℕ} {xs : CircuitState p} {σ : HashConsSt p} :
   ClapM.getResult (tell xs) numAlloc σ = ()
 := rfl
 
 @[simp, grind =]
-lemma getCircuit_tell (numAlloc : ℕ) (xs : CircuitState p) (σ : HashConsSt p):
+lemma getCircuit_tell {numAlloc : ℕ} {xs : CircuitState p} {σ : HashConsSt p} :
   ClapM.getCircuit (tell xs) numAlloc σ =
   xs
 := rfl
 
 @[simp, grind =]
-lemma getNumAlloc_tell (numAlloc : ℕ) (xs : CircuitState p) (σ : HashConsSt p):
+lemma getNumAlloc_tell {numAlloc : ℕ} {xs : CircuitState p} {σ : HashConsSt p}:
   ClapM.getNumAlloc (tell xs) numAlloc σ =
   numAlloc
 := rfl
 
 @[simp, grind =]
-lemma getHashConsState_tell (numAlloc : ℕ) (xs : CircuitState p) (σ : HashConsSt p):
+lemma getHashConsState_tell {numAlloc : ℕ} {xs : CircuitState p} {σ : HashConsSt p}:
   ClapM.getHashConsState (tell xs) numAlloc σ =
   σ
 := rfl
 
 @[simp, grind=]
-lemma getResult_pure {α} (numAlloc : ℕ) (x : α) (σ : HashConsSt p):
+lemma getResult_pure {α} {numAlloc : ℕ} {x : α} {σ : HashConsSt p}:
   ClapM.getResult (p := p) (pure x) numAlloc σ =
   x
 := rfl
 
 @[simp, grind=]
-lemma getCircuit_pure {α} (numAlloc : ℕ) (x : α) (σ : HashConsSt p):
+lemma getCircuit_pure {α} {numAlloc : ℕ} {x : α} {σ : HashConsSt p}:
   ClapM.getCircuit (p := p) (pure x) numAlloc σ =
   #[]
 := rfl
 
 @[simp, grind=]
-lemma getNumAlloc_pure {α} (numAlloc : ℕ) (x : α) (σ : HashConsSt p) :
+lemma getNumAlloc_pure {α} {numAlloc : ℕ} {x : α} {σ : HashConsSt p}:
   ClapM.getNumAlloc (p := p) (pure x) numAlloc σ =
   numAlloc
 := rfl
 
 @[simp, grind=]
-lemma getHashConsState_pure {α} (numAlloc : ℕ) (x : α) (σ : HashConsSt p) :
+lemma getHashConsState_pure {α} {numAlloc : ℕ} {x : α} {σ : HashConsSt p}:
   ClapM.getHashConsState (p := p) (pure x) numAlloc σ =
   σ
 := rfl
 
 @[simp, grind=]
-lemma getResult_map {α β} (f : α → β) (numAlloc : ℕ) (cmd : ClapM p α) (σ : HashConsSt p):
+lemma getResult_map {α β} (f : α → β) {numAlloc : ℕ} {cmd : ClapM p α} {σ : HashConsSt p}:
   (f <$> cmd).getResult numAlloc σ =
   f (cmd.getResult numAlloc σ)
 := rfl
 
 @[simp, grind=]
-lemma getNumAlloc_map {α β} (f : α → β) (numAlloc : ℕ) (cmd : ClapM p α) (σ : HashConsSt p):
+lemma getNumAlloc_map {α β} (f : α → β) {numAlloc : ℕ} {cmd : ClapM p α} {σ : HashConsSt p}:
   (f <$> cmd).getNumAlloc numAlloc σ =
   cmd.getNumAlloc numAlloc σ
 := rfl
 
 @[simp, grind=]
-lemma getCircuit_map {α β} (f : α → β) (numAlloc : ℕ) (cmd : ClapM p α) (σ : HashConsSt p):
+lemma getCircuit_map {α β} (f : α → β) {numAlloc : ℕ} {cmd : ClapM p α} {σ : HashConsSt p}:
   (f <$> cmd).getCircuit numAlloc σ =
   cmd.getCircuit numAlloc σ
 := rfl
 
 @[simp, grind=]
-lemma getHashConsState_map {α β} (f : α → β) (numAlloc : ℕ) (cmd : ClapM p α) (σ : HashConsSt p):
+lemma getHashConsState_map {α β} (f : α → β) {numAlloc : ℕ} {cmd : ClapM p α} {σ : HashConsSt p}:
   (f <$> cmd).getHashConsState numAlloc σ =
   cmd.getHashConsState numAlloc σ
 := rfl
@@ -381,7 +382,7 @@ lemma step_of_refsValid_prefix
   }
 
 lemma getHashConsState_apply {α β} {result : α} {numAlloc} {σ} {f : α → ClapM p β} :
-  (f result).getHashConsState numAlloc σ = (f result numAlloc σ).2 := rfl
+  (f result).getHashConsState numAlloc σ = ((f result).run numAlloc σ).2 := rfl
 
 lemma runAndEval_bind
   {α β : Type}

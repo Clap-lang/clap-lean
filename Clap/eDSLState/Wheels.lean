@@ -48,21 +48,35 @@ lemma Std.ExtTreeMap.insertMany_single
 : x.insertMany #v[(y, z)] = x.insert y z
 := by rfl
 
+@[grind =]
+lemma _root_.Id.pure_eq {α : Type} {x : α} : pure (f := Id) x = x := by rfl
+
+end Clap
+
+namespace Array
+
 @[simp, grind =]
-lemma Array.foldl_empty_collection
+lemma foldl_empty_collection
   (α β)
   (f : β → α → β)
   (init)
 : Array.foldl f init ∅ = init
 := by rfl
 
-end Clap
-
 @[simp, grind =]
-lemma _root_.Array.getElem_idxOf {α : Type} {a : Array α} {x : α} [BEq α] [LawfulBEq α] (h : a.idxOf x < a.size) :
+lemma getElem_idxOf {α : Type} {a : Array α} {x : α} [BEq α] [LawfulBEq α] (h : a.idxOf x < a.size) :
   a[a.idxOf x]'h = x := by
   rcases a with ⟨a⟩
   simp
 
-@[grind =]
-lemma _root_.Id.pure_eq {α : Type} {x : α} : pure (f := Id) x = x := by rfl
+@[simp, grind ←]
+lemma isPrefixOf_rfl {α : Type} [BEq α] [LawfulBEq α] {a : Array α} : a.isPrefixOf a := by
+  rcases a
+  simp
+
+@[simp, grind →]
+lemma isPrefixOf_trans {α : Type} [BEq α] [LawfulBEq α] {a b c : Array α}
+  (h₁ : a.isPrefixOf b) (h₂ : b.isPrefixOf c) : a.isPrefixOf c := by
+  grind [cases Array]
+
+end Array

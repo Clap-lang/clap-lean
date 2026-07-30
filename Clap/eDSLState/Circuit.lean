@@ -14,6 +14,7 @@ inductive CircuitusPlanus (p : ℕ) where
   | isZero (e : ExprRef)
   | num2bits (w : ℕ) (e : ExprRef)
 
+@[grind =]
 def CircuitusPlanus.refsValid {p : ℕ} (c : CircuitusPlanus p) (bound : ℕ) : Prop := match c with
   | .eq0 e => e < bound
   | .lam => True
@@ -21,6 +22,7 @@ def CircuitusPlanus.refsValid {p : ℕ} (c : CircuitusPlanus p) (bound : ℕ) : 
   | .isZero e => e < bound
   | .num2bits _w e => e < bound
 
+@[grind =]
 def CircuitusPlanus.varsAllocated {p : ℕ} (c : CircuitusPlanus p) (varStore : VarStore p) (σ : HashConsSt p) : Prop := match c with
     | .eq0 e => [varStore, σ|e].isSome
     | .lam => True
@@ -38,10 +40,12 @@ instance {p: ℕ} {x : CircuitusPlanus p} {bound : ℕ}: Decidable (x.refsValid 
 
 abbrev CircuitState (p : ℕ) := Array (CircuitusPlanus p)
 
+@[grind =]
 def CircuitState.refsValid {p : ℕ} (c : CircuitState p) (bound : ℕ) : Prop :=
   c.all λ x => (decide (x.refsValid bound))
 
 -- TODO decidable?
+@[grind =]
 def CircuitState.varsAllocated {p : ℕ} (c : CircuitState p) (varStore : VarStore p) (σ : HashConsSt p) : Prop :=
   ∀ x ∈ c, x.varsAllocated varStore σ
 
