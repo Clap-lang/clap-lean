@@ -380,6 +380,9 @@ lemma step_of_refsValid_prefix
     grind
   }
 
+lemma getHashConsState_apply {α β} {result : α} {numAlloc} {σ} {f : α → ClapM p β} :
+  (f result).getHashConsState numAlloc σ = (f result numAlloc σ).2 := rfl
+
 lemma runAndEval_bind
   {α β : Type}
   {varStore : VarStore p}
@@ -416,9 +419,10 @@ lemma runAndEval_bind
         grind
       rewrite [this]; clear this
       congr 3
-      grind
-    . grind
-    . grind
+      sorry
+      sorry
+    . sorry
+    . sorry
 
 
 end CircuitState
@@ -431,20 +435,20 @@ variable {numAlloc : ℕ}
 
 @[Clap.monads]
 lemma getModify_eq
-  (f : ℕ → ℕ)
+  {f : ℕ → ℕ}
 :
   @getModify
     ℕ
     (ClapM p)
     (instMonadStateOfMonadStateOf ℕ (ClapM p))
     f
-    numAlloc = ((numAlloc, #[]), f numAlloc)
+    numAlloc = pure ((numAlloc, #[]), f numAlloc)
 := rfl
 
 @[simp, grind =]
 lemma alloc_eq :
   ClapM.alloc (p := p) numAlloc =
-  ((numAlloc, #[]), numAlloc + 1)
+  pure ((numAlloc, #[]), numAlloc + 1)
 := by
   simp [ClapM.alloc, Clap.monads]
 
@@ -454,8 +458,9 @@ lemma Vector_ofFnM_empty_state
   {n}
   {a : Fin n → ℕ → α}
   {c : Fin n → ℕ → ℕ}
+  {σ}
 :
-  (@Vector.ofFnM (ClapM p) _ n _ (λ x s => ⟨⟨a x s, #[]⟩, c x s⟩) numAlloc).1.2 =
+  (@Vector.ofFnM (ClapM p) _ n _ (λ x s σ => ⟨⟨⟨a x s, #[]⟩, c x s⟩, σ⟩) numAlloc σ).1.1.2 =
   #[]
 := by
   induction n with
@@ -464,7 +469,7 @@ lemma Vector_ofFnM_empty_state
   | succ n h =>
     rewrite [Vector.ofFnM_succ]
     simp_all [Clap.monads]
-    set x := @Vector.ofFnM (ClapM p) _ _ _ _ _
+    set x := @Vector.ofFnM (ClapM p) _ _ _ _ _ σ
     have : x = ⟨x.1, x.2⟩ := rfl
     rewrite [this]; clear this
     simp [x, h]
