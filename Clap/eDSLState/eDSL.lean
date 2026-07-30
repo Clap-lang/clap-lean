@@ -6,35 +6,35 @@ namespace Clap.Edsl
 variable {p : ℕ}
 
 @[irreducible]
-def eq0 (e : FixedExp p) : CircuitStateM p Unit := do
+def eq0 (e : ExprRef) : ClapM p Unit := do
   tell #[.eq0 e]
 
 @[irreducible]
-def lam : CircuitStateM p (FixedExp p) := do
+def lam : ClapM p ExprRef := do
   tell #[.lam]
-  let numAlloc ← CircuitStateM.alloc
-  return .v numAlloc
+  let numAlloc ← ClapM.alloc
+  return numAlloc
 
 @[irreducible]
-def share (e : FixedExp p) : CircuitStateM p (FixedExp p) := do
+def share (e : ExprRef) : ClapM p (ExprRef) := do
   tell #[.share e]
-  let numAlloc ← CircuitStateM.alloc
-  return (.v numAlloc)
+  let numAlloc ← ClapM.alloc
+  return numAlloc
 
 @[irreducible]
-def isZero (e : FixedExp p) : CircuitStateM p (FixedExp p) := do
+def isZero (e : ExprRef) : ClapM p (ExprRef) := do
   tell #[.isZero e]
-  let numAlloc ← CircuitStateM.alloc -- (un)just one
-  return .v numAlloc
+  let numAlloc ← ClapM.alloc -- (un)just one
+  return numAlloc
 
 @[irreducible]
-def num2bits (width : ℕ) (e : FixedExp p) : CircuitStateM p (Vector (FixedExp p) width) := do
+def num2bits (width : ℕ) (e : ExprRef) : ClapM p (Vector (ExprRef) width) := do
   tell #[.num2bits width e]
   Vector.ofFnM fun _ ↦ do
-    let varIdx ← CircuitStateM.alloc
-    return .v varIdx
+    let varIdx ← ClapM.alloc
+    return varIdx
 
-def test : CircuitStateM p Unit := do
+def test : ClapM p Unit := do
   let x ← lam
   eq0 x
   let y ← share (.add 1 1)
@@ -44,41 +44,52 @@ def test : CircuitStateM p Unit := do
 section wellFormed
 
 @[simp, grind .]
-lemma eq0_wellFormed {e : FixedExp p} :
-  (eq0 e).wellFormed
+lemma eq0_wellFormed {e : ExprRef} {Γ} {σ} (h : e < σ.exprs.size) :
+  (eq0 e).wellFormed (p := p) e Γ σ
 := by
-  simp [eq0, CircuitStateM.wellFormed]
+  simp [eq0, ClapM.wellFormed]
+  split_ands
+  · suffices (CircuitusPlanus.eq0 e).refsValid σ.exprs.size by simpa [CircuitState.refsValid]
+    simpa!
+  · aesop (add simp CircuitState.varsAllocated)
+    unfold CircuitusPlanus.varsAllocated
+    
+
+
+
+
+
 
 @[simp, grind .]
 lemma lam_wellFormed :
-  (lam : CircuitStateM p _).wellFormed
+  (lam : ClapM p _).wellFormed
 := by
-  simp [lam, CircuitStateM.wellFormed]
+  simp [lam, ClapM.wellFormed]
 
 @[simp, grind .]
-lemma share_wellFormed {e : FixedExp p} :
+lemma share_wellFormed {e : ExprRef} :
   (share e).wellFormed
 := by
-  simp [share, CircuitStateM.wellFormed]
+  simp [share, ClapM.wellFormed]
 
 
 @[simp, grind .]
-lemma isZero_wellFormed {e : FixedExp p} :
+lemma isZero_wellFormed {e : ExprRef} :
   (isZero e).wellFormed
 := by
-  simp [isZero, CircuitStateM.wellFormed]
+  simp [isZero, ClapM.wellFormed]
 
 @[simp]
 abbrev num2bitsSansTellApply (p w numAlloc : ℕ) : ((List (Exp p ℕ) × CircuitState p) × ℕ) :=
-  List.ofFnM (n := w) (m := CircuitStateM p)
+  List.ofFnM (n := w) (m := ClapM p)
     (
       fun _ => do
-        let varIdx ← CircuitStateM.alloc
+        let varIdx ← ClapM.alloc
         pure (Exp.v (p := p) varIdx)
     )
     numAlloc
 
-def num2bitsButSane (width : ℕ) (e : FixedExp p) : CircuitStateM p (List (FixedExp p)) := do
+def num2bitsButSane (width : ℕ) (e : FixedExp p) : ClapM p (List (FixedExp p)) := do
   tell #[.num2bits width e]
   num2bitsSansTellApply p width
 
@@ -87,10 +98,10 @@ lemma map_toList_num2bits_eq_num2bitsButSane {w e} :
   unfold num2bitsButSane num2bitsSansTellApply
   simp [num2bits]
 
-lemma wellFormed_of_wellFormed_toList {α} {w} {action : CircuitStateM p (Vector α w)}
+lemma wellFormed_of_wellFormed_toList {α} {w} {action : ClapM p (Vector α w)}
   (h : (Vector.toList <$> action).wellFormed) :
   action.wellFormed := by
-  aesop (add simp [CircuitStateM.wellFormed, Clap.monads])
+  aesop (add simp [ClapM.wellFormed, Clap.monads])
 
 section
 
@@ -101,17 +112,17 @@ Wait why do I have to yoga after I changed to the array...
 -/
 
 @[simp, grind =]
-lemma bind_alloc {α} {numAlloc} {f : ℕ → CircuitStateM p α} :
-  (CircuitStateM.alloc >>= f) numAlloc = f numAlloc (numAlloc + 1) := by
+lemma bind_alloc {α} {numAlloc} {f : ℕ → ClapM p α} :
+  (ClapM.alloc >>= f) numAlloc = f numAlloc (numAlloc + 1) := by
   unfold_projs
-  have : (getModify (m := (CircuitStateM p)) (fun x => x + 1) numAlloc).2 = numAlloc + 1 := rfl
-  have : (getModify (m := (CircuitStateM p)) (fun x => x + 1) numAlloc).1.1 = numAlloc := by rfl
-  simp [WriterT.run, CircuitStateM.alloc, WriterT.mk, StateT.bind, Id]
+  have : (getModify (m := (ClapM p)) (fun x => x + 1) numAlloc).2 = numAlloc + 1 := rfl
+  have : (getModify (m := (ClapM p)) (fun x => x + 1) numAlloc).1.1 = numAlloc := by rfl
+  simp [WriterT.run, ClapM.alloc, WriterT.mk, StateT.bind, Id]
   simp [StateT.map, Bind.bind, Pure.pure]
   aesop
 
 @[simp, grind =]
-lemma CircuitStateM.map_apply {α β} {numAlloc} {f : α → β} {action : CircuitStateM p α} :
+lemma ClapM.map_apply {α β} {numAlloc} {f : α → β} {action : ClapM p α} :
   (f <$> action) numAlloc =
   ((f (action.getResult numAlloc), (action.getCircuit numAlloc)), (action.getNumAlloc numAlloc)) := rfl
 
@@ -140,11 +151,11 @@ lemma num2bitsSansTellApply_snd {w} {numAlloc} :
   induction w generalizing numAlloc <;> aesop (add simp List.ofFnM_succ) (add safe (by grind))
 
 @[simp]
-lemma getNumAlloc_bind_tell {f : Unit → CircuitStateM p (List (FixedExp p))} {l} :
-  (tell l >>= f).getNumAlloc = CircuitStateM.getNumAlloc (f ()) := rfl
+lemma getNumAlloc_bind_tell {f : Unit → ClapM p (List (FixedExp p))} {l} :
+  (tell l >>= f).getNumAlloc = ClapM.getNumAlloc (f ()) := rfl
 
 @[simp]
-lemma getCircuit_bind_tell {f : Unit → CircuitStateM p (List (FixedExp p))} {l} {numAlloc} :
+lemma getCircuit_bind_tell {f : Unit → ClapM p (List (FixedExp p))} {l} {numAlloc} :
   (tell l >>= f).getCircuit numAlloc = l ++ (f () numAlloc).1.2 := by
   aesop (add simp Clap.monads)
 
@@ -217,7 +228,7 @@ lemma eval_edsl_isZero :
 --   sorry
 
 @[grind ←]
-lemma getCircuit_ofFnM_of_getCircuit_eq_nil {α} (n: ℕ) (f : Fin n → CircuitStateM p α) (numAlloc)
+lemma getCircuit_ofFnM_of_getCircuit_eq_nil {α} (n: ℕ) (f : Fin n → ClapM p α) (numAlloc)
   (h_no_circuit: ∀ idx numAlloc, (f idx).getCircuit numAlloc = #[])
 :
   (Vector.ofFnM f).getCircuit numAlloc =

@@ -474,16 +474,19 @@ lemma Vector_ofFnM_empty_state
     rewrite [this]; clear this
     simp [x, h]
 
-@[aesop safe forward, grind _=_]
-lemma mem_iff_isSome {p} {varStore : VarStore p} {x : FixedExp p} :
-  x ∈ varStore ↔ [varStore|x].isSome := by rfl
-
-lemma bind_eval {α} {a} {varStore : VarStore p} {f : ZMod p → Option α} (h : a ∈ varStore) :
-  [varStore|a] >>= f = f ([varStore|a].get h) := by aesop (add simp Option.bind)
+lemma bind_eval {α} {e!} {varStore : VarStore p} {f : ZMod p → Option α}
+                {σ} (h : [varStore,σ|e!].isSome) :
+  [varStore, σ|e!] >>= f = f ([varStore, σ|e!].get h) := by
+  unfold HashConsM.eval
+  unfold HashConsM.evalWithCache
+  simp
+  unfold Option.bind
+  grind
 
 @[grind <=]
-lemma bind_eval' {α} {a} {varStore : VarStore p} {f : ZMod p → Option α} (h : a ∈ varStore) :
-  [varStore|a].bind f = f ([varStore|a].get h) := by aesop (add simp Option.bind)
+lemma bind_eval' {α : Type} {e!} {varStore : VarStore p} {f : ZMod p → Option α}
+                 {σ} (h : [varStore,σ|e!].isSome) :
+  [varStore, σ|e!].bind f = f ([varStore, σ|e!].get h) := bind_eval h
 
 end
 

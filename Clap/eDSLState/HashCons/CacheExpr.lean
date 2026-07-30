@@ -37,5 +37,9 @@ lemma wellFormed_c {p} {k : ZMod p} {n : ℕ} : (CacheExpr.c k).wellFormed n := 
 @[simp, grind .]
 lemma wellFormed_v {p} {idx : ℕ} {n : ℕ} : (CacheExpr.v (p := p) idx).wellFormed n := trivial
 
+@[aesop unsafe, grind .]
+lemma wellFormed_binary_op_of_lt_lt {p} {n : ℕ} {lhs rhs op} (h₁ : lhs < n) (h₂ : rhs < n) :
+  (CacheExpr.binary_op (p := p) lhs rhs op).wellFormed n := by
+  aesop (add simp CacheExpr.wellFormed)
 
 end Clap

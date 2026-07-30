@@ -215,8 +215,7 @@ lemma getElem?_mk
 lemma membership_unconstrained
   {e :ExprRef}
 :
-  ((e, σ) ∈ unconstrained[numAlloc][varStore]) =
-  ([varStore,σ|e].isSome = true)
+  ((e, σ) ∈ unconstrained[numAlloc][varStore]) = [varStore,σ|e].isSome
 := rfl
 
 @[simp, grind =]
