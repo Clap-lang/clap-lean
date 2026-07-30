@@ -9,28 +9,26 @@ namespace Clap
 @[grind cases]
 inductive CircuitusPlanus (p : ℕ) where
   | eq0 (e : ExprRef)
-  | lam
   | share (e : ExprRef)
   | isZero (e : ExprRef)
   | num2bits (w : ℕ) (e : ExprRef)
 
+@[grind =]
 def CircuitusPlanus.refsValid {p : ℕ} (c : CircuitusPlanus p) (bound : ℕ) : Prop := match c with
   | .eq0 e => e < bound
-  | .lam => True
   | .share e => e < bound
   | .isZero e => e < bound
   | .num2bits _w e => e < bound
 
+@[grind =]
 def CircuitusPlanus.varsAllocated {p : ℕ} (c : CircuitusPlanus p) (varStore : VarStore p) (σ : HashConsSt p) : Prop := match c with
     | .eq0 e => [varStore, σ|e].isSome
-    | .lam => True
     | .share e => [varStore, σ|e].isSome
     | .isZero e => [varStore, σ|e].isSome
     | .num2bits _w e => [varStore, σ|e].isSome
 
 instance {p: ℕ} {x : CircuitusPlanus p} {bound : ℕ}: Decidable (x.refsValid bound) := match x with
   | .eq0 e => e.decLt bound
-  | .lam => .isTrue (by trivial)
   | .share e => e.decLt bound
   | .isZero e => e.decLt bound
   | .num2bits _w e => e.decLt bound
@@ -38,12 +36,9 @@ instance {p: ℕ} {x : CircuitusPlanus p} {bound : ℕ}: Decidable (x.refsValid 
 
 abbrev CircuitState (p : ℕ) := Array (CircuitusPlanus p)
 
+@[grind =]
 def CircuitState.refsValid {p : ℕ} (c : CircuitState p) (bound : ℕ) : Prop :=
   c.all λ x => (decide (x.refsValid bound))
-
--- TODO decidable?
-def CircuitState.varsAllocated {p : ℕ} (c : CircuitState p) (varStore : VarStore p) (σ : HashConsSt p) : Prop :=
-  ∀ x ∈ c, x.varsAllocated varStore σ
 
 -- isZero : input → Bool
 -- need to allocate the output of this thing
@@ -336,7 +331,6 @@ lemma constraints_alloc {vars : Vector (ZMod p) k} :
 def step (result : CircuitResult p) (next : CircuitusPlanus p) (σ : HashConsSt p) : CircuitResult p :=
   match next with
   | .eq0 e => result.addConstraint (result[(e, σ)]? = .some 0)
-  | .lam => result.allocAnonymous
   | .share e => (result.assertAllocated e σ).alloc #v[result[(e, σ)]!]
   | .isZero e => (result.assertAllocated e σ).alloc #v[if result[(e, σ)]? = .some 0 then 1 else 0]
   | .num2bits width e => (result.assertAllocated e σ).alloc (num2bitsLsbPureV width (result[(e, σ)]!))
@@ -404,10 +398,6 @@ lemma constraints_split : result.split.constraints = True := rfl
 @[simp, grind =]
 lemma step_eq0 :
   [result,σ|.eq0 e!]ₛ = result.addConstraint (result[(e!, σ)]? = .some 0) := rfl
-
-@[simp, grind =]
-lemma step_lam :
-  [result,σ|.lam]ₛ = result.allocAnonymous := rfl
 
 @[simp, grind =]
 lemma step_share :
@@ -531,8 +521,7 @@ lemma foldl_step_varStore_independent_of_constraints
   simp
   next hd tl ih =>
     simp at *
-    rcases hd with _ | _ | _ | _ | _
-    · grind
+    rcases hd with _ | _ | _ | _
     · grind
     · rw [Array.foldr_toList, Array.foldr_toList]
       simp [ih]
@@ -662,7 +651,7 @@ lemma foldl_step_constraints_and
   simp
   next hd tl ih =>
     simp at *
-    rcases hd with _ | _ | _ | _ | _
+    rcases hd with _ | _ | _ | _
     · simp
       unfold GetElem?.getElem?
       unfold instGetElem?ProdExprRefHashConsStZModMem
@@ -671,7 +660,6 @@ lemma foldl_step_constraints_and
       rw [ih]
       rw [foldr_step_varStore_independent_of_constraints''' (σ₂ := result.split)] <;>
       aesop
-    · grind
     · rw [Array.foldr_toList, Array.foldr_toList]
       simp [ih]
       expose_names
@@ -795,13 +783,6 @@ lemma eval_eq0 :
 := by simp [eval, CircuitResult.addConstraint_unconstrained]
 
 @[simp, grind =]
-lemma eval_lam :
-  [varStore, σ, numAlloc | #[.lam]]ₑ =
-  unconstrained[numAlloc][varStore].step (.lam) σ
-:= by
-  simp [eval]
-
-@[simp, grind =]
 lemma eval_share :
   [varStore, σ, numAlloc | #[.share e]]ₑ =
   unconstrained[numAlloc][varStore].step (.share e) σ
@@ -836,5 +817,42 @@ lemma seq_singleton_nil {cmd : CircuitusPlanus p} {varStore} {numAlloc} :
   simp [seq]
 
 end
+
+-- TODO prove for eval
+-- TODO move up
+lemma step_of_refsValid_prefix
+  {σ σ' : HashConsSt p}
+  {circuit : CircuitusPlanus p}
+  {result: CircuitResult p}
+  (h_prefix : σ.exprs.isPrefixOf σ'.exprs)
+  (h_refsValid : circuit.refsValid (σ.exprs.size))
+:
+  [result, σ'|circuit]ₛ =
+  [result, σ|circuit]ₛ
+:= by
+  unfold CircuitResult.step
+  cases circuit
+  all_goals {
+    simp
+    expose_names
+    have : e < σ.exprs.size := by
+      unfold CircuitusPlanus.refsValid at h_refsValid
+      grind
+    have : result[(e, σ')]? = result[(e, σ)]? := by
+      unfold_projs
+      simp [CircuitResult.get?, HashConsM.eval]
+      congr 1
+      symm
+      exact HashConsM.evalCache_of_lt_prefix h_prefix this
+    grind
+  }
+
+@[simp, grind _=_]
+lemma refsValid_append_iff {a b : CircuitState p} {numAlloc : ℕ}
+:
+  (a ++ b).refsValid numAlloc ↔
+  a.refsValid numAlloc ∧ b.refsValid numAlloc
+:= by
+  grind
 
 end Clap.Edsl.CircuitState

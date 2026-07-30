@@ -32,71 +32,49 @@ def num2bits (width : ℕ) (e : ExprRef) : ClapM p (Vector (ExprRef) width) := d
   tell #[.num2bits width e]
   Vector.ofFnM fun _ ↦ do
     let varIdx ← ClapM.alloc
-    return varIdx
-
-def test : ClapM p Unit := do
-  let x ← lam
-  eq0 x
-  let y ← share (.add 1 1)
-  discard <| [1, 2, y].mapM eq0
-  eq0 4
+    HashConsM.mkVar (p := p) varIdx
 
 section wellFormed
 
+variable {numAlloc : ℕ} {e : ExprRef} {Γ : VarStore p} {σ}
+
 @[aesop unsafe, grind .]
-lemma eq0_wellFormed {e : ExprRef} {Γ} {σ}
-  (h_ref : e < σ.exprs.size)
-  (h_var: [Γ,σ|e].isSome = true)
-:
-  (eq0 e).wellFormed (p := p) e Γ σ
+lemma eq0_wellFormed (h₁ : e < σ.exprs.size) (h₂ : [Γ,σ|e].isSome) :
+  (eq0 e).wellFormed numAlloc Γ σ
 := by
-  simp [eq0, ClapM.wellFormed]
-  split_ands
-  · suffices (CircuitusPlanus.eq0 e).refsValid σ.exprs.size by simpa [CircuitState.refsValid]
-    simpa!
-  · aesop (add simp CircuitState.varsAllocated)
-  . simp [ClapM.numAlloc_wellFormed]
-  . simp [ClapM.hashConsState_wellFormed]
-
-
-
-
-
-
-
+  grind [eq0]
 
 @[simp, grind .]
 lemma lam_wellFormed :
-  (lam : ClapM p _).wellFormed
+  lam.wellFormed numAlloc Γ σ
 := by
-  simp [lam, ClapM.wellFormed]
+  simp [lam]
+  grind [lam]
 
 @[simp, grind .]
-lemma share_wellFormed {e : ExprRef} :
-  (share e).wellFormed
+lemma share_wellFormed {e : ExprRef} (h₁ : e < σ.exprs.size) (h₂ : [Γ,σ|e].isSome) :
+  (share e).wellFormed e Γ σ
 := by
-  simp [share, ClapM.wellFormed]
-
+  grind [share]
 
 @[simp, grind .]
-lemma isZero_wellFormed {e : ExprRef} :
-  (isZero e).wellFormed
+lemma isZero_wellFormed {e : ExprRef} (h₁ : e < σ.exprs.size) (h₂ : [Γ,σ|e].isSome) :
+  (isZero e).wellFormed e Γ σ
 := by
-  simp [isZero, ClapM.wellFormed]
+  grind [isZero]
 
 @[simp]
-abbrev num2bitsSansTellApply (p w numAlloc : ℕ) : ((List (Exp p ℕ) × CircuitState p) × ℕ) :=
-  List.ofFnM (n := w) (m := ClapM p)
+abbrev num2bitsSansTellApply (p w numAlloc : ℕ) (σ : HashConsSt p) : ((List (Exp p ℕ) × CircuitState p) × ℕ) × HashConsSt p :=
+  (List.ofFnM (n := w) (m := ClapM p)
     (
       fun _ => do
         let varIdx ← ClapM.alloc
         pure (Exp.v (p := p) varIdx)
-    )
-    numAlloc
+    )).run numAlloc σ
 
-def num2bitsButSane (width : ℕ) (e : FixedExp p) : ClapM p (List (FixedExp p)) := do
+def num2bitsButSane (width : ℕ) (e : ExprRef) (numAlloc : ℕ) (σ : HashConsSt p) : ClapM p (List (ExprRef)) := do
   tell #[.num2bits width e]
-  num2bitsSansTellApply p width
+  num2bitsSansTellApply p width numAlloc
 
 lemma map_toList_num2bits_eq_num2bitsButSane {w e} :
   Vector.toList <$> num2bits (p := p) w e = num2bitsButSane w e := by
