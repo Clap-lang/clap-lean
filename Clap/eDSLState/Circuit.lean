@@ -27,18 +27,26 @@ def CircuitusPlanus.varsAllocated {p : ℕ} (c : CircuitusPlanus p) (varStore : 
     | .isZero e => [varStore, σ|e].isSome
     | .num2bits _w e => [varStore, σ|e].isSome
 
+instance {p : ℕ} {c : CircuitusPlanus p} {varStore : VarStore p} {σ : HashConsSt p} :
+  Decidable (c.varsAllocated varStore σ) := by
+  unfold CircuitusPlanus.varsAllocated
+  rcases c <;> infer_instance 
+
 instance {p: ℕ} {x : CircuitusPlanus p} {bound : ℕ}: Decidable (x.refsValid bound) := match x with
   | .eq0 e => e.decLt bound
   | .share e => e.decLt bound
   | .isZero e => e.decLt bound
   | .num2bits _w e => e.decLt bound
 
-
 abbrev CircuitState (p : ℕ) := Array (CircuitusPlanus p)
 
 @[grind =]
 def CircuitState.refsValid {p : ℕ} (c : CircuitState p) (bound : ℕ) : Prop :=
   c.all λ x => (decide (x.refsValid bound))
+
+@[grind =]
+def CircuitState.varsAllocated {p : ℕ} (c : CircuitState p) (varStore : VarStore p) (σ : HashConsSt p) (pc : ℕ) : Prop :=
+  ∀ i < pc, c[pc]?.any fun instr ↦ instr.varsAllocated varStore σ
 
 -- isZero : input → Bool
 -- need to allocate the output of this thing

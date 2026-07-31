@@ -107,7 +107,7 @@ lemma bind_alloc {α} {numAlloc} {f : ℕ → ClapM p α} :
 @[simp, grind =]
 lemma ClapM.map_apply {α β} {numAlloc} {f : α → β} {action : ClapM p α} :
   (f <$> action) numAlloc =
-  ((f (action.getResult numAlloc), (action.getCircuit numAlloc)), (action.getNumAlloc numAlloc)) := rfl
+  ((f (action.getResult numAlloc), (action.getCircuit numAlloc)), (action.getState numAlloc)) := rfl
 
 end
 
@@ -134,8 +134,8 @@ lemma num2bitsSansTellApply_snd {w} {numAlloc} :
   induction w generalizing numAlloc <;> aesop (add simp List.ofFnM_succ) (add safe (by grind))
 
 @[simp]
-lemma getNumAlloc_bind_tell {f : Unit → ClapM p (List (FixedExp p))} {l} :
-  (tell l >>= f).getNumAlloc = ClapM.getNumAlloc (f ()) := rfl
+lemma getState_bind_tell {f : Unit → ClapM p (List (FixedExp p))} {l} :
+  (tell l >>= f).getState = ClapM.getState (f ()) := rfl
 
 @[simp]
 lemma getCircuit_bind_tell {f : Unit → ClapM p (List (FixedExp p))} {l} {numAlloc} :
@@ -150,7 +150,7 @@ lemma num2bits_wellFormed (width : ℕ) (e : FixedExp p) :
   rw [map_toList_num2bits_eq_num2bitsButSane]
   intro numAlloc varStore
   unfold num2bitsButSane
-  rw [getNumAlloc_bind_tell, getCircuit_bind_tell]
+  rw [getState_bind_tell, getCircuit_bind_tell]
   rw [CircuitState.eval_append, num2bitsSansTellApply_fst_snd]
   suffices (num2bitsSansTellApply p width numAlloc).2 = numAlloc + width by simpa
   rw [num2bitsSansTellApply_snd]

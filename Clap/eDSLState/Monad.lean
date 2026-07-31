@@ -8,9 +8,23 @@ namespace Edsl
 
 variable {p : ℕ}
 
+structure State where
+  numAlloc : ℕ
+  pc : ℕ
+
+namespace State
+
+def bumpAlloc (st : State) : State :=
+  {st with numAlloc := st.numAlloc + 1}
+
+def bumpPc (st : State) : State :=
+  {st with pc := st.pc + 1}
+
+end State
+
 --StateT numAlloc
 --WriterT array of circuit constructors
-abbrev CircuitStateT (p : ℕ) (m : Type → Type) (α : Type) : Type := WriterT (CircuitState p) (StateT ℕ m) α
+abbrev CircuitStateT (p : ℕ) (m : Type → Type) (α : Type) : Type := WriterT (CircuitState p) (StateT State m) α
 
 abbrev CircuitStateM (p : ℕ) (α : Type) : Type := CircuitStateT p Id α
 
@@ -19,35 +33,35 @@ abbrev ClapM (p : ℕ) (α : Type) : Type := CircuitStateT p (HashConsM p) α
 namespace ClapM
 
 def run {α}
-  (cmd : ClapM p α) (numAlloc : ℕ) (hashConsState : HashConsSt p)
-: ((α × CircuitState p) × ℕ) × (HashConsSt p) :=
-  (HashConsM.run (StateT.run (WriterT.run cmd) numAlloc) hashConsState)
+  (cmd : ClapM p α) (state : State) (hashConsState : HashConsSt p)
+: ((α × CircuitState p) × State) × (HashConsSt p) :=
+  (HashConsM.run (StateT.run (WriterT.run cmd) state) hashConsState)
 
 -- This is what ClapM actually is
--- Given an initial numAlloc and expression cache, produce:
+-- Given an initial State and expression cache, produce:
 --   a pure result
 --   an updated expression cache
---   a new numAlloc
+--   a new State
 --   an array of circuit constructors (referencing the updated cache)
 example {resultT}:
   ClapM p resultT =
-  (ℕ → (HashConsSt p) → ((resultT × CircuitState p) × ℕ) × (HashConsSt p))
+  (State → (HashConsSt p) → ((resultT × CircuitState p) × State) × (HashConsSt p))
  := rfl
 
 -- Pure takes numAlloc, hashConsState, and a value, and returns them all with no circuit constructors
 example {resultT} {val : resultT}:
   @pure (ClapM p) _ resultT val =
-  λ numAlloc hashConsState => (((val, #[]), numAlloc), hashConsState)
+  λ state hashConsState => (((val, #[]), state), hashConsState)
 := rfl
 
--- Bind evaluates action with a numAlloc and hashConsState
--- passes the result, new numAlloc, and new hashConsState to function,
+-- Bind evaluates action with a State and hashConsState
+-- passes the result, new State, and new hashConsState to function,
 -- then appends the action's circuit to the function's
 example {midT resultT} {action : ClapM p midT} {function : midT → ClapM p resultT}:
   @bind (ClapM p) _ midT resultT action function =
-  λ numAlloc hashConsState =>
-    let (((resultMid, circuitStateMid), numAllocMid), hashConsStateMid) := action.run numAlloc hashConsState
-    let (((resultPost, circuitStatePost), numAllocPost), hashConsStatePost) := (function resultMid).run numAllocMid hashConsStateMid
+  λ state hashConsState =>
+    let (((resultMid, circuitStateMid), stateMid), hashConsStateMid) := action.run state hashConsState
+    let (((resultPost, circuitStatePost), numAllocPost), hashConsStatePost) := (function resultMid).run stateMid hashConsStateMid
     (((resultPost, circuitStateMid ++ circuitStatePost), numAllocPost), hashConsStatePost)
 := rfl
 
@@ -81,175 +95,162 @@ lemma run_def {α} {cmd : ClapM p α} {numAlloc} :
 
 -- Allocates new variable and returns reference to it
 def alloc {p : ℕ} : ClapM p ExprRef := do
-  let varIdx ← getModify (· + 1)
-  HashConsM.mkVar (p := p) varIdx
+  let varIdx ← getModify State.bumpAlloc
+  HashConsM.mkVar (p := p) varIdx.numAlloc
 
 section Getters
 
-variable {numAlloc : ℕ} {σ : HashConsSt p}
+variable {st : State} {σ : HashConsSt p}
 
 def getResult
-  {p : ℕ} {α : Type} (cmd : ClapM p α) (numAlloc : ℕ) (σ : HashConsSt p)
+  {p : ℕ} {α : Type} (cmd : ClapM p α) (state : State) (σ : HashConsSt p)
 : α :=
-  (cmd.run numAlloc σ).1.1.1
+  (cmd.run state σ).1.1.1
 
 def getCircuit
-  {p : ℕ} {α : Type} (cmd : ClapM p α) (numAlloc : ℕ) (σ : HashConsSt p)
+  {p : ℕ} {α : Type} (cmd : ClapM p α) (state : State) (σ : HashConsSt p)
 : CircuitState p :=
-  (cmd.run numAlloc σ).1.1.2
+  (cmd.run state σ).1.1.2
 
-def getNumAlloc
-  {p : ℕ} {α : Type} (cmd : ClapM p α) (numAlloc : ℕ) (σ : HashConsSt p)
-: ℕ :=
-  (cmd.run numAlloc σ).1.2
+def getState
+  {p : ℕ} {α : Type} (cmd : ClapM p α) (state : State) (σ : HashConsSt p)
+: State :=
+  (cmd.run state σ).1.2
 
 def getHashConsState
-  {p : ℕ} {α : Type} (cmd : ClapM p α) (numAlloc : ℕ) (σ : HashConsSt p)
+  {p : ℕ} {α : Type} (cmd : ClapM p α) (state : State) (σ : HashConsSt p)
 : HashConsSt p :=
-  (cmd.run numAlloc σ).2
+  (cmd.run state σ).2
 
 @[simp, grind=]
 lemma getResult_alloc :
-  ClapM.alloc.getResult numAlloc σ =
-  (HashConsM.mkVar numAlloc σ).1
+  ClapM.alloc.getResult st σ =
+  (HashConsM.mkVar st.numAlloc σ).1
 := rfl
 
 @[simp, grind=]
 lemma getCircuit_alloc :
-  ClapM.alloc.getCircuit numAlloc σ =
+  ClapM.alloc.getCircuit st σ =
   #[]
 := rfl
 
 @[simp, grind=]
-lemma getNumAlloc_alloc :
-  ClapM.alloc.getNumAlloc numAlloc σ = numAlloc + 1
+lemma getState_alloc :
+  ClapM.alloc.getState st σ = st.bumpAlloc
 := rfl
 
 @[simp, grind=]
-lemma getHashConsState_alloc:
-  ClapM.alloc.getHashConsState numAlloc σ =
-  (HashConsM.mkVar numAlloc σ).2
+lemma getHashConsState_alloc :
+  ClapM.alloc.getHashConsState st σ =
+  (HashConsM.mkVar st.numAlloc σ).2
 := rfl
+
+section NamedThisForDom
+
+variable {α β} {action : ClapM p α} {function : α → ClapM p β}
+         {st : State} {σ : HashConsSt p} {xs : CircuitState p}
+         {cmd : ClapM p α} {f : α → β} {x : α}
 
 @[simp, grind =]
 lemma getResult_bind
-  {α β}
-  {action : ClapM p α}
-  {function : α → ClapM p β}
-  {numAlloc : ℕ}
-  {σ : HashConsSt p}
 :
-  (action >>= function).getResult numAlloc σ =
-  ((function (action.getResult numAlloc σ)).getResult (action.getNumAlloc numAlloc σ)) (action.getHashConsState numAlloc σ)
+  (action >>= function).getResult st σ =
+  ((function (action.getResult st σ)).getResult (action.getState st σ)) (action.getHashConsState st σ)
 := rfl
 
 @[simp, grind =]
-lemma getCircuit_bind
-  {α β}
-  {action : ClapM p α}
-  {function : α → ClapM p β}
-  {numAlloc : ℕ}
-  {σ : HashConsSt p}
-:
-  (action >>= function).getCircuit numAlloc σ =
-  (action.getCircuit numAlloc σ) ++
-  ((function (action.getResult numAlloc σ)).getCircuit (action.getNumAlloc numAlloc σ) (action.getHashConsState numAlloc σ))
+lemma getCircuit_bind :
+  (action >>= function).getCircuit st σ =
+  (action.getCircuit st σ) ++
+  ((function (action.getResult st σ)).getCircuit (action.getState st σ) (action.getHashConsState st σ))
 := rfl
 
 @[simp, grind =]
-lemma getNumAlloc_bind
-  {α β}
-  {action : ClapM p α}
-  {function : α → ClapM p β}
-  {numAlloc : ℕ}
-  {σ : HashConsSt p}
+lemma getState_bind
 :
-  (action >>= function).getNumAlloc numAlloc σ =
-  ((function (action.getResult numAlloc σ)).getNumAlloc (action.getNumAlloc numAlloc σ) (action.getHashConsState numAlloc σ))
+  (action >>= function).getState st σ =
+  ((function (action.getResult st σ)).getState (action.getState st σ) (action.getHashConsState st σ))
 := rfl
 
 @[simp, grind =]
 lemma getHashConsState_bind
-  {α β}
-  {action : ClapM p α}
-  {function : α → ClapM p β}
-  {numAlloc : ℕ}
-  {σ : HashConsSt p}
 :
-  (action >>= function).getHashConsState numAlloc σ =
-  ((function (action.getResult numAlloc σ)).getHashConsState (action.getNumAlloc numAlloc σ) (action.getHashConsState numAlloc σ))
+  (action >>= function).getHashConsState st σ =
+  ((function (action.getResult st σ)).getHashConsState (action.getState st σ) (action.getHashConsState st σ))
 := rfl
 
 @[simp, grind =]
-lemma getResult_tell {numAlloc : ℕ} {xs : CircuitState p} {σ : HashConsSt p} :
-  ClapM.getResult (tell xs) numAlloc σ = ()
+lemma getResult_tell :
+  ClapM.getResult (tell xs) st σ = ()
 := rfl
 
 @[simp, grind =]
-lemma getCircuit_tell {numAlloc : ℕ} {xs : CircuitState p} {σ : HashConsSt p} :
-  ClapM.getCircuit (tell xs) numAlloc σ =
+lemma getCircuit_tell :
+  ClapM.getCircuit (tell xs) st σ =
   xs
 := rfl
 
 @[simp, grind =]
-lemma getNumAlloc_tell {numAlloc : ℕ} {xs : CircuitState p} {σ : HashConsSt p}:
-  ClapM.getNumAlloc (tell xs) numAlloc σ =
-  numAlloc
+lemma getState_tell :
+  ClapM.getState (tell xs) st σ =
+  st
 := rfl
 
 @[simp, grind =]
-lemma getHashConsState_tell {numAlloc : ℕ} {xs : CircuitState p} {σ : HashConsSt p}:
-  ClapM.getHashConsState (tell xs) numAlloc σ =
+lemma getHashConsState_tell :
+  ClapM.getHashConsState (tell xs) st σ =
   σ
 := rfl
 
 @[simp, grind=]
-lemma getResult_pure {α} {numAlloc : ℕ} {x : α} {σ : HashConsSt p}:
-  ClapM.getResult (p := p) (pure x) numAlloc σ =
+lemma getResult_pure :
+  ClapM.getResult (p := p) (pure x) st σ =
   x
 := rfl
 
 @[simp, grind=]
-lemma getCircuit_pure {α} {numAlloc : ℕ} {x : α} {σ : HashConsSt p}:
-  ClapM.getCircuit (p := p) (pure x) numAlloc σ =
+lemma getCircuit_pure :
+  ClapM.getCircuit (p := p) (pure x) st σ =
   #[]
 := rfl
 
 @[simp, grind=]
-lemma getNumAlloc_pure {α} {numAlloc : ℕ} {x : α} {σ : HashConsSt p}:
-  ClapM.getNumAlloc (p := p) (pure x) numAlloc σ =
-  numAlloc
+lemma getState_pure :
+  ClapM.getState (p := p) (pure x) st σ =
+  st
 := rfl
 
 @[simp, grind=]
-lemma getHashConsState_pure {α} {numAlloc : ℕ} {x : α} {σ : HashConsSt p}:
-  ClapM.getHashConsState (p := p) (pure x) numAlloc σ =
+lemma getHashConsState_pure :
+  ClapM.getHashConsState (p := p) (pure x) st σ =
   σ
 := rfl
 
 @[simp, grind=]
-lemma getResult_map {α β} (f : α → β) {numAlloc : ℕ} {cmd : ClapM p α} {σ : HashConsSt p}:
-  (f <$> cmd).getResult numAlloc σ =
-  f (cmd.getResult numAlloc σ)
+lemma getResult_map :
+  (f <$> cmd).getResult st σ =
+  f (cmd.getResult st σ)
 := rfl
 
 @[simp, grind=]
-lemma getNumAlloc_map {α β} (f : α → β) {numAlloc : ℕ} {cmd : ClapM p α} {σ : HashConsSt p}:
-  (f <$> cmd).getNumAlloc numAlloc σ =
-  cmd.getNumAlloc numAlloc σ
+lemma getState_map :
+  (f <$> cmd).getState st σ =
+  cmd.getState st σ
 := rfl
 
 @[simp, grind=]
-lemma getCircuit_map {α β} (f : α → β) {numAlloc : ℕ} {cmd : ClapM p α} {σ : HashConsSt p}:
-  (f <$> cmd).getCircuit numAlloc σ =
-  cmd.getCircuit numAlloc σ
+lemma getCircuit_map :
+  (f <$> cmd).getCircuit st σ =
+  cmd.getCircuit st σ
 := rfl
 
 @[simp, grind=]
-lemma getHashConsState_map {α β} (f : α → β) {numAlloc : ℕ} {cmd : ClapM p α} {σ : HashConsSt p}:
-  (f <$> cmd).getHashConsState numAlloc σ =
-  cmd.getHashConsState numAlloc σ
+lemma getHashConsState_map :
+  (f <$> cmd).getHashConsState st σ =
+  cmd.getHashConsState st σ
 := rfl
+
+end NamedThisForDom
 
 end Getters
 
@@ -268,10 +269,12 @@ def circuitState_wellFormed
   {α : Type}
   (action : ClapM p α)
   (numAlloc : ℕ)
+  (Γ : VarStore p)
   (σ : HashConsSt p)
 : Prop
 :=
-  (action.getCircuit numAlloc σ).refsValid (action.getHashConsState numAlloc σ).exprs.size
+  (action.getCircuit numAlloc σ).refsValid (action.getHashConsState numAlloc σ).exprs.size ∧
+  (action.getCircuit numAlloc σ).varsAllocated Γ (action.getHashConsState numAlloc σ) _
 
 @[grind =]
 def numAlloc_wellFormed
@@ -283,7 +286,7 @@ def numAlloc_wellFormed
 :
   Prop
 :=
-  (action.getNumAlloc numAlloc σ) =
+  (action.getState numAlloc σ) =
   (CircuitState.eval (action.getCircuit numAlloc σ) varStore numAlloc (action.getHashConsState numAlloc σ)).numAlloc
 
 @[grind =]
@@ -324,7 +327,7 @@ variable
 @[simp, grind =]
 lemma bind_refsValid :
   letI a_result := a.getResult numAlloc σ
-  letI a_numAlloc := a.getNumAlloc numAlloc σ
+  letI a_numAlloc := a.getState numAlloc σ
   letI a_σ := a.getHashConsState numAlloc σ
   ((a >>= f).getCircuit numAlloc σ).refsValid ((a >>= f).getHashConsState numAlloc σ).exprs.size ↔
   (
@@ -351,7 +354,7 @@ example
   (h_f : (
       f (a.getResult numAlloc σ)
     ).wellFormed
-      (a.getNumAlloc numAlloc σ)
+      (a.getState numAlloc σ)
       [varStore,(a.getHashConsState numAlloc σ),numAlloc|a.getCircuit numAlloc σ]ₑ.varStore
       (a.getHashConsState numAlloc σ)
   )
@@ -366,7 +369,7 @@ lemma bind_circuitState_wellFormed
   (h_f : (
       f (a.getResult numAlloc σ)
     ).wellFormed
-      (a.getNumAlloc numAlloc σ)
+      (a.getState numAlloc σ)
       [varStore,(a.getHashConsState numAlloc σ),numAlloc|a.getCircuit numAlloc σ]ₑ.varStore
       (a.getHashConsState numAlloc σ)
   )
@@ -388,7 +391,7 @@ lemma bind_wellFormed
   (h_f : (
       f (a.getResult numAlloc σ)
     ).wellFormed
-      (a.getNumAlloc numAlloc σ)
+      (a.getState numAlloc σ)
       [varStore,(a.getHashConsState numAlloc σ),numAlloc|a.getCircuit numAlloc σ]ₑ.varStore
       (a.getHashConsState numAlloc σ)
   )
@@ -431,7 +434,7 @@ lemma eval_bind
   {σ : HashConsSt p}
 :
   [varStore, σ, numAlloc|((action >>= function).getCircuit numAlloc σ)]ₑ =
-  letI numAlloc' := (action.getNumAlloc numAlloc σ)
+  letI numAlloc' := (action.getState numAlloc σ)
   letI σ' := (action.getHashConsState numAlloc σ)
   letI result := (action.getResult numAlloc σ)
   seq (action.getCircuit numAlloc σ) ((function result).getCircuit numAlloc' σ') varStore numAlloc σ
@@ -457,7 +460,7 @@ lemma runAndEval_bind
   (
     h_wf_function :
       (function (action.getResult numAlloc σ)).wellFormed
-        (action.getNumAlloc numAlloc σ)
+        (action.getState numAlloc σ)
         (action.runAndEval numAlloc varStore σ).2.varStore
         (action.getHashConsState numAlloc σ)
   )
@@ -472,7 +475,7 @@ lemma runAndEval_bind
   . grind
   . simp [seq]
     set result := (action.getResult numAlloc σ)
-    set numAlloc' := (action.getNumAlloc numAlloc σ)
+    set numAlloc' := (action.getState numAlloc σ)
     set σ' := (action.getHashConsState numAlloc σ)
     set circuit := (action.getCircuit numAlloc σ)
     set varStore' := [varStore, σ', numAlloc|circuit]ₑ.varStore
