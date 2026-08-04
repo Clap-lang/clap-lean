@@ -3,7 +3,7 @@ import Clap.Lang.FB.not
 
 namespace Clap.Edsl.Lang.FB
 
-def assert {p : ℕ} [p.AtLeastTwo] (a : FB p) : Edsl.CircuitStateM p Unit := do
+def assert {p : ℕ} [p.AtLeastTwo] (a : FB p) : Edsl.CircuitM p Unit := do
   Edsl.eq0 (not a)
 
 namespace assert
@@ -14,7 +14,7 @@ lemma isAlwaysValid_unit
   [p.AtLeastTwo]
   {numAlloc : ℕ}
   {varStore : VarStore p}
-  {f : Edsl.CircuitStateM p Unit}
+  {f : Edsl.CircuitM p Unit}
 :
   IsValid.isValid varStore (f.getResult numAlloc)
 := by
@@ -34,7 +34,7 @@ lemma toIdeal_unit
 lemma getResult_unit
   {p : ℕ}
   {numAlloc : ℕ}
-  {f : Edsl.CircuitStateM p Unit}
+  {f : Edsl.CircuitM p Unit}
 :
   f.getResult numAlloc = ()
 := rfl
@@ -46,7 +46,7 @@ lemma step_eq0_fb
   {a : FB p}
   {result : CircuitResult p}
 :
-  [result|CircuitusPlanus.eq0 a]ₛ =
+  [result|Gate.eq0 a]ₛ =
   result.addConstraint ([result.varStore|a] = [result.varStore|false p])
 := rfl
 

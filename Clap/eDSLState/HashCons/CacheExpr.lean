@@ -1,5 +1,3 @@
-import Clap.Circuit
-
 import Clap.eDSLState.Varstore
 import Clap.eDSLState.Wheels
 
@@ -12,6 +10,9 @@ inductive BinaryOp
   | sub
   | mul
 deriving BEq, Hashable, ReflBEq, LawfulBEq, Repr
+
+instance {p} : Hashable (ZMod p) where
+  hash x := UInt64.ofNat x.val
 
 inductive CacheExpr (p : ℕ)
   | c (_ : ZMod p)

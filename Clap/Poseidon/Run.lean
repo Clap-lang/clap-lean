@@ -14,7 +14,7 @@ def main : IO Unit := do
   IO.println s!"{repr σ}"
   let e ← IO.monoNanosNow
   let s' ← IO.monoNanosNow
-  let eval ← pure (Clap.Edsl.CircuitState.eval σ ∅ 0)
+  let eval ← pure (Clap.Edsl.Circuit.eval σ ∅ 0)
   let e' ← IO.monoNanosNow
   IO.println s!"Builder took: {(e - s).toFloat / 1e6}ms\nNum shares: {σ.size}"
   IO.println s!"Evaluation took: {(e' - s').toFloat / 1e6}ms"

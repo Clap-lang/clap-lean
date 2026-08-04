@@ -64,7 +64,7 @@ lemma isZero_wellFormed {e : ExprRef} (h₁ : e < σ.exprs.size) (h₂ : [Γ,σ|
   grind [isZero]
 
 @[simp]
-abbrev num2bitsSansTellApply (p w numAlloc : ℕ) (σ : HashConsSt p) : ((List (Exp p ℕ) × CircuitState p) × ℕ) × HashConsSt p :=
+abbrev num2bitsSansTellApply (p w numAlloc : ℕ) (σ : HashConsSt p) : ((List (Exp p ℕ) × Circuit p) × ℕ) × HashConsSt p :=
   (List.ofFnM (n := w) (m := ClapM p)
     (
       fun _ => do
@@ -151,13 +151,13 @@ lemma num2bits_wellFormed (width : ℕ) (e : FixedExp p) :
   intro numAlloc varStore
   unfold num2bitsButSane
   rw [getState_bind_tell, getCircuit_bind_tell]
-  rw [CircuitState.eval_append, num2bitsSansTellApply_fst_snd]
+  rw [Circuit.eval_append, num2bitsSansTellApply_fst_snd]
   suffices (num2bitsSansTellApply p width numAlloc).2 = numAlloc + width by simpa
   rw [num2bitsSansTellApply_snd]
 
 end wellFormed
 
-namespace CircuitState
+namespace Circuit
 
 section
 
@@ -167,7 +167,7 @@ variable {e : FixedExp p} {numAlloc : ℕ} {varStore : Std.ExtTreeMap ℕ (ZMod 
 lemma eval_edsl_eq0
 :
   eval ((Edsl.eq0 e).getCircuit numAlloc) varStore numAlloc =
-  eval #[CircuitusPlanus.eq0 e] varStore numAlloc
+  eval #[Gate.eq0 e] varStore numAlloc
 := by
   simp [eq0]
 
@@ -175,7 +175,7 @@ lemma eval_edsl_eq0
 lemma eval_edsl_lam
 :
   eval ((Edsl.lam).getCircuit numAlloc) varStore numAlloc =
-  eval #[CircuitusPlanus.lam] varStore numAlloc
+  eval #[Gate.lam] varStore numAlloc
 := by
   simp [Edsl.lam]
 
@@ -183,14 +183,14 @@ lemma eval_edsl_lam
 lemma eval_edsl_share
 :
   eval ((Edsl.share e).getCircuit numAlloc) varStore numAlloc =
-  eval #[CircuitusPlanus.share e] varStore numAlloc
+  eval #[Gate.share e] varStore numAlloc
 := by
   simp [Edsl.share]
 
 @[simp, grind =]
 lemma eval_edsl_isZero :
   eval ((Edsl.isZero e).getCircuit numAlloc) varStore numAlloc =
-  eval #[CircuitusPlanus.isZero e] varStore numAlloc
+  eval #[Gate.isZero e] varStore numAlloc
 := by
   simp [Edsl.isZero]
 
@@ -228,23 +228,23 @@ lemma eval_edsl_num2bits
   {width : ℕ}
 :
   eval ((Edsl.num2bits width e).getCircuit numAlloc) varStore numAlloc =
-  eval #[CircuitusPlanus.num2bits width e] varStore numAlloc
+  eval #[Gate.num2bits width e] varStore numAlloc
 := by
   simp [Edsl.num2bits, getCircuit_ofFnM_of_getCircuit_eq_nil]
 
 end
 
-end CircuitState
+end Circuit
 
 /--
 info: (((),
-  #[Clap.CircuitusPlanus.lam,
-    Clap.CircuitusPlanus.eq0 v0,
-    Clap.CircuitusPlanus.share (1 + 1),
-    Clap.CircuitusPlanus.eq0 1,
-    Clap.CircuitusPlanus.eq0 2,
-    Clap.CircuitusPlanus.eq0 v1,
-    Clap.CircuitusPlanus.eq0 4]),
+  #[Clap.Gate.lam,
+    Clap.Gate.eq0 v0,
+    Clap.Gate.share (1 + 1),
+    Clap.Gate.eq0 1,
+    Clap.Gate.eq0 2,
+    Clap.Gate.eq0 v1,
+    Clap.Gate.eq0 4]),
  2)
 -/
 #guard_msgs(whitespace := lax) in

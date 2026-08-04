@@ -18,7 +18,7 @@ abbrev p := Primes.bn254
 /-- **Sigma (S-box):** The sole source of nonlinearity in the Poseidon permutation
 
     Mirrors circomlib's `Sigma` template -/
-def sigma (x : Edsl.Lang.F p) : CircuitStateM p (Edsl.Lang.F p) := do
+def sigma (x : Edsl.Lang.F p) : CircuitM p (Edsl.Lang.F p) := do
   let x2 ← Clap.Edsl.share (x * x)
   let x4 ← share (x2 * x2)
   return (x4 * x)
@@ -122,7 +122,7 @@ where
     - `M`         — MDS matrix (used in full rounds)
     - `P`         — pre-sparse matrix (used at the boundary of full → partial) -/
 def poseidonEx {n c s : ℕ} (inputs : Vector (Edsl.Lang.F p) n) (initState : Edsl.Lang.F p)
-    (C : Vector (Edsl.Lang.F p) c) (S : Vector (Edsl.Lang.F p) s) (M P : Vector (Vector (Edsl.Lang.F p) (1+n)) (1+n)) : Clap.Edsl.CircuitStateM p (Edsl.Lang.F p) := do
+    (C : Vector (Edsl.Lang.F p) c) (S : Vector (Edsl.Lang.F p) s) (M P : Vector (Vector (Edsl.Lang.F p) (1+n)) (1+n)) : Clap.Edsl.CircuitM p (Edsl.Lang.F p) := do
   -- Poseidon parameters (from circomlib's PoseidonEx template)
   -- N_ROUNDS_P[t-2] for t ∈ [2, 17]
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
@@ -163,14 +163,14 @@ def poseidonEx {n c s : ℕ} (inputs : Vector (Edsl.Lang.F p) n) (initState : Ed
     the permutation output.
 
     Mirrors circomlib's `Poseidon(nInputs)` template. -/
-def poseidon {n c s} (inputs : Vector (Edsl.Lang.F p) n) (C : Vector (Edsl.Lang.F p) c) (S : Vector (Edsl.Lang.F p) s) (M P : Vector (Vector (Edsl.Lang.F p) (1+n)) (1+n)) : CircuitStateM p (Edsl.Lang.F p) := do
+def poseidon {n c s} (inputs : Vector (Edsl.Lang.F p) n) (C : Vector (Edsl.Lang.F p) c) (S : Vector (Edsl.Lang.F p) s) (M P : Vector (Vector (Edsl.Lang.F p) (1+n)) (1+n)) : CircuitM p (Edsl.Lang.F p) := do
   poseidonEx inputs 0 C S M P
 
 section Poseidon254
 
 open Primes
 
--- def poseidonBN254 {n} (inputs : Vector (Edsl.Lang.F bn254) n) : Clap.Edsl.CircuitStateM p (Edsl.Lang.F bn254) :=
+-- def poseidonBN254 {n} (inputs : Vector (Edsl.Lang.F bn254) n) : Clap.Edsl.CircuitM p (Edsl.Lang.F bn254) :=
 --   let t := 1 + n -- element 2 is at list index 0 and so on
 --   let C := Clap.Poseidon.Constant.C t
 --   let S := Clap.Poseidon.Constant.S t

@@ -3,7 +3,7 @@ import Clap.Lang.FB.FB
 
 namespace Clap.Edsl.Lang.F
 
-def eq {p : ℕ} [p.AtLeastTwo] (a b : F p) : Edsl.CircuitStateM p (FB p) := do
+def eq {p : ℕ} [p.AtLeastTwo] (a b : F p) : Edsl.CircuitM p (FB p) := do
   Edsl.isZero (a - b)
 
 namespace eq
@@ -18,7 +18,7 @@ def matchesBinaryBooleanFunctionWithSideEffects
   (p : ℕ)
   [p.AtLeastTwo]
   (spec_function : (ZMod p) → (ZMod p) → Bool)
-  (function : (F p) → (F p) → Edsl.CircuitStateM p (FB p))
+  (function : (F p) → (F p) → Edsl.CircuitM p (FB p))
   (allocates : ℕ)
 : Prop :=
   ∀ (a b: F p) varStorePre numAlloc,
@@ -27,7 +27,7 @@ def matchesBinaryBooleanFunctionWithSideEffects
   let a_eval := (a.eval varStorePre).getD 0
   let b_eval := (b.eval varStorePre).getD 0
   let ⟨⟨result, circuit⟩, numAllocPostRun⟩ := ((function a b).run numAlloc)
-    let ⟨numAllocPostEval, varStorePost, constraints⟩ := Edsl.CircuitState.eval
+    let ⟨numAllocPostEval, varStorePost, constraints⟩ := Edsl.Circuit.eval
       circuit
       varStorePre
       numAlloc

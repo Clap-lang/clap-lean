@@ -8,33 +8,19 @@ namespace Edsl
 
 variable {p : ℕ}
 
-structure State where
-  numAlloc : ℕ
-  pc : ℕ
-
-namespace State
-
-def bumpAlloc (st : State) : State :=
-  {st with numAlloc := st.numAlloc + 1}
-
-def bumpPc (st : State) : State :=
-  {st with pc := st.pc + 1}
-
-end State
-
 --StateT numAlloc
 --WriterT array of circuit constructors
-abbrev CircuitStateT (p : ℕ) (m : Type → Type) (α : Type) : Type := WriterT (CircuitState p) (StateT State m) α
+abbrev CircuitT (p : ℕ) (m : Type → Type) (α : Type) : Type := WriterT (Circuit p) (StateT State m) α
 
-abbrev CircuitStateM (p : ℕ) (α : Type) : Type := CircuitStateT p Id α
+abbrev CircuitM (p : ℕ) (α : Type) : Type := CircuitT p Id α
 
-abbrev ClapM (p : ℕ) (α : Type) : Type := CircuitStateT p (HashConsM p) α
+abbrev ClapM (p : ℕ) (α : Type) : Type := CircuitT p (HashConsM p) α
 
 namespace ClapM
 
 def run {α}
   (cmd : ClapM p α) (state : State) (hashConsState : HashConsSt p)
-: ((α × CircuitState p) × State) × (HashConsSt p) :=
+: ((α × Circuit p) × State) × (HashConsSt p) :=
   (HashConsM.run (StateT.run (WriterT.run cmd) state) hashConsState)
 
 -- This is what ClapM actually is
@@ -45,7 +31,7 @@ def run {α}
 --   an array of circuit constructors (referencing the updated cache)
 example {resultT}:
   ClapM p resultT =
-  (State → (HashConsSt p) → ((resultT × CircuitState p) × State) × (HashConsSt p))
+  (State → (HashConsSt p) → ((resultT × Circuit p) × State) × (HashConsSt p))
  := rfl
 
 -- Pure takes numAlloc, hashConsState, and a value, and returns them all with no circuit constructors
@@ -60,15 +46,15 @@ example {resultT} {val : resultT}:
 example {midT resultT} {action : ClapM p midT} {function : midT → ClapM p resultT}:
   @bind (ClapM p) _ midT resultT action function =
   λ state hashConsState =>
-    let (((resultMid, circuitStateMid), stateMid), hashConsStateMid) := action.run state hashConsState
-    let (((resultPost, circuitStatePost), numAllocPost), hashConsStatePost) := (function resultMid).run stateMid hashConsStateMid
-    (((resultPost, circuitStateMid ++ circuitStatePost), numAllocPost), hashConsStatePost)
+    let (((resultMid, CircuitMid), stateMid), hashConsStateMid) := action.run state hashConsState
+    let (((resultPost, CircuitPost), numAllocPost), hashConsStatePost) := (function resultMid).run stateMid hashConsStateMid
+    (((resultPost, CircuitMid ++ CircuitPost), numAllocPost), hashConsStatePost)
 := rfl
 
 section Monoid
 
 -- TODO do we really want this instance, or do we create it locally in order to create LawfulMonad manually?
-instance (p : ℕ) : Monoid (CircuitState p) where
+instance (p : ℕ) : Monoid (Circuit p) where
   mul := Array.append
   mul_assoc a b c := by exact Array.append_assoc
   one := #[]
@@ -76,13 +62,13 @@ instance (p : ℕ) : Monoid (CircuitState p) where
   mul_one := by unfold_projs; simp
 
 @[simp, grind =]
-lemma CircuitState.mul_eq_append {a b: CircuitState p} :
+lemma Circuit.mul_eq_append {a b: Circuit p} :
   a * b = a ++ b
 := rfl
 
 @[simp, grind =]
-lemma CircuitState.one_eq_nil :
-  (1 : CircuitState p) = #[]
+lemma Circuit.one_eq_nil :
+  (1 : Circuit p) = #[]
 := rfl
 
 end Monoid
@@ -109,7 +95,7 @@ def getResult
 
 def getCircuit
   {p : ℕ} {α : Type} (cmd : ClapM p α) (state : State) (σ : HashConsSt p)
-: CircuitState p :=
+: Circuit p :=
   (cmd.run state σ).1.1.2
 
 def getState
@@ -148,7 +134,7 @@ lemma getHashConsState_alloc :
 section NamedThisForDom
 
 variable {α β} {action : ClapM p α} {function : α → ClapM p β}
-         {st : State} {σ : HashConsSt p} {xs : CircuitState p}
+         {st : State} {σ : HashConsSt p} {xs : Circuit p}
          {cmd : ClapM p α} {f : α → β} {x : α}
 
 @[simp, grind =]
@@ -265,7 +251,7 @@ def runAndEval
   ⟩
 
 @[grind =]
-def circuitState_wellFormed
+def Circuit_wellFormed
   {α : Type}
   (action : ClapM p α)
   (numAlloc : ℕ)
@@ -287,7 +273,7 @@ def numAlloc_wellFormed
   Prop
 :=
   (action.getState numAlloc σ) =
-  (CircuitState.eval (action.getCircuit numAlloc σ) varStore numAlloc (action.getHashConsState numAlloc σ)).numAlloc
+  (Circuit.eval (action.getCircuit numAlloc σ) varStore numAlloc (action.getHashConsState numAlloc σ)).numAlloc
 
 @[grind =]
 def hashConsState_wellFormed
@@ -310,7 +296,7 @@ def wellFormed
 :
   Prop
 :=
-  circuitState_wellFormed action numAlloc σ ∧
+  Circuit_wellFormed action numAlloc σ ∧
   numAlloc_wellFormed action numAlloc varStore σ ∧
   hashConsState_wellFormed action numAlloc σ
 
@@ -340,14 +326,14 @@ lemma bind_refsValid :
 
 -- TODO grind?
 lemma refsValid_of_refsValid_of_le
-  {circuit : CircuitState p}
+  {circuit : Circuit p}
   {low_bound high_bound : ℕ}
   (h_valid : circuit.refsValid low_bound)
   (h_le : low_bound ≤ high_bound)
 :
   circuit.refsValid high_bound
 := by
-  aesop (add simp [CircuitState.refsValid, CircuitusPlanus.refsValid]) (add safe (by grind))
+  aesop (add simp [Circuit.refsValid, Gate.refsValid]) (add safe (by grind))
 
 example
   (h_a : a.wellFormed numAlloc varStore σ)
@@ -364,7 +350,7 @@ example
 := by
   done
 
-lemma bind_circuitState_wellFormed
+lemma bind_Circuit_wellFormed
   (h_a : a.wellFormed numAlloc varStore σ)
   (h_f : (
       f (a.getResult numAlloc σ)
@@ -374,13 +360,13 @@ lemma bind_circuitState_wellFormed
       (a.getHashConsState numAlloc σ)
   )
 :
-  (a >>= f).circuitState_wellFormed numAlloc σ
+  (a >>= f).Circuit_wellFormed numAlloc σ
 := by
-  unfold circuitState_wellFormed
-  rewrite [bind_refsValid, CircuitState.refsValid_append_iff]
+  unfold Circuit_wellFormed
+  rewrite [bind_refsValid, Circuit.refsValid_append_iff]
   split_ands
   . obtain h_a_refs := h_a.1
-    unfold circuitState_wellFormed at h_a_refs
+    unfold Circuit_wellFormed at h_a_refs
     apply refsValid_of_refsValid_of_le h_a_refs
 
 
@@ -422,7 +408,7 @@ attribute [Clap.monads, grind =]
   Functor.map
 
 
-namespace CircuitState
+namespace Circuit
 
 @[simp, grind =]
 lemma eval_bind
@@ -491,7 +477,7 @@ lemma runAndEval_bind
     . sorry
 
 
-end CircuitState
+end Circuit
 
 namespace ClapM
 

@@ -4,18 +4,18 @@ namespace Clap.Edsl.Lang.FArray
 
 variable {p : ℕ}
 
-def oneHotRaw [p.AtLeastTwo] (len : ℕ) (idx : F p) : Edsl.CircuitStateM p (Vector (FB p) len) :=
+def oneHotRaw [p.AtLeastTwo] (len : ℕ) (idx : F p) : Edsl.CircuitM p (Vector (FB p) len) :=
   (Vector.range len).mapM (fun (i:ℕ) ↦ F.eq idx i)
 
 namespace oneHotRaw
 
 def runAndEval
-  {p : ℕ} {ResultT : Type} (cmd : CircuitStateM p ResultT) (numAlloc : ℕ) (varStore : Std.ExtTreeMap ℕ (ZMod p))
+  {p : ℕ} {ResultT : Type} (cmd : CircuitM p ResultT) (numAlloc : ℕ) (varStore : Std.ExtTreeMap ℕ (ZMod p))
 :
   ResultT × CircuitResult p
 :=
   let ⟨⟨result, circuit⟩, _numAlloc⟩ := (cmd.run numAlloc)
-  ⟨result, Edsl.CircuitState.eval circuit varStore numAlloc⟩
+  ⟨result, Edsl.Circuit.eval circuit varStore numAlloc⟩
 
 
 -- def matchesUnaryBitVecFunctionWithSideEffects
@@ -23,7 +23,7 @@ def runAndEval
 --   (p : ℕ)
 --   [p.AtLeastTwo]
 --   (spec_function : (ZMod p) → Vector Bool length)
---   (function : (F p) → Edsl.CircuitStateM p (Vector (FB p) length))
+--   (function : (F p) → Edsl.CircuitM p (Vector (FB p) length))
 --   (allocates : ℕ)
 -- : Prop :=
 --   ∀ (a : F p) varStorePre numAllocPre,

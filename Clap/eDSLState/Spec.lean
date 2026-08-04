@@ -207,7 +207,7 @@ def assertMatchesLast {k} {p}
     letI varStoreIdx := numAlloc - k + i
     varStore[varStoreIdx]? = vec[i]?
 
-instance (p : ℕ) {α} [IsValid p α] : IsValid p (Edsl.CircuitStateM p α) where
+instance (p : ℕ) {α} [IsValid p α] : IsValid p (Edsl.CircuitM p α) where
   isValid varStore x := ∀ numAlloc,
     IsValid.isValid varStore (x.getResult numAlloc) ∧
     [varStore,numAlloc|x.getCircuit numAlloc]ₑ.constraints
@@ -218,7 +218,7 @@ def matchesUnaryMonadFunction (p : ℕ)
   [Convert p funIn specIn] [Convert p funOut specOut]
   [VarStoreSize p funOut]
   (spec_function : specIn → specOut)
-  (function : funIn → CircuitStateM p funOut)
+  (function : funIn → CircuitM p funOut)
   (allocatesN : ℕ)
   (constraints : specIn → Prop)
 : Prop :=
@@ -228,7 +228,7 @@ def matchesUnaryMonadFunction (p : ℕ)
     (h : IsValid.isValid varStorePre a) →
       letI aVal : specIn := toIdeal varStorePre a |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp h)
       let ⟨result, circuit⟩ : funOut × CircuitResult p :=
-        CircuitStateM.runAndEval (function a) numAllocPre varStorePre
+        CircuitM.runAndEval (function a) numAllocPre varStorePre
       let constraintsCorrect := circuit.constraints = (constraints aVal)
       let allocatesCorrect := circuit.numAlloc = numAllocPre + allocatesN
       let frameRule := ∀ n < numAllocPre, circuit.varStore[n]? = varStorePre[n]?
@@ -255,7 +255,7 @@ def binaryFunctionResultIsValidIff (p : ℕ)
 --   [VarStoreSize p funOut]
 --   [Convert p funIn₂ specIn₂]
 --   (spec_function : specIn₁ → specIn₂ → specOut)
---   (function : funIn₁ → funIn₂ → CircuitStateM p funOut)
+--   (function : funIn₁ → funIn₂ → CircuitM p funOut)
 --   (allocatesN : ℕ)
 --   (constraints : specIn₁ → specIn₂ → Prop)
 -- : Prop :=
@@ -265,7 +265,7 @@ def binaryFunctionResultIsValidIff (p : ℕ)
 --     (h : IsValid.isValid varStorePre a) →
 --       letI aVal : specIn := toIdeal varStorePre a |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp h)
 --       let ⟨result, circuit⟩ : funOut × CircuitResult p :=
---         CircuitStateM.runAndEval (function a) numAllocPre varStorePre
+--         CircuitM.runAndEval (function a) numAllocPre varStorePre
 --       let constraintsCorrect := circuit.constraints = (constraints aVal)
 --       let allocatesCorrect := circuit.numAlloc = numAllocPre + allocatesN
 --       let frameRule := ∀ n < numAllocPre, circuit.varStore[n]? = varStorePre[n]?
