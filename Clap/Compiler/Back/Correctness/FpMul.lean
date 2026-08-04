@@ -4571,8 +4571,18 @@ private lemma p_zero_finish {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k}
     exact check_carry_zero_wrap_fail h_bound h_wg_cs_eq h_sum
 
 set_option maxHeartbeats 1000000000 in
+/--
+  Completeness of `Circuit.fpmul`, assuming canonical operand bounds
+  (`a_val < p_val`, `b_val < p_val`). These are the standard operational
+  preconditions for a well-formed FpMul, ensuring `q_num = a_val * b_val / p_val`
+  fits into `k` limbs of `w` bits and that the honest carries stay in range.
+-/
 lemma fpmul_completeness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : Vector (ZMod p) k → Circuit p (ZMod p)}
-      (ih : ∀ (a : Vector (ZMod p) k), circuitWF (c a) → (c a).eval = (wrap (c a).toWg (c a).toCs).eval) :
+      (ih : ∀ (a : Vector (ZMod p) k), circuitWF (c a) → (c a).eval = (wrap (c a).toWg (c a).toCs).eval)
+      (h_a_lt : (∑ i : Fin k, a[i].eval.val * (2 ^ w) ^ i.1) <
+                 ∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1)
+      (h_b_lt : (∑ i : Fin k, b[i].eval.val * (2 ^ w) ^ i.1) <
+                 ∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1) :
     circuitWF (Circuit.fpmul w k a b p' c) →
       (Circuit.fpmul w k a b p' c).eval = (wrap (Circuit.fpmul w k a b p' c).toWg (Circuit.fpmul w k a b p' c).toCs).eval := by
   intros h
@@ -4690,7 +4700,25 @@ lemma fpmul_completeness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : V
     rw [check_carry_zero_wrap_succ h.1 (by simp [Exp.eval])
       (by
         have h_help := carry_zero_sum_eq_zero h.1 a b p' cond.1 cond.2.1 cond.2.2.1
-          cond.2.2.2 (by sorry)
+          cond.2.2.2 (by
+            -- q_num = (a_val * b_val) / p_val < p_val ≤ 2^(w*k),
+            -- using h_a_lt, h_b_lt, and the geometric-sum bound on p_val.
+            have h_p_pos := cond.2.2.2
+            have h_ab_lt : (∑ i : Fin k, a[i].eval.val * (2 ^ w) ^ i.1) *
+                (∑ i : Fin k, b[i].eval.val * (2 ^ w) ^ i.1) <
+                (∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1) *
+                  (∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1) := by
+              exact Nat.mul_lt_mul_of_lt_of_le h_a_lt (Nat.le_of_lt h_b_lt) h_p_pos
+            have h_q_lt_p : ((∑ i : Fin k, a[i].eval.val * (2 ^ w) ^ i.1) *
+                (∑ i : Fin k, b[i].eval.val * (2 ^ w) ^ i.1)) /
+                (∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1) <
+                (∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1) := by
+              rw [Nat.div_lt_iff_lt_mul h_p_pos]
+              exact h_ab_lt
+            have h_p_lt : (∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1) < 2 ^ (w * k) := by
+              rw [pow_mul]
+              exact sum_bound_of_lt (Nat.pos_of_neZero _) (fun i => p'[i].eval.val) cond.2.2.1
+            omega)
         refine Eq.trans ?_ h_help
         apply Finset.sum_congr rfl
         intro j _
