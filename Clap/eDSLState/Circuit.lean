@@ -480,14 +480,14 @@ abbrev Circuit.evalInOrder {p : ℕ}
                            (pc : ℕ) :=
   circuit.foldl (CircuitResult.step (σ := σ)) result (start := pc)
 
-def Circuit.eval {p : ℕ} (circuit : Circuit p) (varStore : VarStore p) (numAlloc pc : ℕ) (σ : HashConsSt p) : CircuitResult p :=
+def Circuit.eval {p : ℕ} (circuit : Circuit p) (varStore : VarStore p) (numAlloc : ℕ) (σ : HashConsSt p) (pc : ℕ := 0) : CircuitResult p :=
   Circuit.evalInOrder circuit σ ⟨numAlloc, varStore, True⟩ pc
 
 notation "[" varStore ", " σ ", " st "|" circuit "]ₑ" => Circuit.eval circuit varStore st σ
 
 namespace CircuitResult
 
-variable {p pc : ℕ} {σ : HashConsSt p} {constraints constraints1 constraints2 : Prop} {st : State}
+variable {p pc numAlloc : ℕ} {σ : HashConsSt p} {constraints constraints1 constraints2 : Prop} {st : State}
          {varStore : VarStore p} {circuit : Circuit p} {e! : ExprRef} {gate : Gate p}
          {result : CircuitResult p}
 
@@ -506,7 +506,7 @@ def _root_.Clap.Circuit.wellFormed
   circuit.refsValid σ.exprs.size ∧
   circuit.varsAllocated Γ σ pc
 
-lemma wellFormed_step {numAlloc : ℕ} (h : circuit.wellFormed varStore σ pc) (h₁ : pc < circuit.size) :
+lemma wellFormed_step (h : circuit.wellFormed varStore σ pc) (h₁ : pc < circuit.size) :
   let next := [⟨numAlloc, varStore, constraints⟩, σ|circuit[pc]]ₛ
   circuit.wellFormed next.varStore σ (pc + 1) := sorry
 
@@ -516,7 +516,7 @@ lemma wellFormed_step {numAlloc : ℕ} (h : circuit.wellFormed varStore σ pc) (
 
 @[ext, grind ext]
 lemma ext {p : ℕ} {r1 r2 : CircuitResult p}
-  (h_numAlloc : r1.st = r2.st)
+  (h_numAlloc : r1.numAlloc = r2.numAlloc)
   (h_varStore : r1.varStore = r2.varStore)
   (h_constraints : r1.constraints = r2.constraints)
 :
@@ -526,8 +526,8 @@ lemma ext {p : ℕ} {r1 r2 : CircuitResult p}
 
 lemma foldl_step_numAlloc_independent_of_constraints
 :
-  (Circuit.evalInOrder circuit σ ⟨st, varStore, constraints1⟩).st =
-  (Circuit.evalInOrder circuit σ ⟨st, varStore, constraints2⟩).st
+  (Circuit.evalInOrder circuit σ ⟨numAlloc, varStore, constraints1⟩ pc).numAlloc =
+  (Circuit.evalInOrder circuit σ ⟨numAlloc, varStore, constraints2⟩ pc).numAlloc
 := by
   rcases circuit with ⟨circuit⟩
   unfold Circuit.evalInOrder
@@ -537,8 +537,8 @@ lemma foldl_step_numAlloc_independent_of_constraints
 
 lemma foldr_step_numAlloc_independent_of_constraints
 :
-  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨st, varStore, constraints1⟩ circuit).st =
-  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨st, varStore, constraints2⟩ circuit).st
+  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩ circuit).numAlloc =
+  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints2⟩ circuit).numAlloc
 := by
   rcases circuit with ⟨circuit⟩
   rewrite [←List.reverse_reverse circuit]
@@ -549,16 +549,16 @@ lemma foldr_step_numAlloc_independent_of_constraints
 
 lemma foldr_step_numAlloc_independent_of_constraints'
 :
-  (List.foldr (λ x y => [y, σ|x]ₛ) ⟨st, varStore, constraints1⟩ circuit.toList).st =
-  (List.foldr (λ x y => [y, σ|x]ₛ) ⟨st, varStore, constraints2⟩ circuit.toList).st
+  (List.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩ circuit.toList).numAlloc =
+  (List.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints2⟩ circuit.toList).numAlloc
 := by
   simp only [Array.foldr_toList]
   exact foldr_step_numAlloc_independent_of_constraints
 
 lemma foldl_step_varStore_independent_of_constraints
 :
-  (Circuit.evalInOrder circuit σ ⟨st, varStore, constraints1⟩).varStore =
-  (Circuit.evalInOrder circuit σ ⟨st, varStore, constraints2⟩).varStore
+  (Circuit.evalInOrder circuit σ ⟨numAlloc, varStore, constraints1⟩ pc).varStore =
+  (Circuit.evalInOrder circuit σ ⟨numAlloc, varStore, constraints2⟩ pc).varStore
 := by
   rcases circuit with ⟨circuit⟩
   rewrite [←List.reverse_reverse circuit]
@@ -596,8 +596,8 @@ lemma foldl_step_varStore_independent_of_constraints
 
 lemma foldr_step_varStore_independent_of_constraints
 :
-  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨st, varStore, constraints1⟩ circuit).varStore =
-  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨st, varStore, constraints2⟩ circuit).varStore
+  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩ circuit).varStore =
+  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints2⟩ circuit).varStore
 := by
   rcases circuit with ⟨circuit⟩
   rewrite [←List.reverse_reverse circuit]
@@ -608,8 +608,8 @@ lemma foldr_step_varStore_independent_of_constraints
 
 lemma foldr_step_varStore_independent_of_constraints'
 :
-  (List.foldr (λ x y => [y, σ|x]ₛ) ⟨st, varStore, constraints1⟩ circuit.toList).varStore =
-  (List.foldr (λ x y => [y, σ|x]ₛ) ⟨st, varStore, constraints2⟩ circuit.toList).varStore
+  (List.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩ circuit.toList).varStore =
+  (List.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints2⟩ circuit.toList).varStore
 := by
   simp only [Array.foldr_toList]
   exact foldr_step_varStore_independent_of_constraints
@@ -617,8 +617,8 @@ lemma foldr_step_varStore_independent_of_constraints'
 @[grind .]
 lemma getElem_foldr_independent_of_constraints
 :
-  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨st, varStore, constraints1⟩ circuit)[(e!, σ)]? =
-  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨st, varStore, constraints2⟩ circuit)[(e!, σ)]?
+  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩ circuit)[(e!, σ)]? =
+  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints2⟩ circuit)[(e!, σ)]?
 := by
   rcases circuit with ⟨circuit⟩
   rewrite [←List.reverse_reverse circuit]
@@ -636,7 +636,7 @@ NB this is useless now.
 lemma foldr_step_varStore_independent_of_constraints''
   {circuit : Circuit p}
   {σ₁ σ₂ : CircuitResult p}
-  (h₁ : σ₁.st = σ₂.st)
+  (h₁ : σ₁.numAlloc = σ₂.numAlloc)
   (h₂ : σ₁.varStore = σ₂.varStore)
 :
   (Array.foldr (λ x y => [y, σ|x]ₛ) σ₁ circuit).varStore =
@@ -647,7 +647,7 @@ lemma foldr_step_varStore_independent_of_constraints''
 lemma foldr_step_varStore_independent_of_constraints'''
   {circuit : Circuit p}
   {σ₁ σ₂ : CircuitResult p}
-  (h₁ : σ₁.st = σ₂.st)
+  (h₁ : σ₁.numAlloc = σ₂.numAlloc)
   (h₂ : σ₁.varStore = σ₂.varStore) :
   (List.foldr (λ x y => [y, σ|x]ₛ) σ₁ circuit.toList).varStore =
   (List.foldr (λ x y => [y, σ|x]ₛ) σ₂ circuit.toList).varStore := by
@@ -671,12 +671,10 @@ lemma isSome_foldr_split' {result : CircuitResult p} {circuit : Circuit p} {e : 
   grind
 
 lemma foldl_step_constraints_and
-  {result : CircuitResult p}
-  {circuit : Circuit p}
 :
-  (Circuit.evalInOrder circuit σ result).constraints = (
+  (Circuit.evalInOrder circuit σ result pc).constraints = (
     result.constraints ∧
-    (Circuit.evalInOrder circuit σ result.split).constraints
+    (Circuit.evalInOrder circuit σ result.split pc).constraints
   )
 := by
   rcases circuit with ⟨circuit⟩
