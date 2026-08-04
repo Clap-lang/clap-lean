@@ -263,8 +263,69 @@ lemma nat2words_list_len {w k n : ℕ} : (Array.mk (nat2words_list (p := p) w k 
 def nat2words (p : ℕ) [Fact (Nat.Prime p)] (w k n : ℕ) : Vector (ZMod p) k :=
   ⟨Array.mk (nat2words_list w k n), nat2words_list_len⟩
 
-lemma nat2words_spec (p : ℕ) [Fact (Nat.Prime p)] (w k n : ℕ) :
-  2 ^ w < p → n < 2 ^ (w * k) → ∑ i : Fin k, (nat2words p w k n)[i].val * 2 ^ i.1 = n := by sorry
+lemma nat2words_spec {p : ℕ} [Fact (Nat.Prime p)] {w k n : ℕ} :
+    2 ^ w < p → ∀ i : Fin k, (nat2words p w k n)[i].val = (n / 2 ^ (w * i.val)) % (2 ^ w) := by
+  intro h
+  have h2w_pos : 0 < 2 ^ w := pow_pos (by norm_num) _
+  induction k generalizing n with
+  | zero => intro i; exact i.elim0
+  | succ k ih =>
+    intro i
+    rcases i with ⟨i_val, hi⟩
+    induction i_val with
+    | zero =>
+      show ((OfNat.ofNat (n % 2 ^ w) : ZMod p)).val = (n / 2 ^ (w * 0)) % 2 ^ w
+      rw [show (OfNat.ofNat (n % 2 ^ w) : ZMod p) = ((n % 2 ^ w : ℕ) : ZMod p) from
+          Lean.Grind.Semiring.ofNat_eq_natCast _]
+      rw [ZMod.val_natCast_of_lt (lt_trans (Nat.mod_lt _ h2w_pos) h)]
+      simp
+    | succ i_val _ =>
+      have hi' : i_val < k := by omega
+      have h_get :
+          (nat2words p w (k + 1) n)[(⟨i_val + 1, hi⟩ : Fin (k + 1))] =
+            (nat2words p w k (n / 2 ^ w))[(⟨i_val, hi'⟩ : Fin k)] := rfl
+      rw [h_get, ih (n := n / 2 ^ w) ⟨i_val, hi'⟩]
+      show (n / 2 ^ w / 2 ^ (w * i_val)) % 2 ^ w =
+        (n / 2 ^ (w * (i_val + 1))) % 2 ^ w
+      rw [Nat.div_div_eq_div_mul, ← pow_add]
+      congr 2
+      ring
+
+lemma nat2words_spec₁ {p : ℕ} [Fact (Nat.Prime p)] {w k n : ℕ} :
+    2 ^ w < p →
+    ∑ i : Fin k, (nat2words p w k n)[i].val * (2 ^ w) ^ i.1 = (n % 2 ^ (w * k)) := by
+  intro h
+  rw [Finset.sum_congr rfl (fun i _ => by rw [nat2words_spec h i] :
+        ∀ i ∈ (Finset.univ : Finset (Fin k)),
+          (nat2words p w k n)[i].val * (2 ^ w) ^ i.1 =
+            ((n / 2 ^ (w * i.val)) % 2 ^ w) * (2 ^ w) ^ i.1)]
+  induction k generalizing n with
+  | zero => simp [Nat.mod_one]
+  | succ k ih =>
+    rw [Fin.sum_univ_succ]
+    simp only [Fin.val_zero, Nat.mul_zero, pow_zero, Nat.div_one, mul_one, Fin.val_succ]
+    have h_tail :
+        ∑ i : Fin k,
+            ((n / 2 ^ (w * (i.val + 1))) % 2 ^ w) * (2 ^ w) ^ (i.val + 1) =
+          ((n / 2 ^ w) % 2 ^ (w * k)) * 2 ^ w := by
+      rw [← ih (n := n / 2 ^ w), Finset.sum_mul]
+      apply Finset.sum_congr rfl
+      intro i _
+      have h_exp : w * (i.val + 1) = w + w * i.val := by ring
+      rw [h_exp, pow_add, ← Nat.div_div_eq_div_mul, pow_succ]
+      ring
+    rw [h_tail]
+    have h_pow_eq : (2 : ℕ) ^ (w * (k + 1)) = 2 ^ w * 2 ^ (w * k) := by
+      rw [← pow_add]; congr 1; ring
+    rw [h_pow_eq, Nat.mod_mul]
+    ring
+
+lemma nat2words_spec₂ (p : ℕ) [Fact (Nat.Prime p)] (w k n : ℕ) :
+    2 ^ w < p → n < 2 ^ (w * k) →
+    ∑ i : Fin k, (nat2words p w k n)[i].val * (2 ^ w) ^ i.1 = n := by
+  intros h h'
+  rw [nat2words_spec₁ h]
+  rw [Nat.mod_eq_of_modEq rfl h']
 
 /-- Pointwise unfolding of `nat2words` at index 0. -/
 private lemma nat2words_getElem_zero {p : ℕ} [Fact (Nat.Prime p)] (w k n : ℕ) :
@@ -368,7 +429,8 @@ def eval : Circuitₑ p → denotation (ZMod p)
     if
       (∀ i : Fin k, a[i].eval.val < 2 ^ w) ∧
       (∀ i : Fin k, b[i].eval.val < 2 ^ w) ∧
-      (∀ i : Fin k, p'[i].eval.val < 2 ^ w)
+      (∀ i : Fin k, p'[i].eval.val < 2 ^ w) ∧
+      (0 < ∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1)
     then
       let a_val : ℕ := ∑ i : Fin k, a[i].eval.val * (2 ^ w) ^ i.1
       let b_val : ℕ := ∑ i : Fin k, b[i].eval.val * (2 ^ w) ^ i.1

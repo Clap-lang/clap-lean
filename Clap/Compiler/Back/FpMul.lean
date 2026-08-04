@@ -72,7 +72,7 @@ def check_lt_circuit' {k : ℕ} (w : ℕ) (isLt : Exp p var) (t₀ : Vector (Exp
     -- Process the MSB (highest index `k`), then recurse on the first `k` elements
     -- (which drops the MSB via `i.castSucc`). This walks from MSB to LSB so that
     -- each position is visited exactly once.
-    Num2Bits.num2bits_circuit w (t₀[Fin.last k] - t₁[Fin.last k] + (.c ((2 ^ w : ZMod p) - 1)))
+    Num2Bits.num2bits_circuit w ((1 - isLt) * (t₀[Fin.last k] - t₁[Fin.last k] + (.c ((2 ^ w : ZMod p) - 1))))
       (fun _ ↦
         IsZero.isZero_circuit (t₀[Fin.last k] - t₁[Fin.last k])
         (fun iz ↦
@@ -155,7 +155,7 @@ def check_lt_wg' {k : ℕ} (w : ℕ) (isLt : Expₑ p) (t₀ : Vector (Expₑ p)
   match k with
   | .zero => cont
   | .succ k =>
-    Num2Bits.num2bits_wg w (t₀[Fin.last k] - t₁[Fin.last k] + (Exp.c ((2 ^ w : ZMod p) - 1)))
+    Num2Bits.num2bits_wg w ((1 - isLt) * (t₀[Fin.last k] - t₁[Fin.last k] + (Exp.c ((2 ^ w : ZMod p) - 1))))
       (fun _ ↦
         IsZero.isZero_wg (t₀[Fin.last k] - t₁[Fin.last k])
           (fun iz ↦
