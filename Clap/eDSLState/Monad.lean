@@ -241,70 +241,73 @@ end NamedThisForDom
 end Getters
 
 def runAndEval
-  {p : ℕ} {α : Type} (cmd : ClapM p α) (numAlloc : ℕ) (varStore : VarStore p) (σ : HashConsSt p)
+  {p : ℕ} {α : Type} (cmd : ClapM p α) (st : State) (varStore : VarStore p) (σ : HashConsSt p)
 :
   α × CircuitResult p
 :=
   ⟨
-    cmd.getResult numAlloc σ,
-    [varStore,(cmd.getHashConsState numAlloc σ),numAlloc|(cmd.getCircuit numAlloc σ)]ₑ
+    cmd.getResult st σ,
+    [varStore,(cmd.getHashConsState st σ),st|(cmd.getCircuit st σ)]ₑ
   ⟩
 
+/--
+Well formed up to `st.pc`.
+-/
 @[grind =]
 def Circuit_wellFormed
   {α : Type}
   (action : ClapM p α)
-  (numAlloc : ℕ)
+  (st : State)
   (Γ : VarStore p)
   (σ : HashConsSt p)
 : Prop
 :=
-  (action.getCircuit numAlloc σ).refsValid (action.getHashConsState numAlloc σ).exprs.size ∧
-  (action.getCircuit numAlloc σ).varsAllocated Γ (action.getHashConsState numAlloc σ) _
+  (action.getCircuit st σ).refsValid (action.getHashConsState st σ).exprs.size ∧
+  (action.getCircuit st σ).varsAllocated Γ (action.getHashConsState st σ) st.pc
 
 @[grind =]
 def numAlloc_wellFormed
   {α : Type}
   (action : ClapM p α)
-  (numAlloc : ℕ)
+  (st : State)
   (varStore : VarStore p)
   (σ : HashConsSt p)
 :
   Prop
 :=
-  (action.getState numAlloc σ) =
-  (Circuit.eval (action.getCircuit numAlloc σ) varStore numAlloc (action.getHashConsState numAlloc σ)).numAlloc
+  (action.getState st σ) =
+  (Circuit.eval (action.getCircuit st σ) varStore st (action.getHashConsState st σ)).st
 
 @[grind =]
 def hashConsState_wellFormed
   {α : Type}
   (action : ClapM p α)
-  (numAlloc : ℕ)
+  (st : State)
   (σ : HashConsSt p)
 :
   Prop
 :=
-  σ.exprs.isPrefixOf (action.getHashConsState numAlloc σ).exprs
+  σ.exprs.isPrefixOf (action.getHashConsState st σ).exprs
 
 @[grind =]
 def wellFormed
   {α : Type}
   (action : ClapM p α)
-  (numAlloc : ℕ)
+  (st : State)
   (varStore : VarStore p)
   (σ : HashConsSt p)
 :
   Prop
 :=
-  Circuit_wellFormed action numAlloc σ ∧
-  numAlloc_wellFormed action numAlloc varStore σ ∧
-  hashConsState_wellFormed action numAlloc σ
+  Circuit_wellFormed action st varStore σ ∧
+  numAlloc_wellFormed action st varStore σ ∧
+  hashConsState_wellFormed action st σ
 
 section Bind_WellFormed
 
 variable
   {α β}
-  {numAlloc : ℕ}
+  {st : State}
   {varStore : VarStore p}
   {σ : HashConsSt p}
   {a : ClapM p α}
@@ -312,15 +315,15 @@ variable
 
 @[simp, grind =]
 lemma bind_refsValid :
-  letI a_result := a.getResult numAlloc σ
-  letI a_numAlloc := a.getState numAlloc σ
-  letI a_σ := a.getHashConsState numAlloc σ
-  ((a >>= f).getCircuit numAlloc σ).refsValid ((a >>= f).getHashConsState numAlloc σ).exprs.size ↔
+  letI a_result := a.getResult st σ
+  letI a_st := a.getState st σ
+  letI a_σ := a.getHashConsState st σ
+  ((a >>= f).getCircuit st σ).refsValid ((a >>= f).getHashConsState st σ).exprs.size ↔
   (
-    a.getCircuit numAlloc σ ++
-    (f a_result).getCircuit a_numAlloc a_σ
+    a.getCircuit st σ ++
+    (f a_result).getCircuit a_st a_σ
   ).refsValid
-    ((f a_result).getHashConsState a_numAlloc a_σ).exprs.size
+    ((f a_result).getHashConsState a_st a_σ).exprs.size
 := by
   grind
 
@@ -336,41 +339,42 @@ lemma refsValid_of_refsValid_of_le
   aesop (add simp [Circuit.refsValid, Gate.refsValid]) (add safe (by grind))
 
 example
-  (h_a : a.wellFormed numAlloc varStore σ)
+  (h_a : a.wellFormed st varStore σ)
   (h_f : (
-      f (a.getResult numAlloc σ)
+      f (a.getResult st σ)
     ).wellFormed
-      (a.getState numAlloc σ)
-      [varStore,(a.getHashConsState numAlloc σ),numAlloc|a.getCircuit numAlloc σ]ₑ.varStore
-      (a.getHashConsState numAlloc σ)
+      (a.getState st σ)
+      [varStore,(a.getHashConsState st σ),st|a.getCircuit st σ]ₑ.varStore
+      (a.getHashConsState st σ)
   )
 :
-  (a.getHashConsState numAlloc σ).exprs.size ≤
-  ((a >>= f).getHashConsState numAlloc σ).exprs.size
+  (a.getHashConsState st σ).exprs.size ≤
+  ((a >>= f).getHashConsState st σ).exprs.size
 := by
-  done
+  sorry
 
 lemma bind_Circuit_wellFormed
-  (h_a : a.wellFormed numAlloc varStore σ)
+  (h_a : a.wellFormed st varStore σ)
   (h_f : (
-      f (a.getResult numAlloc σ)
+      f (a.getResult st σ)
     ).wellFormed
-      (a.getState numAlloc σ)
-      [varStore,(a.getHashConsState numAlloc σ),numAlloc|a.getCircuit numAlloc σ]ₑ.varStore
-      (a.getHashConsState numAlloc σ)
+      (a.getState st σ)
+      [varStore,(a.getHashConsState st σ),st|a.getCircuit st σ]ₑ.varStore
+      (a.getHashConsState st σ)
   )
 :
-  (a >>= f).Circuit_wellFormed numAlloc σ
+  (a >>= f).Circuit_wellFormed st varStore σ
 := by
   unfold Circuit_wellFormed
   rewrite [bind_refsValid, Circuit.refsValid_append_iff]
   split_ands
   . obtain h_a_refs := h_a.1
     unfold Circuit_wellFormed at h_a_refs
-    apply refsValid_of_refsValid_of_le h_a_refs
-
-
-  done
+    sorry
+    -- apply refsValid_of_refsValid_of_le h_a_refs
+  sorry
+  sorry
+  -- done
 
 lemma bind_wellFormed
   (h_a : a.wellFormed numAlloc varStore σ)

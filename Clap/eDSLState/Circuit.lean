@@ -47,7 +47,7 @@ def Circuit.refsValid {p : ℕ} (c : Circuit p) (bound : ℕ) : Prop :=
 
 @[grind =]
 def Circuit.varsAllocated {p : ℕ} (c : Circuit p) (varStore : VarStore p) (σ : HashConsSt p) (pc : ℕ) : Prop :=
-  ∀ i < pc, c[pc]?.any fun instr ↦ instr.varsAllocated varStore σ
+  ∀ i < pc, c[i]?.any fun instr ↦ instr.varsAllocated varStore σ
 
 structure State where
   numAlloc : ℕ
@@ -351,6 +351,8 @@ def step (result : CircuitResult p) (next : Gate p) (σ : HashConsSt p) : Circui
     | .num2bits width e => (result.assertAllocated e σ).alloc (num2bitsLsbPureV width (result[(e, σ)]!))
   result.bumpPc
 
+
+
 notation "[" res ", " σ "|" cmd "]ₛ" => step res cmd σ
 
 -- -- TODO do we want to make individual functions for these parts and prove properties about them
@@ -453,18 +455,40 @@ end
 
 end CircuitResult
 
-abbrev Circuit.evalInOrder {p : ℕ} (circuit : Circuit p) (σ : HashConsSt p) :=
-  circuit.foldl (CircuitResult.step (σ := σ))
+abbrev Circuit.evalInOrder {p : ℕ}
+                           (circuit : Circuit p)
+                           (σ : HashConsSt p)
+                           (result : CircuitResult p) :=
+  circuit.foldl (CircuitResult.step (σ := σ)) result (start := result.st.pc)
 
 def Circuit.eval {p : ℕ} (circuit : Circuit p) (varStore : VarStore p) (st : State) (σ : HashConsSt p) : CircuitResult p :=
   Circuit.evalInOrder circuit σ ⟨st, varStore, True⟩
 
-notation "[" varStore ", " σ ", " numAlloc "|" circuit "]ₑ" => Circuit.eval circuit varStore numAlloc σ
+notation "[" varStore ", " σ ", " st "|" circuit "]ₑ" => Circuit.eval circuit varStore st σ
 
 namespace CircuitResult
 
-variable {p : ℕ} {σ : HashConsSt p} {constraints1 constraints2 : Prop} {st : State}
-         {varStore : VarStore p} {circuit : Circuit p} {e! : ExprRef}
+variable {p pc : ℕ} {σ : HashConsSt p} {constraints constraints1 constraints2 : Prop} {st : State}
+         {varStore : VarStore p} {circuit : Circuit p} {e! : ExprRef} {gate : Gate p}
+         {result : CircuitResult p}
+
+@[simp, grind =]
+lemma pc_step : [result, σ|gate]ₛ.st.pc = result.st.pc + 1 := by aesop (add simp step)
+
+lemma varsAllocated_step (h : circuit.varsAllocated varStore σ st.pc) (h₁ : st.pc < circuit.size) :
+  let next := [⟨st, varStore, constraints⟩, σ|circuit[st.pc]]ₛ
+  circuit.varsAllocated next.varStore σ next.st.pc := by
+  intros next; have eq₁ : next = [⟨st, varStore, constraints⟩, σ|circuit[st.pc]]ₛ := by grind
+  set gate := circuit[st.pc] with eq₂
+  rcases heq : gate with e | e | e | ⟨w, e⟩
+  · simp [heq, bumpPc] at eq₁
+    suffices circuit.varsAllocated varStore σ next.st.pc by grind
+    unfold Circuit.varsAllocated at h ⊢
+    intros i hi
+    by_cases eq : i = st.pc
+    · sorry
+    · grind  
+  done
 
 @[ext, grind ext]
 lemma ext {p : ℕ} {r1 r2 : CircuitResult p}
