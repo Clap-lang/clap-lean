@@ -500,15 +500,19 @@ Well formed up to `st.pc`.
 @[grind =]
 def _root_.Clap.Circuit.wellFormed
   (circuit : Circuit p)
-  (st : State)
   (Γ : VarStore p)
-  (σ : HashConsSt p) : Prop :=
+  (σ : HashConsSt p)
+  (pc : ℕ) : Prop :=
   circuit.refsValid σ.exprs.size ∧
-  circuit.varsAllocated Γ σ st.pc
+  circuit.varsAllocated Γ σ pc
 
 lemma wellFormed_step (h : circuit.wellFormed st varStore σ) (h₁ : st.pc < circuit.size) :
   let next := [⟨st, varStore, constraints⟩, σ|circuit[st.pc]]ₛ
   circuit.wellFormed next.st next.varStore σ := sorry
+
+-- lemma wellFormed_step (h : circuit.wellFormed st varStore σ) (h₁ : st.pc < circuit.size) :
+--   let next := [⟨st, varStore, constraints⟩, σ|circuit[st.pc]]ₛ
+--   circuit.wellFormed next.st next.varStore σ := sorry
 
 @[ext, grind ext]
 lemma ext {p : ℕ} {r1 r2 : CircuitResult p}
