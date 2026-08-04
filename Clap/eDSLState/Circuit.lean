@@ -477,7 +477,7 @@ abbrev Circuit.evalInOrder {p : ℕ}
                            (circuit : Circuit p)
                            (σ : HashConsSt p)
                            (result : CircuitResult p)
-                           (pc : ℕ) :=
+                           (pc : ℕ := 0) :=
   circuit.foldl (CircuitResult.step (σ := σ)) result (start := pc)
 
 def Circuit.eval {p : ℕ} (circuit : Circuit p) (varStore : VarStore p) (numAlloc : ℕ) (σ : HashConsSt p) (pc : ℕ := 0) : CircuitResult p :=
@@ -715,7 +715,7 @@ end CircuitResult
 namespace Circuit
 
 variable {p numAlloc : ℕ} {circuit1 circuit2 : Circuit p} {varStore : VarStore p}
-         {st : State} {σ : HashConsSt p}
+         {σ : HashConsSt p}
 
 def seq (circuit₁ circuit₂ : Circuit p)
         (varStore : VarStore p)
@@ -738,29 +738,29 @@ def unexpandSeq : Lean.PrettyPrinter.Unexpander
 
 @[simp]
 lemma numAlloc_seq :
-  [varStore, σ, st | circuit1; circuit2].st =
-  let mid := [varStore, σ, st|circuit1]ₑ
-  [mid.varStore, σ, mid.st|circuit2]ₑ.st
+  [varStore, σ, numAlloc | circuit1; circuit2].numAlloc =
+  let mid := [varStore, σ, numAlloc|circuit1]ₑ
+  [mid.varStore, σ, mid.numAlloc|circuit2]ₑ.numAlloc
 := rfl
 
 @[simp]
 lemma varStore_seq :
-  (Circuit.seq circuit1 circuit2 varStore st σ).varStore =
-  let mid := [varStore, σ, st|circuit1]ₑ
-  [mid.varStore, σ, mid.st|circuit2]ₑ.varStore
+  (Circuit.seq circuit1 circuit2 varStore numAlloc σ).varStore =
+  let mid := [varStore, σ, numAlloc|circuit1]ₑ
+  [mid.varStore, σ, mid.numAlloc|circuit2]ₑ.varStore
 := rfl
 
 @[simp, grind=]
 lemma constraints_seq :
-  (Circuit.seq circuit1 circuit2 varStore st σ).constraints =
-  let mid := [varStore, σ, st|circuit1]ₑ
-  mid.constraints ∧ [mid.varStore, σ, mid.st|circuit2]ₑ.constraints
+  (Circuit.seq circuit1 circuit2 varStore numAlloc σ).constraints =
+  let mid := [varStore, σ, numAlloc|circuit1]ₑ
+  mid.constraints ∧ [mid.varStore, σ, mid.numAlloc|circuit2]ₑ.constraints
 := rfl
 
 @[simp, grind =]
 lemma eval_append
 :
-  [varStore, σ, st | circuit1 ++ circuit2]ₑ = seq circuit1 circuit2 varStore st σ
+  [varStore, σ, numAlloc | circuit1 ++ circuit2]ₑ = seq circuit1 circuit2 varStore numAlloc σ
 := by
   simp [eval]
   ext1
@@ -799,40 +799,40 @@ variable {numAlloc : ℕ} {varStore : VarStore p} {e: ExprRef} {σ : HashConsSt 
 
 @[simp, grind =]
 lemma eval_empty :
-  [varStore, σ, st | #[]]ₑ = unconstrained[st][varStore]
+  [varStore, σ, numAlloc | #[]]ₑ = unconstrained[numAlloc][varStore]
 := by rfl
 
 @[simp, grind =]
 lemma eval_empty_collection :
-  [varStore, σ, st | ∅]ₑ =
-  unconstrained[st][varStore]
+  [varStore, σ, numAlloc | ∅]ₑ =
+  unconstrained[numAlloc][varStore]
 := by rfl
 
 @[simp, grind =]
 lemma eval_eq0 :
-  [varStore, σ, st | #[.eq0 e]]ₑ =
-  unconstrained[st][varStore].step (.eq0 e) σ
+  [varStore, σ, numAlloc | #[.eq0 e]]ₑ =
+  unconstrained[numAlloc][varStore].step (.eq0 e) σ
 := by simp [eval, CircuitResult.addConstraint_unconstrained]
 
 @[simp, grind =]
 lemma eval_share :
-  [varStore, σ, st | #[.share e]]ₑ =
-  unconstrained[st][varStore].step (.share e) σ
+  [varStore, σ, numAlloc | #[.share e]]ₑ =
+  unconstrained[numAlloc][varStore].step (.share e) σ
 := by
   simp [eval]
 
 @[simp, grind =]
 lemma eval_isZero :
-  [varStore, σ, st | #[.isZero e]]ₑ =
-  unconstrained[st][varStore].step (.isZero e) σ
+  [varStore, σ, numAlloc | #[.isZero e]]ₑ =
+  unconstrained[numAlloc][varStore].step (.isZero e) σ
 := by
   simp [eval]
   rfl
 
 @[simp, grind =]
 lemma eval_num2bits {width : ℕ} :
-  [varStore, σ, st | #[.num2bits width e]]ₑ =
-  unconstrained[st][varStore].step (.num2bits width e) σ
+  [varStore, σ, numAlloc | #[.num2bits width e]]ₑ =
+  unconstrained[numAlloc][varStore].step (.num2bits width e) σ
 := by
   simp [eval]
 
