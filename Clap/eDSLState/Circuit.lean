@@ -506,9 +506,9 @@ def _root_.Clap.Circuit.wellFormed
   circuit.refsValid σ.exprs.size ∧
   circuit.varsAllocated Γ σ pc
 
-lemma wellFormed_step (h : circuit.wellFormed st varStore σ) (h₁ : st.pc < circuit.size) :
-  let next := [⟨st, varStore, constraints⟩, σ|circuit[st.pc]]ₛ
-  circuit.wellFormed next.st next.varStore σ := sorry
+lemma wellFormed_step {numAlloc : ℕ} (h : circuit.wellFormed varStore σ pc) (h₁ : pc < circuit.size) :
+  let next := [⟨numAlloc, varStore, constraints⟩, σ|circuit[pc]]ₛ
+  circuit.wellFormed next.varStore σ (pc + 1) := sorry
 
 -- lemma wellFormed_step (h : circuit.wellFormed st varStore σ) (h₁ : st.pc < circuit.size) :
 --   let next := [⟨st, varStore, constraints⟩, σ|circuit[st.pc]]ₛ
