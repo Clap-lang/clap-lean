@@ -28,6 +28,28 @@ def Gate.varsAllocated {p : ℕ} (c : Gate p) (varStore : VarStore p) (σ : Hash
     | .isZero e => [varStore, σ|e].isSome
     | .num2bits _w e => [varStore, σ|e].isSome
 
+section Gate.varsAllocated_lemmas
+
+variable {p : ℕ} {gate : Gate p} {Γ : VarStore p} {σ : HashConsSt p} {e! : ExprRef}
+
+namespace Gate
+
+@[simp, grind =]
+lemma varsAllocated_eq0 : varsAllocated (.eq0 e!) Γ σ = [Γ, σ|e!].isSome := rfl
+
+@[simp, grind =]
+lemma varsAllocated_share : varsAllocated (.share e!) Γ σ = [Γ, σ|e!].isSome := rfl
+
+@[simp, grind =]
+lemma varsAllocated_isZero : varsAllocated (.isZero e!) Γ σ = [Γ, σ|e!].isSome := rfl
+
+@[simp, grind =]
+lemma varsAllocated_num2bits {w} : varsAllocated (.num2bits w e!) Γ σ = [Γ, σ|e!].isSome := rfl
+
+end Gate
+
+end Gate.varsAllocated_lemmas
+
 instance {p : ℕ} {c : Gate p} {varStore : VarStore p} {σ : HashConsSt p} :
   Decidable (c.varsAllocated varStore σ) := by
   unfold Gate.varsAllocated
@@ -47,7 +69,7 @@ def Circuit.refsValid {p : ℕ} (c : Circuit p) (bound : ℕ) : Prop :=
 
 @[grind =]
 def Circuit.varsAllocated {p : ℕ} (c : Circuit p) (varStore : VarStore p) (σ : HashConsSt p) (pc : ℕ) : Prop :=
-  ∀ i < pc, c[i]?.any fun instr ↦ instr.varsAllocated varStore σ
+  ∀ i ≤ pc, c[i]?.any fun instr ↦ instr.varsAllocated varStore σ
 
 structure State where
   numAlloc : ℕ
@@ -475,20 +497,60 @@ variable {p pc : ℕ} {σ : HashConsSt p} {constraints constraints1 constraints2
 @[simp, grind =]
 lemma pc_step : [result, σ|gate]ₛ.st.pc = result.st.pc + 1 := by aesop (add simp step)
 
-lemma varsAllocated_step (h : circuit.varsAllocated varStore σ st.pc) (h₁ : st.pc < circuit.size) :
-  let next := [⟨st, varStore, constraints⟩, σ|circuit[st.pc]]ₛ
-  circuit.varsAllocated next.varStore σ next.st.pc := by
-  intros next; have eq₁ : next = [⟨st, varStore, constraints⟩, σ|circuit[st.pc]]ₛ := by grind
-  set gate := circuit[st.pc] with eq₂
-  rcases heq : gate with e | e | e | ⟨w, e⟩
-  · simp [heq, bumpPc] at eq₁
-    suffices circuit.varsAllocated varStore σ next.st.pc by grind
-    unfold Circuit.varsAllocated at h ⊢
-    intros i hi
-    by_cases eq : i = st.pc
-    · sorry
-    · grind  
-  done
+/--
+Well formed up to `st.pc`.
+-/
+@[grind =]
+def _root_.Clap.Circuit.wellFormed
+  (circuit : Circuit p)
+  (st : State)
+  (Γ : VarStore p)
+  (σ : HashConsSt p) : Prop :=
+  circuit.refsValid σ.exprs.size ∧
+  circuit.varsAllocated Γ σ st.pc ∧
+  st.pc < circuit.size
+
+lemma wellFormed_step (h : circuit.wellFormed st varStore σ) :
+  let next := [⟨st, varStore, constraints⟩, σ|circuit[st.pc]'(by grind)]ₛ
+  circuit.wellFormed next.st next.varStore σ := by
+  by_cases h_sz : circuit.size = 0
+  · grind
+  · intros next; have eq₁ : next = [⟨st, varStore, constraints⟩, σ|circuit[st.pc]'(by grind)]ₛ := by grind
+    set gate := circuit[st.pc]'(by grind) with eq₂
+    rcases heq : gate with e | e | e | ⟨w, e⟩
+    · simp [heq, bumpPc] at eq₁
+      suffices circuit.varsAllocated varStore σ next.st.pc by grind
+      unfold Circuit.varsAllocated at h ⊢
+      intros i hi
+      by_cases eq : i < next.st.pc
+      · grind
+      · have : i = next.st.pc := by grind
+        subst this
+        by_cases eq₃ : next.st.pc < circuit.size
+        · obtain ⟨gate', h_gate'⟩ : ∃ gate', circuit[next.st.pc]? = .some gate' := by aesop
+          rw [h_gate']
+          simp
+          unfold Gate.varsAllocated
+          rcases heq₁ : gate' with e' | e' | e' | ⟨w, e'⟩
+          · simp
+            
+          rw [show circuit[next.st.pc]? = .some gate by grind]
+          simp [heq]
+          
+
+          
+          specialize h st.pc.pred
+          sorry 
+        · have : next.st.pc = st.pc + 1 := by grind
+          simp at eq₃
+          rw [this] at eq₃
+          done
+
+
+
+
+      · grind  
+    done
 
 @[ext, grind ext]
 lemma ext {p : ℕ} {r1 r2 : CircuitResult p}
