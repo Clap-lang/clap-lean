@@ -113,7 +113,7 @@ end State
 namespace Edsl
 
 structure CircuitResult (p : ℕ) where
-  numAlloc : State
+  numAlloc : ℕ
   varStore : VarStore p
   constraints : Prop
   deriving Inhabited
@@ -128,14 +128,14 @@ variable {p k numAlloc : ℕ} {result result' : CircuitResult p} {st : State}
          {varStore : VarStore p}
          {σ : HashConsSt p} {vars : Vector (ZMod p) k}
 
-def init (p : ℕ) : CircuitResult p := ⟨⟨0, 0⟩, ∅, True⟩
+def init (p : ℕ) : CircuitResult p := ⟨0, ∅, True⟩
 
-def unconstrained (st : State) (varStore : VarStore p) : CircuitResult p :=
-  ⟨st, varStore, True⟩
+def unconstrained (numAlloc : ℕ) (varStore : VarStore p) : CircuitResult p :=
+  ⟨numAlloc, varStore, True⟩
 
-@[grind =]
-def bumpPc {p : ℕ} (result : CircuitResult p) : CircuitResult p :=
-  {result with st := result.st.bumpPc}
+-- @[grind =]
+-- def bumpPc {p : ℕ} (result : CircuitResult p) : CircuitResult p :=
+--   {result with st := result.st.bumpPc}
 
 variable {result : CircuitResult p}
 
@@ -144,13 +144,13 @@ notation (name := notationα) "unconstrained[" numAlloc:arg "]" "[" varStore:arg
 recommended_spelling "unconstrained" for "α" in [unconstrained, notationα]
 
 @[simp, grind =]
-lemma numAlloc_unconstrained : unconstrained[st][varStore].st = st := rfl
+lemma numAlloc_unconstrained : unconstrained[numAlloc][varStore].numAlloc = numAlloc := rfl
 
 @[simp, grind =]
-lemma varStore_unconstrained : unconstrained[st][varStore].varStore = varStore := rfl
+lemma varStore_unconstrained : unconstrained[numAlloc][varStore].varStore = varStore := rfl
 
 @[simp, grind =]
-lemma constraints_unconstrained : unconstrained[st][varStore].constraints = True := rfl
+lemma constraints_unconstrained : unconstrained[numAlloc][varStore].constraints = True := rfl
 
 def addConstraint (result : CircuitResult p) (constraint : Prop) : CircuitResult p :=
   {result with constraints := result.constraints ∧ constraint}
@@ -159,17 +159,17 @@ def addConstraint (result : CircuitResult p) (constraint : Prop) : CircuitResult
 lemma addConstraint_mk
   {constraints constraint : Prop}
 :
-  (Edsl.CircuitResult.mk st varStore constraints).addConstraint constraint =
-  Edsl.CircuitResult.mk st varStore (constraints ∧ constraint)
+  (Edsl.CircuitResult.mk numAlloc varStore constraints).addConstraint constraint =
+  Edsl.CircuitResult.mk numAlloc varStore (constraints ∧ constraint)
 := rfl
 
 @[simp, grind =]
 lemma addConstraint_unconstrained {constraint : Prop} :
-  unconstrained[st][varStore].addConstraint constraint =
-  ⟨st, varStore, constraint⟩ := by simp [unconstrained]
+  unconstrained[numAlloc][varStore].addConstraint constraint =
+  ⟨numAlloc, varStore, constraint⟩ := by simp [unconstrained]
 
 @[simp, grind =]
-lemma numAlloc_addConstraint : (result.addConstraint constraint).st = result.st := rfl
+lemma numAlloc_addConstraint : (result.addConstraint constraint).numAlloc = result.numAlloc := rfl
 
 @[simp, grind =]
 lemma varStore_addConstraint : (result.addConstraint constraint).varStore = result.varStore := rfl
@@ -179,22 +179,22 @@ lemma constraints_addConstraint : (result.addConstraint constraint).constraints 
                                   (result.constraints ∧ constraint) := rfl
 
 def allocAnonymous (result : CircuitResult p) : CircuitResult p :=
-  {result with st := result.st.bumpAlloc}
+  {result with numAlloc := result.numAlloc + 1}
 
 @[simp, grind =]
 lemma allocAnonymous_mk
 :
-  (Edsl.CircuitResult.mk st varStore constraints).allocAnonymous =
-  Edsl.CircuitResult.mk st.bumpAlloc varStore constraints
+  (Edsl.CircuitResult.mk numAlloc varStore constraints).allocAnonymous =
+  Edsl.CircuitResult.mk (numAlloc + 1) varStore constraints
 := rfl
 
 @[simp, grind =]
 lemma allocAnonymous_unconstrained :
-  unconstrained[st][varStore].allocAnonymous =
-  ⟨st.bumpAlloc, varStore, True⟩ := rfl
+  unconstrained[numAlloc][varStore].allocAnonymous =
+  ⟨numAlloc + 1, varStore, True⟩ := rfl
 
 @[simp, grind =]
-lemma numAlloc_allocAnonymous : result.allocAnonymous.st = result.st.bumpAlloc := rfl
+lemma numAlloc_allocAnonymous : result.allocAnonymous.numAlloc = result.numAlloc + 1 := rfl
 
 @[simp, grind =]
 lemma varStore_allocAnonymous : result.allocAnonymous.varStore = result.varStore := rfl
@@ -237,39 +237,39 @@ lemma getDM_eq_getM?_getD : result.getDM e = result.getM? e <&> Option.getD (dfl
 @[simp, grind =]
 lemma get?_mk
 :
-  (Edsl.CircuitResult.mk st varStore constraints).get? e! σ =
+  (Edsl.CircuitResult.mk numAlloc varStore constraints).get? e! σ =
   [varStore,σ|e!]
 := rfl
 
 @[simp, grind =]
 lemma getM?_mk
 :
-  ((Edsl.CircuitResult.mk st varStore constraints).getM? e).run σ =
+  ((Edsl.CircuitResult.mk numAlloc varStore constraints).getM? e).run σ =
   [varStore,σ|←e]
 := rfl
 
 @[simp, grind =]
 lemma getElem?_mk
 :
-  (Edsl.CircuitResult.mk st varStore constraints)[(e!, σ)]? =
+  (Edsl.CircuitResult.mk numAlloc varStore constraints)[(e!, σ)]? =
   [varStore,σ|e!]
 := rfl
 
 @[simp, grind =]
 lemma membership_unconstrained
 :
-  ((e!, σ) ∈ unconstrained[st][varStore]) = [varStore,σ|e!].isSome
+  ((e!, σ) ∈ unconstrained[numAlloc][varStore]) = [varStore,σ|e!].isSome
 := rfl
 
 @[simp, grind =]
 lemma getElem?_unconstrained
 :
-  unconstrained[st][varStore][(e!, σ)]? = [varStore,σ|e!]
+  unconstrained[numAlloc][varStore][(e!, σ)]? = [varStore,σ|e!]
 := rfl
 
 @[simp, grind =]
 lemma getM?_unconstrained:
-  (unconstrained[st][varStore].getM? e).run σ =
+  (unconstrained[numAlloc][varStore].getM? e).run σ =
   [varStore,σ|←e] := by simp [unconstrained]
 
 @[grind =>]
@@ -296,9 +296,9 @@ def assertAllocatedM (result : CircuitResult p) (e : HashConsM p ExprRef) : Hash
 @[simp, grind =]
 lemma assertAllocated_mk
 :
-  (Edsl.CircuitResult.mk st varStore constraints).assertAllocated e! σ =
+  (Edsl.CircuitResult.mk numAlloc varStore constraints).assertAllocated e! σ =
   Edsl.CircuitResult.mk
-    st
+    numAlloc
     varStore
     (constraints ∧ [varStore,σ|e!].isSome)
 := rfl
@@ -306,10 +306,10 @@ lemma assertAllocated_mk
 @[simp, grind =]
 lemma assertAllocatedM_mk
 :
-  ((Edsl.CircuitResult.mk st varStore constraints).assertAllocatedM e).run σ =
+  ((Edsl.CircuitResult.mk numAlloc varStore constraints).assertAllocatedM e).run σ =
   (
     Edsl.CircuitResult.mk
-      st
+      numAlloc
       varStore
       (constraints ∧ [varStore,σ|←e].1.isSome)
     ,
@@ -319,7 +319,7 @@ lemma assertAllocatedM_mk
 
 @[simp, grind =]
 lemma numAlloc_assertAllocated :
-  (result.assertAllocated e! σ).st = result.st := rfl
+  (result.assertAllocated e! σ).numAlloc = result.numAlloc := rfl
 
 @[simp, grind =]
 lemma varStore_assertAllocated :
@@ -331,49 +331,45 @@ lemma constraints_assertAllocated :
 
 @[simp, grind =]
 lemma assertAllocated_unconstrained :
-  unconstrained[st][varStore].assertAllocated e! σ =
-  letI α := unconstrained[st][varStore]
+  unconstrained[numAlloc][varStore].assertAllocated e! σ =
+  letI α := unconstrained[numAlloc][varStore]
   α.addConstraint ((e!, σ) ∈ α) := rfl
 
 def alloc {k p : ℕ} (result : CircuitResult p) (vals : Vector (ZMod p) k) : CircuitResult p :=
-  let indexed := (Vector.range k).map (·+result.st.numAlloc) |>.zip vals
+  let indexed := (Vector.range k).map (·+result.numAlloc) |>.zip vals
   let varStore := result.varStore.insertMany indexed
-  {result with varStore := varStore, st := result.st.addAlloc k}
+  {result with varStore := varStore, numAlloc := result.numAlloc + k}
 
 @[simp, grind =]
 lemma alloc_mk
   {vals : Vector (ZMod p) k}
 :
-  (Edsl.CircuitResult.mk st varStore constraints).alloc vals =
+  (Edsl.CircuitResult.mk numAlloc varStore constraints).alloc vals =
   Edsl.CircuitResult.mk
-    (st.addAlloc k)
-    (varStore.insertMany ((Vector.range k).map (·+st.numAlloc) |>.zip vals))
+    (numAlloc + k)
+    (varStore.insertMany ((Vector.range k).map (·+numAlloc) |>.zip vals))
     constraints
 := rfl
 
 @[simp, grind =]
 lemma numAlloc_alloc :
-  (result.alloc vars).st = result.st.addAlloc k := rfl
+  (result.alloc vars).numAlloc = result.numAlloc + k := rfl
 
 @[simp, grind =]
 lemma varStore_alloc :
   (result.alloc vars).varStore =
-  result.varStore.insertMany ((Vector.range k).map (·+result.st.numAlloc) |>.zip vars) := rfl
+  result.varStore.insertMany ((Vector.range k).map (·+result.numAlloc) |>.zip vars) := rfl
 
 @[simp, grind =]
 lemma constraints_alloc {vars : Vector (ZMod p) k} :
   (result.alloc vars).constraints = result.constraints := rfl
 
 def step (result : CircuitResult p) (next : Gate p) (σ : HashConsSt p) : CircuitResult p :=
-  let result :=
-    match next with
-    | .eq0 e => result.addConstraint (result[(e, σ)]? = Option.some 0)
-    | .share e => (result.assertAllocated e σ).alloc #v[result[(e, σ)]!]
-    | .isZero e => (result.assertAllocated e σ).alloc #v[if result[(e, σ)]? = Option.some 0 then 1 else 0]
-    | .num2bits width e => (result.assertAllocated e σ).alloc (num2bitsLsbPureV width (result[(e, σ)]!))
-  result.bumpPc
-
-
+  match next with
+  | .eq0 e => result.addConstraint (result[(e, σ)]? = Option.some 0)
+  | .share e => (result.assertAllocated e σ).alloc #v[result[(e, σ)]!]
+  | .isZero e => (result.assertAllocated e σ).alloc #v[if result[(e, σ)]? = Option.some 0 then 1 else 0]
+  | .num2bits width e => (result.assertAllocated e σ).alloc (num2bitsLsbPureV width (result[(e, σ)]!))
 
 notation "[" res ", " σ "|" cmd "]ₛ" => step res cmd σ
 
@@ -416,14 +412,14 @@ notation "[" res ", " σ "|" cmd "]ₛ" => step res cmd σ
 
 -- @[simp, grind =]
 lemma step_unconstrained {command : Gate p} {σ} :
-  [unconstrained[st][varStore], σ|command]ₛ =
-  [⟨st, varStore, True⟩, σ|command]ₛ := rfl
+  [unconstrained[numAlloc][varStore], σ|command]ₛ =
+  [⟨numAlloc, varStore, True⟩, σ|command]ₛ := rfl
 
 def split (result : CircuitResult p) : CircuitResult p :=
   {result with constraints := True}
 
 @[simp, grind =]
-lemma numAlloc_split : result.split.st = result.st := rfl
+lemma numAlloc_split : result.split.numAlloc = result.numAlloc := rfl
 
 @[simp, grind =]
 lemma varStore_split : result.split.varStore = result.varStore := rfl
@@ -437,37 +433,37 @@ lemma constraints_split : result.split.constraints = True := rfl
 
 @[simp, grind =]
 lemma step_eq0 :
-  [result,σ|.eq0 e!]ₛ = (result.addConstraint (result[(e!, σ)]? = .some 0)).bumpPc := rfl
+  [result,σ|.eq0 e!]ₛ = result.addConstraint (result[(e!, σ)]? = .some 0) := rfl
 
 @[simp, grind =]
 lemma step_share :
   [result, σ|.share e!]ₛ =
-  (result.assertAllocated e! σ |>.alloc #v[result.getD e! σ]).bumpPc := rfl
+  (result.assertAllocated e! σ |>.alloc #v[result.getD e! σ]) := rfl
 
 @[simp, grind =]
 lemma step_isZero :
   [result, σ|.isZero e!]ₛ =
-  (result.assertAllocated e! σ |>.alloc #v[if result[(e!, σ)]? = .some 0 then 1 else 0]).bumpPc := rfl
+  (result.assertAllocated e! σ |>.alloc #v[if result[(e!, σ)]? = .some 0 then 1 else 0]) := rfl
 
 @[simp, grind =]
 lemma step_num2bits {width} :
   [result, σ|.num2bits width e!]ₛ =
-  (result.assertAllocated e! σ |>.alloc (num2bitsLsbPureV width result[(e!, σ)]!)).bumpPc := rfl
+  (result.assertAllocated e! σ |>.alloc (num2bitsLsbPureV width result[(e!, σ)]!)) := rfl
 
 @[aesop unsafe, grind =]
 lemma addConstraint_eq_mk :
   result.addConstraint constraint =
-  ⟨result.st, result.varStore, result.constraints ∧ constraint⟩ := rfl
+  ⟨result.numAlloc, result.varStore, result.constraints ∧ constraint⟩ := rfl
 
 @[aesop unsafe, grind =]
 lemma allocAnonymous_eq_mk :
   result.allocAnonymous =
-  ⟨result.st.bumpAlloc, result.varStore, result.constraints⟩ := rfl
+  ⟨result.numAlloc + 1, result.varStore, result.constraints⟩ := rfl
 
 lemma alloc_eq_mk {k} {vals : Vector _ k} :
   result.alloc vals =
-  ⟨result.st.addAlloc k,
-   result.varStore.insertMany (((Vector.range k).map (· + result.st.numAlloc)).zip vals),
+  ⟨result.numAlloc + k,
+   result.varStore.insertMany (((Vector.range k).map (· + result.numAlloc)).zip vals),
    result.constraints⟩ := rfl
 
 lemma assertAllocated_eq_addConstraint :
@@ -480,11 +476,12 @@ end CircuitResult
 abbrev Circuit.evalInOrder {p : ℕ}
                            (circuit : Circuit p)
                            (σ : HashConsSt p)
-                           (result : CircuitResult p) :=
-  circuit.foldl (CircuitResult.step (σ := σ)) result (start := result.st.pc)
+                           (result : CircuitResult p)
+                           (pc : ℕ) :=
+  circuit.foldl (CircuitResult.step (σ := σ)) result (start := pc)
 
-def Circuit.eval {p : ℕ} (circuit : Circuit p) (varStore : VarStore p) (numAlloc : ℕ) (σ : HashConsSt p) : CircuitResult p :=
-  Circuit.evalInOrder circuit σ ⟨⟨numAlloc, 0⟩, varStore, True⟩
+def Circuit.eval {p : ℕ} (circuit : Circuit p) (varStore : VarStore p) (numAlloc pc : ℕ) (σ : HashConsSt p) : CircuitResult p :=
+  Circuit.evalInOrder circuit σ ⟨numAlloc, varStore, True⟩ pc
 
 notation "[" varStore ", " σ ", " st "|" circuit "]ₑ" => Circuit.eval circuit varStore st σ
 
@@ -494,8 +491,8 @@ variable {p pc : ℕ} {σ : HashConsSt p} {constraints constraints1 constraints2
          {varStore : VarStore p} {circuit : Circuit p} {e! : ExprRef} {gate : Gate p}
          {result : CircuitResult p}
 
-@[simp, grind =]
-lemma pc_step : [result, σ|gate]ₛ.st.pc = result.st.pc + 1 := by aesop (add simp step)
+-- @[simp, grind =]
+-- lemma pc_step : [result, σ|gate]ₛ.st.pc = result.st.pc + 1 := by aesop (add simp step)
 
 /--
 Well formed up to `st.pc`.
