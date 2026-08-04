@@ -4727,7 +4727,15 @@ lemma fpmul_completeness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : V
         show (Exp.c _).eval = CPolynomial.coeff _ _
         rw [CPolynomial.coeff, CPolynomial.Raw.coeff, Array.getD_eq_getD_getElem?]
         rfl)
-      (fun _ _ => by sorry)]
+      (fun i h => by
+        -- Vacuous for 2*k - 1 ≤ 1 (Fin empty). Otherwise needs bound analysis
+        -- mirroring `carry_zero_sum_eq_zero`'s integer-lift + `|ec i| < c_bd`
+        -- argument to conclude the carry range check for the honest wg.
+        by_cases hk : 2 * k - 1 - 1 = 0
+        · exfalso
+          have := i.2
+          omega
+        · sorry)]
     rw [check_lt_wrap_succ
         (by refine le_trans ?_ h.1; apply Nat.pow_le_pow_right (by decide); grind)
         (fun i ↦ by
