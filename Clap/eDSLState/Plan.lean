@@ -35,6 +35,14 @@ def VarStore.onlyInputs
   ∀ i ≥ numAlloc, varStore[i]?.isNone
 
 -- TODO circuit wellformed (width?)
+-- NB we have `Circuit.wellFormed` already, eh...
+
+def Gate.WF {p : ℕ} : Gate p → Prop
+  | .eq0 .. | .share .. | .isZero .. => True
+  | .num2bits w .. => 2 ^ w < p
+
+def Circuit.WF {p : ℕ} (circuit : Circuit p) : Prop :=
+  ∀ gate ∈ circuit, gate.WF
 
 def isSatisfiable {p : ℕ} (cs : VarStore p → Bool) (inputs : VarStore p) : Prop :=
   (∃ varStore, cs varStore ∧ inputs ⊆ varStore)

@@ -65,6 +65,6 @@ def results := witnesses.zip evaluations
 #eval complete
 #eval sound
 
-#eval! testWg.run #[1,1,2]
+#eval testWg.run #[1,1,2]
 
 end Clap.Tests
