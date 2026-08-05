@@ -479,7 +479,33 @@ def _root_.Clap.Circuit.wellFormed
 
 lemma wellFormed_step (h : circuit.wellFormed varStore σ pc) (h₁ : pc < circuit.size) :
   let next := [⟨numAlloc, varStore, constraints⟩, σ|circuit[pc]]ₛ
-  circuit.wellFormed next.varStore σ (pc + 1) := sorry
+  circuit.wellFormed next.varStore σ (pc + 1) := by
+  intros next
+  clear_value (eqNext : next = [⟨numAlloc, varStore, constraints⟩, σ|circuit[pc]]ₛ)
+  set gate := circuit[pc] with eq
+  rcases gate with e | e | e | e | ⟨w, e⟩
+  · replace eqNext : next = ⟨numAlloc, varStore, constraints ∧ [varStore,σ|e] = some 0⟩ := by simpa
+    unfold Circuit.wellFormed Circuit.refsValid Circuit.varsAllocated Gate.refsValid Gate.varsAllocated
+      at h ⊢
+    simp at h ⊢
+    split_ands
+    · grind
+    · intros h₂ i hi
+      by_cases eq₁ : i = pc + 1
+      · subst eq₁
+        rcases h with ⟨h₃, h₄⟩
+        specialize h₃ _ h₂
+        split at h₃
+        · expose_names
+          rw [(getElem?_eq_some_iff (e := Gate.eq0 e_1)).2 (by grind)]
+          simp
+          
+
+        done
+      · grind
+    done
+
+  
 
 -- lemma wellFormed_step (h : circuit.wellFormed st varStore σ) (h₁ : st.pc < circuit.size) :
 --   let next := [⟨st, varStore, constraints⟩, σ|circuit[st.pc]]ₛ

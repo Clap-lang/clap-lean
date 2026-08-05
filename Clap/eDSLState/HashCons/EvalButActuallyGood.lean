@@ -30,6 +30,22 @@ def evalWithCache {p}
   termination_by e + 1 - cache.size
   decreasing_by grind
 
+def evalRec {p} (Γ : VarStore p) (σ : HashConsSt p) (e : ExprRef) : Option (ZMod p) :=
+  match h : σ.exprs[e]? with
+  | .none => .none
+  | .some expr =>
+    match expr with
+    | .c k => some k
+    | .v idx => Γ[idx]?
+    | .binary_op lhs rhs op =>
+      let f := match op with
+        | .add => (· + ·)
+        | .sub => (· - ·)
+        | .mul => (· * ·)
+      f <$> evalRec Γ σ lhs <*> evalRec Γ σ rhs
+  termination_by e
+  decreasing_by all_goals grind
+
 def state : HashConsSt 37 where
   exprs := #[
     .c 3,
@@ -38,12 +54,70 @@ def state : HashConsSt 37 where
   ]
   wellFormed := by decide
 
-#eval evalWithCache {} 2 #[] state
-
 def eval {p} (varStore : VarStore p) (e : ExprRef) (σ : HashConsSt p) : Option (ZMod p) :=
   (evalWithCache varStore e #[] σ)[e]!
 
 notation "[" varStore "," state "|" x "]" => eval varStore x state
+
+section Lemmas
+
+variable {p : ℕ} {varStore : VarStore p} {e : ExprRef} {σ} {cache : ValueCache p}
+         {expr : CacheExpr p}
+
+@[simp, grind =]
+lemma evalWithCache_idempotent :
+  evalWithCache varStore e (evalWithCache varStore e cache σ) σ =
+  evalWithCache varStore e cache σ := by
+  fun_induction evalWithCache <;> grind [=evalWithCache]
+
+/--
+The cache is immutable.
+-/
+@[aesop unsafe, grind .]
+lemma evalWithCache_of_mem (h : e < cache.size) :
+  (evalWithCache varStore e cache σ)[e]? = cache[e]? := by
+  fun_induction evalWithCache <;> grind
+
+/--
+The cache never shrinks.
+-/
+@[mono, grind ←]
+lemma size_le_size_evalWithCache :
+  cache.size ≤ (evalWithCache varStore e cache σ).size := by
+  fun_induction evalWithCache <;> grind
+
+/--
+Is this even useful?
+-/
+lemma lt_size_evalWithCache_of_lt_size (h : e < σ.size) :
+  e < (evalWithCache varStore e cache σ).size := by
+  fun_induction evalWithCache <;> grind
+
+lemma evalCore_evalRec
+  (h₁ : ∀ e < cache.size, cache[e]? = evalRec varStore σ e)
+  (h₂ : σ.exprs[cache.size]? = some expr) :
+  evalCore varStore expr cache = evalRec varStore σ cache.size := by
+  unfold evalCore evalRec
+  rcases expr with e | e | ⟨lhs, rhs, binop⟩
+  · aesop
+  · aesop
+  · obtain ⟨h₃, h₄⟩ : lhs < cache.size ∧ rhs < cache.size := by
+      have := σ.wellFormed _ (show cache.size < σ.exprs.size by grind)
+      aesop
+    simp
+    aesop
+    done
+    
+lemma evalWithCache_wrt_evalRec
+  (he : e < σ.exprs.size)
+  (h : ∀ e < cache.size, cache[e]? = evalRec varStore σ e) :
+  letI newCache := evalWithCache varStore e cache σ
+  e < newCache.size ∧
+  newCache[e]? = evalRec varStore σ e := by
+
+  done
+
+end Lemmas
 
 abbrev evalM {p} (varStore : VarStore p) (e : HashConsM p ExprRef) : HashConsM p (Option (ZMod p)) := do
   let expr ← e

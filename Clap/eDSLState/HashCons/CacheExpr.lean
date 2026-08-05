@@ -26,6 +26,7 @@ inductive CacheExpr (p : ℕ)
   | binary_op (lhs rhs : ExprRef) (op : BinaryOp)
 deriving BEq, Hashable, ReflBEq, LawfulBEq, Repr
 
+@[grind =]
 def CacheExpr.wellFormed {p : ℕ} (e : CacheExpr p) (idx : ExprRef) : Prop :=
   match e with
     | c _ => True
