@@ -4439,6 +4439,121 @@ private lemma toCompPoly_of_range_coeff {n : ℕ} (poly : CPolynomial (ZMod p))
 
 set_option maxHeartbeats 1000000000 in
 /--
+  The polynomial identity `A*B - P*Q - R = 0` (evaluated at index `i`) that
+  the wg's honest witnesses satisfy. Shared between the positive branch of
+  `fpmul_completeness` and `p_zero_finish` — extracted to reduce compile time.
+-/
+private lemma fpmul_poly_identity_at {k w : ℕ}
+    (a b p' : Vector (Exp p (ZMod p)) k) (i : ZMod p) :
+    let A : CPolynomial (ZMod p) := toCompPoly (a.map Exp.eval)
+    let B : CPolynomial (ZMod p) := toCompPoly (b.map Exp.eval)
+    let P : CPolynomial (ZMod p) := toCompPoly (p'.map Exp.eval)
+    let q_num : ℕ := (∑ x : Fin k, a[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)) *
+                     (∑ x : Fin k, b[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)) /
+                     ∑ x : Fin k, p'[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)
+    let r_num : ℕ := (∑ x : Fin k, a[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)) *
+                     (∑ x : Fin k, b[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)) %
+                     ∑ x : Fin k, p'[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)
+    let Q : CPolynomial (ZMod p) := toCompPoly (Circuit.nat2words p w k q_num)
+    let R : CPolynomial (ZMod p) := toCompPoly (Circuit.nat2words p w k r_num)
+    (eval_poly
+        (Vector.mk (List.map (Exp.v ∘ (A * B - P * Q - R).coeff)
+          (List.range (2 * k - 1))).toArray
+          (by simp) : Vector (Expₑ p) (2 * k - 1)) i -
+      (eval_poly
+          (Vector.mk (List.map (Exp.v ∘ fun j : Fin (2 * k - 1) =>
+              ((A * B).val)[j.1]?.getD 0)
+            (List.finRange (2 * k - 1))).toArray
+            (by simp) : Vector (Expₑ p) (2 * k - 1)) i -
+        (eval_poly p' i *
+            eval_poly (Vector.map Exp.v (Circuit.nat2words p w k q_num)) i +
+          eval_poly (Vector.map Exp.v (Circuit.nat2words p w k r_num)) i))).eval = 0 := by
+  set A : CPolynomial (ZMod p) := toCompPoly (a.map Exp.eval) with hA
+  set B : CPolynomial (ZMod p) := toCompPoly (b.map Exp.eval) with hB
+  set P : CPolynomial (ZMod p) := toCompPoly (p'.map Exp.eval) with hP
+  set q_num : ℕ := (∑ x : Fin k, a[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)) *
+                   (∑ x : Fin k, b[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)) /
+                   ∑ x : Fin k, p'[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)
+  set r_num : ℕ := (∑ x : Fin k, a[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)) *
+                   (∑ x : Fin k, b[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)) %
+                   ∑ x : Fin k, p'[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)
+  set Q : CPolynomial (ZMod p) := toCompPoly (Circuit.nat2words p w k q_num) with hQ
+  set R : CPolynomial (ZMod p) := toCompPoly (Circuit.nat2words p w k r_num) with hR
+  simp only [Exp.eval_sub, Exp.eval_add, Exp.eval_mul, sub_eq_zero]
+  rw [eval_poly_eval_eq, eval_poly_eval_eq, eval_poly_eval_eq,
+      eval_poly_eval_eq, eval_poly_eval_eq]
+  rw [map_v_map_eval_eq_self, map_v_map_eval_eq_self]
+  have h_deg_R : R.degree < ((2 * k - 1 : ℕ) : WithBot ℕ) := by
+    refine lt_of_lt_of_le (toCompPoly_degree_lt _) ?_
+    norm_cast; omega
+  have h_deg_AB : (A * B).degree < ((2 * k - 1 : ℕ) : WithBot ℕ) :=
+    toCompPoly_mul_degree_lt (a.map Exp.eval) (b.map Exp.eval)
+  have h_deg_PQ : (P * Q).degree < ((2 * k - 1 : ℕ) : WithBot ℕ) :=
+    toCompPoly_mul_degree_lt (p'.map Exp.eval) (Circuit.nat2words p w k q_num)
+  have h_deg_t : (A * B - P * Q - R).degree < ((2 * k - 1 : ℕ) : WithBot ℕ) := by
+    rw [CPolynomial.degree_lt_iff_coeff_zero]
+    intro j hj
+    rw [CPolynomial.coeff_sub, CPolynomial.coeff_sub]
+    rw [(CPolynomial.degree_lt_iff_coeff_zero _ _).mp h_deg_AB j hj]
+    rw [(CPolynomial.degree_lt_iff_coeff_zero _ _).mp h_deg_PQ j hj]
+    rw [(CPolynomial.degree_lt_iff_coeff_zero _ _).mp h_deg_R j hj]
+    ring
+  have h_t_eq :
+      toCompPoly
+          ((Vector.map Exp.eval
+            (Vector.mk
+              (List.map (Exp.v ∘ (A * B - P * Q - R).coeff)
+                (List.range (2 * k - 1))).toArray
+              (by simp) : Vector (Exp p (ZMod p)) (2 * k - 1)))
+          : Vector (ZMod p) (2 * k - 1)) =
+        (A * B - P * Q - R : CPolynomial (ZMod p)) := by
+    apply CPolynomial.eq_iff_coeff.mpr
+    intro j
+    rw [coeff_toCompPoly]
+    by_cases h_j : j < 2 * k - 1
+    · rw [dif_pos h_j]
+      simp only [Vector.getElem_map]
+      show Exp.eval ((List.map (Exp.v ∘ (A * B - P * Q - R).coeff)
+          (List.range (2 * k - 1))).toArray[j]'(by simp; exact h_j)) =
+        (A * B - P * Q - R).coeff j
+      rw [List.getElem_toArray, List.getElem_map, List.getElem_range]
+      simp [Exp.eval]
+    · rw [dif_neg h_j]
+      push_neg at h_j
+      symm
+      exact (CPolynomial.degree_lt_iff_coeff_zero _ _).mp h_deg_t j h_j
+  have h_ab_eq :
+      toCompPoly
+          ((Vector.map Exp.eval
+            (Vector.mk
+              (List.map (Exp.v ∘ fun j : Fin (2 * k - 1) =>
+                  ((A * B).val)[j.1]?.getD 0)
+                (List.finRange (2 * k - 1))).toArray
+              (by simp) : Vector (Exp p (ZMod p)) (2 * k - 1)))
+          : Vector (ZMod p) (2 * k - 1)) =
+        (A * B : CPolynomial (ZMod p)) := by
+    apply CPolynomial.eq_iff_coeff.mpr
+    intro j
+    rw [coeff_toCompPoly]
+    by_cases h_j : j < 2 * k - 1
+    · rw [dif_pos h_j]
+      simp only [Vector.getElem_map]
+      show Exp.eval ((List.map _ (List.finRange (2 * k - 1))).toArray[j]'
+          (by simp; exact h_j)) = (A * B).coeff j
+      rw [List.getElem_toArray, List.getElem_map, List.getElem_finRange]
+      show ((A * B).val)[j]?.getD 0 = (A * B).coeff j
+      rw [CPolynomial.coeff, CPolynomial.Raw.coeff, Array.getD_eq_getD_getElem?]
+    · rw [dif_neg h_j]
+      push_neg at h_j
+      symm
+      exact (CPolynomial.degree_lt_iff_coeff_zero _ (2 * k - 1)).mp h_deg_AB j h_j
+  rw [h_t_eq, h_ab_eq]
+  rw [cpoly_eval_sub, cpoly_eval_sub, cpoly_eval_mul, cpoly_eval_mul]
+  rw [← hP, ← hQ, ← hR]
+  ring
+
+set_option maxHeartbeats 1000000000 in
+/--
   The check_carry + check_lt tail of the p_val = 0 completeness sub-case.
   Case-splits on whether the check_carry_zero integer sum is zero:
   * Sum = 0: uses `check_carry_zero_wrap_succ` then `check_lt_wrap_fail_p_zero`.
@@ -4611,92 +4726,7 @@ lemma fpmul_completeness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : V
       List.map_map, List.pure_def, List.bind_eq_flatMap]
     rw [foldr_eq0_wrap, eq0_foldr_wrap_succ (by
       intro i _
-      set A : CPolynomial (ZMod p) := toCompPoly (a.map Exp.eval) with hA
-      set B : CPolynomial (ZMod p) := toCompPoly (b.map Exp.eval) with hB
-      set P : CPolynomial (ZMod p) := toCompPoly (p'.map Exp.eval) with hP
-      set q_num : ℕ := (∑ x : Fin k, a[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)) *
-                       (∑ x : Fin k, b[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)) /
-                       ∑ x : Fin k, p'[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)
-      set r_num : ℕ := (∑ x : Fin k, a[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)) *
-                       (∑ x : Fin k, b[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)) %
-                       ∑ x : Fin k, p'[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)
-      set Q : CPolynomial (ZMod p) := toCompPoly (Circuit.nat2words p w k q_num) with hQ
-      set R : CPolynomial (ZMod p) := toCompPoly (Circuit.nat2words p w k r_num) with hR
-      simp only [Exp.eval_sub, Exp.eval_add, Exp.eval_mul, sub_eq_zero]
-      rw [eval_poly_eval_eq, eval_poly_eval_eq, eval_poly_eval_eq,
-          eval_poly_eval_eq, eval_poly_eval_eq]
-      -- Simplify (v.map Exp.v).map Exp.eval = v for q_vec and r_vec
-      rw [map_v_map_eval_eq_self, map_v_map_eval_eq_self]
-      -- The degree bounds we need
-      have h_deg_R : R.degree < ((2 * k - 1 : ℕ) : WithBot ℕ) := by
-        refine lt_of_lt_of_le (toCompPoly_degree_lt _) ?_
-        norm_cast; omega
-      have h_deg_AB : (A * B).degree < ((2 * k - 1 : ℕ) : WithBot ℕ) :=
-        toCompPoly_mul_degree_lt (a.map Exp.eval) (b.map Exp.eval)
-      have h_deg_PQ : (P * Q).degree < ((2 * k - 1 : ℕ) : WithBot ℕ) :=
-        toCompPoly_mul_degree_lt (p'.map Exp.eval) (Circuit.nat2words p w k q_num)
-      have h_deg_t : (A * B - P * Q - R).degree < ((2 * k - 1 : ℕ) : WithBot ℕ) := by
-        rw [CPolynomial.degree_lt_iff_coeff_zero]
-        intro j hj
-        rw [CPolynomial.coeff_sub, CPolynomial.coeff_sub]
-        rw [(CPolynomial.degree_lt_iff_coeff_zero _ _).mp h_deg_AB j hj]
-        rw [(CPolynomial.degree_lt_iff_coeff_zero _ _).mp h_deg_PQ j hj]
-        rw [(CPolynomial.degree_lt_iff_coeff_zero _ _).mp h_deg_R j hj]
-        ring
-      -- Prove polynomial equalities for t_vec and ab_vec
-      have h_t_eq :
-          toCompPoly
-              ((Vector.map Exp.eval
-                (Vector.mk
-                  (List.map (Exp.v ∘ (A * B - P * Q - R).coeff)
-                    (List.range (2 * k - 1))).toArray
-                  (by simp) : Vector (Exp p (ZMod p)) (2 * k - 1)))
-              : Vector (ZMod p) (2 * k - 1)) =
-            (A * B - P * Q - R : CPolynomial (ZMod p)) := by
-        apply CPolynomial.eq_iff_coeff.mpr
-        intro j
-        rw [coeff_toCompPoly]
-        by_cases h_j : j < 2 * k - 1
-        · rw [dif_pos h_j]
-          simp only [Vector.getElem_map]
-          show Exp.eval ((List.map (Exp.v ∘ (A * B - P * Q - R).coeff)
-              (List.range (2 * k - 1))).toArray[j]'(by simp; exact h_j)) =
-            (A * B - P * Q - R).coeff j
-          rw [List.getElem_toArray, List.getElem_map, List.getElem_range]
-          simp [Exp.eval]
-        · rw [dif_neg h_j]
-          push_neg at h_j
-          symm
-          exact (CPolynomial.degree_lt_iff_coeff_zero _ _).mp h_deg_t j h_j
-      have h_ab_eq :
-          toCompPoly
-              ((Vector.map Exp.eval
-                (Vector.mk
-                  (List.map (Exp.v ∘ fun j : Fin (2 * k - 1) =>
-                      ((A * B).val)[j.1]?.getD 0)
-                    (List.finRange (2 * k - 1))).toArray
-                  (by simp) : Vector (Exp p (ZMod p)) (2 * k - 1)))
-              : Vector (ZMod p) (2 * k - 1)) =
-            (A * B : CPolynomial (ZMod p)) := by
-        apply CPolynomial.eq_iff_coeff.mpr
-        intro j
-        rw [coeff_toCompPoly]
-        by_cases h_j : j < 2 * k - 1
-        · rw [dif_pos h_j]
-          simp only [Vector.getElem_map]
-          show Exp.eval ((List.map _ (List.finRange (2 * k - 1))).toArray[j]'
-              (by simp; exact h_j)) = (A * B).coeff j
-          rw [List.getElem_toArray, List.getElem_map, List.getElem_finRange]
-          show ((A * B).val)[j]?.getD 0 = (A * B).coeff j
-          rw [CPolynomial.coeff, CPolynomial.Raw.coeff, Array.getD_eq_getD_getElem?]
-        · rw [dif_neg h_j]
-          push_neg at h_j
-          symm
-          exact (CPolynomial.degree_lt_iff_coeff_zero _ (2 * k - 1)).mp h_deg_AB j h_j
-      rw [h_t_eq, h_ab_eq]
-      rw [cpoly_eval_sub, cpoly_eval_sub, cpoly_eval_mul, cpoly_eval_mul]
-      rw [← hP, ← hQ, ← hR]
-      ring)]
+      exact fpmul_poly_identity_at a b p' i)]
     rw [check_carry_zero_wrap_succ h.1 (by simp [Exp.eval])
       (by
         have h_help := carry_zero_sum_eq_zero h.1 a b p' cond.1 cond.2.1 cond.2.2.1
@@ -4728,13 +4758,8 @@ lemma fpmul_completeness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : V
         rw [CPolynomial.coeff, CPolynomial.Raw.coeff, Array.getD_eq_getD_getElem?]
         rfl)
       (fun i h => by
-        -- Vacuous for 2*k - 1 ≤ 1 (Fin empty). Otherwise needs bound analysis
-        -- mirroring `carry_zero_sum_eq_zero`'s integer-lift + `|ec i| < c_bd`
-        -- argument to conclude the carry range check for the honest wg.
         by_cases hk : 2 * k - 1 - 1 = 0
-        · exfalso
-          have := i.2
-          omega
+        · exfalso; have := i.2; omega
         · sorry)]
     rw [check_lt_wrap_succ
         (by refine le_trans ?_ h.1; apply Nat.pow_le_pow_right (by decide); grind)
@@ -4830,89 +4855,7 @@ lemma fpmul_completeness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : V
       -- Peel the polynomial identity foldr (same proof as positive case).
       rw [foldr_eq0_wrap, eq0_foldr_wrap_succ (by
         intro i _
-        set A : CPolynomial (ZMod p) := toCompPoly (a.map Exp.eval) with hA
-        set B : CPolynomial (ZMod p) := toCompPoly (b.map Exp.eval) with hB
-        set P : CPolynomial (ZMod p) := toCompPoly (p'.map Exp.eval) with hP
-        set q_num : ℕ := (∑ x : Fin k, a[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)) *
-                         (∑ x : Fin k, b[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)) /
-                         ∑ x : Fin k, p'[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)
-        set r_num : ℕ := (∑ x : Fin k, a[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)) *
-                         (∑ x : Fin k, b[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)) %
-                         ∑ x : Fin k, p'[(x : ℕ)].eval.val * (2 ^ w) ^ (x : ℕ)
-        set Q : CPolynomial (ZMod p) := toCompPoly (Circuit.nat2words p w k q_num) with hQ
-        set R : CPolynomial (ZMod p) := toCompPoly (Circuit.nat2words p w k r_num) with hR
-        simp only [Exp.eval_sub, Exp.eval_add, Exp.eval_mul, sub_eq_zero]
-        rw [eval_poly_eval_eq, eval_poly_eval_eq, eval_poly_eval_eq,
-            eval_poly_eval_eq, eval_poly_eval_eq]
-        rw [map_v_map_eval_eq_self, map_v_map_eval_eq_self]
-        have h_deg_R : R.degree < ((2 * k - 1 : ℕ) : WithBot ℕ) := by
-          refine lt_of_lt_of_le (toCompPoly_degree_lt _) ?_
-          norm_cast; omega
-        have h_deg_AB : (A * B).degree < ((2 * k - 1 : ℕ) : WithBot ℕ) :=
-          toCompPoly_mul_degree_lt (a.map Exp.eval) (b.map Exp.eval)
-        have h_deg_PQ : (P * Q).degree < ((2 * k - 1 : ℕ) : WithBot ℕ) :=
-          toCompPoly_mul_degree_lt (p'.map Exp.eval) (Circuit.nat2words p w k q_num)
-        have h_deg_t : (A * B - P * Q - R).degree < ((2 * k - 1 : ℕ) : WithBot ℕ) := by
-          rw [CPolynomial.degree_lt_iff_coeff_zero]
-          intro j hj
-          rw [CPolynomial.coeff_sub, CPolynomial.coeff_sub]
-          rw [(CPolynomial.degree_lt_iff_coeff_zero _ _).mp h_deg_AB j hj]
-          rw [(CPolynomial.degree_lt_iff_coeff_zero _ _).mp h_deg_PQ j hj]
-          rw [(CPolynomial.degree_lt_iff_coeff_zero _ _).mp h_deg_R j hj]
-          ring
-        have h_t_eq :
-            toCompPoly
-                ((Vector.map Exp.eval
-                  (Vector.mk
-                    (List.map (Exp.v ∘ (A * B - P * Q - R).coeff)
-                      (List.range (2 * k - 1))).toArray
-                    (by simp) : Vector (Exp p (ZMod p)) (2 * k - 1)))
-                : Vector (ZMod p) (2 * k - 1)) =
-              (A * B - P * Q - R : CPolynomial (ZMod p)) := by
-          apply CPolynomial.eq_iff_coeff.mpr
-          intro j
-          rw [coeff_toCompPoly]
-          by_cases h_j : j < 2 * k - 1
-          · rw [dif_pos h_j]
-            simp only [Vector.getElem_map]
-            show Exp.eval ((List.map (Exp.v ∘ (A * B - P * Q - R).coeff)
-                (List.range (2 * k - 1))).toArray[j]'(by simp; exact h_j)) =
-              (A * B - P * Q - R).coeff j
-            rw [List.getElem_toArray, List.getElem_map, List.getElem_range]
-            simp [Exp.eval]
-          · rw [dif_neg h_j]
-            push_neg at h_j
-            symm
-            exact (CPolynomial.degree_lt_iff_coeff_zero _ _).mp h_deg_t j h_j
-        have h_ab_eq :
-            toCompPoly
-                ((Vector.map Exp.eval
-                  (Vector.mk
-                    (List.map (Exp.v ∘ fun j : Fin (2 * k - 1) =>
-                        ((A * B).val)[j.1]?.getD 0)
-                      (List.finRange (2 * k - 1))).toArray
-                    (by simp) : Vector (Exp p (ZMod p)) (2 * k - 1)))
-                : Vector (ZMod p) (2 * k - 1)) =
-              (A * B : CPolynomial (ZMod p)) := by
-          apply CPolynomial.eq_iff_coeff.mpr
-          intro j
-          rw [coeff_toCompPoly]
-          by_cases h_j : j < 2 * k - 1
-          · rw [dif_pos h_j]
-            simp only [Vector.getElem_map]
-            show Exp.eval ((List.map _ (List.finRange (2 * k - 1))).toArray[j]'
-                (by simp; exact h_j)) = (A * B).coeff j
-            rw [List.getElem_toArray, List.getElem_map, List.getElem_finRange]
-            show ((A * B).val)[j]?.getD 0 = (A * B).coeff j
-            rw [CPolynomial.coeff, CPolynomial.Raw.coeff, Array.getD_eq_getD_getElem?]
-          · rw [dif_neg h_j]
-            push_neg at h_j
-            symm
-            exact (CPolynomial.degree_lt_iff_coeff_zero _ (2 * k - 1)).mp h_deg_AB j h_j
-        rw [h_t_eq, h_ab_eq]
-        rw [cpoly_eval_sub, cpoly_eval_sub, cpoly_eval_mul, cpoly_eval_mul]
-        rw [← hP, ← hQ, ← hR]
-        ring)]
+        exact fpmul_poly_identity_at a b p' i)]
       exact p_zero_finish h.1 hp_gt cond
 
 
