@@ -4804,7 +4804,15 @@ lemma fpmul_completeness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : V
       (fun i h => by
         by_cases hk : 2 * k - 1 - 1 = 0
         · exfalso; have := i.2; omega
-        · sorry)]
+        · -- Carry-propagation bound for the honest witnesses. Given the coefficients
+          -- t_i of A*B - P*Q - R (evaluated in ZMod p), we need to show that each
+          -- honest carry, after the offset 2^(w+1)*(2k-1), fits within
+          -- 2^(w + clog(2k-1) + 2). Sketch:
+          --   * each |t_i (as signed int)| ≤ (2^w - 1)^2 * (2k-1) + (2^w - 1)^2 * (2k-1)
+          --     + (2^w - 1) < 3 * 2^(2w) * (2k-1) < 2^(2w + clog(2k-1) + 2),
+          --   * carry recurrence c_{i+1} = (t_i + c_i)/2^w keeps |c_i| < 2^(w+1)*(2k-1),
+          --   * (c_i + 2^(w+1)*(2k-1)) ∈ [0, 2^(w+2)*(2k-1)) ⊆ [0, 2^(w+clog(2k-1)+2)).
+          sorry)]
     rw [check_lt_wrap_succ
         (by refine le_trans ?_ h.1; apply Nat.pow_le_pow_right (by decide); grind)
         (fun i ↦ by
