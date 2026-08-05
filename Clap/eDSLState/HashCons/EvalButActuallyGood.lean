@@ -105,8 +105,7 @@ lemma evalCore_evalRec
       have := σ.wellFormed _ (show cache.size < σ.exprs.size by grind)
       aesop
     simp
-    aesop
-    done
+    sorry
     
 lemma evalWithCache_wrt_evalRec
   (he : e < σ.exprs.size)
@@ -114,8 +113,7 @@ lemma evalWithCache_wrt_evalRec
   letI newCache := evalWithCache varStore e cache σ
   e < newCache.size ∧
   newCache[e]? = evalRec varStore σ e := by
-
-  done
+  sorry
 
 end Lemmas
 
