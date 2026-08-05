@@ -27,7 +27,7 @@ def evalWithCache {p}
     | .some expr =>
       let val := evalCore varStore expr cache
       evalWithCache varStore e (cache.push val) σ
-  termination_by (e + 1) - cache.size
+  termination_by e + 1 - cache.size
   decreasing_by grind
 
 def state : HashConsSt 37 where
@@ -77,7 +77,8 @@ lemma evalCache_of_lt_prefix
   evalWithCache varStore e cache σ =
   evalWithCache varStore e cache σ'
 := by
-  induction h: e + 1 - cache.size generalizing cache with
+  unfold ExprRef at *
+  induction h : e + 1 - cache.size generalizing cache with
   | zero =>
     unfold evalWithCache
     grind

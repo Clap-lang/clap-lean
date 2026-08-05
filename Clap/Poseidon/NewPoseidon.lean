@@ -1,7 +1,10 @@
-import Clap.eDSLState.Exp
+import Clap.eDSLState.HashCons.HashConsM
 import Clap.Poseidon.Constant
+import Clap.eDSLState.HashCons.EvalButActuallyGood
 
 namespace Clap
+
+open HashConsM
 
 variable {p : ℕ}
 
@@ -135,7 +138,7 @@ def mkSigmaExpr (p : ℕ) (n : ℕ) : HashConsM p ExprRef := do
 
 def evalSigma (p : ℕ) : HashConsM p (Option (ZMod p)) := do
   let x ← mkSigmaExpr p 1028
-  let val ← eval {} x
+  let val := [{}, ←get|x]
   return val
 
 section examples
@@ -144,7 +147,7 @@ private def test₁ : HashConsM Primes.bn254 (Option (ZMod Primes.bn254)) := do
   let x ← mkConstant 1
   let y ← mkConstant 2
   let z ← poseidonBN254 #v[x, y]
-  eval {} z
+  return [{}, ←get|z]
 
 /--
 circomlib test vector: hash([1, 2]) with t=3
@@ -159,7 +162,7 @@ private def test₂ : HashConsM Primes.bn254 (Option (ZMod Primes.bn254)) := do
   let x ← mkConstant 3
   let y ← mkConstant 4
   let z ← poseidonBN254 #v[x, y]
-  eval {} z
+  return [{}, ←get|z]
 
 /--
 circomlib test vector: hash([3, 4]) with t=3

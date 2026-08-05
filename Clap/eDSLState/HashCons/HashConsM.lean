@@ -67,7 +67,6 @@ lemma getElem?_eq {σ : HashConsSt p} : σ[ref]? = σ.exprs[ref]? := by
 
 end Membership
 
-
 section MkExpr
 
 def mkConstant (x : ZMod p) : HashConsM p ExprRef := do

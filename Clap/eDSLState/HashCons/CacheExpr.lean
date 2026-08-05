@@ -5,6 +5,12 @@ namespace Clap
 
 abbrev ExprRef := ℕ
 
+instance {coll elem valid} [GetElem coll ℕ elem valid] :
+  GetElem coll ExprRef elem valid := inferInstanceAs (GetElem coll ℕ elem valid)
+
+instance {coll elem valid} [GetElem? coll ℕ elem valid] :
+  GetElem? coll ExprRef elem valid := inferInstanceAs (GetElem? coll ℕ elem valid)
+
 inductive BinaryOp
   | add
   | sub
