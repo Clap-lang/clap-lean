@@ -10,12 +10,6 @@ def eq0 (e : ExprRef) : ClapM p Unit := do
   tell #[.eq0 e]
 
 @[irreducible]
-def lam : ClapM p ExprRef := do
-  tell #[.lam]
-  let varIdx ← ClapM.alloc
-  HashConsM.mkVar (p := p) varIdx
-
-@[irreducible]
 def share (e : ExprRef) : ClapM p (ExprRef) := do
   tell #[.share e]
   let varIdx ← ClapM.alloc

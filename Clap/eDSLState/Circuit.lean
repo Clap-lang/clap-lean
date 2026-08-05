@@ -53,7 +53,7 @@ end Gate.varsAllocated_lemmas
 instance {p : ℕ} {c : Gate p} {varStore : VarStore p} {σ : HashConsSt p} :
   Decidable (c.varsAllocated varStore σ) := by
   unfold Gate.varsAllocated
-  rcases c <;> infer_instance 
+  rcases c <;> infer_instance
 
 instance {p: ℕ} {x : Gate p} {bound : ℕ}: Decidable (x.refsValid bound) := match x with
   | .eq0 e => e.decLt bound
@@ -70,35 +70,6 @@ def Circuit.refsValid {p : ℕ} (c : Circuit p) (bound : ℕ) : Prop :=
 @[grind =]
 def Circuit.varsAllocated {p : ℕ} (c : Circuit p) (varStore : VarStore p) (σ : HashConsSt p) (pc : ℕ) : Prop :=
   pc < c.size → ∀ i ≤ pc, c[i]?.any fun instr ↦ instr.varsAllocated varStore σ
-
-structure State where
-  numAlloc : ℕ
-  pc : ℕ
-deriving Inhabited
-
-namespace State
-
-def addAlloc (st : State) (k : ℕ) : State :=
-  {st with numAlloc := st.numAlloc + k}
-
-def bumpAlloc (st : State) : State :=
-  st.addAlloc 1
-
-def addPc (st : State) (k : ℕ) : State :=
-  {st with pc := st.pc + k}
-
-def bumpPc (st : State) : State :=
-  st.addPc 1
-
-section Lemmas
-
-variable {st : State}
-
-lemma bumpPc_eq : st.bumpPc = {st with pc := st.pc + 1} := rfl
-
-end Lemmas
-
-end State
 
 -- isZero : input → Bool
 -- need to allocate the output of this thing
@@ -123,7 +94,7 @@ namespace CircuitResult
 section
 
 -- TODO do we need all of these?
-variable {p k numAlloc : ℕ} {result result' : CircuitResult p} {st : State}
+variable {p k numAlloc : ℕ} {result result' : CircuitResult p}
          {constraint constraints : Prop} {vars : Vector (ZMod p) k} {e : HashConsM p ExprRef} {e! : ExprRef}
          {varStore : VarStore p}
          {σ : HashConsSt p} {vars : Vector (ZMod p) k}
@@ -487,7 +458,7 @@ notation "[" varStore ", " σ ", " st "|" circuit "]ₑ" => Circuit.eval circuit
 
 namespace CircuitResult
 
-variable {p pc numAlloc : ℕ} {σ : HashConsSt p} {constraints constraints1 constraints2 : Prop} {st : State}
+variable {p pc numAlloc : ℕ} {σ : HashConsSt p} {constraints constraints1 constraints2 : Prop}
          {varStore : VarStore p} {circuit : Circuit p} {e! : ExprRef} {gate : Gate p}
          {result : CircuitResult p}
 
@@ -572,7 +543,7 @@ lemma foldl_step_varStore_independent_of_constraints
   --   simp at *
   --   rcases hd with _ | _ | _ | _
   --   · grind
-  --   · 
+  --   ·
   --     rw [Array.foldr_toList, Array.foldr_toList]
   --     simp [bumpPc.eq_def, ih]
   --     rw [foldr_step_numAlloc_independent_of_constraints']
