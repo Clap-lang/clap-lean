@@ -4439,6 +4439,50 @@ private lemma toCompPoly_of_range_coeff {n : ℕ} (poly : CPolynomial (ZMod p))
 
 set_option maxHeartbeats 1000000000 in
 /--
+  The strict inequality `∑ r_vec[i].val * (2^w)^i < p_val` for the honest r
+  computed by fpMul's wg (r_val = a*b % p_val, then nat2words). Extracted
+  helper to reduce compile time of `fpmul_completeness`.
+-/
+private lemma fpmul_r_lt_p {k w : ℕ}
+    (a b p' : Vector (Exp p (ZMod p)) k)
+    (hp_gt : 2 ^ w < p)
+    (h_2w_pos : 0 < 2 ^ w)
+    (h_p_rc : ∀ i : Fin k, p'[i].eval.val < 2 ^ w)
+    (hp_val_pos : 0 < ∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1) :
+    ∑ i : Fin k,
+        (Exp.eval ((Vector.map Exp.c
+            (Circuit.nat2words p w k
+              (((∑ x : Fin k, a[x.val].eval.val * (2 ^ w) ^ x.val) *
+                ∑ x : Fin k, b[x.val].eval.val * (2 ^ w) ^ x.val) %
+                ∑ x : Fin k, p'[x.val].eval.val * (2 ^ w) ^ x.val)))[i])).val *
+          (2 ^ w) ^ i.1 <
+      ∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1 := by
+  set a_val : ℕ := ∑ i : Fin k, a[i].eval.val * (2 ^ w) ^ i.1 with ha_val
+  set b_val : ℕ := ∑ i : Fin k, b[i].eval.val * (2 ^ w) ^ i.1 with hb_val
+  set p_val : ℕ := ∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1 with hp_val
+  have h_lhs_eq :
+      (∑ i : Fin k,
+        (Exp.eval ((Vector.map Exp.c
+          (Circuit.nat2words p w k ((a_val * b_val) % p_val)))[i])).val
+          * (2 ^ w) ^ i.1)
+      = ((a_val * b_val) % p_val) % 2 ^ (w * k) := by
+    rw [← Circuit.nat2words_spec₁ (n := (a_val * b_val) % p_val) hp_gt]
+    apply Finset.sum_congr rfl
+    intro i _
+    congr 1
+    show (Exp.c _).eval.val = _
+    simp [Exp.eval]
+  have hp_val_ub : p_val < 2 ^ (w * k) := by
+    rw [hp_val, pow_mul]
+    exact sum_bound_of_lt h_2w_pos (fun i => p'[i].eval.val) h_p_rc
+  have h_mod_lt : (a_val * b_val) % p_val < p_val := Nat.mod_lt _ hp_val_pos
+  have h_bound : ((a_val * b_val) % p_val) % 2 ^ (w * k) < p_val := by
+    rw [Nat.mod_eq_of_lt (lt_of_lt_of_le h_mod_lt hp_val_ub.le)]
+    exact h_mod_lt
+  exact h_lhs_eq ▸ h_bound
+
+set_option maxHeartbeats 1000000000 in
+/--
   The polynomial identity `A*B - P*Q - R = 0` (evaluated at index `i`) that
   the wg's honest witnesses satisfy. Shared between the positive branch of
   `fpmul_completeness` and `p_zero_finish` — extracted to reduce compile time.
@@ -4770,34 +4814,7 @@ lemma fpmul_completeness {w k : ℕ} {a b p' : Vector (Exp p (ZMod p)) k} {c : V
         )
         (by simp [Exp.eval])
         cond.2.2.1
-        (by
-          set a_val : ℕ := ∑ i : Fin k, a[i].eval.val * (2 ^ w) ^ i.1 with ha_val
-          set b_val : ℕ := ∑ i : Fin k, b[i].eval.val * (2 ^ w) ^ i.1 with hb_val
-          set p_val : ℕ := ∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1 with hp_val
-          have h_2w_pos : 0 < 2 ^ w := Nat.pos_of_neZero _
-          have h_lhs_eq :
-              (∑ i : Fin k,
-                (Exp.eval ((Vector.map Exp.c
-                  (Circuit.nat2words p w k ((a_val * b_val) % p_val)))[i])).val
-                  * (2 ^ w) ^ i.1)
-              = ((a_val * b_val) % p_val) % 2 ^ (w * k) := by
-            rw [← Circuit.nat2words_spec₁ (n := (a_val * b_val) % p_val) hp_gt]
-            apply Finset.sum_congr rfl
-            intro i _
-            congr 1
-            show (Exp.c _).eval.val = _
-            simp [Exp.eval]
-          have hp_val_ub : p_val < 2 ^ (w * k) := by
-            rw [hp_val, pow_mul]
-            exact sum_bound_of_lt h_2w_pos (fun i => p'[i].eval.val) cond.2.2.1
-          have hp_val_pos : 0 < p_val := by
-            rw [hp_val] at cond ⊢
-            exact cond.2.2.2
-          have h_mod_lt : (a_val * b_val) % p_val < p_val := Nat.mod_lt _ hp_val_pos
-          have h_bound : ((a_val * b_val) % p_val) % 2 ^ (w * k) < p_val := by
-            rw [Nat.mod_eq_of_lt (lt_of_lt_of_le h_mod_lt hp_val_ub.le)]
-            exact h_mod_lt
-          exact h_lhs_eq ▸ h_bound)
+        (fpmul_r_lt_p a b p' hp_gt (Nat.pos_of_neZero _) cond.2.2.1 cond.2.2.2)
       ]
     rw [ih _ (h.2 _)]
   · simp only [fpMul_circuit, fpMul_wg]
