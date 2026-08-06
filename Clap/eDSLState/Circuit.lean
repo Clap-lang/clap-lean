@@ -89,6 +89,12 @@ structure CircuitResult (p : ℕ) where
 
 namespace CircuitResult
 
+/--
+Hic sunt dracones.
+-/
+lemma stupidext {p : ℕ} (result : CircuitResult p) :
+  result = ⟨result.numAlloc, result.varStore, result.constraints⟩ := rfl
+
 section
 
 -- TODO do we need all of these?
@@ -583,21 +589,6 @@ lemma eval_varStore_insertMany_isSome_of_isSome
   . have : arr = arr.take (arr.length - 1) ++ [arr.getLast (by grind)] := by simp
     grind
 
-@[grind .]
-lemma abc {p} {varStore : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ}
-              {a b : Circuit p} :
-  [varStore, σ, numAlloc|b]ₑ.varStore ⊆
-  [varStore, σ, numAlloc|a ++ b]ₑ.varStore := by
-  intros i h
-  rcases a with ⟨a⟩
-  induction' a with hd tl ih
-  · simp
-  · rw [show ⟨hd :: tl⟩ ++ b = #[hd] ++ (⟨tl⟩ ++ b) by grind]
-    rcases hd with e | e | e | ⟨w, e⟩
-    · unfold eval
-    done
-  done
-
 lemma varsAllocated_eval_append_left
   {p i : ℕ}
   {circuit a : Circuit p}
@@ -703,7 +694,7 @@ lemma ext {p : ℕ} {r1 r2 : CircuitResult p}
 := by
   grind [cases CircuitResult]
 
-lemma foldl_step_numAlloc_independent_of_constraints
+lemma evalInOrder_step_numAlloc_independent_of_constraints
 :
   (Circuit.evalInOrder circuit σ ⟨numAlloc, varStore, constraints1⟩).numAlloc =
   (Circuit.evalInOrder circuit σ ⟨numAlloc, varStore, constraints2⟩).numAlloc
@@ -714,6 +705,14 @@ lemma foldl_step_numAlloc_independent_of_constraints
   rewrite [←List.reverse_reverse circuit]
   induction' circuit.reverse <;> aesop (add safe (by grind))
 
+lemma foldl_step_numAlloc_independent_of_constraints {circuit : List (Gate p)}
+:
+  (circuit.foldl (fun result next => [result, σ|next]ₛ) ⟨numAlloc, varStore, constraints1⟩).numAlloc =
+  (circuit.foldl (fun result next => [result, σ|next]ₛ) ⟨numAlloc, varStore, constraints2⟩).numAlloc
+:= by
+  have := @evalInOrder_step_numAlloc_independent_of_constraints (circuit := ⟨circuit⟩) (σ := σ)
+  aesop
+
 lemma foldr_step_numAlloc_independent_of_constraints
 :
   (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩ circuit).numAlloc =
@@ -723,7 +722,7 @@ lemma foldr_step_numAlloc_independent_of_constraints
   rewrite [←List.reverse_reverse circuit]
   rw [show Array.mk circuit.reverse.reverse = Array.reverse ⟨circuit.reverse⟩ by simp]
   simp only [Array.foldr_reverse]
-  exact foldl_step_numAlloc_independent_of_constraints
+  exact evalInOrder_step_numAlloc_independent_of_constraints
 
 lemma foldr_step_numAlloc_independent_of_constraints'
 :
@@ -733,7 +732,7 @@ lemma foldr_step_numAlloc_independent_of_constraints'
   simp only [Array.foldr_toList]
   exact foldr_step_numAlloc_independent_of_constraints
 
-lemma foldl_step_varStore_independent_of_constraints
+lemma evalInOrder_step_varStore_independent_of_constraints
 :
   (Circuit.evalInOrder circuit σ ⟨numAlloc, varStore, constraints1⟩).varStore =
   (Circuit.evalInOrder circuit σ ⟨numAlloc, varStore, constraints2⟩).varStore
@@ -748,6 +747,14 @@ lemma foldl_step_varStore_independent_of_constraints
     rfl
   . simp [tail_ih, foldr_step_numAlloc_independent_of_constraints' (constraints2 := constraints2), GetElem?.getElem?, CircuitResult.get?]
 
+lemma foldl_step_varStore_independent_of_constraints {circuit : List (Gate p)}
+:
+  (circuit.foldl (fun result next => [result, σ|next]ₛ) ⟨numAlloc, varStore, constraints1⟩).varStore =
+  (circuit.foldl (fun result next => [result, σ|next]ₛ) ⟨numAlloc, varStore, constraints2⟩).varStore
+:= by
+  have := @evalInOrder_step_varStore_independent_of_constraints (circuit := ⟨circuit⟩) (σ := σ)
+  aesop
+
 lemma foldr_step_varStore_independent_of_constraints
 :
   (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩ circuit).varStore =
@@ -757,7 +764,7 @@ lemma foldr_step_varStore_independent_of_constraints
   rewrite [←List.reverse_reverse circuit]
   rw [show Array.mk circuit.reverse.reverse = Array.reverse ⟨circuit.reverse⟩ by simp]
   simp only [Array.foldr_reverse]
-  exact foldl_step_varStore_independent_of_constraints
+  exact evalInOrder_step_varStore_independent_of_constraints
 
 lemma foldr_step_varStore_independent_of_constraints'
 :
@@ -823,7 +830,7 @@ lemma isSome_foldr_split' {result : CircuitResult p} {circuit : Circuit p} {e : 
   simp [split]
   grind
 
-lemma foldl_step_constraints_and
+lemma evalInOrder_step_constraints_and
 :
   (Circuit.evalInOrder circuit σ result).constraints = (
     result.constraints ∧
@@ -859,6 +866,61 @@ lemma foldl_step_constraints_and
       unfold GetElem?.getElem?
       rw [Array.foldr_toList, Array.foldr_toList]
       grind
+
+lemma foldl_step_constraints_and {circuit : List (Gate p)} :
+  (circuit.foldl (fun result next => [result, σ|next]ₛ) result).constraints =
+  (result.constraints ∧ (circuit.foldl (fun result next => [result, σ|next]ₛ) result.split).constraints) := by
+  have := @evalInOrder_step_constraints_and (circuit := ⟨circuit⟩) (σ := σ) (result := result)
+  aesop
+
+@[grind .]
+lemma abc {p} {varStore : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ}
+              {a b : Circuit p} :
+  [varStore, σ, numAlloc|b]ₑ.varStore ⊆
+  [varStore, σ, numAlloc|a ++ b]ₑ.varStore := by
+  intros i h
+  rcases a with ⟨a⟩
+  rcases b with ⟨b⟩
+  induction' a with hd tl ih
+  · simp
+  · rw [show ⟨hd :: tl⟩ ++ ⟨b⟩ = #[hd] ++ (⟨tl⟩ ++ ⟨b⟩) by grind]
+    rcases hd with e | e | e | ⟨w, e⟩
+    · simp [ih]
+      unfold Circuit.eval
+      simp      
+      have :
+        (List.foldl (fun result next => [result, σ|next]ₛ)
+        { numAlloc := numAlloc, varStore := varStore, constraints := [varStore,σ|e] = some 0 } tl) =
+        ({
+          numAlloc := (List.foldl (fun result next => [result, σ|next]ₛ)
+          { numAlloc := numAlloc, varStore := varStore, constraints := True } tl).numAlloc,
+          varStore := (List.foldl (fun result next => [result, σ|next]ₛ)
+          { numAlloc := numAlloc, varStore := varStore, constraints := True } tl).varStore,
+          constraints := [varStore,σ|e] = some 0 ∧ (List.foldl (fun result next => [result, σ|next]ₛ)
+          { numAlloc := numAlloc, varStore := varStore, constraints := True } tl).constraints }) := by
+        rw [stupidext (result := List.foldl (fun result next => [result, σ|next]ₛ)
+          { numAlloc := numAlloc, varStore := varStore, constraints := [varStore,σ|e] = some 0 } tl)]
+        congr 1
+        apply foldl_step_numAlloc_independent_of_constraints
+        apply foldl_step_varStore_independent_of_constraints
+        apply foldl_step_constraints_and
+      rw [this]
+      rw [foldl_step_varStore_independent_of_constraints]
+    · simp [ih]
+      unfold Circuit.eval
+      simp [-List.foldl_append]
+      simp [ih] at h
+      clear ih
+      set l := tl ++ b
+      rw [←List.reverse_reverse l]
+      induction' l.reverse with hd tl ih
+      · simp
+
+      done
+    · done
+    
+  done
+
 
 end Edsl.CircuitResult
 
