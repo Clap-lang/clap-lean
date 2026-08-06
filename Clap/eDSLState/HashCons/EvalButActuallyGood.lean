@@ -83,6 +83,13 @@ lemma isSome_evalRec_insert_of_isSome_evalRec
       · rw [show Option.map = Functor.map from rfl, binaryOp_isSome_iff] at h ⊢
         grind
 
+@[grind .]
+lemma isSome_evalRec_of_isSome_evalRec_subset
+  {p} {Γbig Γsmol : VarStore p} {σ : HashConsSt p} {e : ExprRef}
+  (h : (evalRec Γsmol σ e).isSome) (h₁ : Γsmol ⊆ Γbig) : (evalRec Γbig σ e).isSome := by
+  rw [VarStore.hasSubset_def] at h₁
+  fun_induction evalRec Γbig σ e <;> grind [=evalRec]
+
 def state : HashConsSt 37 where
   exprs := #[
     .c 3,

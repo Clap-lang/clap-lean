@@ -23,10 +23,11 @@ abbrev VarStore (p : ℕ) := Std.ExtTreeMap ℕ (ZMod p) (cmp := compare)
 --     unfold_projs at h_getElem ⊢
 --     convert h_getElem
 
+@[grind =]
 instance {p : ℕ} : HasSubset (VarStore p) where
   Subset Γ1 Γ2 := ∀ k : ℕ, Γ1[k]?.isSome → Γ1[k]? = Γ2[k]?
 
--- def VarStore.ofArray {p : ℕ} (elem : Array (ℕ × ZMod p)) : VarStore p :=
---   Std.ExtTreeMap.ofArray elem (cmp := compare)
+lemma VarStore.hasSubset_def {p} {Γ₁ Γ₂ : VarStore p} :
+  (Γ₁ ⊆ Γ₂) = ∀ k : ℕ, Γ₁[k]?.isSome → Γ₁[k]? = Γ₂[k]? := rfl
 
 end Clap

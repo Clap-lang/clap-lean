@@ -583,6 +583,22 @@ lemma eval_varStore_insertMany_isSome_of_isSome
   . have : arr = arr.take (arr.length - 1) ++ [arr.getLast (by grind)] := by simp
     grind
 
+@[aesop simp, grind .]
+lemma ABC
+  {p k : ℕ}
+  {varStoreBig varStoreSmol : VarStore p}
+  {σ : HashConsSt p}
+  {e : ExprRef}
+  {inserts : Vector (ℕ × (ZMod p)) k}
+  (h : [varStoreSmol, σ|e].isSome = true)
+  (h₁ : e < σ.size)
+  (h₂ : varStoreSmol ⊆ varStoreBig)
+:
+  [varStoreBig, σ|e].isSome = true
+:= by
+  rcases inserts with ⟨⟨arr⟩, harr⟩
+  
+
 lemma varsAllocated_eval_append_left
   {p i : ℕ}
   {circuit a : Circuit p}
@@ -590,15 +606,21 @@ lemma varsAllocated_eval_append_left
   {σ : HashConsSt p}
   {numAlloc : ℕ}
   {h_get}
+  -- (h₀ : )
   (h : (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|circuit.extract 0 i]ₑ.varStore σ)
 :
   (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|a ++ circuit.extract 0 i]ₑ.varStore σ
 := by
   unfold Gate.varsAllocated at h ⊢
-  sorry
+  rcases a with ⟨a⟩
+  induction' a with hd tl ih
+  · grind
+  · unfold eval evalInOrder
+    split <;> rcases hd <;> expose_names <;> simp at *
+    · 
   done
 
-lemma Circuit.varsAllocated_eval_append_right
+lemma varsAllocated_eval_append_right
   {p i : ℕ}
   {circuit a : Circuit p}
   {varStore : VarStore p}
@@ -628,11 +650,16 @@ lemma Circuit.varsAllocated_eval_append_right
       simp_all [eval_varStore_insert_isSome_of_isSome, eval_varStore_insertMany_isSome_of_isSome]
     )
 
+/--
+TODO: In terms of `Circuit.wellFormed`
+-/
 lemma Circuit.varsAllocated_append {p : ℕ}
   (a b : Circuit p)
   {varStore : VarStore p}
   {σ : HashConsSt p}
   {numAlloc : ℕ}
+  (h₀ : a.refsValid σ.size)
+  (h₁ : b.refsValid σ.size)
   (h_a : a.varsAllocated varStore σ numAlloc)
   (h_b : b.varsAllocated varStore σ numAlloc)
 :
@@ -643,7 +670,7 @@ lemma Circuit.varsAllocated_append {p : ℕ}
     simp [Array.getElem_append]
     split_ifs with h_i'
     . specialize h_a i h_i'
-      exact varsAllocated_eval_append_right h_a
+      exact varsAllocated_eval_append_right h₀ h_a
     . specialize h_b (i - a.size) (by omega)
       simp (disch := omega) [Array.extract_eq_self_of_le]
       exact varsAllocated_eval_append_left h_b
