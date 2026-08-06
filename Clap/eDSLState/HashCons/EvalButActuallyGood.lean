@@ -194,6 +194,7 @@ lemma evalWithCache_wrt_evalRec
         grind
       . grind
 
+@[grind =]
 lemma eval_eq_evalRec
   (h: e < σ.size)
 :
@@ -261,8 +262,20 @@ lemma evalCache_of_lt_prefix
         apply ih
         grind
 
-
-
 end Prefix
+
+@[aesop simp, grind .]
+lemma isSome_eval_of_isSome_eval_subset
+  {p : ℕ}
+  {varStoreBig varStoreSmol : VarStore p}
+  {σ : HashConsSt p}
+  {e : ExprRef}
+  (h : [varStoreSmol, σ|e].isSome = true)
+  (h₁ : e < σ.size)
+  (h₂ : varStoreSmol ⊆ varStoreBig)
+:
+  [varStoreBig, σ|e].isSome = true
+:= by
+  grind
 
 end Clap.HashConsM

@@ -583,21 +583,20 @@ lemma eval_varStore_insertMany_isSome_of_isSome
   . have : arr = arr.take (arr.length - 1) ++ [arr.getLast (by grind)] := by simp
     grind
 
-@[aesop simp, grind .]
-lemma ABC
-  {p k : ℕ}
-  {varStoreBig varStoreSmol : VarStore p}
-  {σ : HashConsSt p}
-  {e : ExprRef}
-  {inserts : Vector (ℕ × (ZMod p)) k}
-  (h : [varStoreSmol, σ|e].isSome = true)
-  (h₁ : e < σ.size)
-  (h₂ : varStoreSmol ⊆ varStoreBig)
-:
-  [varStoreBig, σ|e].isSome = true
-:= by
-  rcases inserts with ⟨⟨arr⟩, harr⟩
-  
+@[grind .]
+lemma abc {p} {varStore : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ}
+              {a b : Circuit p} :
+  [varStore, σ, numAlloc|b]ₑ.varStore ⊆
+  [varStore, σ, numAlloc|a ++ b]ₑ.varStore := by
+  intros i h
+  rcases a with ⟨a⟩
+  induction' a with hd tl ih
+  · simp
+  · rw [show ⟨hd :: tl⟩ ++ b = #[hd] ++ (⟨tl⟩ ++ b) by grind]
+    rcases hd with e | e | e | ⟨w, e⟩
+    · unfold eval
+    done
+  done
 
 lemma varsAllocated_eval_append_left
   {p i : ℕ}
@@ -606,7 +605,7 @@ lemma varsAllocated_eval_append_left
   {σ : HashConsSt p}
   {numAlloc : ℕ}
   {h_get}
-  -- (h₀ : )
+  (h₀ : circuit.refsValid σ.size)
   (h : (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|circuit.extract 0 i]ₑ.varStore σ)
 :
   (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|a ++ circuit.extract 0 i]ₑ.varStore σ
@@ -615,9 +614,19 @@ lemma varsAllocated_eval_append_left
   rcases a with ⟨a⟩
   induction' a with hd tl ih
   · grind
-  · unfold eval evalInOrder
-    split <;> rcases hd <;> expose_names <;> simp at *
-    · 
+  · split <;> expose_names <;> simp at *
+    simp [heq] at ih
+    · rw [HashConsM.isSome_eval_of_isSome_eval_subset ih (by grind)]
+      suffices
+        [varStore, σ, numAlloc|⟨tl⟩ ++ Array.extract circuit 0 i]ₑ.varStore ⊆
+        [varStore, σ, numAlloc|#[hd] ++ (⟨tl⟩ ++ Array.extract circuit 0 i)]ₑ.varStore by
+        grind
+      grind
+    all_goals sorry
+    
+    -- all_goals {
+    --   rw [HashConsM.isSome_eval_of_isSome_eval_subset]
+    -- }
   done
 
 lemma varsAllocated_eval_append_right
