@@ -46,6 +46,43 @@ def evalRec {p} (Γ : VarStore p) (σ : HashConsSt p) (e : ExprRef) : Option (ZM
   termination_by e
   decreasing_by all_goals grind
 
+@[simp, grind .]
+lemma binaryOp_isSome_iff {p} {f : ZMod p → ZMod p → ZMod p} {a b : Option (ZMod p)} :
+  (f <$> a <*> b).isSome ↔ (a.isSome ∧ b.isSome) := by
+  unfold_projs at *
+  aesop (add simp Option.map)
+
+@[grind .]
+lemma isSome_evalRec_insert_of_isSome_evalRec
+  {p} {Γ : VarStore p} {σ : HashConsSt p} {e : ExprRef} {k} {v}
+  (h : (evalRec Γ σ e).isSome) : (evalRec (Γ.insert k v) σ e).isSome := by
+  fun_induction evalRec Γ σ e
+  · grind
+  · expose_names
+    unfold evalRec
+    grind
+  · unfold evalRec
+    split
+    · grind
+    · grind
+  · expose_names
+    unfold evalRec
+    simp
+    subst f
+    split
+    · grind
+    · expose_names
+      have : expr = CacheExpr.binary_op lhs rhs op := by grind
+      subst this
+      simp at h ⊢
+      split at h
+      · rw [show Option.map = Functor.map from rfl, binaryOp_isSome_iff] at h ⊢
+        grind
+      · rw [show Option.map = Functor.map from rfl, binaryOp_isSome_iff] at h ⊢
+        grind
+      · rw [show Option.map = Functor.map from rfl, binaryOp_isSome_iff] at h ⊢
+        grind
+
 def state : HashConsSt 37 where
   exprs := #[
     .c 3,

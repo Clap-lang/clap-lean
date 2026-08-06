@@ -534,6 +534,7 @@ lemma eval_push_num2bits_varStore
 := by
   simp [eval]
 
+open HashConsM in
 @[grind =]
 lemma eval_varStore_insert_isSome_of_isSome
   {p : ℕ}
@@ -542,13 +543,31 @@ lemma eval_varStore_insert_isSome_of_isSome
   {e : ExprRef}
   {key : ℕ}
   {value : ZMod p}
-  (h : [varStore, σ|e].isSome = true)
+  (h : [varStore, σ|e].isSome)
 :
-  [varStore.insert key value, σ|e].isSome = true
+  [varStore.insert key value, σ|e].isSome
 := by
-  sorry
-  -- TODO
-  -- i hated trying to prove this
+  have : e < σ.size := by sorry
+  rw [eval_eq_evalRec this] at h ⊢
+  unfold evalRec at *
+  obtain ⟨exp, wexp⟩ : ∃ a, σ.exprs[e]? = some a :=
+    Option.isSome_iff_exists.1 (show σ.exprs[e]?.isSome by grind)
+  split at h
+  · aesop
+  · expose_names
+    split at h
+    grind
+    grind
+    simp at *
+    split
+    simp at h
+    expose_names
+    rw [show Option.map = Functor.map from rfl, binaryOp_isSome_iff] at h ⊢
+    grind
+    rw [show Option.map = Functor.map from rfl, binaryOp_isSome_iff] at h ⊢
+    grind
+    rw [show Option.map = Functor.map from rfl, binaryOp_isSome_iff] at h ⊢
+    grind
 
 lemma eval_varStore_insertMany_isSome_of_isSome
   {p k : ℕ}
