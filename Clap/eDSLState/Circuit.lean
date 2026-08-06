@@ -535,7 +535,7 @@ lemma eval_push_num2bits_varStore
   simp [eval]
 
 open HashConsM in
-@[grind =]
+@[grind .]
 lemma eval_varStore_insert_isSome_of_isSome
   {p : ℕ}
   {varStore : VarStore p}
@@ -544,11 +544,11 @@ lemma eval_varStore_insert_isSome_of_isSome
   {key : ℕ}
   {value : ZMod p}
   (h : [varStore, σ|e].isSome)
+  (h₁ : e < σ.size)
 :
   [varStore.insert key value, σ|e].isSome
 := by
-  have : e < σ.size := by sorry
-  rw [eval_eq_evalRec this] at h ⊢
+  rw [eval_eq_evalRec h₁] at h ⊢
   unfold evalRec at *
   obtain ⟨exp, wexp⟩ : ∃ a, σ.exprs[e]? = some a :=
     Option.isSome_iff_exists.1 (show σ.exprs[e]?.isSome by grind)
@@ -569,24 +569,32 @@ lemma eval_varStore_insert_isSome_of_isSome
     rw [show Option.map = Functor.map from rfl, binaryOp_isSome_iff] at h ⊢
     grind
 
+@[simp, grind =]
+lemma insertMany_vector_list
+  {p k : ℕ} {varStore : VarStore p} {arr : List (ℕ × ZMod p)}
+  {harr : {toList := arr : Array _}.size = k} :
+  varStore.insertMany (Vector.mk {toList := arr} harr) =
+  varStore.insertMany arr := by
+  simp [Std.ExtTreeMap.insertMany, Std.ExtDTreeMap.Const.insertMany]
+
 lemma eval_varStore_insertMany_isSome_of_isSome
-  {p k : ℕ}
+  {p : ℕ}
   {varStore : VarStore p}
   {σ : HashConsSt p}
   {e : ExprRef}
   {inserts : Vector (ℕ × (ZMod p)) k}
   (h : [varStore, σ|e].isSome = true)
+  (h₁ : e < σ.size)
 :
   [varStore.insertMany inserts, σ|e].isSome = true
 := by
-  induction' k with n ih
-  . have : varStore.insertMany inserts = varStore := by sorry
+  rcases inserts with ⟨⟨arr⟩, harr⟩
+  rw [insertMany_vector_list]
+  clear harr
+  induction' h : arr.length with n ih generalizing arr
+  . grind
+  . have : arr = arr.take (arr.length - 1) ++ [arr.getLast (by grind)] := by simp
     grind
-  . have : ∃ i : Vector _ n, inserts = i.push inserts[n] := by
-
-      done
-
-    done
 
 lemma Circuit.varsAllocated_eval_append_right
   {p i : ℕ}
