@@ -451,20 +451,6 @@ def varsAllocated {p : ℕ} (c : Circuit p) (varStore : VarStore p) (σ : HashCo
   ∀ i (h: i < c.size),
     c[i].varsAllocated [varStore, σ, numAlloc|(c.take i)]ₑ.varStore σ
 
-lemma varsAllocated_eval_append_left
-  {p i : ℕ}
-  {circuit a : Circuit p}
-  {varStore : VarStore p}
-  {σ : HashConsSt p}
-  {numAlloc : ℕ}
-  {h_get}
-  (h : (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|circuit.extract 0 i]ₑ.varStore σ)
-:
-  (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|a ++ circuit.extract 0 i]ₑ.varStore σ
-:= by
-
-  done
-
 @[simp, grind =]
 lemma eval_push_eq0_varStore
   {p : ℕ}
@@ -577,8 +563,9 @@ lemma insertMany_vector_list
   varStore.insertMany arr := by
   simp [Std.ExtTreeMap.insertMany, Std.ExtDTreeMap.Const.insertMany]
 
+@[aesop simp, grind .]
 lemma eval_varStore_insertMany_isSome_of_isSome
-  {p : ℕ}
+  {p k : ℕ}
   {varStore : VarStore p}
   {σ : HashConsSt p}
   {e : ExprRef}
@@ -596,6 +583,21 @@ lemma eval_varStore_insertMany_isSome_of_isSome
   . have : arr = arr.take (arr.length - 1) ++ [arr.getLast (by grind)] := by simp
     grind
 
+lemma varsAllocated_eval_append_left
+  {p i : ℕ}
+  {circuit a : Circuit p}
+  {varStore : VarStore p}
+  {σ : HashConsSt p}
+  {numAlloc : ℕ}
+  {h_get}
+  (h : (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|circuit.extract 0 i]ₑ.varStore σ)
+:
+  (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|a ++ circuit.extract 0 i]ₑ.varStore σ
+:= by
+  unfold Gate.varsAllocated at h ⊢
+  sorry
+  done
+
 lemma Circuit.varsAllocated_eval_append_right
   {p i : ℕ}
   {circuit a : Circuit p}
@@ -603,6 +605,7 @@ lemma Circuit.varsAllocated_eval_append_right
   {σ : HashConsSt p}
   {numAlloc : ℕ}
   {h_get}
+  (h₀ : circuit.refsValid σ.size)
   (h : (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|circuit.extract 0 i]ₑ.varStore σ)
 :
   (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|circuit.extract 0 i ++ a]ₑ.varStore σ
@@ -621,10 +624,9 @@ lemma Circuit.varsAllocated_eval_append_right
       expose_names
       rewrite [this]
       set x := circuit.extract 0 i ++ ⟨tail.reverse⟩
-      simp_all [eval_varStore_insert_isSome_of_isSome]
+      have : e < σ.size := by grind
+      simp_all [eval_varStore_insert_isSome_of_isSome, eval_varStore_insertMany_isSome_of_isSome]
     )
-    done
-  done
 
 lemma Circuit.varsAllocated_append {p : ℕ}
   (a b : Circuit p)
