@@ -150,6 +150,15 @@ lemma evalWithCache_wrt_evalRec
         grind
       . grind
 
+lemma eval_eq_evalRec
+  (h: e < σ.size)
+:
+  [varStore, σ|e] = evalRec varStore σ e
+:= by
+  unfold eval
+  have := @evalWithCache_wrt_evalRec p varStore e σ #[]
+  grind
+
 end Lemmas
 
 abbrev evalM {p} (varStore : VarStore p) (e : HashConsM p ExprRef) : HashConsM p (Option (ZMod p)) := do
