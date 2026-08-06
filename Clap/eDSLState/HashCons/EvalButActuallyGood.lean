@@ -88,32 +88,67 @@ lemma size_le_size_evalWithCache :
 
 /--
 Is this even useful?
+NB: yes
 -/
 lemma lt_size_evalWithCache_of_lt_size (h : e < σ.size) :
   e < (evalWithCache varStore e cache σ).size := by
   fun_induction evalWithCache <;> grind
 
+-- lemma evalCore_evalRec
+--   (h₁ : ∀ e < cache.size, cache[e]? = evalRec varStore σ e)
+--   (h₂ : σ.exprs[cache.size]? = some expr) :
+--   evalCore varStore expr cache = evalRec varStore σ cache.size := by
+--   unfold evalCore evalRec
+--   rcases expr with e | e | ⟨lhs, rhs, binop⟩
+--   · aesop
+--   · aesop
+--   · obtain ⟨h₃, h₄⟩ : lhs < cache.size ∧ rhs < cache.size := by
+--       have := σ.wellFormed _ (show cache.size < σ.exprs.size by grind)
+--       aesop
+--     simp
+--     sorry
+
 lemma evalCore_evalRec
-  (h₁ : ∀ e < cache.size, cache[e]? = evalRec varStore σ e)
-  (h₂ : σ.exprs[cache.size]? = some expr) :
-  evalCore varStore expr cache = evalRec varStore σ cache.size := by
-  unfold evalCore evalRec
-  rcases expr with e | e | ⟨lhs, rhs, binop⟩
-  · aesop
-  · aesop
-  · obtain ⟨h₃, h₄⟩ : lhs < cache.size ∧ rhs < cache.size := by
-      have := σ.wellFormed _ (show cache.size < σ.exprs.size by grind)
-      aesop
-    simp
-    sorry
-    
+  {exprRef : ExprRef}
+  (h_lookup : σ.exprs[exprRef]? = .some expr)
+  (h_cache : ∀ ref < exprRef, cache[ref]! = evalRec varStore σ ref)
+:
+  evalCore varStore expr cache =
+  evalRec varStore σ exprRef
+:= by
+  unfold evalCore
+  unfold evalRec
+  grind
+
 lemma evalWithCache_wrt_evalRec
-  (he : e < σ.exprs.size)
-  (h : ∀ e < cache.size, cache[e]? = evalRec varStore σ e) :
+  (he : e < σ.size)
+  (h : ∀ e, (h : e < cache.size) → cache[e]'h = evalRec varStore σ e)
+:
   letI newCache := evalWithCache varStore e cache σ
   e < newCache.size ∧
-  newCache[e]? = evalRec varStore σ e := by
-  sorry
+  (newCache[e]'(lt_size_evalWithCache_of_lt_size he)) = evalRec varStore σ e
+:= by
+  fun_induction evalWithCache
+  . split_ands
+    . exact lt_of_lt_of_le (by assumption) size_le_size_evalWithCache
+    . rewrite [←h e (by assumption)]
+      expose_names
+      have := evalWithCache_of_mem (σ := σ) (varStore := varStore) h_1
+      grind
+  . grind
+  . expose_names
+    split_ands
+    . unfold evalWithCache
+      grind
+    . unfold evalWithCache
+      simp [h_1, h_2]
+      apply (ih1 _).2
+      intro idx h_idx
+      by_cases h_idx' : idx = x.size
+      . simp [h_idx', val]
+        unfold evalCore evalRec
+        grind
+      . grind
 
 end Lemmas
 

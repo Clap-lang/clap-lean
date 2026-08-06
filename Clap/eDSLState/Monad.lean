@@ -263,7 +263,7 @@ def Circuit_wellFormed
 : Prop
 :=
   (action.getCircuit numAlloc σ).refsValid (action.getHashConsState numAlloc σ).exprs.size ∧
-  (action.getCircuit numAlloc σ).varsAllocated Γ (action.getHashConsState numAlloc σ) 0
+  (action.getCircuit numAlloc σ).varsAllocated Γ (action.getHashConsState numAlloc σ) (action.getNumAlloc numAlloc σ)
 
 @[grind =]
 def numAlloc_wellFormed
@@ -315,7 +315,7 @@ variable
   {f : α → ClapM p β}
 
 @[simp, grind =]
-lemma bind_refsValid :
+lemma refsValid_bind_iff :
   letI a_result := a.getResult numAlloc σ
   letI a_st := a.getNumAlloc numAlloc σ
   letI a_σ := a.getHashConsState numAlloc σ
@@ -339,8 +339,7 @@ lemma refsValid_of_refsValid_of_le
 := by
   aesop (add simp [Circuit.refsValid, Gate.refsValid]) (add safe (by grind))
 
-example
-  (h_a : a.wellFormed numAlloc varStore σ)
+lemma size_le_size_bind
   (h_f : (
       f (a.getResult numAlloc σ)
     ).wellFormed
@@ -349,10 +348,16 @@ example
       (a.getHashConsState numAlloc σ)
   )
 :
-  (a.getHashConsState numAlloc σ).exprs.size ≤
-  ((a >>= f).getHashConsState numAlloc σ).exprs.size
+  (a.getHashConsState numAlloc σ).size ≤
+  ((a >>= f).getHashConsState numAlloc σ).size
 := by
-  sorry
+  simp
+  unfold wellFormed hashConsState_wellFormed at h_f
+  replace h_f := h_f.2.2
+  rewrite [←Array.isPrefixOf_toList, List.isPrefixOf_iff_prefix] at h_f
+  simp [Array.size_eq_length_toList, -Array.length_toList]
+  grind
+
 
 lemma bind_Circuit_wellFormed
   (h_a : a.wellFormed numAlloc varStore σ)
@@ -367,14 +372,13 @@ lemma bind_Circuit_wellFormed
   (a >>= f).Circuit_wellFormed numAlloc varStore σ
 := by
   unfold Circuit_wellFormed
-  rewrite [bind_refsValid, Circuit.refsValid_append_iff]
+  rewrite [refsValid_bind_iff, Circuit.refsValid_append_iff]
   split_ands
-  . obtain h_a_refs := h_a.1
-    unfold Circuit_wellFormed at h_a_refs
+  . exact refsValid_of_refsValid_of_le h_a.1.1 (size_le_size_bind h_f)
+  . exact h_f.1.1
+  . simp
+
     sorry
-    -- apply refsValid_of_refsValid_of_le h_a_refs
-  sorry
-  sorry
   -- done
 
 lemma bind_wellFormed
