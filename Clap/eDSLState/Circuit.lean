@@ -17,18 +17,22 @@ inductive Gate (p : ℕ) where
 deriving Inhabited
 
 @[grind =]
-def Gate.refsValid {p : ℕ} (c : Gate p) (bound : ℕ) : Prop := match c with
-  | .eq0 e => e < bound
-  | .share e => e < bound
-  | .isZero e => e < bound
-  | .num2bits _w e => e < bound
+def Gate.expr {p} (gate : Gate p) : ExprRef :=
+  match gate with
+  | .eq0 e | .share e | .isZero e | .num2bits _ e => e
 
 @[grind =]
-def Gate.varsAllocated {p : ℕ} (c : Gate p) (varStore : VarStore p) (σ : HashConsSt p) : Prop := match c with
-    | .eq0 e => [varStore, σ|e].isSome
-    | .share e => [varStore, σ|e].isSome
-    | .isZero e => [varStore, σ|e].isSome
-    | .num2bits _w e => [varStore, σ|e].isSome
+def Gate.refsValid {p : ℕ} (c : Gate p) (bound : ℕ) : Prop := c.expr < bound
+
+@[grind =]
+def Gate.varsAllocated {p : ℕ} (c : Gate p) (varStore : VarStore p) (σ : HashConsSt p) : Prop :=
+  [varStore, σ|c.expr].isSome
+
+@[aesop safe cases, grind]
+structure _root_.Clap.Gate.wellFormed {p : ℕ}
+  (gate : Gate p) (Γ : VarStore p) (σ : HashConsSt p) : Prop where
+  refsValid : gate.refsValid σ.size
+  varsAllocated : gate.varsAllocated Γ σ
 
 section Gate.varsAllocated_lemmas
 
@@ -57,27 +61,14 @@ instance {p : ℕ} {c : Gate p} {varStore : VarStore p} {σ : HashConsSt p} :
   unfold Gate.varsAllocated
   rcases c <;> infer_instance
 
-instance {p: ℕ} {x : Gate p} {bound : ℕ}: Decidable (x.refsValid bound) := match x with
-  | .eq0 e => e.decLt bound
-  | .share e => e.decLt bound
-  | .isZero e => e.decLt bound
-  | .num2bits _w e => e.decLt bound
+instance {p : ℕ} {x : Gate p} {bound : ℕ} : Decidable (x.refsValid bound) :=
+  x.expr.decLt bound
 
 abbrev Circuit (p : ℕ) := Array (Gate p)
 
 @[grind =]
-def Circuit.refsValid {p : ℕ} (c : Circuit p) (bound : ℕ) : Prop :=
-  c.all λ x => (decide (x.refsValid bound))
-
--- isZero : input → Bool
--- need to allocate the output of this thing
--- the input is index 0, the output is index 1
--- this becomes 2x eq0 (this needs an auxiliary thing, the inverse or some such)
--- thus, wire 0 maps to 0 when you go down to cs
--- 1 maps to 2, and the inverse becomes 1
--- this 'invalidates' the mapping between input | output (careful)
--- this shift is statically known (we know that isZero will need an extra thing -
--- as such, we can already bump by two, if we so desire - thus, we'll keep 1:1 mapping between input|output)
+  def Circuit.refsValid {p : ℕ} (c : Circuit p) (bound : ℕ) : Prop :=
+    c.all fun x => decide (x.refsValid bound)
 
 namespace Edsl
 
@@ -439,10 +430,10 @@ end
 end Edsl.CircuitResult
 
 section CircuitEval
+
 namespace Circuit
 
-abbrev evalInOrder {p : ℕ}
-                           (circuit : Circuit p)
+abbrev evalInOrder {p : ℕ} (circuit : Circuit p)
                            (σ : HashConsSt p)
                            (result : Edsl.CircuitResult p) :=
   circuit.foldl (Edsl.CircuitResult.step (σ := σ)) result
@@ -456,6 +447,17 @@ notation "[" varStore ", " σ ", " numAlloc "|" circuit "]ₑ" => Circuit.eval c
 def varsAllocated {p : ℕ} (c : Circuit p) (varStore : VarStore p) (σ : HashConsSt p) (numAlloc : ℕ) : Prop :=
   ∀ i (h: i < c.size),
     c[i].varsAllocated [varStore, σ, numAlloc|(c.take i)]ₑ.varStore σ
+
+@[aesop safe cases, grind]
+structure _root_.Clap.Circuit.wellFormed {p : ℕ}
+  (circuit : Circuit p) (Γ : VarStore p) (σ : HashConsSt p) (numAlloc : ℕ) : Prop where
+  refsValid : circuit.refsValid σ.size
+  varsAllocated : circuit.varsAllocated Γ σ numAlloc
+
+@[simp, grind =]
+lemma _root_.Clap.Circuit.wellFormed_iff {p} {circuit : Circuit p} {Γ : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ} :
+  circuit.wellFormed Γ σ numAlloc ↔ (circuit.refsValid σ.size ∧ circuit.varsAllocated Γ σ numAlloc) := by
+  grind
 
 @[simp, grind =]
 lemma eval_push_eq0_varStore
@@ -622,32 +624,71 @@ lemma eval_varStore_eval_insert_isSome_of_isSome
     done
   . done
 
-
-lemma gate_varsAllocated_step_of_varsAllocated
+@[grind .]
+lemma _root_.Clap.Gate.varsAllocated_step_of_wellFormed
   {p : ℕ}
   {result : Edsl.CircuitResult p}
   {σ : HashConsSt p}
   {gate1 gate2 : Gate p}
-  (h_refsValid : gate2.refsValid σ.size)
-  (h_varsAllocated : gate2.varsAllocated result.varStore σ)
+  (h_wf : gate2.wellFormed result.varStore σ)
 :
   gate2.varsAllocated [result, σ|gate1]ₛ.varStore σ
 := by
   grind
 
-lemma gate_varsAllocated_of_varsAllocated_of_isSome_of_isSome
+@[grind .]
+lemma _root_.Clap.Gate.wellFormed_step_of_wellFormed
+  {p : ℕ}
+  {result : Edsl.CircuitResult p}
+  {σ : HashConsSt p}
+  {gate1 gate2 : Gate p}
+  (h_wf : gate2.wellFormed result.varStore σ)
+:
+  gate2.wellFormed [result, σ|gate1]ₛ.varStore σ
+:= by
+  grind
+
+@[grind =]
+def precedes {p} (Γ₁ Γ₂ : VarStore p) (σ : HashConsSt p) :=
+  ∀ e < σ.size, [Γ₁, σ|e].isSome → [Γ₂, σ|e].isSome
+
+notation "[" σ "|" Γ₁ " ⊑ " Γ₂ "]" => precedes Γ₁ Γ₂ σ
+
+section
+
+variable {p : ℕ} {gate : Gate p} {σ : HashConsSt p} {Γ Γ₁ Γ₂ Γ₃ : VarStore p} {circuit : Circuit p}
+
+@[simp, grind =]
+lemma _root_.Clap.Gate.wellFormed_iff :
+  gate.wellFormed Γ σ ↔ (gate.refsValid σ.size ∧ gate.varsAllocated Γ σ) := by grind
+
+@[grind .]
+lemma _root_.Clap.Gate.wellFormed_of_wellFormed_precedes
+  (h_refsValid : gate.wellFormed Γ₁ σ)
+  (h : [σ|Γ₁ ⊑ Γ₂])
+:
+  gate.wellFormed Γ₂ σ
+:= by
+  grind
+
+@[grind .]
+lemma _root_.Clap.Gate.varsAllocated_of_wellFormed_precedes
   {p : ℕ}
   {varStore1 varStore2 : VarStore p}
   {σ : HashConsSt p}
   {gate : Gate p}
-  (h_refsValid : gate.refsValid σ.size)
-  (h_varsAllocated : gate.varsAllocated varStore1 σ)
-  (h : ∀ e < σ.size, [varStore1, σ|e].isSome → [varStore2, σ|e].isSome)
+  (h_refsValid : gate.wellFormed varStore1 σ)
+  (h : [σ|varStore1 ⊑ varStore2])
 :
   gate.varsAllocated varStore2 σ
 := by
-  unfold Gate.varsAllocated
   grind
+
+@[grind →]
+lemma precedes_trans (h₁ : [σ|Γ₁ ⊑ Γ₂]) (h₂ : [σ|Γ₂ ⊑ Γ₃]) : [σ|Γ₁ ⊑ Γ₃] := by grind
+
+@[grind .]
+lemma precedes_rfl : [σ|Γ ⊑ Γ] := by grind
 
 example
   {p : ℕ}
@@ -655,9 +696,8 @@ example
   {σ : HashConsSt p}
   {numAlloc1 numAlloc2 : ℕ}
   {circuit : Circuit p}
-  (h_refsValid : circuit.refsValid σ.size)
-  (h_varsAllocated : circuit.varsAllocated varStore1 σ numAlloc1)
-  (h : ∀ e < σ.size, [varStore1, σ|e].isSome → [varStore2, σ|e].isSome)
+  (h_wf : circuit.wellFormed varStore1 σ numAlloc1)
+  (h : [σ|varStore1 ⊑ varStore2])
 :
   circuit.varsAllocated varStore2 σ numAlloc2
 := by
@@ -665,13 +705,13 @@ example
   intro i h_i
   induction' i with size h_size generalizing circuit
   . simp [eval]
-    unfold refsValid at h_refsValid
-    unfold varsAllocated at h_varsAllocated
-    have := h_varsAllocated 0 (by assumption)
+    simp at h_wf
+    unfold refsValid at h_wf
+    unfold varsAllocated at h_wf
+    have := h_wf.2 0 (by assumption)
     simp [eval] at this
-    apply gate_varsAllocated_of_varsAllocated_of_isSome_of_isSome
+    apply Gate.varsAllocated_of_wellFormed_precedes
       (by grind)
-      this
       h
   . have : circuit.take (size + 1) = (circuit.take size).push circuit[size] := by grind
     rewrite [this]
@@ -682,10 +722,23 @@ example
       unfold eval
       grind
     rewrite [this]
-    apply gate_varsAllocated_step_of_varsAllocated
-    . grind
-    . apply gate_varsAllocated_of_varsAllocated_of_isSome_of_isSome (by grind) (h_varsAllocated (size+1) h_i)
+    apply Gate.varsAllocated_step_of_wellFormed
+    simp only [Gate.wellFormed_iff]
+    split_ands
+    · grind
+    . refine Gate.varsAllocated_of_wellFormed_precedes (varStore1 := varStore1) ⟨by grind, ?p₂⟩ ?p₃ 
+      simp at h_wf
+      unfold Circuit.varsAllocated at h_wf
+      rcases h_wf with ⟨l, r⟩
+      specialize r (size + 1) (by grind)
+      
+      simp at h_wf ⊢ --(by grind) (h_varsAllocated (size+1) h_i)
+      split_ands
+      grind
       intro e h_e h_varStore1
+      
+        
+
 
       done
     done
@@ -791,6 +844,8 @@ lemma Circuit.varsAllocated_append {p : ℕ}
     . specialize h_b (i - a.size) (by omega)
       simp (disch := omega) [Array.extract_eq_self_of_le]
       exact varsAllocated_eval_append_left h_b
+
+end
 
 end Circuit
 end CircuitEval
