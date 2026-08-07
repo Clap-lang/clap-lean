@@ -589,36 +589,153 @@ lemma eval_varStore_insertMany_isSome_of_isSome
   . have : arr = arr.take (arr.length - 1) ++ [arr.getLast (by grind)] := by simp
     grind
 
-lemma varsAllocated_eval_append_left
-  {p i : ℕ}
-  {circuit a : Circuit p}
+lemma eval_empty
+  {p : ℕ}
   {varStore : VarStore p}
   {σ : HashConsSt p}
   {numAlloc : ℕ}
-  {h_get}
-  (h₀ : circuit.refsValid σ.size)
-  (h : (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|circuit.extract 0 i]ₑ.varStore σ)
 :
-  (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|a ++ circuit.extract 0 i]ₑ.varStore σ
+  [varStore, σ, numAlloc|#[]]ₑ =
+  ⟨numAlloc, varStore, True⟩
+:= rfl
+
+lemma eval_varStore_eval_insert_isSome_of_isSome
+  {p : ℕ}
+  {varStore : VarStore p}
+  {σ : HashConsSt p}
+  {numAlloc : ℕ}
+  {circuit : Circuit p}
+  {e : ExprRef}
+  {key : ℕ}
+  {value : ZMod p}
+  (h_lt : e < σ.size)
+  (h : [[varStore, σ, numAlloc|circuit]ₑ.varStore,σ|e].isSome = true)
+  (h_key : key ≥ numAlloc)
+:
+  [[varStore.insert key value, σ, numAlloc|circuit]ₑ.varStore, σ|e].isSome = true
 := by
-  unfold Gate.varsAllocated at h ⊢
-  rcases a with ⟨a⟩
-  induction' a with hd tl ih
-  · grind
-  · split <;> expose_names <;> simp at *
-    simp [heq] at ih
-    · rw [HashConsM.isSome_eval_of_isSome_eval_subset ih (by grind)]
-      suffices
-        [varStore, σ, numAlloc|⟨tl⟩ ++ Array.extract circuit 0 i]ₑ.varStore ⊆
-        [varStore, σ, numAlloc|#[hd] ++ (⟨tl⟩ ++ Array.extract circuit 0 i)]ₑ.varStore by
-        grind
+  obtain ⟨circuit⟩ := circuit
+  rewrite [←List.reverse_reverse circuit] at ⊢ h
+  apply HashConsM.isSome_eval_of_isSome_eval_subset h h_lt
+  induction' h_head_tail : circuit.reverse with head tail h_tail
+  . simp [eval_empty]
+    done
+  . done
+
+
+lemma gate_varsAllocated_step_of_varsAllocated
+  {p : ℕ}
+  {result : Edsl.CircuitResult p}
+  {σ : HashConsSt p}
+  {gate1 gate2 : Gate p}
+  (h_refsValid : gate2.refsValid σ.size)
+  (h_varsAllocated : gate2.varsAllocated result.varStore σ)
+:
+  gate2.varsAllocated [result, σ|gate1]ₛ.varStore σ
+:= by
+  grind
+
+lemma gate_varsAllocated_of_varsAllocated_of_isSome_of_isSome
+  {p : ℕ}
+  {varStore1 varStore2 : VarStore p}
+  {σ : HashConsSt p}
+  {gate : Gate p}
+  (h_refsValid : gate.refsValid σ.size)
+  (h_varsAllocated : gate.varsAllocated varStore1 σ)
+  (h : ∀ e < σ.size, [varStore1, σ|e].isSome → [varStore2, σ|e].isSome)
+:
+  gate.varsAllocated varStore2 σ
+:= by
+  unfold Gate.varsAllocated
+  grind
+
+example
+  {p : ℕ}
+  {varStore1 varStore2 : VarStore p}
+  {σ : HashConsSt p}
+  {numAlloc1 numAlloc2 : ℕ}
+  {circuit : Circuit p}
+  (h_refsValid : circuit.refsValid σ.size)
+  (h_varsAllocated : circuit.varsAllocated varStore1 σ numAlloc1)
+  (h : ∀ e < σ.size, [varStore1, σ|e].isSome → [varStore2, σ|e].isSome)
+:
+  circuit.varsAllocated varStore2 σ numAlloc2
+:= by
+  unfold varsAllocated
+  intro i h_i
+  induction' i with size h_size generalizing circuit
+  . simp [eval]
+    unfold refsValid at h_refsValid
+    unfold varsAllocated at h_varsAllocated
+    have := h_varsAllocated 0 (by assumption)
+    simp [eval] at this
+    apply gate_varsAllocated_of_varsAllocated_of_isSome_of_isSome
+      (by grind)
+      this
+      h
+  . have : circuit.take (size + 1) = (circuit.take size).push circuit[size] := by grind
+    rewrite [this]
+    have :
+      [varStore2, σ, numAlloc2|(Array.take circuit size).push circuit[size]]ₑ =
+      [[varStore2, σ, numAlloc2|(Array.take circuit size)]ₑ, σ|circuit[size]]ₛ
+    := by
+      unfold eval
       grind
-    all_goals sorry
-    
-    -- all_goals {
-    --   rw [HashConsM.isSome_eval_of_isSome_eval_subset]
-    -- }
-  done
+    rewrite [this]
+    apply gate_varsAllocated_step_of_varsAllocated
+    . grind
+    . apply gate_varsAllocated_of_varsAllocated_of_isSome_of_isSome (by grind) (h_varsAllocated (size+1) h_i)
+      intro e h_e h_varStore1
+
+      done
+    done
+    -- have : Circuit.refsValid (circuit.take size) σ.size := by grind
+    -- specialize ih_size this (by grind) (by grind)
+    -- unfold varsAllocated
+    -- intro i h_i
+    -- by_cases i = size
+    -- . subst i
+    --   cases circuit[size]
+    --   . simp [Gate.varsAllocated]
+    --     simp [varsAllocated] at ih_size
+    --   done
+    -- . convert ih_size i (by grind) using 1
+    --   . grind
+    --   . grind
+    --   done
+    -- done
+
+-- lemma varsAllocated_eval_append_left
+--   {p i : ℕ}
+--   {circuit a : Circuit p}
+--   {varStore : VarStore p}
+--   {σ : HashConsSt p}
+--   {numAlloc : ℕ}
+--   {h_get}
+--   (h₀ : circuit.refsValid σ.size)
+--   (h : (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|circuit.extract 0 i]ₑ.varStore σ)
+-- :
+--   (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|a ++ circuit.extract 0 i]ₑ.varStore σ
+-- := by
+--   unfold Gate.varsAllocated at h ⊢
+--   rcases a with ⟨a⟩
+--   induction' a with hd tl ih
+--   · grind
+--   · split <;> expose_names <;> simp at *
+--     simp [heq] at ih
+--     · rw [HashConsM.isSome_eval_of_isSome_eval_subset ih (by grind)]
+--       suffices
+--         [varStore, σ, numAlloc|⟨tl⟩ ++ Array.extract circuit 0 i]ₑ.varStore ⊆
+--         [varStore, σ, numAlloc|#[hd] ++ (⟨tl⟩ ++ Array.extract circuit 0 i)]ₑ.varStore by
+--         grind
+
+--       grind
+--     all_goals sorry
+
+--     -- all_goals {
+--     --   rw [HashConsM.isSome_eval_of_isSome_eval_subset]
+--     -- }
+--   done
 
 lemma varsAllocated_eval_append_right
   {p i : ℕ}
@@ -887,7 +1004,7 @@ lemma abc {p} {varStore : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ}
     rcases hd with e | e | e | ⟨w, e⟩
     · simp [ih]
       unfold Circuit.eval
-      simp      
+      simp
       have :
         (List.foldl (fun result next => [result, σ|next]ₛ)
         { numAlloc := numAlloc, varStore := varStore, constraints := [varStore,σ|e] = some 0 } tl) =
@@ -918,7 +1035,7 @@ lemma abc {p} {varStore : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ}
 
       done
     · done
-    
+
   done
 
 
