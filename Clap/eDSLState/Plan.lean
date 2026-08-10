@@ -6,6 +6,38 @@ namespace Clap
 -- Ideally we want a representation as close as possible to the R1CS file as possible, to minimise the amount that must be tested
 -- The current R1CS model is largely in terms of bytes
 
+/-
+
+`def Circuit : Type := _`
+
+`def Circuit.eval (circuit : Circuit) (inputs : Array (ZMod p)) : Option Unit := _`
+
+`def Cs : Type := _`
+
+`def Cs.sat (cs : Cs) (witness : Array (ZMod p)) : Bool := _`
+
+`def Wg : Type := _`
+
+`def Wg.eval (wg : Wg) (inputs : Array (ZMod p)) : Array (ZMod p) := _`
+
+`def exampleCircuit : Circuit := #[eq0 (5B elem), share x, num2bits, eq0 0]`
+
+`def exampleCs : Cs := exampleCircuit.toCs` -- This can be defined efficiently
+
+`def exampleWg : Wg := exampleCircuit.toWg` -- Looks like this can be defined efficiently
+
+`def witness : Array (ZMod p) := exampleWg.eval ?inputs`
+
+`def isSat := exampleCs.sat witness`
+
+`def Cs.toR1CS (cs : Cs) : R1Cs := _`
+
+`def Wg.toWtns (witness : Array (ZMod p)) := _`
+
+`result of the two previous functions is fed to circom`
+
+-/
+
 
 
 structure CIRCUIT (p : ℕ) where

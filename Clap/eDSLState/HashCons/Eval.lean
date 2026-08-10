@@ -2,440 +2,363 @@ import Clap.eDSLState.HashCons.HashConsM
 
 namespace Clap.HashConsM
 
--- abbrev ValueCache (p : ℕ) := Std.ExtHashMap ExprRef (Option (ZMod p))
+abbrev ValueCache (p : ℕ) := Array (Option (ZMod p))
 
--- -- Given a cache mapping exprRefs to their value in a given varstore,
--- -- add an entry for e
--- def evalAux {p}
---   (Γ : VarStore p)
---   (e : ExprRef)
---   (cache : ValueCache p)
---   (state : HashConsSt p)
--- :
---   ValueCache p
--- :=
---   -- if e already has a cached value, no modification needed
---   match cache[e]? with
---   | .some result => cache
---   | .none =>
---     -- if e is not a reference into the Hash Cons State, no modification needed
---     match h : state[e]? with
---     | .none => cache
---     | .some expr =>
---       match expr with
---       -- for leaves, insert their value, looking at the varstore if needed
---       | .c value => cache.insert e (.some value)
---       | .v idx => cache.insert e (Γ.get? idx)
---       -- for branch nodes, recurse, adding the childrens' values if needed
---       | .binary_op lhs rhs op =>
---         have lhs_precedes_your_index : lhs < e := by
---           grind [HashConsSt.wellFormed, CacheExpr.wellFormed]
---         letI lhs_cache := evalAux Γ lhs cache state
---         letI lhs_val := lhs_cache[lhs]?.join
---         have rhs_precedes_your_index : rhs < e := by
---           grind [HashConsSt.wellFormed, CacheExpr.wellFormed]
---         letI rhs_cache := evalAux Γ rhs lhs_cache state
---         letI rhs_val := rhs_cache[rhs]?.join
---         rhs_cache.insert e ((match op with
---           | .add => (· + ·)
---           | .sub => (· - ·)
---           | .mul => (· * ·)
---         ) <$> rhs_cache[lhs]?.join <*> rhs_cache[rhs]?.join)
--- termination_by e
+def evalCore {p} (Γ : VarStore p) (expr : CacheExpr p) (cache : ValueCache p) : Option (ZMod p) :=
+  match expr with
+  | .c k => .some k
+  | .v idx => Γ[idx]?
+  | .binary_op lhs rhs op =>
+    let op := match op with
+              | .add => (· + ·)
+              | .sub => (· - ·)
+              | .mul => (· * ·)
+    let lhs := cache[lhs]!
+    let rhs := cache[rhs]!
+    op <$> lhs <*> rhs
 
--- TODO some form of wellFormedness to say that cached values came from evalAux?
+@[grind cases]
+structure Expr (p : ℕ) where
+  ref : ExprRef
+  σ : HashConsSt p
 
-variable {p : ℕ} {ref : ExprRef} {cache : ValueCache p} {σ : HashConsSt p} {varStore : VarStore p}
+namespace Expr
 
-@[aesop unsafe, grind .]
-lemma evalAux_of_mem_cache (h : ref ∈ cache) :
-  evalAux varStore ref cache σ = cache := by grind [=evalAux]
+section Expr
 
-def evalWithCache (varStore : VarStore p) (e : HashConsM p ExprRef) (k : ExprRef) : HashConsM p (Option (ZMod p)) := do
-  let expr ← e
-  letI post_cache := evalAux varStore expr {} (←get)
-  return (post_cache.get? expr).join
+variable {p : ℕ} {e : Expr p}
 
-def eval (varStore : VarStore p) (e : HashConsM p ExprRef) : HashConsM p (Option (ZMod p)) := do
-  let expr ← e
-  letI post_cache := evalAux varStore expr {} (←get)
-  return (post_cache.get? expr).join
+@[grind =]
+def deref (e : Expr p) : Option (CacheExpr p) := e.σ.exprs[e.ref]?
 
-notation "[" varStore "|" x "]" => (eval varStore x)
+@[grind =]
+def wellFormed (e : Expr p) : Prop := e.ref < e.σ.size
 
-notation "[" varStore "," state "|" x "]" => run [varStore|x] state
+instance : Decidable (wellFormed e) := inferInstanceAs <| Decidable (e.ref < e.σ.size)
 
-notation "[" varStore "," state "|" x " =Γ " y "]" => [varStore,state|x] = [varStore,state|y]
-
-variable {p : ℕ} {e : CacheExpr p} {σ : HashConsSt p}
-
-section
-
-variable {varStore : VarStore p} {k : ZMod p} {cache : Std.ExtHashMap ExprRef (Option (ZMod p))}
-         {ref : ExprRef}
-
-@[aesop unsafe, grind .]
-lemma evalAux_of_not_mem_cache_not_mem_state (h₁ : ref ∉ cache) (h₂ : ref ∉ σ) :
-  evalAux varStore ref cache σ = cache := by
-  grind [=evalAux]
-
-@[aesop unsafe, grind =>]
-lemma evalAux_of_not_mem_cache_mem_state_some_c (h₁ : ref ∉ cache) (h₂ : σ[ref]? = .some (.c k)) :
-  evalAux varStore ref cache σ = cache.insert ref (.some k) := by
-  grind [=evalAux]
-
-@[simp, grind =]
-lemma get_eq : (get (m := HashConsM p) σ) = (σ, σ) := rfl
-
-/--
-TODO Obviously we can't be writing these proofs like this.
--/
-@[aesop unsafe, grind .]
-lemma eval_eq_some_of_mem_eq_const (h : σ[ref]? = .some (.c k)) :
-  eval varStore (pure ref) σ = (.some k, σ) := by
-  unfold eval
-  simp
-  unfold Functor.map
-  unfold_projs
-  simp
-  unfold StateT.map
-  simp
-  unfold Functor.map
-  unfold_projs
-  grind
-
-def f (ref : ExprRef) : HashConsM p (Option (CacheExpr p)) := fun σ ↦ (σ[ref]?, σ)
-
-end
-
-
-section
-
-variable {varStore : VarStore p} {k : ZMod p} {cache : Std.ExtHashMap ExprRef (Option (ZMod p))}
-         {σ : HashConsSt p} {ref : ExprRef}
+prefix:max "*" => deref
 
 @[grind _=_]
-lemma runGet?_def {ref : HashConsM p ExprRef} :
-  ref.runGet? σ = (StateT.run ref σ).2[(StateT.run ref σ).1]? := rfl
+lemma wellFormed_iff_isSome : e.wellFormed ↔ (*e).isSome := by grind
 
-@[simp, grind =]
-lemma runGet?_pure {x : ExprRef}:
-  HashConsM.runGet? (StateT.pure x) σ =
-  σ[x]?
-:= rfl
+@[grind →]
+lemma wellFormed_frame {e' : Expr p}
+  (h₁ : e.wellFormed) (h₂ : e.σ.exprs.isPrefixOf e'.σ.exprs) (h₃ : e.ref = e'.ref) : e'.wellFormed := by
+  have : e.σ.exprs.toList.isPrefixOf e'.σ.exprs.toList = true := by grind
+  grind [List.prefix_iff_getElem?]  
 
-@[simp, grind =]
-lemma runGet?_bind {α} {a : HashConsM p α} {f : α → HashConsM p ExprRef} :
-  (a >>= f).runGet? σ =
-  (f (a.run σ).1).runGet? (a.run σ).2
-:= rfl
+def evalWithCache (Γ : VarStore p) (cache : ValueCache p) (e : Expr p) : ValueCache p :=
+  if e.ref < cache.size
+  then cache
+  else
+    match e.σ[cache.size]? with
+    | .none => cache
+    | .some expr =>
+      let val := evalCore Γ expr cache
+      evalWithCache Γ (cache.push val) e
+  termination_by e.ref + 1 - cache.size
+  decreasing_by grind
 
-@[grind =]
-lemma runGet_saveExpr_of_wellFormed {e : CacheExpr p} (h: e.wellFormed σ.exprs.size):
-  (HashConsM.saveExpr e).runGet? σ = .some e
-:= by
-  unfold HashConsM.saveExpr
-  aesop (add simp [pure, Id.run]) (add safe (by grind))
+def evalRec {p} (Γ : VarStore p) (e : Expr p) : Option (ZMod p) :=
+  match h : *e with
+  | .none => .none
+  | .some expr =>
+    match expr with
+    | .c k => some k
+    | .v idx => Γ[idx]?
+    | .binary_op lhs rhs op =>
+      let f := match op with
+        | .add => (· + ·)
+        | .sub => (· - ·)
+        | .mul => (· * ·)
+      f <$> evalRec Γ ⟨lhs, e.σ⟩  <*> evalRec Γ ⟨rhs, e.σ⟩
+  termination_by e.ref
+  decreasing_by all_goals grind
 
-@[simp, grind =]
-lemma runGet_mkConstant :
-  (mkConstant k).runGet? σ = .some (.c k)
-:= by
-  unfold mkConstant
-  grind
+section Eval
 
-@[grind =]
-lemma runGet_mkAdd {l r : ExprRef} (h: (CacheExpr.binary_op (p := p) l r BinaryOp.add).wellFormed σ.exprs.size) :
-  (mkAdd l r).runGet? σ = .some (.binary_op l r BinaryOp.add)
-:= by
-  unfold mkAdd
-  grind
+variable {Γ : VarStore p}
 
-@[grind =]
-lemma runGet_mkSub {l r : ExprRef} (h: (CacheExpr.binary_op (p := p) l r BinaryOp.sub).wellFormed σ.exprs.size) :
-  (mkSub l r).runGet? σ = .some (.binary_op l r BinaryOp.sub)
-:= by
-  unfold mkSub
-  grind
-
-@[grind =]
-lemma runGet_mkMul {l r : ExprRef} (h: (CacheExpr.binary_op (p := p) l r BinaryOp.mul).wellFormed σ.exprs.size) :
-  (mkMul l r).runGet? σ = .some (.binary_op l r BinaryOp.mul)
-:= by
-  unfold mkMul
-  grind
-
-attribute [local grind ext]
-  Option.ext Prod.ext Id.ext
-
-abbrev val {α} (a : HashConsM p α) (σ : HashConsSt p) := (a.run σ).1
-
-abbrev st {α} (a : HashConsM p α) (σ : HashConsSt p) := (a.run σ).2
-
-lemma eval_run_of_runGet?_eq_some_c {ref : HashConsM p ExprRef}
-        (h : ref.runGet? σ = .some (.c k)) :
-  [varStore,σ|ref] = (.some k, ref.st σ) := by
-  simp [eval]
-  grind [=Id.run, Functor.map]
-
-def ValueCache.wellFormed {p} (Γ : VarStore p) (σ : HashConsSt p) (cache : ValueCache p) : Prop :=
-  ∀ (e : ExprRef) (res : Option (ZMod p)),
-    cache[e]? = .some res → (evalAux Γ e ∅ σ)[e]? = .some res
-
-theorem ValueCahcke.wellFormed_evalAux_of_wellFormed {Γ : VarStore p} {e}
-  (h_wellFormed : ValueCache.wellFormed Γ σ cache) : ValueCache.wellFormed Γ σ (evalAux Γ e cache σ) := by
-  unfold ValueCache.wellFormed at *
-  intros EXPR res hres
-  by_cases eq : cache[EXPR]? = some res
-  · specialize h_wellFormed EXPR res eq
-    grind
-  · unfold evalAux
-    simp
-    rcases eq₁ : cache[e]?
-
--- TODO move evalAux into hypothesis?
--- TODO generalise to wellFormed cache
-lemma eval_run_pure {k : ExprRef} {cache : ValueCache p} (h : cache.wellFormed varStore σ) :
-  [varStore,σ|pure k] = ((evalAux varStore k cache σ)[k]?.join, σ)
-:= by
-  unfold eval
-  suffices (evalAux varStore k ∅ σ)[k]?.join = (evalAux varStore k cache σ)[k]?.join by simpa
-  
-  
-
-lemma eval_run_bind {α} {a : HashConsM p α} {f : α → HashConsM p ExprRef} :
-  [varStore, σ|a >>= f] =
-  [varStore, a.st σ|f (a.val σ)]
-:= rfl
-
--- TODO, this is really just idxOf∧contains=>get?=.some, and get?=runGet?
-lemma run_eval_idxOf_c_of_contains {ref : HashConsM p ExprRef} {e : CacheExpr p}
-  (h₁ : e ∈ (ref.st σ).exprs)
-  (h₂ : ref.val σ = (ref.st σ).exprs.idxOf e)
-:
-  ref.runGet? σ = .some e
-:= by
-  grind [HashConsM.runGet?]
+@[simp, grind .]
+lemma binaryOp_isSome_iff {p} {f : ZMod p → ZMod p → ZMod p} {a b : Option (ZMod p)} :
+  (f <$> a <*> b).isSome ↔ (a.isSome ∧ b.isSome) := by
+  unfold_projs at *
+  aesop (add simp Option.map)
 
 @[grind .]
-lemma run_eval_idxOf_c_of_contains' {ref : HashConsM p ExprRef} {e : CacheExpr p}
-  (h : e ∈ (ref.st σ).exprs)
-  (h': ref.val σ = (ref.st σ).exprs.idxOf e)
-:
-  ref.runGet? σ = .some e
-:= run_eval_idxOf_c_of_contains h h'
+lemma isSome_evalRec_insert_of_isSome_evalRec {k : ℕ} {v : ZMod p}
+  (h : (evalRec Γ e).isSome) : (evalRec (Γ.insert k v) e).isSome := by
+  fun_induction evalRec Γ e
+  · grind
+  · expose_names
+    unfold evalRec
+    grind
+  · unfold evalRec
+    split
+    · grind
+    · grind
+  · expose_names
+    unfold evalRec
+    simp
+    subst f
+    split
+    · grind
+    · expose_names
+      have : expr = CacheExpr.binary_op lhs rhs op := by grind
+      subst this
+      simp at h ⊢
+      split at h
+      · rw [show Option.map = Functor.map from rfl, binaryOp_isSome_iff] at h ⊢
+        grind
+      · rw [show Option.map = Functor.map from rfl, binaryOp_isSome_iff] at h ⊢
+        grind
+      · rw [show Option.map = Functor.map from rfl, binaryOp_isSome_iff] at h ⊢
+        grind
 
-@[aesop unsafe, grind .]
-lemma HashConsSt.exprs_mem_pushExpr {e : CacheExpr p} (h : e.wellFormed σ.exprs.size) :
-  e ∈ (σ.pushExpr e h).exprs := by
-  simp [HashConsSt.pushExpr]
+@[grind .]
+lemma isSome_evalRec_of_isSome_evalRec_subset {Γbig Γsmol : VarStore p}
+  (h : (evalRec Γsmol e).isSome) (h₁ : Γsmol ⊆ Γbig) : (evalRec Γbig e).isSome := by
+  rw [VarStore.hasSubset_def] at h₁
+  fun_induction evalRec Γbig e <;> grind [=evalRec]
 
-lemma eval_pushExpr {ref : HashConsM p ExprRef}
-  (h : ref.val (σ.pushExpr (.c k) wellFormed_c) = σ.exprs.size)
-:
-  [varStore, σ.pushExpr (.c k) wellFormed_c|ref] = (.some k, ref.st σ)
-:= by
-  sorry
-  
--- @[simp, grind =]
--- lemma run_mkConstant_eval_c_of_mem
---   {p : ℕ}
---   {k : ZMod p}
---   {varStore : VarStore p}
---   {σ : HashConsSt p}
---   (h : .c k ∈ σ.exprs)
--- :
---   (mkConstant k >>= ([varStore|·])).run σ = (.some k, σ)
--- := by
---   simp
---   simp [StateT.run, h]
---   unfold_projs
---   grind
+def eval {p} (varStore : VarStore p) (e : Expr p) : Option (ZMod p) :=
+  (evalWithCache varStore #[] e)[e.ref]!
 
--- @[simp, grind =]
--- lemma run_mkConstant_eval_c_of_notMem
---   {p : ℕ}
---   {k : ZMod p}
---   {varStore : VarStore p}
---   {σ : HashConsSt p}
---   (h : .c k ∉ σ.exprs)
--- :
---   (mkConstant k >>= ([varStore|·])).run σ = (.some k, σ.pushExpr (.c k) sorry)
--- := by
---   simp
---   simp [StateT.run, h]
---   unfold_projs
---   simp
+notation "[" varStore "," σ "|" e "]" => eval varStore ⟨e, σ⟩
 
+notation "[" varStore "|" e "]" => eval varStore e
 
-end
+section Lemmas
+
+variable {p : ℕ} {Γ : VarStore p} {e : Expr p} {cache : ValueCache p}
+         {expr : CacheExpr p}
 
 @[simp, grind =]
-lemma eval_c
-  {p : ℕ}
-  {k : ZMod p}
-  {varStore : VarStore p}
-  {σ : HashConsSt p}
+lemma evalWithCache_idempotent :
+  evalWithCache Γ (evalWithCache Γ cache e) e =
+  evalWithCache Γ cache e := by
+  fun_induction evalWithCache <;> grind [=evalWithCache]
+
+/--
+The cache is immutable.
+-/
+@[aesop unsafe, grind .]
+lemma evalWithCache_of_mem (h : e.ref < cache.size) :
+  (evalWithCache Γ cache e)[e.ref]? = cache[e.ref]? := by
+  fun_induction evalWithCache <;> grind
+
+/--
+The cache never shrinks.
+-/
+@[mono, grind ←]
+lemma size_le_size_evalWithCache :
+  cache.size ≤ (evalWithCache Γ cache e).size := by
+  fun_induction evalWithCache <;> grind
+
+/--
+Is this even useful?
+NB: yes
+-/
+lemma lt_size_evalWithCache_of_lt_size (h : e.wellFormed) :
+  e.ref < (evalWithCache Γ cache e).size := by
+  fun_induction evalWithCache <;> grind
+
+-- lemma evalCore_evalRec
+--   (h₁ : ∀ e < cache.size, cache[e]? = evalRec varStore σ e)
+--   (h₂ : σ.exprs[cache.size]? = some expr) :
+--   evalCore varStore expr cache = evalRec varStore σ cache.size := by
+--   unfold evalCore evalRec
+--   rcases expr with e | e | ⟨lhs, rhs, binop⟩
+--   · aesop
+--   · aesop
+--   · obtain ⟨h₃, h₄⟩ : lhs < cache.size ∧ rhs < cache.size := by
+--       have := σ.wellFormed _ (show cache.size < σ.exprs.size by grind)
+--       aesop
+--     simp
+--     sorry
+
+lemma evalCore_evalRec
+  {expr : CacheExpr p}
+  (h_lookup : *e = .some expr)
+  (h_cache : ∀ ref < e.ref, cache[ref]! = evalRec Γ ⟨ref, e.σ⟩)
 :
-  [varStore,σ|mkConstant k] =
-  (
-    .some k,
-    if CacheExpr.c k ∈ σ.exprs
-    then σ
-    else HashConsSt.pushExpr (CacheExpr.c k) σ wellFormed_c
-  )
+  evalCore Γ expr cache =
+  evalRec Γ e
+:= by grind [=evalCore, =evalRec]
+
+lemma evalWithCache_wrt_evalRec
+  (he : e.wellFormed)
+  (h : ∀ ref, (h : ref < cache.size) → cache[ref]'h = evalRec Γ ⟨ref, e.σ⟩)
+:
+  letI newCache := evalWithCache Γ cache e
+  e.ref < newCache.size ∧
+  (newCache[e.ref]'(lt_size_evalWithCache_of_lt_size he)) = evalRec Γ e
+:= by
+  fun_induction evalWithCache
+  . split_ands
+    . exact lt_of_lt_of_le (by assumption) size_le_size_evalWithCache
+    . rewrite [←h e.ref (by assumption)]
+      expose_names
+      have := evalWithCache_of_mem (Γ := Γ) h_1
+      grind
+  . grind
+  . expose_names
+    split_ands
+    . unfold evalWithCache
+      grind
+    . unfold evalWithCache
+      simp [h_1, h_2]
+      apply (ih1 _).2
+      intro idx h_idx
+      by_cases h_idx' : idx = x.size
+      . simp [h_idx', val]
+        unfold evalCore evalRec
+        grind
+      . grind
+
+@[grind =]
+lemma eval_eq_evalRec
+  (h : e.wellFormed)
+:
+  [Γ|e] = evalRec Γ e
 := by
   unfold eval
-  simp
-  
-  -- aesop (add simp [Functor.map]) (add safe (by grind))
+  have := @evalWithCache_wrt_evalRec p Γ e #[]
+  grind
 
--- @[simp, grind .]
--- lemma eval_ofNat {p n : ℕ} {varStore : VarStore p} :
---   [varStore|no_index (OfNat.ofNat n)] = .some n := by
---   simp [FixedExp.eval]
+end Lemmas
 
--- @[simp, grind =]
--- lemma eval_v
---   {p : ℕ}
---   {varIdx : ℕ}
---   {varStore : VarStore p}
--- :
---   [varStore|Exp.v varIdx] = varStore[varIdx]?
--- := by
---   simp [FixedExp.eval]
+end Eval
 
--- @[simp, grind =]
--- lemma add_def
---   {p : ℕ}
---   {a b : FixedExp p}
--- :
---   a + b =
---   Exp.add a b
--- := by
---   simp [HAdd.hAdd, Add.add]
+end Expr
 
--- -- @[simp, grind =]
--- @[grind =]
--- lemma sub_def
---   {p : ℕ}
---   {a b : FixedExp p}
--- :
---   a - b =
---   Exp.sub a b
--- := by
---   simp [HSub.hSub, Sub.sub]
+end Expr
 
--- @[simp, grind =]
--- lemma mul_def
---   {p : ℕ}
---   {a b : FixedExp p}
--- :
---   a * b =
---   Exp.mul a b
--- := by
---   simp [HMul.hMul, Mul.mul]
+section EvalM
 
--- @[simp, grind =]
--- lemma eval_add
---   {p : ℕ}
---   {varStore : VarStore p}
---   {a b : FixedExp p}
--- :
---   [varStore|Exp.add a b] =
---   (do (←eval varStore a) + (←eval varStore b))
--- := rfl
+variable {p : ℕ}
 
--- @[grind .]
--- lemma eval_none_add
---   {p : ℕ}
---   {varStore : VarStore p}
---   {a b : FixedExp p}
---   (h : [varStore|a] = .none)
--- :
---   [varStore|Exp.add a b] =
---   .none
--- := by
---   simp [FixedExp.eval, h]
+abbrev toExpr (e : ExprRef) : HashConsM p (Expr p) := do
+  return ⟨e, ←get⟩
 
--- @[grind .]
--- lemma eval_add_none
---   {p : ℕ}
---   {varStore : VarStore p}
---   {a b : FixedExp p}
---   (h : [varStore|b] = .none)
--- :
---   [varStore|Exp.add a b] =
---   .none
--- := by
---   simp [FixedExp.eval, h]
+abbrev deref (e : ExprRef) : HashConsM p (Option (CacheExpr p)) :=
+  get <&> (*{ref := e, σ := ·})
 
--- @[simp, grind =]
--- lemma eval_sub
---   {p : ℕ}
---   {varStore : VarStore p}
---   {a b : FixedExp p}
--- :
---   [varStore|Exp.sub a b] =
---   (do (←eval varStore a) - (←eval varStore b))
--- := rfl
+abbrev evalM (Γ : VarStore p) (e : HashConsM p ExprRef) : HashConsM p (Option (ZMod p)) := do
+  let expr ← e
+  let state ← get
+  return [Γ, state|expr]
 
--- @[grind .]
--- lemma eval_none_sub
---   {p : ℕ}
---   {varStore : VarStore p}
---   {a b : FixedExp p}
---   (h : [varStore|a] = .none)
--- :
---   [varStore|Exp.sub a b] =
---   .none
--- := by
---   simp [FixedExp.eval, h]
+abbrev evalM' (Γ : VarStore p) (e : ExprRef) : HashConsM p (Option (ZMod p)) := do
+  return [Γ|←toExpr e]
 
--- @[grind .]
--- lemma eval_sub_none
---   {p : ℕ}
---   {varStore : VarStore p}
---   {a b : FixedExp p}
---   (h : [varStore|b] = .none)
--- :
---   [varStore|Exp.sub a b] =
---   .none
--- := by
---   simp [FixedExp.eval, h]
+notation "[" varStore "," state "|" "←" x "]" => HashConsM.run (evalM varStore x) state
 
--- @[simp, grind =]
--- lemma eval_mul
---   {p : ℕ}
---   {varStore : VarStore p}
---   {a b : FixedExp p}
--- :
---   [varStore|Exp.mul a b] =
---   (do (←eval varStore a) * (←eval varStore b))
--- := rfl
+end EvalM
 
--- @[grind .]
--- lemma eval_none_mul
---   {p : ℕ}
---   {varStore : VarStore p}
---   {a b : FixedExp p}
---   (h : [varStore|a] = .none)
--- :
---   [varStore|Exp.mul a b] =
---   .none
--- := by
---   simp [FixedExp.eval, h]
+section Prefix
 
--- @[grind .]
--- lemma eval_mul_none
---   {p : ℕ}
---   {varStore : VarStore p}
---   {a b : FixedExp p}
---   (h : [varStore|b] = .none)
--- :
---   [varStore|Exp.mul a b] =
---   .none
--- := by
---   simp [FixedExp.eval, h]
+lemma Array.size_eq_zero_of_isPrefixOf_size_eq_zero
+  {T} [BEq T] [LawfulBEq T]
+  (a b: Array T)
+  (h_prefix : a.isPrefixOf b = true)
+  (h_size : b.size = 0)
+:
+  a.size = 0
+:= by
+  rewrite [←Array.isPrefixOf_toList] at h_prefix
+  grind
+
+open Expr in
+lemma evalCache_of_lt_prefix
+  {p : ℕ}
+  {Γ : VarStore p}
+  {e : ExprRef}
+  {cache : ValueCache p}
+  {σ σ' : HashConsSt p}
+  (h_prefix : σ.exprs.isPrefixOf σ'.exprs)
+  (h_lt_prefix : e < σ.exprs.size)
+:
+  evalWithCache Γ cache ⟨e, σ⟩ =
+  evalWithCache Γ cache ⟨e, σ'⟩
+:= by
+  unfold ExprRef at *
+  induction h : e + 1 - cache.size generalizing cache with
+  | zero =>
+    unfold evalWithCache
+    grind
+  | succ n ih =>
+    unfold evalWithCache
+    split_ifs
+    . rfl
+    . have : cache.size < σ.exprs.size := by grind
+      have : σ[cache.size]? = σ'[cache.size]? := by
+        simp
+        rewrite [←Array.getElem?_toList, ←Array.getElem?_toList]
+        have : σ.exprs.toList.isPrefixOf σ'.exprs.toList = true := by grind
+        grind [List.prefix_iff_getElem?]
+      grind
+
+open Expr in
+@[grind =>]
+lemma evalCache_of_lt_prefix'
+  {p : ℕ}
+  {Γ : VarStore p}
+  {e₁ e₂ : Expr p}
+  {cache : ValueCache p}
+  (h_ref : e₁.ref = e₂.ref)
+  (h_prefix : e₁.σ.exprs.isPrefixOf e₂.σ.exprs)
+  (h_lt_prefix : e₁.wellFormed)
+:
+  evalWithCache Γ cache e₁ =
+  evalWithCache Γ cache e₂
+:= by
+  unfold ExprRef at *
+  induction h : e₁.ref + 1 - cache.size generalizing cache with
+  | zero =>
+    unfold evalWithCache
+    grind
+  | succ n ih =>
+    unfold evalWithCache
+    split_ifs
+    . rfl
+    . have : cache.size < e₁.σ.exprs.size := by grind
+      have : e₁.σ[cache.size]? = e₂.σ[cache.size]? := by grind
+      grind
+    · grind
+    · split
+      · grind
+      · have : e₁.σ.exprs.toList.isPrefixOf e₂.σ.exprs.toList = true := by grind
+        rw [ih (by grind)]
+        grind [List.prefix_iff_getElem?]
+
+end Prefix
+
+@[aesop simp, grind .]
+lemma isSome_eval_of_isSome_eval_subset
+  {p : ℕ}
+  {varStoreBig varStoreSmol : VarStore p}
+  {σ : HashConsSt p}
+  {e : ExprRef}
+  (h : [varStoreSmol, σ|e].isSome = true)
+  (h₁ : e < σ.size)
+  (h₂ : varStoreSmol ⊆ varStoreBig)
+:
+  [varStoreBig, σ|e].isSome = true
+:= by
+  grind
+
+@[aesop simp, grind .]
+lemma isSome_eval_of_isSome_eval_subset'
+  {p : ℕ}
+  {varStoreBig varStoreSmol : VarStore p}
+  {e : Expr p}
+  (h : [varStoreSmol|e].isSome = true)
+  (h₁ : e.wellFormed)
+  (h₂ : varStoreSmol ⊆ varStoreBig)
+:
+  [varStoreBig|e].isSome = true
+:= by
+  grind
 
 end Clap.HashConsM

@@ -1,6 +1,6 @@
 import Clap.eDSLState.HashCons.HashConsM
 import Clap.Poseidon.Constant
-import Clap.eDSLState.HashCons.EvalButActuallyGood
+import Clap.eDSLState.HashCons.Eval
 
 namespace Clap
 

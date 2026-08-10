@@ -2,73 +2,27 @@ import Mathlib.Control.Monad.Writer
 import Mathlib.Tactic
 
 import Clap.BitVec
+import Clap.eDSLState.CircuitEvalSt
 import Clap.eDSLState.HashCons.CacheExpr
-import Clap.eDSLState.HashCons.EvalButActuallyGood
+import Clap.eDSLState.HashCons.Eval
 import Clap.eDSLState.Varstore
+import Clap.eDSLState.Gate
 
 namespace Clap
 
-@[grind cases]
-inductive Gate (p : ℕ) where
-  | eq0 (e : ExprRef)
-  | share (e : ExprRef)
-  | isZero (e : ExprRef)
-  | num2bits (w : ℕ) (e : ExprRef)
-deriving Inhabited
-
-@[grind =]
-def Gate.expr {p} (gate : Gate p) : ExprRef :=
-  match gate with
-  | .eq0 e | .share e | .isZero e | .num2bits _ e => e
-
-@[grind =]
-def Gate.refsValid {p : ℕ} (c : Gate p) (bound : ℕ) : Prop := c.expr < bound
-
-@[grind =]
-def Gate.varsAllocated {p : ℕ} (c : Gate p) (varStore : VarStore p) (σ : HashConsSt p) : Prop :=
-  [varStore, σ|c.expr].isSome
-
-@[aesop safe cases, grind]
-structure _root_.Clap.Gate.wellFormed {p : ℕ}
-  (gate : Gate p) (Γ : VarStore p) (σ : HashConsSt p) : Prop where
-  refsValid : gate.refsValid σ.size
-  varsAllocated : gate.varsAllocated Γ σ
-
-section Gate.varsAllocated_lemmas
-
-variable {p : ℕ} {gate : Gate p} {Γ : VarStore p} {σ : HashConsSt p} {e! : ExprRef}
-
-namespace Gate
-
-@[simp, grind =]
-lemma varsAllocated_eq0 : varsAllocated (.eq0 e!) Γ σ = [Γ, σ|e!].isSome := rfl
-
-@[simp, grind =]
-lemma varsAllocated_share : varsAllocated (.share e!) Γ σ = [Γ, σ|e!].isSome := rfl
-
-@[simp, grind =]
-lemma varsAllocated_isZero : varsAllocated (.isZero e!) Γ σ = [Γ, σ|e!].isSome := rfl
-
-@[simp, grind =]
-lemma varsAllocated_num2bits {w} : varsAllocated (.num2bits w e!) Γ σ = [Γ, σ|e!].isSome := rfl
-
-end Gate
-
-end Gate.varsAllocated_lemmas
-
-instance {p : ℕ} {c : Gate p} {varStore : VarStore p} {σ : HashConsSt p} :
-  Decidable (c.varsAllocated varStore σ) := by
-  unfold Gate.varsAllocated
-  rcases c <;> infer_instance
-
-instance {p : ℕ} {x : Gate p} {bound : ℕ} : Decidable (x.refsValid bound) :=
-  x.expr.decLt bound
-
 abbrev Circuit (p : ℕ) := Array (Gate p)
 
+section Clap
+
+variable {p : ℕ}
+
+namespace Circuit
+
 @[grind =]
-  def Circuit.refsValid {p : ℕ} (c : Circuit p) (bound : ℕ) : Prop :=
-    c.all fun x => decide (x.refsValid bound)
+def refsValid (c : Circuit p) (bound : ℕ) : Prop :=
+  ∀ gate ∈ c, gate.refsValid bound
+
+end Circuit
 
 namespace Edsl
 
@@ -93,163 +47,6 @@ variable {p k numAlloc : ℕ} {result result' : CircuitResult p}
          {constraint constraints : Prop} {vars : Vector (ZMod p) k} {e : HashConsM p ExprRef} {e! : ExprRef}
          {varStore : VarStore p}
          {σ : HashConsSt p} {vars : Vector (ZMod p) k}
-
-def init (p : ℕ) : CircuitResult p := ⟨0, ∅, True⟩
-
-def unconstrained (numAlloc : ℕ) (varStore : VarStore p) : CircuitResult p :=
-  ⟨numAlloc, varStore, True⟩
-
-variable {result : CircuitResult p}
-
-notation (name := notationα) "unconstrained[" numAlloc:arg "]" "[" varStore:arg "]" => unconstrained numAlloc varStore
-
-recommended_spelling "unconstrained" for "α" in [unconstrained, notationα]
-
-@[simp, grind =]
-lemma numAlloc_unconstrained : unconstrained[numAlloc][varStore].numAlloc = numAlloc := rfl
-
-@[simp, grind =]
-lemma varStore_unconstrained : unconstrained[numAlloc][varStore].varStore = varStore := rfl
-
-@[simp, grind =]
-lemma constraints_unconstrained : unconstrained[numAlloc][varStore].constraints = True := rfl
-
-def addConstraint (result : CircuitResult p) (constraint : Prop) : CircuitResult p :=
-  {result with constraints := result.constraints ∧ constraint}
-
-@[simp, grind =]
-lemma addConstraint_mk
-  {constraints constraint : Prop}
-:
-  (Edsl.CircuitResult.mk numAlloc varStore constraints).addConstraint constraint =
-  Edsl.CircuitResult.mk numAlloc varStore (constraints ∧ constraint)
-:= rfl
-
-@[simp, grind =]
-lemma addConstraint_unconstrained {constraint : Prop} :
-  unconstrained[numAlloc][varStore].addConstraint constraint =
-  ⟨numAlloc, varStore, constraint⟩ := by simp [unconstrained]
-
-@[simp, grind =]
-lemma numAlloc_addConstraint : (result.addConstraint constraint).numAlloc = result.numAlloc := rfl
-
-@[simp, grind =]
-lemma varStore_addConstraint : (result.addConstraint constraint).varStore = result.varStore := rfl
-
-@[simp, grind =]
-lemma constraints_addConstraint : (result.addConstraint constraint).constraints =
-                                  (result.constraints ∧ constraint) := rfl
-
-def allocAnonymous (result : CircuitResult p) : CircuitResult p :=
-  {result with numAlloc := result.numAlloc + 1}
-
-@[simp, grind =]
-lemma allocAnonymous_mk
-:
-  (Edsl.CircuitResult.mk numAlloc varStore constraints).allocAnonymous =
-  Edsl.CircuitResult.mk (numAlloc + 1) varStore constraints
-:= rfl
-
-@[simp, grind =]
-lemma allocAnonymous_unconstrained :
-  unconstrained[numAlloc][varStore].allocAnonymous =
-  ⟨numAlloc + 1, varStore, True⟩ := rfl
-
-@[simp, grind =]
-lemma numAlloc_allocAnonymous : result.allocAnonymous.numAlloc = result.numAlloc + 1 := rfl
-
-@[simp, grind =]
-lemma varStore_allocAnonymous : result.allocAnonymous.varStore = result.varStore := rfl
-
-@[simp, grind =]
-lemma constraints_allocAnonymous : result.allocAnonymous.constraints = result.constraints := rfl
-
-@[grind =]
-def get? (result : CircuitResult p) (e : ExprRef) (σ : HashConsSt p) : (Option (ZMod p)) := do
-  HashConsM.eval result.varStore e σ
-
-@[grind =]
-def getM? (result : CircuitResult p) (e : HashConsM p ExprRef) : HashConsM p (Option (ZMod p)) := do
-  HashConsM.evalM result.varStore e
-
-instance : Membership (ExprRef × HashConsSt p) (CircuitResult p) :=
-  ⟨fun Γ (x, σ) ↦ (get? Γ x σ).isSome⟩
-
-instance : GetElem (CircuitResult p) (ExprRef × HashConsSt p) (ZMod p) (fun Γ x ↦ x ∈ Γ) :=
-  ⟨fun circuitResult (x, σ) h ↦ circuitResult.get? x σ |>.get h⟩
-
-def getD (result : CircuitResult p) (e : ExprRef) (σ : HashConsSt p) : ZMod p :=
-  (result.get? e σ).getD (dflt := 0)
-
-instance {p} : GetElem? (CircuitResult p) (ExprRef × HashConsSt p) (ZMod p) (fun Γ x ↦ x ∈ Γ) :=
-  ⟨Function.uncurry ∘ get?, Function.uncurry ∘ getD⟩
-
-def getDM (result : CircuitResult p) (e : HashConsM p ExprRef) : HashConsM p (ZMod p) := do
-  result.getM? e <&> Option.getD (dflt := 0)
-
-@[simp, grind =]
-lemma getD_eq_getM?_getD {e : ExprRef} : result.getD e σ = (result[(e, σ )]?).getD (dflt := 0) := rfl
-
-@[simp, grind =]
-lemma getElem!_eq_getElem?_getD {e : ExprRef} : result[(e, σ)]! = (result[(e, σ)]?).getD (dflt := 0) := rfl
-
-@[simp, grind =]
-lemma getDM_eq_getM?_getD : result.getDM e = result.getM? e <&> Option.getD (dflt := 0) := rfl
-
-@[simp, grind =]
-lemma get?_mk
-:
-  (Edsl.CircuitResult.mk numAlloc varStore constraints).get? e! σ =
-  [varStore,σ|e!]
-:= rfl
-
-@[simp, grind =]
-lemma getM?_mk
-:
-  ((Edsl.CircuitResult.mk numAlloc varStore constraints).getM? e).run σ =
-  [varStore,σ|←e]
-:= rfl
-
-@[simp, grind =]
-lemma getElem?_mk
-:
-  (Edsl.CircuitResult.mk numAlloc varStore constraints)[(e!, σ)]? =
-  [varStore,σ|e!]
-:= rfl
-
-@[simp, grind =]
-lemma membership_unconstrained
-:
-  ((e!, σ) ∈ unconstrained[numAlloc][varStore]) = [varStore,σ|e!].isSome
-:= rfl
-
-@[simp, grind =]
-lemma getElem?_unconstrained
-:
-  unconstrained[numAlloc][varStore][(e!, σ)]? = [varStore,σ|e!]
-:= rfl
-
-@[simp, grind =]
-lemma getM?_unconstrained:
-  (unconstrained[numAlloc][varStore].getM? e).run σ =
-  [varStore,σ|←e] := by simp [unconstrained]
-
-@[grind =>]
-lemma getElem?_of_varStore_eq_varStore {e : ExprRef} (h : result.varStore = result'.varStore)
-:
-  result[(e, σ)]? = result'[(e, σ)]?
-:= by
-  simp_all [GetElem?.getElem?, CircuitResult.get?]
-
-@[grind =>]
-lemma getM?_of_varStore_eq_varStore (h : result.varStore = result'.varStore) : result.getM? e = result'.getM? e := by
-  simp_all [CircuitResult.getM?]
-
--- Asserts that the expression that e points to does not use any variables that aren't in the varStore
--- Panics if e is outside of σ
-def assertAllocated (result : CircuitResult p) (e : ExprRef) (σ : HashConsSt p) : CircuitResult p :=
-  let val := result[(e, σ)]?
-  result.addConstraint val.isSome
 
 def assertAllocatedM (result : CircuitResult p) (e : HashConsM p ExprRef) : HashConsM p (CircuitResult p) := do
   let val ← result.getM? e
@@ -1271,4 +1068,8 @@ lemma refsValid_append_iff {a b : Circuit p} {numAlloc : ℕ}
 := by
   grind
 
-end Clap.Circuit
+end Circuit
+
+end Clap
+
+end Clap
