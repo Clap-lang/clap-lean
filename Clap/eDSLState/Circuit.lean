@@ -172,10 +172,9 @@ lemma eval_varStore_insertMany_isSome_of_isSome
   . have : arr = arr.take (arr.length - 1) ++ [arr.getLast (by grind)] := by simp
     grind
 
-lemma eval_empty
-:
-  [varStore, σ, numAlloc|#[]]ₑ =
-  ⟨numAlloc, varStore, True⟩
+@[simp, grind =]
+lemma eval_empty :
+  [varStore, σ, numAlloc | #[]]ₑ = unconstrained[numAlloc][varStore]
 := rfl
 
 lemma eval_varStore_eval_insert_isSome_of_isSome
@@ -295,37 +294,43 @@ lemma precedes_rfl : [σ|Γ ⊑ Γ] := by grind
 --     --   done
 --     -- done
 
--- lemma varsAllocated_eval_append_left
---   {p i : ℕ}
---   {circuit a : Circuit p}
---   {varStore : VarStore p}
---   {σ : HashConsSt p}
---   {numAlloc : ℕ}
---   {h_get}
---   (h₀ : circuit.refsValid σ.size)
---   (h : (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|circuit.extract 0 i]ₑ.varStore σ)
--- :
---   (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|a ++ circuit.extract 0 i]ₑ.varStore σ
--- := by
---   unfold Gate.varsAllocated at h ⊢
---   rcases a with ⟨a⟩
---   induction' a with hd tl ih
---   · grind
---   · split <;> expose_names <;> simp at *
---     simp [heq] at ih
---     · rw [HashConsM.isSome_eval_of_isSome_eval_subset ih (by grind)]
---       suffices
---         [varStore, σ, numAlloc|⟨tl⟩ ++ Array.extract circuit 0 i]ₑ.varStore ⊆
---         [varStore, σ, numAlloc|#[hd] ++ (⟨tl⟩ ++ Array.extract circuit 0 i)]ₑ.varStore by
---         grind
+/-
+TODO: Not based one bit
+TODO: TODO
+-/
+lemma varsAllocated_eval_append_left
+  {p i : ℕ}
+  {circuit a : Circuit p}
+  {varStore : VarStore p}
+  {σ : HashConsSt p}
+  {numAlloc : ℕ}
+  {h_get}
+  (h₀ : circuit.refsValid σ.size)
+  {l}
+  (h₁ : l <:+ circuit.toList)
+  (h : (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|⟨l⟩]ₑ.varStore σ)
+:
+  (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|a ++ ⟨l⟩]ₑ.varStore σ
+:= by
+  unfold Gate.varsAllocated at h ⊢
+  rcases a with ⟨a⟩
+  induction' a with hd tl ih
+  · grind
+  · split <;> expose_names <;> simp at *
+    simp [heq] at ih
+    · rw [HashConsM.isSome_eval_of_isSome_eval_subset ih (by grind)]
+      suffices
+        [varStore, σ, numAlloc|⟨tl⟩ ++ Array.extract circuit 0 i]ₑ.varStore ⊆
+        [varStore, σ, numAlloc|#[hd] ++ (⟨tl⟩ ++ Array.extract circuit 0 i)]ₑ.varStore by
+        grind
 
---       grind
---     all_goals sorry
+      grind
+    all_goals sorry
 
---     -- all_goals {
---     --   rw [HashConsM.isSome_eval_of_isSome_eval_subset]
---     -- }
---   done
+    -- all_goals {
+    --   rw [HashConsM.isSome_eval_of_isSome_eval_subset]
+    -- }
+  done
 
 lemma varsAllocated_eval_append_right
   {i : ℕ}
@@ -345,50 +350,45 @@ lemma varsAllocated_eval_append_right
     have (a: Array (Gate p)) (l : List (Gate p)) (gate : Gate p)
       : a ++ (l ++ [gate]).toArray = (a ++ ⟨l⟩).push gate
     := by grind
-    split <;> cases head
-    all_goals (
-      expose_names
-      rewrite [this]
-      set x := circuit.extract 0 i ++ ⟨tail.reverse⟩
-      have : e < σ.size := by grind
-      simp_all [eval_varStore_insert_isSome_of_isSome, eval_varStore_insertMany_isSome_of_isSome]
-    )
+    have : circuit[i].expr < σ.size := by
+      aesop (add safe (by grind))
+    grind
 
-/--
+/-
 TODO: In terms of `Circuit.wellFormed`
+TODO: TODO
 -/
-lemma Circuit.varsAllocated_append {p : ℕ}
-  (a b : Circuit p)
-  {varStore : VarStore p}
-  {σ : HashConsSt p}
-  {numAlloc : ℕ}
-  (h₀ : a.refsValid σ.size)
-  (h₁ : b.refsValid σ.size)
-  (h_a : a.varsAllocated varStore σ numAlloc)
-  (h_b : b.varsAllocated varStore σ numAlloc)
-:
-  (a ++ b).varsAllocated varStore σ numAlloc
-:= by
-  simp [varsAllocated] at ⊢ h_a h_b
-  . intro i h_i
-    simp [Array.getElem_append]
-    split_ifs with h_i'
-    . specialize h_a i h_i'
-      exact varsAllocated_eval_append_right h₀ h_a
-    . specialize h_b (i - a.size) (by omega)
-      simp (disch := omega) [Array.extract_eq_self_of_le]
-      exact varsAllocated_eval_append_left h_b
-
-end
+-- lemma varsAllocated_append
+--   (a b : Circuit p)
+--   {varStore : VarStore p}
+--   {σ : HashConsSt p}
+--   {numAlloc : ℕ}
+--   (h₀ : a.refsValid σ.size)
+--   (h₁ : b.refsValid σ.size)
+--   (h_a : a.varsAllocated varStore σ numAlloc)
+--   (h_b : b.varsAllocated varStore σ numAlloc)
+-- :
+--   (a ++ b).varsAllocated varStore σ numAlloc
+-- := by
+--   simp [varsAllocated] at ⊢ h_a h_b
+--   . intro i h_i
+--     simp [Array.getElem_append]
+--     split_ifs with h_i'
+--     . specialize h_a i h_i'
+--       exact varsAllocated_eval_append_right h₀ h_a
+--     . specialize h_b (i - a.size) (by omega)
+--       simp (disch := omega) [Array.extract_eq_self_of_le]
+--       exact varsAllocated_eval_append_left h_b
 
 end Circuit
-end CircuitEval
 
-namespace Edsl.EvalSt
+end Circuit
+
+namespace EvalSt
 
 variable {p pc numAlloc : ℕ} {σ : HashConsSt p} {constraints constraints1 constraints2 : Prop}
          {varStore : VarStore p} {circuit : Circuit p} {e! : ExprRef} {gate : Gate p}
-         {result : EvalSt p}
+         {st : EvalSt p}
 
 @[ext, grind ext]
 lemma ext {p : ℕ} {r1 r2 : EvalSt p}
@@ -400,10 +400,10 @@ lemma ext {p : ℕ} {r1 r2 : EvalSt p}
 := by
   grind [cases EvalSt]
 
-lemma evalInOrder_step_numAlloc_independent_of_constraints
+lemma evalInOrder_numAlloc_independent_of_constraints
 :
-  (Circuit.evalInOrder circuit σ ⟨numAlloc, varStore, constraints1⟩).numAlloc =
-  (Circuit.evalInOrder circuit σ ⟨numAlloc, varStore, constraints2⟩).numAlloc
+  (circuit.evalInOrder σ ⟨numAlloc, varStore, constraints1⟩).numAlloc =
+  (circuit.evalInOrder σ ⟨numAlloc, varStore, constraints2⟩).numAlloc
 := by
   rcases circuit with ⟨circuit⟩
   unfold Circuit.evalInOrder
@@ -411,37 +411,37 @@ lemma evalInOrder_step_numAlloc_independent_of_constraints
   rewrite [←List.reverse_reverse circuit]
   induction' circuit.reverse <;> aesop (add safe (by grind))
 
-lemma foldl_step_numAlloc_independent_of_constraints {circuit : List (Gate p)}
+lemma foldl_step_numAlloc_independent_of_constraints' {circuit : List (Gate p)}
 :
   (circuit.foldl (fun result next => [result, σ|next]ₛ) ⟨numAlloc, varStore, constraints1⟩).numAlloc =
   (circuit.foldl (fun result next => [result, σ|next]ₛ) ⟨numAlloc, varStore, constraints2⟩).numAlloc
 := by
-  have := @evalInOrder_step_numAlloc_independent_of_constraints (circuit := ⟨circuit⟩) (σ := σ)
-  aesop
+  have := @evalInOrder_numAlloc_independent_of_constraints (circuit := ⟨circuit⟩) (σ := σ)
+  grind
 
 lemma foldr_step_numAlloc_independent_of_constraints
 :
-  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩ circuit).numAlloc =
-  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints2⟩ circuit).numAlloc
+  (circuit.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩).numAlloc =
+  (circuit.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints2⟩).numAlloc
 := by
   rcases circuit with ⟨circuit⟩
   rewrite [←List.reverse_reverse circuit]
   rw [show Array.mk circuit.reverse.reverse = Array.reverse ⟨circuit.reverse⟩ by simp]
   simp only [Array.foldr_reverse]
-  exact evalInOrder_step_numAlloc_independent_of_constraints
+  exact evalInOrder_numAlloc_independent_of_constraints
 
 lemma foldr_step_numAlloc_independent_of_constraints'
 :
-  (List.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩ circuit.toList).numAlloc =
-  (List.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints2⟩ circuit.toList).numAlloc
+  (circuit.toList.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩).numAlloc =
+  (circuit.toList.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints2⟩).numAlloc
 := by
   simp only [Array.foldr_toList]
   exact foldr_step_numAlloc_independent_of_constraints
 
-lemma evalInOrder_step_varStore_independent_of_constraints
+lemma evalInOrder_varStore_independent_of_constraints
 :
-  (Circuit.evalInOrder circuit σ ⟨numAlloc, varStore, constraints1⟩).varStore =
-  (Circuit.evalInOrder circuit σ ⟨numAlloc, varStore, constraints2⟩).varStore
+  (circuit.evalInOrder σ ⟨numAlloc, varStore, constraints1⟩).varStore =
+  (circuit.evalInOrder σ ⟨numAlloc, varStore, constraints2⟩).varStore
 := by
   rcases circuit with ⟨circuit⟩
   rewrite [←List.reverse_reverse circuit]
@@ -458,24 +458,24 @@ lemma foldl_step_varStore_independent_of_constraints {circuit : List (Gate p)}
   (circuit.foldl (fun result next => [result, σ|next]ₛ) ⟨numAlloc, varStore, constraints1⟩).varStore =
   (circuit.foldl (fun result next => [result, σ|next]ₛ) ⟨numAlloc, varStore, constraints2⟩).varStore
 := by
-  have := @evalInOrder_step_varStore_independent_of_constraints (circuit := ⟨circuit⟩) (σ := σ)
+  have := @evalInOrder_varStore_independent_of_constraints (circuit := ⟨circuit⟩) (σ := σ)
   aesop
 
 lemma foldr_step_varStore_independent_of_constraints
 :
-  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩ circuit).varStore =
-  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints2⟩ circuit).varStore
+  (circuit.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩).varStore =
+  (circuit.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints2⟩).varStore
 := by
   rcases circuit with ⟨circuit⟩
   rewrite [←List.reverse_reverse circuit]
   rw [show Array.mk circuit.reverse.reverse = Array.reverse ⟨circuit.reverse⟩ by simp]
   simp only [Array.foldr_reverse]
-  exact evalInOrder_step_varStore_independent_of_constraints
+  exact evalInOrder_varStore_independent_of_constraints
 
 lemma foldr_step_varStore_independent_of_constraints'
 :
-  (List.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩ circuit.toList).varStore =
-  (List.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints2⟩ circuit.toList).varStore
+  (circuit.toList.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩).varStore =
+  (circuit.toList.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints2⟩).varStore
 := by
   simp only [Array.foldr_toList]
   exact foldr_step_varStore_independent_of_constraints
@@ -483,13 +483,13 @@ lemma foldr_step_varStore_independent_of_constraints'
 @[grind .]
 lemma getElem_foldr_independent_of_constraints
 :
-  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩ circuit)[(e!, σ)]? =
-  (Array.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints2⟩ circuit)[(e!, σ)]?
+  (circuit.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints1⟩)[Expr.mk e! σ]? =
+  (circuit.foldr (λ x y => [y, σ|x]ₛ) ⟨numAlloc, varStore, constraints2⟩)[Expr.mk e! σ]?
 := by
   rcases circuit with ⟨circuit⟩
   rewrite [←List.reverse_reverse circuit]
   rw [show Array.mk circuit.reverse.reverse = Array.reverse ⟨circuit.reverse⟩ by simp]
-  simp only [Array.foldr_reverse]
+  simp only [Array.foldr_reverse]  
   simp [GetElem?.getElem?, get?]
   rw [foldr_step_varStore_independent_of_constraints']
 
@@ -505,8 +505,8 @@ lemma foldr_step_varStore_independent_of_constraints''
   (h₁ : σ₁.numAlloc = σ₂.numAlloc)
   (h₂ : σ₁.varStore = σ₂.varStore)
 :
-  (Array.foldr (λ x y => [y, σ|x]ₛ) σ₁ circuit).varStore =
-  (Array.foldr (λ x y => [y, σ|x]ₛ) σ₂ circuit).varStore
+  (circuit.foldr (λ x y => [y, σ|x]ₛ) σ₁).varStore =
+  (circuit.foldr (λ x y => [y, σ|x]ₛ) σ₂).varStore
 := by
   convert foldr_step_varStore_independent_of_constraints using 4 <;> grind
 
@@ -521,26 +521,26 @@ lemma foldr_step_varStore_independent_of_constraints'''
   apply foldr_step_varStore_independent_of_constraints'' <;> grind
 
 @[simp, grind .]
-lemma isSome_foldr_split {result : EvalSt p} {circuit : Circuit p} {e : ExprRef} :
-  (List.foldr (fun x y => [y, σ|x]ₛ) result.split circuit.toList)[(e, σ)]?.isSome ↔
-  (List.foldr (fun x y => [y, σ|x]ₛ) result circuit.toList)[(e, σ)]?.isSome := by
-  rcases result
+lemma isSome_foldr_split :
+  (circuit.toList.foldr (fun x y => [y, σ|x]ₛ) st.split)[Expr.mk e! σ]?.isSome ↔
+  (circuit.toList.foldr (fun x y => [y, σ|x]ₛ) st)[Expr.mk e! σ]?.isSome := by
+  rcases st
   simp [split]
   grind
 
 @[simp, grind .]
-lemma isSome_foldr_split' {result : EvalSt p} {circuit : Circuit p} {e : ExprRef} :
-  (Array.foldr (fun x y => [y, σ|x]ₛ) result.split circuit)[(e, σ)]?.isSome ↔
-  (Array.foldr (fun x y => [y, σ|x]ₛ) result circuit)[(e, σ)]?.isSome := by
-  rcases result
+lemma isSome_foldr_split' :
+  (circuit.foldr (fun x y => [y, σ|x]ₛ) st.split)[Expr.mk e! σ]?.isSome ↔
+  (circuit.foldr (fun x y => [y, σ|x]ₛ) st)[Expr.mk e! σ]?.isSome := by
+  rcases st
   simp [split]
   grind
 
-lemma evalInOrder_step_constraints_and
+lemma evalInOrder_constraints_and
 :
-  (Circuit.evalInOrder circuit σ result).constraints = (
-    result.constraints ∧
-    (Circuit.evalInOrder circuit σ result.split).constraints
+  (circuit.evalInOrder σ st).constraints = (
+    st.constraints ∧
+    (circuit.evalInOrder σ st.split).constraints
   )
 := by
   rcases circuit with ⟨circuit⟩
@@ -552,11 +552,11 @@ lemma evalInOrder_step_constraints_and
     rcases hd with _ | _ | _ | _
     · simp
       unfold GetElem?.getElem?
-      unfold instGetElem?ProdExprRefHashConsStZModMem
+      unfold instGetElem?ExprZModMem
       rw [Array.foldr_toList, Array.foldr_toList]
       simp [get?]
       rw [ih]
-      rw [foldr_step_varStore_independent_of_constraints''' (σ₂ := result.split)] <;>
+      rw [foldr_step_varStore_independent_of_constraints''' (σ₂ := st.split)] <;>
       aesop
     · rw [Array.foldr_toList, Array.foldr_toList]
       simp [ih]
@@ -565,23 +565,26 @@ lemma evalInOrder_step_constraints_and
       aesop
     · simp only [step_isZero]
       unfold GetElem?.getElem?
-      unfold instGetElem?ProdExprRefHashConsStZModMem
+      unfold instGetElem?ExprZModMem
       rw [Array.foldr_toList, Array.foldr_toList]
-      grind [GetElem?.getElem?, instGetElemProdExprRefHashConsStZModMem]
+      grind [GetElem?.getElem?, instGetElemExprZModMem]
     · simp
       unfold GetElem?.getElem?
       rw [Array.foldr_toList, Array.foldr_toList]
       grind
 
 lemma foldl_step_constraints_and {circuit : List (Gate p)} :
-  (circuit.foldl (fun result next => [result, σ|next]ₛ) result).constraints =
-  (result.constraints ∧ (circuit.foldl (fun result next => [result, σ|next]ₛ) result.split).constraints) := by
-  have := @evalInOrder_step_constraints_and (circuit := ⟨circuit⟩) (σ := σ) (result := result)
+  (circuit.foldl (fun result next => [result, σ|next]ₛ) st).constraints =
+  (st.constraints ∧ (circuit.foldl (fun result next => [result, σ|next]ₛ) st.split).constraints) := by
+  have := @evalInOrder_constraints_and (circuit := ⟨circuit⟩) (σ := σ) (st := st)
   aesop
 
+/-
+TODO: TODO
+-/
+/-
 @[grind .]
-lemma abc {p} {varStore : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ}
-              {a b : Circuit p} :
+lemma abc {varStore : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ} {a b : Circuit p} :
   [varStore, σ, numAlloc|b]ₑ.varStore ⊆
   [varStore, σ, numAlloc|a ++ b]ₑ.varStore := by
   intros i h
@@ -604,7 +607,7 @@ lemma abc {p} {varStore : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ}
           { numAlloc := numAlloc, varStore := varStore, constraints := True } tl).varStore,
           constraints := [varStore,σ|e] = some 0 ∧ (List.foldl (fun result next => [result, σ|next]ₛ)
           { numAlloc := numAlloc, varStore := varStore, constraints := True } tl).constraints }) := by
-        rw [stupidext (result := List.foldl (fun result next => [result, σ|next]ₛ)
+        rw [stupidext (st := List.foldl (fun result next => [result, σ|next]ₛ)
           { numAlloc := numAlloc, varStore := varStore, constraints := [varStore,σ|e] = some 0 } tl)]
         congr 1
         apply foldl_step_numAlloc_independent_of_constraints
@@ -626,20 +629,19 @@ lemma abc {p} {varStore : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ}
     · done
 
   done
-
-
-end Edsl.EvalSt
+-/
+end EvalSt
 
 namespace Circuit
 
-variable {p numAlloc : ℕ} {circuit1 circuit2 : Circuit p} {varStore : VarStore p}
+variable {numAlloc : ℕ} {circuit1 circuit2 : Circuit p} {varStore : VarStore p}
          {σ : HashConsSt p}
 
 def seq (circuit₁ circuit₂ : Circuit p)
         (varStore : VarStore p)
         (numAlloc : ℕ)
         (σ : HashConsSt p)
-: Edsl.EvalSt p :=
+: EvalSt p :=
   let ⟨numAllocMid, varStoreMid, constraintsMid⟩ := [varStore, σ, numAlloc| circuit₁]ₑ
   let ⟨numAllocPost, varStorePost, constraintsPost⟩ := [varStoreMid, σ, numAllocMid| circuit₂]ₑ
   ⟨numAllocPost, varStorePost, constraintsMid ∧ constraintsPost⟩
@@ -683,42 +685,30 @@ lemma eval_append
   simp [eval]
   ext1
   all_goals dsimp [seq]
-  . exact Edsl.EvalSt.foldl_step_numAlloc_independent_of_constraints
-  . exact Edsl.EvalSt.foldl_step_varStore_independent_of_constraints
-  . exact Edsl.EvalSt.foldl_step_constraints_and
+  . exact EvalSt.evalInOrder_numAlloc_independent_of_constraints
+  . exact EvalSt.evalInOrder_varStore_independent_of_constraints
+  . exact EvalSt.evalInOrder_constraints_and
+
+variable {gate : Gate p}
 
 @[simp high, grind =]
 lemma eval_singleton
-  {numAlloc}
-  {command : Gate p}
-  {varStore}
-  {σ}
 :
-  [varStore, σ, numAlloc | #[command]]ₑ =
-  [unconstrained[numAlloc][varStore], σ | command]ₛ := by
-  simp [eval, Edsl.EvalSt.step_unconstrained]
+  [varStore, σ, numAlloc | #[gate]]ₑ =
+  [unconstrained[numAlloc][varStore], σ | gate]ₛ := by
+  simp [eval, EvalSt.step_unconstrained]
 
 @[simp, grind =]
-lemma eval_cons
-  {numAlloc}
-  {command : Gate p}
-  {circuit : Circuit p}
-  {varStore}
-  {σ}
+lemma eval_cons {circuit : Circuit p}
 :
-  [varStore, σ, numAlloc | ⟨command :: circuit.toList⟩]ₑ =
-  seq #[command] circuit varStore numAlloc σ:= by
-  rw [show ⟨command :: circuit.toList⟩ = #[command] ++ circuit by simp]
+  [varStore, σ, numAlloc | ⟨gate :: circuit.toList⟩]ₑ =
+  seq #[gate] circuit varStore numAlloc σ:= by
+  rw [show ⟨gate :: circuit.toList⟩ = #[gate] ++ circuit by simp]
   exact eval_append
 
 section
 
-variable {numAlloc : ℕ} {varStore : VarStore p} {e: ExprRef} {σ : HashConsSt p}
-
-@[simp, grind =]
-lemma eval_empty :
-  [varStore, σ, numAlloc | #[]]ₑ = unconstrained[numAlloc][varStore]
-:= by rfl
+variable {numAlloc : ℕ} {varStore : VarStore p} {e : Expr p} {e! : ExprRef} {σ : HashConsSt p}
 
 @[simp, grind =]
 lemma eval_empty_collection :
@@ -728,29 +718,29 @@ lemma eval_empty_collection :
 
 @[simp, grind =]
 lemma eval_eq0 :
-  [varStore, σ, numAlloc | #[.eq0 e]]ₑ =
-  unconstrained[numAlloc][varStore].step (.eq0 e) σ
-:= by simp [eval, Edsl.EvalSt.addConstraint_unconstrained]
+  [varStore, σ, numAlloc | #[.eq0 e!]]ₑ =
+  unconstrained[numAlloc][varStore].step (.eq0 e!) σ
+:= by simp [eval, EvalSt.addConstraint_unconstrained]
 
 @[simp, grind =]
 lemma eval_share :
-  [varStore, σ, numAlloc | #[.share e]]ₑ =
-  unconstrained[numAlloc][varStore].step (.share e) σ
+  [varStore, σ, numAlloc | #[.share e!]]ₑ =
+  unconstrained[numAlloc][varStore].step (.share e!) σ
 := by
   simp [eval]
 
 @[simp, grind =]
 lemma eval_isZero :
-  [varStore, σ, numAlloc | #[.isZero e]]ₑ =
-  unconstrained[numAlloc][varStore].step (.isZero e) σ
+  [varStore, σ, numAlloc | #[.isZero e!]]ₑ =
+  unconstrained[numAlloc][varStore].step (.isZero e!) σ
 := by
   simp [eval]
   rfl
 
 @[simp, grind =]
 lemma eval_num2bits {width : ℕ} :
-  [varStore, σ, numAlloc | #[.num2bits width e]]ₑ =
-  unconstrained[numAlloc][varStore].step (.num2bits width e) σ
+  [varStore, σ, numAlloc | #[.num2bits width e!]]ₑ =
+  unconstrained[numAlloc][varStore].step (.num2bits width e!) σ
 := by
   simp [eval]
 
@@ -766,21 +756,19 @@ lemma seq_singleton_nil {cmd : Gate p} {varStore} {numAlloc} :
   [varStore, σ, numAlloc| #[cmd]]ₑ := by
   simp [seq]
 
-end
-
 -- TODO prove for eval
 -- TODO move up
 lemma step_of_refsValid_prefix
   {σ σ' : HashConsSt p}
   {circuit : Gate p}
-  {result: Edsl.EvalSt p}
+  {st : EvalSt p}
   (h_prefix : σ.exprs.isPrefixOf σ'.exprs)
   (h_refsValid : circuit.refsValid (σ.exprs.size))
 :
-  [result, σ'|circuit]ₛ =
-  [result, σ|circuit]ₛ
+  [st, σ'|circuit]ₛ =
+  [st, σ|circuit]ₛ
 := by
-  unfold Edsl.EvalSt.step
+  unfold EvalSt.step
   cases circuit
   all_goals {
     simp
@@ -788,14 +776,16 @@ lemma step_of_refsValid_prefix
     have : e < σ.exprs.size := by
       unfold Gate.refsValid at h_refsValid
       grind
-    have : result[(e, σ')]? = result[(e, σ)]? := by
+    have : st[Expr.mk e σ']? = st[Expr.mk e σ]? := by
       unfold_projs
-      simp [Edsl.EvalSt.get?, HashConsM.eval]
+      simp [EvalSt.get?, Expr.eval]
       congr 1
       symm
       exact HashConsM.evalCache_of_lt_prefix h_prefix this
     grind
   }
+
+end
 
 @[simp, grind _=_]
 lemma refsValid_append_iff {a b : Circuit p} {numAlloc : ℕ}
@@ -807,7 +797,7 @@ lemma refsValid_append_iff {a b : Circuit p} {numAlloc : ℕ}
 
 end Circuit
 
-end Circuit
+end CircuitEval
 
 end Clap
 

@@ -4,8 +4,6 @@ import Clap.eDSLState.Circuit
 
 namespace Clap
 
-namespace Edsl
-
 variable {p : ℕ}
 
 --StateT numAlloc
@@ -436,11 +434,11 @@ lemma eval_bind
   seq (action.getCircuit numAlloc σ) ((function result).getCircuit numAlloc' σ') varStore numAlloc σ
 := by
   simp [seq, eval, evalInOrder]
-  ext <;> simp
-  . exact EvalSt.foldl_step_numAlloc_independent_of_constraints
-  . exact EvalSt.foldl_step_varStore_independent_of_constraints
+  ext1 <;> simp
+  . exact EvalSt.evalInOrder_numAlloc_independent_of_constraints
+  . exact EvalSt.evalInOrder_varStore_independent_of_constraints
   . rewrite [iff_eq_eq]
-    exact EvalSt.foldl_step_constraints_and
+    exact EvalSt.evalInOrder_constraints_and
 
 lemma getHashConsState_apply {α β} {result : α} {numAlloc} {σ} {f : α → ClapM p β} :
   (f result).getHashConsState numAlloc σ = ((f result).run numAlloc σ).2 := rfl
@@ -462,9 +460,9 @@ lemma runAndEval_bind
   )
 :
   (action >>= function).runAndEval numAlloc varStore σ =
-  let ⟨actionData, actionEvalSt⟩ := action.runAndEval numAlloc varStore σ
-  let ⟨functionData, functionEvalSt⟩ := ((function actionData).runAndEval actionEvalSt.numAlloc actionEvalSt.varStore) (action.getHashConsState numAlloc σ)
-  ⟨functionData, functionEvalSt.addConstraint actionEvalSt.constraints⟩
+  let ⟨actionData, actionCircuitResult⟩ := action.runAndEval numAlloc varStore σ
+  let ⟨functionData, functionCircuitResult⟩ := ((function actionData).runAndEval actionCircuitResult.numAlloc actionCircuitResult.varStore) (action.getHashConsState numAlloc σ)
+  ⟨functionData, functionCircuitResult.addConstraint actionCircuitResult.constraints⟩
 := by
   simp [ClapM.runAndEval]
   split_ands
@@ -532,8 +530,8 @@ lemma Vector_ofFnM_empty_state
 lemma bind_eval {α} {e!} {varStore : VarStore p} {f : ZMod p → Option α}
                 {σ} (h : [varStore,σ|e!].isSome) :
   [varStore, σ|e!] >>= f = f ([varStore, σ|e!].get h) := by
-  unfold HashConsM.eval
-  unfold HashConsM.evalWithCache
+  unfold HashConsM.Expr.eval
+  unfold HashConsM.Expr.evalWithCache
   simp
   unfold Option.bind
   grind
@@ -546,7 +544,5 @@ lemma bind_eval' {α : Type} {e!} {varStore : VarStore p} {f : ZMod p → Option
 end
 
 end ClapM
-
-end Edsl
 
 end Clap

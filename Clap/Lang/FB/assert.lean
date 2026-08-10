@@ -44,7 +44,7 @@ lemma step_eq0_fb
   {p : ℕ}
   [p.AtLeastTwo]
   {a : FB p}
-  {result : EvalSt p}
+  {result : CircuitResult p}
 :
   [result|Gate.eq0 a]ₛ =
   result.addConstraint ([result.varStore|a] = [result.varStore|false p])

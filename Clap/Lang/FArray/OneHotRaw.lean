@@ -12,7 +12,7 @@ namespace oneHotRaw
 def runAndEval
   {p : ℕ} {ResultT : Type} (cmd : CircuitM p ResultT) (numAlloc : ℕ) (varStore : Std.ExtTreeMap ℕ (ZMod p))
 :
-  ResultT × EvalSt p
+  ResultT × CircuitResult p
 :=
   let ⟨⟨result, circuit⟩, _numAlloc⟩ := (cmd.run numAlloc)
   ⟨result, Edsl.Circuit.eval circuit varStore numAlloc⟩

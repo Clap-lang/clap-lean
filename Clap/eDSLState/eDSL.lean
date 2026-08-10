@@ -1,7 +1,10 @@
 import Clap.eDSLState.Monad
+import Clap.eDSLState.HashCons.Eval
 import Mathlib.Tactic
 
-namespace Clap.Edsl
+namespace Clap
+
+open HashConsM
 
 variable {p : ℕ}
 
@@ -30,11 +33,11 @@ def num2bits (width : ℕ) (e : ExprRef) : ClapM p (Vector (ExprRef) width) := d
 
 section wellFormed
 
-variable {numAlloc : ℕ} {e : ExprRef} {Γ : VarStore p} {σ}
+variable {numAlloc : ℕ} {e : Expr p} {e! : ExprRef} {Γ : VarStore p} {σ : HashConsSt p}
 
 @[aesop unsafe, grind .]
-lemma eq0_wellFormed (h₁ : e < σ.exprs.size) (h₂ : [Γ,σ|e].isSome) :
-  (eq0 e).wellFormed numAlloc Γ σ
+lemma eq0_wellFormed (h₁ : e! < σ.size) (h₂ : [Γ,σ|e!].isSome) :
+  (eq0 e!).wellFormed numAlloc Γ σ
 := by
   grind [eq0]
 
@@ -191,13 +194,13 @@ lemma eval_edsl_isZero :
 -- example : eval (Edsl.isZero e numAlloc).1.2 varStore numAlloc = sorry := by
 --   rw [eval_edsl_isZero]
 --   rw [eval_singleton]
---   rw [EvalSt.step_isZero]
---   rw [EvalSt.assertAllocated_unconstrained]
---   rw [EvalSt.get?_unconstrained]
+--   rw [CircuitResult.step_isZero]
+--   rw [CircuitResult.assertAllocated_unconstrained]
+--   rw [CircuitResult.get?_unconstrained]
 
---   simp only [EvalSt.addConstraint_unconstrained]
+--   simp only [CircuitResult.addConstraint_unconstrained]
 
---   simp only [EvalSt.addConstraint_unconstrained, EvalSt.alloc_mk,
+--   simp only [CircuitResult.addConstraint_unconstrained, CircuitResult.alloc_mk,
 --     Vector.range_one, Vector.map_mk, List.map_toArray, List.map_cons, zero_add, List.map_nil,
 --     Vector.mk_zip_mk, List.zip_toArray, List.zip_cons_cons, List.zip_nil_right,
 --     Std.ExtTreeMap.insertMany_single]
@@ -243,7 +246,5 @@ info: (((),
 -/
 #guard_msgs(whitespace := lax) in
 #eval (test).run (p := 57) 0
-
-end Edsl
 
 end Clap
