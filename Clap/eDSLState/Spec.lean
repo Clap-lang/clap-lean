@@ -227,7 +227,7 @@ def matchesUnaryMonadFunction (p : ℕ)
   ∀ (a : funIn) (varStorePre : VarStore p) (numAllocPre : ℕ),
     (h : IsValid.isValid varStorePre a) →
       letI aVal : specIn := toIdeal varStorePre a |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp h)
-      let ⟨result, circuit⟩ : funOut × CircuitResult p :=
+      let ⟨result, circuit⟩ : funOut × EvalSt p :=
         CircuitM.runAndEval (function a) numAllocPre varStorePre
       let constraintsCorrect := circuit.constraints = (constraints aVal)
       let allocatesCorrect := circuit.numAlloc = numAllocPre + allocatesN
@@ -264,7 +264,7 @@ def binaryFunctionResultIsValidIff (p : ℕ)
 --   ∀ (a : funIn) (varStorePre : VarStore p) (numAllocPre : ℕ),
 --     (h : IsValid.isValid varStorePre a) →
 --       letI aVal : specIn := toIdeal varStorePre a |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp h)
---       let ⟨result, circuit⟩ : funOut × CircuitResult p :=
+--       let ⟨result, circuit⟩ : funOut × EvalSt p :=
 --         CircuitM.runAndEval (function a) numAllocPre varStorePre
 --       let constraintsCorrect := circuit.constraints = (constraints aVal)
 --       let allocatesCorrect := circuit.numAlloc = numAllocPre + allocatesN

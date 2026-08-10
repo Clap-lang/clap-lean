@@ -31,6 +31,9 @@ variable {p : ℕ} {e : Expr p}
 @[grind =]
 def deref (e : Expr p) : Option (CacheExpr p) := e.σ.exprs[e.ref]?
 
+/--
+Dereference is valid.
+-/
 @[grind =]
 def wellFormed (e : Expr p) : Prop := e.ref < e.σ.size
 
@@ -248,9 +251,6 @@ abbrev evalM (Γ : VarStore p) (e : HashConsM p ExprRef) : HashConsM p (Option (
   let expr ← e
   let state ← get
   return [Γ, state|expr]
-
-abbrev evalM' (Γ : VarStore p) (e : ExprRef) : HashConsM p (Option (ZMod p)) := do
-  return [Γ|←toExpr e]
 
 notation "[" varStore "," state "|" "←" x "]" => HashConsM.run (evalM varStore x) state
 

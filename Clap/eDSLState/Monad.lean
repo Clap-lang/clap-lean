@@ -243,7 +243,7 @@ end Getters
 def runAndEval
   {p : ℕ} {α : Type} (cmd : ClapM p α) (numAlloc : ℕ) (varStore : VarStore p) (σ : HashConsSt p)
 :
-  α × CircuitResult p
+  α × EvalSt p
 :=
   ⟨
     cmd.getResult numAlloc σ,
@@ -437,10 +437,10 @@ lemma eval_bind
 := by
   simp [seq, eval, evalInOrder]
   ext <;> simp
-  . exact CircuitResult.foldl_step_numAlloc_independent_of_constraints
-  . exact CircuitResult.foldl_step_varStore_independent_of_constraints
+  . exact EvalSt.foldl_step_numAlloc_independent_of_constraints
+  . exact EvalSt.foldl_step_varStore_independent_of_constraints
   . rewrite [iff_eq_eq]
-    exact CircuitResult.foldl_step_constraints_and
+    exact EvalSt.foldl_step_constraints_and
 
 lemma getHashConsState_apply {α β} {result : α} {numAlloc} {σ} {f : α → ClapM p β} :
   (f result).getHashConsState numAlloc σ = ((f result).run numAlloc σ).2 := rfl
@@ -462,9 +462,9 @@ lemma runAndEval_bind
   )
 :
   (action >>= function).runAndEval numAlloc varStore σ =
-  let ⟨actionData, actionCircuitResult⟩ := action.runAndEval numAlloc varStore σ
-  let ⟨functionData, functionCircuitResult⟩ := ((function actionData).runAndEval actionCircuitResult.numAlloc actionCircuitResult.varStore) (action.getHashConsState numAlloc σ)
-  ⟨functionData, functionCircuitResult.addConstraint actionCircuitResult.constraints⟩
+  let ⟨actionData, actionEvalSt⟩ := action.runAndEval numAlloc varStore σ
+  let ⟨functionData, functionEvalSt⟩ := ((function actionData).runAndEval actionEvalSt.numAlloc actionEvalSt.varStore) (action.getHashConsState numAlloc σ)
+  ⟨functionData, functionEvalSt.addConstraint actionEvalSt.constraints⟩
 := by
   simp [ClapM.runAndEval]
   split_ands

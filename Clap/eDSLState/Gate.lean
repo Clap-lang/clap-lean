@@ -53,6 +53,41 @@ lemma varsAllocated_isZero : varsAllocated (.isZero e!) Γ σ = [Γ, σ|e!].isSo
 @[simp, grind =]
 lemma varsAllocated_num2bits {w} : varsAllocated (.num2bits w e!) Γ σ = [Γ, σ|e!].isSome := rfl
 
+@[simp, grind =]
+lemma wellFormed_iff :
+  gate.wellFormed Γ σ ↔ (gate.refsValid σ.size ∧ gate.varsAllocated Γ σ) := by grind
+
+section Precedes
+
+variable {gate : Gate p} {Γ₁ Γ₂ Γ₃ : VarStore p}
+
+@[grind =]
+def precedes (Γ₁ Γ₂ : VarStore p) (σ : HashConsSt p) :=
+  ∀ e < σ.size, [Γ₁, σ|e].isSome → [Γ₂, σ|e].isSome
+
+notation "[" σ "|" Γ₁ " ⊑ " Γ₂ "]" => precedes Γ₁ Γ₂ σ
+
+@[grind .]
+lemma wellFormed_of_wellFormed_precedes
+  (h_refsValid : gate.wellFormed Γ₁ σ)
+  (h : [σ|Γ₁ ⊑ Γ₂])
+:
+  gate.wellFormed Γ₂ σ
+:= by
+  grind
+
+@[grind .]
+lemma varsAllocated_of_wellFormed_precedes
+  {varStore1 varStore2 : VarStore p}
+  (h_refsValid : gate.wellFormed varStore1 σ)
+  (h : [σ|varStore1 ⊑ varStore2])
+:
+  gate.varsAllocated varStore2 σ
+:= by
+  grind
+
+end Precedes
+
 end Gate
 
 end Gate

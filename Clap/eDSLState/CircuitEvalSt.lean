@@ -1,7 +1,11 @@
+import Clap.BitVec
+
 import Clap.eDSLState.Varstore
 
 import Clap.eDSLState.HashCons.Eval
 import Clap.eDSLState.HashCons.HashConsSt
+
+import Clap.eDSLState.Gate
 
 namespace Clap
 
@@ -20,8 +24,8 @@ Hic sunt dracones.
 
 TODO: Nuke this
 -/
-lemma stupidext {p : ℕ} (result : EvalSt p) :
-  result = ⟨result.numAlloc, result.varStore, result.constraints⟩ := rfl
+lemma stupidext {p : ℕ} (st : EvalSt p) :
+  st = ⟨st.numAlloc, st.varStore, st.constraints⟩ := rfl
 
 section EvalSt
 
@@ -249,31 +253,120 @@ lemma alloc_mk
   (EvalSt.mk numAlloc Γ constraints).alloc vals =
   EvalSt.mk
     (numAlloc + k)
-    (varStore.insertMany ((Vector.range k).map (·+numAlloc) |>.zip vals))
+    (Γ.insertMany ((Vector.range k).map (·+numAlloc) |>.zip vals))
     constraints
 := rfl
 
+variable {k : ℕ} {vars : Vector (ZMod p) k}
+
 @[simp, grind =]
 lemma numAlloc_alloc :
-  (result.alloc vars).numAlloc = result.numAlloc + k := rfl
+  (st.alloc vars).numAlloc = st.numAlloc + k := rfl
 
 @[simp, grind =]
 lemma varStore_alloc :
-  (result.alloc vars).varStore =
-  result.varStore.insertMany ((Vector.range k).map (·+result.numAlloc) |>.zip vars) := rfl
+  (st.alloc vars).varStore =
+  st.varStore.insertMany ((Vector.range k).map (·+st.numAlloc) |>.zip vars) := rfl
 
 @[simp, grind =]
-lemma constraints_alloc {vars : Vector (ZMod p) k} :
-  (result.alloc vars).constraints = result.constraints := rfl
+lemma constraints_alloc :
+  (st.alloc vars).constraints = st.constraints := rfl
 
-def step (result : CircuitResult p) (next : Gate p) (σ : HashConsSt p) : CircuitResult p :=
+def step (result : EvalSt p) (next : Gate p) (σ : HashConsSt p) : EvalSt p :=
   match next with
-  | .eq0 e => result.addConstraint (result[(e, σ)]? = Option.some 0)
-  | .share e => (result.assertAllocated e σ).alloc #v[result[(e, σ)]!]
-  | .isZero e => (result.assertAllocated e σ).alloc #v[if result[(e, σ)]? = Option.some 0 then 1 else 0]
-  | .num2bits width e => (result.assertAllocated e σ).alloc (num2bitsLsbPureV width (result[(e, σ)]!))
+  | .eq0 e => result.addConstraint (result[Expr.mk e σ]? = .some 0)
+  | .share e => (result.assertAllocated ⟨e, σ⟩).alloc #v[result[Expr.mk e σ]!]
+  | .isZero e => (result.assertAllocated ⟨e, σ⟩).alloc #v[if result[Expr.mk e σ]? = Option.some 0 then 1 else 0]
+  | .num2bits width e => (result.assertAllocated ⟨e, σ⟩).alloc (num2bitsLsbPureV width (result[Expr.mk e σ]!))
 
 notation "[" res ", " σ "|" cmd "]ₛ" => step res cmd σ
+
+-- TODO do we want to make individual functions for these parts and prove properties about them
+@[simp, grind =]
+lemma step_mk
+  (numAlloc : ℕ)
+  (varStore : VarStore p)
+  (constraints : Prop)
+  (next : Gate p)
+  (σ : HashConsSt p)
+: (EvalSt.mk numAlloc varStore constraints).step next σ =
+  match next with
+  | Gate.eq0 e => { numAlloc := numAlloc, varStore := varStore, constraints := constraints ∧ [varStore,σ|e] = some 0 }
+  | Gate.share e =>
+    { numAlloc := numAlloc + 1,
+      varStore := varStore.insertMany #v[(numAlloc, [varStore,σ|e].getD 0)],
+      constraints := constraints ∧ [varStore,σ|e].isSome = true }
+  | Gate.isZero e =>
+    { numAlloc := numAlloc + 1,
+      varStore := varStore.insertMany #v[(numAlloc, if [varStore,σ|e] = some 0 then 1 else 0)],
+      constraints := constraints ∧ [varStore,σ|e].isSome = true }
+  | Gate.num2bits width e =>
+    { numAlloc := numAlloc + width,
+      varStore := varStore.insertMany
+          ((Vector.map (fun x => x + numAlloc) (Vector.range width)).zip
+            (num2bitsLsbPureV width ([varStore,σ|e].getD 0))),
+      constraints := constraints ∧ [varStore,σ|e].isSome = true
+    }
+:= by
+  unfold step
+  cases next <;> simp
+  rfl
+
+variable {σ : HashConsSt p} {gate : Gate p}
+
+lemma step_unconstrained :
+  [unconstrained[numAlloc][Γ], σ|gate]ₛ =
+  [⟨numAlloc, Γ, True⟩, σ|gate]ₛ := rfl
+
+def split (result : EvalSt p) : EvalSt p :=
+  {result with constraints := True}
+
+@[simp, grind =]
+lemma numAlloc_split : st.split.numAlloc = st.numAlloc := rfl
+
+@[simp, grind =]
+lemma varStore_split : st.split.varStore = st.varStore := rfl
+
+@[simp, grind =]
+lemma constraints_split : st.split.constraints = True := rfl
+
+@[simp, grind =]
+lemma step_eq0 :
+  [st,σ|.eq0 e!]ₛ = st.addConstraint (st[Expr.mk e! σ]? = .some 0) := rfl
+
+@[simp, grind =]
+lemma step_share :
+  [st, σ|.share e!]ₛ =
+  (st.assertAllocated ⟨e!, σ⟩ |>.alloc #v[st.getD ⟨e!, σ⟩]) := rfl
+
+@[simp, grind =]
+lemma step_isZero :
+  [st, σ|.isZero e!]ₛ =
+  (st.assertAllocated ⟨e!, σ⟩ |>.alloc #v[if st[(⟨e!, σ⟩ : Expr _)]? = .some 0 then 1 else 0]) := rfl
+
+@[simp, grind =]
+lemma step_num2bits {width} :
+  [st, σ|.num2bits width e!]ₛ =
+  (st.assertAllocated ⟨e!, σ⟩ |>.alloc (num2bitsLsbPureV width st[Expr.mk e! σ]!)) := rfl
+
+@[aesop unsafe, grind =]
+lemma addConstraint_eq_mk :
+  st.addConstraint constraint =
+  ⟨st.numAlloc, st.varStore, st.constraints ∧ constraint⟩ := rfl
+
+@[aesop unsafe, grind =]
+lemma allocAnonymous_eq_mk :
+  st.allocAnonymous =
+  ⟨st.numAlloc + 1, st.varStore, st.constraints⟩ := rfl
+
+lemma alloc_eq_mk {k} {vals : Vector _ k} :
+  st.alloc vals =
+  ⟨st.numAlloc + k,
+   st.varStore.insertMany (((Vector.range k).map (· + st.numAlloc)).zip vals),
+   st.constraints⟩ := rfl
+
+lemma assertAllocated_eq_addConstraint :
+  st.assertAllocated e = st.addConstraint (e ∈ st) := rfl
 
 end EvalSt
 

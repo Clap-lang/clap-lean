@@ -191,13 +191,13 @@ lemma eval_edsl_isZero :
 -- example : eval (Edsl.isZero e numAlloc).1.2 varStore numAlloc = sorry := by
 --   rw [eval_edsl_isZero]
 --   rw [eval_singleton]
---   rw [CircuitResult.step_isZero]
---   rw [CircuitResult.assertAllocated_unconstrained]
---   rw [CircuitResult.get?_unconstrained]
+--   rw [EvalSt.step_isZero]
+--   rw [EvalSt.assertAllocated_unconstrained]
+--   rw [EvalSt.get?_unconstrained]
 
---   simp only [CircuitResult.addConstraint_unconstrained]
+--   simp only [EvalSt.addConstraint_unconstrained]
 
---   simp only [CircuitResult.addConstraint_unconstrained, CircuitResult.alloc_mk,
+--   simp only [EvalSt.addConstraint_unconstrained, EvalSt.alloc_mk,
 --     Vector.range_one, Vector.map_mk, List.map_toArray, List.map_cons, zero_add, List.map_nil,
 --     Vector.mk_zip_mk, List.zip_toArray, List.zip_cons_cons, List.zip_nil_right,
 --     Std.ExtTreeMap.insertMany_single]
