@@ -767,6 +767,11 @@ lemma varsAllocate_of_append_singleton {circuit : Circuit p}
   specialize h i (by grind)
   grind
 
+/-
+Why is this direction not grind in the first place?
+-/
+attribute [grind =_] List.append_toArray
+
 lemma varsAllocated_eval_share_cons
   {val : ZMod p}
   {circuit : Circuit p}
@@ -785,19 +790,30 @@ lemma varsAllocated_eval_share_cons
   . grind
   . cases head
     . simp [eval] at h h_tail ⊢
-      apply h_tail
-      · simp at h_circuit
-        rcases h_circuit with ⟨h₁, _⟩
-        expose_names
-        have : refsValid (⟨tail.reverse⟩ ++ #[Gate.eq0 e_1]) e.σ.exprs.size := by grind
-        grind
-      · simp at h_circuit
-        rcases h_circuit with ⟨_, h₁⟩
-        expose_names
-        have : varsAllocated (⟨tail.reverse⟩ ++ #[Gate.eq0 e_1]) varStore e.σ numAlloc := by grind
-        grind
-      · assumption
-    . simp [eval, Expr.eval_eq_evalRec] at h h_tail ⊢
+      grind
+    next e' =>
+      simp [eval] at h h_tail ⊢
+      set inner :=
+        List.foldr (fun x y => [y, e.σ|x]ₛ)
+          {numAlloc := numAlloc + 1, varStore := varStore.insert numAlloc val, constraints := True}
+          tail with eq
+      rw [Expr.eval_eq_evalRec h_e]
+      apply Expr.isSome_evalRec_insert_of_isSome_evalRec
+      rw [←Expr.eval_eq_evalRec h_e]
+      apply h_tail (by grind) (by grind)
+      set outer :=
+        List.foldr (fun x y => [y, e.σ|x]ₛ)
+          {numAlloc := numAlloc, varStore := varStore, constraints := True}
+          tail with eq₁
+      rw [show outer[Expr.mk e' e.σ]? = [outer.varStore|⟨e', e.σ⟩] from rfl] at h
+      have : [outer.varStore|⟨e', e.σ⟩] = Expr.evalRec outer.varStore ⟨e', e.σ⟩ := by
+        rw [Expr.eval_eq_evalRec sorry]
+      rw [this] at h
+      rw [Expr.eval_eq_evalRec h_e] at h
+      
+
+
+      
       done
     . done
     . done

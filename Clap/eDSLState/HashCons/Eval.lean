@@ -126,6 +126,68 @@ lemma isSome_evalRec_of_isSome_evalRec_subset {Γbig Γsmol : VarStore p}
   rw [VarStore.hasSubset_def] at h₁
   fun_induction evalRec Γbig e <;> grind [=evalRec]
 
+@[grind .]
+lemma evalRec_c {c : ZMod p} (h : *e = .some (.c c)) :
+  evalRec Γ e = some c := by
+  grind [=evalRec]
+
+@[grind .]
+lemma evalRec_v {ptr : ℕ} (h : *e = .some (.v ptr)) :
+  evalRec Γ e = Γ[ptr]? := by
+  grind [=evalRec]
+
+@[grind .]
+lemma evalRec_add {lhs rhs} (h : *e = .some (.binary_op lhs rhs .add)) :
+  evalRec Γ e =
+  (·+·) <$> evalRec Γ { ref := lhs, σ := e.σ } <*> evalRec Γ { ref := rhs, σ := e.σ } := by
+  unfold evalRec
+  split
+  · grind
+  next e' h₁ =>
+    have : e' = .binary_op lhs rhs .add := by grind
+    rw! [this]
+    simp
+    congr 2
+    cbv -- I DID IT!
+    conv_lhs => unfold evalRec
+    simp
+
+@[grind .]
+lemma evalRec_sub {lhs rhs} (h : *e = .some (.binary_op lhs rhs .sub)) :
+  evalRec Γ e =
+  (·-·) <$> evalRec Γ {ref := lhs, σ := e.σ} <*> evalRec Γ {ref := rhs, σ := e.σ} := by
+  unfold evalRec
+  split
+  · grind
+  next e' h₁ =>
+    have : e' = .binary_op lhs rhs .sub := by grind
+    rw! [this]
+    simp
+    congr 2
+    cbv -- I DID IT!
+    conv_lhs => unfold evalRec
+    simp
+
+@[grind .]
+lemma evalRec_mul {lhs rhs} (h : *e = .some (.binary_op lhs rhs .mul)) :
+  evalRec Γ e =
+  (·*·) <$> evalRec Γ {ref := lhs, σ := e.σ} <*> evalRec Γ {ref := rhs, σ := e.σ} := by
+  unfold evalRec
+  split
+  · grind
+  next e' h₁ =>
+    have : e' = .binary_op lhs rhs .mul := by grind
+    rw! [this]
+    simp
+    congr 2
+    cbv -- I DID IT!
+    conv_lhs => unfold evalRec
+    simp
+
+lemma missing_hyp {k} {v} (h : e.wellFormed) (h₁ : (evalRec (Γ.insert k v) e).isSome) :
+  (evalRec Γ e).isSome := sorry
+
+
 def eval {p} (varStore : VarStore p) (e : Expr p) : Option (ZMod p) :=
   (evalWithCache varStore #[] e)[e.ref]!
 
@@ -221,7 +283,7 @@ lemma evalWithCache_wrt_evalRec
         grind
       . grind
 
-@[grind =]
+@[grind _=_]
 lemma eval_eq_evalRec
   (h : e.wellFormed)
 :
