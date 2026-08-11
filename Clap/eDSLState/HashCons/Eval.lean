@@ -1,3 +1,5 @@
+import Mathlib.Tactic
+
 import Clap.eDSLState.HashCons.HashConsM
 
 namespace Clap.HashConsM
@@ -48,7 +50,7 @@ lemma wellFormed_iff_isSome : e.wellFormed ↔ (*e).isSome := by grind
 lemma wellFormed_frame {e' : Expr p}
   (h₁ : e.wellFormed) (h₂ : e.σ.exprs.isPrefixOf e'.σ.exprs) (h₃ : e.ref = e'.ref) : e'.wellFormed := by
   have : e.σ.exprs.toList.isPrefixOf e'.σ.exprs.toList = true := by grind
-  grind [List.prefix_iff_getElem?]  
+  grind [List.prefix_iff_getElem?]
 
 def evalWithCache (Γ : VarStore p) (cache : ValueCache p) (e : Expr p) : ValueCache p :=
   if e.ref < cache.size
@@ -360,5 +362,78 @@ lemma isSome_eval_of_isSome_eval_subset'
   [varStoreBig|e].isSome = true
 := by
   grind
+
+section Precedes
+
+variable {p : ℕ} {Γ Γ₁ Γ₂ Γ₃ : VarStore p} {σ : HashConsSt p}
+
+@[grind =]
+def precedes {p : ℕ} (Γ₁ Γ₂ : VarStore p) (σ : HashConsSt p) :=
+  ∀ e < σ.size, [Γ₁, σ|e].isSome → [Γ₂, σ|e].isSome
+
+notation "[" σ "|" Γ₁ " ⊑ " Γ₂ "]" => precedes Γ₁ Γ₂ σ
+
+@[grind →]
+lemma precedes_trans (h₁ : [σ|Γ₁ ⊑ Γ₂]) (h₂ : [σ|Γ₂ ⊑ Γ₃]) : [σ|Γ₁ ⊑ Γ₃] := by grind
+
+@[grind .]
+lemma precedes_rfl : [σ|Γ ⊑ Γ] := by grind
+
+@[grind .]
+lemma precedes_insert
+  {k : ℕ}
+  {v : ZMod p}
+:
+  [σ|Γ ⊑ Γ.insert k v]
+:= by grind
+
+@[grind .]
+lemma precedes_insertMany
+  {k}
+  {xs : Vector (ℕ × ZMod p) k}
+:
+  [σ|Γ ⊑ Γ.insertMany xs]
+:= by
+  simp [Std.ExtTreeMap.insertMany, Std.ExtDTreeMap.Const.insertMany]
+  obtain ⟨⟨xs⟩, h_len⟩ := xs
+  simp
+  induction' h_len: xs.length with len ih generalizing xs k
+  . aesop (add safe (by grind))
+  . have := @ih len (xs.take len) (by grind) (by grind)
+    apply precedes_trans this
+    rewrite [←List.take_append_drop len xs]
+    simp [-List.take_append_drop]
+    simp
+    have : xs.drop len = [xs.getLast (by grind)] := by aesop (add safe (by grind))
+    simp [this]; clear this
+    exact precedes_insert
+
+@[grind .]
+lemma isSome_eval_of_isSome_eval_precedes
+  {e : Expr p}
+  (h : [Γ₁|e].isSome = true)
+  (h_wf : e.wellFormed)
+  (h_precedes : [e.σ|Γ₁ ⊑ Γ₂])
+:
+  [Γ₂|e].isSome = true
+:= by
+  rewrite [Expr.eval_eq_evalRec h_wf]
+  fun_induction Expr.evalRec
+  . grind
+  . grind
+  . expose_names
+    unfold precedes at h_precedes
+    specialize h_precedes x.ref (by grind) (by grind)
+    simp [Expr.eval_eq_evalRec h_wf] at h_precedes
+    unfold Expr.evalRec at h_precedes
+    grind
+  . expose_names
+    unfold precedes at h_precedes
+    specialize h_precedes x.ref (by grind) (by grind)
+    simp [Expr.eval_eq_evalRec h_wf] at h_precedes
+    unfold Expr.evalRec at h_precedes
+    grind
+
+end Precedes
 
 end Clap.HashConsM

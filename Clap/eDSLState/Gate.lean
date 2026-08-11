@@ -61,12 +61,6 @@ section Precedes
 
 variable {gate : Gate p} {Γ₁ Γ₂ Γ₃ : VarStore p}
 
-@[grind =]
-def precedes (Γ₁ Γ₂ : VarStore p) (σ : HashConsSt p) :=
-  ∀ e < σ.size, [Γ₁, σ|e].isSome → [Γ₂, σ|e].isSome
-
-notation "[" σ "|" Γ₁ " ⊑ " Γ₂ "]" => precedes Γ₁ Γ₂ σ
-
 @[grind .]
 lemma wellFormed_of_wellFormed_precedes
   (h_refsValid : gate.wellFormed Γ₁ σ)
