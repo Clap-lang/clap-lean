@@ -310,32 +310,6 @@ lemma varsAllocated_eval_append_right
       aesop (add safe (by grind))
     grind
 
-/-
-TODO: In terms of `Circuit.wellFormed`
-TODO: TODO
--/
--- lemma varsAllocated_append
---   (a b : Circuit p)
---   {varStore : VarStore p}
---   {σ : HashConsSt p}
---   {numAlloc : ℕ}
---   (h₀ : a.refsValid σ.size)
---   (h₁ : b.refsValid σ.size)
---   (h_a : a.varsAllocated varStore σ numAlloc)
---   (h_b : b.varsAllocated varStore σ numAlloc)
--- :
---   (a ++ b).varsAllocated varStore σ numAlloc
--- := by
---   simp [varsAllocated] at ⊢ h_a h_b
---   . intro i h_i
---     simp [Array.getElem_append]
---     split_ifs with h_i'
---     . specialize h_a i h_i'
---       exact varsAllocated_eval_append_right h₀ h_a
---     . specialize h_b (i - a.size) (by omega)
---       simp (disch := omega) [Array.extract_eq_self_of_le]
---       exact varsAllocated_eval_append_left h_b
-
 end Circuit
 
 end Circuit
@@ -759,6 +733,40 @@ lemma refsValid_append_iff {a b : Circuit p} {numAlloc : ℕ}
 := by
   grind
 
+-- /-
+-- TODO: In terms of `Circuit.wellFormed`
+-- -/
+-- lemma varsAllocated_append
+--   (a b : Circuit p)
+--   {varStore : VarStore p}
+--   {σ : HashConsSt p}
+--   {numAlloc : ℕ}
+--   (h₀ : a.refsValid σ.size)
+--   (h₁ : b.refsValid σ.size)
+--   (h_a : a.varsAllocated varStore σ numAlloc)
+--   (h_b : b.varsAllocated varStore σ numAlloc)
+-- :
+--   (a ++ b).varsAllocated varStore σ numAlloc
+-- := by
+--   simp [varsAllocated] at ⊢ h_a h_b
+--   . intro i h_i
+--     simp [Array.getElem_append]
+--     split_ifs with h_i'
+--     . specialize h_a i h_i'
+--       exact varsAllocated_eval_append_right h₀ h_a
+--     . specialize h_b (i - a.size) (by omega)
+--       simp (disch := omega) [Array.extract_eq_self_of_le]
+--       exact varsAllocated_eval_append_left h_b
+
+@[grind →]
+lemma varsAllocate_of_append_singleton {circuit : Circuit p}
+          (h : varsAllocated (circuit ++ #[gate]) varStore σ numAlloc) :
+          varsAllocated circuit varStore σ numAlloc := by
+  unfold varsAllocated at h ⊢
+  intros i hi
+  specialize h i (by grind)
+  grind
+
 lemma varsAllocated_eval_share_cons
   {val : ZMod p}
   {circuit : Circuit p}
@@ -777,7 +785,18 @@ lemma varsAllocated_eval_share_cons
   . grind
   . cases head
     . simp [eval] at h h_tail ⊢
-      grind
+      apply h_tail
+      · simp at h_circuit
+        rcases h_circuit with ⟨h₁, _⟩
+        expose_names
+        have : refsValid (⟨tail.reverse⟩ ++ #[Gate.eq0 e_1]) e.σ.exprs.size := by grind
+        grind
+      · simp at h_circuit
+        rcases h_circuit with ⟨_, h₁⟩
+        expose_names
+        have : varsAllocated (⟨tail.reverse⟩ ++ #[Gate.eq0 e_1]) varStore e.σ numAlloc := by grind
+        grind
+      · assumption
     . simp [eval, Expr.eval_eq_evalRec] at h h_tail ⊢
       done
     . done
