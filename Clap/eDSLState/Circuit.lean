@@ -73,7 +73,7 @@ lemma wellFormed_iff :
 
 @[simp, grind =]
 lemma eval_push_eq0_varStore
-  
+
 :
   [varStore, σ, numAlloc|circuit.push (.eq0 e!)]ₑ.varStore =
   [varStore, σ, numAlloc|circuit]ₑ.varStore
@@ -160,7 +160,7 @@ lemma eval_varStore_insertMany_isSome_of_isSome
   {k : ℕ}
   {inserts : Vector (ℕ × (ZMod p)) k}
   (h : [varStore|e].isSome = true)
-  (h₁ : e.wellFormed) 
+  (h₁ : e.wellFormed)
 :
   [varStore.insertMany inserts|e].isSome = true
 := by
@@ -222,12 +222,6 @@ lemma _root_.Clap.Gate.wellFormed_step_of_wellFormed
 
 variable {gate : Gate p} {Γ₁ Γ₂ Γ₃ : VarStore p}
 
-@[grind →]
-lemma precedes_trans (h₁ : [σ|Γ₁ ⊑ Γ₂]) (h₂ : [σ|Γ₂ ⊑ Γ₃]) : [σ|Γ₁ ⊑ Γ₃] := by grind
-
-@[grind .]
-lemma precedes_rfl : [σ|Γ ⊑ Γ] := by grind
-
 -- example
 --   {σ : HashConsSt p}
 --   {numAlloc1 numAlloc2 : ℕ}
@@ -262,18 +256,18 @@ lemma precedes_rfl : [σ|Γ ⊑ Γ] := by grind
 --     simp only [Gate.wellFormed_iff]
 --     split_ands
 --     · grind
---     . refine Gate.varsAllocated_of_wellFormed_precedes (varStore1 := Γ₁) ⟨by grind, ?p₂⟩ ?p₃ 
+--     . refine Gate.varsAllocated_of_wellFormed_precedes (varStore1 := Γ₁) ⟨by grind, ?p₂⟩ ?p₃
 --       simp at h_wf
 --       unfold Circuit.varsAllocated at h_wf
 --       rcases h_wf with ⟨l, r⟩
 --       specialize r (size + 1) (by grind)
-      
+
 --       simp at h_wf ⊢ --(by grind) (h_varsAllocated (size+1) h_i)
 --       split_ands
 --       grind
 --       intro e h_e h_varStore1
-      
-        
+
+
 
 
 --       done
@@ -293,44 +287,6 @@ lemma precedes_rfl : [σ|Γ ⊑ Γ] := by grind
 --     --   . grind
 --     --   done
 --     -- done
-
-/-
-TODO: Not based one bit
-TODO: TODO
--/
-lemma varsAllocated_eval_append_left
-  {p i : ℕ}
-  {circuit a : Circuit p}
-  {varStore : VarStore p}
-  {σ : HashConsSt p}
-  {numAlloc : ℕ}
-  {h_get}
-  (h₀ : circuit.refsValid σ.size)
-  {l}
-  (h₁ : l <:+ circuit.toList)
-  (h : (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|⟨l⟩]ₑ.varStore σ)
-:
-  (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|a ++ ⟨l⟩]ₑ.varStore σ
-:= by
-  unfold Gate.varsAllocated at h ⊢
-  rcases a with ⟨a⟩
-  induction' a with hd tl ih
-  · grind
-  · split <;> expose_names <;> simp at *
-    simp [heq] at ih
-    · rw [HashConsM.isSome_eval_of_isSome_eval_subset ih (by grind)]
-      suffices
-        [varStore, σ, numAlloc|⟨tl⟩ ++ Array.extract circuit 0 i]ₑ.varStore ⊆
-        [varStore, σ, numAlloc|#[hd] ++ (⟨tl⟩ ++ Array.extract circuit 0 i)]ₑ.varStore by
-        grind
-
-      grind
-    all_goals sorry
-
-    -- all_goals {
-    --   rw [HashConsM.isSome_eval_of_isSome_eval_subset]
-    -- }
-  done
 
 lemma varsAllocated_eval_append_right
   {i : ℕ}
@@ -489,7 +445,7 @@ lemma getElem_foldr_independent_of_constraints
   rcases circuit with ⟨circuit⟩
   rewrite [←List.reverse_reverse circuit]
   rw [show Array.mk circuit.reverse.reverse = Array.reverse ⟨circuit.reverse⟩ by simp]
-  simp only [Array.foldr_reverse]  
+  simp only [Array.foldr_reverse]
   simp [GetElem?.getElem?, get?]
   rw [foldr_step_varStore_independent_of_constraints']
 
@@ -706,6 +662,14 @@ lemma eval_cons {circuit : Circuit p}
   rw [show ⟨gate :: circuit.toList⟩ = #[gate] ++ circuit by simp]
   exact eval_append
 
+@[simp, grind =]
+lemma eval_cons' {circuit_list : List (Gate p)}
+:
+  [varStore, σ, numAlloc | ⟨gate :: circuit_list⟩]ₑ =
+  seq #[gate] circuit_list.toArray varStore numAlloc σ
+:= by
+  convert eval_cons
+
 section
 
 variable {numAlloc : ℕ} {varStore : VarStore p} {e : Expr p} {e! : ExprRef} {σ : HashConsSt p}
@@ -794,6 +758,101 @@ lemma refsValid_append_iff {a b : Circuit p} {numAlloc : ℕ}
   a.refsValid numAlloc ∧ b.refsValid numAlloc
 := by
   grind
+
+lemma varsAllocated_eval_share_cons
+  {val : ZMod p}
+  {circuit : Circuit p}
+  {e : Expr p}
+  (h_e : e.wellFormed)
+  (h_circuit : circuit.wellFormed varStore e.σ numAlloc)
+  (h: [[varStore, e.σ, numAlloc|circuit]ₑ.varStore|e].isSome = true)
+:
+  [[varStore.insert numAlloc val, e.σ, numAlloc+1|circuit]ₑ.varStore|e].isSome
+:= by
+  obtain ⟨list⟩ := circuit
+  rewrite [←list.reverse_reverse] at ⊢ h h_circuit
+  set circuit_rev := list.reverse
+  clear_value circuit_rev
+  induction' circuit_rev with head tail h_tail
+  . grind
+  . cases head
+    . simp [eval] at h h_tail ⊢
+      grind
+    . simp [eval, Expr.eval_eq_evalRec] at h h_tail ⊢
+      done
+    . done
+    . done
+  done
+
+lemma varsAllocated_eval_cons
+  {head : Gate p}
+  {tail : List (Gate p)}
+  (h_refsValid : gate.refsValid σ.size)
+  (h : gate.varsAllocated [varStore, σ, numAlloc|⟨tail⟩]ₑ.varStore σ)
+:
+  gate.varsAllocated [varStore, σ, numAlloc|⟨head :: tail⟩]ₑ.varStore σ
+:= by
+  simp [Gate.varsAllocated] at ⊢ h
+  cases head
+  . aesop (add safe (by grind))
+  . simp
+
+    simp [show tail.toArray = ⟨tail⟩ by rfl]
+    rewrite [←tail.reverse_reverse] at h ⊢
+    set tail := tail.reverse
+    induction' h_eq: tail with head body h_body generalizing tail
+    .
+      done
+    . done
+    induction' h_len: tail.length with len ih generalizing tail
+    . grind
+    .
+    done
+
+
+  all_goals {
+    expose_names
+    simp
+
+    -- obtain ⟨circuit⟩ := circuit
+    -- rewrite [←List.reverse_reverse circuit] at ⊢ h_body1
+    induction' h_eq: circuit.size with size ih generalizing circuit
+    . have : circuit = #[] := by grind
+      simp [this] at ⊢ h_body1
+      apply isSome_eval_of_isSome_eval_precedes h_body1 (by grind) (by grind)
+    .
+  }
+  done
+
+/-
+TODO: Not based one bit
+TODO: TODO
+-/
+lemma varsAllocated_eval_append_left
+  {circuit1 circuit2 : Circuit p}
+  (h_refsValid : gate.refsValid σ.size)
+  (h : gate.varsAllocated [varStore, σ, numAlloc|circuit2]ₑ.varStore σ)
+:
+  gate.varsAllocated [varStore, σ, numAlloc|circuit1 ++ circuit2]ₑ.varStore σ
+:= by
+  obtain ⟨circuit1⟩ := circuit1
+  induction' circuit1 with head body1 h_body1
+  . grind
+  . have : ⟨head::body1⟩ ++ circuit2 = ⟨head::(body1 ++ circuit2.toList)⟩ := by grind
+    rewrite [this]
+    apply varsAllocated_eval_cons
+    have : ⟨body1 ++ circuit2.toList⟩ = ⟨body1⟩ ++ circuit2 := by grind
+    grind
+
+
+    -- obtain ⟨circuit2⟩ := circuit2
+    -- rewrite [←List.reverse_reverse circuit2] at ⊢ h h_body1
+
+    -- induction' h_eq: circuit2.reverse with tail body2 h_body2
+    -- . simp [h_eq, Gate.varsAllocated] at ⊢ h_body1 h
+
+    --   done
+    -- done
 
 end Circuit
 
