@@ -759,12 +759,46 @@ lemma refsValid_append_iff {a b : Circuit p} {numAlloc : ℕ}
 --       exact varsAllocated_eval_append_left h_b
 
 @[grind →]
-lemma varsAllocate_of_append_singleton {circuit : Circuit p}
-          (h : varsAllocated (circuit ++ #[gate]) varStore σ numAlloc) :
-          varsAllocated circuit varStore σ numAlloc := by
+lemma varsAllocated_of_append_singleton
+        {circuit : Circuit p}
+        (h : varsAllocated (circuit ++ #[gate]) varStore σ numAlloc) :
+        varsAllocated circuit varStore σ numAlloc := by
   unfold varsAllocated at h ⊢
   intros i hi
   specialize h i (by grind)
+  grind
+
+@[grind →]
+lemma wellFormed_of_append_singleton_left
+        {circuit : Circuit p}
+        (h : wellFormed (circuit ++ #[gate]) varStore σ numAlloc) :
+        wellFormed circuit varStore σ numAlloc := by
+  simp only [wellFormed_iff] at h ⊢
+  grind
+
+@[grind →]
+lemma wellFormed_of_append_singleton_right
+        {circuit : Circuit p}
+        (h : wellFormed (circuit ++ #[gate]) varStore σ numAlloc) :
+        gate.wellFormed [varStore, σ, numAlloc|circuit]ₑ.varStore σ := by
+  simp only [wellFormed_iff] at h ⊢
+  simp [refsValid, varsAllocated] at h ⊢
+  rcases h with ⟨h₁, h₂⟩
+  split_ands
+  · aesop
+  · specialize h₂ circuit.size (le_refl _)
+    simpa using h₂
+
+@[grind .]
+lemma _root_.Clap.Gate.refsValid_iff_wellFormed_mk :
+  (Expr.mk gate.expr σ).wellFormed ↔ gate.refsValid σ.exprs.size := by
+  grind
+
+@[grind →]
+lemma _root_.Clap.Expr.wellFormed_of_append_singleton
+        {circuit : Circuit p}
+        (h : wellFormed (circuit ++ #[gate]) varStore σ numAlloc) :
+        (Expr.mk gate.expr σ).wellFormed := by
   grind
 
 /-
@@ -792,6 +826,10 @@ lemma varsAllocated_eval_share_cons
     . simp [eval] at h h_tail ⊢
       grind
     next e' =>
+      have wf : wellFormed (⟨tail.reverse⟩ ++ #[Gate.share e']) varStore e.σ numAlloc := by grind
+      have : (Expr.mk e' e.σ).wellFormed := by
+        -- Finally...
+        grind
       simp [eval] at h h_tail ⊢
       set inner :=
         List.foldr (fun x y => [y, e.σ|x]ₛ)
@@ -805,11 +843,8 @@ lemma varsAllocated_eval_share_cons
         List.foldr (fun x y => [y, e.σ|x]ₛ)
           {numAlloc := numAlloc, varStore := varStore, constraints := True}
           tail with eq₁
-      rw [show outer[Expr.mk e' e.σ]? = [outer.varStore|⟨e', e.σ⟩] from rfl] at h
-      have : [outer.varStore|⟨e', e.σ⟩] = Expr.evalRec outer.varStore ⟨e', e.σ⟩ := by
-        rw [Expr.eval_eq_evalRec sorry]
-      rw [this] at h
-      rw [Expr.eval_eq_evalRec h_e] at h
+      rw [EvalSt.getElem?_eq_evalRec_of_wellFormed (by grind)] at h
+      
       
 
 

@@ -21,6 +21,24 @@ def expr (gate : Gate p) : ExprRef :=
   match gate with
   | .eq0 e | .share e | .isZero e | .num2bits _ e => e
 
+section
+
+variable {e : ℕ}
+
+@[simp, grind =]
+lemma expr_mk_eq0 : (Gate.eq0 (p := p) e).expr = e := rfl
+
+@[simp, grind =]
+lemma expr_mk_share : (Gate.share (p := p) e).expr = e := rfl
+
+@[simp, grind =]
+lemma expr_mk_isZero : (Gate.isZero (p := p) e).expr = e := rfl
+
+@[simp, grind =]
+lemma expr_mk_num2bits {w} : (Gate.num2bits (p := p) w e).expr = e := rfl
+
+end
+
 @[grind =]
 def refsValid (gate : Gate p) (bound : ℕ) : Prop := gate.expr < bound
 

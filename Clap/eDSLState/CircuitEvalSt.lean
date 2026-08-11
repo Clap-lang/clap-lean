@@ -122,6 +122,9 @@ def getDM (result : EvalSt p) (e : HashConsM p ExprRef) : HashConsM p (ZMod p) :
 
 variable {e! : ExprRef} {σ : HashConsSt p} {eM : HashConsM p ExprRef} {e : Expr p}
 
+@[grind =]
+lemma getElem?_eq_get? : st[e]? = st.get? e := rfl
+
 @[simp, grind =]
 lemma getD_eq_getM?_getD : st.getD e = (st[e]?).getD 0 := rfl
 
@@ -184,6 +187,10 @@ lemma getElem?_of_varStore_eq_varStore (h : st.varStore = st'.varStore)
 :
   st[e]? = st'[e]?
 := get?_of_varStore_eq_varStore h
+
+@[grind _=_]
+lemma getElem?_eq_evalRec_of_wellFormed (h : e.wellFormed) : st[e]? = e.evalRec st.varStore := by
+  grind
 
 @[grind =>]
 lemma getM?_of_varStore_eq_varStore (h : st.varStore = st'.varStore) :
