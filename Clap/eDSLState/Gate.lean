@@ -2,6 +2,7 @@ import Clap.eDSLState.HashCons.Eval
 
 namespace Clap
 
+-- TODO remove p?
 @[grind cases]
 inductive Gate (p : ℕ) where
   | eq0 (e : ExprRef)
@@ -99,6 +100,36 @@ lemma varsAllocated_of_wellFormed_precedes
   grind
 
 end Precedes
+
+section NumAlloc
+
+def numAllocStep : Gate p → ℕ
+  | .eq0 _ => 0
+  | .share _ => 1
+  | .isZero _ => 1
+  | .num2bits w _ => w
+
+@[simp, grind =]
+lemma numAllocStep_eq0 {e : ExprRef}:
+  (Gate.eq0 (p := p) e).numAllocStep = 0
+:= rfl
+
+@[simp, grind =]
+lemma numAllocStep_share {e : ExprRef}:
+  (Gate.share (p := p) e).numAllocStep = 1
+:= rfl
+
+@[simp, grind =]
+lemma numAllocStep_isZero {e : ExprRef}:
+  (Gate.isZero (p := p) e).numAllocStep = 1
+:= rfl
+
+@[simp, grind =]
+lemma numAllocStep_num2bits {width} {e : ExprRef}:
+  (Gate.num2bits (p := p) width e).numAllocStep = width
+:= rfl
+
+end NumAlloc
 
 end Gate
 

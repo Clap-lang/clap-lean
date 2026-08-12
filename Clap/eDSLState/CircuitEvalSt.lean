@@ -319,6 +319,61 @@ lemma step_mk
   cases next <;> simp
   rfl
 
+@[simp, grind =]
+lemma step_numAlloc
+  (next : Gate p)
+:
+  (st.step next σ).numAlloc =
+  st.numAlloc + next.numAllocStep
+:= by
+  grind [=step]
+
+@[simp, grind =]
+lemma step_varStore_keys
+  (next : Gate p)
+:
+  (st.step next σ).varStore.keys.toFinset =
+  st.varStore.keys.toFinset ∪ (List.range' st.numAlloc next.numAllocStep).toFinset
+:= by
+  cases next <;> simp [step]
+  . ext
+    simp
+    expose_names
+    grind
+  . ext
+    simp
+    grind
+  . ext
+    expose_names
+    simp [Vector.range]
+    have (k: ℕ) : Array.range k = ⟨List.range k⟩ := by grind
+    simp_rw [this]
+    simp [-List.toArray_range, Std.ExtTreeMap.insertMany, Std.ExtDTreeMap.Const.insertMany]
+    rewrite [Vector.foldl_mk]
+    unfold Membership.mem Std.ExtTreeMap.instMembershipOfTransCmp Std.ExtTreeMap.contains
+    simp
+    generalize num2bitsLsbPureV _ _ = data
+    induction' w with w h_w
+    . simp [Vector.zip, Array.zip_eq_empty_iff.mpr]
+    . simp [Vector.zip]
+      have : data.toArray = (data.toArray.take w) ++ #[data.toArray.back] := by grind
+      rewrite [this]
+      have : List.range (w + 1) = List.range w ++ [w] := by grind
+      rewrite [this]
+      simp only [List.map_append, List.map_cons, List.map_nil, ←List.append_toArray]
+      rewrite [Array.zip_append (by grind)]
+      simp
+      specialize h_w data.pop
+      simp [Vector.pop] at h_w
+      simp [h_w]
+      constructor
+      . intro h
+        obtain h | h := h
+        . grind
+        . grind
+      . grind
+
+
 variable {σ : HashConsSt p} {gate : Gate p}
 
 lemma step_unconstrained :

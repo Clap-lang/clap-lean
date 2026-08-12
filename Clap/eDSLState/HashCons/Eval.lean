@@ -80,9 +80,19 @@ def evalRec {p} (Γ : VarStore p) (e : Expr p) : Option (ZMod p) :=
   termination_by e.ref
   decreasing_by all_goals grind
 
+def varSet (e : Expr p) : Set ℕ := match _h: *e with
+  | .some (.c _) => {}
+  | .some (.v idx) => {idx}
+  | .some (.binary_op lhs rhs _op) =>
+    varSet ⟨lhs, e.σ⟩ ∪ varSet ⟨rhs, e.σ⟩
+  | .none => {}
+termination_by e.ref
+decreasing_by all_goals grind
+
 section Eval
 
 variable {Γ : VarStore p}
+
 
 @[grind =>]
 lemma evalRec_eq_none_of_not_wellFormed (h : ¬e.wellFormed) : evalRec Γ e = .none := by
@@ -92,7 +102,7 @@ lemma evalRec_eq_none_of_not_wellFormed (h : ¬e.wellFormed) : evalRec Γ e = .n
 lemma evalRec_eq_none_of_ {idx}
   (h₁ : *e = .some (.v idx)) (h₂ : idx ∉ Γ) : evalRec Γ e = .none := by
   grind [=evalRec]
-      
+
 @[simp, grind .]
 lemma binaryOp_isSome_iff {p} {f : ZMod p → ZMod p → ZMod p} {a b : Option (ZMod p)} :
   (f <$> a <*> b).isSome ↔ (a.isSome ∧ b.isSome) := by
@@ -221,6 +231,20 @@ lemma evalRec_mul {lhs rhs} (h : *e = .some (.binary_op lhs rhs .mul)) :
     cbv -- I DID IT!
     conv_lhs => unfold evalRec
     simp
+
+@[simp, grind =]
+lemma evalRec_isSome_iff :
+  (evalRec Γ e).isSome ↔
+  (
+    e.wellFormed ∧
+    ∀ v ∈ (varSet e), v ∈ Γ
+  )
+:= by
+  fun_induction varSet
+  . aesop (add safe (by grind [=evalRec]))
+  . aesop (add safe (by grind [=evalRec]))
+  . aesop (add safe (by grind [=evalRec]))
+  . aesop (add safe (by grind))
 
 def eval {p} (varStore : VarStore p) (e : Expr p) : Option (ZMod p) :=
   (evalWithCache varStore #[] e)[e.ref]!
@@ -483,6 +507,35 @@ lemma precedes_insert
   [σ|Γ ⊑ Γ.insert k v]
 := by grind
 
+@[grind =>]
+lemma insert_precedes_of_mem
+  {k : ℕ}
+  {v : ZMod p}
+  (h: k ∈ Γ)
+:
+  [σ|Γ.insert k v ⊑ Γ]
+:= by
+  unfold precedes
+  intro e h_e h_eval
+  rewrite [Expr.eval_eq_evalRec (by grind)] at ⊢ h_eval
+  set x := Expr.mk e σ
+  induction eq: x using Expr.evalRec.induct_unfolding Γ generalizing e
+  . grind
+  . grind
+  . grind [=Expr.evalRec]
+  . expose_names
+    specialize ih2 lhs (by grind)
+    specialize ih1 rhs (by grind)
+    rewrite [Expr.binaryOp_isSome_iff]
+    unfold Expr.evalRec at h_eval
+    split at h_eval
+    . grind
+    . split at h_eval
+      . grind
+      . grind
+      . rewrite [Expr.binaryOp_isSome_iff] at h_eval
+        grind
+
 @[grind .]
 lemma precedes_insertMany
   {k}
@@ -505,6 +558,18 @@ lemma precedes_insertMany
     exact precedes_insert
 
 @[grind .]
+lemma isSome_evalRec_of_isSome_evalRec_precedes
+  {e : Expr p}
+  (h : (Expr.evalRec Γ₁ e).isSome = true)
+  (h_wf : e.wellFormed)
+  (h_precedes : [e.σ|Γ₁ ⊑ Γ₂])
+:
+  (Expr.evalRec Γ₂ e).isSome = true
+:= by
+  fun_induction Expr.evalRec Γ₂ e
+  <;> grind
+
+@[grind .]
 lemma isSome_eval_of_isSome_eval_precedes
   {e : Expr p}
   (h : [Γ₁|e].isSome = true)
@@ -513,22 +578,8 @@ lemma isSome_eval_of_isSome_eval_precedes
 :
   [Γ₂|e].isSome = true
 := by
-  rewrite [Expr.eval_eq_evalRec h_wf]
-  fun_induction Expr.evalRec
-  . grind
-  . grind
-  . expose_names
-    unfold precedes at h_precedes
-    specialize h_precedes x.ref (by grind) (by grind)
-    simp [Expr.eval_eq_evalRec h_wf] at h_precedes
-    unfold Expr.evalRec at h_precedes
-    grind
-  . expose_names
-    unfold precedes at h_precedes
-    specialize h_precedes x.ref (by grind) (by grind)
-    simp [Expr.eval_eq_evalRec h_wf] at h_precedes
-    unfold Expr.evalRec at h_precedes
-    grind
+  rewrite [Expr.eval_eq_evalRec h_wf] at ⊢ h
+  exact isSome_evalRec_of_isSome_evalRec_precedes h h_wf h_precedes
 
 end Precedes
 
