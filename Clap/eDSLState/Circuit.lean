@@ -827,14 +827,15 @@ lemma varsAllocated_eval_share_cons
       grind
     next e' =>
       have wf : wellFormed (⟨tail.reverse⟩ ++ #[Gate.share e']) varStore e.σ numAlloc := by grind
-      have : (Expr.mk e' e.σ).wellFormed := by
-        -- Finally...
-        grind
       simp [eval] at h h_tail ⊢
       set inner :=
         List.foldr (fun x y => [y, e.σ|x]ₛ)
           {numAlloc := numAlloc + 1, varStore := varStore.insert numAlloc val, constraints := True}
           tail with eq
+      set expr : Expr p := ⟨e', e.σ⟩ with eqexpr
+      have : expr.wellFormed := by
+        -- Finally...
+        grind
       rw [Expr.eval_eq_evalRec h_e]
       apply Expr.isSome_evalRec_insert_of_isSome_evalRec
       rw [←Expr.eval_eq_evalRec h_e]
@@ -844,6 +845,8 @@ lemma varsAllocated_eval_share_cons
           {numAlloc := numAlloc, varStore := varStore, constraints := True}
           tail with eq₁
       rw [EvalSt.getElem?_eq_evalRec_of_wellFormed (by grind)] at h
+      rw [Expr.eval_eq_evalRec h_e] at h
+      
       
       
 

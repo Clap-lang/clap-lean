@@ -84,11 +84,49 @@ section Eval
 
 variable {Γ : VarStore p}
 
+@[grind =>]
+lemma evalRec_eq_none_of_not_wellFormed (h : ¬e.wellFormed) : evalRec Γ e = .none := by
+  grind [=evalRec]
+
+@[grind =>]
+lemma evalRec_eq_none_of_ {idx}
+  (h₁ : *e = .some (.v idx)) (h₂ : idx ∉ Γ) : evalRec Γ e = .none := by
+  grind [=evalRec]
+      
 @[simp, grind .]
 lemma binaryOp_isSome_iff {p} {f : ZMod p → ZMod p → ZMod p} {a b : Option (ZMod p)} :
   (f <$> a <*> b).isSome ↔ (a.isSome ∧ b.isSome) := by
   unfold_projs at *
   aesop (add simp Option.map)
+
+@[simp]
+lemma binaryOp_eq_none_iff {p} {f : ZMod p → ZMod p → ZMod p} {a b : Option (ZMod p)} :
+  (f <$> a <*> b = .none) ↔ (a = .none ∨ b = .none) := by
+  unfold_projs at *
+  aesop (add simp Option.map)
+
+@[grind ->]
+lemma wellFormed_of_deref_eq_binop {lhs rhs op} (h : *e = some (CacheExpr.binary_op lhs rhs op)) :
+  (Expr.mk lhs e.σ).wellFormed ∧ (Expr.mk rhs e.σ).wellFormed := by
+  grind
+
+@[grind ->]
+lemma evalRec_eq_none_of_binOp_evalRec_eq_none {lhs rhs op}
+  (h₁ : evalRec Γ ⟨lhs, e.σ⟩ = .none ∨ evalRec Γ ⟨rhs, e.σ⟩ = .none)
+  (h₂ : *e = .some (CacheExpr.binary_op lhs rhs op)) :
+  evalRec Γ e = .none := by
+  rcases e with ⟨ref, σ⟩
+  simp at *
+  unfold evalRec
+  split
+  · grind
+  next e' he' =>
+  split
+  · grind
+  · grind
+  · dsimp
+    rw [show Option.map = Functor.map from rfl, binaryOp_eq_none_iff]
+    grind
 
 @[grind .]
 lemma isSome_evalRec_insert_of_isSome_evalRec {k : ℕ} {v : ZMod p}
@@ -183,10 +221,6 @@ lemma evalRec_mul {lhs rhs} (h : *e = .some (.binary_op lhs rhs .mul)) :
     cbv -- I DID IT!
     conv_lhs => unfold evalRec
     simp
-
-lemma missing_hyp {k} {v} (h : e.wellFormed) (h₁ : (evalRec (Γ.insert k v) e).isSome) :
-  (evalRec Γ e).isSome := sorry
-
 
 def eval {p} (varStore : VarStore p) (e : Expr p) : Option (ZMod p) :=
   (evalWithCache varStore #[] e)[e.ref]!
