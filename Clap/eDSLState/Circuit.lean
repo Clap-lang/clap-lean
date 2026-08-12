@@ -915,10 +915,6 @@ lemma varsAllocated_eval_cons
   simp
   grind
 
-/-
-TODO: Not based one bit
-TODO: TODO
--/
 lemma varsAllocated_eval_append_left
   {circuit1 circuit2 : Circuit p}
   (h_refsValid : gate.refsValid σ.size)
@@ -926,10 +922,7 @@ lemma varsAllocated_eval_append_left
 :
   gate.varsAllocated [varStore, σ, numAlloc|circuit1 ++ circuit2]ₑ.varStore σ
 := by
-  obtain ⟨circuit1⟩ := circuit1
-  induction' circuit1 with head body1 h_body1
-  . grind
-  . grind
+  grind
 
 end Circuit
 
