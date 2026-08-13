@@ -252,7 +252,7 @@ def runAndEval
 Well formed up to `numAlloc.pc`.
 -/
 @[grind =]
-def Circuit_wellFormed
+abbrev circuit_wellFormed
   {α : Type}
   (action : ClapM p α)
   (numAlloc : ℕ)
@@ -260,8 +260,7 @@ def Circuit_wellFormed
   (σ : HashConsSt p)
 : Prop
 :=
-  (action.getCircuit numAlloc σ).refsValid (action.getHashConsState numAlloc σ).exprs.size ∧
-  (action.getCircuit numAlloc σ).varsAllocated Γ (action.getHashConsState numAlloc σ) (action.getNumAlloc numAlloc σ)
+  (action.getCircuit numAlloc σ).wellFormed Γ (action.getHashConsState numAlloc σ) numAlloc
 
 @[grind =]
 def numAlloc_wellFormed
@@ -273,8 +272,8 @@ def numAlloc_wellFormed
 :
   Prop
 :=
-  (action.getNumAlloc numAlloc σ) =
-  (Circuit.eval (action.getCircuit numAlloc σ) varStore numAlloc (action.getHashConsState numAlloc σ)).numAlloc
+  action.getNumAlloc numAlloc σ =
+  [varStore, action.getHashConsState numAlloc σ, numAlloc|action.getCircuit numAlloc σ]ₑ.numAlloc
 
 @[grind =]
 def hashConsState_wellFormed
@@ -297,7 +296,7 @@ def wellFormed
 :
   Prop
 :=
-  Circuit_wellFormed action numAlloc varStore σ ∧
+  circuit_wellFormed action numAlloc varStore σ ∧
   numAlloc_wellFormed action numAlloc varStore σ ∧
   hashConsState_wellFormed action numAlloc σ
 
@@ -317,12 +316,12 @@ lemma refsValid_bind_iff :
   letI a_result := a.getResult numAlloc σ
   letI a_st := a.getNumAlloc numAlloc σ
   letI a_σ := a.getHashConsState numAlloc σ
-  ((a >>= f).getCircuit numAlloc σ).refsValid ((a >>= f).getHashConsState numAlloc σ).exprs.size ↔
+  ((a >>= f).getCircuit numAlloc σ).refsValid ((a >>= f).getHashConsState numAlloc σ).size ↔
   (
     a.getCircuit numAlloc σ ++
     (f a_result).getCircuit a_st a_σ
   ).refsValid
-    ((f a_result).getHashConsState a_st a_σ).exprs.size
+    ((f a_result).getHashConsState a_st a_σ).size
 := by
   grind
 
@@ -356,6 +355,57 @@ lemma size_le_size_bind
   simp [Array.size_eq_length_toList, -Array.length_toList]
   grind
 
+@[grind <=]
+lemma refsValid_take_of_refsValid {k bound : ℕ} {circuit : Circuit p} (h : circuit.refsValid bound) :
+  Circuit.refsValid (circuit.take k) bound := by
+  unfold Circuit.refsValid at *
+  intro gate a
+  apply h gate
+  rw [Array.mem_extract_iff_getElem] at a
+  rcases a with ⟨w, w', hw⟩
+  grind
+
+@[grind =>]
+lemma _root_.Array.IsPrefix.length_le {α} {l₁ l₂ : Array α} [BEq α] [LawfulBEq α]
+  (h : l₁.isPrefixOf l₂) : l₁.size ≤ l₂.size := by
+  rcases h₁ : l₁ with ⟨l₁⟩
+  rcases h₂ : l₂ with ⟨l₂⟩
+  grind
+
+open HashConsM in
+@[grind ->]
+lemma wellFormed_of_wellFormed_isPrefixOf
+  {p : ℕ}
+  {e₁ e₂ : Expr p}
+  (h : e₁.ref = e₂.ref)
+  (h_prefix : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true)
+  (this : e₁.wellFormed) : e₂.wellFormed := by
+  grind
+
+open HashConsM in
+@[grind .]
+lemma Gate.varsAllocated_eq_of_prefix_refsValid
+  {σ σ' : HashConsSt p}
+  {Γ : VarStore p}
+  {gate : Gate p}
+  (h_prefix : σ.exprs.isPrefixOf σ'.exprs = true)
+  (h_refsValid : gate.refsValid σ.size) :
+  gate.varsAllocated Γ σ' =
+  gate.varsAllocated Γ σ := by
+  unfold Gate.varsAllocated
+  set e₁ : Expr _ := {ref := gate.expr, σ := σ}
+  set e₂ : Expr _ := {ref := gate.expr, σ := σ'}
+  have wf₁ : e₁.wellFormed := by grind
+  have wf₂ : e₂.wellFormed := by
+    apply wellFormed_of_wellFormed_isPrefixOf (e₁ := e₁) _ h_prefix <;> grind
+  simp [Expr.eval_eq_evalRec, wf₁, wf₂]
+  refine ⟨fun h v h₂ ↦ ?p₁, fun h v h₂ ↦ ?p₂⟩
+  · apply h
+    replace h_prefix : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true := by grind
+    rewrite [←Expr.varSet.varSet_eq_of_prefix (h₂ := h_prefix)] <;> grind
+  · apply h
+    replace h_prefix : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true := by grind
+    rewrite [Expr.varSet.varSet_eq_of_prefix (h₂ := h_prefix)] <;> grind
 
 lemma bind_Circuit_wellFormed
   (h_a : a.wellFormed numAlloc varStore σ)
@@ -367,18 +417,77 @@ lemma bind_Circuit_wellFormed
       (a.getHashConsState numAlloc σ)
   )
 :
-  (a >>= f).Circuit_wellFormed numAlloc varStore σ
+  (a >>= f).circuit_wellFormed numAlloc varStore σ
 := by
-  unfold Circuit_wellFormed
-  rewrite [refsValid_bind_iff, Circuit.refsValid_append_iff]
+  unfold circuit_wellFormed
+  rewrite [Circuit.wellFormed_iff, refsValid_bind_iff, Circuit.refsValid_append_iff]
   split_ands
   . exact refsValid_of_refsValid_of_le h_a.1.1 (size_le_size_bind h_f)
   . exact h_f.1.1
-  . simp
+  . simp only [getCircuit_bind, getHashConsState_bind]
+    unfold Circuit.varsAllocated
+    intros i hi
+    rcases h_a with ⟨⟨ha_refsValid, ha_varsAllocated⟩, ha_numAlloc, ha_hashConsSt⟩
+    rcases h_f with ⟨⟨hf_refsValid, hf_varsAllocated⟩, hf_numAlloc, hf_hashConsSt⟩
+    set result := a.getResult numAlloc σ with eq₁
+    set numAlloc' := a.getNumAlloc numAlloc σ with eq₂
+    set σ' := a.getHashConsState numAlloc σ with eq₃
+    set circuit := a.getCircuit numAlloc σ with eq₄
+    set varStore' := [varStore, σ', numAlloc|circuit]ₑ.varStore with eq₅
+    set f_circuit := (f result).getCircuit numAlloc' σ' with eq₆
+    set f_sigma := (f result).getHashConsState numAlloc' σ' with eq₇
+    rw! [←eq₁, ←eq₂, ←eq₃, ←eq₄, ←eq₆]
+    split_ands
+    · by_cases h : i < circuit.size
+      · rewrite [show (circuit ++ f_circuit).take i = circuit.take i by aesop (add safe (by grind))]
+        simp only [h, Array.getElem_append_left]
+        specialize ha_varsAllocated i h
+        rw [Circuit.eval_of_refsValid_prefix (σ := σ') (by grind) (by grind)]
+        grind
+      · specialize hf_varsAllocated (i - circuit.size) (by grind)
+        simp
+        convert hf_varsAllocated.1 using 1
+        · grind
+        · unfold numAlloc_wellFormed at ha_numAlloc
+          rw! [←eq₂, ←eq₃, ←eq₄] at ha_numAlloc
+          have this : circuit.extract 0 i = circuit := by
+            rw [Array.extract_eq_self_of_le]
+            grind
+          have that : numAlloc + Circuit.numAllocStep (Array.extract circuit 0 i) =
+                 numAlloc' := by
+            grind
+          rw [that]
+          simp [this]
+          rw [Circuit.eval_of_refsValid_prefix (Γ := varStore) (σ' := f_sigma)]
+          grind
+          grind
+    · intros i' hi'
+      rw [Circuit.eval_numAlloc]
+      by_cases h : i < circuit.size
+      · simp [h] at hi' ⊢
+        rw [←HashConsM.Expr.varSet.varSet_eq_of_prefix
+              (e₂ := ⟨circuit[i].expr, f_sigma⟩)
+              (e₁ := ⟨circuit[i].expr, σ'⟩) (by grind)] at hi'
+        · unfold Circuit.varsAllocated at ha_varsAllocated
+          specialize ha_varsAllocated i h
+          simp [Circuit.eval_numAlloc] at ha_varsAllocated
+          rcases ha_varsAllocated with ⟨eq₁, eq₂⟩
+          specialize eq₂ i' hi'
+          grind
+        · grind
+        · grind
+      · specialize hf_varsAllocated (i - circuit.size) (by grind)
+        rcases hf_varsAllocated with ⟨eq₁, newName⟩
+        specialize newName i' (by grind)
+        simp [Circuit.eval_numAlloc] at newName
+        unfold numAlloc_wellFormed at ha_numAlloc
+        rw! [←eq₂, ←eq₃, ←eq₄] at ha_numAlloc
+        have this : circuit.extract 0 i = circuit := by
+          rw [Array.extract_eq_self_of_le]
+          grind
+        grind
 
-    sorry
-  -- done
-
+@[aesop safe, grind .]
 lemma bind_wellFormed
   (h_a : a.wellFormed numAlloc varStore σ)
   (h_f : (
@@ -391,8 +500,12 @@ lemma bind_wellFormed
 :
   (a >>= f).wellFormed numAlloc varStore σ
 := by
-  sorry
-  done
+  unfold wellFormed
+  split_ands
+  · exact bind_Circuit_wellFormed h_a h_f
+  · grind
+  · unfold hashConsState_wellFormed
+    apply Array.isPrefixOf_trans (b := (a.getHashConsState numAlloc σ).exprs) <;> grind
 
 end Bind_WellFormed
 
@@ -465,25 +578,7 @@ lemma runAndEval_bind
   ⟨functionData, functionCircuitResult.addConstraint actionCircuitResult.constraints⟩
 := by
   simp [ClapM.runAndEval]
-  split_ands
-  . grind
-  . simp [seq]
-    set result := (action.getResult numAlloc σ)
-    set numAlloc' := (action.getNumAlloc numAlloc σ)
-    set σ' := (action.getHashConsState numAlloc σ)
-    set circuit := (action.getCircuit numAlloc σ)
-    set varStore' := [varStore, σ', numAlloc|circuit]ₑ.varStore
-    ext
-    . simp
-      have : [varStore, σ', numAlloc|circuit]ₑ.numAlloc = numAlloc' := by
-        grind
-      rewrite [this]; clear this
-      congr 3
-      sorry
-      sorry
-    . sorry
-    . sorry
-
+  grind [seq]
 
 end Circuit
 

@@ -88,6 +88,7 @@ def eval (circuit : Circuit p) (varStore : VarStore p) (numAlloc : ℕ) (σ : Ha
 
 notation "[" varStore ", " σ ", " numAlloc "|" circuit "]ₑ" => Circuit.eval circuit varStore numAlloc σ
 
+@[simp, grind =]
 lemma eval_numAlloc
   {circuit : Circuit p}
 :
@@ -128,14 +129,14 @@ lemma mem_eval_varStore
   {k}
 :
   k ∈ [varStore, σ, numAlloc|circuit]ₑ.varStore ↔
-  k ∈ varStore ∨ (numAlloc ≤ k ∧ k < numAlloc + circuit.numAllocStep)
+  (k ∈ varStore ∨ (numAlloc ≤ k ∧ k < numAlloc + circuit.numAllocStep))
 := by
   simp [VarStore.mem_iff_mem_keys, -Std.ExtTreeMap.mem_keys, ←List.mem_toFinset]
   aesop
 
 @[grind =]
 def varsAllocated (c : Circuit p) (varStore : VarStore p) (σ : HashConsSt p) (numAlloc : ℕ) : Prop :=
-  ∀ i (h: i < c.size),
+  ∀ i (h : i < c.size),
     letI evalSt := [varStore, σ, numAlloc|c.take i]ₑ
     c[i].varsAllocated evalSt.varStore σ ∧
     ∀ x ∈ Expr.varSet ⟨c[i].expr, σ⟩, x < evalSt.numAlloc
@@ -698,8 +699,6 @@ lemma seq_singleton_nil {cmd : Gate p} {varStore} {numAlloc} :
   [varStore, σ, numAlloc| #[cmd]]ₑ := by
   grind [=seq]
 
--- TODO prove for eval
--- TODO move up
 lemma step_of_refsValid_prefix
   {σ σ' : HashConsSt p}
   {circuit : Gate p}
@@ -726,6 +725,33 @@ lemma step_of_refsValid_prefix
       exact HashConsM.evalCache_of_lt_prefix h_prefix this
     grind
   }
+
+@[grind .]
+lemma eval_of_refsValid_prefix
+  {σ σ' : HashConsSt p}
+  {circuit : Circuit p}
+  {Γ : VarStore p}
+  (h_prefix : σ.exprs.isPrefixOf σ'.exprs)
+  (h_refsValid : circuit.refsValid σ.size)
+:
+  [Γ, σ', numAlloc|circuit]ₑ =
+  [Γ, σ, numAlloc|circuit]ₑ
+:= by
+  simp [Circuit.eval, Circuit.evalInOrder]
+  induction' h : circuit.size with len ih generalizing circuit
+  · aesop
+  · rcases circuit with ⟨circuit⟩
+    rw [←circuit.reverse_reverse] at h ⊢
+    rcases h₁ : circuit.reverse with _ | ⟨hd, tl⟩
+    · aesop
+    · rw [h₁] at h
+      rw [←h]
+      simp
+      specialize @ih ⟨tl.reverse⟩ (by aesop (add simp Circuit.refsValid)) (by grind)
+      have : (⟨tl.reverse⟩ : Array _).size = len := by grind
+      simp [this] at ih
+      rewrite [ih]
+      exact Circuit.step_of_refsValid_prefix h_prefix (by aesop)
 
 end
 
@@ -894,7 +920,6 @@ lemma varsAllocated_eval_share_cons
   simp [Expr.eval_eq_evalRec h_e] at ⊢ h
   grind
 
--- TODO grind starts hitting thresholds here if used without aesop, may need to prune grind lemmas
 lemma varsAllocated_eval_cons
   {head : Gate p}
   {tail : List (Gate p)}
@@ -903,7 +928,6 @@ lemma varsAllocated_eval_cons
 :
   gate.varsAllocated [varStore, σ, numAlloc|⟨head :: tail⟩]ₑ.varStore σ
 := by
-  -- have : e.wellFormed := by grind
   simp [Gate.varsAllocated] at ⊢ h
   have : (Expr.mk gate.expr σ).wellFormed := by grind
   simp [Expr.eval_eq_evalRec this] at ⊢ h

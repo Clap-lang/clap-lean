@@ -89,10 +89,40 @@ def varSet (e : Expr p) : Set ℕ := match _h: *e with
 termination_by e.ref
 decreasing_by all_goals grind
 
+namespace varSet
+
+section
+
+@[grind ->]
+lemma deref_eq_of_ref_eq_prefix {e₁ e₂ : Expr p}
+  (h₀ : e₁.ref = e₂.ref)
+  (h₁ : e₁.wellFormed)
+  (h₂ : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true) :
+  *e₁ = *e₂ := by
+  unfold deref
+  rcases eq₁ : e₁.σ.exprs with ⟨l₁⟩
+  rcases eq₂ : e₂.σ.exprs with ⟨l₂⟩
+  rw [←h₀]
+  simp [eq₁, eq₂] at h₂
+  simp
+  rw [List.prefix_iff_getElem?] at h₂
+  specialize h₂ e₁.ref (by grind)
+  grind
+
+@[grind ->]
+lemma varSet_eq_of_prefix {e₁ e₂ : Expr p}
+  (h₀ : e₁.ref = e₂.ref)
+  (h₁ : e₁.wellFormed)
+  (h₂ : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true) : varSet e₁ = varSet e₂ := by
+  fun_induction varSet e₁ generalizing e₂ <;> grind [=varSet]
+
+end
+
+end varSet
+
 section Eval
 
 variable {Γ : VarStore p}
-
 
 @[grind =>]
 lemma evalRec_eq_none_of_not_wellFormed (h : ¬e.wellFormed) : evalRec Γ e = .none := by

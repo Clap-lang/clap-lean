@@ -37,7 +37,7 @@ lemma subset_insert {p} {Γ : VarStore p} {k} {v} {h : k ∉ Γ}:
 := by
   aesop (add simp hasSubset_def) (add safe (by grind))
 
-@[grind =]
+@[grind _=_]
 lemma mem_iff_mem_keys {p} {Γ : VarStore p} {k}:
   k ∈ Γ ↔ k ∈ Γ.keys
 := by
