@@ -79,4 +79,58 @@ lemma isPrefixOf_trans {α : Type} [BEq α] [LawfulBEq α] {a b c : Array α}
   (h₁ : a.isPrefixOf b) (h₂ : b.isPrefixOf c) : a.isPrefixOf c := by
   grind [cases Array]
 
+@[grind =>]
+lemma IsPrefix.length_le {α} {l₁ l₂ : Array α} [BEq α] [LawfulBEq α]
+  (h : l₁.isPrefixOf l₂) : l₁.size ≤ l₂.size := by
+  rcases h₁ : l₁ with ⟨l₁⟩
+  rcases h₂ : l₂ with ⟨l₂⟩
+  grind
+
 end Array
+
+@[simp, grind =]
+lemma Std.ExtTreeMap.mem_insertMany_vector.{u, v}
+  {α : Type u}
+  {β : Type v}
+  {cmp : α → α → Ordering}
+  {t : Std.ExtTreeMap α β cmp}
+  [Std.TransCmp cmp] [BEq α] [Std.LawfulBEqCmp cmp]
+  {len : ℕ}
+  {v : Vector (α × β) len}
+  {k : α}
+:
+  k ∈ t.insertMany v ↔ k ∈ t ∨ (v.map Prod.fst).contains k = true
+:= by
+  obtain ⟨⟨manyList⟩, h_manyList⟩ := v
+  have := (@Std.ExtTreeMap.mem_insertMany_list _ _ _ t _ _ _ manyList k).mpr
+  simp [Std.ExtTreeMap.insertMany, Std.ExtDTreeMap.Const.insertMany] at ⊢ this
+  subst h_manyList
+  apply Iff.intro
+  · intro a
+    simp_all only [implies_true]
+    convert Std.ExtTreeMap.mem_insertMany_list.mp _ using 1
+    . aesop
+    . assumption
+    . simpa [Std.ExtTreeMap.insertMany, Std.ExtDTreeMap.Const.insertMany]
+  · intro a
+    simp_all only [forall_const]
+
+@[grind .]
+lemma Std.ExtTreeMap.mem_insertMany_of_mem
+  {α β}
+  {cmp}
+  [BEq α] [Std.TransCmp cmp] [Std.LawfulBEqCmp cmp]
+  {k : α}
+  {manyLen : ℕ}
+  {many : Vector (α × β) manyLen}
+  {map : Std.ExtTreeMap α β cmp}
+  (h_mem : k ∈ map)
+:
+  k ∈ map.insertMany many
+:= by
+  obtain ⟨⟨manyList⟩, h_manyList⟩ := many
+  have := (@Std.ExtTreeMap.mem_insertMany_list _ _ _ map _ _ _ manyList k).mpr
+  simp [Std.ExtTreeMap.insertMany, Std.ExtDTreeMap.Const.insertMany] at ⊢ this
+  apply this
+  left
+  assumption

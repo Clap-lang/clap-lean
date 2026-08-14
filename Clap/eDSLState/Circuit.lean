@@ -600,14 +600,14 @@ lemma numAlloc_seq :
 
 @[simp]
 lemma varStore_seq :
-  (Circuit.seq circuit1 circuit2 varStore numAlloc σ).varStore =
+  [varStore, σ, numAlloc|circuit1; circuit2]ₑ.varStore =
   let mid := [varStore, σ, numAlloc|circuit1]ₑ
   [mid.varStore, σ, mid.numAlloc|circuit2]ₑ.varStore
 := rfl
 
 @[simp, grind=]
 lemma constraints_seq :
-  (Circuit.seq circuit1 circuit2 varStore numAlloc σ).constraints =
+  [varStore, σ, numAlloc|circuit1; circuit2]ₑ.constraints =
   let mid := [varStore, σ, numAlloc|circuit1]ₑ
   mid.constraints ∧ [mid.varStore, σ, mid.numAlloc|circuit2]ₑ.constraints
 := rfl
@@ -615,7 +615,7 @@ lemma constraints_seq :
 @[simp, grind =]
 lemma eval_append
 :
-  [varStore, σ, numAlloc | circuit1 ++ circuit2]ₑ = seq circuit1 circuit2 varStore numAlloc σ
+  [varStore, σ, numAlloc | circuit1 ++ circuit2]ₑ = [varStore, σ, numAlloc|circuit1; circuit2]ₑ
 := by
   simp [eval]
   ext1
@@ -624,7 +624,7 @@ lemma eval_append
   . exact EvalSt.evalInOrder_varStore_independent_of_constraints
   . exact EvalSt.evalInOrder_constraints_and
 
-variable {gate : Gate p}
+variable {gate : Gate p} {circuit : Circuit p} {circuit_list : List (Gate p)}
 
 @[simp high, grind =]
 lemma eval_singleton
@@ -634,18 +634,18 @@ lemma eval_singleton
   simp [eval, EvalSt.step_unconstrained]
 
 @[simp, grind =]
-lemma eval_cons {circuit : Circuit p}
+lemma eval_cons
 :
   [varStore, σ, numAlloc | ⟨gate :: circuit.toList⟩]ₑ =
-  seq #[gate] circuit varStore numAlloc σ:= by
+  [varStore, σ, numAlloc|#[gate]; circuit]ₑ := by
   rw [show ⟨gate :: circuit.toList⟩ = #[gate] ++ circuit by simp]
   exact eval_append
 
 @[simp, grind =]
-lemma eval_cons' {circuit_list : List (Gate p)}
+lemma eval_cons'
 :
   [varStore, σ, numAlloc | ⟨gate :: circuit_list⟩]ₑ =
-  seq #[gate] circuit_list.toArray varStore numAlloc σ
+  [varStore, σ, numAlloc|#[gate]; circuit_list.toArray]ₑ
 := by
   convert eval_cons
 
@@ -689,48 +689,31 @@ lemma eval_num2bits {width : ℕ} :
 
 @[simp, grind =]
 lemma seq_cons_nil {cmd : Gate p} {circuit : Circuit p} {varStore} {numAlloc} :
-  seq (⟨cmd :: circuit.toList⟩) #[] varStore numAlloc σ =
-  seq #[cmd] circuit varStore numAlloc σ := by
+  [varStore, σ, numAlloc|(⟨cmd :: circuit.toList⟩); #[]]ₑ =
+  [varStore, σ, numAlloc|#[cmd]; circuit]ₑ := by
   aesop (add simp seq)
 
 @[simp high, grind =]
 lemma seq_singleton_nil {cmd : Gate p} {varStore} {numAlloc} :
-  seq #[cmd] #[] varStore numAlloc σ =
-  [varStore, σ, numAlloc| #[cmd]]ₑ := by
+  [varStore, σ, numAlloc|#[cmd]; #[]]ₑ =
+  [varStore, σ, numAlloc|#[cmd]]ₑ := by
   grind [=seq]
 
+variable {σ σ' : HashConsSt p} {gate : Gate p} {st : EvalSt p} {circuit : Circuit p} {Γ : VarStore p}
+
+@[grind =>]
 lemma step_of_refsValid_prefix
-  {σ σ' : HashConsSt p}
-  {circuit : Gate p}
-  {st : EvalSt p}
   (h_prefix : σ.exprs.isPrefixOf σ'.exprs)
-  (h_refsValid : circuit.refsValid (σ.exprs.size))
+  (h_refsValid : gate.refsValid (σ.exprs.size))
 :
-  [st, σ'|circuit]ₛ =
-  [st, σ|circuit]ₛ
+  [st, σ'|gate]ₛ =
+  [st, σ|gate]ₛ
 := by
   unfold EvalSt.step
-  cases circuit
-  all_goals {
-    simp
-    expose_names
-    have : e < σ.exprs.size := by
-      unfold Gate.refsValid at h_refsValid
-      grind
-    have : st[Expr.mk e σ']? = st[Expr.mk e σ]? := by
-      unfold_projs
-      simp [EvalSt.get?, Expr.eval]
-      congr 1
-      symm
-      exact HashConsM.evalCache_of_lt_prefix h_prefix this
-    grind
-  }
+  cases gate <;> grind
 
 @[grind .]
 lemma eval_of_refsValid_prefix
-  {σ σ' : HashConsSt p}
-  {circuit : Circuit p}
-  {Γ : VarStore p}
   (h_prefix : σ.exprs.isPrefixOf σ'.exprs)
   (h_refsValid : circuit.refsValid σ.size)
 :
@@ -790,7 +773,6 @@ lemma refsValid_append_iff {a b : Circuit p} {numAlloc : ℕ}
 
 @[grind →]
 lemma varsAllocated_of_append_singleton
-        {circuit : Circuit p}
         (h : varsAllocated (circuit ++ #[gate]) varStore σ numAlloc) :
         varsAllocated circuit varStore σ numAlloc := by
   unfold varsAllocated at h ⊢
@@ -800,7 +782,6 @@ lemma varsAllocated_of_append_singleton
 
 @[grind →]
 lemma wellFormed_of_append_singleton_left
-        {circuit : Circuit p}
         (h : wellFormed (circuit ++ #[gate]) varStore σ numAlloc) :
         wellFormed circuit varStore σ numAlloc := by
   simp only [wellFormed_iff] at h ⊢
@@ -808,7 +789,6 @@ lemma wellFormed_of_append_singleton_left
 
 @[grind →]
 lemma wellFormed_of_append_singleton_right
-        {circuit : Circuit p}
         (h : wellFormed (circuit ++ #[gate]) varStore σ numAlloc) :
         gate.wellFormed [varStore, σ, numAlloc|circuit]ₑ.varStore σ := by
   simp only [wellFormed_iff] at h ⊢
@@ -819,75 +799,19 @@ lemma wellFormed_of_append_singleton_right
   · specialize h₂ circuit.size (le_refl _)
     simpa using h₂.1
 
-@[grind .]
-lemma _root_.Clap.Gate.refsValid_iff_wellFormed_mk :
-  (Expr.mk gate.expr σ).wellFormed ↔ gate.refsValid σ.exprs.size := by
-  grind
-
 @[grind →]
-lemma _root_.Clap.Expr.wellFormed_of_append_singleton
-        {circuit : Circuit p}
+lemma wellFormed_of_append_singleton
         (h : wellFormed (circuit ++ #[gate]) varStore σ numAlloc) :
         (Expr.mk gate.expr σ).wellFormed := by
   grind
 
-/-
-Why is this direction not grind in the first place?
--/
 attribute [grind =_] List.append_toArray
 
-@[grind .]
-lemma _root_.Std.ExtTreeMap.mem_insertMany_of_mem
-  {α β}
-  {cmp}
-  [BEq α] [Std.TransCmp cmp] [Std.LawfulBEqCmp cmp]
-  {k : α}
-  {manyLen : ℕ}
-  {many : Vector (α × β) manyLen}
-  {map : Std.ExtTreeMap α β cmp}
-  (h_mem : k ∈ map)
-:
-  k ∈ map.insertMany many
-:= by
-  obtain ⟨⟨manyList⟩, h_manyList⟩ := many
-  have := (@Std.ExtTreeMap.mem_insertMany_list _ _ _ map _ _ _ manyList k).mpr
-  simp [Std.ExtTreeMap.insertMany, Std.ExtDTreeMap.Const.insertMany] at ⊢ this
-  apply this
-  left
-  assumption
-
-@[simp, grind =]
-lemma _root_.Std.ExtTreeMap.mem_insertMany_vector.{u, v}
-  {α : Type u}
-  {β : Type v}
-  {cmp : α → α → Ordering}
-  {t : Std.ExtTreeMap α β cmp}
-  [Std.TransCmp cmp] [BEq α] [Std.LawfulBEqCmp cmp]
-  {len : ℕ}
-  {v : Vector (α × β) len}
-  {k : α}
-:
-  k ∈ t.insertMany v ↔ k ∈ t ∨ (v.map Prod.fst).contains k = true
-:= by
-  obtain ⟨⟨manyList⟩, h_manyList⟩ := v
-  have := (@Std.ExtTreeMap.mem_insertMany_list _ _ _ t _ _ _ manyList k).mpr
-  simp [Std.ExtTreeMap.insertMany, Std.ExtDTreeMap.Const.insertMany] at ⊢ this
-  subst h_manyList
-  apply Iff.intro
-  · intro a
-    simp_all only [implies_true]
-    convert Std.ExtTreeMap.mem_insertMany_list.mp _ using 1
-    . aesop
-    . assumption
-    . simpa [Std.ExtTreeMap.insertMany, Std.ExtDTreeMap.Const.insertMany]
-  · intro a
-    simp_all only [forall_const]
+variable {circuit : Circuit p} {k : ℕ} {val : ZMod p} {e : Expr p}
+         {body tail : List (Gate p)} {head last : Gate p}
 
 @[grind =>]
-lemma mem_eval_varStore_of_mem
-  {k : ℕ}
-  {circuit : Circuit p}
-  (h_mem : k ∈ varStore)
+lemma mem_eval_varStore_of_mem (h_mem : k ∈ varStore)
 :
   k ∈ [varStore, σ, numAlloc|circuit]ₑ.varStore
 := by
@@ -899,19 +823,15 @@ lemma mem_eval_varStore_of_mem
 
 @[simp, grind _=_]
 lemma eval_list_append
-  {body : List (Gate p)}
-  {tail : Gate p}
+  
 :
-  [varStore, σ, numAlloc|⟨body ++ [tail]⟩]ₑ =
-  [varStore, σ, numAlloc|⟨body⟩ ; (#[tail])]ₑ
+  [varStore, σ, numAlloc|⟨body ++ [last]⟩]ₑ =
+  [varStore, σ, numAlloc|⟨body⟩ ; (#[last])]ₑ
 := by
   grind
 
 @[grind =]
-lemma varsAllocated_eval_share_cons
-  {val : ZMod p}
-  {circuit : Circuit p}
-  {e : Expr p}
+lemma varsAllocated_eval_share_cons  
   (h_e : e.wellFormed)
   (h: [[varStore, e.σ, numAlloc|circuit]ₑ.varStore|e].isSome = true)
 :
@@ -921,8 +841,6 @@ lemma varsAllocated_eval_share_cons
   grind
 
 lemma varsAllocated_eval_cons
-  {head : Gate p}
-  {tail : List (Gate p)}
   (h_refsValid : gate.refsValid σ.size)
   (h : gate.varsAllocated [varStore, σ, numAlloc|⟨tail⟩]ₑ.varStore σ)
 :
@@ -940,13 +858,32 @@ lemma varsAllocated_eval_cons
   grind
 
 lemma varsAllocated_eval_append_left
-  {circuit1 circuit2 : Circuit p}
   (h_refsValid : gate.refsValid σ.size)
   (h : gate.varsAllocated [varStore, σ, numAlloc|circuit2]ₑ.varStore σ)
 :
   gate.varsAllocated [varStore, σ, numAlloc|circuit1 ++ circuit2]ₑ.varStore σ
 := by
   grind
+
+@[grind <=]
+lemma refsValid_take_of_refsValid {k bound : ℕ} {circuit : Circuit p} (h : circuit.refsValid bound) :
+  Circuit.refsValid (circuit.take k) bound := by
+  unfold Circuit.refsValid at *
+  intro gate a
+  apply h gate
+  rw [Array.mem_extract_iff_getElem] at a
+  rcases a with ⟨w, w', hw⟩
+  grind
+
+@[grind .]
+lemma refsValid_of_refsValid_of_le
+  {low_bound high_bound : ℕ}
+  (h_valid : circuit.refsValid low_bound)
+  (h_le : low_bound ≤ high_bound)
+:
+  circuit.refsValid high_bound
+:= by
+  aesop (add simp [Circuit.refsValid, Gate.refsValid]) (add safe (by grind))
 
 end Circuit
 

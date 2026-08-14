@@ -6,6 +6,7 @@ import Clap.eDSLState.HashCons.Eval
 import Clap.eDSLState.HashCons.HashConsSt
 
 import Clap.eDSLState.Gate
+import Clap.eDSLState.Wheels
 
 namespace Clap
 
@@ -103,7 +104,7 @@ def get? (st : EvalSt p) (e : Expr p) : Option (ZMod p) := do
 
 @[grind =]
 def getM? (st : EvalSt p) (e : HashConsM p ExprRef) : HashConsM p (Option (ZMod p)) := do
-  HashConsM.evalM st.varStore e
+  evalM st.varStore e
 
 instance : Membership (Expr p) (EvalSt p) :=
   ⟨fun Γ e ↦ (get? Γ e).isSome⟩
@@ -345,7 +346,7 @@ lemma step_varStore_keys
     grind
   . ext
     expose_names
-    simp [Vector.range]
+    simp [-Std.ExtTreeMap.mem_insertMany_vector, Vector.range]
     have (k: ℕ) : Array.range k = ⟨List.range k⟩ := by grind
     simp_rw [this]
     simp [-List.toArray_range, Std.ExtTreeMap.insertMany, Std.ExtDTreeMap.Const.insertMany]

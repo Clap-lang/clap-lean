@@ -325,17 +325,6 @@ lemma refsValid_bind_iff :
 := by
   grind
 
--- TODO grind?
-lemma refsValid_of_refsValid_of_le
-  {circuit : Circuit p}
-  {low_bound high_bound : ℕ}
-  (h_valid : circuit.refsValid low_bound)
-  (h_le : low_bound ≤ high_bound)
-:
-  circuit.refsValid high_bound
-:= by
-  aesop (add simp [Circuit.refsValid, Gate.refsValid]) (add safe (by grind))
-
 lemma size_le_size_bind
   (h_f : (
       f (a.getResult numAlloc σ)
@@ -355,58 +344,6 @@ lemma size_le_size_bind
   simp [Array.size_eq_length_toList, -Array.length_toList]
   grind
 
-@[grind <=]
-lemma refsValid_take_of_refsValid {k bound : ℕ} {circuit : Circuit p} (h : circuit.refsValid bound) :
-  Circuit.refsValid (circuit.take k) bound := by
-  unfold Circuit.refsValid at *
-  intro gate a
-  apply h gate
-  rw [Array.mem_extract_iff_getElem] at a
-  rcases a with ⟨w, w', hw⟩
-  grind
-
-@[grind =>]
-lemma _root_.Array.IsPrefix.length_le {α} {l₁ l₂ : Array α} [BEq α] [LawfulBEq α]
-  (h : l₁.isPrefixOf l₂) : l₁.size ≤ l₂.size := by
-  rcases h₁ : l₁ with ⟨l₁⟩
-  rcases h₂ : l₂ with ⟨l₂⟩
-  grind
-
-open HashConsM in
-@[grind ->]
-lemma wellFormed_of_wellFormed_isPrefixOf
-  {p : ℕ}
-  {e₁ e₂ : Expr p}
-  (h : e₁.ref = e₂.ref)
-  (h_prefix : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true)
-  (this : e₁.wellFormed) : e₂.wellFormed := by
-  grind
-
-open HashConsM in
-@[grind .]
-lemma Gate.varsAllocated_eq_of_prefix_refsValid
-  {σ σ' : HashConsSt p}
-  {Γ : VarStore p}
-  {gate : Gate p}
-  (h_prefix : σ.exprs.isPrefixOf σ'.exprs = true)
-  (h_refsValid : gate.refsValid σ.size) :
-  gate.varsAllocated Γ σ' =
-  gate.varsAllocated Γ σ := by
-  unfold Gate.varsAllocated
-  set e₁ : Expr _ := {ref := gate.expr, σ := σ}
-  set e₂ : Expr _ := {ref := gate.expr, σ := σ'}
-  have wf₁ : e₁.wellFormed := by grind
-  have wf₂ : e₂.wellFormed := by
-    apply wellFormed_of_wellFormed_isPrefixOf (e₁ := e₁) _ h_prefix <;> grind
-  simp [Expr.eval_eq_evalRec, wf₁, wf₂]
-  refine ⟨fun h v h₂ ↦ ?p₁, fun h v h₂ ↦ ?p₂⟩
-  · apply h
-    replace h_prefix : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true := by grind
-    rewrite [←Expr.varSet.varSet_eq_of_prefix (h₂ := h_prefix)] <;> grind
-  · apply h
-    replace h_prefix : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true := by grind
-    rewrite [Expr.varSet.varSet_eq_of_prefix (h₂ := h_prefix)] <;> grind
-
 lemma bind_Circuit_wellFormed
   (h_a : a.wellFormed numAlloc varStore σ)
   (h_f : (
@@ -422,7 +359,7 @@ lemma bind_Circuit_wellFormed
   unfold circuit_wellFormed
   rewrite [Circuit.wellFormed_iff, refsValid_bind_iff, Circuit.refsValid_append_iff]
   split_ands
-  . exact refsValid_of_refsValid_of_le h_a.1.1 (size_le_size_bind h_f)
+  . exact Circuit.refsValid_of_refsValid_of_le h_a.1.1 (size_le_size_bind h_f)
   . exact h_f.1.1
   . simp only [getCircuit_bind, getHashConsState_bind]
     unfold Circuit.varsAllocated
@@ -465,7 +402,7 @@ lemma bind_Circuit_wellFormed
       rw [Circuit.eval_numAlloc]
       by_cases h : i < circuit.size
       · simp [h] at hi' ⊢
-        rw [←HashConsM.Expr.varSet.varSet_eq_of_prefix
+        rw [←Expr.varSet.varSet_eq_of_prefix
               (e₂ := ⟨circuit[i].expr, f_sigma⟩)
               (e₁ := ⟨circuit[i].expr, σ'⟩) (by grind)] at hi'
         · unfold Circuit.varsAllocated at ha_varsAllocated
@@ -625,8 +562,8 @@ lemma Vector_ofFnM_empty_state
 lemma bind_eval {α} {e!} {varStore : VarStore p} {f : ZMod p → Option α}
                 {σ} (h : [varStore,σ|e!].isSome) :
   [varStore, σ|e!] >>= f = f ([varStore, σ|e!].get h) := by
-  unfold HashConsM.Expr.eval
-  unfold HashConsM.Expr.evalWithCache
+  unfold Expr.eval
+  unfold Expr.evalWithCache
   simp
   unfold Option.bind
   grind

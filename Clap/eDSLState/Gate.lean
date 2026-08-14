@@ -76,6 +76,11 @@ lemma varsAllocated_num2bits {w} : varsAllocated (.num2bits w e!) Γ σ = [Γ, �
 lemma wellFormed_iff :
   gate.wellFormed Γ σ ↔ (gate.refsValid σ.size ∧ gate.varsAllocated Γ σ) := by grind
 
+@[grind .]
+lemma refsValid_iff_wellFormed_mk :
+  (Expr.mk gate.expr σ).wellFormed ↔ gate.refsValid σ.exprs.size := by
+  grind
+
 section Precedes
 
 variable {gate : Gate p} {Γ₁ Γ₂ Γ₃ : VarStore p}
@@ -100,6 +105,43 @@ lemma varsAllocated_of_wellFormed_precedes
   grind
 
 end Precedes
+
+section Prefix
+
+@[grind ->]
+lemma wellFormed_of_wellFormed_isPrefixOf
+  {p : ℕ}
+  {e₁ e₂ : Expr p}
+  (h : e₁.ref = e₂.ref)
+  (h_prefix : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true)
+  (this : e₁.wellFormed) : e₂.wellFormed := by
+  grind
+
+@[grind .]
+lemma varsAllocated_eq_of_prefix_refsValid
+  {σ σ' : HashConsSt p}
+  {Γ : VarStore p}
+  {gate : Gate p}
+  (h_prefix : σ.exprs.isPrefixOf σ'.exprs = true)
+  (h_refsValid : gate.refsValid σ.size) :
+  gate.varsAllocated Γ σ' =
+  gate.varsAllocated Γ σ := by
+  unfold Gate.varsAllocated
+  set e₁ : Expr _ := {ref := gate.expr, σ := σ}
+  set e₂ : Expr _ := {ref := gate.expr, σ := σ'}
+  have wf₁ : e₁.wellFormed := by grind
+  have wf₂ : e₂.wellFormed := by
+    apply wellFormed_of_wellFormed_isPrefixOf (e₁ := e₁) _ h_prefix <;> grind
+  simp [Expr.eval_eq_evalRec, wf₁, wf₂]
+  refine ⟨fun h v h₂ ↦ ?p₁, fun h v h₂ ↦ ?p₂⟩
+  · apply h
+    replace h_prefix : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true := by grind
+    rewrite [←Expr.varSet.varSet_eq_of_prefix (h₂ := h_prefix)] <;> grind
+  · apply h
+    replace h_prefix : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true := by grind
+    rewrite [Expr.varSet.varSet_eq_of_prefix (h₂ := h_prefix)] <;> grind
+
+end Prefix
 
 section NumAlloc
 

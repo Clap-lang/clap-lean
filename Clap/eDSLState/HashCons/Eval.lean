@@ -2,7 +2,7 @@ import Mathlib.Tactic
 
 import Clap.eDSLState.HashCons.HashConsM
 
-namespace Clap.HashConsM
+namespace Clap
 
 abbrev ValueCache (p : ℕ) := Array (Option (ZMod p))
 
@@ -168,6 +168,16 @@ lemma evalRec_eq_none_of_binOp_evalRec_eq_none {lhs rhs op}
     rw [show Option.map = Functor.map from rfl, binaryOp_eq_none_iff]
     grind
 
+open HashConsM in
+@[grind ->]
+lemma wellFormed_of_wellFormed_isPrefixOf
+  {p : ℕ}
+  {e₁ e₂ : Expr p}
+  (h : e₁.ref = e₂.ref)
+  (h_prefix : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true)
+  (this : e₁.wellFormed) : e₂.wellFormed := by
+  grind
+
 @[grind .]
 lemma isSome_evalRec_insert_of_isSome_evalRec {k : ℕ} {v : ZMod p}
   (h : (evalRec Γ e).isSome) : (evalRec (Γ.insert k v) e).isSome := by
@@ -276,6 +286,7 @@ lemma evalRec_isSome_iff :
   . aesop (add safe (by grind [=evalRec]))
   . aesop (add safe (by grind))
 
+@[grind =]
 def eval {p} (varStore : VarStore p) (e : Expr p) : Option (ZMod p) :=
   (evalWithCache varStore #[] e)[e.ref]!
 
@@ -422,6 +433,7 @@ lemma Array.size_eq_zero_of_isPrefixOf_size_eq_zero
   grind
 
 open Expr in
+@[grind! .]
 lemma evalCache_of_lt_prefix
   {p : ℕ}
   {Γ : VarStore p}
@@ -613,4 +625,4 @@ lemma isSome_eval_of_isSome_eval_precedes
 
 end Precedes
 
-end Clap.HashConsM
+end Clap
