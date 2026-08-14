@@ -132,14 +132,14 @@ lemma varsAllocated_eq_of_prefix_refsValid
   have wf₁ : e₁.wellFormed := by grind
   have wf₂ : e₂.wellFormed := by
     apply wellFormed_of_wellFormed_isPrefixOf (e₁ := e₁) _ h_prefix <;> grind
-  simp [Expr.eval_eq_evalRec, wf₁, wf₂]
+  simp [eval_eq_evalRec, wf₁, wf₂]
   refine ⟨fun h v h₂ ↦ ?p₁, fun h v h₂ ↦ ?p₂⟩
   · apply h
     replace h_prefix : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true := by grind
-    rewrite [←Expr.varSet.varSet_eq_of_prefix (h₂ := h_prefix)] <;> grind
+    rewrite [←varSet.varSet_eq_of_prefix (h₂ := h_prefix)] <;> grind
   · apply h
     replace h_prefix : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true := by grind
-    rewrite [Expr.varSet.varSet_eq_of_prefix (h₂ := h_prefix)] <;> grind
+    rewrite [varSet.varSet_eq_of_prefix (h₂ := h_prefix)] <;> grind
 
 end Prefix
 

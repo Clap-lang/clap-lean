@@ -1,10 +1,12 @@
 import Mathlib.Tactic
 
-import Clap.eDSLState.HashCons.HashConsM
+import Clap.eDSLState.Expr
 
 namespace Clap
 
-abbrev ValueCache (p : ℕ) := Array (Option (ZMod p))
+variable {p : ℕ}
+
+namespace Expr
 
 def evalCore {p} (Γ : VarStore p) (expr : CacheExpr p) (cache : ValueCache p) : Option (ZMod p) :=
   match expr with
@@ -19,39 +21,6 @@ def evalCore {p} (Γ : VarStore p) (expr : CacheExpr p) (cache : ValueCache p) :
     let rhs := cache[rhs]!
     op <$> lhs <*> rhs
 
-@[grind cases]
-structure Expr (p : ℕ) where
-  ref : ExprRef
-  σ : HashConsSt p
-
-namespace Expr
-
-section Expr
-
-variable {p : ℕ} {e : Expr p}
-
-@[grind =]
-def deref (e : Expr p) : Option (CacheExpr p) := e.σ.exprs[e.ref]?
-
-/--
-Dereference is valid.
--/
-@[grind =]
-def wellFormed (e : Expr p) : Prop := e.ref < e.σ.size
-
-instance : Decidable (wellFormed e) := inferInstanceAs <| Decidable (e.ref < e.σ.size)
-
-prefix:max "*" => deref
-
-@[grind _=_]
-lemma wellFormed_iff_isSome : e.wellFormed ↔ (*e).isSome := by grind
-
-@[grind →]
-lemma wellFormed_frame {e' : Expr p}
-  (h₁ : e.wellFormed) (h₂ : e.σ.exprs.isPrefixOf e'.σ.exprs) (h₃ : e.ref = e'.ref) : e'.wellFormed := by
-  have : e.σ.exprs.toList.isPrefixOf e'.σ.exprs.toList = true := by grind
-  grind [List.prefix_iff_getElem?]
-
 def evalWithCache (Γ : VarStore p) (cache : ValueCache p) (e : Expr p) : ValueCache p :=
   if e.ref < cache.size
   then cache
@@ -64,7 +33,7 @@ def evalWithCache (Γ : VarStore p) (cache : ValueCache p) (e : Expr p) : ValueC
   termination_by e.ref + 1 - cache.size
   decreasing_by grind
 
-def evalRec {p} (Γ : VarStore p) (e : Expr p) : Option (ZMod p) :=
+def evalRec (Γ : VarStore p) (e : Expr p) : Option (ZMod p) :=
   match h : *e with
   | .none => .none
   | .some expr =>
@@ -80,7 +49,7 @@ def evalRec {p} (Γ : VarStore p) (e : Expr p) : Option (ZMod p) :=
   termination_by e.ref
   decreasing_by all_goals grind
 
-def varSet (e : Expr p) : Set ℕ := match _h: *e with
+def varSet (e : Expr p) : Set ℕ := match _h : *e with
   | .some (.c _) => {}
   | .some (.v idx) => {idx}
   | .some (.binary_op lhs rhs _op) =>
@@ -89,9 +58,13 @@ def varSet (e : Expr p) : Set ℕ := match _h: *e with
 termination_by e.ref
 decreasing_by all_goals grind
 
+end Expr
+
 namespace varSet
 
 section
+
+open Expr
 
 @[grind ->]
 lemma deref_eq_of_ref_eq_prefix {e₁ e₂ : Expr p}
@@ -122,7 +95,9 @@ end varSet
 
 section Eval
 
-variable {Γ : VarStore p}
+variable {Γ : VarStore p} {e : Expr p}
+
+open Expr
 
 @[grind =>]
 lemma evalRec_eq_none_of_not_wellFormed (h : ¬e.wellFormed) : evalRec Γ e = .none := by
@@ -396,10 +371,6 @@ end Lemmas
 
 end Eval
 
-end Expr
-
-end Expr
-
 section EvalM
 
 variable {p : ℕ}
@@ -527,6 +498,8 @@ lemma isSome_eval_of_isSome_eval_subset'
 
 section Precedes
 
+open Expr
+
 variable {p : ℕ} {Γ Γ₁ Γ₂ Γ₃ : VarStore p} {σ : HashConsSt p}
 
 @[grind =]
@@ -559,23 +532,23 @@ lemma insert_precedes_of_mem
 := by
   unfold precedes
   intro e h_e h_eval
-  rewrite [Expr.eval_eq_evalRec (by grind)] at ⊢ h_eval
+  rewrite [eval_eq_evalRec (by grind)] at ⊢ h_eval
   set x := Expr.mk e σ
-  induction eq: x using Expr.evalRec.induct_unfolding Γ generalizing e
+  induction eq: x using evalRec.induct_unfolding Γ generalizing e
   . grind
   . grind
-  . grind [=Expr.evalRec]
+  . grind [=evalRec]
   . expose_names
     specialize ih2 lhs (by grind)
     specialize ih1 rhs (by grind)
-    rewrite [Expr.binaryOp_isSome_iff]
-    unfold Expr.evalRec at h_eval
+    rewrite [binaryOp_isSome_iff]
+    unfold evalRec at h_eval
     split at h_eval
     . grind
     . split at h_eval
       . grind
       . grind
-      . rewrite [Expr.binaryOp_isSome_iff] at h_eval
+      . rewrite [binaryOp_isSome_iff] at h_eval
         grind
 
 @[grind .]
@@ -602,13 +575,13 @@ lemma precedes_insertMany
 @[grind .]
 lemma isSome_evalRec_of_isSome_evalRec_precedes
   {e : Expr p}
-  (h : (Expr.evalRec Γ₁ e).isSome = true)
+  (h : (evalRec Γ₁ e).isSome = true)
   (h_wf : e.wellFormed)
   (h_precedes : [e.σ|Γ₁ ⊑ Γ₂])
 :
-  (Expr.evalRec Γ₂ e).isSome = true
+  (evalRec Γ₂ e).isSome = true
 := by
-  fun_induction Expr.evalRec Γ₂ e
+  fun_induction evalRec Γ₂ e
   <;> grind
 
 @[grind .]
@@ -620,7 +593,7 @@ lemma isSome_eval_of_isSome_eval_precedes
 :
   [Γ₂|e].isSome = true
 := by
-  rewrite [Expr.eval_eq_evalRec h_wf] at ⊢ h
+  rewrite [eval_eq_evalRec h_wf] at ⊢ h
   exact isSome_evalRec_of_isSome_evalRec_precedes h h_wf h_precedes
 
 end Precedes

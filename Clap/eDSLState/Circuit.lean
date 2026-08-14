@@ -207,7 +207,7 @@ lemma eval_varStore_insert_isSome_of_isSome
 :
   [varStore.insert key value|e].isSome
 := by
-  rw [Expr.eval_eq_evalRec h₁] at h ⊢
+  rw [eval_eq_evalRec h₁] at h ⊢
   unfold Expr.evalRec at *
   obtain ⟨exp, wexp⟩ : ∃ a, *e = some a := by grind
   split at h
@@ -220,11 +220,11 @@ lemma eval_varStore_insert_isSome_of_isSome
       split
       · simp at h
         expose_names
-        rw [show Option.map = Functor.map from rfl, Expr.binaryOp_isSome_iff] at h ⊢
+        rw [show Option.map = Functor.map from rfl, binaryOp_isSome_iff] at h ⊢
         grind
-      · rw [show Option.map = Functor.map from rfl, Expr.binaryOp_isSome_iff] at h ⊢
+      · rw [show Option.map = Functor.map from rfl, binaryOp_isSome_iff] at h ⊢
         grind
-      · rw [show Option.map = Functor.map from rfl, Expr.binaryOp_isSome_iff] at h ⊢
+      · rw [show Option.map = Functor.map from rfl, binaryOp_isSome_iff] at h ⊢
         grind
 
 @[simp, grind =]
@@ -837,7 +837,7 @@ lemma varsAllocated_eval_share_cons
 :
   [[varStore.insert numAlloc val, e.σ, numAlloc+1|circuit]ₑ.varStore|e].isSome
 := by
-  simp [Expr.eval_eq_evalRec h_e] at ⊢ h
+  simp [eval_eq_evalRec h_e] at ⊢ h
   grind
 
 lemma varsAllocated_eval_cons
@@ -848,7 +848,7 @@ lemma varsAllocated_eval_cons
 := by
   simp [Gate.varsAllocated] at ⊢ h
   have : (Expr.mk gate.expr σ).wellFormed := by grind
-  simp [Expr.eval_eq_evalRec this] at ⊢ h
+  simp [eval_eq_evalRec this] at ⊢ h
   simp [h]
   intro v h_varset
   obtain ⟨h1, h2⟩ := h

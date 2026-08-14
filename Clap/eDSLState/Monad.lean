@@ -402,7 +402,7 @@ lemma bind_Circuit_wellFormed
       rw [Circuit.eval_numAlloc]
       by_cases h : i < circuit.size
       · simp [h] at hi' ⊢
-        rw [←Expr.varSet.varSet_eq_of_prefix
+        rw [←varSet.varSet_eq_of_prefix
               (e₂ := ⟨circuit[i].expr, f_sigma⟩)
               (e₁ := ⟨circuit[i].expr, σ'⟩) (by grind)] at hi'
         · unfold Circuit.varsAllocated at ha_varsAllocated
@@ -562,7 +562,7 @@ lemma Vector_ofFnM_empty_state
 lemma bind_eval {α} {e!} {varStore : VarStore p} {f : ZMod p → Option α}
                 {σ} (h : [varStore,σ|e!].isSome) :
   [varStore, σ|e!] >>= f = f ([varStore, σ|e!].get h) := by
-  unfold Expr.eval
+  unfold eval
   unfold Expr.evalWithCache
   simp
   unfold Option.bind
