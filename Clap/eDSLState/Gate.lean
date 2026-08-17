@@ -78,7 +78,7 @@ lemma wellFormed_iff :
 
 @[grind .]
 lemma refsValid_iff_wellFormed_mk :
-  (Expr.mk gate.expr σ).wellFormed ↔ gate.refsValid σ.exprs.size := by
+  (Expr.mk gate.expr σ).wellFormed ↔ gate.refsValid σ.size := by
   grind
 
 @[simp, grind =]

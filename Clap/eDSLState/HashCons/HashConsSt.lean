@@ -13,7 +13,7 @@ def empty (p : ℕ) : HashConsSt p where
   exprs := #[]
   wellFormed := by simp
 
-@[simp, grind =]
+@[grind =]
 def size {p} (σ : HashConsSt p) : ℕ :=
   σ.exprs.size
 
@@ -46,11 +46,11 @@ lemma getElem?_pushExpr {e} {σ : HashConsSt p} {h_wellFormed} :
   .some e
 := by
   unfold HashConsSt.pushExpr
-  simp
+  grind
 
 @[simp, grind =]
 lemma size_exprs_pushExpr {e} {σ : HashConsSt p} {h} :
   (σ.pushExpr (p := p) e h).size = σ.size + 1 := by
-  simp [pushExpr]
+  grind [=pushExpr]
 
 end Clap.HashConsSt

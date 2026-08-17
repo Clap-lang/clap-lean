@@ -60,27 +60,9 @@ lemma wellFormed_tell_share_bind_alloc
   split_ands
   · simp [Circuit.refsValid]
     split_ands
-    · -- MEH
-      change e! < (StateT.run (mkVar numAlloc) σ).2.exprs.size
-      rw [run_mkVar]
-      split_ifs with h₄
-      · grind
-      · simp
-        apply lt_trans h₁
-        
-
-      unfold mkVar
-      unfold saveExpr
-      simp
-      have : (CacheExpr.v numAlloc) ∈ σ.exprs := by
-        rw [eval_eq_evalRec (by grind)] at h₂
-        rw [evalRec_isSome_iff] at h₂
-        
-        done
-      sorry
-      rw [saveExp]
-      unfold saveExpr
-      simp
+    · -- MEH (TODO - alright I don't wanna do this)
+      change e! < (StateT.run (mkVar numAlloc) σ).2.size
+      grind
     · sorry
   · sorry
   · sorry
@@ -89,7 +71,7 @@ lemma wellFormed_tell_share_bind_alloc
   done
 
 @[simp, grind .]
-lemma share_wellFormed (h₁ : e! < σ.exprs.size) (h₂ : [Γ,σ|e!].isSome) :
+lemma share_wellFormed (h₁ : e! < σ.size) (h₂ : [Γ,σ|e!].isSome) :
   (share e!).wellFormed numAlloc Γ σ
 := by
   unfold share
@@ -102,9 +84,6 @@ lemma share_wellFormed (h₁ : e! < σ.exprs.size) (h₂ : [Γ,σ|e!].isSome) :
     set newSt := (ClapM.getHashConsState (liftM (mkVar (mkVar e σ).1)) (e + 1) (mkVar e σ).2)
     split_ands
     
-
-#exit
-
 @[simp, grind .]
 lemma isZero_wellFormed {e : ExprRef} (h₁ : e < σ.exprs.size) (h₂ : [Γ,σ|e].isSome) :
   (isZero e).wellFormed e Γ σ

@@ -720,7 +720,7 @@ variable {σ σ' : HashConsSt p} {gate : Gate p} {st : EvalSt p} {circuit : Circ
 @[grind =>]
 lemma step_of_refsValid_prefix
   (h_prefix : σ.exprs.isPrefixOf σ'.exprs)
-  (h_refsValid : gate.refsValid (σ.exprs.size))
+  (h_refsValid : gate.refsValid σ.size)
 :
   [st, σ'|gate]ₛ =
   [st, σ|gate]ₛ

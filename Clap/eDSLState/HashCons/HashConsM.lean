@@ -15,9 +15,9 @@ section SaveExpr
 
 def saveExpr (e : CacheExpr p) : HashConsM p ExprRef := do
   let state ← get
-  if state.exprs.contains e then
+  if e ∈ state.exprs then
     return state.exprs.idxOf e
-  else if h : e.wellFormed state.exprs.size then
+  else if h : e.wellFormed state.size then
     let post_state := state.pushExpr e h
     set post_state
     return state.exprs.size
@@ -32,7 +32,7 @@ lemma run_saveExpr_of_wellFormed (h : e.wellFormed σ.exprs.size) :
   else (σ.exprs.size, HashConsSt.pushExpr e σ h)
 := by
   unfold HashConsM.saveExpr
-  aesop
+  grind
 
 lemma run_saveExpr_of_mem (h : e ∈ σ) :
   (HashConsM.saveExpr e).run σ =

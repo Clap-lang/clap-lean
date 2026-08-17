@@ -341,7 +341,7 @@ lemma size_le_size_bind
   unfold wellFormed hashConsState_wellFormed at h_f
   replace h_f := h_f.2.2
   rewrite [←Array.isPrefixOf_toList, List.isPrefixOf_iff_prefix] at h_f
-  simp [Array.size_eq_length_toList, -Array.length_toList]
+  simp [HashConsSt.size, Array.size_eq_length_toList, -Array.length_toList]
   grind
 
 lemma bind_Circuit_wellFormed
