@@ -64,6 +64,7 @@ lemma exprs_st_pushExpr {e : CacheExpr p} {h} :
 lemma isPrefixOf_saveExpr {e : CacheExpr p} (h : e.wellFormed σ.size) :
   σ.exprs.isPrefixOf (saveExpr e σ).2.exprs := by
   -- aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  -- TODO(stop screaming)
   change σ.exprs.isPrefixOf (StateT.run (saveExpr e) σ).2.exprs
   grind
 
@@ -72,9 +73,16 @@ lemma isPrefixOf_mkVar : σ.exprs.isPrefixOf (mkVar numAlloc σ).2.exprs := by
   unfold mkVar
   grind
 
+@[aesop unsafe, grind .]
+lemma wellFormed_mk_saveExpr_of_wellFormed {e} (h : (⟨e!, σ⟩ : Expr _).wellFormed) :
+  {ref := e!, σ := (saveExpr e σ).2 : Expr _}.wellFormed := by
+  change { ref := e!, σ := (StateT.run (saveExpr e) σ).2 : Expr _}.wellFormed
+  aesop (add safe (by grind)) (add simp saveExpr)
+
 lemma wellFormed_tell_share_bind_alloc
-        (h₁ : e! < σ.size) (h₂ : [Γ,σ|e!].isSome) (h₃ : ∀ var ∈ Γ, var < numAlloc) :
+        (h₁ : e! < σ.size) (h₂ : ∀ v < numAlloc, v ∈ Γ) (h₃ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc) :
   (do tell #[Gate.share e!]; ClapM.alloc).wellFormed numAlloc Γ σ := by
+  have : [Γ,σ|e!].isSome := by grind
   unfold ClapM.wellFormed
   split_ands
   · simp [Circuit.refsValid]
@@ -87,27 +95,45 @@ lemma wellFormed_tell_share_bind_alloc
       · grind
       · intros i hi
         unfold mkVar at hi
-        
-        sorry
-  · sorry
-  · sorry
-    
+        have : { ref := e!, σ := (saveExpr (CacheExpr.v numAlloc) σ).2 : Expr _ }.varSet =
+               { ref := e!, σ := σ : Expr _}.varSet := by
+          symm
+          apply varSet.varSet_eq_of_prefix (by grind) (by grind)
+          grind
+        grind
+  · grind
+  · grind
 
+lemma abc : ClapM.getHashConsState
+              (liftM (n := ClapM _) (m := HashConsM p) (mkVar (mkVar numAlloc σ).1))
+              (numAlloc + 1) (mkVar numAlloc σ).2 = sorry := by
+  
   done
 
 @[simp, grind .]
-lemma share_wellFormed (h₁ : e! < σ.size) (h₂ : [Γ,σ|e!].isSome) :
+lemma share_wellFormed (h₁ : e! < σ.size) (h₂ : ∀ v < numAlloc, v ∈ Γ) (h₃ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc) :
   (share e!).wellFormed numAlloc Γ σ
 := by
   unfold share
+  -- apply ClapM.bind_wellFormed
   unfold ClapM.wellFormed
   split_ands
   · rw [←bind_assoc]
     apply ClapM.bind_Circuit_wellFormed
-    
+    apply wellFormed_tell_share_bind_alloc (by grind) (by grind) (by grind)
     simp
-    set newSt := (ClapM.getHashConsState (liftM (mkVar (mkVar e σ).1)) (e + 1) (mkVar e σ).2)
+    unfold ClapM.wellFormed
+    unfold ClapM.circuit_wellFormed
+    simp
     split_ands
+    · simp
+      done
+    · sorry
+    · aesop (add safe (by grind))
+    · sorry
+    
+    -- set newSt := (ClapM.getHashConsState (liftM (mkVar (mkVar e σ).1)) (e + 1) (mkVar e σ).2)
+    -- split_ands
     
 @[simp, grind .]
 lemma isZero_wellFormed {e : ExprRef} (h₁ : e < σ.exprs.size) (h₂ : [Γ,σ|e].isSome) :

@@ -36,15 +36,17 @@ lemma run_saveExpr_of_wellFormed (h : e.wellFormed σ.exprs.size) :
   grind
 
 lemma run_saveExpr_of_mem (h : e ∈ σ) :
-  (HashConsM.saveExpr e).run σ =
+  (saveExpr e).run σ =
   (σ.exprs.idxOf e, σ)
 := by
-  unfold HashConsM.saveExpr
+  unfold saveExpr
   aesop (add simp HashConsSt.mem_def)
 
 @[grind =]
 lemma size_saveExpr_of_mem (h : e ∈ σ) : ((saveExpr e).run σ).2.size = σ.size := by
   rw [run_saveExpr_of_mem (by grind)]
+
+
 
 end SaveExpr
 
