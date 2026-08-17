@@ -15,21 +15,17 @@ def eq0 (e : ExprRef) : ClapM p Unit := do
 @[irreducible]
 def share (e : ExprRef) : ClapM p (ExprRef) := do
   tell #[.share e]
-  let varIdx ← ClapM.alloc
-  HashConsM.mkVar (p := p) varIdx
+  ClapM.alloc
 
 @[irreducible]
 def isZero (e : ExprRef) : ClapM p (ExprRef) := do
   tell #[.isZero e]
-  let numAlloc ← ClapM.alloc -- (un)just one
-  return numAlloc
+  ClapM.alloc
 
 @[irreducible]
 def num2bits (width : ℕ) (e : ExprRef) : ClapM p (Vector (ExprRef) width) := do
   tell #[.num2bits width e]
-  Vector.ofFnM fun _ ↦ do
-    let varIdx ← ClapM.alloc
-    HashConsM.mkVar (p := p) varIdx
+  Vector.ofFnM fun _ ↦ ClapM.alloc
 
 section wellFormed
 
@@ -104,228 +100,213 @@ lemma wellFormed_tell_share_bind_alloc
   · grind
   · grind
 
-lemma abc : ClapM.getHashConsState
-              (liftM (n := ClapM _) (m := HashConsM p) (mkVar (mkVar numAlloc σ).1))
-              (numAlloc + 1) (mkVar numAlloc σ).2 = sorry := by
-  
-  done
-
 @[simp, grind .]
 lemma share_wellFormed (h₁ : e! < σ.size) (h₂ : ∀ v < numAlloc, v ∈ Γ) (h₃ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc) :
   (share e!).wellFormed numAlloc Γ σ
 := by
   unfold share
-  -- apply ClapM.bind_wellFormed
+  apply wellFormed_tell_share_bind_alloc (by grind) (by grind) (by grind)
+
+@[simp, grind .]
+lemma isZero_wellFormed
+  (h₁ : e! < σ.size) (h₂ : ∀ v < numAlloc, v ∈ Γ) (h₃ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc)
+:
+  (isZero e!).wellFormed numAlloc Γ σ
+:= by
+  unfold isZero
+  have : [Γ,σ|e!].isSome := by grind
   unfold ClapM.wellFormed
   split_ands
-  · rw [←bind_assoc]
-    apply ClapM.bind_Circuit_wellFormed
-    apply wellFormed_tell_share_bind_alloc (by grind) (by grind) (by grind)
-    simp
-    unfold ClapM.wellFormed
-    unfold ClapM.circuit_wellFormed
-    simp
+  · simp [Circuit.refsValid]
     split_ands
-    · simp
-      done
-    · sorry
-    · aesop (add safe (by grind))
-    · sorry
-    
-    -- set newSt := (ClapM.getHashConsState (liftM (mkVar (mkVar e σ).1)) (e + 1) (mkVar e σ).2)
-    -- split_ands
-    
-@[simp, grind .]
-lemma isZero_wellFormed {e : ExprRef} (h₁ : e < σ.exprs.size) (h₂ : [Γ,σ|e].isSome) :
-  (isZero e).wellFormed e Γ σ
-:= by
-  grind [isZero]
+    · change e! < (StateT.run (mkVar numAlloc) σ).2.size
+      grind
+    · simp [Circuit.varsAllocated]
+      split_ands
+      · grind
+      · intros i hi
+        unfold mkVar at hi
+        have : { ref := e!, σ := (saveExpr (CacheExpr.v numAlloc) σ).2 : Expr _ }.varSet =
+               { ref := e!, σ := σ : Expr _}.varSet := by
+          symm
+          apply varSet.varSet_eq_of_prefix (by grind) (by grind)
+          grind
+        grind
+  · grind
+  · grind
 
 @[simp]
-abbrev num2bitsSansTellApply (p w numAlloc : ℕ) (σ : HashConsSt p) : ((List (Exp p ℕ) × Circuit p) × ℕ) × HashConsSt p :=
+abbrev num2bitsSansTellApply (p w numAlloc : ℕ) (σ : HashConsSt p) : ((List ExprRef × Circuit p) × ℕ) × HashConsSt p :=
   (List.ofFnM (n := w) (m := ClapM p)
     (
-      fun _ => do
-        let varIdx ← ClapM.alloc
-        pure (Exp.v (p := p) varIdx)
+      fun _ => ClapM.alloc
     )).run numAlloc σ
 
-def num2bitsButSane (width : ℕ) (e : ExprRef) (numAlloc : ℕ) (σ : HashConsSt p) : ClapM p (List (ExprRef)) := do
+def num2bitsButSane (width : ℕ) (e : ExprRef) : ClapM p (List (ExprRef)) := do
   tell #[.num2bits width e]
-  num2bitsSansTellApply p width numAlloc
+  num2bitsSansTellApply p width
 
 lemma map_toList_num2bits_eq_num2bitsButSane {w e} :
   Vector.toList <$> num2bits (p := p) w e = num2bitsButSane w e := by
   unfold num2bitsButSane num2bitsSansTellApply
   simp [num2bits]
+  rfl
 
 lemma wellFormed_of_wellFormed_toList {α} {w} {action : ClapM p (Vector α w)}
-  (h : (Vector.toList <$> action).wellFormed) :
-  action.wellFormed := by
+  (h : (Vector.toList <$> action).wellFormed numAlloc Γ σ) :
+  action.wellFormed numAlloc Γ σ := by
   aesop (add simp [ClapM.wellFormed, Clap.monads])
 
-section
-
-/-
-Oh my god why are these so hard to write...
-
-Wait why do I have to yoga after I changed to the array...
--/
-
-@[simp, grind =]
-lemma bind_alloc {α} {numAlloc} {f : ℕ → ClapM p α} :
-  (ClapM.alloc >>= f) numAlloc = f numAlloc (numAlloc + 1) := by
-  unfold_projs
-  have : (getModify (m := (ClapM p)) (fun x => x + 1) numAlloc).2 = numAlloc + 1 := rfl
-  have : (getModify (m := (ClapM p)) (fun x => x + 1) numAlloc).1.1 = numAlloc := by rfl
-  simp [WriterT.run, ClapM.alloc, WriterT.mk, StateT.bind, Id]
-  simp [StateT.map, Bind.bind, Pure.pure]
+@[simp, grind .]
+lemma size_le_size_run_mkVar :
+  σ.size ≤
+  ((mkVar numAlloc).run σ).2.size
+:= by
+  unfold mkVar saveExpr
+  simp [HashConsM.run]
   aesop
 
+@[simp, grind .]
+lemma size_le_size_getHashConsState_alloc :
+  σ.size ≤
+  (ClapM.alloc.getHashConsState numAlloc σ).size
+:= by
+  aesop (add safe (by grind)) (add safe (by exact size_le_size_run_mkVar))
+
+@[simp, grind .]
+lemma size_le_size_Vector_ofFnM_alloc
+  {k : ℕ}
+:
+  σ.size ≤
+  ((Vector.ofFnM λ (_ : Fin k) => ClapM.alloc).getHashConsState numAlloc σ).size
+:= by
+  induction' k with k h_k
+  . grind
+  . rewrite [Vector.ofFnM_succ, ClapM.getHashConsState_bind]
+    simp
+    apply le_trans h_k
+    change
+      ((Vector.ofFnM fun x => ClapM.alloc).getHashConsState numAlloc σ).size ≤
+        (mkVar ((Vector.ofFnM fun i => ClapM.alloc).getNumAlloc numAlloc σ)
+              ((Vector.ofFnM fun i => ClapM.alloc).getHashConsState numAlloc σ)).run.2.size
+    simp [mkVar]
+    change
+      ((Vector.ofFnM fun x => ClapM.alloc).getHashConsState numAlloc σ).size ≤
+        ((saveExpr (CacheExpr.v ((Vector.ofFnM fun x => ClapM.alloc).getNumAlloc numAlloc σ))).run
+                ((Vector.ofFnM fun x => ClapM.alloc).getHashConsState numAlloc σ)).2.size
+    simp [saveExpr, HashConsM.run]
+    aesop
+
 @[simp, grind =]
-lemma ClapM.map_apply {α β} {numAlloc} {f : α → β} {action : ClapM p α} :
-  (f <$> action) numAlloc =
-  ((f (action.getResult numAlloc), (action.getCircuit numAlloc)), (action.getState numAlloc)) := rfl
-
-end
-
-lemma _root_.List.ofFnM_eq_map_map_ofFnM {α β} {n : ℕ} {m} [Monad m] [LawfulMonad m] (f : (Fin n) → m α) (map_f : α → β):
-  (List.ofFnM (fun idx => map_f <$> f idx)) =
-  List.map map_f <$> List.ofFnM f
+lemma getCircuit_Vector_ofFnM_alloc
+  {k : ℕ}
+:
+  (Vector.ofFnM λ (_ : Fin k) => ClapM.alloc).getCircuit numAlloc σ =
+  #[]
 := by
-  induction n with
-  | zero => simp
-  | succ n h_n =>
-    simp [List.ofFnM_succ, h_n]
+  induction' k with k h_k
+  . grind
+  . rewrite [Vector.ofFnM_succ, ClapM.getCircuit_bind]
+    grind
 
-
-lemma num2bitsSansTellApply_fst_fst {w} {numAlloc} :
-  (num2bitsSansTellApply p w numAlloc).1.1 = (List.range' numAlloc w).map .v := by
-  induction w generalizing numAlloc <;> aesop (add simp [List.ofFnM_succ, _root_.List.ofFnM_eq_map_map_ofFnM])
-
-lemma num2bitsSansTellApply_fst_snd {w} {numAlloc} :
-  (num2bitsSansTellApply p w numAlloc).1.2 = #[] := by
-  induction w generalizing numAlloc <;> aesop (add simp List.ofFnM_succ)
-
-lemma num2bitsSansTellApply_snd {w} {numAlloc} :
-  (num2bitsSansTellApply p w numAlloc).2 = numAlloc + w := by
-  induction w generalizing numAlloc <;> aesop (add simp List.ofFnM_succ) (add safe (by grind))
-
-@[simp]
-lemma getState_bind_tell {f : Unit → ClapM p (List (FixedExp p))} {l} :
-  (tell l >>= f).getState = ClapM.getState (f ()) := rfl
-
-@[simp]
-lemma getCircuit_bind_tell {f : Unit → ClapM p (List (FixedExp p))} {l} {numAlloc} :
-  (tell l >>= f).getCircuit numAlloc = l ++ (f () numAlloc).1.2 := by
-  aesop (add simp Clap.monads)
-
-@[simp]
-lemma num2bits_wellFormed (width : ℕ) (e : FixedExp p) :
-  (num2bits width e).wellFormed
+@[simp, grind =]
+lemma isPrefixOf_getHashConsState_Vector_ofFnM_alloc
+  {k : ℕ}
+:
+  σ.exprs.isPrefixOf ((Vector.ofFnM λ (_ : Fin k) => ClapM.alloc).getHashConsState numAlloc σ).exprs = true
 := by
-  apply wellFormed_of_wellFormed_toList
-  rw [map_toList_num2bits_eq_num2bitsButSane]
-  intro numAlloc varStore
-  unfold num2bitsButSane
-  rw [getState_bind_tell, getCircuit_bind_tell]
-  rw [Circuit.eval_append, num2bitsSansTellApply_fst_snd]
-  suffices (num2bitsSansTellApply p width numAlloc).2 = numAlloc + width by simpa
-  rw [num2bitsSansTellApply_snd]
+  induction' k with k h_k
+  . grind
+  . rewrite [Vector.ofFnM_succ]
+    simp [ClapM.getHashConsState_bind]
+    apply Array.isPrefixOf_trans h_k
+    grind
+
+@[simp, grind =]
+lemma getNumAlloc_Vector_ofFnM_alloc
+  {k : ℕ}
+:
+  (Vector.ofFnM λ (_ : Fin k) => ClapM.alloc).getNumAlloc numAlloc σ =
+  numAlloc + k
+:= by
+  induction' k with k h_k
+  . grind
+  . rewrite [Vector.ofFnM_succ]
+    simp [h_k]
+    omega
+
+
+@[simp, grind .]
+lemma num2bits_wellFormed {width : ℕ}
+  (h₁ : e! < σ.size) (h₂ : ∀ v < numAlloc, v ∈ Γ) (h₃ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc)
+:
+  (num2bits width e!).wellFormed numAlloc Γ σ
+:= by
+  unfold num2bits
+  have h_isSome : [Γ,σ|e!].isSome := by grind
+  have h_wellFormed : (Expr.mk e! σ).wellFormed := by grind
+  unfold ClapM.wellFormed
+  split_ands
+  · simp [Circuit.refsValid]
+    split_ands
+    . exact lt_of_lt_of_le h₁ (by grind)
+    . unfold Circuit.varsAllocated
+      intro i h_i
+      obtain _ | ⟨i⟩ := i <;> simp
+      . split_ands
+        . apply isSome_eval_of_prefix (by grind) h_isSome (by trivial)
+          grind
+        . intro x h_x
+          rewrite [←varSet.varSet_eq_of_prefix (by grind) h_wellFormed] at h_x
+          . grind
+          . grind
+      . grind
+  . grind
+  . grind
 
 end wellFormed
 
-namespace Circuit
+section Eval
 
-section
-
-variable {e : FixedExp p} {numAlloc : ℕ} {varStore : Std.ExtTreeMap ℕ (ZMod p)}
+variable {e! : ExprRef} {numAlloc : ℕ} {varStore : VarStore p} {σ : HashConsSt p}
 
 @[simp, grind =]
 lemma eval_edsl_eq0
 :
-  eval ((Edsl.eq0 e).getCircuit numAlloc) varStore numAlloc =
-  eval #[Gate.eq0 e] varStore numAlloc
+  (eq0 e!).runAndEval numAlloc varStore σ =
+  ⟨(), [varStore, σ, numAlloc|#[Gate.eq0 e!]]ₑ⟩
 := by
-  simp [eq0]
-
-@[simp, grind =]
-lemma eval_edsl_lam
-:
-  eval ((Edsl.lam).getCircuit numAlloc) varStore numAlloc =
-  eval #[Gate.lam] varStore numAlloc
-:= by
-  simp [Edsl.lam]
+  grind [eq0]
 
 @[simp, grind =]
 lemma eval_edsl_share
 :
-  eval ((Edsl.share e).getCircuit numAlloc) varStore numAlloc =
-  eval #[Gate.share e] varStore numAlloc
+  (share e!).runAndEval numAlloc varStore σ =
+  ⟨((mkVar numAlloc).run σ).1, [varStore, ((mkVar numAlloc).run σ).2, numAlloc|#[Gate.share e!]]ₑ⟩
 := by
-  simp [Edsl.share]
+  simp [share, ClapM.runAndEval]
+  split_ands <;> rfl
 
 @[simp, grind =]
 lemma eval_edsl_isZero :
-  eval ((Edsl.isZero e).getCircuit numAlloc) varStore numAlloc =
-  eval #[Gate.isZero e] varStore numAlloc
+  (isZero e!).runAndEval numAlloc varStore σ =
+  ⟨((mkVar numAlloc).run σ).1, [varStore, ((mkVar numAlloc).run σ).2, numAlloc|#[Gate.isZero e!]]ₑ⟩
 := by
-  simp [Edsl.isZero]
-
--- example : eval (Edsl.isZero e numAlloc).1.2 varStore numAlloc = sorry := by
---   rw [eval_edsl_isZero]
---   rw [eval_singleton]
---   rw [CircuitResult.step_isZero]
---   rw [CircuitResult.assertAllocated_unconstrained]
---   rw [CircuitResult.get?_unconstrained]
-
---   simp only [CircuitResult.addConstraint_unconstrained]
-
---   simp only [CircuitResult.addConstraint_unconstrained, CircuitResult.alloc_mk,
---     Vector.range_one, Vector.map_mk, List.map_toArray, List.map_cons, zero_add, List.map_nil,
---     Vector.mk_zip_mk, List.zip_toArray, List.zip_cons_cons, List.zip_nil_right,
---     Std.ExtTreeMap.insertMany_single]
-
---   sorry
-
-@[grind ←]
-lemma getCircuit_ofFnM_of_getCircuit_eq_nil {α} (n: ℕ) (f : Fin n → ClapM p α) (numAlloc)
-  (h_no_circuit: ∀ idx numAlloc, (f idx).getCircuit numAlloc = #[])
-:
-  (Vector.ofFnM f).getCircuit numAlloc =
-  #[]
-:= by
-  induction n generalizing numAlloc with
-  | zero => simp [Vector.ofFnM_zero]
-  | succ n h_n =>
-    rewrite [Vector.ofFnM_succ]
-    simp [h_n, h_no_circuit]
+  simp [isZero, ClapM.runAndEval]
+  split_ands <;> rfl
 
 @[simp, grind =]
 lemma eval_edsl_num2bits
   {width : ℕ}
 :
-  eval ((Edsl.num2bits width e).getCircuit numAlloc) varStore numAlloc =
-  eval #[Gate.num2bits width e] varStore numAlloc
+  (num2bits width e!).runAndEval numAlloc varStore σ =
+  ⟨
+    (Vector.ofFnM fun (_ : Fin width) => ClapM.alloc).getResult numAlloc σ,
+    [varStore, (Vector.ofFnM fun (_ : Fin width) => ClapM.alloc).getHashConsState numAlloc σ, numAlloc|#[Gate.num2bits width e!]]ₑ
+  ⟩
 := by
-  simp [Edsl.num2bits, getCircuit_ofFnM_of_getCircuit_eq_nil]
+  simp [num2bits, ClapM.runAndEval]
 
-end
-
-end Circuit
-
-/--
-info: (((),
-  #[Clap.Gate.lam,
-    Clap.Gate.eq0 v0,
-    Clap.Gate.share (1 + 1),
-    Clap.Gate.eq0 1,
-    Clap.Gate.eq0 2,
-    Clap.Gate.eq0 v1,
-    Clap.Gate.eq0 4]),
- 2)
--/
-#guard_msgs(whitespace := lax) in
-#eval (test).run (p := 57) 0
+end Eval
 
 end Clap

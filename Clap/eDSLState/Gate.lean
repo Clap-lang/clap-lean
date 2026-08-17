@@ -76,6 +76,16 @@ lemma varsAllocated_num2bits {w} : varsAllocated (.num2bits w e!) Γ σ = [Γ, �
 lemma wellFormed_iff :
   gate.wellFormed Γ σ ↔ (gate.refsValid σ.size ∧ gate.varsAllocated Γ σ) := by grind
 
+@[grind =>]
+lemma refsValid_of_refsValid_of_le
+  {bound_low bound_high : ℕ}
+  (h_refsValid : gate.refsValid bound_low)
+  (h_le : bound_low ≤ bound_high)
+:
+  gate.refsValid bound_high
+:= by
+  grind
+
 @[grind .]
 lemma refsValid_iff_wellFormed_mk :
   (Expr.mk gate.expr σ).wellFormed ↔ gate.refsValid σ.size := by

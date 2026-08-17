@@ -50,11 +50,20 @@ class Convert (p : ℕ) (representsT idealT : Type) extends IsValid p represents
   toIdeal_toRepresents :
     ∀ (varStore : VarStore p) (x : idealT),
       toIdeal varStore (toRepresents x) = .some x
-  toRepresents_toIdeal :
-    ∀ (varStore : VarStore p) (x : representsT),
-      (h : isValid varStore x) →
-        toIdeal varStore (toRepresents ((toIdeal varStore x).get ((isValid_iff_isSome_toIdeal varStore x).mp h))) =
-        toIdeal varStore x
+
+@[simp, grind =]
+lemma Convert.toRepresents_toIdeal
+  {p : ℕ}
+  {representsT idealT : Type}
+  [inst: Convert p representsT idealT]
+  {varStore : VarStore p}
+  {x : representsT}
+  (h : IsValid.isValid varStore x)
+:
+  toIdeal varStore (toRepresents p (representsT := representsT) ((toIdeal (idealT := idealT) varStore x).get ((isValid_iff_isSome_toIdeal varStore x).mp h))) =
+  inst.toIdeal varStore x
+:= by
+  simp [inst.toIdeal_toRepresents]
 
 instance {p : ℕ} : Convert p Unit Unit where
   isValid := fun _ _ ↦ True
@@ -62,7 +71,6 @@ instance {p : ℕ} : Convert p Unit Unit where
   toRepresents x := x
   isValid_iff_isSome_toIdeal _ _ := by grind
   toIdeal_toRepresents _ _ := by grind
-  toRepresents_toIdeal _ _ _ := by grind
 
 @[simp, grind .]
 lemma isValid_iff_isSome_toIdeal {p} {α β : Type} [Convert p α β]
@@ -207,22 +215,34 @@ def assertMatchesLast {k} {p}
     letI varStoreIdx := numAlloc - k + i
     varStore[varStoreIdx]? = vec[i]?
 
-instance (p : ℕ) {α} [IsValid p α] : IsValid p (Edsl.CircuitM p α) where
-  isValid varStore x := ∀ numAlloc,
-    IsValid.isValid varStore (x.getResult numAlloc) ∧
-    [varStore,numAlloc|x.getCircuit numAlloc]ₑ.constraints
+-- TODO, this needs to consider constraints
+-- Do we want results to always be valid if the inputs are valid?
+-- Or only when the constraints also hold?
+def unaryMonadFunctionResultIsValidIff (p : ℕ)
+  {funIn funOut : Type}
+  [IsValid p funIn] [IsValid p funOut]
+  (function : funIn → ClapM p funOut)
+  {varStorePre : VarStore p}
+  {numAllocPre : ℕ}
+  {σPre : HashConsSt p}
+: Prop :=
+  ∀ (a : funIn),
+    (IsValid.isValid varStorePre a ↔
+    IsValid.isValid varStorePre (function a))
 
-open Convert VarStoreSize Edsl in
+open Convert VarStoreSize in
 def matchesUnaryMonadFunction (p : ℕ)
   {funIn funOut specIn specOut : Type}
   [Convert p funIn specIn] [Convert p funOut specOut]
   [VarStoreSize p funOut]
   (spec_function : specIn → specOut)
-  (function : funIn → CircuitM p funOut)
+  (function : funIn → ClapM p funOut)
+  (numAlloc : ℕ)
+  (σ : HashConsSt p)
   (allocatesN : ℕ)
   (constraints : specIn → Prop)
 : Prop :=
-  unaryFunctionResultIsValidIff p function ∧
+  unaryFunctionResultIsValidIff p (function · |>.getResult numAlloc σ) ∧
   (∀ numAllocPre, unaryFunctionResultIsCorrect p spec_function (λ a => (function a).getResult numAllocPre)) ∧
   ∀ (a : funIn) (varStorePre : VarStore p) (numAllocPre : ℕ),
     (h : IsValid.isValid varStorePre a) →

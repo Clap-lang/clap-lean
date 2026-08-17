@@ -248,6 +248,18 @@ def runAndEval
     [varStore,(cmd.getHashConsState numAlloc σ),numAlloc|(cmd.getCircuit numAlloc σ)]ₑ
   ⟩
 
+@[simp, grind =]
+lemma runAndEval_tell
+  {circuit : Circuit p}
+  {varStore : VarStore p}
+  {numAlloc : ℕ}
+  {σ : HashConsSt p}
+:
+  (tell circuit : ClapM p _).runAndEval numAlloc varStore σ =
+  ⟨(), [varStore, σ, numAlloc|circuit]ₑ⟩
+:= by
+  rfl
+
 /--
 Well formed up to `numAlloc.pc`.
 -/
