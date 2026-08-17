@@ -7,20 +7,20 @@ structure HashConsSt (p : ℕ) where
   exprs : Array (CacheExpr p) -- ℕ → Expr
   wellFormed : ∀ i < exprs.size, exprs[i]?.any (·.wellFormed i)
 
-namespace HashConsSt
-
-def empty (p : ℕ) : HashConsSt p where
+def HashConsSt.empty (p : ℕ) : HashConsSt p where
   exprs := #[]
   wellFormed := by simp
-
-@[grind =]
-def size {p} (σ : HashConsSt p) : ℕ :=
-  σ.exprs.size
 
 instance {p} : EmptyCollection (HashConsSt p) := ⟨HashConsSt.empty p⟩
 
 instance {p} : Membership (CacheExpr p) (HashConsSt p) where
   mem σ x := x ∈ σ.exprs
+
+namespace HashConsSt
+
+@[grind =]
+def size {p} (σ : HashConsSt p) : ℕ :=
+  σ.exprs.size
 
 variable {p : ℕ}
 

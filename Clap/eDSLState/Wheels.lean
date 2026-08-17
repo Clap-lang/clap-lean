@@ -86,6 +86,12 @@ lemma IsPrefix.length_le {α} {l₁ l₂ : Array α} [BEq α] [LawfulBEq α]
   rcases h₂ : l₂ with ⟨l₂⟩
   grind
 
+@[grind .]
+lemma isPrefixOf_push {α : Type} [BEq α] [LawfulBEq α] {a : Array α} {x : α} :
+  a.isPrefixOf (a.push x) := by
+  rcases a with ⟨a⟩
+  grind
+
 end Array
 
 @[simp, grind =]

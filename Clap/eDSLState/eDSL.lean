@@ -53,6 +53,22 @@ lemma eq0_wellFormed (h₁ : e! < σ.size) (h₂ : [Γ,σ|e!].isSome) (h₃ : �
   convert wellFormed_tell_eq0 h₁ h₂ h₃
   cbv
 
+@[simp, grind =]
+lemma exprs_st_pushExpr {e : CacheExpr p} {h} :
+  (σ.exprs.size, HashConsSt.pushExpr e σ h).2.exprs = σ.exprs.push e := rfl
+
+@[simp, grind .]
+lemma isPrefixOf_saveExpr {e : CacheExpr p} (h : e.wellFormed σ.size) :
+  σ.exprs.isPrefixOf (saveExpr e σ).2.exprs := by
+  -- aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  change σ.exprs.isPrefixOf (StateT.run (saveExpr e) σ).2.exprs
+  grind
+
+@[simp, grind .]
+lemma isPrefixOf_mkVar : σ.exprs.isPrefixOf (mkVar numAlloc σ).2.exprs := by
+  unfold mkVar
+  grind
+
 lemma wellFormed_tell_share_bind_alloc
         (h₁ : e! < σ.size) (h₂ : [Γ,σ|e!].isSome) (h₃ : ∀ var ∈ Γ, var < numAlloc) :
   (do tell #[Gate.share e!]; ClapM.alloc).wellFormed numAlloc Γ σ := by
@@ -63,7 +79,13 @@ lemma wellFormed_tell_share_bind_alloc
     · -- MEH (TODO - alright I don't wanna do this)
       change e! < (StateT.run (mkVar numAlloc) σ).2.size
       grind
-    · sorry
+    · simp [Circuit.varsAllocated]
+      split_ands
+      · grind
+      · intros i hi
+        unfold mkVar at hi
+        
+        sorry
   · sorry
   · sorry
     

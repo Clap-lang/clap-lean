@@ -615,6 +615,13 @@ lemma isSome_eval_of_isSome_eval_precedes
   rewrite [eval_eq_evalRec h_wf] at ⊢ h
   exact isSome_evalRec_of_isSome_evalRec_precedes h h_wf h_precedes
 
+@[grind! .]
+lemma isSome_eval_of_prefix {e₁ e₂ : Expr p}
+        (hwf : e₁.wellFormed) (h : [Γ|e₁].isSome)
+        (h₁ : e₁.ref = e₂.ref) (h₂ : e₁.σ.exprs.isPrefixOf e₂.σ.exprs) :
+  [Γ|e₂].isSome := by
+  grind
+
 end Precedes
 
 end Clap
