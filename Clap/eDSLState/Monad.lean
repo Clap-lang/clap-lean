@@ -175,7 +175,7 @@ lemma getCircuit_tell :
 := rfl
 
 @[simp, grind =]
-lemma getState_tell :
+lemma getNumAlloc_tell :
   ClapM.getNumAlloc (tell xs) numAlloc σ =
   numAlloc
 := rfl
@@ -481,7 +481,7 @@ lemma eval_bind
   letI numAlloc' := (action.getNumAlloc numAlloc σ)
   letI σ' := (action.getHashConsState numAlloc σ)
   letI result := (action.getResult numAlloc σ)
-  seq (action.getCircuit numAlloc σ) ((function result).getCircuit numAlloc' σ') varStore numAlloc σ
+  [varStore, σ, numAlloc|action.getCircuit numAlloc σ; (function result).getCircuit numAlloc' σ']ₑ
 := by
   simp [seq, eval, evalInOrder]
   ext1 <;> simp

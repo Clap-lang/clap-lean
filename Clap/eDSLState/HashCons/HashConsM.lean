@@ -27,22 +27,25 @@ variable {e : CacheExpr p} {σ : HashConsSt p}
 
 lemma run_saveExpr_of_wellFormed (h : e.wellFormed σ.exprs.size) :
   (HashConsM.saveExpr e).run σ =
-  if σ.exprs.contains e
+  if e ∈ σ.exprs
   then (σ.exprs.idxOf e, σ)
   else (σ.exprs.size, HashConsSt.pushExpr e σ h)
 := by
   unfold HashConsM.saveExpr
   aesop
 
-lemma run_saveExpr_of_contains (h : σ.exprs.contains e) :
+lemma run_saveExpr_of_mem (h : e ∈ σ) :
   (HashConsM.saveExpr e).run σ =
   (σ.exprs.idxOf e, σ)
 := by
   unfold HashConsM.saveExpr
-  aesop
+  aesop (add simp HashConsSt.mem_def)
+
+@[grind =]
+lemma size_saveExpr_of_mem (h : e ∈ σ) : ((saveExpr e).run σ).2.size = σ.size := by
+  rw [run_saveExpr_of_mem (by grind)]
 
 end SaveExpr
-
 
 section Membership
 
@@ -52,7 +55,7 @@ instance : Membership ExprRef (HashConsSt p) where
 variable {σ : HashConsSt p} {ref : ExprRef}
 
 @[simp, grind _=_]
-lemma mem_exprs_iff {σ : HashConsSt p} : ref ∈ σ ↔ ref < σ.exprs.size := by
+lemma mem_exprs_iff {σ : HashConsSt p} : ref ∈ σ ↔ ref < σ.size := by
   rfl
 
 instance : GetElem (HashConsSt p) ExprRef (CacheExpr p) (fun σ ref ↦ ref ∈ σ) where
@@ -87,7 +90,7 @@ def mkMul (l r : ExprRef) : HashConsM p ExprRef := do
 @[simp, grind =]
 lemma run_mkConstant {p} {k : ZMod p} {σ : HashConsSt p} :
   (mkConstant k).run σ =
-  if σ.exprs.contains (.c k)
+  if (.c k) ∈ σ.exprs
   then (σ.exprs.idxOf (.c k), σ)
   else (σ.exprs.size, σ.pushExpr (.c k) (by simp)) :=
   run_saveExpr_of_wellFormed wellFormed_c
@@ -95,7 +98,7 @@ lemma run_mkConstant {p} {k : ZMod p} {σ : HashConsSt p} :
 @[simp, grind =]
 lemma run_mkVar {p} {k : ℕ} {σ : HashConsSt p} :
   (mkVar k).run σ =
-  if σ.exprs.contains (.v k)
+  if (.v k) ∈ σ.exprs
   then (σ.exprs.idxOf (.v k), σ)
   else (σ.exprs.size, σ.pushExpr (.v k) (by simp)) :=
   run_saveExpr_of_wellFormed wellFormed_v
@@ -123,7 +126,6 @@ lemma bind_mkVar_of_contains' {p} {σ} {α} {k : ℕ} {f : ExprRef → HashConsM
   HashConsM.bind_mkVar_of_contains h
 
 end MkExpr
-
 
 section Run
 

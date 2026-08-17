@@ -89,6 +89,25 @@ lemma varSet_eq_of_prefix {e₁ e₂ : Expr p}
   (h₂ : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true) : varSet e₁ = varSet e₂ := by
   fun_induction varSet e₁ generalizing e₂ <;> grind [=varSet]
 
+section MemVarset
+
+variable {var : ℕ} {e : Expr p} {x x₁ x₂ : ExprRef} {op : BinaryOp}
+
+@[grind =>]
+lemma mem_varSet_of_deref_c (h : *e = .some (.c x)) : var ∈ varSet e ↔ False := by
+  grind [varSet]
+
+@[grind =>]
+lemma mem_varSet_of_deref_v (h : *e = .some (.v x)) : var ∈ varSet e ↔ var = x := by
+  grind [varSet]
+
+@[grind =>]
+lemma mem_varSet_of_deref_binOp (h : *e = .some (.binary_op x₁ x₂ op)) :
+  var ∈ varSet e ↔ var ∈ (Expr.mk x₁ e.σ).varSet ∨ var ∈ (Expr.mk x₂ e.σ).varSet := by
+  grind [=varSet]
+
+end MemVarset
+
 end
 
 end varSet

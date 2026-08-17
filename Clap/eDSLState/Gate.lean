@@ -24,19 +24,19 @@ def expr (gate : Gate p) : ExprRef :=
 
 section
 
-variable {e : ℕ}
+variable {ref : ℕ} {σ : HashConsSt p} {e : Expr p}
 
 @[simp, grind =]
-lemma expr_mk_eq0 : (Gate.eq0 (p := p) e).expr = e := rfl
+lemma expr_mk_eq0 : (Gate.eq0 (p := p) ref).expr = ref := rfl
 
 @[simp, grind =]
-lemma expr_mk_share : (Gate.share (p := p) e).expr = e := rfl
+lemma expr_mk_share : (Gate.share (p := p) ref).expr = ref := rfl
 
 @[simp, grind =]
-lemma expr_mk_isZero : (Gate.isZero (p := p) e).expr = e := rfl
+lemma expr_mk_isZero : (Gate.isZero (p := p) ref).expr = ref := rfl
 
 @[simp, grind =]
-lemma expr_mk_num2bits {w} : (Gate.num2bits (p := p) w e).expr = e := rfl
+lemma expr_mk_num2bits {w} : (Gate.num2bits (p := p) w ref).expr = ref := rfl
 
 end
 
@@ -80,6 +80,18 @@ lemma wellFormed_iff :
 lemma refsValid_iff_wellFormed_mk :
   (Expr.mk gate.expr σ).wellFormed ↔ gate.refsValid σ.exprs.size := by
   grind
+
+@[simp, grind =]
+lemma refsValid_eq0 : (Gate.eq0 e!).refsValid (p := p) bound ↔ e! < bound := by rfl
+
+@[simp, grind =]
+lemma refsValid_share : (Gate.share e!).refsValid (p := p) bound ↔ e! < bound := by rfl
+
+@[simp, grind =]
+lemma refsValid_isZero : (Gate.isZero e!).refsValid (p := p) bound ↔ e! < bound := by rfl
+
+@[simp, grind =]
+lemma refsValid_num2bits {w : ℕ} : (Gate.num2bits w e!).refsValid (p := p) bound ↔ e! < bound := by rfl
 
 section Precedes
 

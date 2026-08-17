@@ -29,6 +29,10 @@ def numAllocStep (c : Circuit p) : ℕ :=
   (c.map Gate.numAllocStep).sum
 
 @[simp, grind =]
+lemma numAllocStep_nil : numAllocStep (p := p) #[] = 0 := by  
+  simp [numAllocStep]
+
+@[simp, grind =]
 lemma numAllocStep_singleton {gate : Gate p}
 :
   numAllocStep #[gate] =
@@ -313,6 +317,18 @@ lemma varsAllocated_eval_append_right
     := by grind
     have : circuit[i].expr < σ.size := by
       aesop (add safe (by grind))
+    grind
+
+@[grind .]
+lemma varsAllocated_singleton_iff :
+  varsAllocated #[gate] Γ σ numAlloc ↔
+  (gate.varsAllocated Γ σ ∧ ∀ x ∈ (Expr.mk gate.expr σ).varSet, x < numAlloc) := by
+  refine ⟨fun h ↦ ?p₁, fun h ↦ ?p₂⟩
+  · unfold Circuit.varsAllocated at h
+    specialize h 0 (by grind)
+    simp at h
+    grind
+  · unfold varsAllocated
     grind
 
 end Circuit

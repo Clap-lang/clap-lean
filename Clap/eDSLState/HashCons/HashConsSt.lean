@@ -19,12 +19,18 @@ def size {p} (σ : HashConsSt p) : ℕ :=
 
 instance {p} : EmptyCollection (HashConsSt p) := ⟨HashConsSt.empty p⟩
 
+instance {p} : Membership (CacheExpr p) (HashConsSt p) where
+  mem σ x := x ∈ σ.exprs
+
 variable {p : ℕ}
+
+@[grind =]
+lemma mem_def {x} {σ : HashConsSt p} : x ∈ σ ↔ x ∈ σ.exprs := by rfl
 
 def pushExpr
   (e : CacheExpr p)
   (σ : HashConsSt p)
-  (h_wellFormed : e.wellFormed σ.exprs.size)
+  (h_wellFormed : e.wellFormed σ.size)
 : HashConsSt p where
   exprs := σ.exprs.push e
   wellFormed := by
@@ -36,10 +42,15 @@ def pushExpr
 
 @[simp, grind =]
 lemma getElem?_pushExpr {e} {σ : HashConsSt p} {h_wellFormed} :
-  (pushExpr e σ h_wellFormed).exprs[σ.exprs.size]? =
+  (pushExpr e σ h_wellFormed).exprs[σ.size]? =
   .some e
 := by
   unfold HashConsSt.pushExpr
   simp
+
+@[simp, grind =]
+lemma size_exprs_pushExpr {e} {σ : HashConsSt p} {h} :
+  (σ.pushExpr (p := p) e h).size = σ.size + 1 := by
+  simp [pushExpr]
 
 end Clap.HashConsSt
