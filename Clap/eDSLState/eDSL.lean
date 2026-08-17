@@ -37,17 +37,20 @@ variable {numAlloc : ℕ} {e : Expr p} {e! : ExprRef} {Γ : VarStore p} {σ : Ha
          {gate : Gate p}
 
 @[aesop unsafe, grind .]
-lemma wellFormed_tell_eq0 (h₁ : e! < σ.size) (h₂ : [Γ,σ|e!].isSome) (h₃ : ∀ var ∈ Γ, var < numAlloc) :
+lemma wellFormed_tell_eq0 (h₁ : e! < σ.size)
+                          (h₂ : ∀ v < numAlloc, v ∈ Γ)
+                          (h₃ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc) :
   (tell (M := ClapM _) #[Gate.eq0 e!]).wellFormed numAlloc Γ σ := by
   unfold ClapM.wellFormed
   split_ands
   · simp [Circuit.refsValid]
+    unfold Circuit.varsAllocated
     grind
   · simp [ClapM.numAlloc_wellFormed]
   . simp [ClapM.hashConsState_wellFormed]
 
 @[aesop unsafe, grind .]
-lemma eq0_wellFormed (h₁ : e! < σ.size) (h₂ : [Γ,σ|e!].isSome) (h₃ : ∀ var ∈ Γ, var < numAlloc) :
+lemma eq0_wellFormed (h₁ : e! < σ.size) (h₂ : ∀ v < numAlloc, v ∈ Γ) (h₃ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc) :
   (eq0 e!).wellFormed numAlloc Γ σ
 := by
   convert wellFormed_tell_eq0 h₁ h₂ h₃
