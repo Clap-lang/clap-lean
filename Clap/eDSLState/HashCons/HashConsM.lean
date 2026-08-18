@@ -46,8 +46,6 @@ lemma run_saveExpr_of_mem (h : e ∈ σ) :
 lemma size_saveExpr_of_mem (h : e ∈ σ) : ((saveExpr e).run σ).2.size = σ.size := by
   rw [run_saveExpr_of_mem (by grind)]
 
-
-
 end SaveExpr
 
 section Membership
@@ -72,6 +70,22 @@ lemma getElem?_eq {σ : HashConsSt p} : σ[ref]? = σ.exprs[ref]? := by
   rfl
 
 end Membership
+
+section Run
+
+@[grind =]
+def run {α} (cmd : HashConsM p α) (state : HashConsSt p) : α × (HashConsSt p) :=
+  StateT.run cmd state
+
+def runGet? (ref : HashConsM p ExprRef) (σ : HashConsSt p) : Option (CacheExpr p) :=
+  let (ref', σ') := ref.run σ
+  σ'[ref']?
+
+@[simp, grind =]
+lemma run_bind {α β} (x : HashConsM p α) (f : α → HashConsM p β) (s : HashConsSt p)
+  : run (x >>= f) s = letI res := run x s; run (f res.1) res.2  := rfl
+
+end Run
 
 section MkExpr
 
@@ -135,17 +149,5 @@ lemma bind_mkVar_of_contains' {α} {k : ℕ} {f : ExprRef → HashConsM p α}
 end Lemmas
 
 end MkExpr
-
-section Run
-
-@[grind =]
-def run {α} (cmd : HashConsM p α) (state : HashConsSt p) : α × (HashConsSt p) :=
-  (StateT.run cmd state).run
-
-def runGet? (ref : HashConsM p ExprRef) (σ : HashConsSt p) : Option (CacheExpr p) :=
-  let (ref', σ') := ref.run σ
-  σ'[ref']?
-
-end Run
 
 end Clap.HashConsM

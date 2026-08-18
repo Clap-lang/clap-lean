@@ -19,7 +19,7 @@ namespace ClapM
 def run {α}
   (cmd : ClapM p α) (numAlloc : ℕ) (hashConsState : HashConsSt p)
 : ((α × Circuit p) × ℕ) × (HashConsSt p) :=
-  (HashConsM.run (StateT.run (WriterT.run cmd) numAlloc) hashConsState)
+  (StateT.run (StateT.run (WriterT.run cmd) numAlloc) hashConsState)
 
 -- This is what ClapM actually is
 -- Given an initial ℕ and expression cache, produce:
@@ -109,7 +109,7 @@ def getHashConsState
 @[simp, grind=]
 lemma getResult_alloc :
   ClapM.alloc.getResult numAlloc σ =
-  (HashConsM.mkVar numAlloc σ).1
+  ((HashConsM.mkVar numAlloc).run σ).1
 := rfl
 
 @[simp, grind=]
@@ -126,7 +126,7 @@ lemma getNumAlloc_alloc :
 @[simp, grind=]
 lemma getHashConsState_alloc :
   ClapM.alloc.getHashConsState numAlloc σ =
-  (HashConsM.mkVar numAlloc σ).2
+  ((HashConsM.mkVar numAlloc).run σ).2
 := rfl
 
 section NamedThisForDom

@@ -58,22 +58,19 @@ lemma exprs_st_pushExpr {e : CacheExpr p} {h} :
 
 @[simp, grind .]
 lemma isPrefixOf_saveExpr {e : CacheExpr p} (h : e.wellFormed σ.size) :
-  σ.exprs.isPrefixOf (saveExpr e σ).2.exprs := by
-  -- aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-  -- TODO(stop screaming)
-  change σ.exprs.isPrefixOf (StateT.run (saveExpr e) σ).2.exprs
+  σ.exprs.isPrefixOf ((saveExpr e).run σ).2.exprs := by
   grind
 
 @[simp, grind .]
-lemma isPrefixOf_mkVar : σ.exprs.isPrefixOf (mkVar numAlloc σ).2.exprs := by
+lemma isPrefixOf_mkVar : σ.exprs.isPrefixOf ((mkVar numAlloc).run σ).2.exprs := by
   unfold mkVar
-  grind
+  simp
 
 @[aesop unsafe, grind .]
 lemma wellFormed_mk_saveExpr_of_wellFormed {e} (h : (⟨e!, σ⟩ : Expr _).wellFormed) :
-  {ref := e!, σ := (saveExpr e σ).2 : Expr _}.wellFormed := by
-  change { ref := e!, σ := (StateT.run (saveExpr e) σ).2 : Expr _}.wellFormed
-  aesop (add safe (by grind)) (add simp saveExpr)
+  {ref := e!, σ := ((saveExpr e).run σ).2 : Expr _}.wellFormed := by
+  unfold run
+  aesop (add safe (by grind)) (add simp [saveExpr])
 
 lemma wellFormed_tell_share_bind_alloc
         (h₁ : e! < σ.size) (h₂ : ∀ v < numAlloc, v ∈ Γ) (h₃ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc) :
@@ -81,17 +78,15 @@ lemma wellFormed_tell_share_bind_alloc
   have : [Γ,σ|e!].isSome := by grind
   unfold ClapM.wellFormed
   split_ands
-  · simp [Circuit.refsValid]
+  · simp
     split_ands
-    · -- MEH (TODO - alright I don't wanna do this)
-      change e! < (StateT.run (mkVar numAlloc) σ).2.size
+    · unfold Circuit.refsValid
       grind
     · simp [Circuit.varsAllocated]
       split_ands
       · grind
       · intros i hi
-        unfold mkVar at hi
-        have : { ref := e!, σ := (saveExpr (CacheExpr.v numAlloc) σ).2 : Expr _ }.varSet =
+        have : { ref := e!, σ := ((saveExpr (CacheExpr.v numAlloc)).run σ).2 : Expr _ }.varSet =
                { ref := e!, σ := σ : Expr _}.varSet := by
           symm
           apply varSet.varSet_eq_of_prefix (by grind) (by grind)
@@ -119,14 +114,12 @@ lemma isZero_wellFormed
   split_ands
   · simp [Circuit.refsValid]
     split_ands
-    · change e! < (StateT.run (mkVar numAlloc) σ).2.size
-      grind
+    · grind
     · simp [Circuit.varsAllocated]
       split_ands
       · grind
       · intros i hi
-        unfold mkVar at hi
-        have : { ref := e!, σ := (saveExpr (CacheExpr.v numAlloc) σ).2 : Expr _ }.varSet =
+        have : { ref := e!, σ := ((saveExpr (CacheExpr.v numAlloc)).run σ).2 : Expr _ }.varSet =
                { ref := e!, σ := σ : Expr _}.varSet := by
           symm
           apply varSet.varSet_eq_of_prefix (by grind) (by grind)
@@ -162,9 +155,7 @@ lemma size_le_size_run_mkVar :
   σ.size ≤
   ((mkVar numAlloc).run σ).2.size
 := by
-  unfold mkVar saveExpr
-  simp [HashConsM.run]
-  aesop
+  grind
 
 @[simp, grind .]
 lemma size_le_size_getHashConsState_alloc :
@@ -182,20 +173,8 @@ lemma size_le_size_Vector_ofFnM_alloc
 := by
   induction' k with k h_k
   . grind
-  . rewrite [Vector.ofFnM_succ, ClapM.getHashConsState_bind]
-    simp
-    apply le_trans h_k
-    change
-      ((Vector.ofFnM fun x => ClapM.alloc).getHashConsState numAlloc σ).size ≤
-        (mkVar ((Vector.ofFnM fun i => ClapM.alloc).getNumAlloc numAlloc σ)
-              ((Vector.ofFnM fun i => ClapM.alloc).getHashConsState numAlloc σ)).run.2.size
-    simp [mkVar]
-    change
-      ((Vector.ofFnM fun x => ClapM.alloc).getHashConsState numAlloc σ).size ≤
-        ((saveExpr (CacheExpr.v ((Vector.ofFnM fun x => ClapM.alloc).getNumAlloc numAlloc σ))).run
-                ((Vector.ofFnM fun x => ClapM.alloc).getHashConsState numAlloc σ)).2.size
-    simp [saveExpr, HashConsM.run]
-    aesop
+  . rewrite [Vector.ofFnM_succ]
+    grind
 
 @[simp, grind =]
 lemma getCircuit_Vector_ofFnM_alloc
@@ -206,7 +185,7 @@ lemma getCircuit_Vector_ofFnM_alloc
 := by
   induction' k with k h_k
   . grind
-  . rewrite [Vector.ofFnM_succ, ClapM.getCircuit_bind]
+  . rewrite [Vector.ofFnM_succ]
     grind
 
 @[simp, grind =]
@@ -219,8 +198,7 @@ lemma isPrefixOf_getHashConsState_Vector_ofFnM_alloc
   . grind
   . rewrite [Vector.ofFnM_succ]
     simp [ClapM.getHashConsState_bind]
-    apply Array.isPrefixOf_trans h_k
-    grind
+    grind [Array.isPrefixOf_trans]
 
 @[simp, grind =]
 lemma getNumAlloc_Vector_ofFnM_alloc
@@ -285,7 +263,6 @@ lemma eval_edsl_share
   ⟨((mkVar numAlloc).run σ).1, [varStore, ((mkVar numAlloc).run σ).2, numAlloc|#[Gate.share e!]]ₑ⟩
 := by
   simp [share, ClapM.runAndEval]
-  split_ands <;> rfl
 
 @[simp, grind =]
 lemma eval_edsl_isZero :
@@ -293,7 +270,6 @@ lemma eval_edsl_isZero :
   ⟨((mkVar numAlloc).run σ).1, [varStore, ((mkVar numAlloc).run σ).2, numAlloc|#[Gate.isZero e!]]ₑ⟩
 := by
   simp [isZero, ClapM.runAndEval]
-  split_ands <;> rfl
 
 @[simp, grind =]
 lemma eval_edsl_num2bits
