@@ -29,7 +29,7 @@ def numAllocStep (c : Circuit) : ℕ :=
   (c.map Gate.numAllocStep).sum
 
 @[simp, grind =]
-lemma numAllocStep_nil : numAllocStep #[] = 0 := by  
+lemma numAllocStep_nil : numAllocStep #[] = 0 := by
   simp [numAllocStep]
 
 @[simp, grind =]
@@ -768,10 +768,27 @@ lemma step_of_refsValid_prefix
   · simp [EvalSt.assertAllocated]
     simp at h_refsValid
     congr 1
-    congr
-    simp
-    constructor <;> intros h e he
-    grind (gen := 11)
+    . congr
+      simp
+      constructor <;> intros h e he
+      . obtain ⟨a, ⟨ha, he⟩⟩ | ⟨b, ⟨hb, he⟩⟩ | ⟨p', ⟨hp', he⟩⟩ := he
+        . specialize h ⟨a, σ'⟩
+          grind
+        . specialize h ⟨b, σ'⟩
+          grind
+        . specialize h ⟨p', σ'⟩
+          grind
+      . obtain ⟨a, ⟨ha, he⟩⟩ | ⟨b, ⟨hb, he⟩⟩ | ⟨p', ⟨hp', he⟩⟩ := he
+        . specialize h ⟨a, σ⟩
+          grind
+        . specialize h ⟨b, σ⟩
+          grind
+        . specialize h ⟨p', σ⟩
+          grind
+    . expose_names
+      congr 1
+      all_goals grind
+
 
 @[grind .]
 lemma eval_of_refsValid_prefix
@@ -837,8 +854,12 @@ lemma wellFormed_of_append_singleton_right
 
 @[grind →]
 lemma wellFormed_of_append_singleton
-        (h : wellFormed (circuit ++ #[gate]) varStore σ numAlloc) :
-        (Expr.mk gate.expr σ).wellFormed := by
+  {e : ExprRef}
+  (h : wellFormed (circuit ++ #[gate]) varStore σ numAlloc)
+  (h_mem : e ∈ gate.exprs)
+:
+  (Expr.mk e σ).wellFormed
+:= by
   grind
 
 attribute [grind =_] List.append_toArray
@@ -859,7 +880,7 @@ lemma mem_eval_varStore_of_mem (h_mem : k ∈ varStore)
 
 @[simp, grind _=_]
 lemma eval_list_append
-  
+
 :
   [varStore, σ, numAlloc|⟨body ++ [last]⟩]ₑ =
   [varStore, σ, numAlloc|⟨body⟩ ; (#[last])]ₑ
@@ -867,7 +888,7 @@ lemma eval_list_append
   grind
 
 @[grind =]
-lemma varsAllocated_eval_share_cons  
+lemma varsAllocated_eval_share_cons
   (h_e : e.wellFormed)
   (h: [[varStore, e.σ, numAlloc|circuit]ₑ.varStore|e].isSome = true)
 :
@@ -883,8 +904,11 @@ lemma varsAllocated_eval_cons
   gate.varsAllocated [varStore, σ, numAlloc|⟨head :: tail⟩]ₑ.varStore σ
 := by
   simp [Gate.varsAllocated] at ⊢ h
-  have : (Expr.mk gate.expr σ).wellFormed := by grind
-  simp [eval_eq_evalRec this] at ⊢ h
+  intro e h_e
+  have : (Expr.mk e σ).wellFormed := by grind
+  specialize h e h_e
+  simp [eval_eq_evalRec this]
+  simp [eval_eq_evalRec this] at h
   simp [h]
   intro v h_varset
   obtain ⟨h1, h2⟩ := h

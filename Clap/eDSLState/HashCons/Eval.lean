@@ -622,6 +622,19 @@ lemma isSome_eval_of_prefix {e₁ e₂ : Expr p}
   [Γ|e₂].isSome := by
   grind
 
+-- TODO is this the right grindage?
+@[grind! .]
+lemma isSome_prefix_eval_of_isSome_of_lt
+  {e₁ e₂ : Expr p}
+  (h_lt : e₁.wellFormed)
+  (h_ref : e₁.ref = e₂.ref)
+  (h_prefix : e₁.σ.exprs.isPrefixOf e₂.σ.exprs)
+  (h_eval : [Γ|e₂].isSome)
+:
+  [Γ|e₁].isSome
+:= by
+  grind
+
 end Precedes
 
 end Clap

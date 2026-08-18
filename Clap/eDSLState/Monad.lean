@@ -410,24 +410,28 @@ lemma bind_Circuit_wellFormed
           rw [Circuit.eval_of_refsValid_prefix (Γ := varStore) (σ' := f_sigma)]
           grind
           grind
-    · intros i' hi'
+    · intros expr h_expr i' hi'
       rw [Circuit.eval_numAlloc]
       by_cases h : i < circuit.size
-      · simp [h] at hi' ⊢
+      · simp [h] at h_expr
+        simp
         rw [←varSet.varSet_eq_of_prefix
-              (e₂ := ⟨circuit[i].exprs, f_sigma⟩)
-              (e₁ := ⟨circuit[i].exprs, σ'⟩) (by grind)] at hi'
+              (e₂ := ⟨expr, f_sigma⟩)
+              (e₁ := ⟨expr, σ'⟩) (by grind)] at hi'
         · unfold Circuit.varsAllocated at ha_varsAllocated
           specialize ha_varsAllocated i h
           simp [Circuit.eval_numAlloc] at ha_varsAllocated
           rcases ha_varsAllocated with ⟨eq₁, eq₂⟩
-          specialize eq₂ i' hi'
+          specialize eq₂ expr h_expr i' hi'
           grind
-        · grind
+        · unfold Expr.wellFormed
+          unfold Circuit.refsValid at ha_refsValid
+          specialize ha_refsValid circuit[i] (by grind)
+          grind
         · grind
       · specialize hf_varsAllocated (i - circuit.size) (by grind)
         rcases hf_varsAllocated with ⟨eq₁, newName⟩
-        specialize newName i' (by grind)
+        specialize newName expr (by grind) i' (by grind)
         simp [Circuit.eval_numAlloc] at newName
         unfold numAlloc_wellFormed at ha_numAlloc
         rw! [←eq₂, ←eq₃, ←eq₄] at ha_numAlloc
