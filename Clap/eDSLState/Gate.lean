@@ -2,13 +2,13 @@ import Clap.eDSLState.HashCons.Eval
 
 namespace Clap
 
--- TODO remove p?
 @[grind cases]
 inductive Gate where
   | eq0 (e : ExprRef)
   | share (e : ExprRef)
   | isZero (e : ExprRef)
   | num2bits (w : ℕ) (e : ExprRef)
+  | fpmul (w k : ℕ) (a b p' : Vector ExprRef k)
 deriving Inhabited
 
 namespace Gate
@@ -18,34 +18,40 @@ section Gate
 variable {p : ℕ}
 
 @[grind =]
-def expr (gate : Gate) : ExprRef :=
+def exprs (gate : Gate) : Finset ExprRef :=
   match gate with
-  | .eq0 e | .share e | .isZero e | .num2bits _ e => e
+  | .fpmul _ _ a b p' => a.toList.toFinset ∪ b.toList.toFinset ∪ p'.toList.toFinset
+  | .eq0 e | .share e | .isZero e | .num2bits _ e => {e}
 
 section
 
 variable {ref : ℕ} {σ : HashConsSt p} {e : Expr p}
 
 @[simp, grind =]
-lemma expr_mk_eq0 : (Gate.eq0 ref).expr = ref := rfl
+lemma expr_mk_eq0 : (Gate.eq0 ref).exprs = {ref} := rfl
 
 @[simp, grind =]
-lemma expr_mk_share : (Gate.share ref).expr = ref := rfl
+lemma expr_mk_share : (Gate.share ref).exprs = {ref} := rfl
 
 @[simp, grind =]
-lemma expr_mk_isZero : (Gate.isZero ref).expr = ref := rfl
+lemma expr_mk_isZero : (Gate.isZero ref).exprs = {ref} := rfl
 
 @[simp, grind =]
-lemma expr_mk_num2bits {w} : (Gate.num2bits w ref).expr = ref := rfl
+lemma expr_mk_num2bits {w} : (Gate.num2bits w ref).exprs = {ref} := rfl
+
+@[simp, grind =]
+lemma expr_mk_fpmul {w k} {a b p'} :
+  (Gate.fpmul w k a b p').exprs =
+  a.toList.toFinset ∪ b.toList.toFinset ∪ p'.toList.toFinset := rfl
 
 end
 
 @[grind =]
-def refsValid (gate : Gate) (bound : ℕ) : Prop := gate.expr < bound
+def refsValid (gate : Gate) (bound : ℕ) : Prop := ∀ e ∈ gate.exprs, e < bound
 
 @[grind =]
 def varsAllocated (gate : Gate) (Γ : VarStore p) (σ : HashConsSt p) : Prop :=
-  [Γ, σ|gate.expr].isSome
+  ∀ e ∈ gate.exprs, [Γ, σ|e].isSome
 
 @[aesop safe cases, grind]
 structure wellFormed (gate : Gate) (Γ : VarStore p) (σ : HashConsSt p) : Prop where
@@ -55,22 +61,28 @@ structure wellFormed (gate : Gate) (Γ : VarStore p) (σ : HashConsSt p) : Prop 
 variable {gate : Gate} {Γ : VarStore p} {σ : HashConsSt p} {e! : ExprRef} {bound : ℕ}
 
 instance : Decidable (gate.refsValid bound) :=
-  inferInstanceAs <| Decidable (gate.expr < bound)
+  inferInstanceAs <| Decidable (∀ e ∈ gate.exprs, e < bound)
 
-instance a : Decidable (gate.varsAllocated Γ σ) :=
-  inferInstanceAs <| Decidable ([Γ, σ|gate.expr].isSome)
-
-@[simp, grind =]
-lemma varsAllocated_eq0 : varsAllocated (.eq0 e!) Γ σ = [Γ, σ|e!].isSome := rfl
+instance : Decidable (gate.varsAllocated Γ σ) :=
+  inferInstanceAs <| Decidable (∀ e ∈ gate.exprs, [Γ, σ|e].isSome)
 
 @[simp, grind =]
-lemma varsAllocated_share : varsAllocated (.share e!) Γ σ = [Γ, σ|e!].isSome := rfl
+lemma varsAllocated_eq0 : varsAllocated (.eq0 e!) Γ σ = [Γ, σ|e!].isSome := by grind
 
 @[simp, grind =]
-lemma varsAllocated_isZero : varsAllocated (.isZero e!) Γ σ = [Γ, σ|e!].isSome := rfl
+lemma varsAllocated_share : varsAllocated (.share e!) Γ σ = [Γ, σ|e!].isSome := by grind
 
 @[simp, grind =]
-lemma varsAllocated_num2bits {w} : varsAllocated (.num2bits w e!) Γ σ = [Γ, σ|e!].isSome := rfl
+lemma varsAllocated_isZero : varsAllocated (.isZero e!) Γ σ = [Γ, σ|e!].isSome := by grind
+
+@[simp, grind =]
+lemma varsAllocated_num2bits {w} : varsAllocated (.num2bits w e!) Γ σ = [Γ, σ|e!].isSome := by grind
+
+@[simp, grind =]
+lemma varsAllocated_fpmul {w k} {a b p'} :
+  varsAllocated (.fpmul w k a b p') Γ σ =
+  (∀ ref ∈ a ++ b ++ p', [Γ, σ|ref].isSome) := by
+  simp [varsAllocated, exprs]
 
 @[simp, grind =]
 lemma wellFormed_iff :
@@ -88,20 +100,30 @@ lemma refsValid_of_refsValid_of_le
 
 @[grind .]
 lemma refsValid_iff_wellFormed_mk :
-  (Expr.mk gate.expr σ).wellFormed ↔ gate.refsValid σ.size := by
+  (∀ e ∈ gate.exprs, (Expr.mk e σ).wellFormed) ↔ gate.refsValid σ.size := by
   grind
 
 @[simp, grind =]
-lemma refsValid_eq0 : (Gate.eq0 e!).refsValid bound ↔ e! < bound := by rfl
+lemma refsValid_eq0 : (Gate.eq0 e!).refsValid bound ↔ e! < bound := by
+  simp [refsValid]
 
 @[simp, grind =]
-lemma refsValid_share : (Gate.share e!).refsValid bound ↔ e! < bound := by rfl
+lemma refsValid_share : (Gate.share e!).refsValid bound ↔ e! < bound := by
+  simp [refsValid]
 
 @[simp, grind =]
-lemma refsValid_isZero : (Gate.isZero e!).refsValid bound ↔ e! < bound := by rfl
+lemma refsValid_isZero : (Gate.isZero e!).refsValid bound ↔ e! < bound := by
+  simp [refsValid]
 
 @[simp, grind =]
-lemma refsValid_num2bits {w : ℕ} : (Gate.num2bits w e!).refsValid bound ↔ e! < bound := by rfl
+lemma refsValid_num2bits {w : ℕ} : (Gate.num2bits w e!).refsValid bound ↔ e! < bound := by
+  simp [refsValid]
+
+@[simp, grind =]
+lemma refsValid_fpmul {w k : ℕ} {a b p'} :
+  (Gate.fpmul w k a b p').refsValid bound ↔
+  (∀ ref ∈ a ++ b ++ p', ref < bound) := by
+  simp [refsValid, exprs]
 
 section Precedes
 
@@ -149,17 +171,28 @@ lemma varsAllocated_eq_of_prefix_refsValid
   gate.varsAllocated Γ σ' =
   gate.varsAllocated Γ σ := by
   unfold Gate.varsAllocated
-  set e₁ : Expr _ := {ref := gate.expr, σ := σ}
-  set e₂ : Expr _ := {ref := gate.expr, σ := σ'}
-  have wf₁ : e₁.wellFormed := by grind
-  have wf₂ : e₂.wellFormed := by
-    apply wellFormed_of_wellFormed_isPrefixOf (e₁ := e₁) _ h_prefix <;> grind
-  simp [eval_eq_evalRec, wf₁, wf₂]
+  simp only [eq_iff_iff]
   refine ⟨fun h v h₂ ↦ ?p₁, fun h v h₂ ↦ ?p₂⟩
-  · apply h
+  · specialize h _ h₂
+    set e₁ : Expr _ := {ref := v, σ := σ}
+    set e₂ : Expr _ := {ref := v, σ := σ'}
+    have wf₁ : e₁.wellFormed := by grind
+    have wf₂ : e₂.wellFormed := by
+      apply wellFormed_of_wellFormed_isPrefixOf (e₁ := e₁) _ h_prefix <;> grind
+    simp [eval_eq_evalRec, wf₁, wf₂] at ⊢ h
+    intros ref href
+    apply h
     replace h_prefix : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true := by grind
     rewrite [←varSet.varSet_eq_of_prefix (h₂ := h_prefix)] <;> grind
-  · apply h
+  · specialize h _ h₂
+    set e₁ : Expr _ := {ref := v, σ := σ}
+    set e₂ : Expr _ := {ref := v, σ := σ'}
+    have wf₁ : e₁.wellFormed := by grind
+    have wf₂ : e₂.wellFormed := by
+      apply wellFormed_of_wellFormed_isPrefixOf (e₁ := e₁) _ h_prefix <;> grind
+    simp [eval_eq_evalRec, wf₁, wf₂] at ⊢ h
+    intros ref href
+    apply h
     replace h_prefix : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true := by grind
     rewrite [varSet.varSet_eq_of_prefix (h₂ := h_prefix)] <;> grind
 
@@ -172,6 +205,7 @@ def numAllocStep : Gate → ℕ
   | .share _ => 1
   | .isZero _ => 1
   | .num2bits w _ => w
+  | .fpmul (k := k) .. => k
 
 @[simp, grind =]
 lemma numAllocStep_eq0 {e : ExprRef}:
@@ -191,6 +225,11 @@ lemma numAllocStep_isZero {e : ExprRef}:
 @[simp, grind =]
 lemma numAllocStep_num2bits {width} {e : ExprRef}:
   (Gate.num2bits width e).numAllocStep = width
+:= rfl
+
+@[simp, grind =]
+lemma numAllocStep_fpmul {w} {k} {a b p'} :
+  (Gate.fpmul w k a b p').numAllocStep = k
 := rfl
 
 end NumAlloc

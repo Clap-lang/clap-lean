@@ -415,8 +415,8 @@ lemma bind_Circuit_wellFormed
       by_cases h : i < circuit.size
       · simp [h] at hi' ⊢
         rw [←varSet.varSet_eq_of_prefix
-              (e₂ := ⟨circuit[i].expr, f_sigma⟩)
-              (e₁ := ⟨circuit[i].expr, σ'⟩) (by grind)] at hi'
+              (e₂ := ⟨circuit[i].exprs, f_sigma⟩)
+              (e₁ := ⟨circuit[i].exprs, σ'⟩) (by grind)] at hi'
         · unfold Circuit.varsAllocated at ha_varsAllocated
           specialize ha_varsAllocated i h
           simp [Circuit.eval_numAlloc] at ha_varsAllocated

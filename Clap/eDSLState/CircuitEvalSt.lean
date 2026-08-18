@@ -118,6 +118,9 @@ def getD (result : EvalSt p) (e : Expr p) : ZMod p :=
 instance : GetElem? (EvalSt p) (Expr p) (ZMod p) (fun Γ x ↦ x ∈ Γ) :=
   ⟨get?, getD⟩
 
+@[grind _=_]
+lemma mem_def {e : Expr p} : e ∈ st ↔ (st[e]?.isSome = true) := by rfl
+
 def getDM (result : EvalSt p) (e : HashConsM p ExprRef) : HashConsM p (ZMod p) := do
   result.getM? e <&> Option.getD (dflt := 0)
 
@@ -202,51 +205,37 @@ lemma getM?_of_varStore_eq_varStore (h : st.varStore = st'.varStore) :
 Asserts that the expression that e points to does not use any variables that aren't in the varStore
 Panics if e is outside of σ
 -/
-def assertAllocated (st : EvalSt p) (e : Expr p) : EvalSt p :=
-  st.addConstraint st[e]?.isSome
+def assertAllocated {k} (st : EvalSt p) (es : Vector (Expr p) k) : EvalSt p :=
+  st.addConstraint (∀ e ∈ es, e ∈ st)
 
-def assertAllocatedM (st : EvalSt p) (e : HashConsM p ExprRef) : HashConsM p (EvalSt p) := do
-  let val ← st.getM? e
-  return st.addConstraint val.isSome
+section AssertAllocated
 
-@[simp, grind =]
-lemma assertAllocated_mk
-:
-  (EvalSt.mk numAlloc Γ constraints).assertAllocated e =
-  EvalSt.mk numAlloc Γ (constraints ∧ [Γ|e].isSome)
-:= rfl
+variable {k : ℕ} {es : Vector (Expr p) k}
 
 @[simp, grind =]
-lemma assertAllocatedM_mk
-:
-  ((EvalSt.mk numAlloc Γ constraints).assertAllocatedM eM).run σ =
-  (
-    EvalSt.mk
-      numAlloc
-      Γ
-      (constraints ∧ [Γ,σ|←eM].1.isSome)
-    ,
-    [Γ,σ|←eM].2
-  )
-:= rfl
+lemma assertAllocated_mk :
+  (EvalSt.mk numAlloc Γ constraints).assertAllocated es =
+  EvalSt.mk numAlloc Γ (constraints ∧ ∀ e ∈ es, [Γ|e].isSome) := rfl
 
 @[simp, grind =]
-lemma numAlloc_assertAllocated :
-  (st.assertAllocated e).numAlloc = st.numAlloc := rfl
+lemma numAlloc_assertAllocated {k} {es : Vector (Expr p) k} :
+  (st.assertAllocated es).numAlloc = st.numAlloc := rfl
 
 @[simp, grind =]
 lemma varStore_assertAllocated :
-  (st.assertAllocated e).varStore = st.varStore := rfl
+  (st.assertAllocated es).varStore = st.varStore := rfl
 
 @[simp, grind =]
 lemma constraints_assertAllocated :
-  (st.assertAllocated e).constraints = (st.constraints ∧ st[e]?.isSome) := rfl
+  (st.assertAllocated es).constraints = (st.constraints ∧ ∀ e ∈ es, e ∈ st) := rfl
 
 @[simp, grind =]
 lemma assertAllocated_unconstrained :
-  unconstrained[numAlloc][Γ].assertAllocated e =
+  unconstrained[numAlloc][Γ].assertAllocated es =
   letI α := unconstrained[numAlloc][Γ]
-  α.addConstraint (e ∈ α) := rfl
+  α.addConstraint (∀ e ∈ es, e ∈ α) := rfl
+
+end AssertAllocated
 
 def alloc {k p : ℕ} (result : EvalSt p) (vals : Vector (ZMod p) k) : EvalSt p :=
   let indexed := (Vector.range k).map (·+result.numAlloc) |>.zip vals
@@ -280,12 +269,24 @@ lemma varStore_alloc :
 lemma constraints_alloc :
   (st.alloc vars).constraints = st.constraints := rfl
 
+-- TODO: Fix me
+opaque fpmulPure (p w k : ℕ) (a b p' : Vector (ZMod p) k) : Vector (ZMod p) k
+
 def step (result : EvalSt p) (next : Gate) (σ : HashConsSt p) : EvalSt p :=
   match next with
   | .eq0 e => result.addConstraint (result[Expr.mk e σ]? = .some 0)
-  | .share e => (result.assertAllocated ⟨e, σ⟩).alloc #v[result[Expr.mk e σ]!]
-  | .isZero e => (result.assertAllocated ⟨e, σ⟩).alloc #v[if result[Expr.mk e σ]? = Option.some 0 then 1 else 0]
-  | .num2bits width e => (result.assertAllocated ⟨e, σ⟩).alloc (num2bitsLsbPureV width (result[Expr.mk e σ]!))
+  | .share e => (result.assertAllocated #v[⟨e, σ⟩]).alloc #v[result[Expr.mk e σ]!]
+  | .isZero e => (result.assertAllocated #v[⟨e, σ⟩]).alloc #v[if result[Expr.mk e σ]? = Option.some 0 then 1 else 0]
+  | .num2bits width e => (result.assertAllocated #v[⟨e, σ⟩]).alloc (num2bitsLsbPureV width (result[Expr.mk e σ]!))
+  | .fpmul w k a b p' => 
+    let aexprs := a.map (Expr.mk · σ)
+    let bexprs := b.map (Expr.mk · σ)
+    let p'exprs := p'.map (Expr.mk · σ)
+    let avalues := aexprs.map (result[·]!)
+    let bvalues := bexprs.map (result[·]!)
+    let p'values := p'exprs.map (result[·]!)
+    (result.assertAllocated (aexprs ++ bexprs ++ p'exprs)).alloc
+      (fpmulPure p w k avalues bvalues p'values)
 
 notation "[" res ", " σ "|" cmd "]ₛ" => step res cmd σ
 
@@ -315,10 +316,23 @@ lemma step_mk
             (num2bitsLsbPureV width ([varStore,σ|e].getD 0))),
       constraints := constraints ∧ [varStore,σ|e].isSome = true
     }
+  | Gate.fpmul w k a b p' =>
+    {
+      numAlloc := numAlloc + k,
+      varStore :=
+        let avalues := a.map ([varStore,σ|·].getD 0)
+        let bvalues := b.map ([varStore,σ|·].getD 0)
+        let p'values := p'.map ([varStore,σ|·].getD 0)
+        varStore.insertMany
+          ((Vector.map (fun x => x + numAlloc) (Vector.range k)).zip
+            (fpmulPure p w k avalues bvalues p'values)),
+      constraints := constraints ∧ ∀ e ∈ a ++ b ++ p', [varStore,σ|e].isSome = true
+    }
 := by
   unfold step
   cases next <;> simp
   rfl
+  split_ands <;> aesop (add safe (by grind))
 
 @[simp, grind =]
 lemma step_numAlloc
@@ -339,7 +353,6 @@ lemma step_varStore_keys
   cases next <;> simp [step]
   . ext
     simp
-    expose_names
     grind
   . ext
     simp
@@ -373,7 +386,36 @@ lemma step_varStore_keys
         . grind
         . grind
       . grind
-
+  · ext
+    expose_names
+    simp [-Std.ExtTreeMap.mem_insertMany_vector, Vector.range]
+    have (k: ℕ) : Array.range k = ⟨List.range k⟩ := by grind
+    simp_rw [this]
+    simp [-List.toArray_range, Std.ExtTreeMap.insertMany, Std.ExtDTreeMap.Const.insertMany]
+    rewrite [Vector.foldl_mk]
+    unfold Membership.mem Std.ExtTreeMap.instMembershipOfTransCmp Std.ExtTreeMap.contains
+    simp
+    generalize fpmulPure _ _ _ _ _ _ = data
+    induction' k with k h_k
+    . simp [Vector.zip, Array.zip_eq_empty_iff.mpr]
+    . simp [Vector.zip]
+      have : data.toArray = (data.toArray.take k) ++ #[data.toArray.back] := by grind
+      rewrite [this]
+      have : List.range (k + 1) = List.range k ++ [k] := by grind
+      rewrite [this]
+      simp only [List.map_append, List.map_cons, List.map_nil, ←List.append_toArray]
+      rewrite [Array.zip_append]
+      · simp
+        specialize h_k a.pop b.pop p'.pop data.pop
+        simp [Vector.pop] at h_k
+        simp [h_k]
+        constructor
+        . intro h
+          obtain h | h := h
+          . grind
+          . grind
+        . grind
+      · simp
 
 variable {σ : HashConsSt p} {gate : Gate}
 
@@ -400,17 +442,29 @@ lemma step_eq0 :
 @[simp, grind =]
 lemma step_share :
   [st, σ|.share e!]ₛ =
-  (st.assertAllocated ⟨e!, σ⟩ |>.alloc #v[st.getD ⟨e!, σ⟩]) := rfl
+  (st.assertAllocated #v[⟨e!, σ⟩] |>.alloc #v[st.getD ⟨e!, σ⟩]) := rfl
 
 @[simp, grind =]
 lemma step_isZero :
   [st, σ|.isZero e!]ₛ =
-  (st.assertAllocated ⟨e!, σ⟩ |>.alloc #v[if st[(⟨e!, σ⟩ : Expr _)]? = .some 0 then 1 else 0]) := rfl
+  (st.assertAllocated #v[⟨e!, σ⟩] |>.alloc #v[if st[(⟨e!, σ⟩ : Expr _)]? = .some 0 then 1 else 0]) := rfl
 
 @[simp, grind =]
 lemma step_num2bits {width} :
   [st, σ|.num2bits width e!]ₛ =
-  (st.assertAllocated ⟨e!, σ⟩ |>.alloc (num2bitsLsbPureV width st[Expr.mk e! σ]!)) := rfl
+  (st.assertAllocated #v[⟨e!, σ⟩] |>.alloc (num2bitsLsbPureV width st[Expr.mk e! σ]!)) := rfl
+
+@[simp, grind =]
+lemma step_fpmul {w k} {a b p'} :
+  [st, σ|.fpmul w k a b p']ₛ =
+  let aexprs := Vector.map (fun x => { ref := x, σ := σ : Expr _ }) a
+  let bexprs := Vector.map (fun x => { ref := x, σ := σ : Expr _ }) b
+  let p'exprs := Vector.map (fun x => { ref := x, σ := σ : Expr _ }) p'
+  let avalues := Vector.map (fun x => st[x]!) aexprs
+  let bvalues := Vector.map (fun x => st[x]!) bexprs
+  let p'values := Vector.map (fun x => st[x]!) p'exprs
+  (st.assertAllocated (aexprs ++ bexprs ++ p'exprs)).alloc (fpmulPure p w k avalues bvalues p'values) :=
+  rfl
 
 @[aesop unsafe, grind =]
 lemma addConstraint_eq_mk :
@@ -428,8 +482,8 @@ lemma alloc_eq_mk {k} {vals : Vector _ k} :
    st.varStore.insertMany (((Vector.range k).map (· + st.numAlloc)).zip vals),
    st.constraints⟩ := rfl
 
-lemma assertAllocated_eq_addConstraint :
-  st.assertAllocated e = st.addConstraint (e ∈ st) := rfl
+lemma assertAllocated_eq_addConstraint {k} {es : Vector (Expr p) k} :
+  st.assertAllocated es = st.addConstraint (∀ e ∈ es, e ∈ st) := rfl
 
 end EvalSt
 

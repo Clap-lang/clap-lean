@@ -143,7 +143,7 @@ def varsAllocated (c : Circuit) (varStore : VarStore p) (σ : HashConsSt p) (num
   ∀ i (h : i < c.size),
     letI evalSt := [varStore, σ, numAlloc|c.take i]ₑ
     c[i].varsAllocated evalSt.varStore σ ∧
-    ∀ x ∈ Expr.varSet ⟨c[i].expr, σ⟩, x < evalSt.numAlloc
+    ∀ e ∈ c[i].exprs, ∀ x ∈ Expr.varSet ⟨e, σ⟩, x < evalSt.numAlloc
 
 @[aesop safe cases, grind]
 structure wellFormed (circuit : Circuit) (Γ : VarStore p) (σ : HashConsSt p) (numAlloc : ℕ) : Prop where
@@ -315,14 +315,15 @@ lemma varsAllocated_eval_append_right
     have (a: Array (Gate)) (l : List (Gate)) (gate : Gate)
       : a ++ (l ++ [gate]).toArray = (a ++ ⟨l⟩).push gate
     := by grind
-    have : circuit[i].expr < σ.size := by
+    intros e he
+    have : e < σ.size := by
       aesop (add safe (by grind))
     grind
 
 @[grind .]
 lemma varsAllocated_singleton_iff :
   varsAllocated #[gate] Γ σ numAlloc ↔
-  (gate.varsAllocated Γ σ ∧ ∀ x ∈ (Expr.mk gate.expr σ).varSet, x < numAlloc) := by
+  (gate.varsAllocated Γ σ ∧ ∀ e ∈ gate.exprs, ∀ x ∈ (Expr.mk e σ).varSet, x < numAlloc) := by
   refine ⟨fun h ↦ ?p₁, fun h ↦ ?p₂⟩
   · unfold Circuit.varsAllocated at h
     specialize h 0 (by grind)
@@ -403,6 +404,7 @@ lemma evalInOrder_varStore_independent_of_constraints
   . simp [tail_ih, foldr_step_numAlloc_independent_of_constraints' (constraints2 := constraints2), GetElem?.getElem?, EvalSt.get?]
     rfl
   . simp [tail_ih, foldr_step_numAlloc_independent_of_constraints' (constraints2 := constraints2), GetElem?.getElem?, EvalSt.get?]
+  · simp [tail_ih, foldr_step_numAlloc_independent_of_constraints' (constraints2 := constraints2), GetElem?.getElem?, EvalSt.get?]
 
 lemma foldl_step_varStore_independent_of_constraints {circuit : List (Gate)}
 :
@@ -487,6 +489,9 @@ lemma isSome_foldr_split' :
   simp [split]
   grind
 
+/--
+We're sorry... (you know what for)
+-/
 lemma evalInOrder_constraints_and
 :
   (circuit.evalInOrder σ st).constraints = (
@@ -500,7 +505,7 @@ lemma evalInOrder_constraints_and
   . simp
   next hd tl ih =>
     simp at *
-    rcases hd with _ | _ | _ | _
+    rcases hd with _ | _ | _ | _ | _
     · simp
       unfold GetElem?.getElem?
       unfold instGetElem?ExprZModMem
@@ -510,19 +515,93 @@ lemma evalInOrder_constraints_and
       rw [foldr_step_varStore_independent_of_constraints''' (σ₂ := st.split)] <;>
       aesop
     · rw [Array.foldr_toList, Array.foldr_toList]
-      simp [ih]
+      simp [EvalSt.mem_def, ih]
       expose_names
       rw [isSome_foldr_split]
-      aesop
-    · simp only [step_isZero]
-      unfold GetElem?.getElem?
-      unfold instGetElem?ExprZModMem
-      rw [Array.foldr_toList, Array.foldr_toList]
-      grind [GetElem?.getElem?, instGetElemExprZModMem]
-    · simp
-      unfold GetElem?.getElem?
-      rw [Array.foldr_toList, Array.foldr_toList]
-      grind
+      simp_all only
+      apply Iff.intro
+      · intro a
+        simp_all only [and_self, iff_true]
+      · intro a
+        simp_all only [and_self, iff_true]
+    · rw [Array.foldr_toList, Array.foldr_toList]
+      simp [EvalSt.mem_def, ih]
+      expose_names
+      rw [isSome_foldr_split]
+      simp_all only
+      apply Iff.intro
+      · intro a
+        simp_all only [and_self, iff_true]
+      · intro a
+        simp_all only [and_self, iff_true]
+    · rw [Array.foldr_toList, Array.foldr_toList]
+      simp [EvalSt.mem_def, ih]
+      expose_names
+      rw [isSome_foldr_split]
+      simp_all only
+      apply Iff.intro
+      · intro a
+        simp_all only [and_self, iff_true]
+      · intro a
+        simp_all only [and_self, iff_true]
+    · simp [EvalSt.mem_def, ih]
+      expose_names
+      apply Iff.intro
+      · intro a_1
+        simp_all only [and_self, iff_true, true_and]
+        intro e a_2
+        obtain ⟨left, right⟩ := a_1
+        obtain ⟨left, right_1⟩ := left
+        cases a_2 with
+        | inl h =>
+          obtain ⟨w_1, h⟩ := h
+          obtain ⟨left_1, right_2⟩ := h
+          subst right_2
+          rw [isSome_foldr_split]
+          aesop
+        | inr h_1 =>
+          cases h_1 with
+          | inl h =>
+            obtain ⟨w_1, h⟩ := h
+            obtain ⟨left_1, right_2⟩ := h
+            subst right_2
+            rw [isSome_foldr_split]
+            aesop
+          | inr h_2 =>
+            obtain ⟨w_1, h⟩ := h_2
+            obtain ⟨left_1, right_2⟩ := h
+            subst right_2
+            rw [isSome_foldr_split]
+            aesop
+      · intro a_1
+        simp_all only [and_self, iff_true, true_and]
+        intro e a_2
+        obtain ⟨left, right⟩ := a_1
+        obtain ⟨left_1, right⟩ := right
+        cases a_2 with
+        | inl h =>
+          obtain ⟨w_1, h⟩ := h
+          obtain ⟨left_2, right_1⟩ := h
+          subst right_1
+          specialize right ⟨w_1, σ⟩ (by grind)
+          rw [isSome_foldr_split] at right
+          aesop
+        | inr h_1 =>
+          cases h_1 with
+          | inl h =>
+            obtain ⟨w_1, h⟩ := h
+            obtain ⟨left_2, right_1⟩ := h
+            subst right_1
+            specialize right ⟨w_1, σ⟩ (by grind)
+            rw [isSome_foldr_split] at right
+            aesop
+          | inr h_2 =>
+            obtain ⟨w_1, h⟩ := h_2
+            obtain ⟨left_2, right_1⟩ := h
+            subst right_1
+            specialize right ⟨w_1, σ⟩ (by grind)
+            rw [isSome_foldr_split] at right
+            aesop
 
 lemma foldl_step_constraints_and {circuit : List Gate} :
   (circuit.foldl (fun result next => [result, σ|next]ₛ) st).constraints =
@@ -666,6 +745,12 @@ lemma seq_singleton_nil {cmd : Gate} {varStore} {numAlloc} :
 
 variable {σ σ' : HashConsSt p} {gate : Gate} {st : EvalSt p} {circuit : Circuit} {Γ : VarStore p}
 
+@[simp, grind =]
+lemma assertAllocated_singleton :
+  st.assertAllocated #v[e] =
+  st.addConstraint (e ∈ st) := by
+    simp [EvalSt.assertAllocated]
+
 @[grind =>]
 lemma step_of_refsValid_prefix
   (h_prefix : σ.exprs.isPrefixOf σ'.exprs)
@@ -675,7 +760,18 @@ lemma step_of_refsValid_prefix
   [st, σ|gate]ₛ
 := by
   unfold EvalSt.step
-  cases gate <;> grind
+  cases gate
+  · grind
+  · grind
+  · grind
+  · grind
+  · simp [EvalSt.assertAllocated]
+    simp at h_refsValid
+    congr 1
+    congr
+    simp
+    constructor <;> intros h e he
+    grind (gen := 11)
 
 @[grind .]
 lemma eval_of_refsValid_prefix
