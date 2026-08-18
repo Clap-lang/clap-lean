@@ -23,7 +23,7 @@ def run (trace : Array (ZMod p)) : Bool :=
     let cache := HashConsM.evalWithCache (VarStore.ofArray (trace.zipIdx.map Prod.swap)) max #[] cs.σ
     cs.eq0s.all (λ expr => cache[expr]? == .some (0 : ZMod p))
 
-def num_constraints : Gate p → ℕ
+def num_constraints : Gate → ℕ
   | .eq0 _ => 1
   | .share _ => 1
   | .isZero _ => 2
@@ -37,7 +37,7 @@ def HashConsM.mkBits2num {p : ℕ} (bits : Array ExprRef) : HashConsM p ExprRef 
 
 
 open HashConsM in
-def Circuit.toCs {p : ℕ} (circuit : Circuit p) (σ : HashConsSt p) (numInputs : ℕ)
+def Circuit.toCs {p : ℕ} (circuit : Circuit) (σ : HashConsSt p) (numInputs : ℕ)
 :
   ConstraintSystem p
 :=

@@ -8,17 +8,17 @@ variable {p : ℕ}
 
 --StateT numAlloc
 --WriterT array of circuit constructors
-abbrev CircuitT (p : ℕ) (m : Type → Type) (α : Type) : Type := WriterT (Circuit p) (StateT ℕ m) α
+abbrev CircuitT (m : Type → Type) (α : Type) : Type := WriterT Circuit (StateT ℕ m) α
 
-abbrev CircuitM (p : ℕ) (α : Type) : Type := CircuitT p Id α
+abbrev CircuitM (α : Type) : Type := CircuitT Id α
 
-abbrev ClapM (p : ℕ) (α : Type) : Type := CircuitT p (HashConsM p) α
+abbrev ClapM (p : ℕ) (α : Type) : Type := CircuitT (HashConsM p) α
 
 namespace ClapM
 
 def run {α}
   (cmd : ClapM p α) (numAlloc : ℕ) (hashConsState : HashConsSt p)
-: ((α × Circuit p) × ℕ) × (HashConsSt p) :=
+: ((α × Circuit) × ℕ) × (HashConsSt p) :=
   (StateT.run (StateT.run (WriterT.run cmd) numAlloc) hashConsState)
 
 -- This is what ClapM actually is
@@ -29,7 +29,7 @@ def run {α}
 --   an array of circuit constructors (referencing the updated cache)
 example {resultT}:
   ClapM p resultT =
-  (ℕ → (HashConsSt p) → ((resultT × Circuit p) × ℕ) × (HashConsSt p))
+  (ℕ → (HashConsSt p) → ((resultT × Circuit) × ℕ) × (HashConsSt p))
  := rfl
 
 -- Pure takes numAlloc, hashConsState, and a value, and returns them all with no circuit constructors
@@ -52,7 +52,7 @@ example {midT resultT} {action : ClapM p midT} {function : midT → ClapM p resu
 section Monoid
 
 -- TODO do we really want this instance, or do we create it locally in order to create LawfulMonad manually?
-instance (p : ℕ) : Monoid (Circuit p) where
+instance : Monoid Circuit where
   mul := Array.append
   mul_assoc a b c := by exact Array.append_assoc
   one := #[]
@@ -60,13 +60,13 @@ instance (p : ℕ) : Monoid (Circuit p) where
   mul_one := by unfold_projs; simp
 
 @[simp, grind =]
-lemma Circuit.mul_eq_append {a b: Circuit p} :
+lemma Circuit.mul_eq_append {a b: Circuit} :
   a * b = a ++ b
 := rfl
 
 @[simp, grind =]
 lemma Circuit.one_eq_nil :
-  (1 : Circuit p) = #[]
+  (1 : Circuit) = #[]
 := rfl
 
 end Monoid
@@ -93,7 +93,7 @@ def getResult
 
 def getCircuit
   {p : ℕ} {α : Type} (cmd : ClapM p α) (numAlloc : ℕ) (σ : HashConsSt p)
-: Circuit p :=
+: Circuit :=
   (cmd.run numAlloc σ).1.1.2
 
 def getNumAlloc
@@ -132,7 +132,7 @@ lemma getHashConsState_alloc :
 section NamedThisForDom
 
 variable {α β} {action : ClapM p α} {function : α → ClapM p β}
-         {numAlloc : ℕ} {σ : HashConsSt p} {xs : Circuit p}
+         {numAlloc : ℕ} {σ : HashConsSt p} {xs : Circuit}
          {cmd : ClapM p α} {f : α → β} {x : α}
 
 @[simp, grind =]
@@ -250,7 +250,7 @@ def runAndEval
 
 @[simp, grind =]
 lemma runAndEval_tell
-  {circuit : Circuit p}
+  {circuit : Circuit}
   {varStore : VarStore p}
   {numAlloc : ℕ}
   {σ : HashConsSt p}

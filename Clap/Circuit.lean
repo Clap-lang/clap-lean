@@ -183,25 +183,25 @@ inductive denotation (F : Type) : Type where
 
 inductive Circuit (p : ℕ) (var : Type) : Type where
   | nil
-  | eq0 (e : Exp p var) (c : Circuit p var)
-  | lam (cont : var → Circuit p var)
-  | share (e : Exp p var) (cont : var → Circuit p var)
-  | isZero (e : Exp p var) (cont : var → Circuit p var)
-  | num2bits (w : ℕ) (e : Exp p var) (cont : List var → Circuit p var)
+  | eq0 (e : Exp p var) (c : Circuit var)
+  | lam (cont : var → Circuit var)
+  | share (e : Exp p var) (cont : var → Circuit var)
+  | isZero (e : Exp p var) (cont : var → Circuit var)
+  | num2bits (w : ℕ) (e : Exp p var) (cont : List var → Circuit var)
 
-abbrev Circuitₑ (p : ℕ) := Circuit p (ZMod p)
+abbrev Circuitₑ (p : ℕ) := Circuit (ZMod p)
 -- TODO remove all ' definitions
-abbrev Circuit' (p : ℕ) : Type _ := (var : Type) -> Circuit p var
+abbrev Circuit' (p : ℕ) : Type _ := (var : Type) -> Circuit var
 
 /-
   Warning: var must be kept abstract, if var is fixed we can write bogus examples
 -/
 
 -- E.g. here v 0 is not bound by any lam
-example {p} : Circuit p Nat := Circuit.eq0 (.v 0) Circuit.nil
+example {p} : Circuit Nat := Circuit.eq0 (.v 0) Circuit.nil
 
 -- This is the right way, keeping var abstract
-example {p} {var} : Circuit p var := .lam fun x => .eq0 (.v x) .nil
+example {p} {var} : Circuit var := .lam fun x => .eq0 (.v x) .nil
 
 namespace Circuit
 
@@ -224,9 +224,9 @@ instance : Index ℕ := ⟨id⟩
 export Index (index)
 
 def repr [Repr var] [Index var]
-  (l : ℕ) (c : Circuit p var) : Std.Format :=
-  letI go (l : ℕ) (k : var → Circuit p var) := repr (l+1) (k (index l)) -- `k ∘ index : ℕ (→ var) → Circuit ..`
-  letI gos (w l : ℕ) (k : List var → Circuit p var) := repr (l+w) (k ((List.range w).map index))
+  (l : ℕ) (c : Circuit var) : Std.Format :=
+  letI go (l : ℕ) (k : var → Circuit var) := repr (l+1) (k (index l)) -- `k ∘ index : ℕ (→ var) → Circuit ..`
+  letI gos (w l : ℕ) (k : List var → Circuit var) := repr (l+w) (k ((List.range w).map index))
   match c with
   | .nil => "nil"
   | .lam k => s!"λ{l} {go l k}"
@@ -235,10 +235,10 @@ def repr [Repr var] [Index var]
   | .isZero e k => s!"isZero {_root_.repr e} {go l k}"
   | .num2bits w e k => s!"num2bits {w} {_root_.repr e} {gos w l k}"
 
-instance [Repr var] [Index var] : Repr (Circuit p var) where
+instance [Repr var] [Index var] : Repr (Circuit var) where
   reprPrec c _ := c.repr 0
 
-instance [Repr var] [Index var] : ToString (Circuit p var) :=
+instance [Repr var] [Index var] : ToString (Circuit var) :=
   ⟨Std.Format.pretty ∘ repr 0⟩
 
 namespace Test

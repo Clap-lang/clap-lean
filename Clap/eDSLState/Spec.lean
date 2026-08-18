@@ -39,8 +39,7 @@ lemma instVarStoreSizeUnit_toLinear
   (@instVarStoreSizeUnit p).toLinear varStore x =
   @Vector.mk _ 0 #[] (by simp)
 := rfl
--- `FB = represetnsT`
--- `bool = idealT`
+
 class Convert (p : ℕ) (representsT idealT : Type) extends IsValid p representsT where
   toIdeal : (VarStore p) → representsT → Option idealT
   toRepresents : idealT → representsT

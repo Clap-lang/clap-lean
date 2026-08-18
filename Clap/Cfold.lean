@@ -43,7 +43,7 @@ def Exp.cfold (e : Exp p var) : Exp p var :=
     |    l , .c r => if r = 0 then l else .sub l r
     |    _ , _    => .sub l r
 
-def Circuit.cfold {var : Type} (c : Circuit p var) : Circuit p var :=
+def Circuit.cfold {var : Type} (c : Circuit var) : Circuit var :=
   match c with
   | .nil => .nil
   | .eq0 e c => .eq0 e.cfold c.cfold

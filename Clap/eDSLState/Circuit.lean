@@ -12,7 +12,7 @@ namespace Clap
 
 open HashConsM
 
-abbrev Circuit (p : ℕ) := Array (Gate p)
+abbrev Circuit := Array Gate
 
 section Clap
 
@@ -21,40 +21,40 @@ variable {p : ℕ}
 namespace Circuit
 
 @[grind =]
-def refsValid (c : Circuit p) (bound : ℕ) : Prop :=
+def refsValid (c : Circuit) (bound : ℕ) : Prop :=
   ∀ gate ∈ c, gate.refsValid bound
 
 @[grind =]
-def numAllocStep (c : Circuit p) : ℕ :=
+def numAllocStep (c : Circuit) : ℕ :=
   (c.map Gate.numAllocStep).sum
 
 @[simp, grind =]
-lemma numAllocStep_nil : numAllocStep (p := p) #[] = 0 := by  
+lemma numAllocStep_nil : numAllocStep #[] = 0 := by  
   simp [numAllocStep]
 
 @[simp, grind =]
-lemma numAllocStep_singleton {gate : Gate p}
+lemma numAllocStep_singleton {gate : Gate}
 :
   numAllocStep #[gate] =
   gate.numAllocStep
 := by grind
 
 @[simp, grind =]
-lemma numAllocStep_singleton_list {gate : Gate p}
+lemma numAllocStep_singleton_list {gate : Gate}
 :
   numAllocStep ⟨[gate]⟩ =
   gate.numAllocStep
 := by grind
 
 @[simp, grind =]
-lemma numAllocStep_append {c1 c2: Circuit p}
+lemma numAllocStep_append {c1 c2: Circuit}
 :
   numAllocStep (c1 ++ c2) =
   numAllocStep c1 + numAllocStep c2
 := by grind
 
 @[simp, grind =]
-lemma numAllocStep_append_list {l1 l2 : List (Gate p)}
+lemma numAllocStep_append_list {l1 l2 : List (Gate)}
 :
   numAllocStep ⟨l1 ++ l2⟩ =
   numAllocStep ⟨l1⟩ + numAllocStep ⟨l2⟩
@@ -74,7 +74,7 @@ namespace Circuit
 
 section Circuit
 
-variable {circuit : Circuit p}
+variable {circuit : Circuit}
          {varStore Γ : VarStore p}
          {σ : HashConsSt p}
          {numAlloc : ℕ}
@@ -82,19 +82,19 @@ variable {circuit : Circuit p}
          {e : Expr p}
          {st : EvalSt p}
 
-abbrev evalInOrder (circuit : Circuit p)
+abbrev evalInOrder (circuit : Circuit)
                    (σ : HashConsSt p)
                    (st : EvalSt p) :=
   circuit.foldl (EvalSt.step (σ := σ)) st
 
-def eval (circuit : Circuit p) (varStore : VarStore p) (numAlloc : ℕ) (σ : HashConsSt p) : EvalSt p :=
+def eval (circuit : Circuit) (varStore : VarStore p) (numAlloc : ℕ) (σ : HashConsSt p) : EvalSt p :=
   circuit.evalInOrder σ ⟨numAlloc, varStore, True⟩
 
 notation "[" varStore ", " σ ", " numAlloc "|" circuit "]ₑ" => Circuit.eval circuit varStore numAlloc σ
 
 @[simp, grind =]
 lemma eval_numAlloc
-  {circuit : Circuit p}
+  {circuit : Circuit}
 :
   [varStore, σ, numAlloc|circuit]ₑ.numAlloc =
   numAlloc + circuit.numAllocStep
@@ -107,7 +107,7 @@ lemma eval_numAlloc
 
 @[simp, grind =]
 lemma eval_varStore_keys
-  {circuit : Circuit p}
+  {circuit : Circuit}
 :
   [varStore, σ, numAlloc|circuit]ₑ.varStore.keys.toFinset =
   varStore.keys.toFinset ∪ (List.range' numAlloc circuit.numAllocStep).toFinset
@@ -129,7 +129,7 @@ lemma eval_varStore_keys
 
 @[simp, grind =]
 lemma mem_eval_varStore
-  {circuit : Circuit p}
+  {circuit : Circuit}
   {k}
 :
   k ∈ [varStore, σ, numAlloc|circuit]ₑ.varStore ↔
@@ -139,14 +139,14 @@ lemma mem_eval_varStore
   aesop
 
 @[grind =]
-def varsAllocated (c : Circuit p) (varStore : VarStore p) (σ : HashConsSt p) (numAlloc : ℕ) : Prop :=
+def varsAllocated (c : Circuit) (varStore : VarStore p) (σ : HashConsSt p) (numAlloc : ℕ) : Prop :=
   ∀ i (h : i < c.size),
     letI evalSt := [varStore, σ, numAlloc|c.take i]ₑ
     c[i].varsAllocated evalSt.varStore σ ∧
     ∀ x ∈ Expr.varSet ⟨c[i].expr, σ⟩, x < evalSt.numAlloc
 
 @[aesop safe cases, grind]
-structure wellFormed (circuit : Circuit p) (Γ : VarStore p) (σ : HashConsSt p) (numAlloc : ℕ) : Prop where
+structure wellFormed (circuit : Circuit) (Γ : VarStore p) (σ : HashConsSt p) (numAlloc : ℕ) : Prop where
   refsValid : circuit.refsValid σ.size
   varsAllocated : circuit.varsAllocated Γ σ numAlloc
 
@@ -266,7 +266,7 @@ lemma eval_varStore_eval_insert_isSome_of_isSome
   {varStore : VarStore p}
   {σ : HashConsSt p}
   {numAlloc : ℕ}
-  {circuit : Circuit p}
+  {circuit : Circuit}
   {e : ExprRef}
   {key : ℕ}
   {value : ZMod p}
@@ -279,7 +279,7 @@ lemma eval_varStore_eval_insert_isSome_of_isSome
 
 @[grind .]
 lemma _root_.Clap.Gate.varsAllocated_step_of_wellFormed
-  {gate1 gate2 : Gate p}
+  {gate1 gate2 : Gate}
   (h_wf : gate2.wellFormed st.varStore σ)
 :
   gate2.varsAllocated [st, σ|gate1]ₛ.varStore σ
@@ -288,18 +288,18 @@ lemma _root_.Clap.Gate.varsAllocated_step_of_wellFormed
 
 @[grind .]
 lemma _root_.Clap.Gate.wellFormed_step_of_wellFormed
-  {gate1 gate2 : Gate p}
+  {gate1 gate2 : Gate}
   (h_wf : gate2.wellFormed st.varStore σ)
 :
   gate2.wellFormed [st, σ|gate1]ₛ.varStore σ
 := by
   grind
 
-variable {gate : Gate p} {Γ₁ Γ₂ Γ₃ : VarStore p}
+variable {gate : Gate} {Γ₁ Γ₂ Γ₃ : VarStore p}
 
 lemma varsAllocated_eval_append_right
   {i : ℕ}
-  {a : Circuit p}
+  {a : Circuit}
   {h_get : i < circuit.size}
   (h₀ : circuit.refsValid σ.size)
   (h : (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|circuit.extract 0 i]ₑ.varStore σ)
@@ -312,7 +312,7 @@ lemma varsAllocated_eval_append_right
   . simp [h]
   . suffices (circuit[i]'h_get).varsAllocated [varStore, σ, numAlloc|circuit.extract 0 i ++ ⟨tail.reverse⟩ ++ #[head]]ₑ.varStore σ by grind
     simp [Gate.varsAllocated] at h_tail ⊢
-    have (a: Array (Gate p)) (l : List (Gate p)) (gate : Gate p)
+    have (a: Array (Gate)) (l : List (Gate)) (gate : Gate)
       : a ++ (l ++ [gate]).toArray = (a ++ ⟨l⟩).push gate
     := by grind
     have : circuit[i].expr < σ.size := by
@@ -338,7 +338,7 @@ end Circuit
 namespace EvalSt
 
 variable {p pc numAlloc : ℕ} {σ : HashConsSt p} {constraints constraints1 constraints2 : Prop}
-         {varStore : VarStore p} {circuit : Circuit p} {e! : ExprRef} {gate : Gate p}
+         {varStore : VarStore p} {circuit : Circuit} {e! : ExprRef} {gate : Gate}
          {st : EvalSt p}
 
 @[ext, grind ext]
@@ -362,7 +362,7 @@ lemma evalInOrder_numAlloc_independent_of_constraints
   rewrite [←List.reverse_reverse circuit]
   induction' circuit.reverse <;> aesop (add safe (by grind))
 
-lemma foldl_step_numAlloc_independent_of_constraints' {circuit : List (Gate p)}
+lemma foldl_step_numAlloc_independent_of_constraints' {circuit : List (Gate)}
 :
   (circuit.foldl (fun result next => [result, σ|next]ₛ) ⟨numAlloc, varStore, constraints1⟩).numAlloc =
   (circuit.foldl (fun result next => [result, σ|next]ₛ) ⟨numAlloc, varStore, constraints2⟩).numAlloc
@@ -404,7 +404,7 @@ lemma evalInOrder_varStore_independent_of_constraints
     rfl
   . simp [tail_ih, foldr_step_numAlloc_independent_of_constraints' (constraints2 := constraints2), GetElem?.getElem?, EvalSt.get?]
 
-lemma foldl_step_varStore_independent_of_constraints {circuit : List (Gate p)}
+lemma foldl_step_varStore_independent_of_constraints {circuit : List (Gate)}
 :
   (circuit.foldl (fun result next => [result, σ|next]ₛ) ⟨numAlloc, varStore, constraints1⟩).varStore =
   (circuit.foldl (fun result next => [result, σ|next]ₛ) ⟨numAlloc, varStore, constraints2⟩).varStore
@@ -451,7 +451,7 @@ NB this is useless now.
 -/
 -- @[grind! .] -- I don't think there's an easy way to teach grind about the `σ` under the lambda
 lemma foldr_step_varStore_independent_of_constraints''
-  {circuit : Circuit p}
+  {circuit : Circuit}
   {σ₁ σ₂ : EvalSt p}
   (h₁ : σ₁.numAlloc = σ₂.numAlloc)
   (h₂ : σ₁.varStore = σ₂.varStore)
@@ -462,7 +462,7 @@ lemma foldr_step_varStore_independent_of_constraints''
   convert foldr_step_varStore_independent_of_constraints using 4 <;> grind
 
 lemma foldr_step_varStore_independent_of_constraints'''
-  {circuit : Circuit p}
+  {circuit : Circuit}
   {σ₁ σ₂ : EvalSt p}
   (h₁ : σ₁.numAlloc = σ₂.numAlloc)
   (h₂ : σ₁.varStore = σ₂.varStore) :
@@ -524,71 +524,20 @@ lemma evalInOrder_constraints_and
       rw [Array.foldr_toList, Array.foldr_toList]
       grind
 
-lemma foldl_step_constraints_and {circuit : List (Gate p)} :
+lemma foldl_step_constraints_and {circuit : List Gate} :
   (circuit.foldl (fun result next => [result, σ|next]ₛ) st).constraints =
   (st.constraints ∧ (circuit.foldl (fun result next => [result, σ|next]ₛ) st.split).constraints) := by
   have := @evalInOrder_constraints_and (circuit := ⟨circuit⟩) (σ := σ) (st := st)
   aesop
 
-/-
-TODO: TODO
--/
-/-
-@[grind .]
-lemma abc {varStore : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ} {a b : Circuit p} :
-  [varStore, σ, numAlloc|b]ₑ.varStore ⊆
-  [varStore, σ, numAlloc|a ++ b]ₑ.varStore := by
-  intros i h
-  rcases a with ⟨a⟩
-  rcases b with ⟨b⟩
-  induction' a with hd tl ih
-  · simp
-  · rw [show ⟨hd :: tl⟩ ++ ⟨b⟩ = #[hd] ++ (⟨tl⟩ ++ ⟨b⟩) by grind]
-    rcases hd with e | e | e | ⟨w, e⟩
-    · simp [ih]
-      unfold Circuit.eval
-      simp
-      have :
-        (List.foldl (fun result next => [result, σ|next]ₛ)
-        { numAlloc := numAlloc, varStore := varStore, constraints := [varStore,σ|e] = some 0 } tl) =
-        ({
-          numAlloc := (List.foldl (fun result next => [result, σ|next]ₛ)
-          { numAlloc := numAlloc, varStore := varStore, constraints := True } tl).numAlloc,
-          varStore := (List.foldl (fun result next => [result, σ|next]ₛ)
-          { numAlloc := numAlloc, varStore := varStore, constraints := True } tl).varStore,
-          constraints := [varStore,σ|e] = some 0 ∧ (List.foldl (fun result next => [result, σ|next]ₛ)
-          { numAlloc := numAlloc, varStore := varStore, constraints := True } tl).constraints }) := by
-        rw [stupidext (st := List.foldl (fun result next => [result, σ|next]ₛ)
-          { numAlloc := numAlloc, varStore := varStore, constraints := [varStore,σ|e] = some 0 } tl)]
-        congr 1
-        apply foldl_step_numAlloc_independent_of_constraints
-        apply foldl_step_varStore_independent_of_constraints
-        apply foldl_step_constraints_and
-      rw [this]
-      rw [foldl_step_varStore_independent_of_constraints]
-    · simp [ih]
-      unfold Circuit.eval
-      simp [-List.foldl_append]
-      simp [ih] at h
-      clear ih
-      set l := tl ++ b
-      rw [←List.reverse_reverse l]
-      induction' l.reverse with hd tl ih
-      · simp
-
-      done
-    · done
-
-  done
--/
 end EvalSt
 
 namespace Circuit
 
-variable {numAlloc : ℕ} {circuit1 circuit2 : Circuit p} {varStore : VarStore p}
+variable {numAlloc : ℕ} {circuit1 circuit2 : Circuit} {varStore : VarStore p}
          {σ : HashConsSt p}
 
-def seq (circuit₁ circuit₂ : Circuit p)
+def seq (circuit₁ circuit₂ : Circuit)
         (varStore : VarStore p)
         (numAlloc : ℕ)
         (σ : HashConsSt p)
@@ -640,7 +589,7 @@ lemma eval_append
   . exact EvalSt.evalInOrder_varStore_independent_of_constraints
   . exact EvalSt.evalInOrder_constraints_and
 
-variable {gate : Gate p} {circuit : Circuit p} {circuit_list : List (Gate p)}
+variable {gate : Gate} {circuit : Circuit} {circuit_list : List Gate}
 
 @[simp high, grind =]
 lemma eval_singleton
@@ -704,18 +653,18 @@ lemma eval_num2bits {width : ℕ} :
   simp [eval]
 
 @[simp, grind =]
-lemma seq_cons_nil {cmd : Gate p} {circuit : Circuit p} {varStore} {numAlloc} :
+lemma seq_cons_nil {cmd : Gate} {circuit : Circuit} {varStore} {numAlloc} :
   [varStore, σ, numAlloc|(⟨cmd :: circuit.toList⟩); #[]]ₑ =
   [varStore, σ, numAlloc|#[cmd]; circuit]ₑ := by
   aesop (add simp seq)
 
 @[simp high, grind =]
-lemma seq_singleton_nil {cmd : Gate p} {varStore} {numAlloc} :
+lemma seq_singleton_nil {cmd : Gate} {varStore} {numAlloc} :
   [varStore, σ, numAlloc|#[cmd]; #[]]ₑ =
   [varStore, σ, numAlloc|#[cmd]]ₑ := by
   grind [=seq]
 
-variable {σ σ' : HashConsSt p} {gate : Gate p} {st : EvalSt p} {circuit : Circuit p} {Γ : VarStore p}
+variable {σ σ' : HashConsSt p} {gate : Gate} {st : EvalSt p} {circuit : Circuit} {Γ : VarStore p}
 
 @[grind =>]
 lemma step_of_refsValid_prefix
@@ -755,37 +704,12 @@ lemma eval_of_refsValid_prefix
 end
 
 @[simp, grind _=_]
-lemma refsValid_append_iff {a b : Circuit p} {numAlloc : ℕ}
+lemma refsValid_append_iff {a b : Circuit} {numAlloc : ℕ}
 :
   (a ++ b).refsValid numAlloc ↔
   a.refsValid numAlloc ∧ b.refsValid numAlloc
 := by
   grind
-
--- /-
--- TODO: In terms of `Circuit.wellFormed`
--- -/
--- lemma varsAllocated_append
---   (a b : Circuit p)
---   {varStore : VarStore p}
---   {σ : HashConsSt p}
---   {numAlloc : ℕ}
---   (h₀ : a.refsValid σ.size)
---   (h₁ : b.refsValid σ.size)
---   (h_a : a.varsAllocated varStore σ numAlloc)
---   (h_b : b.varsAllocated varStore σ numAlloc)
--- :
---   (a ++ b).varsAllocated varStore σ numAlloc
--- := by
---   simp [varsAllocated] at ⊢ h_a h_b
---   . intro i h_i
---     simp [Array.getElem_append]
---     split_ifs with h_i'
---     . specialize h_a i h_i'
---       exact varsAllocated_eval_append_right h₀ h_a
---     . specialize h_b (i - a.size) (by omega)
---       simp (disch := omega) [Array.extract_eq_self_of_le]
---       exact varsAllocated_eval_append_left h_b
 
 @[grind →]
 lemma varsAllocated_of_append_singleton
@@ -823,8 +747,8 @@ lemma wellFormed_of_append_singleton
 
 attribute [grind =_] List.append_toArray
 
-variable {circuit : Circuit p} {k : ℕ} {val : ZMod p} {e : Expr p}
-         {body tail : List (Gate p)} {head last : Gate p}
+variable {circuit : Circuit} {k : ℕ} {val : ZMod p} {e : Expr p}
+         {body tail : List (Gate)} {head last : Gate}
 
 @[grind =>]
 lemma mem_eval_varStore_of_mem (h_mem : k ∈ varStore)
@@ -882,7 +806,7 @@ lemma varsAllocated_eval_append_left
   grind
 
 @[grind <=]
-lemma refsValid_take_of_refsValid {k bound : ℕ} {circuit : Circuit p} (h : circuit.refsValid bound) :
+lemma refsValid_take_of_refsValid {k bound : ℕ} {circuit : Circuit} (h : circuit.refsValid bound) :
   Circuit.refsValid (circuit.take k) bound := by
   unfold Circuit.refsValid at *
   intro gate a

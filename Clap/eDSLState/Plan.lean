@@ -43,14 +43,14 @@ namespace Clap
 structure CIRCUIT (p : ℕ) where
   public_inputs : Array (ZMod p)
   σ : HashConsSt p
-  circuit : Circuit p
+  circuit : Circuit
   wf : circuit.wellFormed (VarStore.ofArray (public_inputs.zipIdx.map Prod.swap)) σ 0
 
 def CIRCUIT.run {p k : ℕ} (c : CIRCUIT p) : VarStore p := sorry
 
-def Circuit.toWg {p : ℕ} (circuit : Circuit p) (σ : HashConsSt p) : VarStore p → VarStore p := sorry
+def Circuit.toWg {p : ℕ} (circuit : Circuit) (σ : HashConsSt p) : VarStore p → VarStore p := sorry
 
-def Circuit.toCs {p : ℕ} (circuit : Circuit p) (σ : HashConsSt p) : VarStore p → Bool := sorry
+def Circuit.toCs {p : ℕ} (circuit : Circuit) (σ : HashConsSt p) : VarStore p → Bool := sorry
 
 def VarStore.containsInputs
   {p : ℕ}
@@ -69,11 +69,11 @@ def VarStore.onlyInputs
 -- TODO circuit wellformed (width?)
 -- NB we have `Circuit.wellFormed` already, eh...
 
-def Gate.WF {p : ℕ} : Gate p → Prop
+def Gate.WF {p : ℕ} : Gate → Prop
   | .eq0 .. | .share .. | .isZero .. => True
   | .num2bits w .. => 2 ^ w < p
 
-def Circuit.WF {p : ℕ} (circuit : Circuit p) : Prop :=
+def Circuit.WF {p : ℕ} (circuit : Circuit) : Prop :=
   ∀ gate ∈ circuit, gate.WF
 
 def isSatisfiable {p : ℕ} (cs : VarStore p → Bool) (inputs : VarStore p) : Prop :=
@@ -81,7 +81,7 @@ def isSatisfiable {p : ℕ} (cs : VarStore p → Bool) (inputs : VarStore p) : P
 
 theorem wellbehavedness
   {p : ℕ}
-  {circuit : Circuit p}
+  {circuit : Circuit}
   {varStore : VarStore p}
   {numAlloc : ℕ}
   {σ : HashConsSt p}
@@ -93,7 +93,7 @@ theorem wellbehavedness
 
 theorem completeness
   {p : ℕ}
-  {circuit : Circuit p}
+  {circuit : Circuit}
   {varStore : VarStore p}
   {numAlloc : ℕ}
   {σ : HashConsSt p}
@@ -106,7 +106,7 @@ theorem completeness
 
 theorem soundness
   {p : ℕ}
-  (circuit : Circuit p)
+  (circuit : Circuit)
   (varStore : VarStore p)
   (numAlloc : ℕ)
   (σ : HashConsSt p)

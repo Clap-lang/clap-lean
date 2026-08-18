@@ -280,7 +280,7 @@ lemma varStore_alloc :
 lemma constraints_alloc :
   (st.alloc vars).constraints = st.constraints := rfl
 
-def step (result : EvalSt p) (next : Gate p) (σ : HashConsSt p) : EvalSt p :=
+def step (result : EvalSt p) (next : Gate) (σ : HashConsSt p) : EvalSt p :=
   match next with
   | .eq0 e => result.addConstraint (result[Expr.mk e σ]? = .some 0)
   | .share e => (result.assertAllocated ⟨e, σ⟩).alloc #v[result[Expr.mk e σ]!]
@@ -295,7 +295,7 @@ lemma step_mk
   (numAlloc : ℕ)
   (varStore : VarStore p)
   (constraints : Prop)
-  (next : Gate p)
+  (next : Gate)
   (σ : HashConsSt p)
 : (EvalSt.mk numAlloc varStore constraints).step next σ =
   match next with
@@ -322,7 +322,7 @@ lemma step_mk
 
 @[simp, grind =]
 lemma step_numAlloc
-  (next : Gate p)
+  (next : Gate)
 :
   (st.step next σ).numAlloc =
   st.numAlloc + next.numAllocStep
@@ -331,7 +331,7 @@ lemma step_numAlloc
 
 @[simp, grind =]
 lemma step_varStore_keys
-  (next : Gate p)
+  (next : Gate)
 :
   (st.step next σ).varStore.keys.toFinset =
   st.varStore.keys.toFinset ∪ (List.range' st.numAlloc next.numAllocStep).toFinset
@@ -375,7 +375,7 @@ lemma step_varStore_keys
       . grind
 
 
-variable {σ : HashConsSt p} {gate : Gate p}
+variable {σ : HashConsSt p} {gate : Gate}
 
 lemma step_unconstrained :
   [unconstrained[numAlloc][Γ], σ|gate]ₛ =

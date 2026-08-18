@@ -3,14 +3,14 @@ import Clap.eDSLState.Circuit
 namespace Clap
 
 structure WitnessGenerator (p : ℕ) where
-  circuit : Circuit p
+  circuit : Circuit
   σ : HashConsSt p
 
 namespace WitnessGenerator
 
 variable {p : ℕ} (wg : WitnessGenerator p)
 
-def trace_capacity : Gate p → ℕ
+def trace_capacity : Gate → ℕ
   | .eq0 _ => 0
   | .share _ => 1
   | .isZero _ => 2
@@ -40,7 +40,7 @@ def run (inputs : Array (ZMod p)) : Array (ZMod p) :=
 
 end WitnessGenerator
 
-def Circuit.toWg {p : ℕ} (circuit : Circuit p) (σ : HashConsSt p)
+def Circuit.toWg {p : ℕ} (circuit : Circuit) (σ : HashConsSt p)
 :
   WitnessGenerator p
 where

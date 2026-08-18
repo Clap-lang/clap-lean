@@ -30,7 +30,7 @@ def num2bits (width : ℕ) (e : ExprRef) : ClapM p (Vector (ExprRef) width) := d
 section wellFormed
 
 variable {numAlloc : ℕ} {e : Expr p} {e! : ExprRef} {Γ : VarStore p} {σ : HashConsSt p}
-         {gate : Gate p}
+         {gate : Gate}
 
 @[aesop unsafe, grind .]
 lemma wellFormed_tell_eq0 (h₁ : e! < σ.size)
@@ -129,7 +129,7 @@ lemma isZero_wellFormed
   · grind
 
 @[simp]
-abbrev num2bitsSansTellApply (p w numAlloc : ℕ) (σ : HashConsSt p) : ((List ExprRef × Circuit p) × ℕ) × HashConsSt p :=
+abbrev num2bitsSansTellApply (p w numAlloc : ℕ) (σ : HashConsSt p) : ((List ExprRef × Circuit) × ℕ) × HashConsSt p :=
   (List.ofFnM (n := w) (m := ClapM p)
     (
       fun _ => ClapM.alloc

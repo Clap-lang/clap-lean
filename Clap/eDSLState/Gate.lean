@@ -4,7 +4,7 @@ namespace Clap
 
 -- TODO remove p?
 @[grind cases]
-inductive Gate (p : ℕ) where
+inductive Gate where
   | eq0 (e : ExprRef)
   | share (e : ExprRef)
   | isZero (e : ExprRef)
@@ -18,7 +18,7 @@ section Gate
 variable {p : ℕ}
 
 @[grind =]
-def expr (gate : Gate p) : ExprRef :=
+def expr (gate : Gate) : ExprRef :=
   match gate with
   | .eq0 e | .share e | .isZero e | .num2bits _ e => e
 
@@ -27,32 +27,32 @@ section
 variable {ref : ℕ} {σ : HashConsSt p} {e : Expr p}
 
 @[simp, grind =]
-lemma expr_mk_eq0 : (Gate.eq0 (p := p) ref).expr = ref := rfl
+lemma expr_mk_eq0 : (Gate.eq0 ref).expr = ref := rfl
 
 @[simp, grind =]
-lemma expr_mk_share : (Gate.share (p := p) ref).expr = ref := rfl
+lemma expr_mk_share : (Gate.share ref).expr = ref := rfl
 
 @[simp, grind =]
-lemma expr_mk_isZero : (Gate.isZero (p := p) ref).expr = ref := rfl
+lemma expr_mk_isZero : (Gate.isZero ref).expr = ref := rfl
 
 @[simp, grind =]
-lemma expr_mk_num2bits {w} : (Gate.num2bits (p := p) w ref).expr = ref := rfl
+lemma expr_mk_num2bits {w} : (Gate.num2bits w ref).expr = ref := rfl
 
 end
 
 @[grind =]
-def refsValid (gate : Gate p) (bound : ℕ) : Prop := gate.expr < bound
+def refsValid (gate : Gate) (bound : ℕ) : Prop := gate.expr < bound
 
 @[grind =]
-def varsAllocated (gate : Gate p) (Γ : VarStore p) (σ : HashConsSt p) : Prop :=
+def varsAllocated (gate : Gate) (Γ : VarStore p) (σ : HashConsSt p) : Prop :=
   [Γ, σ|gate.expr].isSome
 
 @[aesop safe cases, grind]
-structure wellFormed (gate : Gate p) (Γ : VarStore p) (σ : HashConsSt p) : Prop where
+structure wellFormed (gate : Gate) (Γ : VarStore p) (σ : HashConsSt p) : Prop where
   refsValid : gate.refsValid σ.size
   varsAllocated : gate.varsAllocated Γ σ
 
-variable {gate : Gate p} {Γ : VarStore p} {σ : HashConsSt p} {e! : ExprRef} {bound : ℕ}
+variable {gate : Gate} {Γ : VarStore p} {σ : HashConsSt p} {e! : ExprRef} {bound : ℕ}
 
 instance : Decidable (gate.refsValid bound) :=
   inferInstanceAs <| Decidable (gate.expr < bound)
@@ -92,20 +92,20 @@ lemma refsValid_iff_wellFormed_mk :
   grind
 
 @[simp, grind =]
-lemma refsValid_eq0 : (Gate.eq0 e!).refsValid (p := p) bound ↔ e! < bound := by rfl
+lemma refsValid_eq0 : (Gate.eq0 e!).refsValid bound ↔ e! < bound := by rfl
 
 @[simp, grind =]
-lemma refsValid_share : (Gate.share e!).refsValid (p := p) bound ↔ e! < bound := by rfl
+lemma refsValid_share : (Gate.share e!).refsValid bound ↔ e! < bound := by rfl
 
 @[simp, grind =]
-lemma refsValid_isZero : (Gate.isZero e!).refsValid (p := p) bound ↔ e! < bound := by rfl
+lemma refsValid_isZero : (Gate.isZero e!).refsValid bound ↔ e! < bound := by rfl
 
 @[simp, grind =]
-lemma refsValid_num2bits {w : ℕ} : (Gate.num2bits w e!).refsValid (p := p) bound ↔ e! < bound := by rfl
+lemma refsValid_num2bits {w : ℕ} : (Gate.num2bits w e!).refsValid bound ↔ e! < bound := by rfl
 
 section Precedes
 
-variable {gate : Gate p} {Γ₁ Γ₂ Γ₃ : VarStore p}
+variable {gate : Gate} {Γ₁ Γ₂ Γ₃ : VarStore p}
 
 @[grind .]
 lemma wellFormed_of_wellFormed_precedes
@@ -143,7 +143,7 @@ lemma wellFormed_of_wellFormed_isPrefixOf
 lemma varsAllocated_eq_of_prefix_refsValid
   {σ σ' : HashConsSt p}
   {Γ : VarStore p}
-  {gate : Gate p}
+  {gate : Gate}
   (h_prefix : σ.exprs.isPrefixOf σ'.exprs = true)
   (h_refsValid : gate.refsValid σ.size) :
   gate.varsAllocated Γ σ' =
@@ -167,7 +167,7 @@ end Prefix
 
 section NumAlloc
 
-def numAllocStep : Gate p → ℕ
+def numAllocStep : Gate → ℕ
   | .eq0 _ => 0
   | .share _ => 1
   | .isZero _ => 1
@@ -175,22 +175,22 @@ def numAllocStep : Gate p → ℕ
 
 @[simp, grind =]
 lemma numAllocStep_eq0 {e : ExprRef}:
-  (Gate.eq0 (p := p) e).numAllocStep = 0
+  (Gate.eq0 e).numAllocStep = 0
 := rfl
 
 @[simp, grind =]
 lemma numAllocStep_share {e : ExprRef}:
-  (Gate.share (p := p) e).numAllocStep = 1
+  (Gate.share e).numAllocStep = 1
 := rfl
 
 @[simp, grind =]
 lemma numAllocStep_isZero {e : ExprRef}:
-  (Gate.isZero (p := p) e).numAllocStep = 1
+  (Gate.isZero e).numAllocStep = 1
 := rfl
 
 @[simp, grind =]
 lemma numAllocStep_num2bits {width} {e : ExprRef}:
-  (Gate.num2bits (p := p) width e).numAllocStep = width
+  (Gate.num2bits width e).numAllocStep = width
 := rfl
 
 end NumAlloc

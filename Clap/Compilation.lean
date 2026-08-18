@@ -298,7 +298,7 @@ lemma fail : ∀ {args : List (ZMod p)} {e : Expₑ p} {cs : Cs p (ZMod p)},
   · rw [reduce₁ h', fail₂ (by tauto)]
   · rw [fail₁ h']
 
-def Circuit.toCs (c : Circuit p var) : Cs p var :=
+def Circuit.toCs (c : Circuit var) : Cs p var :=
   match c with
   | .nil =>
       .nil
