@@ -55,7 +55,7 @@ inductive Exp.wf {var₁ var₂ : Type} (G : Set (Entry var₁ var₂)) : Exp p 
     wf G e2 e2' →
     wf G (.sub e1 e2) (.sub e1' e2')
 
-inductive Circuit.wf {var₁ var₂ : Type} : Set (Entry var₁ var₂) → Circuit var₁ → Circuit var₂ → Prop where
+inductive Circuit.wf {var₁ var₂ : Type} : Set (Entry var₁ var₂) → Circuit p var₁ → Circuit p var₂ → Prop where
   | nil {G} :
     wf G .nil .nil
   | eq0 {G el er cl cr} :
@@ -102,7 +102,7 @@ lemma Exp.unwrap_sem_pre {el : Expₑ p} {er: Exp p (Expₑ p)} {G}
     | apply Exp.sub_congr)
   )
 
-def id {var} : Circuit (Exp p var) → Circuit var
+def id {var} : Circuit p (Exp p var) → Circuit p var
   | .nil => .nil
   | .eq0 e c => .eq0 e.unwrap (id c)
   | .lam k => .lam fun x ↦ id (k (.v x))
@@ -115,7 +115,7 @@ section
 attribute [local grind =] Exp.eval
 
 open Circuit in
-theorem id_sem_pre [Fact (Nat.Prime p)] {cl : Circuitₑ p} {cr : Circuit (Expₑ p)} {G}
+theorem id_sem_pre [Fact (Nat.Prime p)] {cl : Circuitₑ p} {cr : Circuit p (Expₑ p)} {G}
   (h₁ : Circuit.wf G cl cr)
   (h₂ : ∀ entry ∈ G, entry.1 = entry.2.eval) :
   cl ≈ id cr := by

@@ -51,7 +51,7 @@ theorem unshare_all_sem_pre_F {c : Circuitₑ p} : c ≈ c.unshareAllF := by
 -/
 open Id
 
-def Circuit.unshareAll {var} (c : Circuit (Exp p var)) : Circuit var :=
+def Circuit.unshareAll {var} (c : Circuit p (Exp p var)) : Circuit p var :=
   match c with
   | .nil => .nil
   | .eq0 e c => .eq0 e.unwrap c.unshareAll
@@ -71,7 +71,7 @@ def expected_a : Circuit' 7 := fun _ => Circuit.lam (fun x => Circuit.eq0 (.c 1 
 
 end TestUnshare
 
-theorem unshareAll_sem_pre {cl : Circuitₑ p} {cr : Circuit (Expₑ p)} {G}
+theorem unshareAll_sem_pre {cl : Circuitₑ p} {cr : Circuit p (Expₑ p)} {G}
   (h₁ : Circuit.wf G cl cr)
   (h₂ : ∀ entry ∈ G, entry.1 = entry.2.eval) : cl ≈ cr.unshareAll := by
   induction cl generalizing cr G <;> cases h₁ <;> unfold Circuit.unshareAll
@@ -162,8 +162,8 @@ def Exp.degree {var} : Exp p var → Nat
   | .add l r | .sub l r => max l.degree r.degree
   | .mul l r => l.degree + r.degree
 
-def Circuit.unshareDegCps {var} (c : Circuit (Exp p var))
-                                (k : Bool × Circuit var → Circuit var) : Circuit var :=
+def Circuit.unshareDegCps {var} (c : Circuit p (Exp p var))
+                                (k : Bool × Circuit p var → Circuit p var) : Circuit p var :=
   match c with
   | .nil => k (true, .nil)
   | .eq0 e c =>
@@ -179,7 +179,7 @@ def Circuit.unshareDegCps {var} (c : Circuit (Exp p var))
       then k (true, c)
       else .share e.unwrap fun x => unshareDegCps (k' (.v x)) k
 
-def Circuit.unshareDeg {var} (c : Circuit (Exp p var)) : Circuit var :=
+def Circuit.unshareDeg {var} (c : Circuit p (Exp p var)) : Circuit p var :=
   unshareDegCps c fun (b, x) ↦ if b then x else id c
 
 def unshareDeg' (c : Circuit' p) : Circuit' p := fun var => Circuit.unshareDeg (c (Exp p var))

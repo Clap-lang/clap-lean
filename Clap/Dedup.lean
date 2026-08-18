@@ -41,7 +41,7 @@ def Exp.beq : Exp p Nat → Exp p Nat → Bool
   | _, _ => false
 
 -- TODO we are mixing expressions from eq0 and assert_range, they should be in different sets
-def dedupAux (c : Circuit (ℕ × var)) (n : ℕ) (set : Finset (Exp p ℕ)) : Circuit var :=
+def dedupAux (c : Circuit p (ℕ × var)) (n : ℕ) (set : Finset (Exp p ℕ)) : Circuit p var :=
   match c with
   | .nil => .nil
   | .eq0 e c =>
@@ -53,7 +53,7 @@ def dedupAux (c : Circuit (ℕ × var)) (n : ℕ) (set : Finset (Exp p ℕ)) : C
   | .isZero e k => .isZero e.toVar fun x => dedupAux (k (n, x)) (n + 1) set
   | .num2bits w e k => .num2bits w e.toVar fun xs => (dedupAux (k ((List.range' n w 1).zip xs)) n ({e.toNat} ∪ set))
 
-def dedup (c : Circuit (Nat × var)) : Circuit var := dedupAux c 0 ∅
+def dedup (c : Circuit p (Nat × var)) : Circuit p var := dedupAux c 0 ∅
 
 def dedup' (c : Circuit' p) : Circuit' p := fun var => dedup (c (Nat × var))
 
@@ -68,7 +68,7 @@ end Test
 
 open Id
 
-theorem dedup_sem_pre {cl : Circuitₑ p} {cr : Circuit (ℕ × ZMod p)} {G}
+theorem dedup_sem_pre {cl : Circuitₑ p} {cr : Circuit p (ℕ × ZMod p)} {G}
   (h₁ : Circuit.wf G cl cr)
   (h₂ : ∀ entry ∈ G, entry.1 = Exp.eval entry.2.2) : -- TODO(Marco): Do we really want eval here on the const?
   cl ≈ (dedup cr) := sorry
