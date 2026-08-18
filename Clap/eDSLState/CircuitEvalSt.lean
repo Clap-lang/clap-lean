@@ -269,8 +269,15 @@ lemma varStore_alloc :
 lemma constraints_alloc :
   (st.alloc vars).constraints = st.constraints := rfl
 
--- TODO: Fix me
-opaque fpmulPure (p w k : ℕ) (a b p' : Vector (ZMod p) k) : Vector (ZMod p) k
+def fpMulPureV (w k : ℕ) (a b c : Vector (ZMod p) k) : Option (Vector (ZMod p) k) :=
+  if (∀ x ∈ a, x.val < 2^w) ∧ (∀ x ∈ b, x.val < 2^w) ∧ (∀ x ∈ c, x.val < 2^w)
+  then
+    let A : Nat := limbsToNat w a.toList
+    let B : Nat := limbsToNat w b.toList
+    let C : Nat := limbsToNat w c.toList
+    if C = 0 then none
+    else some (natToLimbsV w k ((A * B) % C))
+  else none
 
 def step (result : EvalSt p) (next : Gate) (σ : HashConsSt p) : EvalSt p :=
   match next with
@@ -278,7 +285,7 @@ def step (result : EvalSt p) (next : Gate) (σ : HashConsSt p) : EvalSt p :=
   | .share e => (result.assertAllocated #v[⟨e, σ⟩]).alloc #v[result[Expr.mk e σ]!]
   | .isZero e => (result.assertAllocated #v[⟨e, σ⟩]).alloc #v[if result[Expr.mk e σ]? = Option.some 0 then 1 else 0]
   | .num2bits width e => (result.assertAllocated #v[⟨e, σ⟩]).alloc (num2bitsLsbPureV width (result[Expr.mk e σ]!))
-  | .fpmul w k a b p' => 
+  | .fpmul w k a b p' =>
     let aexprs := a.map (Expr.mk · σ)
     let bexprs := b.map (Expr.mk · σ)
     let p'exprs := p'.map (Expr.mk · σ)
@@ -286,7 +293,7 @@ def step (result : EvalSt p) (next : Gate) (σ : HashConsSt p) : EvalSt p :=
     let bvalues := bexprs.map (result[·]!)
     let p'values := p'exprs.map (result[·]!)
     (result.assertAllocated (aexprs ++ bexprs ++ p'exprs)).alloc
-      (fpmulPure p w k avalues bvalues p'values)
+      (fpMulPureV w k avalues bvalues p'values)
 
 notation "[" res ", " σ "|" cmd "]ₛ" => step res cmd σ
 
