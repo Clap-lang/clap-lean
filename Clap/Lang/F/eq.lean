@@ -1,10 +1,12 @@
 import Clap.Lang.F.F
 import Clap.Lang.FB.FB
 
-namespace Clap.Edsl.Lang.F
+namespace Clap.Lang.F
 
-def eq {p : ℕ} [p.AtLeastTwo] (a b : F p) : Edsl.CircuitM p (FB p) := do
-  Edsl.isZero (a - b)
+open HashConsM in
+def eq {p : ℕ} [p.AtLeastTwo] (a b : F p) : ClapM p (FB p) := do
+  let x ← mkSub a b
+  isZero x
 
 namespace eq
 

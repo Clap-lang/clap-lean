@@ -2,101 +2,11 @@ import Mathlib.Data.ZMod.Basic
 import Clap.eDSLState.Monad
 import Clap.eDSLState.Varstore
 
+import Clap.eDSLState.Convert
+
 namespace Clap
 
 abbrev withΓ (p : ℕ) (α ω : Type) := (VarStore p) → α → ω
-
-class IsValid (p : ℕ) (α : Type) where
-  isValid : withΓ p α Prop
-
-class VarStoreSize (p : ℕ) (α : Type) where
-  size : ℕ
-  toLinear : (VarStore p) → α → Vector (ZMod p) size
-
-attribute [reducible] VarStoreSize.size
-
-instance instVarStoreSizeUnit {p : ℕ} : VarStoreSize p Unit where
-  size := 0
-  toLinear _ _ := #v[]
-
-@[grind =]
-lemma instVarStoreSizeUnit_size {p : ℕ}:
-  (@instVarStoreSizeUnit p).size = 0
-:= rfl
-
-@[grind =]
-lemma instVarStoreSizeUnit_size' {p : ℕ}:
-  @VarStoreSize.size p Unit instVarStoreSizeUnit = 0
-:= rfl
-
--- set_option pp.all true in
-@[grind =]
-lemma instVarStoreSizeUnit_toLinear
-  {p : ℕ}
-  {varStore : VarStore p}
-  {x : Unit}
-:
-  (@instVarStoreSizeUnit p).toLinear varStore x =
-  @Vector.mk _ 0 #[] (by simp)
-:= rfl
-
-class Convert (p : ℕ) (representsT idealT : Type) extends IsValid p representsT where
-  toIdeal : (VarStore p) → representsT → Option idealT
-  toRepresents : idealT → representsT
-  isValid_iff_isSome_toIdeal :
-    ∀ (varStore : VarStore p) (x : representsT),
-      isValid varStore x ↔ (toIdeal varStore x).isSome
-  toIdeal_toRepresents :
-    ∀ (varStore : VarStore p) (x : idealT),
-      toIdeal varStore (toRepresents x) = .some x
-
-@[simp, grind =]
-lemma Convert.toRepresents_toIdeal
-  {p : ℕ}
-  {representsT idealT : Type}
-  [inst: Convert p representsT idealT]
-  {varStore : VarStore p}
-  {x : representsT}
-  (h : IsValid.isValid varStore x)
-:
-  toIdeal varStore (toRepresents p (representsT := representsT) ((toIdeal (idealT := idealT) varStore x).get ((isValid_iff_isSome_toIdeal varStore x).mp h))) =
-  inst.toIdeal varStore x
-:= by
-  simp [inst.toIdeal_toRepresents]
-
-instance {p : ℕ} : Convert p Unit Unit where
-  isValid := fun _ _ ↦ True
-  toIdeal _ x := .some x
-  toRepresents x := x
-  isValid_iff_isSome_toIdeal _ _ := by grind
-  toIdeal_toRepresents _ _ := by grind
-
-@[simp, grind .]
-lemma isValid_iff_isSome_toIdeal {p} {α β : Type} [Convert p α β]
-  {varStore : VarStore p} {x : α}
-:
-  (Convert.toIdeal (idealT := β) varStore x).isSome ↔
-  IsValid.isValid varStore x
-:= by
-  aesop (add safe cases Convert)
-
-@[grind .]
-lemma isValid_of_toIdeal_eq_some {p} {α β : Type} [Convert p α β]
-  {varStore : VarStore p} {x : α} {b : β}
-  (h : (Convert.toIdeal (idealT := β) varStore x) = .some b)
-:
-  IsValid.isValid varStore x
-:= by
-  have := Option.isSome_of_eq_some h
-  grind
-
-@[simp, grind .]
-lemma toIdealtoRepresents_of_convert {p} {α β : Type} [Convert p α β]
-  {varStore : VarStore p} {x : β}
-:
-  Convert.toIdeal (representsT := α) varStore (Convert.toRepresents p x) = .some x
-:= by
-  aesop (add safe cases Convert)
 
 def unaryFunctionResultIsValidIff (p : ℕ)
   {funIn funOut : Type}
