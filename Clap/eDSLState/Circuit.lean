@@ -390,6 +390,11 @@ lemma foldr_step_numAlloc_independent_of_constraints'
   simp only [Array.foldr_toList]
   exact foldr_step_numAlloc_independent_of_constraints
 
+@[aesop safe, grind .]
+lemma getElem?_eq_getElem?_of_varStore_eq {st₁ st₂ : EvalSt p} {e : Expr p} (h : st₁.varStore = st₂.varStore) :
+  st₁[e]? = st₂[e]? := by
+  grind [cases EvalSt]
+
 lemma evalInOrder_varStore_independent_of_constraints
 :
   (circuit.evalInOrder σ ⟨numAlloc, varStore, constraints1⟩).varStore =
@@ -397,14 +402,11 @@ lemma evalInOrder_varStore_independent_of_constraints
 := by
   rcases circuit with ⟨circuit⟩
   rewrite [←List.reverse_reverse circuit]
-  induction circuit.reverse <;> aesop (config := { warnOnNonterminal := false}) (add safe (by grind))
-  cases head
-  . grind
-  . simp [tail_ih, foldr_step_numAlloc_independent_of_constraints' (constraints2 := constraints2), EvalSt.getD, EvalSt.get?]
-  . simp [tail_ih, foldr_step_numAlloc_independent_of_constraints' (constraints2 := constraints2), GetElem?.getElem?, EvalSt.get?]
-    rfl
-  . simp [tail_ih, foldr_step_numAlloc_independent_of_constraints' (constraints2 := constraints2), GetElem?.getElem?, EvalSt.get?]
-  · simp [tail_ih, foldr_step_numAlloc_independent_of_constraints' (constraints2 := constraints2), GetElem?.getElem?, EvalSt.get?]
+  induction circuit.reverse
+  · grind
+  next hd tail h_tail =>
+    have := @foldr_step_numAlloc_independent_of_constraints' p numAlloc σ constraints1 constraints2 varStore ⟨tail⟩
+    grind
 
 lemma foldl_step_varStore_independent_of_constraints {circuit : List (Gate)}
 :
@@ -473,6 +475,32 @@ lemma foldr_step_varStore_independent_of_constraints'''
   simp [Array.foldr_toList]
   apply foldr_step_varStore_independent_of_constraints'' <;> grind
 
+@[simp, grind =]
+lemma varStore_step_split_eq_varStore_step {gate : Gate} :
+  [st.split, σ|gate]ₛ.varStore = 
+  [st, σ|gate]ₛ.varStore := by
+  grind
+
+@[simp, grind =]
+lemma Keyran {gate : Gate} {list : List Gate} :
+  (list.foldl (fun st next => [st, σ|next]ₛ) st).varStore =
+  (list.foldl (fun st next => [st, σ|next]ₛ) st.split).varStore := by
+  rw [←list.reverse_reverse]
+  induction' list.reverse with hd tl ih
+  · rfl
+  · simp at ⊢ ih
+    rcases hd <;> simp [ih]
+    done
+
+
+@[simp, grind .]
+lemma isSome_foldr_split :
+  (circuit.toList.foldr (fun x y => [y, σ|x]ₛ) st.split)[Expr.mk e! σ]?.isSome ↔
+  (circuit.toList.foldr (fun x y => [y, σ|x]ₛ) st)[Expr.mk e! σ]?.isSome := by
+  rcases st
+  simp [split]
+  grind
+
 @[simp, grind .]
 lemma isSome_foldr_split :
   (circuit.toList.foldr (fun x y => [y, σ|x]ₛ) st.split)[Expr.mk e! σ]?.isSome ↔
@@ -525,7 +553,7 @@ lemma evalInOrder_constraints_and
       · intro a
         simp_all only [and_self, iff_true]
     · rw [Array.foldr_toList, Array.foldr_toList]
-      simp [EvalSt.mem_def, ih]
+      simp [stepIsZero, EvalSt.mem_def, ih]
       expose_names
       rw [isSome_foldr_split]
       simp_all only
@@ -544,11 +572,12 @@ lemma evalInOrder_constraints_and
         simp_all only [and_self, iff_true]
       · intro a
         simp_all only [and_self, iff_true]
-    · simp [EvalSt.mem_def, ih]
+    · simp [EvalSt.mem_def, ih, stepFpmul]
       expose_names
       apply Iff.intro
       · intro a_1
         simp_all only [and_self, iff_true, true_and]
+        split_ands
         intro e a_2
         obtain ⟨left, right⟩ := a_1
         obtain ⟨left, right_1⟩ := left
@@ -573,6 +602,16 @@ lemma evalInOrder_constraints_and
             subst right_2
             rw [isSome_foldr_split]
             aesop
+        · aesop (add safe (by grind))
+          have : (List.foldr (fun x y => [y, σ|x]ₛ) st tl).varStore =
+                 (List.foldr (fun x y => [y, σ|x]ₛ) st.split tl).varStore := by
+                 
+                 done
+          rw [getElem?_eq_getElem?_of_varStore_eq]
+          done
+        · done
+        · done
+        · done
       · intro a_1
         simp_all only [and_self, iff_true, true_and]
         intro e a_2

@@ -420,29 +420,32 @@ lemma constraints_stepNum2bits : (st.stepNum2bits σ w e!).constraints =
 def stepFpmul (st : EvalSt p) (σ : HashConsSt p) (w k : ℕ) (a b p' : Vector ExprRef k) :=
   let (aexprs, bexprs, p'exprs) := (a.map (Expr.mk · σ), b.map (Expr.mk · σ), p'.map (Expr.mk · σ))
   let (avals, bvals, p'vals) := (aexprs.map (st[·]!), bexprs.map (st[·]!), p'exprs.map (st[·]!))
-  ((((st.assertAllocated (aexprs ++ bexprs ++ p'exprs)
+  (((((st.assertAllocated (aexprs ++ bexprs ++ p'exprs)
   ).addConstraint (∀ a ∈ aexprs, st[a]!.val < 2^w)
   ).addConstraint (∀ b ∈ bexprs, st[b]!.val < 2^w)
   ).addConstraint (∀ p' ∈ p'exprs, st[p']!.val < 2^w)
+  ).addConstraint (0 < ∑ i : Fin k, p'vals[i].val * (2^w)^i.val)
   ).alloc (fpMulPureV w k avals bvals p'vals)
 
 @[simp, grind =]
 lemma stepFpmul_mk {a b p'} :
   (EvalSt.mk numAlloc varStore constraints).stepFpmul σ w k a b p' =
   letI lookup! := fun e ↦ [varStore,σ|e].getD 0
+  let (avalues, bvalues, p'values) := (a.map lookup!, b.map lookup!, p'.map lookup!)
   {
     numAlloc := numAlloc + k,
     varStore :=
-      let (avalues, bvalues, p'values) := (a.map lookup!, b.map lookup!, p'.map lookup!)
       varStore.insertMany
         ((Vector.map (fun x => x + numAlloc) (Vector.range k)).zip
           (fpMulPureV w k avalues bvalues p'values)),
-    constraints := constraints ∧ ∀ e ∈ a ++ b ++ p', [varStore|⟨e, σ⟩].isSome = true
-                               ∧ (∀ e ∈ a, (lookup! e).val < 2 ^ w)
-                               ∧ (∀ e ∈ b, (lookup! e).val < 2 ^ w)
-                               ∧ (∀ e ∈ p', (lookup! e).val < 2 ^ w)
+    constraints := constraints ∧ (∀ e ∈ a ++ b ++ p', [varStore|⟨e, σ⟩].isSome = true)
+                               ∧ (∀ e ∈ avalues, e.val < 2 ^ w)
+                               ∧ (∀ e ∈ bvalues, e.val < 2 ^ w)
+                               ∧ (∀ e ∈ p'values, e.val < 2 ^ w)
+                               ∧ (0 < ∑ i : Fin k, p'values[i].val * (2 ^ w) ^ i.val)
   } := by
   unfold stepFpmul
+  simp
   aesop (add safe (by grind))
 
 @[simp, grind =]
@@ -463,10 +466,11 @@ lemma varStore_stepFpmul {w k} {a b p'} :
 lemma constraints_stepFpmul {w k} {a b p'} :
   (st.stepFpmul σ w k a b p').constraints =
   letI lookup! := fun e ↦ st[Expr.mk e σ]?.getD 0
-  st.constraints ∧ ∀ e ∈ a ++ b ++ p', ⟨e, σ⟩ ∈ st
+  st.constraints ∧ (∀ e ∈ a ++ b ++ p', ⟨e, σ⟩ ∈ st)
                  ∧ (∀ e ∈ a, (lookup! e).val < 2 ^ w)
                  ∧ (∀ e ∈ b, (lookup! e).val < 2 ^ w)
-                 ∧ (∀ e ∈ p', (lookup! e).val < 2 ^ w) := by
+                 ∧ (∀ e ∈ p', (lookup! e).val < 2 ^ w)
+                 ∧ (0 < ∑ i : Fin k, (lookup! p'[i]).val * (2 ^ w) ^ i.val) := by
   unfold stepFpmul
   aesop (add safe (by grind))
 
@@ -494,46 +498,6 @@ lemma step_num2bits {w} : st.step (.num2bits w e!) σ = stepNum2bits st σ w e! 
 lemma step_fpmul {w k a b p'} : st.step (.fpmul w k a b p') σ = stepFpmul st σ w k a b p' := rfl
 
 notation "[" res ", " σ "|" cmd "]ₛ" => step res cmd σ
-
--- TODO do we want to make individual functions for these parts and prove properties about them
--- @[simp, grind =]
--- lemma step_mk
--- : (EvalSt.mk numAlloc varStore constraints).step next σ =
---   match next with
---   | Gate.eq0 e => { numAlloc := numAlloc, varStore := varStore, constraints := constraints ∧ [varStore,σ|e] = some 0 }
---   | Gate.share e =>
---     { numAlloc := numAlloc + 1,
---       varStore := varStore.insertMany #v[(numAlloc, [varStore,σ|e].getD 0)],
---       constraints := constraints ∧ [varStore,σ|e].isSome = true }
---   | Gate.isZero e =>
---     { numAlloc := numAlloc + 1,
---       varStore := varStore.insertMany #v[(numAlloc, if [varStore,σ|e] = some 0 then 1 else 0)],
---       constraints := constraints ∧ [varStore,σ|e].isSome = true }
---   | Gate.num2bits width e =>
---     { numAlloc := numAlloc + width,
---       varStore := varStore.insertMany
---           ((Vector.map (fun x => x + numAlloc) (Vector.range width)).zip
---             (num2bitsLsbPureV width ([varStore,σ|e].getD 0))),
---       constraints := constraints ∧ [varStore,σ|e].isSome = true
---     }
---   | Gate.fpmul w k a b p' =>
---     letI lookup! := fun e ↦ [varStore,σ|e].getD 0
---     {
---       numAlloc := numAlloc + k,
---       varStore :=
---         let (avalues, bvalues, p'values) := (a.map lookup!, b.map lookup!, p'.map lookup!)
---         varStore.insertMany
---           ((Vector.map (fun x => x + numAlloc) (Vector.range k)).zip
---             (fpMulPureV w k avalues bvalues p'values)),
---       constraints := constraints ∧ ∀ e ∈ a ++ b ++ p', [varStore|⟨e, σ⟩].isSome = true
---                                  ∧ (∀ e ∈ a, (lookup! e).val < 2 ^ w)
---                                  ∧ (∀ e ∈ b, (lookup! e).val < 2 ^ w)
---                                  ∧ (∀ e ∈ p', (lookup! e).val < 2 ^ w)
---     }
--- := by
---   unfold step
---   cases next <;> simp
---   split_ands <;> aesop (add safe (by grind))
 
 end step
 
@@ -637,37 +601,6 @@ lemma varStore_split : st.split.varStore = st.varStore := rfl
 
 @[simp, grind =]
 lemma constraints_split : st.split.constraints = True := rfl
-
--- @[simp, grind =]
--- lemma step_eq0 :
---   [st,σ|.eq0 e!]ₛ = st.addConstraint (st[Expr.mk e! σ]? = .some 0) := rfl
-
--- @[simp, grind =]
--- lemma step_share :
---   [st, σ|.share e!]ₛ =
---   (st.assertAllocated #v[⟨e!, σ⟩] |>.alloc #v[st.getD ⟨e!, σ⟩]) := rfl
-
--- @[simp, grind =]
--- lemma step_isZero :
---   [st, σ|.isZero e!]ₛ =
---   (st.assertAllocated #v[⟨e!, σ⟩] |>.alloc #v[if st[(⟨e!, σ⟩ : Expr _)]? = .some 0 then 1 else 0]) := rfl
-
--- @[simp, grind =]
--- lemma step_num2bits {width} :
---   [st, σ|.num2bits width e!]ₛ =
---   (st.assertAllocated #v[⟨e!, σ⟩] |>.alloc (num2bitsLsbPureV width st[Expr.mk e! σ]!)) := rfl
-
--- @[simp, grind =]
--- lemma step_fpmul {w k} {a b p'} :
---   [st, σ|.fpmul w k a b p']ₛ =
---   let aexprs := Vector.map (fun x => { ref := x, σ := σ : Expr _ }) a
---   let bexprs := Vector.map (fun x => { ref := x, σ := σ : Expr _ }) b
---   let p'exprs := Vector.map (fun x => { ref := x, σ := σ : Expr _ }) p'
---   let avalues := Vector.map (fun x => st[x]!) aexprs
---   let bvalues := Vector.map (fun x => st[x]!) bexprs
---   let p'values := Vector.map (fun x => st[x]!) p'exprs
---   (st.assertAllocated (aexprs ++ bexprs ++ p'exprs)).alloc (fpmulPure p w k avalues bvalues p'values) :=
---   rfl
 
 @[aesop unsafe, grind =]
 lemma addConstraint_eq_mk :
