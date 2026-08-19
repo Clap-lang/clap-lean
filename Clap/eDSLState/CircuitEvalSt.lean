@@ -351,16 +351,18 @@ lemma step_mk
       constraints := constraints ∧ [varStore,σ|e].isSome = true
     }
   | Gate.fpmul w k a b p' =>
+    letI lookup! := fun e ↦ [varStore,σ|e].getD 0
     {
       numAlloc := numAlloc + k,
       varStore :=
-        let avalues := a.map ([varStore,σ|·].getD 0)
-        let bvalues := b.map ([varStore,σ|·].getD 0)
-        let p'values := p'.map ([varStore,σ|·].getD 0)
+        let (avalues, bvalues, p'values) := (a.map lookup!, b.map lookup!, p'.map lookup!)
         varStore.insertMany
           ((Vector.map (fun x => x + numAlloc) (Vector.range k)).zip
             (fpMulPureV w k avalues bvalues p'values)),
-      constraints := constraints ∧ ∀ e ∈ a ++ b ++ p', [varStore,σ|e].isSome = true
+      constraints := constraints ∧ ∀ e ∈ a ++ b ++ p', [varStore|⟨e, σ⟩].isSome = true
+                                 ∧ (∀ e ∈ a, (lookup! e).val < 2 ^ w)
+                                 ∧ (∀ e ∈ b, (lookup! e).val < 2 ^ w)
+                                 ∧ (∀ e ∈ p', (lookup! e).val < 2 ^ w)
     }
 := by
   unfold step
