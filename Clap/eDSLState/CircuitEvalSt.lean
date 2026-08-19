@@ -269,15 +269,38 @@ lemma varStore_alloc :
 lemma constraints_alloc :
   (st.alloc vars).constraints = st.constraints := rfl
 
-def fpMulPureV (w k : ℕ) (a b c : Vector (ZMod p) k) : Option (Vector (ZMod p) k) :=
-  if (∀ x ∈ a, x.val < 2^w) ∧ (∀ x ∈ b, x.val < 2^w) ∧ (∀ x ∈ c, x.val < 2^w)
-  then
-    let A : Nat := limbsToNat w a.toList
-    let B : Nat := limbsToNat w b.toList
-    let C : Nat := limbsToNat w c.toList
-    if C = 0 then none
-    else some (natToLimbsV w k ((A * B) % C))
-  else none
+def fpMulPureV (w k : ℕ) (a b p' : Vector (ZMod p) k) : Vector (ZMod p) k :=
+  let a_val : ℕ := ∑ i : Fin k, a[i].val * (2^w)^i.val
+  let b_val : ℕ := ∑ i : Fin k, b[i].val * (2^w)^i.val
+  let p'_val : ℕ := ∑ i : Fin k, p'[i].val * (2^w)^i.val
+  let res_val : ℕ := (a_val * b_val) % p'_val
+  natToLimbsV p w k res_val
+
+-- def eval : Circuitₑ p → denotation (ZMod p)
+--   | .nil =>
+--       .u
+--   | .lam k =>
+--       .l fun x => eval (k x)
+--   | .eq0 e c =>
+--       if e.eval = 0 then eval c else .n
+--   | .share e k =>
+--       (k e.eval).eval
+--   | .isZero e k =>
+--       if e.eval = 0 then (k 1).eval else (k 0).eval
+--   | .num2bits w e k =>
+--       if e.eval.val < 2^w then (k (num2bitsLsbPure w e.eval)).eval else .n
+--   | .fpmul w k a b p' cont =>
+--     if
+--       (∀ i : Fin k, a[i].eval.val < 2 ^ w) ∧
+--       (∀ i : Fin k, b[i].eval.val < 2 ^ w) ∧
+--       (∀ i : Fin k, p'[i].eval.val < 2 ^ w)
+--     then
+--       let a_val : ℕ := ∑ i : Fin k, a[i].eval.val * (2 ^ w) ^ i.1
+--       let b_val : ℕ := ∑ i : Fin k, b[i].eval.val * (2 ^ w) ^ i.1
+--       let p_val : ℕ := ∑ i : Fin k, p'[i].eval.val * (2 ^ w) ^ i.1
+--       let res_val : ℕ := (a_val * b_val) % p_val
+--       (cont (nat2words p w k res_val)).eval
+--     else .n
 
 def step (result : EvalSt p) (next : Gate) (σ : HashConsSt p) : EvalSt p :=
   match next with
@@ -292,7 +315,11 @@ def step (result : EvalSt p) (next : Gate) (σ : HashConsSt p) : EvalSt p :=
     let avalues := aexprs.map (result[·]!)
     let bvalues := bexprs.map (result[·]!)
     let p'values := p'exprs.map (result[·]!)
-    (result.assertAllocated (aexprs ++ bexprs ++ p'exprs)).alloc
+    ((((result.assertAllocated (aexprs ++ bexprs ++ p'exprs)
+    ).addConstraint (∀ a ∈ aexprs, result[a]!.val < 2^w)
+    ).addConstraint (∀ b ∈ bexprs, result[b]!.val < 2^w)
+    ).addConstraint (∀ p' ∈ p'exprs, result[p']!.val < 2^w)
+    ).alloc
       (fpMulPureV w k avalues bvalues p'values)
 
 notation "[" res ", " σ "|" cmd "]ₛ" => step res cmd σ
@@ -332,7 +359,7 @@ lemma step_mk
         let p'values := p'.map ([varStore,σ|·].getD 0)
         varStore.insertMany
           ((Vector.map (fun x => x + numAlloc) (Vector.range k)).zip
-            (fpmulPure p w k avalues bvalues p'values)),
+            (fpMulPureV w k avalues bvalues p'values)),
       constraints := constraints ∧ ∀ e ∈ a ++ b ++ p', [varStore,σ|e].isSome = true
     }
 := by

@@ -164,7 +164,7 @@ lemma length_natToLimbs {p w k n : ℕ}:
 := by
   induction k generalizing n <;> grind [natToLimbs]
 
-def natToLimbsV {p : ℕ} (w : ℕ) (k : ℕ) (n : ℕ) : Vector (ZMod p) k :=
+def natToLimbsV (p : ℕ) (w : ℕ) (k : ℕ) (n : ℕ) : Vector (ZMod p) k :=
   ⟨⟨natToLimbs w k n⟩, length_natToLimbs⟩
 
 def toChunks {w} {α:Type} (size : ℕ) (bits : Vector α (w*size)) : Vector (Vector α size) w :=
