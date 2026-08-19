@@ -121,6 +121,29 @@ instance : GetElem? (EvalSt p) (Expr p) (ZMod p) (fun Γ x ↦ x ∈ Γ) :=
 @[grind _=_]
 lemma mem_def {e : Expr p} : e ∈ st ↔ (st[e]?.isSome = true) := by rfl
 
+@[grind .]
+lemma getElem?_eq_of_varStore_eq
+  {st1 st2 : EvalSt p}
+  {e : Expr p}
+  (h_eq : st1.varStore = st2.varStore)
+:
+  st1[e]? = st2[e]?
+:= by
+  unfold_projs
+  unfold get?
+  grind
+
+@[grind .]
+lemma mem_eq_of_varStore_eq
+  {st1 st2 : EvalSt p}
+  {e : Expr p}
+  (h_eq : st1.varStore = st2.varStore)
+:
+  e ∈ st1 ↔ e ∈ st2
+:= by
+  rewrite [mem_def, mem_def]
+  grind
+
 def getDM (result : EvalSt p) (e : HashConsM p ExprRef) : HashConsM p (ZMod p) := do
   result.getM? e <&> Option.getD (dflt := 0)
 
@@ -383,9 +406,9 @@ lemma varStore_stepIsZero :
   simp [stepIsZero]
 
 @[simp, grind =]
-lemma constraints_stepIsZero : (st.stepShare σ e!).constraints =
-                              (st.constraints ∧ ⟨e!, σ⟩ ∈ st) := by
-  simp [stepShare]
+lemma constraints_stepIsZero : (st.stepIsZero σ e!).constraints =
+                               (st.constraints ∧ ⟨e!, σ⟩ ∈ st) := by
+  simp [stepIsZero]
 
 def stepNum2bits (st : EvalSt p) (σ : HashConsSt p) (w : ℕ) (e : ExprRef) :=
   (st.assertAllocated #v[⟨e, σ⟩]).alloc (num2bitsLsbPureV w (st[Expr.mk e σ]!))

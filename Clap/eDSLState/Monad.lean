@@ -499,12 +499,7 @@ lemma eval_bind
   letI result := (action.getResult numAlloc σ)
   [varStore, σ, numAlloc|action.getCircuit numAlloc σ; (function result).getCircuit numAlloc' σ']ₑ
 := by
-  simp [seq, eval, evalInOrder]
-  ext1 <;> simp
-  . exact EvalSt.evalInOrder_numAlloc_independent_of_constraints
-  . exact EvalSt.evalInOrder_varStore_independent_of_constraints
-  . rewrite [iff_eq_eq]
-    exact EvalSt.evalInOrder_constraints_and
+  grind
 
 lemma getHashConsState_apply {α β} {result : α} {numAlloc} {σ} {f : α → ClapM p β} :
   (f result).getHashConsState numAlloc σ = ((f result).run numAlloc σ).2 := rfl

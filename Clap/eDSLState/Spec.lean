@@ -230,33 +230,28 @@ def unaryMonadFunctionResultIsValidIff (p : ℕ)
     IsValid.isValid varStorePre (function a))
 
 open Convert VarStoreSize in
-def matchesUnaryMonadFunction (p : ℕ)
-  {funIn funOut specIn specOut : Type}
-  [Convert p funIn specIn] [Convert p funOut specOut]
+def commandMatchesSpec (p : ℕ)
+  {funOut specOut : Type}
+  [Convert p funOut specOut]
   [VarStoreSize p funOut]
-  (spec_function : specIn → specOut)
-  (function : funIn → ClapM p funOut)
+  (spec : specOut)
+  (cmd : ClapM p funOut)
+  (varStore : VarStore p)
   (numAlloc : ℕ)
   (σ : HashConsSt p)
-  (allocatesN : ℕ)
-  (constraints : specIn → Prop)
+  (constraints : Prop)
 : Prop :=
-  unaryFunctionResultIsValidIff p (function · |>.getResult numAlloc σ) ∧
-  (∀ numAllocPre, unaryFunctionResultIsCorrect p spec_function (λ a => (function a).getResult numAllocPre)) ∧
-  ∀ (a : funIn) (varStorePre : VarStore p) (numAllocPre : ℕ),
-    (h : IsValid.isValid varStorePre a) →
-      letI aVal : specIn := toIdeal varStorePre a |>.get ((Convert.isValid_iff_isSome_toIdeal _ _).mp h)
-      let ⟨result, circuit⟩ : funOut × CircuitResult p :=
-        CircuitM.runAndEval (function a) numAllocPre varStorePre
-      let constraintsCorrect := circuit.constraints = (constraints aVal)
-      let allocatesCorrect := circuit.numAlloc = numAllocPre + allocatesN
-      let frameRule := ∀ n < numAllocPre, circuit.varStore[n]? = varStorePre[n]?
-      letI linearRepr := toLinear circuit.varStore result
-      let resultInVarStore := assertMatchesLast circuit.varStore circuit.numAlloc linearRepr
-      constraintsCorrect ∧
-      allocatesCorrect ∧
-      frameRule ∧
-      resultInVarStore
+  Convert.toIdeal varStore (cmd.getResult numAlloc σ) = .some spec ∧
+  let ⟨result, circuit⟩ : funOut × EvalSt p := ClapM.runAndEval cmd numAlloc varStore σ
+  let constraintsCorrect := circuit.constraints ↔ constraints
+  -- let allocatesCorrect := circuit.numAlloc = numAlloc + allocatesN -- hey, may or may not be needed at some point in the future
+  let frameRule := ∀ n < numAlloc, circuit.varStore[n]? = varStore[n]?
+  letI linearRepr := toLinear circuit.varStore result
+  let resultInVarStore := assertMatchesLast circuit.varStore circuit.numAlloc linearRepr
+  constraintsCorrect ∧
+  -- allocatesCorrect ∧
+  frameRule ∧
+  resultInVarStore
 
 def binaryFunctionResultIsValidIff (p : ℕ)
   {funIn₁ funIn₂ funOut : Type}
