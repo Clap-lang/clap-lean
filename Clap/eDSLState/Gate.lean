@@ -9,6 +9,11 @@ inductive Gate where
   | isZero (e : ExprRef)
   | num2bits (w : ℕ) (e : ExprRef)
   | fpmul (w k : ℕ) (a b p' : Vector ExprRef k)
+                    -- TODO(or something)
+                    -- Maybe just `∀ σ γ p ∈ p', [Γ, σ|p'[i]].getD 0 ≠ 0 ?`
+                    -- Or this?
+                    -- ∀ {p} {σ : HashConsSt p} {Γ : VarStore p},
+                    --       ∑ (i : Fin k), ([Γ, σ|p'[i]].getD 0).val * (2^w)^i.val > 0)?
 deriving Inhabited
 
 namespace Gate
