@@ -91,6 +91,19 @@ lemma getResult_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt
   (liftM (m := HashConsM p) (n := ClapM p) action).getResult numAlloc σ = action.getResult σ := by
   rfl
 
+@[simp, grind =]
+lemma getHashConsState_isZero {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
+  (isZero e!).getHashConsState numAlloc σ =
+  if .v numAlloc ∈ σ.exprs
+  then σ
+  else σ.pushExpr (.v numAlloc) (by simp) := by
+  grind [isZero]
+
+@[simp, grind =]
+lemma getNumAlloc_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
+  (liftM (m := HashConsM p) (n := ClapM p) action).getNumAlloc numAlloc σ = numAlloc := rfl
+  
+
 lemma matches_spec
   [p.AtLeastTwo]
   {varStore : VarStore p}
@@ -125,43 +138,13 @@ lemma matches_spec
     rw [hf]
     unfold eq
     rw [ClapM.getHashConsState_bind]
-    
+    simp
+      
 
     done
   
   
   
-  rw [this]
-  simp only [Circuit.eval_singleton, EvalSt.step_isZero, EvalSt.varStore_stepIsZero,
-    EvalSt.varStore_unconstrained, EvalSt.numAlloc_unconstrained, EvalSt.getElem?_unconstrained,
-    Std.ExtTreeMap.insertMany_single]
-  
-
-
-    -- unfold ClapM.getCircuit
-    -- rw [ClapM.run_def]
-    -- rw [hf]
-    -- unfold eq
-    -- unfold_projs
-    -- simp [WriterT.run]
-    -- unfold WriterT.mk
-    -- unfold StateT.bind
-    -- simp
-    -- unfold_projs
-    -- simp [StateT.bind]
-    -- unfold_projs
-    -- simp
-    -- simp [StateT.map]
-    -- unfold Functor.map
-    -- unfold_projs
-    -- simp [StateT.map]
-    -- unfold Functor.map
-    -- unfold_projs
-    -- simp
-
-    
-    
-
 
 
   sorry
