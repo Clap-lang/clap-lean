@@ -74,9 +74,6 @@ lemma getCircuit_num2bits {w : ℕ} {e! : ExprRef} {numAlloc} {σ : HashConsSt p
   (num2bits w e!).getCircuit numAlloc σ = #[.num2bits w e!] := by
   simp [num2bits]
 
-def _root_.Clap.HashConsM.getResult {α} (action : HashConsM p α) (σ : HashConsSt p) : α :=
-  (action.run σ).1
-
 @[simp, grind =]
 lemma getResult_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
   (liftM (m := HashConsM p) (n := ClapM p) action).getResult numAlloc σ = action.getResult σ := by
@@ -127,7 +124,7 @@ lemma matches_spec
   have : aExpr.wellFormed := by grind
   have : bExpr.wellFormed := by grind
   set f := a.eq b (p := p) with hf
-  have : f.getCircuit numAlloc σ = #[Gate.isZero ((HashConsM.mkSub a b).getResult σ)] := by    
+  have : f.getCircuit numAlloc σ = #[Gate.isZero ((HashConsM.mkSub a b).getResult σ)] := by
     simp [hf, eq]
   have : f.getHashConsState numAlloc σ = σ := by
     rw [hf]
@@ -137,9 +134,9 @@ lemma matches_spec
     sorry
 
     done
-  
-  
-  
+
+
+
 
 
   sorry
@@ -154,6 +151,29 @@ def spec (len : ℕ) (idx : ℕ) : Vector Bool len :=
 opaque Convert.toIdeal {len : ℕ} (varStore : VarStore p) (σ : HashConsSt p) (result : Vector FB len) : Option (Vector Bool len)
 
 
+-- lemma Vector.mapM_append {p} {α β} {n} {n'}
+--     {f : α → ClapM p β} {xs : Vector α n} :
+--     xs.mapM f =
+--     (λ numAlloc σ => (((), ), ))
+-- := by
+--   done
+
+@[simp, grind =]
+lemma _root_.Clap.ClapM.Vector.mapM_singleton
+  {α}
+  {len : α}
+  (f : α → ClapM p FB)
+:
+  #v[len].mapM f =
+  f len >>= fun x => pure #v[x]
+:= by
+  unfold Vector.mapM
+  cbv
+  simp [WriterT.run]
+  funext
+  simp [StateT.bind]
+  cbv
+
 --TODO prove using eq.matches_spec
 --this may require adding to F.matches_spec, or defining properties about Convert.toIdeal
 --in either case, the goal is to reach a fixed point where the same properties are known about the two Convert.toIdeal functions,
@@ -165,7 +185,7 @@ lemma matches_spec
   {varStore : VarStore p}
   {numAlloc : ℕ}
   {σ : HashConsSt p}
-  {idx_val : ℕ} 
+  {idx_val : ℕ}
   (h : (Expr.mk idx σ).wellFormed)
   (h_idx_wf : [varStore, σ|idx].isSome = true)
   (h_idx_val : ([varStore,σ|idx].get h_idx_wf).val = idx_val)
@@ -182,16 +202,64 @@ lemma matches_spec
   dsimp
   set f := oneHotRaw len idx (p := p) with eq
   unfold oneHotRaw at eq
+  set range_vec := Vector.range len
   induction' len with len ih
   · have : Vector.range 0 = #v[] := rfl
-    simp [this] at eq
+    simp [this, range_vec] at eq
     subst f
     simp [eq]
     unfold spec
     simp [this]
     have todoLater₁ : Convert.toIdeal varStore σ #v[] = some #v[] := sorry
     exact todoLater₁
-  · 
+  · simp at ih
+    specialize ih (by rfl)
+    have :
+      oneHotRaw (len + 1) idx =
+      do
+        let vec ← oneHotRaw len idx
+        let idx_val ← liftM (HashConsM.mkConstant (p := p) len)
+        let elem ← F.eq (p := p) idx idx_val
+        return vec.push elem
+    := by
+      simp? [oneHotRaw, Vector.range_succ, Vector.mapM_append, -Vector.append_singleton]
+      set v := Vector.mapM
+          (fun i => do
+            let idx_val ← liftM (HashConsM.mkConstant (i : ZMod p))
+            idx.eq (p := p) idx_val)
+          (Vector.range len)
+      simp
+    unfold oneHotRaw at this
+    simp [range_vec, this] at eq
+    rewrite [←oneHotRaw.eq_def] at eq
+    apply And.intro
+    . done
+    . simp [eq]
+      apply ClapM.bind_wellFormed (by grind)
+      apply ClapM.bind_wellFormed
+      .
+        done
+      . simp [map_eq_pure_bind, -bind_pure_comp]
+        apply ClapM.bind_wellFormed
+        . have := @F.eq.matches_spec p _
+            [varStore, (oneHotRaw len idx).getHashConsState numAlloc σ, numAlloc|(oneHotRaw len idx).getCircuit numAlloc σ]ₑ.varStore
+            ((oneHotRaw len idx).getNumAlloc numAlloc σ)
+            ((liftM (n := ClapM p) (HashConsM.mkConstant (len : ZMod p))).getHashConsState ((oneHotRaw len idx).getNumAlloc numAlloc σ) ((oneHotRaw len idx).getHashConsState numAlloc σ))
+            idx
+            ((HashConsM.mkConstant ↑len).getResult ((oneHotRaw len idx).getHashConsState numAlloc σ))
+            0 0
+            sorry
+            sorry
+            sorry
+            sorry
+            sorry
+            sorry
+          obtain ⟨_, it⟩ := this
+          exact it
+        . grind
+
+
+
 
   done
 

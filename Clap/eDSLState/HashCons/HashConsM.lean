@@ -29,6 +29,20 @@ variable {e : CacheExpr p} {σ : HashConsSt p}
 def run {α} (cmd : HashConsM p α) (state : HashConsSt p) : α × (HashConsSt p) :=
   StateT.run cmd state
 
+def getResult {α} (action : HashConsM p α) (σ : HashConsSt p) : α :=
+  (action.run σ).1
+
+def getHashConsState {α} (action : HashConsM p α) (σ : HashConsSt p) : HashConsSt p :=
+  (action.run σ).2
+
+def wellFormed
+  {p : ℕ}
+  {α}
+  (σ : HashConsSt p)
+  (action : HashConsM p α)
+: Prop :=
+  σ.exprs.isPrefixOf (action.getHashConsState σ).exprs
+
 @[grind .]
 lemma run_saveExpr_of_wellFormed (h : e.wellFormed σ.exprs.size) :
   (HashConsM.saveExpr e).run σ =
