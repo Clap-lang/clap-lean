@@ -49,6 +49,48 @@ opaque spec {p} (a b : ZMod p) : Bool :=
 
 opaque Convert.toIdeal (varStore : VarStore p) (σ : HashConsSt p) (result : FB) : Option Bool
 
+/--
+Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+-/
+@[simp, grind =]
+lemma getCircuit_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
+  (liftM (m := HashConsM p) (n := ClapM p) action).getCircuit numAlloc σ = #[] := by
+  rfl
+
+/--
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+-/
+@[simp, grind =]
+lemma getCircuit_isZero {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
+  (isZero e!).getCircuit numAlloc σ = #[.isZero e!] := by
+  simp [isZero]
+
+@[simp, grind =]
+lemma getCircuit_eq0 {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
+  (eq0 e!).getCircuit numAlloc σ = #[.eq0 e!] := by
+  simp [eq0]
+
+@[simp, grind =]
+lemma getCircuit_share {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
+  (share e!).getCircuit numAlloc σ = #[.share e!] := by
+  simp [share]
+
+@[simp, grind =]
+lemma getCircuit_num2bits {w : ℕ} {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
+  (num2bits w e!).getCircuit numAlloc σ = #[.num2bits w e!] := by
+  simp [num2bits]
+
+def _root_.Clap.HashConsM.getResult {α} (action : HashConsM p α) (σ : HashConsSt p) : α :=
+  (action.run σ).1
+
+/--
+Waaaaaaaaaagh!
+-/
+@[simp, grind =]
+lemma getResult_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
+  (liftM (m := HashConsM p) (n := ClapM p) action).getResult numAlloc σ = action.getResult σ := by
+  rfl
+
 lemma matches_spec
   [p.AtLeastTwo]
   {varStore : VarStore p}
@@ -56,6 +98,8 @@ lemma matches_spec
   {σ : HashConsSt p}
   (a b : F)
   (a_val b_val : ZMod p)
+  (h_a_wf_σ : a < σ.size)
+  (h_b_wf_σ : b < σ.size)
   (h_a_wf : [varStore|Expr.mk a σ].isSome = true)
   (h_a_val : [varStore,σ|a].get h_a_wf = a_val)
   (h_b_wf : [varStore|Expr.mk b σ].isSome = true)
@@ -69,6 +113,57 @@ lemma matches_spec
     (eq a b)
     (spec a_val b_val)
 := by
+  dsimp [F.matches_spec]
+  set aExpr : Expr _ := ⟨a, σ⟩
+  set bExpr : Expr _ := ⟨b, σ⟩
+  have : aExpr.wellFormed := by grind
+  have : bExpr.wellFormed := by grind
+  set f := a.eq b (p := p) with hf
+  have : f.getCircuit numAlloc σ = #[Gate.isZero ((HashConsM.mkSub a b).getResult σ)] := by
+    simp [hf, eq]
+  have : f.getHashConsState numAlloc σ = σ := by
+    rw [hf]
+    unfold eq
+    rw [ClapM.getHashConsState_bind]
+    
+
+    done
+  
+  
+  
+  rw [this]
+  simp only [Circuit.eval_singleton, EvalSt.step_isZero, EvalSt.varStore_stepIsZero,
+    EvalSt.varStore_unconstrained, EvalSt.numAlloc_unconstrained, EvalSt.getElem?_unconstrained,
+    Std.ExtTreeMap.insertMany_single]
+  
+
+
+    -- unfold ClapM.getCircuit
+    -- rw [ClapM.run_def]
+    -- rw [hf]
+    -- unfold eq
+    -- unfold_projs
+    -- simp [WriterT.run]
+    -- unfold WriterT.mk
+    -- unfold StateT.bind
+    -- simp
+    -- unfold_projs
+    -- simp [StateT.bind]
+    -- unfold_projs
+    -- simp
+    -- simp [StateT.map]
+    -- unfold Functor.map
+    -- unfold_projs
+    -- simp [StateT.map]
+    -- unfold Functor.map
+    -- unfold_projs
+    -- simp
+
+    
+    
+
+
+
   sorry
 
 end eq

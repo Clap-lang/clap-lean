@@ -25,7 +25,12 @@ def isZero (e : ExprRef) : ClapM p (ExprRef) := do
 @[irreducible]
 def num2bits (width : ℕ) (e : ExprRef) : ClapM p (Vector (ExprRef) width) := do
   tell #[.num2bits width e]
-  Vector.ofFnM fun _ ↦ ClapM.alloc
+  Vector.ofFnM fun (_ : Fin width) ↦ ClapM.alloc
+
+@[irreducible]
+def fpmul (width k : ℕ) (a b p' : Vector ExprRef k) : ClapM p (Vector (ExprRef) k) := do
+  tell #[.fpmul width k a b p']
+  Vector.ofFnM fun (_ : Fin k) ↦ ClapM.alloc
 
 section wellFormed
 
@@ -234,6 +239,51 @@ lemma num2bits_wellFormed {width : ℕ}
       . split_ands
         . apply isSome_eval_of_prefix (by grind) h_isSome (by trivial)
           grind
+        . intro x h_x
+          rewrite [←varSet.varSet_eq_of_prefix (by grind) h_wellFormed] at h_x
+          . grind
+          . grind
+      . grind
+  . grind
+  . grind
+
+lemma fpmul_wellFormed {width k : ℕ} {a b p' : Vector ExprRef k}
+  (h₁ : ∀ e! ∈ a, e! < σ.size)
+  (h₂ : ∀ e! ∈ b, e! < σ.size)
+  (h₃ : ∀ e! ∈ p', e! < σ.size)
+  (h₄ : ∀ v < numAlloc, v ∈ Γ)
+  (h₅ : ∀ e! ∈ a, ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc)
+  (h₆ : ∀ e! ∈ b, ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc)
+  (h₇ : ∀ e! ∈ p', ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc) :
+  (fpmul width k a b p').wellFormed numAlloc Γ σ := by
+  unfold fpmul
+  have h_isSome₁ : ∀ e! ∈ a, [Γ,σ|e!].isSome := by grind
+  have h_isSome₂ : ∀ e! ∈ b, [Γ,σ|e!].isSome := by grind
+  have h_isSome₃ : ∀ e! ∈ p', [Γ,σ|e!].isSome := by grind
+  have h_wellFormed₁ : ∀ e! ∈ a, (Expr.mk e! σ).wellFormed := by grind
+  have h_wellFormed₂ : ∀ e! ∈ b, (Expr.mk e! σ).wellFormed := by grind
+  have h_wellFormed₃ : ∀ e! ∈ p', (Expr.mk e! σ).wellFormed := by grind
+  unfold ClapM.wellFormed
+  split_ands
+  · simp [Circuit.refsValid]
+    split_ands
+    . intros ref href      
+      have : ref < σ.size := by
+        rcases href with h | h | h <;> specialize_all ref <;> grind
+      exact lt_of_lt_of_le this (by grind)
+    . unfold Circuit.varsAllocated
+      intro i h_i
+      obtain _ | ⟨i⟩ := i <;> simp
+      . split_ands
+        . intros ref href
+          specialize_all ref
+          rcases href with h | h | h <;> specialize_all h
+          · apply isSome_eval_of_prefix (by grind) (h_isSome₁) (by grind)
+            grind
+          · apply isSome_eval_of_prefix (by grind) (h_isSome₂) (by grind)
+            grind
+          · apply isSome_eval_of_prefix (by grind) (h_isSome₃) (by grind)
+            grind
         . intro x h_x
           rewrite [←varSet.varSet_eq_of_prefix (by grind) h_wellFormed] at h_x
           . grind

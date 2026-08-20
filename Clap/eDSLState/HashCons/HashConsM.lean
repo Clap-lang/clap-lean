@@ -25,6 +25,10 @@ def saveExpr (e : CacheExpr p) : HashConsM p ExprRef := do
 
 variable {e : CacheExpr p} {σ : HashConsSt p}
 
+@[grind =]
+def run {α} (cmd : HashConsM p α) (state : HashConsSt p) : α × (HashConsSt p) :=
+  StateT.run cmd state
+
 @[grind .]
 lemma run_saveExpr_of_wellFormed (h : e.wellFormed σ.exprs.size) :
   (HashConsM.saveExpr e).run σ =
@@ -32,14 +36,14 @@ lemma run_saveExpr_of_wellFormed (h : e.wellFormed σ.exprs.size) :
   then (σ.exprs.idxOf e, σ)
   else (σ.exprs.size, HashConsSt.pushExpr e σ h)
 := by
-  unfold HashConsM.saveExpr
+  unfold HashConsM.saveExpr run
   grind
 
 lemma run_saveExpr_of_mem (h : e ∈ σ) :
   (saveExpr e).run σ =
   (σ.exprs.idxOf e, σ)
 := by
-  unfold saveExpr
+  unfold saveExpr run
   aesop (add simp HashConsSt.mem_def)
 
 @[grind =]
@@ -72,10 +76,6 @@ lemma getElem?_eq {σ : HashConsSt p} : σ[ref]? = σ.exprs[ref]? := by
 end Membership
 
 section Run
-
-@[grind =]
-def run {α} (cmd : HashConsM p α) (state : HashConsSt p) : α × (HashConsSt p) :=
-  StateT.run cmd state
 
 def runGet? (ref : HashConsM p ExprRef) (σ : HashConsSt p) : Option (CacheExpr p) :=
   let (ref', σ') := ref.run σ
