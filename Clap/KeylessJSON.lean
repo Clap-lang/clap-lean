@@ -3,6 +3,8 @@ import Lean.Data.Json.Basic
 import Lean.Data.Json.Parser
 import Lean.Data.Json.Printer
 
+import Std.Internal.Parsec
+
 import Clap.Lang
 import Clap.Wheels
 import Clap.Array
@@ -15,16 +17,21 @@ import Clap.Sha2.Keyless
 import Clap.RSA
 import Clap.Keyless
 
+open Std.Internal.Parsec
+open Std.Internal.Parsec.String
+
 open Lean Json ToJson FromJson
 
 namespace Keyless
+
+#check Parser (List Json)
 
 #check Lean.Json.parse
 
 /-
 
-A value of `StringOrURI` type that contains a ":" character MUST be a URI, not a string
-*TODO: Does Aptos check this?*
+A value of `StringOrURI` type that contains a ":" character must be a URI, not a string,
+but for the Aptos case this is not important.
 
 **iss**
   - of type `StringOrURI`, actually just a string
@@ -62,7 +69,7 @@ structure AptosPayload where
   nonce          : String
   -- The value of the field named by the request's extra field.
   extra_field    : String
-  deriving Inhabited, Repr
+  deriving Inhabited, Repr, BEq
 
 /-- `email_verified` may be given as a JSON boolean (`true`/`false`) or as a JSON
 string (`"true"`/`"false"`); any other value is rejected. -/
@@ -73,15 +80,60 @@ def emailVerifiedFromJson : Json → Except String Bool
   | .str s => throw s!"The field (email_verified) must be true, false, \"true\" or \"false\", but got (\"{s}\")."
   | _ => throw "The field (email_verified) must be a boolean or a string."
 
-def payload_from_json_string
+/--
+Parse a list of one or more key-value pairs followed by a "}".
+Implemented like `Json.Parser.objectCore`, but it keeps all the claims from the
+top level that share the same key.
+-/
+partial def objectCoreAllPairs' (acc : Std.TreeMap.Raw String (List Json)) :
+  Parser (Std.TreeMap.Raw String (List Json))
+:= do
+  Json.Parser.lookahead (fun c => c == '"') "\""; skip
+  let k ← Json.Parser.str
+  ws
+  Json.Parser.lookahead (fun c => c == ':') ":"; skip; ws
+  let v ← Json.Parser.anyCore
+  let c ← any
+  if c == '}' then
+    ws
+    return acc.mergeWith (fun _ v₁ v₂ ↦ v₁ ++ v₂) {(k, [v])}
+  else if c == ',' then
+    ws
+    objectCoreAllPairs' <| acc.mergeWith (fun _ v₁ v₂ ↦ v₁ ++ v₂) {(k, [v])}
+  else
+    fail "unexpected character in object"
+
+/-- All ways of picking one value for each key from its list of candidate values
+-/
+def keyValueAlts : List (String × List Json) → List (List (String × Json))
+  | [] => [[]]
+  | (k, vs) :: rest =>
+    let restAlts := keyValueAlts rest
+    vs.flatMap (fun v => restAlts.map (fun r => (k, v) :: r))
+
+/-- Like `Json.Parser.any`, but restricted to flat JSON objects (values are not
+themselves JSON objects/arrays) and nondeterministic in the presence of duplicate keys
+ -/
+def anyFlatNondet : Parser (List Json) := do
+  ws
+  Json.Parser.lookahead (fun c => c == '{') "{"; skip; ws
+  let c ← peek!
+  if c == '}' then
+    skip; ws
+    pure [Json.obj ∅]
+  else do
+    let pairs ← objectCoreAllPairs' ∅
+    let alts := keyValueAlts pairs.toList
+    pure (alts.map (fun kvs => Json.obj (kvs.foldl (fun m (k, v) => m.insert k v) ∅)))
+
+def payload_from_json
   (uidKey : UidKey)
-  (extraFieldKey : String)
   (expHorizon : ℕ)
-  (s: String) :
+  (extraFieldKey : String)
+  (j : Json)
+  :
   Except String AptosPayload
 := do
-  let j : Json <- Json.parse s
-
   let iss : String <- j.getObjValAs? String "iss"
   let aud : String <- j.getObjValAs? String "aud"
   let iat : ℕ <- j.getObjValAs? ℕ "iat"
@@ -92,25 +144,36 @@ def payload_from_json_string
   let nonce : String <- j.getObjValAs? String "nonce"
   let extra_field : String <- j.getObjValAs? String extraFieldKey
 
-  -- TODO: Move these checks outside the parsing function?
-  -- if iss.contains ':' then
-  --   throw s!"The field (iss) must be a string, but ({iss}) contains ':' which makes it an URI according to RFC-7512."
-  -- if aud.contains ':' then
-  --   throw s!"The field (aud) must be a string, but ({aud}) contains ':' which makes it an URI according to RFC-7512."
-  if uidKey == UidKey.email && email_verified = false then
-    throw s!"The user id key is email, but email_verified is false"
   if !nonce.all Char.isDigit then
     -- Equal to Poseidon(epk, epk_len, exp_date, blinder)?
     throw s!"The field (nonce) must be a digit string, but ({nonce}) contains a non-digit character."
-  if iat + expHorizon > exp then
-    throw s!"iat + expHorizon > exp ({iat} + {expHorizon} = {iat + expHorizon} ≤ {exp})"
+
+  -- TODO: These checks are not syntactic. Move them outside the parsing function?
+  if uidKey == UidKey.email && email_verified = false then
+    throw s!"The user id key is email, but email_verified is false"
+
+  if iat + expHorizon ≤ exp then
+    throw s!"iat + expHorizon ≤ exp ({iat} + {expHorizon} = {iat + expHorizon} ≤ {exp})"
+
+  if exp ≤ iat then
+    throw s!"Token expired: exp ≤ iat ({expHorizon} ≤ {iat})"
 
   return { iss, aud, uid, iat, exp, email_verified, nonce, extra_field }
+
+def payloads_from_json_string
+  (uidKey : UidKey)
+  (extraFieldKey : String)
+  (expHorizon : ℕ)
+  (s: String) :
+  Except String (List AptosPayload)
+:= do
+  let j : List Json <- Parser.run anyFlatNondet s
+  j.mapM (payload_from_json uidKey expHorizon extraFieldKey)
 
 def String.quote s := "\"" ++ s ++ "\""
 def claim (k v : String) := k.quote ++ " : " ++ v
 
-def dummyNonce : String := "15919628789903246873379427733051374218372906955101515791742506401291192372556"
+def dummyNonce : String := "159196287899032468733794277330513742183729069551015157917"
 
 def jsonInput (emailVerified : String) : String :=
   "{ " ++
@@ -127,21 +190,195 @@ def jsonInput (emailVerified : String) : String :=
     claim "nonce" dummyNonce.quote
   ]
   ++ " }"
- where
-  String.quote s := "\"" ++ s ++ "\""
-  claim k v := k.quote ++ " : " ++ v
 
-#check payload_from_json_string (uidKey := .sub) (extraFieldKey := "email") (expHorizon := 1) (jsonInput "true")
--- `email_verified` given as a JSON boolean
-#eval payload_from_json_string (uidKey := .sub) (extraFieldKey := "email") (expHorizon := 1) (jsonInput "true")
-#eval payload_from_json_string (uidKey := .email) (extraFieldKey := "email") (expHorizon := 1) (jsonInput "false")
--- `email_verified` given as a JSON string
-#eval payload_from_json_string (uidKey := .sub) (extraFieldKey := "email") (expHorizon := 1) (jsonInput "true".quote)
-#eval payload_from_json_string (uidKey := .sub) (extraFieldKey := "email") (expHorizon := 3602) (jsonInput "true".quote)
-#eval payload_from_json_string (uidKey := .email) (extraFieldKey := "email") (expHorizon := 1) (jsonInput "false".quote)
--- `email_verified` given as an invalid string
-#eval payload_from_json_string (uidKey := .sub) (extraFieldKey := "email") (expHorizon := 1) (jsonInput "yes".quote)
+def jsonInput_no_iss (emailVerified : String) : String :=
+  "{ " ++
+  String.intercalate ", "
+  [
+    claim "aud" "dummy aud".quote,
+    claim "sub" "dummy sub".quote,
+    claim "email" "dummy email".quote,
+    claim "iat" "1719866138",
+    claim "exp" "1719869739",
+    claim "email_verified" emailVerified,
+    claim "nonce" dummyNonce.quote
+  ]
+  ++ " }"
 
-#eval payload_from_json_string (uidKey := .sub) (extraFieldKey := "shoe_size") (expHorizon := 1) (jsonInput "true".quote)
+def jsonInput_duplicated_iss1 (emailVerified : String) : String :=
+  "{ " ++
+  String.intercalate ", "
+  [
+    claim "iss" "dummy iss".quote,
+    claim "iss" "dummy iss 2".quote,
+    claim "aud" "dummy aud".quote,
+    claim "sub" "dummy sub".quote,
+    claim "email" "dummy email".quote,
+    claim "iat" "1719866138",
+    claim "exp" "1719869739",
+    claim "shoe_size" "40".quote,
+    claim "email_verified" emailVerified,
+    claim "nonce" dummyNonce.quote
+  ]
+  ++ " }"
+
+
+example : -- `email_verified` is the bool `true`
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    (jsonInput (emailVerified := "true"))
+  ).toOption
+    == some
+      [ { iss := "dummy iss",
+          uid := "dummy sub",
+          aud := "dummy aud",
+          iat := 1719866138,
+          exp := 1719869739,
+          email_verified := true,
+          nonce := "159196287899032468733794277330513742183729069551015157917",
+          extra_field := "40" }
+      ]
+:= by native_decide
+
+example : -- duplicated `iss`
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    (jsonInput_duplicated_iss1 (emailVerified := "true"))
+  ).toOption
+    == some
+      [ { iss := "dummy iss",
+          uid := "dummy sub",
+          aud := "dummy aud",
+          iat := 1719866138,
+          exp := 1719869739,
+          email_verified := true,
+          nonce := "159196287899032468733794277330513742183729069551015157917",
+          extra_field := "40" }
+      , { iss := "dummy iss 2",
+          uid := "dummy sub",
+          aud := "dummy aud",
+          iat := 1719866138,
+          exp := 1719869739,
+          email_verified := true,
+          nonce := "159196287899032468733794277330513742183729069551015157917",
+          extra_field := "40" }
+      ]
+:= by native_decide
+
+
+example : -- `email_verified` is the string `"true"`
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    (jsonInput (emailVerified := "true"))
+  ).toOption
+    == some
+      [ { iss := "dummy iss",
+          uid := "dummy sub",
+          aud := "dummy aud",
+          iat := 1719866138,
+          exp := 1719869739,
+          email_verified := true,
+          nonce := "159196287899032468733794277330513742183729069551015157917",
+          extra_field := "40" }
+      ]
+:= by native_decide
+
+example : -- `email_verified` is the bool `false`
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    (jsonInput (emailVerified := "false"))
+  ).toOption
+    == some
+      [ { iss := "dummy iss",
+          uid := "dummy sub",
+          aud := "dummy aud",
+          iat := 1719866138,
+          exp := 1719869739,
+          email_verified := false,
+          nonce := "159196287899032468733794277330513742183729069551015157917",
+          extra_field := "40" }
+      ]
+:= by native_decide
+
+example : -- user id key is `email`, but `email_verified` is `"false"`
+  (payloads_from_json_string
+    (uidKey := .email)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    (jsonInput (emailVerified := "false".quote))
+  ).toOption
+    == .none
+:= by native_decide
+
+example : -- iat + expHorizon ≤ exp
+  (payloads_from_json_string
+    (uidKey := .email)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 1)
+    (jsonInput (emailVerified := "true"))
+  ).toOption
+    = .none
+  := by native_decide
+
+example : -- extra field exists, it's "email"
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "email")
+    (expHorizon := 6002)
+    (jsonInput (emailVerified := "true".quote))
+  ).toOption
+    == some
+      [ { iss := "dummy iss",
+          uid := "dummy sub",
+          aud := "dummy aud",
+          iat := 1719866138,
+          exp := 1719869739,
+          email_verified := true,
+          nonce := "159196287899032468733794277330513742183729069551015157917",
+          extra_field := "dummy email" }
+      ]
+:= by native_decide
+
+example : -- extra field doesn't exist
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "nonexistent")
+    (expHorizon := 6002)
+    (jsonInput (emailVerified := "true".quote))
+  ).toOption
+    = .none
+  := by native_decide
+
+example : -- missing iss field
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "email")
+    (expHorizon := 6002)
+    (jsonInput_no_iss (emailVerified := "true"))
+  ).toOption
+    = none
+  := by native_decide
+
+-- example : -- with no duplicate keys, `anyFlatNondet` returns exactly one alternative
+--   (Parser.run anyFlatNondet (jsonInput (emailVerified := "true"))).map List.length = .ok 1
+--   := by native_decide
+
+-- example : -- a duplicated `iss` field yields exactly the two alternatives implied by its
+--           -- two occurrences, one per possible "winner"
+--   ((Parser.run anyFlatNondet (jsonInput_duplicated_iss1 (emailVerified := "true"))).map
+--     (fun alts =>
+--       alts.length == 2 &&
+--       alts.any (fun j => (j.getObjValAs? String "iss").toOption == some "dummy iss") &&
+--       alts.any (fun j => (j.getObjValAs? String "iss").toOption == some "dummy iss 2")))
+--     = .ok true
+--   := by native_decide
 
 end Keyless
