@@ -37,17 +37,18 @@ def matches_spec
   (spec : β)
 : Prop :=
   let result := cmd.getResult numAlloc σ
-  let varStorePost := [varStore, cmd.getHashConsState numAlloc σ, numAlloc|cmd.getCircuit numAlloc σ]ₑ.varStore
+  let varStorePost := cmd.getVarStore varStore numAlloc σ
   let σPost := cmd.getHashConsState numAlloc σ
   toIdeal varStorePost σPost result = .some spec ∧
   cmd.wellFormed numAlloc varStore σ
+
+opaque F.Convert.toIdeal (varStore : VarStore p) (σ : HashConsSt p) (result : F) : Option (ZMod p)
+opaque FB.Convert.toIdeal (varStore : VarStore p) (σ : HashConsSt p) (result : FB) : Option Bool
 
 namespace eq
 
 opaque spec {p} (a b : ZMod p) : Bool :=
   a == b
-
-opaque Convert.toIdeal (varStore : VarStore p) (σ : HashConsSt p) (result : FB) : Option Bool
 
 @[simp, grind =]
 lemma getCircuit_isZero {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
@@ -105,7 +106,7 @@ lemma matches_spec
     varStore
     numAlloc
     σ
-    Convert.toIdeal
+    FB.Convert.toIdeal
     (eq a b)
     (spec a_val b_val)
 := by
@@ -177,9 +178,10 @@ lemma matches_spec
   {numAlloc : ℕ}
   {σ : HashConsSt p}
   {idx_val : ℕ}
-  (h : (Expr.mk idx σ).wellFormed)
-  (h_idx_wf : [varStore, σ|idx].isSome = true)
-  (h_idx_val : ([varStore,σ|idx].get h_idx_wf).val = idx_val)
+  -- (h : (Expr.mk idx σ).wellFormed)
+  -- (h_idx_wf : [varStore, σ|idx].isSome = true)
+  -- (h_idx_val : ([varStore,σ|idx].get h_idx_wf).val = idx_val)
+  (h_idx_val : F.Convert.toIdeal varStore σ idx = .some idx_val)
 :
   F.matches_spec
     varStore
@@ -227,8 +229,25 @@ lemma matches_spec
     . have : spec (len + 1) idx_val = spec len idx_val ++ #v[idx_val == len] := by
         unfold spec
         simp [Vector.range_succ]
-      rw [this]        
-      
+      rw [this]
+      have :
+        Convert.toIdeal
+          (f.getVarStore varStore numAlloc σ)
+          (f.getHashConsState numAlloc σ)
+          (f.getResult numAlloc σ) =
+        (Convert.toIdeal
+          ((oneHotRaw len idx).getVarStore varStore numAlloc σ)
+          ((oneHotRaw len idx).getHashConsState numAlloc σ)
+          ((oneHotRaw len idx).getResult numAlloc σ)).get (by grind) ++
+        #v[(F.Convert.toIdeal
+            ((oneHotRaw len idx).getVarStore varStore numAlloc σ)
+            ((oneHotRaw len idx).getHashConsState numAlloc σ)
+            idx).map (ZMod.val) == .some len
+        ]
+      := by
+        done
+      simp [this, ih, h_idx_val]
+      congr 1
       done
     . simp [eq]
       apply ClapM.bind_wellFormed (by grind)

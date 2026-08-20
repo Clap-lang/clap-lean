@@ -579,14 +579,14 @@ def unexpandSeq : Lean.PrettyPrinter.Unexpander
     `([$Γ, $numAlloc, $σ | $c₁; $c₂]ₑ)
   | _ => throw ()
 
-@[simp]
+@[simp, grind =]
 lemma numAlloc_seq :
   [varStore, σ, numAlloc | circuit1; circuit2]ₑ.numAlloc =
   let mid := [varStore, σ, numAlloc|circuit1]ₑ
   [mid.varStore, σ, mid.numAlloc|circuit2]ₑ.numAlloc
 := rfl
 
-@[simp]
+@[simp, grind =]
 lemma varStore_seq :
   [varStore, σ, numAlloc|circuit1; circuit2]ₑ.varStore =
   let mid := [varStore, σ, numAlloc|circuit1]ₑ

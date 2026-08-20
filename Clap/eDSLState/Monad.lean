@@ -107,7 +107,7 @@ def getHashConsState
   (cmd.run numAlloc σ).2
 
 def getVarStore
-  {p : ℕ} {α : Type} (varStore : VarStore p) (cmd : ClapM p α) (numAlloc : ℕ) (σ : HashConsSt p)
+  {p : ℕ} {α : Type} (cmd : ClapM p α) (varStore : VarStore p) (numAlloc : ℕ) (σ : HashConsSt p)
 : VarStore p :=
   [varStore, cmd.getHashConsState numAlloc σ, numAlloc|cmd.getCircuit numAlloc σ]ₑ.varStore
 
@@ -174,25 +174,6 @@ lemma getHashConsState_bind
 := rfl
 
 @[simp, grind =]
-lemma getVarStore_bind {varStore : VarStore p}
-:
-  (action >>= function).getVarStore varStore numAlloc σ =
-  ((function (action.getResult numAlloc σ)).getVarStore
-    (action.getVarStore varStore numAlloc σ)
-    (action.getNumAlloc numAlloc σ) ((function (action.getResult numAlloc σ)).getHashConsState numAlloc σ))
-:= by
-  unfold getVarStore
-  simp
-  set σ₁ := action.getHashConsState numAlloc σ with eq₁
-  set res := action.getResult numAlloc σ with eq₂
-  set nalloc := action.getNumAlloc numAlloc σ with eq₃
-  set circuit := action.getCircuit numAlloc σ with eq₄
-  set σ₂ := (function res).getHashConsState nalloc σ₁ with eq₅
-  set circuit' := (function res).getCircuit nalloc σ₁ with eq₆
-  
-
-
-@[simp, grind =]
 lemma getResult_tell :
   ClapM.getResult (tell xs) numAlloc σ = ()
 := rfl
@@ -215,28 +196,40 @@ lemma getHashConsState_tell :
   σ
 := rfl
 
+@[simp, grind =]
+lemma getVarStore_tell {varStore : VarStore p} :
+  ClapM.getVarStore (tell xs) varStore numAlloc σ =
+  [varStore, σ, numAlloc|xs]ₑ.varStore
+:= rfl
+
 @[simp, grind=]
 lemma getResult_pure :
-  ClapM.getResult (p := p) (pure x) numAlloc σ =
+  ClapM.getResult (pure x) numAlloc σ =
   x
 := rfl
 
 @[simp, grind=]
 lemma getCircuit_pure :
-  ClapM.getCircuit (p := p) (pure x) numAlloc σ =
+  ClapM.getCircuit (pure x) numAlloc σ =
   #[]
 := rfl
 
 @[simp, grind=]
 lemma getState_pure :
-  ClapM.getNumAlloc (p := p) (pure x) numAlloc σ =
+  ClapM.getNumAlloc (pure x) numAlloc σ =
   numAlloc
 := rfl
 
 @[simp, grind=]
 lemma getHashConsState_pure :
-  ClapM.getHashConsState (p := p) (pure x) numAlloc σ =
+  ClapM.getHashConsState (pure x) numAlloc σ =
   σ
+:= rfl
+
+@[simp, grind=]
+lemma getVarStore_pure {varStore : VarStore p} :
+  ClapM.getVarStore (pure x) varStore numAlloc σ =
+  varStore
 := rfl
 
 @[simp, grind=]
@@ -261,6 +254,12 @@ lemma getCircuit_map :
 lemma getHashConsState_map :
   (f <$> cmd).getHashConsState numAlloc σ =
   cmd.getHashConsState numAlloc σ
+:= rfl
+
+@[simp, grind=]
+lemma getVarStore_map {varStore : VarStore p}:
+  (f <$> cmd).getVarStore varStore numAlloc σ =
+  cmd.getVarStore varStore numAlloc σ
 := rfl
 
 end NamedThisForDom
@@ -358,7 +357,7 @@ lemma getHashConsState_liftM {α} {action : HashConsM p α} {numAlloc} {σ : Has
 @[simp, grind .]
 lemma wellFormed_of_hashConsM_wellFormed {α} {action : HashConsM p α} {numAlloc}
                                          {varStore : VarStore p} {σ : HashConsSt p}
-  (h : action.wellFormed σ) : (liftM (n := ClapM p) action).wellFormed numAlloc varStore σ := by  
+  (h : action.wellFormed σ) : (liftM (n := ClapM p) action).wellFormed numAlloc varStore σ := by
   grind
 
 section Bind_WellFormed
@@ -403,6 +402,27 @@ lemma size_le_size_bind
   replace h_f := h_f.2.2
   rewrite [←Array.isPrefixOf_toList, List.isPrefixOf_iff_prefix] at h_f
   simp [HashConsSt.size, Array.size_eq_length_toList, -Array.length_toList]
+  grind
+
+@[simp, grind =]
+lemma getVarStore_bind_of_wellFormed
+  {varStore : VarStore p}
+  (h_a : a.wellFormed numAlloc varStore σ)
+  (h_f : (
+      f (a.getResult numAlloc σ)
+    ).wellFormed
+      (a.getNumAlloc numAlloc σ)
+      [varStore,(a.getHashConsState numAlloc σ),numAlloc|a.getCircuit numAlloc σ]ₑ.varStore
+      (a.getHashConsState numAlloc σ)
+  )
+:
+  (a >>= f).getVarStore varStore numAlloc σ =
+  (f (a.getResult numAlloc σ)).getVarStore
+    (a.getVarStore varStore numAlloc σ)
+    (a.getNumAlloc numAlloc σ)
+    (a.getHashConsState numAlloc σ)
+:= by
+  unfold getVarStore
   grind
 
 lemma bind_Circuit_wellFormed
@@ -508,6 +528,7 @@ lemma bind_wellFormed
   · grind
   · unfold hashConsState_wellFormed
     apply Array.isPrefixOf_trans (b := (a.getHashConsState numAlloc σ).exprs) <;> grind
+
 
 end Bind_WellFormed
 
