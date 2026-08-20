@@ -284,10 +284,16 @@ lemma fpmul_wellFormed {width k : ℕ} {a b p' : Vector ExprRef k}
             grind
           · apply isSome_eval_of_prefix (by grind) (h_isSome₃) (by grind)
             grind
-        . intro x h_x
-          rewrite [←varSet.varSet_eq_of_prefix (by grind) h_wellFormed] at h_x
-          . grind
-          . grind
+        . intro x h_x ref href
+          specialize_all x
+          rcases h_x with h | h | h <;>
+          · have := varSet.varSet_eq_of_prefix
+                      (e₁ := ⟨x, σ⟩) 
+                      (e₂ := { ref := x, σ := (Vector.ofFnM (n := k) fun x => ClapM.alloc).getHashConsState numAlloc σ : Expr _})
+                      (by grind) (show (⟨x, σ⟩ : Expr _).wellFormed by grind)
+            rewrite [←this] at href
+            grind
+            grind
       . grind
   . grind
   . grind
@@ -332,6 +338,19 @@ lemma eval_edsl_num2bits
   ⟩
 := by
   simp [num2bits, ClapM.runAndEval]
+
+@[simp, grind =]
+lemma eval_edsl_fpmul
+  {width k : ℕ} {a b p' : Vector ExprRef k}
+:
+  (fpmul width k a b p').runAndEval numAlloc varStore σ =
+  ⟨
+    (Vector.ofFnM fun (x : Fin k) => ClapM.alloc).getResult numAlloc σ,
+    unconstrained[numAlloc][varStore].stepFpmul
+      ((Vector.ofFnM fun (_ : Fin k) => ClapM.alloc).getHashConsState numAlloc σ) width k a b p'
+  ⟩
+:= by
+  simp [fpmul, ClapM.runAndEval]
 
 end Eval
 
