@@ -49,17 +49,11 @@ opaque spec {p} (a b : ZMod p) : Bool :=
 
 opaque Convert.toIdeal (varStore : VarStore p) (σ : HashConsSt p) (result : FB) : Option Bool
 
-/--
-Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
--/
 @[simp, grind =]
 lemma getCircuit_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
   (liftM (m := HashConsM p) (n := ClapM p) action).getCircuit numAlloc σ = #[] := by
   rfl
 
-/--
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
--/
 @[simp, grind =]
 lemma getCircuit_isZero {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
   (isZero e!).getCircuit numAlloc σ = #[.isZero e!] := by
@@ -83,9 +77,6 @@ lemma getCircuit_num2bits {w : ℕ} {e! : ExprRef} {numAlloc} {σ : HashConsSt p
 def _root_.Clap.HashConsM.getResult {α} (action : HashConsM p α) (σ : HashConsSt p) : α :=
   (action.run σ).1
 
-/--
-Waaaaaaaaaagh!
--/
 @[simp, grind =]
 lemma getResult_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
   (liftM (m := HashConsM p) (n := ClapM p) action).getResult numAlloc σ = action.getResult σ := by
@@ -102,7 +93,11 @@ lemma getHashConsState_isZero {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
 @[simp, grind =]
 lemma getNumAlloc_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
   (liftM (m := HashConsM p) (n := ClapM p) action).getNumAlloc numAlloc σ = numAlloc := rfl
-  
+
+@[simp, grind .]
+lemma wellFormed_pure {α} {action : α} {numAlloc} {varStore : VarStore p} {σ : HashConsSt p}:
+  (pure (f := ClapM p) action).wellFormed numAlloc varStore σ := by
+  grind
 
 lemma matches_spec
   [p.AtLeastTwo]
@@ -132,14 +127,14 @@ lemma matches_spec
   have : aExpr.wellFormed := by grind
   have : bExpr.wellFormed := by grind
   set f := a.eq b (p := p) with hf
-  have : f.getCircuit numAlloc σ = #[Gate.isZero ((HashConsM.mkSub a b).getResult σ)] := by
+  have : f.getCircuit numAlloc σ = #[Gate.isZero ((HashConsM.mkSub a b).getResult σ)] := by    
     simp [hf, eq]
   have : f.getHashConsState numAlloc σ = σ := by
     rw [hf]
     unfold eq
     rw [ClapM.getHashConsState_bind]
     simp
-      
+    sorry
 
     done
   
@@ -153,7 +148,7 @@ end eq
 
 namespace oneHotRaw
 
-opaque spec (len : ℕ) (idx : ℕ) : Vector Bool len :=
+def spec (len : ℕ) (idx : ℕ) : Vector Bool len :=
   (Vector.range len).map (fun (i:ℕ) ↦ idx == i)
 
 opaque Convert.toIdeal {len : ℕ} (varStore : VarStore p) (σ : HashConsSt p) (result : Vector FB len) : Option (Vector Bool len)
@@ -170,8 +165,9 @@ lemma matches_spec
   {varStore : VarStore p}
   {numAlloc : ℕ}
   {σ : HashConsSt p}
-  {idx_val : ℕ}
-  (h_idx_wf : [varStore|Expr.mk idx σ].isSome = true)
+  {idx_val : ℕ} 
+  (h : (Expr.mk idx σ).wellFormed)
+  (h_idx_wf : [varStore, σ|idx].isSome = true)
   (h_idx_val : ([varStore,σ|idx].get h_idx_wf).val = idx_val)
 :
   F.matches_spec
@@ -182,6 +178,21 @@ lemma matches_spec
     (oneHotRaw len idx)
     (spec len idx_val)
 := by
+  unfold F.matches_spec
+  dsimp
+  set f := oneHotRaw len idx (p := p) with eq
+  unfold oneHotRaw at eq
+  induction' len with len ih
+  · have : Vector.range 0 = #v[] := rfl
+    simp [this] at eq
+    subst f
+    simp [eq]
+    unfold spec
+    simp [this]
+    have todoLater₁ : Convert.toIdeal varStore σ #v[] = some #v[] := sorry
+    exact todoLater₁
+  · 
+
   done
 
 end oneHotRaw
