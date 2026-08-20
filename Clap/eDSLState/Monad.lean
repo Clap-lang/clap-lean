@@ -106,27 +106,37 @@ def getHashConsState
 : HashConsSt p :=
   (cmd.run numAlloc σ).2
 
-@[simp, grind=]
+def getVarStore
+  {p : ℕ} {α : Type} (varStore : VarStore p) (cmd : ClapM p α) (numAlloc : ℕ) (σ : HashConsSt p)
+: VarStore p :=
+  [varStore, cmd.getHashConsState numAlloc σ, numAlloc|cmd.getCircuit numAlloc σ]ₑ.varStore
+
+@[simp, grind =]
 lemma getResult_alloc :
   ClapM.alloc.getResult numAlloc σ =
   ((HashConsM.mkVar numAlloc).run σ).1
 := rfl
 
-@[simp, grind=]
+@[simp, grind =]
 lemma getCircuit_alloc :
   ClapM.alloc.getCircuit numAlloc σ =
   #[]
 := rfl
 
-@[simp, grind=]
+@[simp, grind =]
 lemma getNumAlloc_alloc :
   ClapM.alloc.getNumAlloc numAlloc σ = numAlloc + 1
 := rfl
 
-@[simp, grind=]
+@[simp, grind =]
 lemma getHashConsState_alloc :
   ClapM.alloc.getHashConsState numAlloc σ =
   ((HashConsM.mkVar numAlloc).run σ).2
+:= rfl
+
+@[simp, grind =]
+lemma getVarStore_alloc {varStore : VarStore p} :
+  ClapM.alloc.getVarStore varStore numAlloc σ = varStore
 := rfl
 
 section NamedThisForDom
@@ -162,6 +172,25 @@ lemma getHashConsState_bind
   (action >>= function).getHashConsState numAlloc σ =
   ((function (action.getResult numAlloc σ)).getHashConsState (action.getNumAlloc numAlloc σ) (action.getHashConsState numAlloc σ))
 := rfl
+
+@[simp, grind =]
+lemma getVarStore_bind {varStore : VarStore p}
+:
+  (action >>= function).getVarStore varStore numAlloc σ =
+  ((function (action.getResult numAlloc σ)).getVarStore
+    (action.getVarStore varStore numAlloc σ)
+    (action.getNumAlloc numAlloc σ) ((function (action.getResult numAlloc σ)).getHashConsState numAlloc σ))
+:= by
+  unfold getVarStore
+  simp
+  set σ₁ := action.getHashConsState numAlloc σ with eq₁
+  set res := action.getResult numAlloc σ with eq₂
+  set nalloc := action.getNumAlloc numAlloc σ with eq₃
+  set circuit := action.getCircuit numAlloc σ with eq₄
+  set σ₂ := (function res).getHashConsState nalloc σ₁ with eq₅
+  set circuit' := (function res).getCircuit nalloc σ₁ with eq₆
+  
+
 
 @[simp, grind =]
 lemma getResult_tell :
@@ -311,6 +340,26 @@ def wellFormed
   circuit_wellFormed action numAlloc varStore σ ∧
   numAlloc_wellFormed action numAlloc varStore σ ∧
   hashConsState_wellFormed action numAlloc σ
+
+@[simp, grind =]
+lemma getNumAlloc_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
+  (liftM (m := HashConsM p) (n := ClapM p) action).getNumAlloc numAlloc σ = numAlloc := rfl
+
+@[simp, grind =]
+lemma getCircuit_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
+  (liftM (m := HashConsM p) (n := ClapM p) action).getCircuit numAlloc σ = #[] := by
+  rfl
+
+@[simp, grind =]
+lemma getHashConsState_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
+  (liftM (m := HashConsM p) (n := ClapM p) action).getHashConsState numAlloc σ = action.getHashConsState σ := by
+  rfl
+
+@[simp, grind .]
+lemma wellFormed_of_hashConsM_wellFormed {α} {action : HashConsM p α} {numAlloc}
+                                         {varStore : VarStore p} {σ : HashConsSt p}
+  (h : action.wellFormed σ) : (liftM (n := ClapM p) action).wellFormed numAlloc varStore σ := by  
+  grind
 
 section Bind_WellFormed
 

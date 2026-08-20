@@ -1,4 +1,5 @@
 import Clap.eDSLState.HashCons.HashConsSt
+import Mathlib.Tactic
 
 namespace Clap
 
@@ -35,6 +36,7 @@ def getResult {α} (action : HashConsM p α) (σ : HashConsSt p) : α :=
 def getHashConsState {α} (action : HashConsM p α) (σ : HashConsSt p) : HashConsSt p :=
   (action.run σ).2
 
+@[grind .]
 def wellFormed
   {p : ℕ}
   {α}
@@ -159,6 +161,45 @@ lemma bind_mkVar_of_contains' {α} {k : ℕ} {f : ExprRef → HashConsM p α}
   (h : σ.exprs.contains (.v k)) :
   ((mkVar k).bind f).run σ = (f (σ.exprs.idxOf (.v k))).run σ :=
   HashConsM.bind_mkVar_of_contains h
+
+@[simp, grind .]
+lemma wellFormed_saveExpr {e} : (saveExpr e).wellFormed σ := by
+  unfold wellFormed
+  simp [getHashConsState]
+  simp_all only [saveExpr, bind_pure_comp, run_bind]
+  split
+  next h => grind
+  next h =>
+    split
+    next h_1 => change σ.exprs.isPrefixOf (σ.pushExpr e h_1).exprs = true
+                unfold HashConsSt.pushExpr
+                grind
+    next h_1 => grind
+
+@[simp, grind .]
+lemma wellFormed_mkConstant : (mkConstant e!).wellFormed σ := by
+  unfold mkConstant
+  grind
+
+@[simp, grind .]
+lemma wellFormed_mkVar : (mkVar e!).wellFormed σ := by
+  unfold mkVar
+  grind
+
+@[simp, grind .]
+lemma wellFormed_mkAdd {l r} : (mkAdd l r).wellFormed σ := by
+  unfold mkAdd
+  grind
+
+@[simp, grind .]
+lemma wellFormed_mkSub {l r} : (mkSub l r).wellFormed σ := by
+  unfold mkSub
+  grind
+
+@[simp, grind .]
+lemma wellFormed_mkMul {l r} : (mkMul l r).wellFormed σ := by
+  unfold mkMul
+  grind
 
 end Lemmas
 

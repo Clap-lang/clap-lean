@@ -50,11 +50,6 @@ opaque spec {p} (a b : ZMod p) : Bool :=
 opaque Convert.toIdeal (varStore : VarStore p) (σ : HashConsSt p) (result : FB) : Option Bool
 
 @[simp, grind =]
-lemma getCircuit_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
-  (liftM (m := HashConsM p) (n := ClapM p) action).getCircuit numAlloc σ = #[] := by
-  rfl
-
-@[simp, grind =]
 lemma getCircuit_isZero {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
   (isZero e!).getCircuit numAlloc σ = #[.isZero e!] := by
   simp [isZero]
@@ -86,10 +81,6 @@ lemma getHashConsState_isZero {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
   then σ
   else σ.pushExpr (.v numAlloc) (by simp) := by
   grind [isZero]
-
-@[simp, grind =]
-lemma getNumAlloc_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
-  (liftM (m := HashConsM p) (n := ClapM p) action).getNumAlloc numAlloc σ = numAlloc := rfl
 
 @[simp, grind .]
 lemma wellFormed_pure {α} {action : α} {numAlloc} {varStore : VarStore p} {σ : HashConsSt p}:
@@ -222,7 +213,7 @@ lemma matches_spec
         let elem ← F.eq (p := p) idx idx_val
         return vec.push elem
     := by
-      simp? [oneHotRaw, Vector.range_succ, Vector.mapM_append, -Vector.append_singleton]
+      simp [oneHotRaw, Vector.range_succ, Vector.mapM_append, -Vector.append_singleton]
       set v := Vector.mapM
           (fun i => do
             let idx_val ← liftM (HashConsM.mkConstant (i : ZMod p))
@@ -233,12 +224,16 @@ lemma matches_spec
     simp [range_vec, this] at eq
     rewrite [←oneHotRaw.eq_def] at eq
     apply And.intro
-    . done
+    . have : spec (len + 1) idx_val = spec len idx_val ++ #v[idx_val == len] := by
+        unfold spec
+        simp [Vector.range_succ]
+      rw [this]        
+      
+      done
     . simp [eq]
       apply ClapM.bind_wellFormed (by grind)
       apply ClapM.bind_wellFormed
-      .
-        done
+      . grind
       . simp [map_eq_pure_bind, -bind_pure_comp]
         apply ClapM.bind_wellFormed
         . have := @F.eq.matches_spec p _

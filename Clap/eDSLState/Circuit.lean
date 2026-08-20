@@ -24,6 +24,11 @@ namespace Circuit
 def refsValid (c : Circuit) (bound : ℕ) : Prop :=
   ∀ gate ∈ c, gate.refsValid bound
 
+@[simp, grind .]
+lemma refsValid_nil {bound : ℕ} :
+  Circuit.refsValid #[] bound := by
+  simp [refsValid]
+
 @[grind =]
 def numAllocStep (c : Circuit) : ℕ :=
   (c.map Gate.numAllocStep).sum
@@ -152,6 +157,10 @@ def varsAllocated (c : Circuit) (varStore : VarStore p) (σ : HashConsSt p) (num
     letI evalSt := [varStore, σ, numAlloc|c.take i]ₑ
     c[i].varsAllocated evalSt.varStore σ ∧
     ∀ e ∈ c[i].exprs, ∀ x ∈ Expr.varSet ⟨e, σ⟩, x < evalSt.numAlloc
+
+@[simp, grind .]
+lemma varsAllocated_nil : varsAllocated #[] varStore σ numAlloc := by
+  grind
 
 @[aesop safe cases, grind]
 structure wellFormed (circuit : Circuit) (Γ : VarStore p) (σ : HashConsSt p) (numAlloc : ℕ) : Prop where
