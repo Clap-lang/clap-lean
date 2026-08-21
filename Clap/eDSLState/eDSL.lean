@@ -63,17 +63,18 @@ lemma exprs_st_pushExpr {e : CacheExpr p} {h} :
 
 @[simp, grind .]
 lemma isPrefixOf_saveExpr {e : CacheExpr p} (h : e.wellFormed σ.size) :
-  σ.exprs.isPrefixOf ((saveExpr e).run σ).2.exprs := by
+  σ.exprs.isPrefixOf ((saveExpr e).getHashConsState σ).exprs := by
   grind
 
 @[simp, grind .]
-lemma isPrefixOf_mkVar : σ.exprs.isPrefixOf ((mkVar numAlloc).run σ).2.exprs := by
+lemma isPrefixOf_mkVar : σ.exprs.isPrefixOf ((mkVar numAlloc).getHashConsState σ).exprs := by
   unfold mkVar
   simp
 
 @[aesop unsafe, grind .]
 lemma wellFormed_mk_saveExpr_of_wellFormed {e} (h : (⟨e!, σ⟩ : Expr _).wellFormed) :
-  {ref := e!, σ := ((saveExpr e).run σ).2 : Expr _}.wellFormed := by
+  {ref := e!, σ := (saveExpr e).getHashConsState σ : Expr _}.wellFormed := by
+  change { ref := e!, σ := ((saveExpr e).run σ).2 : Expr _}.wellFormed
   unfold run
   aesop (add safe (by grind)) (add simp [saveExpr])
 
@@ -91,8 +92,8 @@ lemma wellFormed_tell_share_bind_alloc
       split_ands
       · grind
       · intros i hi
-        have : { ref := e!, σ := ((saveExpr (CacheExpr.v numAlloc)).run σ).2 : Expr _ }.varSet =
-               { ref := e!, σ := σ : Expr _}.varSet := by
+        have : {ref := e!, σ := (saveExpr (CacheExpr.v numAlloc)).getHashConsState σ : Expr _}.varSet =
+               {ref := e!, σ := σ : Expr _}.varSet := by
           apply varSet.varSet_eq_of_prefix (by grind) (by grind)
           grind
         grind
@@ -123,7 +124,7 @@ lemma isZero_wellFormed
       split_ands
       · grind
       · intros i hi
-        have : { ref := e!, σ := ((saveExpr (CacheExpr.v numAlloc)).run σ).2 : Expr _ }.varSet =
+        have : { ref := e!, σ := (saveExpr (CacheExpr.v numAlloc)).getHashConsState σ : Expr _ }.varSet =
                { ref := e!, σ := σ : Expr _}.varSet := by
           apply varSet.varSet_eq_of_prefix (by grind) (by grind)
           grind
@@ -156,7 +157,7 @@ lemma wellFormed_of_wellFormed_toList {α} {w} {action : ClapM p (Vector α w)}
 @[simp, grind .]
 lemma size_le_size_run_mkVar :
   σ.size ≤
-  ((mkVar numAlloc).run σ).2.size
+  ((mkVar numAlloc).getHashConsState σ).size
 := by
   grind
 
@@ -316,16 +317,16 @@ lemma eval_edsl_eq0
 lemma eval_edsl_share
 :
   (share e!).runAndEval numAlloc varStore σ =
-  ⟨((mkVar numAlloc).run σ).1, [varStore, ((mkVar numAlloc).run σ).2, numAlloc|#[Gate.share e!]]ₑ⟩
+  ⟨((mkVar numAlloc).getResult σ), [varStore, (mkVar numAlloc).getHashConsState σ, numAlloc|#[Gate.share e!]]ₑ⟩
 := by
-  simp [share, ClapM.runAndEval]
+  grind [share, ClapM.runAndEval]
 
 @[simp, grind =]
 lemma eval_edsl_isZero :
   (isZero e!).runAndEval numAlloc varStore σ =
-  ⟨((mkVar numAlloc).run σ).1, [varStore, ((mkVar numAlloc).run σ).2, numAlloc|#[Gate.isZero e!]]ₑ⟩
+  ⟨(mkVar numAlloc).getResult σ, [varStore, (mkVar numAlloc).getHashConsState σ, numAlloc|#[Gate.isZero e!]]ₑ⟩
 := by
-  simp [isZero, ClapM.runAndEval]
+  grind [isZero, ClapM.runAndEval]
 
 @[simp, grind =]
 lemma eval_edsl_num2bits

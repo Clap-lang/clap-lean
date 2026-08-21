@@ -48,6 +48,7 @@ lemma wellFormed_of_toIdeal_isSome
 :
   (Expr.mk result σ).wellFormed
 := by
+
   done
 
 lemma toIdeal_eq_toIdeal_of_wellFormed
@@ -143,8 +144,8 @@ lemma matches_spec
   {σ : HashConsSt p}
   (a b : F)
   (a_val b_val : ZMod p)
-  (h_a_wf_σ : a < σ.size)
-  (h_b_wf_σ : b < σ.size)
+  (h_a_wf_σ : (Expr.mk a σ).wellFormed)
+  (h_b_wf_σ : (Expr.mk b σ).wellFormed)
   (h_a_wf : [varStore|Expr.mk a σ].isSome = true)
   (h_a_val : [varStore,σ|a].get h_a_wf = a_val)
   (h_b_wf : [varStore|Expr.mk b σ].isSome = true)
@@ -164,6 +165,7 @@ lemma matches_spec
   have : aExpr.wellFormed := by grind
   have : bExpr.wellFormed := by grind
   set f := a.eq b (p := p) with hf
+
   have : f.getCircuit numAlloc σ = #[Gate.isZero ((HashConsM.mkSub a b).getResult σ)] := by
     simp [hf, eq]
   have : f.getHashConsState numAlloc σ = σ := by
@@ -171,6 +173,7 @@ lemma matches_spec
     unfold eq
     rw [ClapM.getHashConsState_bind]
     simp
+
     sorry
 
     done
@@ -342,6 +345,7 @@ lemma matches_spec
           idx).map (ZMod.val) == .some len
       ]
     := by
+      
       done
     simp [this, ih]
     rewrite [toIdeal_eq_toIdeal_of_wellFormed, h_idx_val]

@@ -114,7 +114,7 @@ def getVarStore
 @[simp, grind =]
 lemma getResult_alloc :
   ClapM.alloc.getResult numAlloc σ =
-  ((HashConsM.mkVar numAlloc).run σ).1
+  ((HashConsM.mkVar numAlloc).getResult) σ
 := rfl
 
 @[simp, grind =]
@@ -131,7 +131,7 @@ lemma getNumAlloc_alloc :
 @[simp, grind =]
 lemma getHashConsState_alloc :
   ClapM.alloc.getHashConsState numAlloc σ =
-  ((HashConsM.mkVar numAlloc).run σ).2
+  (HashConsM.mkVar numAlloc).getHashConsState σ
 := rfl
 
 @[simp, grind =]
@@ -638,9 +638,10 @@ lemma Vector_ofFnM_empty_state
   {c : Fin n → ℕ → ℕ}
   {σ}
 :
-  (@Vector.ofFnM (ClapM p) _ n _ (λ x s σ => ⟨⟨⟨a x s, #[]⟩, c x s⟩, σ⟩) numAlloc σ).1.1.2 =
+  (@Vector.ofFnM (ClapM p) _ n _ (λ x s σ => ⟨⟨⟨a x s, #[]⟩, c x s⟩, σ⟩)).getCircuit numAlloc σ =
   #[]
 := by
+  change (@Vector.ofFnM (ClapM p) _ n _ (λ x s σ => ⟨⟨⟨a x s, #[]⟩, c x s⟩, σ⟩) numAlloc σ).1.1.2 = #[]
   induction n with
   | zero =>
     simp [Vector.ofFnM_zero, Clap.monads]

@@ -83,7 +83,9 @@ lemma run_saveExpr_of_mem (h : e ∈ σ) :
   aesop (add simp HashConsSt.mem_def)
 
 @[grind =]
-lemma size_saveExpr_of_mem (h : e ∈ σ) : ((saveExpr e).run σ).2.size = σ.size := by
+lemma size_getHashConsState_saveExpr_of_mem (h : e ∈ σ) :
+  ((saveExpr e).getHashConsState σ).size = σ.size := by
+  change ((saveExpr e).run σ).2.size = σ.size
   rw [run_saveExpr_of_mem (by grind)]
 
 end SaveExpr
