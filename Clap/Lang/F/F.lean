@@ -27,22 +27,46 @@ def oneHotRaw [p.AtLeastTwo] (len : ℕ) (idx : F) : ClapM p (Vector FB len) :=
   )
 
 def matches_spec
-  [p.AtLeastTwo]
   (varStore : VarStore p)
   (numAlloc : ℕ)
   (σ : HashConsSt p)
-  {α β}
-  (toIdeal : VarStore p → HashConsSt p → α → Option β)
+  {α}
   (cmd : ClapM p α)
+  {β : Type}
   (spec : β)
-: Prop :=
-  let result := cmd.getResult numAlloc σ
-  let varStorePost := cmd.getVarStore varStore numAlloc σ
-  let σPost := cmd.getHashConsState numAlloc σ
-  toIdeal varStorePost σPost result = .some spec ∧
-  cmd.wellFormed numAlloc varStore σ
+  (toIdeal : VarStore p → HashConsSt p → α → Option β)
+:= toIdeal
+    (cmd.getVarStore varStore numAlloc σ)
+    (cmd.getHashConsState numAlloc σ)
+    (cmd.getResult numAlloc σ) = .some spec
 
 opaque F.Convert.toIdeal (varStore : VarStore p) (σ : HashConsSt p) (result : F) : Option (ZMod p)
+
+lemma wellFormed_of_toIdeal_isSome
+  {varStore : VarStore p} {σ} {result}
+  (h : (F.Convert.toIdeal varStore σ result).isSome = true)
+:
+  (Expr.mk result σ).wellFormed
+:= by
+  done
+
+lemma toIdeal_eq_toIdeal_of_wellFormed
+  {x : F}
+  {α}
+  {a : ClapM p α}
+  {varStore : VarStore p}
+  {numAlloc}
+  {σ}
+  (h_wf : (Expr.mk x σ).wellFormed)
+  (h_varset : Expr.varSet_wellFormed ⟨x, σ⟩ numAlloc)
+  (h_varStore : a.wellFormed numAlloc varStore σ)
+:
+  F.Convert.toIdeal (a.getVarStore varStore numAlloc σ) (a.getHashConsState numAlloc σ) x =
+  F.Convert.toIdeal varStore σ x
+:= by
+  done
+
+
 opaque FB.Convert.toIdeal (varStore : VarStore p) (σ : HashConsSt p) (result : FB) : Option Bool
 
 namespace eq
@@ -88,6 +112,30 @@ lemma wellFormed_pure {α} {action : α} {numAlloc} {varStore : VarStore p} {σ 
   (pure (f := ClapM p) action).wellFormed numAlloc varStore σ := by
   grind
 
+
+lemma wellFormed
+  [p.AtLeastTwo]
+  {varStore : VarStore p}
+  {numAlloc : ℕ}
+  {σ : HashConsSt p}
+  (a b : F)
+  (h_a_wf_σ : a < σ.size)
+  (h_b_wf_σ : b < σ.size)
+  (h_a_wf : [varStore|Expr.mk a σ].isSome = true)
+  (h_a_varSet_wf : Expr.varSet_wellFormed ⟨a, σ⟩ numAlloc)
+  (h_b_wf : [varStore|Expr.mk b σ].isSome = true)
+  (h_b_varSet_wf : Expr.varSet_wellFormed ⟨b, σ⟩ numAlloc)
+:
+  (eq a b).wellFormed numAlloc varStore σ
+:= by
+  unfold eq
+  apply ClapM.bind_wellFormed
+  . grind
+  . apply isZero_wellFormed -- TODO grind
+    . grind
+    . grind
+    . grind
+
 lemma matches_spec
   [p.AtLeastTwo]
   {varStore : VarStore p}
@@ -106,9 +154,9 @@ lemma matches_spec
     varStore
     numAlloc
     σ
-    FB.Convert.toIdeal
     (eq a b)
-    (spec a_val b_val)
+    (a_val == b_val)
+    FB.Convert.toIdeal
 := by
   dsimp [F.matches_spec]
   set aExpr : Expr _ := ⟨a, σ⟩
@@ -166,6 +214,59 @@ lemma _root_.Clap.ClapM.Vector.mapM_singleton
   simp [StateT.bind]
   cbv
 
+lemma wellFormed
+  [p.AtLeastTwo]
+  {len : ℕ}
+  {idx : F}
+  {varStore : VarStore p}
+  {numAlloc : ℕ}
+  {σ : HashConsSt p}
+  {idx_val : ℕ}
+  (h_idx_val : (F.Convert.toIdeal varStore σ idx).map ZMod.val = .some idx_val)
+  (h_idx_varSet : Expr.varSet_wellFormed ⟨idx, σ⟩ numAlloc)
+:
+  (oneHotRaw len idx).wellFormed numAlloc varStore σ
+:= by
+  have h_isSome : (F.Convert.toIdeal varStore σ idx).isSome = true := by grind
+  induction' len with len h_len
+  . have : Vector.range 0 = #v[] := rfl
+    simp [oneHotRaw, this]
+  . have :
+      oneHotRaw (len + 1) idx =
+      do
+        let vec ← oneHotRaw len idx
+        let idx_val ← liftM (HashConsM.mkConstant (p := p) len)
+        let elem ← F.eq (p := p) idx idx_val
+        return vec.push elem
+    := by
+      simp [oneHotRaw, Vector.range_succ, Vector.mapM_append, -Vector.append_singleton]
+      set v := Vector.mapM
+          (fun i => do
+            let idx_val ← liftM (HashConsM.mkConstant (i : ZMod p))
+            idx.eq (p := p) idx_val)
+          (Vector.range len)
+      simp
+    simp [this]
+    apply ClapM.bind_wellFormed (by grind)
+    apply ClapM.bind_wellFormed
+    . grind
+    . apply eq.wellFormed <;> simp
+      . have h_lt: idx < σ.size := by grind [wellFormed_of_toIdeal_isSome]
+        have h_le : σ.size ≤ ((oneHotRaw len idx).getHashConsState numAlloc σ).size := by grind
+        apply lt_of_lt_of_le (lt_of_lt_of_le h_lt h_le)
+        rewrite [HashConsM.getHashConsState_mkConstant]
+        aesop
+      . grind [HashConsM.getResult_lt_getHashConsState_size_mkConstant] -- grind why
+      . -- should follow from Convert.toIdeal.isSome
+        sorry
+      . unfold Expr.varSet_wellFormed
+        rewrite [varSet.varSet_mk_eq_of_prefix (σ1 := σ)]
+        . grind
+        . grind [wellFormed_of_toIdeal_isSome]
+        . apply Array.isPrefixOf_trans h_len.2.2
+          apply HashConsM.wellFormed_mkConstant
+      . grind
+
 --TODO prove using eq.matches_spec
 --this may require adding to F.matches_spec, or defining properties about Convert.toIdeal
 --in either case, the goal is to reach a fixed point where the same properties are known about the two Convert.toIdeal functions,
@@ -178,21 +279,18 @@ lemma matches_spec
   {numAlloc : ℕ}
   {σ : HashConsSt p}
   {idx_val : ℕ}
-  -- (h : (Expr.mk idx σ).wellFormed)
-  -- (h_idx_wf : [varStore, σ|idx].isSome = true)
-  -- (h_idx_val : ([varStore,σ|idx].get h_idx_wf).val = idx_val)
-  (h_idx_val : F.Convert.toIdeal varStore σ idx = .some idx_val)
+  (h_idx_val : (F.Convert.toIdeal varStore σ idx).map ZMod.val = .some idx_val)
+  (h_idx_varSet : Expr.varSet_wellFormed ⟨idx, σ⟩ numAlloc)
 :
   F.matches_spec
     varStore
     numAlloc
     σ
-    Convert.toIdeal
     (oneHotRaw len idx)
     (spec len idx_val)
+    Convert.toIdeal
 := by
   unfold F.matches_spec
-  dsimp
   set f := oneHotRaw len idx (p := p) with eq
   unfold oneHotRaw at eq
   set range_vec := Vector.range len
@@ -225,56 +323,33 @@ lemma matches_spec
     unfold oneHotRaw at this
     simp [range_vec, this] at eq
     rewrite [←oneHotRaw.eq_def] at eq
-    apply And.intro
-    . have : spec (len + 1) idx_val = spec len idx_val ++ #v[idx_val == len] := by
-        unfold spec
-        simp [Vector.range_succ]
-      rw [this]
-      have :
-        Convert.toIdeal
-          (f.getVarStore varStore numAlloc σ)
-          (f.getHashConsState numAlloc σ)
-          (f.getResult numAlloc σ) =
-        (Convert.toIdeal
+    have : spec (len + 1) idx_val = spec len idx_val ++ #v[idx_val == len] := by
+      unfold spec
+      simp [Vector.range_succ]
+    rw [this]
+    have :
+      Convert.toIdeal
+        (f.getVarStore varStore numAlloc σ)
+        (f.getHashConsState numAlloc σ)
+        (f.getResult numAlloc σ) =
+      (Convert.toIdeal
+        ((oneHotRaw len idx).getVarStore varStore numAlloc σ)
+        ((oneHotRaw len idx).getHashConsState numAlloc σ)
+        ((oneHotRaw len idx).getResult numAlloc σ)).get (by grind) ++
+      #v[(F.Convert.toIdeal
           ((oneHotRaw len idx).getVarStore varStore numAlloc σ)
           ((oneHotRaw len idx).getHashConsState numAlloc σ)
-          ((oneHotRaw len idx).getResult numAlloc σ)).get (by grind) ++
-        #v[(F.Convert.toIdeal
-            ((oneHotRaw len idx).getVarStore varStore numAlloc σ)
-            ((oneHotRaw len idx).getHashConsState numAlloc σ)
-            idx).map (ZMod.val) == .some len
-        ]
-      := by
-        done
-      simp [this, ih, h_idx_val]
-      congr 1
+          idx).map (ZMod.val) == .some len
+      ]
+    := by
       done
-    . simp [eq]
-      apply ClapM.bind_wellFormed (by grind)
-      apply ClapM.bind_wellFormed
-      . grind
-      . simp [map_eq_pure_bind, -bind_pure_comp]
-        apply ClapM.bind_wellFormed
-        . have := @F.eq.matches_spec p _
-            [varStore, (oneHotRaw len idx).getHashConsState numAlloc σ, numAlloc|(oneHotRaw len idx).getCircuit numAlloc σ]ₑ.varStore
-            ((oneHotRaw len idx).getNumAlloc numAlloc σ)
-            ((liftM (n := ClapM p) (HashConsM.mkConstant (len : ZMod p))).getHashConsState ((oneHotRaw len idx).getNumAlloc numAlloc σ) ((oneHotRaw len idx).getHashConsState numAlloc σ))
-            idx
-            ((HashConsM.mkConstant ↑len).getResult ((oneHotRaw len idx).getHashConsState numAlloc σ))
-            0 0
-            sorry
-            sorry
-            sorry
-            sorry
-            sorry
-            sorry
-          obtain ⟨_, it⟩ := this
-          exact it
-        . grind
-
-
-
-
+    simp [this, ih]
+    rewrite [toIdeal_eq_toIdeal_of_wellFormed, h_idx_val]
+    . aesop
+    . apply wellFormed_of_toIdeal_isSome (varStore := varStore)
+      grind
+    . grind
+    . grind
   done
 
 end oneHotRaw

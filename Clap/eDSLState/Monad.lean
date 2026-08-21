@@ -341,6 +341,12 @@ def wellFormed
   hashConsState_wellFormed action numAlloc σ
 
 @[simp, grind =]
+lemma getResult_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
+  (liftM (m := HashConsM p) (n := ClapM p) action).getResult numAlloc σ =
+  action.getResult σ := by
+  rfl
+
+@[simp, grind =]
 lemma getNumAlloc_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
   (liftM (m := HashConsM p) (n := ClapM p) action).getNumAlloc numAlloc σ = numAlloc := rfl
 
@@ -352,6 +358,12 @@ lemma getCircuit_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsS
 @[simp, grind =]
 lemma getHashConsState_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
   (liftM (m := HashConsM p) (n := ClapM p) action).getHashConsState numAlloc σ = action.getHashConsState σ := by
+  rfl
+
+@[simp, grind =]
+lemma getVarStore_liftM {α} {action : HashConsM p α} {varStore : VarStore p} {numAlloc} {σ : HashConsSt p} :
+  (liftM (m := HashConsM p) (n := ClapM p) action).getVarStore varStore numAlloc σ =
+  varStore := by
   rfl
 
 @[simp, grind .]
@@ -484,7 +496,7 @@ lemma bind_Circuit_wellFormed
       by_cases h : i < circuit.size
       · simp [h] at h_expr
         simp
-        rw [←varSet.varSet_eq_of_prefix
+        rw [varSet.varSet_eq_of_prefix
               (e₂ := ⟨expr, f_sigma⟩)
               (e₁ := ⟨expr, σ'⟩) (by grind)] at hi'
         · unfold Circuit.varsAllocated at ha_varsAllocated

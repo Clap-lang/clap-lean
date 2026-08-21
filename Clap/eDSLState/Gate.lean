@@ -188,7 +188,7 @@ lemma varsAllocated_eq_of_prefix_refsValid
     intros ref href
     apply h
     replace h_prefix : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true := by grind
-    rewrite [←varSet.varSet_eq_of_prefix (h₂ := h_prefix)] <;> grind
+    rewrite [varSet.varSet_eq_of_prefix (h₂ := h_prefix)] <;> grind
   · specialize h _ h₂
     set e₁ : Expr _ := {ref := v, σ := σ}
     set e₂ : Expr _ := {ref := v, σ := σ'}
@@ -199,7 +199,7 @@ lemma varsAllocated_eq_of_prefix_refsValid
     intros ref href
     apply h
     replace h_prefix : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true := by grind
-    rewrite [varSet.varSet_eq_of_prefix (h₂ := h_prefix)] <;> grind
+    rewrite [←varSet.varSet_eq_of_prefix (h₂ := h_prefix)] <;> grind
 
 end Prefix
 

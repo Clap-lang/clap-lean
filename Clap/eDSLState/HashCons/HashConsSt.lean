@@ -49,8 +49,18 @@ lemma getElem?_pushExpr {e} {σ : HashConsSt p} {h_wellFormed} :
   grind
 
 @[simp, grind =]
-lemma size_exprs_pushExpr {e} {σ : HashConsSt p} {h} :
+lemma size_exprs_pushExpr {e : CacheExpr p} {σ : HashConsSt p} {h : e.wellFormed σ.size} :
   (σ.pushExpr (p := p) e h).size = σ.size + 1 := by
   grind [=pushExpr]
+
+@[grind =]
+lemma isPrefixOf_pushExpr
+  {σ : HashConsSt p}
+  {e : CacheExpr p}
+  {h : e.wellFormed σ.size}
+:
+  σ.exprs.isPrefixOf (σ.pushExpr e h).exprs = true
+:= by
+  aesop (add simp HashConsSt.pushExpr) (add safe (by grind))
 
 end Clap.HashConsSt

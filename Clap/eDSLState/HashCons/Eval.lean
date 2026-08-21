@@ -58,6 +58,10 @@ def varSet (e : Expr p) : Set ℕ := match _h : *e with
 termination_by e.ref
 decreasing_by all_goals grind
 
+@[grind]
+def varSet_wellFormed (e : Expr p) (numAlloc : ℕ) : Prop :=
+  ∀ x ∈ e.varSet, x < numAlloc
+
 end Expr
 
 namespace varSet
@@ -86,8 +90,100 @@ lemma deref_eq_of_ref_eq_prefix {e₁ e₂ : Expr p}
 lemma varSet_eq_of_prefix {e₁ e₂ : Expr p}
   (h₀ : e₁.ref = e₂.ref)
   (h₁ : e₁.wellFormed)
-  (h₂ : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true) : varSet e₁ = varSet e₂ := by
+  (h₂ : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true) : varSet e₂ = varSet e₁ := by
   fun_induction varSet e₁ generalizing e₂ <;> grind [=varSet]
+
+@[grind ->]
+lemma varSet_mk_eq_of_prefix
+  {e : ExprRef}
+  {σ1 σ2 : HashConsSt p}
+  (h_e_wf : (Expr.mk e σ1).wellFormed)
+  (h_prefix : σ1.exprs.isPrefixOf σ2.exprs = true)
+:
+  varSet ⟨e, σ2⟩ = varSet ⟨e, σ1⟩
+:= by
+  apply varSet_eq_of_prefix <;> grind
+
+@[grind =]
+lemma varSet_mkConstant
+  {c}
+  {σ : HashConsSt p}
+:
+  (Expr.mk
+    ((HashConsM.mkConstant c).getResult σ)
+    ((HashConsM.mkConstant c).getHashConsState σ)
+  ).varSet = {}
+:= by
+  grind [=varSet]
+
+@[grind =]
+lemma varSet_mkAdd
+  {l r}
+  {σ : HashConsSt p}
+  (h_l : (Expr.mk l σ).wellFormed)
+  (h_r : (Expr.mk r σ).wellFormed)
+:
+  (Expr.mk
+    ((HashConsM.mkAdd l r).getResult σ)
+    ((HashConsM.mkAdd l r).getHashConsState σ)
+  ).varSet =
+  (Expr.mk l σ).varSet ∪ (Expr.mk r σ).varSet
+:= by
+  rewrite [HashConsM.getResult_mkAdd_of_wellFormed (by grind) (by grind)]
+  rewrite [HashConsM.getHashConsState_mkAdd_of_wellFormed (by grind) (by grind)]
+  split_ifs
+  . grind [=varSet]
+  . unfold varSet
+    rewrite [deref_mk_size_push]
+    simp
+    -- TODO: remove varSet_mk_eq_of_prefix
+    grind [=varSet, varSet_mk_eq_of_prefix (e := r) (σ1 := σ)]
+
+@[grind =]
+lemma varSet_mkSub
+  {l r}
+  {σ : HashConsSt p}
+  (h_l : (Expr.mk l σ).wellFormed)
+  (h_r : (Expr.mk r σ).wellFormed)
+:
+  (Expr.mk
+    ((HashConsM.mkSub l r).getResult σ)
+    ((HashConsM.mkSub l r).getHashConsState σ)
+  ).varSet =
+  (Expr.mk l σ).varSet ∪ (Expr.mk r σ).varSet
+:= by
+  rewrite [HashConsM.getResult_mkSub_of_wellFormed (by grind) (by grind)]
+  rewrite [HashConsM.getHashConsState_mkSub_of_wellFormed (by grind) (by grind)]
+  split_ifs
+  . grind [=varSet]
+  . unfold varSet
+    rewrite [deref_mk_size_push]
+    simp
+    -- TODO: remove varSet_mk_eq_of_prefix
+    grind [=varSet, varSet_mk_eq_of_prefix (e := r) (σ1 := σ)]
+
+@[grind =]
+lemma varSet_mkMul
+  {l r}
+  {σ : HashConsSt p}
+  (h_l : (Expr.mk l σ).wellFormed)
+  (h_r : (Expr.mk r σ).wellFormed)
+:
+  (Expr.mk
+    ((HashConsM.mkMul l r).getResult σ)
+    ((HashConsM.mkMul l r).getHashConsState σ)
+  ).varSet =
+  (Expr.mk l σ).varSet ∪ (Expr.mk r σ).varSet
+:= by
+  rewrite [HashConsM.getResult_mkMul_of_wellFormed (by grind) (by grind)]
+  rewrite [HashConsM.getHashConsState_mkMul_of_wellFormed (by grind) (by grind)]
+  split_ifs
+  . grind [=varSet]
+  . unfold varSet
+    rewrite [deref_mk_size_push]
+    simp
+    -- TODO: remove varSet_mk_eq_of_prefix
+    grind [=varSet, varSet_mk_eq_of_prefix (e := r) (σ1 := σ)]
 
 section MemVarset
 
@@ -431,7 +527,7 @@ lemma evalCache_of_lt_prefix
   {cache : ValueCache p}
   {σ σ' : HashConsSt p}
   (h_prefix : σ.exprs.isPrefixOf σ'.exprs)
-  (h_lt_prefix : e < σ.exprs.size)
+  (h_lt_prefix : (Expr.mk e σ).wellFormed)
 :
   evalWithCache Γ cache ⟨e, σ⟩ =
   evalWithCache Γ cache ⟨e, σ'⟩
@@ -445,7 +541,7 @@ lemma evalCache_of_lt_prefix
     unfold evalWithCache
     split_ifs
     . rfl
-    . have : cache.size < σ.exprs.size := by grind
+    . have : cache.size < σ.size := by grind
       have : σ[cache.size]? = σ'[cache.size]? := by
         simp
         rewrite [←Array.getElem?_toList, ←Array.getElem?_toList]
@@ -476,7 +572,7 @@ lemma evalCache_of_lt_prefix'
     unfold evalWithCache
     split_ifs
     . rfl
-    . have : cache.size < e₁.σ.exprs.size := by grind
+    . have : cache.size < e₁.σ.size := by grind
       have : e₁.σ[cache.size]? = e₂.σ[cache.size]? := by grind
       grind
     · grind
@@ -634,6 +730,18 @@ lemma isSome_prefix_eval_of_isSome_of_lt
   [Γ|e₁].isSome
 := by
   grind
+
+@[simp, grind =]
+lemma eval_mkConstant {c : ZMod p}
+:
+  [Γ|⟨(HashConsM.mkConstant c).getResult σ, (HashConsM.mkConstant c).getHashConsState σ⟩] =
+  .some c
+:= by
+  rewrite [eval_eq_evalRec]
+  . unfold evalRec
+    simp [HashConsM.mkConstant]
+    grind
+  . grind
 
 end Precedes
 

@@ -39,8 +39,8 @@ variable {numAlloc : ℕ} {e : Expr p} {e! : ExprRef} {Γ : VarStore p} {σ : Ha
 
 @[aesop unsafe, grind .]
 lemma wellFormed_tell_eq0 (h₁ : e! < σ.size)
-                          (h₂ : ∀ v < numAlloc, v ∈ Γ)
-                          (h₃ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc) :
+                          (h₂ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ)
+                          (h₃ : Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc) :
   (tell (M := ClapM _) #[Gate.eq0 e!]).wellFormed numAlloc Γ σ := by
   unfold ClapM.wellFormed
   split_ands
@@ -51,7 +51,7 @@ lemma wellFormed_tell_eq0 (h₁ : e! < σ.size)
   . simp [ClapM.hashConsState_wellFormed]
 
 @[aesop unsafe, grind .]
-lemma eq0_wellFormed (h₁ : e! < σ.size) (h₂ : ∀ v < numAlloc, v ∈ Γ) (h₃ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc) :
+lemma eq0_wellFormed (h₁ : e! < σ.size) (h₂ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ) (h₃ : Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc) :
   (eq0 e!).wellFormed numAlloc Γ σ
 := by
   convert wellFormed_tell_eq0 h₁ h₂ h₃
@@ -59,7 +59,7 @@ lemma eq0_wellFormed (h₁ : e! < σ.size) (h₂ : ∀ v < numAlloc, v ∈ Γ) (
 
 @[simp, grind =]
 lemma exprs_st_pushExpr {e : CacheExpr p} {h} :
-  (σ.exprs.size, HashConsSt.pushExpr e σ h).2.exprs = σ.exprs.push e := rfl
+  (σ.size, HashConsSt.pushExpr e σ h).2.exprs = σ.exprs.push e := rfl
 
 @[simp, grind .]
 lemma isPrefixOf_saveExpr {e : CacheExpr p} (h : e.wellFormed σ.size) :
@@ -78,7 +78,7 @@ lemma wellFormed_mk_saveExpr_of_wellFormed {e} (h : (⟨e!, σ⟩ : Expr _).well
   aesop (add safe (by grind)) (add simp [saveExpr])
 
 lemma wellFormed_tell_share_bind_alloc
-        (h₁ : e! < σ.size) (h₂ : ∀ v < numAlloc, v ∈ Γ) (h₃ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc) :
+        (h₁ : e! < σ.size) (h₂ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ) (h₃ : Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc) :
   (do tell #[Gate.share e!]; ClapM.alloc).wellFormed numAlloc Γ σ := by
   have : [Γ,σ|e!].isSome := by grind
   unfold ClapM.wellFormed
@@ -93,7 +93,6 @@ lemma wellFormed_tell_share_bind_alloc
       · intros i hi
         have : { ref := e!, σ := ((saveExpr (CacheExpr.v numAlloc)).run σ).2 : Expr _ }.varSet =
                { ref := e!, σ := σ : Expr _}.varSet := by
-          symm
           apply varSet.varSet_eq_of_prefix (by grind) (by grind)
           grind
         grind
@@ -101,7 +100,7 @@ lemma wellFormed_tell_share_bind_alloc
   · grind
 
 @[simp, grind .]
-lemma share_wellFormed (h₁ : e! < σ.size) (h₂ : ∀ v < numAlloc, v ∈ Γ) (h₃ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc) :
+lemma share_wellFormed (h₁ : e! < σ.size) (h₂ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ) (h₃ : Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc) :
   (share e!).wellFormed numAlloc Γ σ
 := by
   unfold share
@@ -109,7 +108,7 @@ lemma share_wellFormed (h₁ : e! < σ.size) (h₂ : ∀ v < numAlloc, v ∈ Γ)
 
 @[simp, grind .]
 lemma isZero_wellFormed
-  (h₁ : e! < σ.size) (h₂ : ∀ v < numAlloc, v ∈ Γ) (h₃ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc)
+  (h₁ : e! < σ.size) (h₂ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ) (h₃ : Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc)
 :
   (isZero e!).wellFormed numAlloc Γ σ
 := by
@@ -126,7 +125,6 @@ lemma isZero_wellFormed
       · intros i hi
         have : { ref := e!, σ := ((saveExpr (CacheExpr.v numAlloc)).run σ).2 : Expr _ }.varSet =
                { ref := e!, σ := σ : Expr _}.varSet := by
-          symm
           apply varSet.varSet_eq_of_prefix (by grind) (by grind)
           grind
         grind
@@ -221,7 +219,7 @@ lemma getNumAlloc_Vector_ofFnM_alloc
 
 @[simp, grind .]
 lemma num2bits_wellFormed {width : ℕ}
-  (h₁ : e! < σ.size) (h₂ : ∀ v < numAlloc, v ∈ Γ) (h₃ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc)
+  (h₁ : e! < σ.size) (h₂ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ) (h₃ : Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc)
 :
   (num2bits width e!).wellFormed numAlloc Γ σ
 := by
@@ -240,7 +238,7 @@ lemma num2bits_wellFormed {width : ℕ}
         . apply isSome_eval_of_prefix (by grind) h_isSome (by trivial)
           grind
         . intro x h_x
-          rewrite [←varSet.varSet_eq_of_prefix (by grind) h_wellFormed] at h_x
+          rewrite [varSet.varSet_eq_of_prefix (by grind) h_wellFormed] at h_x
           . grind
           . grind
       . grind
@@ -251,10 +249,12 @@ lemma fpmul_wellFormed {width k : ℕ} {a b p' : Vector ExprRef k}
   (h₁ : ∀ e! ∈ a, e! < σ.size)
   (h₂ : ∀ e! ∈ b, e! < σ.size)
   (h₃ : ∀ e! ∈ p', e! < σ.size)
-  (h₄ : ∀ v < numAlloc, v ∈ Γ)
-  (h₅ : ∀ e! ∈ a, ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc)
-  (h₆ : ∀ e! ∈ b, ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc)
-  (h₇ : ∀ e! ∈ p', ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v < numAlloc) :
+  (h₄ : ∀ e! ∈ a, ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ)
+  (h₅ : ∀ e! ∈ b, ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ)
+  (h₆ : ∀ e! ∈ p', ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ)
+  (h₇ : ∀ e! ∈ a, Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc)
+  (h₈ : ∀ e! ∈ b, Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc)
+  (h₉ : ∀ e! ∈ p', Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc) :
   (fpmul width k a b p').wellFormed numAlloc Γ σ := by
   unfold fpmul
   have h_isSome₁ : ∀ e! ∈ a, [Γ,σ|e!].isSome := by grind
@@ -267,7 +267,7 @@ lemma fpmul_wellFormed {width k : ℕ} {a b p' : Vector ExprRef k}
   split_ands
   · simp [Circuit.refsValid]
     split_ands
-    . intros ref href      
+    . intros ref href
       have : ref < σ.size := by
         rcases href with h | h | h <;> specialize_all ref <;> grind
       exact lt_of_lt_of_le this (by grind)
@@ -288,10 +288,10 @@ lemma fpmul_wellFormed {width k : ℕ} {a b p' : Vector ExprRef k}
           specialize_all x
           rcases h_x with h | h | h <;>
           · have := varSet.varSet_eq_of_prefix
-                      (e₁ := ⟨x, σ⟩) 
+                      (e₁ := ⟨x, σ⟩)
                       (e₂ := { ref := x, σ := (Vector.ofFnM (n := k) fun x => ClapM.alloc).getHashConsState numAlloc σ : Expr _})
                       (by grind) (show (⟨x, σ⟩ : Expr _).wellFormed by grind)
-            rewrite [←this] at href
+            rewrite [this] at href
             grind
             grind
       . grind
@@ -345,7 +345,7 @@ lemma eval_edsl_fpmul
 :
   (fpmul width k a b p').runAndEval numAlloc varStore σ =
   ⟨
-    (Vector.ofFnM fun (x : Fin k) => ClapM.alloc).getResult numAlloc σ,
+    (Vector.ofFnM fun (_ : Fin k) => ClapM.alloc).getResult numAlloc σ,
     unconstrained[numAlloc][varStore].stepFpmul
       ((Vector.ofFnM fun (_ : Fin k) => ClapM.alloc).getHashConsState numAlloc σ) width k a b p'
   ⟩

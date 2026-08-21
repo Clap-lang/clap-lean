@@ -39,6 +39,17 @@ lemma wellFormed_frame {e' : Expr p}
   have : e.σ.exprs.toList.isPrefixOf e'.σ.exprs.toList = true := by grind
   grind [List.prefix_iff_getElem?]
 
+@[grind =]
+lemma deref_mk_size_push
+  {e}
+  {σ : HashConsSt p}
+  {h: e.wellFormed σ.size}
+:
+  *(Expr.mk σ.size (σ.pushExpr e h)) =
+  .some e
+:= by
+  grind
+
 end Expr
 
 end Expr
