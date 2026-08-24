@@ -51,10 +51,8 @@ lemma expr_mk_fpmul {w k} {a b p'} :
 
 end
 
-@[grind =]
 def refsValid (gate : Gate) (bound : ℕ) : Prop := ∀ e ∈ gate.exprs, e < bound
 
-@[grind =]
 def varsAllocated (gate : Gate) (Γ : VarStore p) (σ : HashConsSt p) : Prop :=
   ∀ e ∈ gate.exprs, [Γ, σ|e].isSome
 
@@ -72,22 +70,52 @@ instance : Decidable (gate.varsAllocated Γ σ) :=
   inferInstanceAs <| Decidable (∀ e ∈ gate.exprs, [Γ, σ|e].isSome)
 
 @[simp, grind =]
-lemma varsAllocated_eq0 : varsAllocated (.eq0 e!) Γ σ = [Γ, σ|e!].isSome := by grind
+lemma varsAllocated_eq0 : varsAllocated (.eq0 e!) Γ σ ↔ [Γ, σ|e!].isSome := by grind [=varsAllocated]
 
 @[simp, grind =]
-lemma varsAllocated_share : varsAllocated (.share e!) Γ σ = [Γ, σ|e!].isSome := by grind
+lemma varsAllocated_share : varsAllocated (.share e!) Γ σ ↔ [Γ, σ|e!].isSome := by grind [=varsAllocated]
 
 @[simp, grind =]
-lemma varsAllocated_isZero : varsAllocated (.isZero e!) Γ σ = [Γ, σ|e!].isSome := by grind
+lemma varsAllocated_isZero : varsAllocated (.isZero e!) Γ σ ↔ [Γ, σ|e!].isSome := by grind [=varsAllocated]
 
 @[simp, grind =]
-lemma varsAllocated_num2bits {w} : varsAllocated (.num2bits w e!) Γ σ = [Γ, σ|e!].isSome := by grind
+lemma varsAllocated_num2bits {w} : varsAllocated (.num2bits w e!) Γ σ ↔ [Γ, σ|e!].isSome := by grind [=varsAllocated]
 
-@[simp, grind =]
+@[simp]
 lemma varsAllocated_fpmul {w k} {a b p'} :
-  varsAllocated (.fpmul w k a b p') Γ σ =
+  varsAllocated (.fpmul w k a b p') Γ σ ↔
   (∀ ref ∈ a ++ b ++ p', [Γ, σ|ref].isSome) := by
   simp [varsAllocated, exprs]
+
+@[simp, grind .]
+lemma isSome_varsAllocated_fpmul_of_mem_a {w k} {a b p'}
+  {ref : ExprRef}
+  (h_mem : ref ∈ a)
+  (h_varsAllocated : varsAllocated (.fpmul w k a b p') Γ σ)
+:
+  ([Γ, σ|ref].isSome)
+:= by
+  grind [varsAllocated_fpmul]
+
+@[simp, grind .]
+lemma isSome_varsAllocated_fpmul_of_mem_b {w k} {a b p'}
+  {ref : ExprRef}
+  (h_mem : ref ∈ b)
+  (h_varsAllocated : varsAllocated (.fpmul w k a b p') Γ σ)
+:
+  ([Γ, σ|ref].isSome)
+:= by
+  grind [varsAllocated_fpmul]
+
+@[simp, grind .]
+lemma isSome_varsAllocated_fpmul_of_mem_p {w k} {a b p'}
+  {ref : ExprRef}
+  (h_mem : ref ∈ p')
+  (h_varsAllocated : varsAllocated (.fpmul w k a b p') Γ σ)
+:
+  ([Γ, σ|ref].isSome)
+:= by
+  grind [varsAllocated_fpmul]
 
 @[simp, grind =]
 lemma wellFormed_iff :
@@ -101,55 +129,69 @@ lemma refsValid_of_refsValid_of_le
 :
   gate.refsValid bound_high
 := by
-  grind
+  grind [=refsValid]
+
+lemma refsValid_iff_wellFormed_mk:
+  (∀ e ∈ gate.exprs, (Expr.mk e σ).wellFormed) ↔ gate.refsValid σ.size := by
+  grind [=refsValid]
 
 @[grind .]
-lemma refsValid_iff_wellFormed_mk :
-  (∀ e ∈ gate.exprs, (Expr.mk e σ).wellFormed) ↔ gate.refsValid σ.size := by
-  grind
+lemma _root_.Clap.Expr.wellFormed_mk_of_refsValid_of_mem
+  {e : ExprRef}
+  {gate : Gate}
+  (h : e ∈ gate.exprs)
+  (h_refsValid : gate.refsValid σ.size)
+:
+  (Expr.mk e σ).wellFormed
+:= by
+  grind [=refsValid]
 
-@[simp, grind =]
+@[simp]
 lemma refsValid_eq0 : (Gate.eq0 e!).refsValid bound ↔ e! < bound := by
   simp [refsValid]
 
-@[simp, grind =]
+@[simp]
 lemma refsValid_share : (Gate.share e!).refsValid bound ↔ e! < bound := by
   simp [refsValid]
 
-@[simp, grind =]
+@[simp]
 lemma refsValid_isZero : (Gate.isZero e!).refsValid bound ↔ e! < bound := by
   simp [refsValid]
 
-@[simp, grind =]
+@[simp]
 lemma refsValid_num2bits {w : ℕ} : (Gate.num2bits w e!).refsValid bound ↔ e! < bound := by
   simp [refsValid]
 
-@[simp, grind =]
+@[simp]
 lemma refsValid_fpmul {w k : ℕ} {a b p'} :
   (Gate.fpmul w k a b p').refsValid bound ↔
   (∀ ref ∈ a ++ b ++ p', ref < bound) := by
   simp [refsValid, exprs]
 
+
 section Precedes
 
 variable {gate : Gate} {Γ₁ Γ₂ Γ₃ : VarStore p}
 
-@[grind .]
-lemma wellFormed_of_wellFormed_precedes
-  (h_refsValid : gate.wellFormed Γ₁ σ)
+@[grind <=]
+lemma varsAllocated_of_wellFormed_precedes
+  (h_wf : gate.wellFormed Γ₁ σ)
   (h : [σ|Γ₁ ⊑ Γ₂])
 :
-  gate.wellFormed Γ₂ σ
+  gate.varsAllocated Γ₂ σ
 := by
+  unfold varsAllocated
+  intro e h_e
+  obtain ⟨h_refsValid, h_varsAllocated⟩ := h_wf
+  unfold varsAllocated at h_varsAllocated
   grind
 
 @[grind .]
-lemma varsAllocated_of_wellFormed_precedes
-  {varStore1 varStore2 : VarStore p}
-  (h_refsValid : gate.wellFormed varStore1 σ)
-  (h : [σ|varStore1 ⊑ varStore2])
+lemma wellFormed_of_wellFormed_precedes
+  (h_wf : gate.wellFormed Γ₁ σ)
+  (h : [σ|Γ₁ ⊑ Γ₂])
 :
-  gate.varsAllocated varStore2 σ
+  gate.wellFormed Γ₂ σ
 := by
   grind
 

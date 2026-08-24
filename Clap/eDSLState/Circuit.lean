@@ -294,13 +294,15 @@ lemma eval_varStore_eval_insert_isSome_of_isSome
 := by
   grind
 
-@[grind .]
+@[grind =>]
 lemma _root_.Clap.Gate.varsAllocated_step_of_wellFormed
   {gate1 gate2 : Gate}
   (h_wf : gate2.wellFormed st.varStore σ)
 :
   gate2.varsAllocated [st, σ|gate1]ₛ.varStore σ
 := by
+  obtain ⟨h_rf, h_va⟩ := h_wf
+  unfold Gate.varsAllocated at *
   grind
 
 @[grind .]
@@ -708,7 +710,12 @@ lemma step_of_refsValid_prefix
 := by
   unfold EvalSt.step
   cases gate
-  · grind
+  · simp [EvalSt.stepEq0]
+    have (ref : ExprRef) :
+      st[Expr.mk ref σ']? = st[Expr.mk ref σ]?
+    := by
+      sorry
+    grind
   · grind
   · grind
   · grind

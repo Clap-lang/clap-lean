@@ -123,6 +123,7 @@ lemma isZero_wellFormed' {e!} {σ : HashConsSt p} {Γ : VarStore p} {numAlloc}
 := by
   sorry
 
+set_option maxHeartbeats 0 in
 lemma wellFormed
   [p.AtLeastTwo]
   {varStore : VarStore p}
@@ -141,20 +142,38 @@ lemma wellFormed
   unfold eq
   apply Clap.ClapM.bind_wellFormed
   · simp_all only [HashConsM.wellFormed_mkSub, ClapM.wellFormed_of_hashConsM_wellFormed]
-  · simp_all only [ClapM.getResult_liftM, ClapM.getNumAlloc_liftM, ClapM.getCircuit_liftM,
-      ClapM.getHashConsState_liftM, Circuit.eval_empty, EvalSt.varStore_unconstrained]
-    set mkSubM := HashConsM.mkSub a b with mkEq
-    set getResult := mkSubM.getResult σ with mkResult
-    set getHashConsState := mkSubM.getHashConsState σ with mkHashConsState
-    have : getResult < getHashConsState.size := by grind
-    
-    unfold isZero
-    unfold ClapM.wellFormed
-    
-    -- grind
-  -- apply ClapM.bind_wellFormed
-  -- . 
-  -- . grind
+  . grind only [
+      = eval_eq_evalRec,
+      = Expr.varSet_wellFormed.eq_1,
+      = ClapM.wellFormed.eq_1,
+      isZero_wellFormed',
+      = ClapM.getResult_liftM,
+      = ClapM.getNumAlloc_liftM,
+      = ClapM.getCircuit_liftM,
+      = ClapM.getHashConsState_liftM,
+      = eval.eq_1,
+      = getHashConsState_isZero,
+      = Expr.wellFormed.eq_1,
+      = Circuit.eval_empty,
+      = ClapM.numAlloc_wellFormed.eq_1,
+      = ClapM.hashConsState_wellFormed.eq_1,
+      HashConsM.getResult_lt_getHashConsState_size_mkSub,
+      = evalRec_isSome_iff,
+      = EvalSt.varStore_unconstrained,
+      → varSet.varSet_mk_eq_of_prefix,
+      !evalCache_of_lt_prefix,
+      = varSet.varSet_mkSub,
+      = Gate.varsAllocated_isZero,
+      = Gate.varsAllocated.eq_1,
+      = Circuit.eval_numAlloc,
+      = EvalSt.numAlloc_unconstrained,
+      = Circuit.mem_eval_varStore,
+      = Set.mem_union,
+      ← Array.isPrefixOf_rfl,
+      = HashConsSt.isPrefixOf_pushExpr
+    ]
+    -- apply isZero.wellFormed <;> grind
+
 
 lemma matches_spec
   [p.AtLeastTwo]
@@ -195,21 +214,21 @@ lemma matches_spec
 
   have : f.getCircuit numAlloc σ = #[Gate.isZero (σ.exprs.idxOf subCExpr)] := by
     grind [eq]
-  
+
   have eq₁ :
     (HashConsM.mkSub a b).getHashConsState σ =
     if subCExpr ∈ σ.exprs
     then σ
     else σ.pushExpr subCExpr subCExprWf := by grind
 
-  
+
   -- We probably want something about allocations ≥ numAlloc in addition to the ones preceding it
   have : CacheExpr.v numAlloc ∉ σ.exprs := by
     sorry
   -- Pushing subCExpr doesn't add `.v numaAlloc` to `σ`
   have : CacheExpr.v numAlloc ∉ (σ.pushExpr subCExpr subCExprWf).exprs := by sorry
 
-  
+
 
   -- have : f.getHashConsState numAlloc σ =
   --        (σ.pushExpr subCExpr subCExprWf).pushExpr (CacheExpr.v numAlloc) (by grind) := by
@@ -217,21 +236,21 @@ lemma matches_spec
   --   unfold eq
   --   rw [ClapM.getHashConsState_bind]
   --   simp [eq₁]
-    
+
   --   by_cases eq₂ : subCExpr ∉ σ.exprs
   --   · simp? [eq₂, -ite_eq_right_iff]
-      
+
   --     simp [eq₂, this]
   --   · simp at eq₂
   --     simp [eq₂]
-      
-      
-      
-      
 
-      
+
+
+
+
+
     -- sorry
-  
+
 
 
 
@@ -400,7 +419,7 @@ lemma matches_spec
           idx).map (ZMod.val) == .some len
       ]
     := by
-      
+
       done
     simp [this, ih]
     rewrite [toIdeal_eq_toIdeal_of_wellFormed, h_idx_val]

@@ -376,7 +376,6 @@ lemma evalRec_isSome_iff :
   . aesop (add safe (by grind [=evalRec]))
   . aesop (add safe (by grind))
 
-@[grind =]
 def eval {p} (varStore : VarStore p) (e : Expr p) : Option (ZMod p) :=
   (evalWithCache varStore #[] e)[e.ref]!
 
@@ -598,7 +597,7 @@ lemma isSome_eval_of_isSome_eval_subset
 := by
   grind
 
-@[aesop simp, grind .]
+@[aesop simp, grind →]
 lemma isSome_eval_of_isSome_eval_subset'
   {p : ℕ}
   {varStoreBig varStoreSmol : VarStore p}
