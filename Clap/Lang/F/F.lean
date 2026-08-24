@@ -1,7 +1,10 @@
 import Clap.eDSLState.eDSL
 import Clap.eDSLState.IsValid
+import Std.Tactic.Do
 
 import Clap.Lang.Wheels
+
+open Std.Do
 
 namespace Clap.Lang
 
@@ -97,8 +100,7 @@ lemma getCircuit_num2bits {w : ℕ} {e! : ExprRef} {numAlloc} {σ : HashConsSt p
 
 @[simp, grind =]
 lemma getResult_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
-  (liftM (m := HashConsM p) (n := ClapM p) action).getResult numAlloc σ = action.getResult σ := by
-  rfl
+  (liftM (m := HashConsM p) (n := ClapM p) action).getResult numAlloc σ = action.getResult σ := rfl
 
 @[simp, grind =]
 lemma getHashConsState_isZero {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
@@ -112,7 +114,6 @@ lemma getHashConsState_isZero {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
 lemma wellFormed_pure {α} {action : α} {numAlloc} {varStore : VarStore p} {σ : HashConsSt p}:
   (pure (f := ClapM p) action).wellFormed numAlloc varStore σ := by
   grind
-
 
 lemma wellFormed
   [p.AtLeastTwo]
@@ -150,6 +151,9 @@ lemma matches_spec
   (h_a_val : [varStore,σ|a].get h_a_wf = a_val)
   (h_b_wf : [varStore|Expr.mk b σ].isSome = true)
   (h_b_val : [varStore,σ|b].get h_b_wf = b_val)
+  -- (h_σ_a : Expr.varSet_wellFormed ⟨a, σ⟩ numAlloc)
+  -- (h_σ_b : Expr.varSet_wellFormed ⟨b, σ⟩ numAlloc)
+  -- TODO: or something | allocated _exactly_ up to numAlloc
 :
   F.matches_spec
     varStore
@@ -161,22 +165,50 @@ lemma matches_spec
 := by
   dsimp [F.matches_spec]
   set aExpr : Expr _ := ⟨a, σ⟩
-  set bExpr : Expr _ := ⟨b, σ⟩
   have : aExpr.wellFormed := by grind
+
+  set bExpr : Expr _ := ⟨b, σ⟩
   have : bExpr.wellFormed := by grind
+
+  set subCExpr : CacheExpr p := .binary_op (p := p) a b .sub
+  have subCExprWf : subCExpr.wellFormed σ.size := by grind
+
   set f := a.eq b (p := p) with hf
 
-  have : f.getCircuit numAlloc σ = #[Gate.isZero ((HashConsM.mkSub a b).getResult σ)] := by
-    simp [hf, eq]
-  have : f.getHashConsState numAlloc σ = σ := by
+  have : f.getCircuit numAlloc σ = #[Gate.isZero (σ.exprs.idxOf subCExpr)] := by
+    grind [eq]
+  
+  have eq₁ :
+    (HashConsM.mkSub a b).getHashConsState σ =
+    if subCExpr ∈ σ.exprs
+    then σ
+    else σ.pushExpr subCExpr subCExprWf := by grind
+
+  -- We probably want something about allocations ≥ numAlloc in addition to the ones preceding it
+  have : CacheExpr.v numAlloc ∉ σ.exprs := by
+    sorry
+  -- Pushing subCExpr doesn't add `.v numaAlloc` to `σ`
+  have : CacheExpr.v numAlloc ∉ (σ.pushExpr subCExpr subCExprWf).exprs := by sorry
+
+  have : f.getHashConsState numAlloc σ =
+         (σ.pushExpr subCExpr subCExprWf).pushExpr (CacheExpr.v numAlloc) (by grind) := by
     rw [hf]
     unfold eq
     rw [ClapM.getHashConsState_bind]
-    simp
+    simp [eq₁]
+    
+    by_cases eq₂ : subCExpr ∉ σ.exprs
+    · simp [eq₂, this]
+    · simp at eq₂
+      simp [eq₂]
+      
+      
+      
+      
 
+      
     sorry
-
-    done
+  
 
 
 

@@ -75,6 +75,7 @@ lemma getHashConsState_saveExpr_of_wellFormed (h : e.wellFormed σ.size) :
   unfold getHashConsState
   grind
 
+@[grind =]
 lemma run_saveExpr_of_mem (h : e ∈ σ) :
   (saveExpr e).run σ =
   (σ.exprs.idxOf e, σ)
@@ -83,10 +84,30 @@ lemma run_saveExpr_of_mem (h : e ∈ σ) :
   aesop (add simp HashConsSt.mem_def)
 
 @[grind =]
+lemma run_saveExpr_of_notMem_wellFormed (h : e ∉ σ) (h₁ : e.wellFormed σ.size) :
+  (saveExpr e).run σ =
+  (σ.size, HashConsSt.pushExpr e σ h₁)
+:= by
+  unfold saveExpr run
+  grind
+
+@[grind =]
 lemma size_getHashConsState_saveExpr_of_mem (h : e ∈ σ) :
   ((saveExpr e).getHashConsState σ).size = σ.size := by
   change ((saveExpr e).run σ).2.size = σ.size
   rw [run_saveExpr_of_mem (by grind)]
+
+@[grind =]
+lemma getResult_saveExpr_of_mem {e : CacheExpr p} (h : e ∈ σ) :
+  (HashConsM.saveExpr e).getResult σ = σ.exprs.idxOf e := by
+  unfold getResult
+  rw [run_saveExpr_of_mem h]
+
+@[grind =]
+lemma getResult_saveExpr_of_notMem_wellFormed {e : CacheExpr p} (h : e ∉ σ) (h₁ : e.wellFormed σ.size) :
+  (HashConsM.saveExpr e).getResult σ = σ.exprs.idxOf e := by
+  unfold getResult
+  grind
 
 end SaveExpr
 
@@ -144,7 +165,13 @@ def mkMul (l r : ExprRef) : HashConsM p ExprRef := do
 
 section Lemmas
 
-variable {k : ZMod p} {σ : HashConsSt p} {e! : ExprRef}
+variable {k : ZMod p} {σ : HashConsSt p} {e! e!₁ e!₂ : ExprRef}
+
+@[grind =]
+lemma getResult_of_mkSub_of_wellFormed
+  (h₁ : (CacheExpr.binary_op (p := p) e!₁ e!₂ .sub).wellFormed σ.size) :
+  (HashConsM.mkSub e!₁ e!₂).getResult σ = σ.exprs.idxOf (.binary_op (p := p) e!₁ e!₂ .sub) := by
+  grind [=mkSub]
 
 @[simp, grind =]
 lemma run_mkConstant:
