@@ -767,7 +767,7 @@ lemma eval_of_refsValid_prefix
 
 end
 
-@[simp, grind _=_]
+@[simp, grind =]
 lemma refsValid_append_iff {a b : Circuit} {numAlloc : ℕ}
 :
   (a ++ b).refsValid numAlloc ↔
