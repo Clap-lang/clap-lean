@@ -34,7 +34,7 @@ A value of `StringOrURI` type that contains a ":" character must be a URI, not a
 but for the Aptos case this is not important.
 
 **iss**
-  - of type `StringOrURI`, actually just a string
+  - of type `StringOrURI`, actually just a URI in the form of a quoted string
 
 **aud**
   - of type `StringOrURI` (or array of `StringOrURI`s, but not for Aptos)
@@ -43,11 +43,23 @@ but for the Aptos case this is not important.
 
 **sub**
   - of type `StringOrURI`, actually just a string
+  - It MUST NOT exceed 255 ASCII [RFC20] characters in length.
 
 AIP-061 gives `email` as an example of `extra_field`
 
 -/
 
+
+/-
+
+Public key:
+  - *iss*
+  - IDC (id commitment) = *uid* + ("sub" | "email") + *aud*
+
+Signature verification against Public key:
+  -
+
+-/
 inductive UidKey where
   | sub
   | email
@@ -81,18 +93,46 @@ def emailVerifiedFromJson : Json → Except String Bool
   | _ => throw "The field (email_verified) must be a boolean or a string."
 
 /--
+Like `Json.Parser.anyCore`, but only parses flat JSON values (strings, numbers,
+booleans, null), never arrays or objects. Since it never recurses into itself,
+unlike `anyCore` it does not need to be `partial`.
+-/
+def jsonFlatValue : Parser Json := do
+  let c ← peek!
+  if c == '\"' then
+    skip
+    let s ← Json.Parser.str
+    ws
+    return Json.str s
+  else if c == 'f' then
+    skipString "false"; ws
+    return Json.bool false
+  else if c == 't' then
+    skipString "true"; ws
+    return Json.bool true
+  else if c == 'n' then
+    skipString "null"; ws
+    return Json.null
+  else if c == '-' || ('0' <= c && c <= '9') then
+    let n ← Json.Parser.num
+    ws
+    return Json.num n
+  else
+    fail "unexpected input"
+
+/--
 Parse a list of one or more key-value pairs followed by a "}".
 Implemented like `Json.Parser.objectCore`, but it keeps all the claims from the
 top level that share the same key.
 -/
-partial def objectCoreAllPairs' (acc : Std.TreeMap.Raw String (List Json)) :
+def objectCoreAllPairs' (acc : Std.TreeMap.Raw String (List Json)) :
   Parser (Std.TreeMap.Raw String (List Json))
 := do
   Json.Parser.lookahead (fun c => c == '"') "\""; skip
   let k ← Json.Parser.str
   ws
   Json.Parser.lookahead (fun c => c == ':') ":"; skip; ws
-  let v ← Json.Parser.anyCore
+  let v ← jsonFlatValue
   let c ← any
   if c == '}' then
     ws
@@ -102,6 +142,8 @@ partial def objectCoreAllPairs' (acc : Std.TreeMap.Raw String (List Json)) :
     objectCoreAllPairs' <| acc.mergeWith (fun _ v₁ v₂ ↦ v₁ ++ v₂) {(k, [v])}
   else
     fail "unexpected character in object"
+  termination_by True
+  decreasing_by sorry
 
 /-- All ways of picking one value for each key from its list of candidate values
 -/
@@ -155,8 +197,13 @@ def payload_from_json
   if iat + expHorizon ≤ exp then
     throw s!"iat + expHorizon ≤ exp ({iat} + {expHorizon} = {iat + expHorizon} ≤ {exp})"
 
-  if exp ≤ iat then
-    throw s!"Token expired: exp ≤ iat ({expHorizon} ≤ {iat})"
+  -- if exp ≤ iat then
+  -- Aptos "We do not assert the expiration date is in the future (i.e., assert exp_date > jwt["iat"])""
+
+
+  -- https://openid.net/specs/openid-connect-core-1_0.html#IDToken
+  -- "current date/time MUST be before the expiration date/time listed in the value."
+  -- what does aptos check?
 
   return { iss, aud, uid, iat, exp, email_verified, nonce, extra_field }
 
