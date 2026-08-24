@@ -505,8 +505,7 @@ lemma bind_Circuit_wellFormed
           rcases ha_varsAllocated with ⟨eq₁, eq₂⟩
           specialize eq₂ expr h_expr i' hi'
           grind
-        · unfold Expr.wellFormed
-          unfold Circuit.refsValid at ha_refsValid
+        · unfold Circuit.refsValid at ha_refsValid
           specialize ha_refsValid circuit[i] (by grind)
           grind
         · grind

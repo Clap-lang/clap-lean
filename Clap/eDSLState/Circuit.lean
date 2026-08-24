@@ -701,6 +701,13 @@ lemma assertAllocated_singleton :
     simp [EvalSt.assertAllocated]
 
 @[grind =>]
+theorem _root_.Clap.EvalSt.getElem?_of_refsValid_prefix {p : ℕ} {σ σ' : HashConsSt p} {st : EvalSt p} {ref : ExprRef}
+  (h_prefix : σ.exprs.isPrefixOf σ'.exprs)
+  (h_wellFormed : (Expr.mk ref σ).wellFormed) :
+  st[Expr.mk ref σ']? = st[Expr.mk ref σ]? := by
+  grind
+
+@[grind =>]
 lemma step_of_refsValid_prefix
   (h_prefix : σ.exprs.isPrefixOf σ'.exprs)
   (h_refsValid : gate.refsValid σ.size)
@@ -710,12 +717,7 @@ lemma step_of_refsValid_prefix
 := by
   unfold EvalSt.step
   cases gate
-  · simp [EvalSt.stepEq0]
-    have (ref : ExprRef) :
-      st[Expr.mk ref σ']? = st[Expr.mk ref σ]?
-    := by
-      sorry
-    grind
+  · grind
   · grind
   · grind
   · grind
@@ -881,6 +883,7 @@ lemma varsAllocated_eval_append_left
 :
   gate.varsAllocated [varStore, σ, numAlloc|circuit1 ++ circuit2]ₑ.varStore σ
 := by
+  unfold Gate.varsAllocated at *
   grind
 
 @[grind <=]

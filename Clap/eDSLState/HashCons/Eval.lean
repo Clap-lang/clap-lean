@@ -268,6 +268,16 @@ lemma wellFormed_of_wellFormed_isPrefixOf
   (this : e₁.wellFormed) : e₂.wellFormed := by
   grind
 
+open HashConsM in
+@[grind ->]
+lemma wellFormed_mk_of_wellFormed_isPrefixOf
+  {p : ℕ}
+  {e : ExprRef}
+  {σ₁ σ₂ : HashConsSt p}
+  (h_prefix : σ₁.exprs.isPrefixOf σ₂.exprs = true)
+  (this : (⟨e, σ₁⟩ : Expr _).wellFormed) : (⟨e, σ₂⟩ : Expr _).wellFormed := by
+  apply wellFormed_of_wellFormed_isPrefixOf (e₁ := ⟨e, σ₁⟩) <;> grind
+
 @[grind .]
 lemma isSome_evalRec_insert_of_isSome_evalRec {k : ℕ} {v : ZMod p}
   (h : (evalRec Γ e).isSome) : (evalRec (Γ.insert k v) e).isSome := by
@@ -664,6 +674,22 @@ lemma insert_precedes_of_mem
       . grind
       . rewrite [binaryOp_isSome_iff] at h_eval
         grind
+
+open Expr in
+@[grind =>]
+lemma evalRec_of_wellFormed_of_prefix
+  {p : ℕ}
+  {Γ : VarStore p}
+  {e : ExprRef}
+  {σ σ' : HashConsSt p}
+  (h_prefix : σ.exprs.isPrefixOf σ'.exprs)
+  (h_lt_prefix : (Expr.mk e σ).wellFormed)
+:
+  evalRec Γ ⟨e, σ⟩ =
+  evalRec Γ ⟨e, σ'⟩ := by
+  rw [←Clap.eval_eq_evalRec (by grind), ←Clap.eval_eq_evalRec]
+  grind [=eval]
+  grind  
 
 @[grind .]
 lemma precedes_insertMany

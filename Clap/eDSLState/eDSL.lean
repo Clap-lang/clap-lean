@@ -87,6 +87,7 @@ lemma wellFormed_tell_share_bind_alloc
   · simp
     split_ands
     · unfold Circuit.refsValid
+      simp? -- HELLO, IT'S A ME, MARIO
       grind
     · simp [Circuit.varsAllocated]
       split_ands

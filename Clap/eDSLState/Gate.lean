@@ -135,7 +135,7 @@ lemma refsValid_iff_wellFormed_mk:
   (∀ e ∈ gate.exprs, (Expr.mk e σ).wellFormed) ↔ gate.refsValid σ.size := by
   grind [=refsValid]
 
-@[grind .]
+@[grind <=]
 lemma _root_.Clap.Expr.wellFormed_mk_of_refsValid_of_mem
   {e : ExprRef}
   {gate : Gate}
