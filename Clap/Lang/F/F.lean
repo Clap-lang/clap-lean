@@ -51,6 +51,14 @@ lemma wellFormed_of_toIdeal_isSome
 
   done
 
+lemma isSome_eval_of_isSome_toIdeal
+  {Γ :VarStore p} {σ : HashConsSt p} {result : F}
+  (h : (F.Convert.toIdeal Γ σ result).isSome = true)
+:
+  [Γ, σ|result].isSome = true
+:= by
+  done
+
 lemma toIdeal_eq_toIdeal_of_wellFormed
   {x : F}
   {α}
@@ -267,6 +275,17 @@ def spec (len : ℕ) (idx : ℕ) : Vector Bool len :=
 
 opaque Convert.toIdeal {len : ℕ} (varStore : VarStore p) (σ : HashConsSt p) (result : Vector FB len) : Option (Vector Bool len)
 
+lemma Convert.toIdeal_push
+  {len : ℕ} {vec : Vector Bool len} {extra : FB} {val : Bool}
+  {varStore : VarStore p}
+  {σ : HashConsSt p}
+  {result : Vector FB len}
+  (h_base : Convert.toIdeal varStore σ result = .some vec)
+  (h_extra : FB.Convert.toIdeal varStore σ extra = .some val)
+:
+  Convert.toIdeal varStore σ (result.push extra) = .some (vec.push val)
+:= by
+  done
 
 -- lemma Vector.mapM_append {p} {α β} {n} {n'}
 --     {f : α → ClapM p β} {xs : Vector α n} :
@@ -290,6 +309,19 @@ lemma _root_.Clap.ClapM.Vector.mapM_singleton
   funext
   simp [StateT.bind]
   cbv
+
+@[grind .]
+lemma getVarStore_precedes_of_wellFormed
+  {α}
+  {Γ : VarStore p}
+  {numAlloc : ℕ}
+  {σ σ': HashConsSt p}
+  {action : ClapM p α}
+:
+  [σ'|Γ ⊑ action.getVarStore Γ numAlloc σ]
+:= by
+  unfold ClapM.getVarStore
+  grind
 
 lemma wellFormed
   [p.AtLeastTwo]
@@ -334,8 +366,17 @@ lemma wellFormed
         rewrite [HashConsM.getHashConsState_mkConstant]
         aesop
       . grind [HashConsM.getResult_lt_getHashConsState_size_mkConstant] -- grind why
-      . -- should follow from Convert.toIdeal.isSome
-        sorry
+      . rewrite [←ClapM.getVarStore]
+        have := isSome_eval_of_isSome_toIdeal h_isSome
+        apply isSome_eval_of_isSome_eval_precedes (Γ₁ := varStore)
+        . apply isSome_eval_of_prefix _ this
+          . grind
+          . grind
+          . exact wellFormed_of_toIdeal_isSome h_isSome
+        . have := wellFormed_of_toIdeal_isSome h_isSome
+          grind
+        . simp
+          grind
       . unfold Expr.varSet_wellFormed
         rewrite [varSet.varSet_mk_eq_of_prefix (σ1 := σ)]
         . grind
@@ -356,7 +397,7 @@ lemma matches_spec
   {numAlloc : ℕ}
   {σ : HashConsSt p}
   {idx_val : ℕ}
-  (h_idx_val : (F.Convert.toIdeal varStore σ idx).map ZMod.val = .some idx_val)
+  (h_idx_val : F.Convert.toIdeal varStore σ idx idx_val)
   (h_idx_varSet : Expr.varSet_wellFormed ⟨idx, σ⟩ numAlloc)
 :
   F.matches_spec
@@ -419,15 +460,40 @@ lemma matches_spec
           idx).map (ZMod.val) == .some len
       ]
     := by
+      simp [ih]
+      have :
+        f.getResult numAlloc σ =
+        ((oneHotRaw len idx).getResult numAlloc σ).push
+          ((idx.eq ((HashConsM.mkConstant (len : ZMod p)).getResult ((oneHotRaw len idx).getHashConsState numAlloc σ))).getResult
+          ((oneHotRaw len idx).getNumAlloc numAlloc σ)
+          ((HashConsM.mkConstant (len : ZMod p)).getHashConsState ((oneHotRaw len idx).getHashConsState numAlloc σ)))
+      := by
+        simp [eq]
+      rewrite [this]; clear this
+      rewrite [Convert.toIdeal_push]
+      . rfl
+      . simp [eq]
+        rewrite [ClapM.getVarStore_bind_of_wellFormed (wellFormed h_idx_val h_idx_varSet)]
+        . done
+        . apply ClapM.bind_wellFormed
+          . grind
+          . simp
+            apply F.eq.wellFormed
+            . have h_toIdeal : (F.Convert.toIdeal varStore σ idx).isSome = true := by aesop
+              have := wellFormed_of_toIdeal_isSome h_toIdeal
 
+              done
+          done
+        done
       done
+
     simp [this, ih]
     rewrite [toIdeal_eq_toIdeal_of_wellFormed, h_idx_val]
     . aesop
     . apply wellFormed_of_toIdeal_isSome (varStore := varStore)
       grind
     . grind
-    . grind
+    . exact wellFormed h_idx_val h_idx_varSet
   done
 
 end oneHotRaw

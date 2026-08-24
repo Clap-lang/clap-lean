@@ -543,6 +543,20 @@ lemma bind_wellFormed
 
 end Bind_WellFormed
 
+@[simp, grind =]
+lemma map_wellFormed
+  {α β}
+  {numAlloc : ℕ}
+  {varStore : VarStore p}
+  {σ : HashConsSt p}
+  (action : ClapM p α)
+  (f : α → β)
+:
+  (f <$> action).wellFormed numAlloc varStore σ ↔
+  action.wellFormed numAlloc varStore σ
+:= by
+  grind
+
 end ClapM
 
 attribute [Clap.monads, grind =]

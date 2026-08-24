@@ -79,7 +79,7 @@ lemma wellFormed_mk_saveExpr_of_wellFormed {e} (h : (⟨e!, σ⟩ : Expr _).well
   aesop (add safe (by grind)) (add simp [saveExpr])
 
 lemma wellFormed_tell_share_bind_alloc
-        (h₁ : e! < σ.size) (h₂ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ) (h₃ : Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc) :
+        (h₁ : (Expr.mk e! σ).wellFormed) (h₂ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ) (h₃ : Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc) :
   (do tell #[Gate.share e!]; ClapM.alloc).wellFormed numAlloc Γ σ := by
   have : [Γ,σ|e!].isSome := by grind
   unfold ClapM.wellFormed
@@ -87,11 +87,13 @@ lemma wellFormed_tell_share_bind_alloc
   · simp
     split_ands
     · unfold Circuit.refsValid
-      simp? -- HELLO, IT'S A ME, MARIO
-      grind
+      intro gate h_gate
+      aesop (add safe (by grind))
     · simp [Circuit.varsAllocated]
       split_ands
-      · grind
+      · apply isSome_eval_of_prefix (by grind) this
+        . grind
+        . grind
       · intros i hi
         have : {ref := e!, σ := (saveExpr (CacheExpr.v numAlloc)).getHashConsState σ : Expr _}.varSet =
                {ref := e!, σ := σ : Expr _}.varSet := by
@@ -123,7 +125,7 @@ lemma isZero_wellFormed
     · grind
     · simp [Circuit.varsAllocated]
       split_ands
-      · grind
+      · apply isSome_eval_of_prefix _ this <;> grind
       · intros i hi
         have : { ref := e!, σ := (saveExpr (CacheExpr.v numAlloc)).getHashConsState σ : Expr _ }.varSet =
                { ref := e!, σ := σ : Expr _}.varSet := by

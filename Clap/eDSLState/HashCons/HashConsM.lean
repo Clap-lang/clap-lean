@@ -36,7 +36,6 @@ def getResult {α} (action : HashConsM p α) (σ : HashConsSt p) : α :=
 def getHashConsState {α} (action : HashConsM p α) (σ : HashConsSt p) : HashConsSt p :=
   (action.run σ).2
 
-@[grind .]
 def wellFormed
   {p : ℕ}
   {α}
@@ -44,6 +43,33 @@ def wellFormed
   (action : HashConsM p α)
 : Prop :=
   σ.exprs.isPrefixOf (action.getHashConsState σ).exprs
+
+@[grind =]
+lemma isPrefixOf_of_wellFormed
+  {p : ℕ}
+  {α}
+  {σ : HashConsSt p}
+  {action : HashConsM p α}
+  (h_wf : action.wellFormed σ)
+:
+  σ.exprs.isPrefixOf (action.getHashConsState σ).exprs = true
+:= by
+  grind [=wellFormed]
+
+@[grind =]
+lemma isPrefixOf_of_wellFormed_trans
+  {p : ℕ}
+  {α}
+  {σ σ' : HashConsSt p}
+  {action : HashConsM p α}
+  (h_wf : action.wellFormed σ')
+  (h_prefix : σ.exprs.isPrefixOf σ'.exprs = true)
+:
+  σ.exprs.isPrefixOf (action.getHashConsState σ').exprs = true
+:= by
+  apply Array.isPrefixOf_trans h_prefix
+  grind
+
 
 @[grind =]
 lemma run_saveExpr_of_wellFormed (h : e.wellFormed σ.size) :
@@ -226,12 +252,12 @@ lemma wellFormed_saveExpr {e} : (saveExpr e).wellFormed σ := by
     next h_1 => grind
 
 @[simp, grind .]
-lemma wellFormed_mkConstant : (mkConstant e!).wellFormed σ := by
+lemma wellFormed_mkConstant {c : ZMod p} : (mkConstant c).wellFormed σ := by
   unfold mkConstant
   grind
 
 @[simp, grind .]
-lemma wellFormed_mkVar : (mkVar e!).wellFormed σ := by
+lemma wellFormed_mkVar {idx : ℕ} : (mkVar idx).wellFormed σ := by
   unfold mkVar
   grind
 
