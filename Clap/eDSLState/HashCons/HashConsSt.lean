@@ -63,4 +63,15 @@ lemma isPrefixOf_pushExpr
 := by
   aesop (add simp HashConsSt.pushExpr) (add safe (by grind))
 
+@[aesop safe, grind .]
+lemma size_le_size_of_prefixOf {σ σ' : HashConsSt p} (h : σ.exprs.isPrefixOf σ'.exprs) :
+  σ.size ≤ σ'.size := by
+  unfold size
+  set l := σ.exprs with eq_l
+  set l' := σ'.exprs with eq_l'
+  rcases l with ⟨l⟩
+  rcases l' with ⟨l'⟩
+  simp at *
+  grind
+
 end Clap.HashConsSt

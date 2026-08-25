@@ -58,6 +58,9 @@ def varSet (e : Expr p) : Set ℕ := match _h : *e with
 termination_by e.ref
 decreasing_by all_goals grind
 
+/--
+Depends only on variables allocated at < numAlloc.
+-/
 def varSet_wellFormed (e : Expr p) (numAlloc : ℕ) : Prop :=
   ∀ x ∈ e.varSet, x < numAlloc
 
