@@ -13,6 +13,8 @@ structure Expr (p : ℕ) where
 
 namespace Expr
 
+notation "⦃" ref ", " σ "⦄" => Expr.mk ref σ
+
 section Expr
 
 variable {p : ℕ} {e : Expr p}
@@ -23,7 +25,6 @@ def deref (e : Expr p) : Option (CacheExpr p) := e.σ.exprs[e.ref]?
 /--
 Dereference is valid.
 -/
-@[grind =]
 def wellFormed (e : Expr p) : Prop := e.ref < e.σ.size
 
 instance : Decidable (wellFormed e) := inferInstanceAs <| Decidable (e.ref < e.σ.size)
@@ -31,7 +32,7 @@ instance : Decidable (wellFormed e) := inferInstanceAs <| Decidable (e.ref < e.�
 prefix:max "*" => deref
 
 @[grind _=_]
-lemma wellFormed_iff_isSome : e.wellFormed ↔ (*e).isSome := by grind
+lemma wellFormed_iff_isSome : e.wellFormed ↔ (*e).isSome := by grind [=wellFormed]
 
 @[grind →]
 lemma wellFormed_frame {e' : Expr p}

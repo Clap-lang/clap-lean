@@ -58,7 +58,6 @@ def varSet (e : Expr p) : Set ℕ := match _h : *e with
 termination_by e.ref
 decreasing_by all_goals grind
 
-@[grind]
 def varSet_wellFormed (e : Expr p) (numAlloc : ℕ) : Prop :=
   ∀ x ∈ e.varSet, x < numAlloc
 
@@ -69,6 +68,14 @@ namespace varSet
 section
 
 open Expr
+
+@[grind ->]
+lemma lt_of_varSet_wellFormed_mem {e! : ExprRef} {e : Expr p} {numAlloc : ℕ}
+  (h₁ : e! ∈ e.varSet)
+  (h₂ : varSet_wellFormed e numAlloc) :
+  e! < numAlloc := by
+  unfold varSet_wellFormed at h₂
+  grind
 
 @[grind ->]
 lemma deref_eq_of_ref_eq_prefix {e₁ e₂ : Expr p}

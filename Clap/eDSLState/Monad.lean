@@ -143,7 +143,7 @@ section NamedThisForDom
 
 variable {α β} {action : ClapM p α} {function : α → ClapM p β}
          {numAlloc : ℕ} {σ : HashConsSt p} {xs : Circuit}
-         {cmd : ClapM p α} {f : α → β} {x : α}
+         {cmd : ClapM p α} {f : α → β} {x : α} {Γ : VarStore p}
 
 @[simp, grind =]
 lemma getResult_bind
@@ -261,6 +261,24 @@ lemma getVarStore_map {varStore : VarStore p}:
   (f <$> cmd).getVarStore varStore numAlloc σ =
   cmd.getVarStore varStore numAlloc σ
 := rfl
+
+/--
+Normally, use `getVarstore_bind_of_wellFormed`
+-/
+lemma getVarstore_bind
+:
+  (action >>= function).getVarStore Γ numAlloc σ =
+  letI a₁ := action.getResult numAlloc σ 
+  letI numAlloc₁ := action.getNumAlloc numAlloc σ
+  letI circuit₁ := action.getCircuit numAlloc σ
+  letI σ₁ := action.getHashConsState numAlloc σ
+  letI σ₂ := (function a₁).getHashConsState numAlloc₁ σ₁
+  letI circuit₂ := (function a₁).getCircuit numAlloc₁ σ₁
+  [[Γ, σ₂, numAlloc|circuit₁]ₑ.varStore,
+   σ₂,
+   numAlloc + circuit₁.numAllocStep|circuit₂]ₑ.varStore
+:= by
+  simp [getVarStore]
 
 end NamedThisForDom
 

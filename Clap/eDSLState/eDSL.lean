@@ -45,13 +45,12 @@ lemma wellFormed_tell_eq0 (h₁ : e! < σ.size)
   unfold ClapM.wellFormed
   split_ands
   · simp [Circuit.refsValid]
-    unfold Circuit.varsAllocated
     grind
   · simp [ClapM.numAlloc_wellFormed]
   . simp [ClapM.hashConsState_wellFormed]
 
 @[aesop unsafe, grind .]
-lemma eq0_wellFormed (h₁ : e! < σ.size) (h₂ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ) (h₃ : Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc) :
+lemma wellFormed_eq0 (h₁ : e! < σ.size) (h₂ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ) (h₃ : Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc) :
   (eq0 e!).wellFormed numAlloc Γ σ
 := by
   convert wellFormed_tell_eq0 h₁ h₂ h₃
@@ -62,7 +61,7 @@ lemma exprs_st_pushExpr {e : CacheExpr p} {h} :
   (σ.size, HashConsSt.pushExpr e σ h).2.exprs = σ.exprs.push e := rfl
 
 @[simp, grind .]
-lemma isPrefixOf_saveExpr {e : CacheExpr p} (h : e.wellFormed σ.size) :
+lemma isPrefixOf_saveExpr {e : CacheExpr p} :
   σ.exprs.isPrefixOf ((saveExpr e).getHashConsState σ).exprs := by
   grind
 
@@ -103,15 +102,15 @@ lemma wellFormed_tell_share_bind_alloc
   · grind
   · grind
 
-@[simp, grind .]
-lemma share_wellFormed (h₁ : e! < σ.size) (h₂ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ) (h₃ : Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc) :
+@[aesop safe, grind .]
+lemma wellFormed_share (h₁ : e! < σ.size) (h₂ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ) (h₃ : Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc) :
   (share e!).wellFormed numAlloc Γ σ
 := by
   unfold share
   apply wellFormed_tell_share_bind_alloc (by grind) (by grind) (by grind)
 
-@[simp, grind .]
-lemma isZero_wellFormed
+@[aesop safe, grind .]
+lemma wellFormed_isZero
   (h₁ : e! < σ.size) (h₂ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ) (h₃ : Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc)
 :
   (isZero e!).wellFormed numAlloc Γ σ
@@ -152,6 +151,7 @@ lemma map_toList_num2bits_eq_num2bitsButSane {w e} :
   simp [num2bits]
   rfl
 
+@[aesop safe, grind .]
 lemma wellFormed_of_wellFormed_toList {α} {w} {action : ClapM p (Vector α w)}
   (h : (Vector.toList <$> action).wellFormed numAlloc Γ σ) :
   action.wellFormed numAlloc Γ σ := by
@@ -221,8 +221,8 @@ lemma getNumAlloc_Vector_ofFnM_alloc
     omega
 
 
-@[simp, grind .]
-lemma num2bits_wellFormed {width : ℕ}
+@[aesop safe, grind .]
+lemma wellFormed_num2bits {width : ℕ}
   (h₁ : e! < σ.size) (h₂ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ) (h₃ : Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc)
 :
   (num2bits width e!).wellFormed numAlloc Γ σ
@@ -249,7 +249,8 @@ lemma num2bits_wellFormed {width : ℕ}
   . grind
   . grind
 
-lemma fpmul_wellFormed {width k : ℕ} {a b p' : Vector ExprRef k}
+@[grind =>]
+lemma wellFormed_fpmul {width k : ℕ} {a b p' : Vector ExprRef k}
   (h₁ : ∀ e! ∈ a, e! < σ.size)
   (h₂ : ∀ e! ∈ b, e! < σ.size)
   (h₃ : ∀ e! ∈ p', e! < σ.size)
@@ -357,5 +358,83 @@ lemma eval_edsl_fpmul
   simp [fpmul, ClapM.runAndEval]
 
 end Eval
+
+section GetResult
+
+variable {e! : ExprRef} {numAlloc w k : ℕ} {σ : HashConsSt p} {a b p' : Vector ExprRef k}
+
+@[simp, grind =]
+lemma getResult_eq0 :
+  (eq0 e!).getResult numAlloc σ = (HashConsM.mkVar numAlloc).getResult σ := by
+  unfold eq0; rfl
+
+@[simp, grind =]
+lemma getResult_share :
+  (share e!).getResult numAlloc σ = (HashConsM.mkVar numAlloc).getResult σ := by
+  unfold share; rfl
+
+@[simp, grind =]
+lemma getResult_isZero :
+  (isZero e!).getResult numAlloc σ = (HashConsM.mkVar numAlloc).getResult σ := by
+  unfold isZero; rfl
+
+@[simp, grind =]
+lemma getResult_num2bits :
+  (num2bits w e!).getResult numAlloc σ = (Vector.ofFnM fun _ => ClapM.alloc).getResult numAlloc σ := by
+  unfold num2bits; rfl
+
+@[simp, grind =]
+lemma getResult_fpmul :
+  (fpmul w k a b p').getResult numAlloc σ = (Vector.ofFnM fun x => ClapM.alloc).getResult numAlloc σ := by
+  unfold fpmul; rfl
+
+end GetResult
+
+section GetVarstore
+
+variable {e! : ExprRef} {numAlloc w k : ℕ} {σ : HashConsSt p} {a b p' : Vector ExprRef k}
+         {Γ : VarStore p}
+
+@[simp, grind =]
+lemma getVarStore_eq0 :
+  (eq0 e!).getVarStore Γ numAlloc σ = Γ := by
+  simp [eq0]
+
+@[simp, grind =]
+lemma getVarStore_share :
+  (share e!).getVarStore Γ numAlloc σ =
+  Γ.insert numAlloc ([Γ|⦃e!, (mkVar numAlloc).getHashConsState σ⦄].getD 0) := by
+  simp [share, ClapM.getVarStore]
+
+@[simp, grind =]
+lemma getVarStore_isZero :
+  (isZero e!).getVarStore Γ numAlloc σ =
+  Std.ExtTreeMap.insert Γ numAlloc (if [Γ|⦃e!, (mkVar numAlloc).getHashConsState σ⦄] = some 0 then 1 else 0) := by
+  simp [isZero, ClapM.getVarStore]  
+  rfl
+
+@[simp, grind =]
+lemma getVarStore_num2bits :
+  (num2bits w e!).getVarStore Γ numAlloc σ =
+  Γ.insertMany
+    (((Vector.range w).map (fun x => x + numAlloc)).zip
+      (num2bitsLsbPureV w ([Γ|⦃e!, (Vector.ofFnM fun _ : Fin w => ClapM.alloc).getHashConsState numAlloc σ⦄].getD 0))) := by
+  unfold num2bits ClapM.getVarStore
+  simp
+
+@[simp, grind =]
+lemma getVarStore_fpmul :
+  (fpmul w k a b p').getVarStore Γ numAlloc σ =
+  letI map := (Vector.ofFnM fun _ : Fin k => ClapM.alloc).getHashConsState numAlloc σ
+  Γ.insertMany
+    (((Vector.range k).map (fun x => x + numAlloc)).zip
+    (EvalSt.fpMulPureV w k
+      (a.map (fun e => [Γ|⦃e, map⦄].getD 0))
+      (b.map (fun e => [Γ|⦃e, map⦄].getD 0))
+      (p'.map (fun e => [Γ|⦃e, map⦄].getD 0)))) := by
+  unfold fpmul ClapM.getVarStore
+  simp
+
+end GetVarstore
 
 end Clap
