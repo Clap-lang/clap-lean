@@ -36,149 +36,18 @@ def matches_spec
 := toIdeal
     (cmd.getVarStore varStore numAlloc σ)
     (cmd.getHashConsState numAlloc σ)
-    (cmd.getResult numAlloc σ) = .some spec
+    (cmd.getResult numAlloc σ) =
+    .some spec
 
-def Converts := Clap.Converts (ZMod p) (·)
-def _root_.Clap.Lang.FB.Converts := Clap.Converts Bool (if · then (1 : ZMod p) else 0)
-
-
--- structure Convert.toIdeal (varStore : VarStore p)
---                           (σ : HashConsSt p)
---                           (numAlloc : ℕ)
---                           (result : F)
---                           (x : ZMod p) : Prop where
---   varSet_wf : ⦃result, σ⦄.varSet_wellFormed numAlloc
---   expr_wf   : ⦃result, σ⦄.wellFormed
---   value_eq  : [varStore, σ|result] = .some x
-
--- structure _root_.Clap.Lang.FB.Convert.toIdeal (varStore : VarStore p)
---                                               (σ : HashConsSt p)
---                                               (numAlloc : ℕ)
---                                               (result : FB)
---                                               (x : Bool) : Prop where
---   varSet_wf : ⦃result, σ⦄.varSet_wellFormed numAlloc
---   expr_wf   : ⦃result, σ⦄.wellFormed
---   value_eq  : [varStore, σ|result] = .some (if x then 1 else 0)
-
--- structure _root_.Clap.Lang.FArray.Convert.toIdeal (varStore : VarStore p)
---                                                   (σ : HashConsSt p)
---                                                   (numAlloc : ℕ)
---                                                   {k : ℕ}
---                                                   (result : FArray k)
---                                                   (x : Vector Bool k) : Prop where
---   varSet_wf : ∀ elem ∈ result, ⦃elem, σ⦄.varSet_wellFormed numAlloc
---   expr_wf   : ∀ elem ∈ result, ⦃elem, σ⦄.wellFormed
---   value_eq  : ∀ (i : Fin k), [varStore, σ|result[i]] = .some (if x[i] then 1 else 0)
-
-section Lemurs
-
-variable {varStore Γ : VarStore p} {σ σ' : HashConsSt p} {result : F} {numAlloc : ℕ} {x : ZMod p}
-         {y : Option (ZMod p)} {α : Type} {cmd : ClapM p α}
-
-example
-  {α} {k} {vec : Vector α k}
-  {P : ∀ {k}, Vector α k → Prop}
-  (h_base: P #v[])
-  (h_step : ∀ k (vec : Vector α k), P vec → ∀ (vec' : Vector α (k + 1)), P vec')
-:
-  P vec
-:= by
-  induction' k with k ih
-  . grind [cases Vector, cases Array]
-  . apply h_step
-    apply ih
-    convert vec.take k
-    grind
-
-@[grind .]
-lemma eval_varStore_eval_eq_some {α : Type} {a : ClapM p α}
-  {CIRCUIT : Circuit}
-  (h₁ : ⦃result, σ⦄.varSet_wellFormed numAlloc)
-  (h₂ : ⦃result, σ⦄.wellFormed)
-  (h₃_1 : [varStore|⦃result, σ⦄] = some x)
-  (h₆ : a.hashConsState_wellFormed numAlloc σ)
-:
-  letI varStore' := [varStore, a.getHashConsState numAlloc σ, numAlloc|CIRCUIT]ₑ.varStore
-  [varStore'|⦃result, a.getHashConsState numAlloc σ⦄] = some x
-:= by
-  rcases CIRCUIT with ⟨l⟩
-  induction' eq : l.length with len ih generalizing l
-  · rcases l <;> grind
-  · rcases l with _ | ⟨hd, tl⟩
-    · simp at eq
-    · simp
-      specialize ih tl (by grind)
-      rewrite [←ih]; clear ih
-      apply eval_eq_of_varStore_eq_at_varSet
-      . grind
-      . intro v h_v
-        set vashtorr := [unconstrained[numAlloc][varStore], a.getHashConsState numAlloc σ|hd]ₛ.varStore
-        rewrite [getElem?_eval_eq_getElem?_of_lt (by grind)]
-        rewrite [getElem?_eval_eq_getElem?_of_lt (by grind)]
-        choose k vec h_vec using @exists_varStore_step_eq_insertMany
-        simp [vashtorr, h_vec.1]
-        rw [getElem?_insertMany_eq_getElem?_of_neq]
-        grind
-
-
-@[grind .]
-lemma toIdeal_run_of_toIdeal
-  {α : Type}
-  {a : ClapM p α}
-  (h_a_wf : a.wellFormed numAlloc varStore σ)
-  (h : F.Convert.toIdeal varStore σ numAlloc result x) :
-  F.Convert.toIdeal (a.getVarStore varStore numAlloc σ)
-                    (a.getHashConsState numAlloc σ)
-                    (a.getNumAlloc numAlloc σ)
-                    result
-                    x := by
-  rcases h with ⟨h₁, h₂, h₃⟩
-  constructor
-  · grind [=Expr.varSet_wellFormed]
-  · grind
-  · rcases h_a_wf with ⟨⟨h₃, h₄⟩, ⟨h₅, h₆⟩⟩
-    apply eval_varStore_eval_eq_some <;> assumption
-
-end Lemurs
-
-opaque FB.Convert.toIdeal (varStore : VarStore p) (σ : HashConsSt p) (result : FB) : Option Bool
+def Converts := Clap.Converts 1 (fun x : ZMod p ↦ #v[x])
+def _root_.Clap.Lang.FB.Converts := Clap.Converts 1 (fun x : Bool ↦ #v[if x then (1 : ZMod p) else 0])
+def _root_.Clap.Lang.FArray.Converts (k : ℕ) := Clap.Converts k fun vec : Vector Bool k ↦
+                                                  vec.map fun x ↦ if x then (1 : ZMod p) else 0
 
 namespace eq
 
 opaque spec {p} (a b : ZMod p) : Bool :=
   a == b
-
-@[simp, grind =]
-lemma getCircuit_isZero {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
-  (isZero e!).getCircuit numAlloc σ = #[.isZero e!] := by
-  simp [isZero]
-
-@[simp, grind =]
-lemma getCircuit_eq0 {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
-  (eq0 e!).getCircuit numAlloc σ = #[.eq0 e!] := by
-  simp [eq0]
-
-@[simp, grind =]
-lemma getCircuit_share {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
-  (share e!).getCircuit numAlloc σ = #[.share e!] := by
-  simp [share]
-
-@[simp, grind =]
-lemma getCircuit_num2bits {w : ℕ} {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
-  (num2bits w e!).getCircuit numAlloc σ = #[.num2bits w e!] := by
-  simp [num2bits]
-
-@[simp, grind =]
-lemma getResult_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
-  (liftM (m := HashConsM p) (n := ClapM p) action).getResult numAlloc σ = action.getResult σ := rfl
-
-@[simp, grind =]
-lemma getHashConsState_isZero {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
-  (isZero e!).getHashConsState numAlloc σ =
-  if .v numAlloc ∈ σ.exprs
-  then σ
-  else σ.pushExpr (.v numAlloc) (by simp) := by
-  grind [isZero]
 
 -- @[simp, grind =]
 -- lemma getHashConsState_isZero_of_mem {e! : ExprRef} {numAlloc} {σ : HashConsSt p}
@@ -192,30 +61,38 @@ lemma getHashConsState_isZero {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
 --   (isZero e!).getHashConsState numAlloc σ =
 --   σ.pushExpr (.v numAlloc) (by simp) := by grind
 
-@[simp, grind .]
-lemma wellFormed_pure {α} {action : α} {numAlloc} {varStore : VarStore p} {σ : HashConsSt p}:
-  (pure (f := ClapM p) action).wellFormed numAlloc varStore σ := by
-  grind
+#check evalRec_isSome_iff
 
+/--
+TODO: This used to be just grind :eyes:.
+-/
 lemma wellFormed
   [p.AtLeastTwo]
   {varStore : VarStore p}
   {numAlloc : ℕ}
   {σ : HashConsSt p}
-  (a b : F)
-  (h_a_wf_σ : a < σ.size)
-  (h_b_wf_σ : b < σ.size)
-  (h_a_wf : [varStore|Expr.mk a σ].isSome = true)
-  (h_a_varSet_wf : Expr.varSet_wellFormed ⟨a, σ⟩ numAlloc)
-  (h_b_wf : [varStore|Expr.mk b σ].isSome = true)
-  (h_b_varSet_wf : Expr.varSet_wellFormed ⟨b, σ⟩ numAlloc)
+  {a b : Vector F 1} {_a' _b' : ZMod p} -- TODO: just `.isSome` without the noise
+  (h_a : F.Converts varStore σ numAlloc a _a')
+  (h_b : F.Converts varStore σ numAlloc b _b')
 :
-  (eq a b).wellFormed numAlloc varStore σ
+  (eq a[0] b[0]).wellFormed numAlloc varStore σ
 := by
   unfold eq
   apply Clap.ClapM.bind_wellFormed
-  · simp_all only [HashConsM.wellFormed_mkSub, ClapM.wellFormed_of_hashConsM_wellFormed]
-  . grind [Expr.varSet_wellFormed, Expr.wellFormed]
+  · grind
+  . rcases h_a with ⟨h₁, h₂, h₃⟩
+    rcases h_b with ⟨h₄, h₅, h₆⟩
+    simp
+    apply wellFormed_isZero
+    · simp at *
+      grind
+    · simp at *
+      intros val hval
+      rw [Std.ExtTreeMap.mem_iff_isSome_getElem?]
+      rw [eval_eq_evalRec (by grind)] at h₃ h₆
+      grind -- Option.isSome_of_eq_some is useless, had to go via `wellFormed_mem_varStore_of_evalRec_eq_some`... yikes?
+    · simp at *
+      grind [=Expr.varSet_wellFormed]
 
 lemma matches_spec
   [p.AtLeastTwo]
@@ -277,14 +154,6 @@ lemma matches_spec
     apply wellFormed_isZero (by grind) (by grind)
     swap
     simp [res₀_val, res₀, eq_σ₁]
-
-
-
-
-
-
-
-
 
   sorry
 

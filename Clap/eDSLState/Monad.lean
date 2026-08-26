@@ -698,6 +698,11 @@ lemma bind_eval' {α : Type} {e!} {varStore : VarStore p} {f : ZMod p → Option
                  {σ} (h : [varStore,σ|e!].isSome) :
   [varStore, σ|e!].bind f = f ([varStore, σ|e!].get h) := bind_eval h
 
+@[simp, grind .]
+lemma wellFormed_pure {α} {action : α} {numAlloc} {varStore : VarStore p} {σ : HashConsSt p}:
+  (pure (f := ClapM p) action).wellFormed numAlloc varStore σ := by
+  grind
+
 end
 
 end ClapM

@@ -211,5 +211,8 @@ lemma drop_eq_singleton_getList_of_length
 := by
   aesop (add safe (by grind))
 
+end List
 
-namespace List
+namespace Option
+
+end Option

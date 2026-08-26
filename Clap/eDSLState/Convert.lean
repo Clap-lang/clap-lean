@@ -4,40 +4,117 @@ import Clap.Lang.Wheels
 
 namespace Clap
 
-structure Converts {p : ℕ} (α) (conversion : α → ZMod p)
+@[aesop safe cases, grind]
+structure Converts {p : ℕ} {α : Type}
+  (k : ℕ)
+  (conversion : α → Vector (ZMod p) k)
   (varStore : VarStore p)
   (σ : HashConsSt p)
   (numAlloc : ℕ)
-  (expr : ExprRef)
+  (exprs : Vector ExprRef k)
   (val : α)
 : Prop where
-  varSet_wf : ⦃expr, σ⦄.varSet_wellFormed numAlloc
-  expr_wf   : ⦃expr, σ⦄.wellFormed
-  value_eq  : [varStore, σ|expr] = .some (conversion val)
-
+  varSet_wf : ∀ (i : Fin k), ⦃exprs[i], σ⦄.varSet_wellFormed numAlloc
+  expr_wf   : ∀ (i : Fin k), ⦃exprs[i], σ⦄.wellFormed
+  value_eq  : ∀ (i : Fin k), [varStore|⦃exprs[i], σ⦄] = .some (conversion val)[i]
 
 section Lemmas
 
 variable
-  {p : ℕ}
-  {α}
-  {conversion : α → ZMod p}
+  {p k : ℕ}
+  {α : Type}
+  {conversion : {k : ℕ} → α → Vector (ZMod p) k}
   {Γ : VarStore p}
   {σ : HashConsSt p}
   {numAlloc : ℕ}
-  {expr : ExprRef}
+  {exprs : {k : ℕ} → Vector ExprRef k}
   {val : α}
+  {x : ZMod p}
+  {action : ClapM p α}
+  {circuit : Circuit}
 
-@[aesop unsafe, grind! .]
+@[aesop unsafe]
 lemma isSome_eval_of_isSome_toIdeal
-  (h : Converts α conversion Γ σ numAlloc expr val)
+  (h : Converts k conversion Γ σ numAlloc exprs val)
 :
-  [Γ, σ|expr].isSome = true
-:= Option.isSome_iff_exists.2 ⟨_, h.value_eq⟩
+  ∀ i : Fin k, [Γ, σ|exprs[i]].isSome = true
+:= fun i ↦ Option.isSome_iff_exists.2 ⟨_, h.value_eq i⟩
+
+lemma eval_varStore_eval_eq_some
+  (h₁ : Converts k conversion Γ σ numAlloc exprs val)
+  (h₂ : action.hashConsState_wellFormed numAlloc σ)
+:
+  letI varStore' := [Γ, action.getHashConsState numAlloc σ, numAlloc|circuit]ₑ.varStore
+  ∀ i : Fin k, [varStore'|⦃exprs[i], action.getHashConsState numAlloc σ⦄] = some (conversion val)[i]
+:= by
+  intros i
+  rcases circuit with ⟨l⟩
+  induction' eq : l.length with len ih generalizing l
+  · rcases l <;> grind
+  · rcases l with _ | ⟨hd, tl⟩
+    · simp at eq
+    · simp [-Fin.getElem_fin]
+      specialize ih tl (by grind)
+      rewrite [←ih]; clear ih
+      apply eval_eq_of_varStore_eq_at_varSet
+      . grind
+      . intro v h_v
+        set vashtorr := [unconstrained[numAlloc][Γ], action.getHashConsState numAlloc σ|hd]ₛ.varStore
+        rewrite [Circuit.getElem?_eval_eq_getElem?_of_lt (by grind)]
+        rewrite [Circuit.getElem?_eval_eq_getElem?_of_lt (by grind)]
+        choose k vec h_vec using @EvalSt.exists_varStore_step_eq_insertMany
+        simp [vashtorr, h_vec.1]
+        rw [Std.ExtTreeMap.getElem?_insertMany_eq_getElem?_of_neq]
+        grind
+
+lemma toIdeal_run_of_toIdeal
+  (h_a_wf : action.wellFormed numAlloc Γ σ)
+  (h : Converts k conversion Γ σ numAlloc exprs val) :
+  Converts k
+           conversion
+           (action.getVarStore Γ numAlloc σ)
+           (action.getHashConsState numAlloc σ)
+           (action.getNumAlloc numAlloc σ)
+           exprs
+           val := by
+  rcases h with ⟨h₁, h₂, h₃⟩
+  constructor
+  · grind [=Expr.varSet_wellFormed]
+  · grind
+  · rcases h_a_wf with ⟨⟨h₃, h₄⟩, ⟨h₅, h₆⟩⟩
+    apply eval_varStore_eval_eq_some <;> grind
 
 end Lemmas
 
 end Clap
+
+-- structure Convert.toIdeal (varStore : VarStore p)
+--                           (σ : HashConsSt p)
+--                           (numAlloc : ℕ)
+--                           (result : F)
+--                           (x : ZMod p) : Prop where
+--   varSet_wf : ⦃result, σ⦄.varSet_wellFormed numAlloc
+--   expr_wf   : ⦃result, σ⦄.wellFormed
+--   value_eq  : [varStore, σ|result] = .some x
+
+-- structure _root_.Clap.Lang.FB.Convert.toIdeal (varStore : VarStore p)
+--                                               (σ : HashConsSt p)
+--                                               (numAlloc : ℕ)
+--                                               (result : FB)
+--                                               (x : Bool) : Prop where
+--   varSet_wf : ⦃result, σ⦄.varSet_wellFormed numAlloc
+--   expr_wf   : ⦃result, σ⦄.wellFormed
+--   value_eq  : [varStore, σ|result] = .some (if x then 1 else 0)
+
+-- structure _root_.Clap.Lang.FArray.Convert.toIdeal (varStore : VarStore p)
+--                                                   (σ : HashConsSt p)
+--                                                   (numAlloc : ℕ)
+--                                                   {k : ℕ}
+--                                                   (result : FArray k)
+--                                                   (x : Vector Bool k) : Prop where
+--   varSet_wf : ∀ elem ∈ result, ⦃elem, σ⦄.varSet_wellFormed numAlloc
+--   expr_wf   : ∀ elem ∈ result, ⦃elem, σ⦄.wellFormed
+--   value_eq  : ∀ (i : Fin k), [varStore, σ|result[i]] = .some (if x[i] then 1 else 0)
 
 
 

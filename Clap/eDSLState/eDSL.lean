@@ -437,4 +437,41 @@ lemma getVarStore_fpmul :
 
 end GetVarstore
 
+section GetCircuit
+
+@[simp, grind =]
+lemma getCircuit_isZero {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
+  (isZero e!).getCircuit numAlloc σ = #[.isZero e!] := by
+  simp [isZero]
+
+@[simp, grind =]
+lemma getCircuit_eq0 {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
+  (eq0 e!).getCircuit numAlloc σ = #[.eq0 e!] := by
+  simp [eq0]
+
+@[simp, grind =]
+lemma getCircuit_share {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
+  (share e!).getCircuit numAlloc σ = #[.share e!] := by
+  simp [share]
+
+@[simp, grind =]
+lemma getCircuit_num2bits {w : ℕ} {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
+  (num2bits w e!).getCircuit numAlloc σ = #[.num2bits w e!] := by
+  simp [num2bits]
+
+@[simp, grind =]
+lemma getResult_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
+  (liftM (m := HashConsM p) (n := ClapM p) action).getResult numAlloc σ = action.getResult σ := rfl
+
+@[simp, grind =]
+lemma getHashConsState_isZero {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
+  (isZero e!).getHashConsState numAlloc σ =
+  if .v numAlloc ∈ σ.exprs
+  then σ
+  else σ.pushExpr (.v numAlloc) (by simp) := by
+  grind [isZero]
+
+
+end GetCircuit
+
 end Clap

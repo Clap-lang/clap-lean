@@ -447,6 +447,22 @@ lemma evalRec_isSome_iff :
   . unfold evalRec; grind
   . unfold evalRec; grind
 
+section Grind
+
+@[simp, grind ->]
+lemma wellFormed_mem_varStore_of_evalRec_eq_some {x} :
+  (evalRec Γ e = .some x) →
+  (
+    e.wellFormed ∧
+    ∀ v ∈ varSet e, v ∈ Γ
+  )
+:= by
+  intros eq
+  apply Option.isSome_of_eq_some at eq
+  grind
+
+end Grind
+
 def eval {p} (varStore : VarStore p) (e : Expr p) : Option (ZMod p) :=
   (evalWithCache varStore #[] e)[e.ref]!
 
