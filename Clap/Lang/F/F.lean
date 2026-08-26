@@ -61,8 +61,15 @@ opaque spec {p} (a b : ZMod p) : Bool :=
 --   (isZero e!).getHashConsState numAlloc σ =
 --   σ.pushExpr (.v numAlloc) (by simp) := by grind
 
-#check evalRec_isSome_iff
+@[aesop safe, grind .]
+lemma _root_.Clap.isZero.wellFormed {e! : ExprRef} {Γ : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ} {value : ZMod p}
+  (h : F.Converts Γ σ numAlloc #v[e!] value)
+:
+  (isZero e!).wellFormed numAlloc Γ σ := by
+  sorry
 
+#check evalRec_isSome_iff
+#check wellFormed_mem_varStore_of_evalRec_eq_some
 /--
 TODO: This used to be just grind :eyes:.
 -/
@@ -79,20 +86,43 @@ lemma wellFormed
 := by
   unfold eq
   apply Clap.ClapM.bind_wellFormed
-  · grind
-  . rcases h_a with ⟨h₁, h₂, h₃⟩
-    rcases h_b with ⟨h₄, h₅, h₆⟩
-    simp
-    apply wellFormed_isZero
-    · simp at *
-      grind
-    · simp at *
-      intros val hval
-      rw [Std.ExtTreeMap.mem_iff_isSome_getElem?]
-      rw [eval_eq_evalRec (by grind)] at h₃ h₆
-      grind -- `Option.isSome_of_eq_some` is useless, had to go via `wellFormed_mem_varStore_of_evalRec_eq_some`... yikes?
-    · simp at *
-      grind [=Expr.varSet_wellFormed]
+  · apply ClapM.wellFormed_liftM_of_hashConsM_wellFormed
+    apply HashConsM.wellFormed_mkSub
+  · apply isZero.wellFormed
+    · rw [←ClapM.getVarStore.eq_def]
+      unfold Converts
+      convert @toIdeal_run_of_toIdeal p 1 (ZMod p) (fun x : ZMod p ↦ #v[x]) varStore σ numAlloc
+                #v[ClapM.getResult (liftM (HashConsM.mkSub a[0] b[0])) numAlloc σ]
+      
+      
+      done
+    · sorry
+
+      -- convert toIdeal_run_of_toIdeal _ _
+    -- · sorry
+    -- · sorry
+  
+
+  
+
+
+  -- apply Clap.ClapM.bind_wellFormed
+  -- · grind
+  -- . rcases h_a with ⟨h₁, h₂, h₃⟩
+  --   rcases h_b with ⟨h₄, h₅, h₆⟩
+  --   simp
+  --   apply wellFormed_isZero
+  --   · simp at *
+  --     grind
+  --   · simp at *
+  --     intros val hval
+  --     rw [Std.ExtTreeMap.mem_iff_isSome_getElem?]
+  --     -- rw [eval_eq_evalRec (by grind)] at h₃ h₆
+  --     have : [varStore | ⦃a[0], σ⦄].isSome := by grind
+  --     have : [varStore | ⦃b[0], σ⦄].isSome := by grind
+  --     grind -- `Option.isSome_of_eq_some` is useless, had to go via `wellFormed_mem_varStore_of_evalRec_eq_some`... yikes?
+  --   · simp at *
+  --     grind [=Expr.varSet_wellFormed]
 
 lemma matches_spec
   [p.AtLeastTwo]

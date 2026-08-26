@@ -23,11 +23,11 @@ section Lemmas
 variable
   {p k : ℕ}
   {α : Type}
-  {conversion : {k : ℕ} → α → Vector (ZMod p) k}
+  {conversion : α → Vector (ZMod p) k}
   {Γ : VarStore p}
   {σ : HashConsSt p}
   {numAlloc : ℕ}
-  {exprs : {k : ℕ} → Vector ExprRef k}
+  {exprs : Vector ExprRef k}
   {val : α}
   {x : ZMod p}
   {action : ClapM p α}

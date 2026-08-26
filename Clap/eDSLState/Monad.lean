@@ -385,8 +385,8 @@ lemma getVarStore_liftM {α} {action : HashConsM p α} {varStore : VarStore p} {
   rfl
 
 @[simp, grind .]
-lemma wellFormed_of_hashConsM_wellFormed {α} {action : HashConsM p α} {numAlloc}
-                                         {varStore : VarStore p} {σ : HashConsSt p}
+lemma wellFormed_liftM_of_hashConsM_wellFormed {α} {action : HashConsM p α} {numAlloc}
+                                               {varStore : VarStore p} {σ : HashConsSt p}
   (h : action.wellFormed σ) : (liftM (n := ClapM p) action).wellFormed numAlloc varStore σ := by
   grind
 
