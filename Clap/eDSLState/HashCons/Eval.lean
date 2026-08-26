@@ -101,7 +101,12 @@ lemma varSet_eq_of_prefix {e₁ e₂ : Expr p}
   (h₀ : e₁.ref = e₂.ref)
   (h₁ : e₁.wellFormed)
   (h₂ : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true) : varSet e₂ = varSet e₁ := by
-  fun_induction varSet e₁ generalizing e₂ <;> grind [=varSet]
+  fun_induction varSet e₁ generalizing e₂
+  . grind [=varSet]
+  . grind [=varSet]
+  . rewrite [varSet.eq_def]
+    grind
+  . grind [=varSet]
 
 @[grind ->]
 lemma varSet_mk_eq_of_prefix
@@ -226,12 +231,14 @@ open Expr
 
 @[grind =>]
 lemma evalRec_eq_none_of_not_wellFormed (h : ¬e.wellFormed) : evalRec Γ e = .none := by
-  grind [=evalRec]
+  unfold evalRec
+  grind
 
 @[grind =>]
 lemma evalRec_eq_none_of_ {idx}
   (h₁ : *e = .some (.v idx)) (h₂ : idx ∉ Γ) : evalRec Γ e = .none := by
-  grind [=evalRec]
+  unfold evalRec
+  grind
 
 @[simp, grind .]
 lemma binaryOp_isSome_iff {p} {f : ZMod p → ZMod p → ZMod p} {a b : Option (ZMod p)} :
@@ -318,69 +325,113 @@ lemma isSome_evalRec_insert_of_isSome_evalRec {k : ℕ} {v : ZMod p}
       · rw [show Option.map = Functor.map from rfl, binaryOp_isSome_iff] at h ⊢
         grind
 
+@[grind =>]
+lemma evalRec_eq_none_of_deref_eq_none
+  (h: *e = .none)
+:
+  evalRec Γ e = .none
+:= by
+  unfold evalRec
+  grind only
+
+@[grind .]
+lemma evalRec_eq_of_deref_eq_some_v
+  {idx}
+  (h: *e = .some (CacheExpr.v idx))
+:
+  evalRec Γ e = Γ[idx]?
+:= by
+  unfold evalRec
+  grind only
+
+@[grind .]
+lemma evalRec_eq_of_deref_eq_some_add
+  {lhs rhs}
+  (h: *e = .some (CacheExpr.binary_op lhs rhs .add))
+:
+  evalRec Γ e =
+  (· + ·) <$> evalRec Γ ⦃lhs, e.σ⦄ <*> evalRec Γ ⦃rhs, e.σ⦄
+:= by
+  conv_lhs => unfold evalRec
+  grind only
+
+@[grind .]
+lemma evalRec_eq_of_deref_eq_some_sub
+  {lhs rhs}
+  (h: *e = .some (CacheExpr.binary_op lhs rhs .sub))
+:
+  evalRec Γ e =
+  (· - ·) <$> evalRec Γ ⦃lhs, e.σ⦄ <*> evalRec Γ ⦃rhs, e.σ⦄
+:= by
+  conv_lhs => unfold evalRec
+  grind only
+
+@[grind .]
+lemma evalRec_eq_of_deref_eq_some_mul
+  {lhs rhs}
+  (h: *e = .some (CacheExpr.binary_op lhs rhs .mul))
+:
+  evalRec Γ e =
+  (· * ·) <$> evalRec Γ ⦃lhs, e.σ⦄ <*> evalRec Γ ⦃rhs, e.σ⦄
+:= by
+  conv_lhs => unfold evalRec
+  grind only
+
+@[grind .]
+lemma isSome_evalRec_lhs_of_isSome_evalRec_binop
+  {op lhs rhs}
+  (h_deref: *e = .some (CacheExpr.binary_op lhs rhs op))
+  (h : (evalRec Γ e).isSome = true)
+:
+  (evalRec Γ ⦃lhs, e.σ⦄).isSome = true
+:= by
+  unfold evalRec at h
+  split at h
+  . grind
+  . split at h
+    . grind
+    . grind
+    . rewrite [binaryOp_isSome_iff] at h
+      grind only
+
+@[grind .]
+lemma isSome_evalRec_rhs_of_isSome_evalRec_binop
+  {op lhs rhs}
+  (h_deref: *e = .some (CacheExpr.binary_op lhs rhs op))
+  (h : (evalRec Γ e).isSome = true)
+:
+  (evalRec Γ ⦃rhs, e.σ⦄).isSome = true
+:= by
+  unfold evalRec at h
+  split at h
+  . grind
+  . split at h
+    . grind
+    . grind
+    . rewrite [binaryOp_isSome_iff] at h
+      grind only
+
 @[grind .]
 lemma isSome_evalRec_of_isSome_evalRec_subset {Γbig Γsmol : VarStore p}
   (h : (evalRec Γsmol e).isSome) (h₁ : Γsmol ⊆ Γbig) : (evalRec Γbig e).isSome := by
   rw [VarStore.hasSubset_def] at h₁
-  fun_induction evalRec Γbig e <;> grind [=evalRec]
+  fun_induction evalRec Γbig e
+  . grind
+  . grind
+  . grind
+  . grind
 
 @[grind .]
 lemma evalRec_c {c : ZMod p} (h : *e = .some (.c c)) :
   evalRec Γ e = some c := by
-  grind [=evalRec]
+  unfold evalRec
+  grind
 
 @[grind .]
 lemma evalRec_v {ptr : ℕ} (h : *e = .some (.v ptr)) :
   evalRec Γ e = Γ[ptr]? := by
-  grind [=evalRec]
-
-@[grind .]
-lemma evalRec_add {lhs rhs} (h : *e = .some (.binary_op lhs rhs .add)) :
-  evalRec Γ e =
-  (·+·) <$> evalRec Γ { ref := lhs, σ := e.σ } <*> evalRec Γ { ref := rhs, σ := e.σ } := by
   unfold evalRec
-  split
-  · grind
-  next e' h₁ =>
-    have : e' = .binary_op lhs rhs .add := by grind
-    rw! [this]
-    simp
-    congr 2
-    cbv -- I DID IT!
-    conv_lhs => unfold evalRec
-    simp
-
-@[grind .]
-lemma evalRec_sub {lhs rhs} (h : *e = .some (.binary_op lhs rhs .sub)) :
-  evalRec Γ e =
-  (·-·) <$> evalRec Γ {ref := lhs, σ := e.σ} <*> evalRec Γ {ref := rhs, σ := e.σ} := by
-  unfold evalRec
-  split
-  · grind
-  next e' h₁ =>
-    have : e' = .binary_op lhs rhs .sub := by grind
-    rw! [this]
-    simp
-    congr 2
-    cbv -- I DID IT!
-    conv_lhs => unfold evalRec
-    simp
-
-@[grind .]
-lemma evalRec_mul {lhs rhs} (h : *e = .some (.binary_op lhs rhs .mul)) :
-  evalRec Γ e =
-  (·*·) <$> evalRec Γ {ref := lhs, σ := e.σ} <*> evalRec Γ {ref := rhs, σ := e.σ} := by
-  unfold evalRec
-  split
-  · grind
-  next e' h₁ =>
-    have : e' = .binary_op lhs rhs .mul := by grind
-    rw! [this]
-    simp
-    congr 2
-    cbv -- I DID IT!
-    conv_lhs => unfold evalRec
-    simp
+  grind
 
 @[simp, grind =]
 lemma evalRec_isSome_iff :
@@ -391,10 +442,10 @@ lemma evalRec_isSome_iff :
   )
 := by
   fun_induction varSet
-  . aesop (add safe (by grind [=evalRec]))
-  . aesop (add safe (by grind [=evalRec]))
-  . aesop (add safe (by grind [=evalRec]))
-  . aesop (add safe (by grind))
+  . unfold evalRec; grind
+  . unfold evalRec; grind
+  . unfold evalRec; grind
+  . unfold evalRec; grind
 
 def eval {p} (varStore : VarStore p) (e : Expr p) : Option (ZMod p) :=
   (evalWithCache varStore #[] e)[e.ref]!
@@ -491,7 +542,6 @@ lemma evalWithCache_wrt_evalRec
         grind
       . grind
 
-@[grind _=_]
 lemma eval_eq_evalRec
   (h : e.wellFormed)
 :
@@ -615,7 +665,7 @@ lemma isSome_eval_of_isSome_eval_subset
 :
   [varStoreBig, σ|e].isSome = true
 := by
-  grind
+  grind [=eval_eq_evalRec]
 
 @[aesop simp, grind →]
 lemma isSome_eval_of_isSome_eval_subset'
@@ -654,7 +704,7 @@ lemma precedes_insert
   {v : ZMod p}
 :
   [σ|Γ ⊑ Γ.insert k v]
-:= by grind
+:= by grind [=eval_eq_evalRec]
 
 @[grind =>]
 lemma insert_precedes_of_mem
@@ -671,7 +721,7 @@ lemma insert_precedes_of_mem
   induction eq: x using evalRec.induct_unfolding Γ generalizing e
   . grind
   . grind
-  . grind [=evalRec]
+  . grind
   . expose_names
     specialize ih2 lhs (by grind)
     specialize ih1 rhs (by grind)
@@ -699,7 +749,7 @@ lemma evalRec_of_wellFormed_of_prefix
   evalRec Γ ⟨e, σ'⟩ := by
   rw [←Clap.eval_eq_evalRec (by grind), ←Clap.eval_eq_evalRec]
   grind [=eval]
-  grind  
+  grind
 
 @[grind .]
 lemma precedes_insertMany
@@ -718,8 +768,7 @@ lemma precedes_insertMany
     rewrite [←List.take_append_drop len xs]
     simp [-List.take_append_drop]
     simp
-    have : xs.drop len = [xs.getLast (by grind)] := by aesop (add safe (by grind))
-    simp [this]; clear this
+    simp [List.drop_eq_singleton_getList_of_length h_len]
     exact precedes_insert
 
 @[grind .]
@@ -732,7 +781,7 @@ lemma isSome_evalRec_of_isSome_evalRec_precedes
   (evalRec Γ₂ e).isSome = true
 := by
   fun_induction evalRec Γ₂ e
-  <;> grind
+  <;> grind [=eval_eq_evalRec]
 
 @[grind .]
 lemma isSome_eval_of_isSome_eval_precedes
@@ -751,7 +800,7 @@ lemma isSome_eval_of_prefix {e₁ e₂ : Expr p}
         (hwf : e₁.wellFormed) (h : [Γ|e₁].isSome)
         (h₁ : e₁.ref = e₂.ref) (h₂ : e₁.σ.exprs.isPrefixOf e₂.σ.exprs) :
   [Γ|e₂].isSome := by
-  grind
+  grind [eval_eq_evalRec]
 
 -- grind_pattern isSome_eval_of_prefix => [Γ|e₂].isSome, e₁.σ.exprs.isPrefixOf e₂.σ.exprs
 
@@ -766,7 +815,7 @@ lemma isSome_prefix_eval_of_isSome_of_lt
 :
   [Γ|e₁].isSome
 := by
-  grind
+  grind [eval_eq_evalRec]
 
 @[simp, grind =]
 lemma eval_mkConstant {c : ZMod p}
@@ -781,5 +830,36 @@ lemma eval_mkConstant {c : ZMod p}
   . grind
 
 end Precedes
+
+lemma eval_eq_of_varStore_eq_at_varSet
+  {e : Expr p}
+  (h_wf : e.wellFormed)
+  {Γ1 Γ2 : VarStore p}
+  (h : ∀ v ∈ e.varSet, Γ1[v]? = Γ2[v]?)
+:
+  [Γ1|e] = [Γ2|e]
+:= by
+  simp [eval_eq_evalRec h_wf]
+  fun_induction Expr.evalRec Γ1 e
+  . aesop (add safe (by grind [=Expr.varSet]))
+  . aesop (add safe (by grind [=Expr.varSet]))
+  . aesop (add safe (by grind [=Expr.varSet]))
+  . expose_names
+    conv_rhs => unfold Expr.evalRec
+    split
+    . grind
+    . split <;> grind
+
+@[grind =>]
+lemma eval_eq_some_of_wellFormed_of_isPrefixOf
+  {result : ExprRef}
+  {σ σ' : HashConsSt p}
+  {varStore : VarStore p}
+  (h₁ : ⦃result, σ⦄.wellFormed)
+  (h₂ : σ.exprs.isPrefixOf σ'.exprs = true)
+:
+  [varStore, σ'|result] = [varStore, σ|result]
+:= by
+  grind [eval_eq_evalRec]
 
 end Clap

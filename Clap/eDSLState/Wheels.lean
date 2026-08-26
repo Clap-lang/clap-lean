@@ -1,6 +1,7 @@
 import Lean
 
 import Mathlib.Data.ZMod.Basic
+import Mathlib.Tactic
 
 @[simp]
 theorem Vector.range_one : Vector.range 1 = #v[0] := rfl
@@ -94,8 +95,11 @@ lemma isPrefixOf_push {α : Type} [BEq α] [LawfulBEq α] {a : Array α} {x : α
 
 end Array
 
+
+namespace Std.ExtTreeMap
+
 @[simp, grind =]
-lemma Std.ExtTreeMap.mem_insertMany_vector.{u, v}
+lemma mem_insertMany_vector.{u, v}
   {α : Type u}
   {β : Type v}
   {cmp : α → α → Ordering}
@@ -122,7 +126,7 @@ lemma Std.ExtTreeMap.mem_insertMany_vector.{u, v}
     simp_all only [forall_const]
 
 @[grind .]
-lemma Std.ExtTreeMap.mem_insertMany_of_mem
+lemma mem_insertMany_of_mem
   {α β}
   {cmp}
   [BEq α] [Std.TransCmp cmp] [Std.LawfulBEqCmp cmp]
@@ -140,3 +144,72 @@ lemma Std.ExtTreeMap.mem_insertMany_of_mem
   apply this
   left
   assumption
+
+@[grind =_]
+lemma insert_eq_insertMany_singleton_vec
+  {α β}
+  {cmp}
+  [Std.TransCmp cmp]
+  {map : Std.ExtTreeMap α β cmp}
+  {key : α}
+  {value : β}
+:
+  map.insert key value =
+  map.insertMany #v[(key, value)]
+:= by
+  grind
+
+@[simp, grind =]
+lemma insertMany_vector_list
+  {α β}
+  {cmp}
+  [Std.TransCmp cmp]
+  {map : Std.ExtTreeMap α β cmp}
+  {k : ℕ}
+  {list : List (α × β)}
+  {h_list : {toList := list : Array _}.size = k}
+:
+  map.insertMany (Vector.mk ⟨list⟩ h_list) =
+  map.insertMany list := by
+  simp [Std.ExtTreeMap.insertMany, Std.ExtDTreeMap.Const.insertMany]
+
+@[grind =]
+lemma getElem?_insertMany_eq_getElem?_of_neq
+  {α β}
+  {cmp}
+  [Std.TransCmp cmp] [Std.LawfulEqCmp cmp]
+  {map : Std.ExtTreeMap α β cmp}
+  {k : ℕ}
+  {v : α}
+  {vec : Vector (α × β) k}
+  (h : ∀ x ∈ vec, x.1 ≠ v)
+:
+  (map.insertMany vec)[v]? =
+  map[v]?
+:= by
+  ext val
+  obtain ⟨⟨l⟩, h_l⟩ := vec
+  simp at *
+  clear h_l
+  induction' l with head tail h_tail generalizing map
+  . grind
+  . rewrite [Std.ExtTreeMap.insertMany_cons]
+    rewrite [h_tail (by grind)]
+    grind
+
+end Std.ExtTreeMap
+
+namespace List
+
+lemma drop_eq_singleton_getList_of_length
+  {α}
+  {l : List α}
+  {len : ℕ}
+  (h : l.length = len + 1)
+:
+  l.drop len = [l.getLast (by grind)]
+:= by
+  aesop (add safe (by grind))
+
+
+namespace List

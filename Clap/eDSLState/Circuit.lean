@@ -110,6 +110,7 @@ lemma evalInOrder_numAlloc
   . grind [=eval]
   . grind [=eval]
 
+
 @[simp, grind =]
 lemma eval_numAlloc
   {circuit : Circuit}
@@ -173,9 +174,7 @@ lemma wellFormed_iff :
   grind
 
 @[simp, grind =]
-lemma eval_push_eq0_varStore
-
-:
+lemma eval_push_eq0_varStore :
   [varStore, σ, numAlloc|circuit.push (.eq0 e!)]ₑ.varStore =
   [varStore, σ, numAlloc|circuit]ₑ.varStore
 := by
@@ -248,14 +247,6 @@ lemma eval_varStore_insert_isSome_of_isSome
       · rw [show Option.map = Functor.map from rfl, binaryOp_isSome_iff] at h ⊢
         grind
 
-@[simp, grind =]
-lemma insertMany_vector_list
-  {k : ℕ} {arr : List (ℕ × ZMod p)}
-          {harr : {toList := arr : Array _}.size = k} :
-  varStore.insertMany (Vector.mk {toList := arr} harr) =
-  varStore.insertMany arr := by
-  simp [Std.ExtTreeMap.insertMany, Std.ExtDTreeMap.Const.insertMany]
-
 @[aesop simp, grind .]
 lemma eval_varStore_insertMany_isSome_of_isSome
   {k : ℕ}
@@ -266,7 +257,7 @@ lemma eval_varStore_insertMany_isSome_of_isSome
   [varStore.insertMany inserts|e].isSome = true
 := by
   rcases inserts with ⟨⟨arr⟩, harr⟩
-  rw [insertMany_vector_list]
+  rw [Std.ExtTreeMap.insertMany_vector_list]
   clear harr
   induction' h : arr.length with n ih generalizing arr
   . grind
@@ -292,7 +283,7 @@ lemma eval_varStore_eval_insert_isSome_of_isSome
 :
   [[varStore.insert key value, σ, numAlloc|circuit]ₑ.varStore, σ|e].isSome = true
 := by
-  grind
+  grind [eval_eq_evalRec]
 
 @[grind =>]
 lemma _root_.Clap.Gate.varsAllocated_step_of_wellFormed
@@ -337,7 +328,7 @@ lemma varsAllocated_eval_append_right
     intros e he
     have : e < σ.size := by
       aesop (add safe (by grind))
-    grind
+    grind [eval_eq_evalRec]
 
 @[grind .]
 lemma varsAllocated_singleton_iff :
@@ -414,18 +405,27 @@ lemma getElem?_eq_getElem?_of_varStore_eq {st₁ st₂ : EvalSt p} {e : Expr p} 
   st₁[e]? = st₂[e]? := by
   grind [cases EvalSt]
 
+lemma foldl_step_varStore_independent_of_constraints {circuit : List (Gate)}
+:
+  (circuit.foldl (fun result next => [result, σ|next]ₛ) ⟨numAlloc, varStore, constraints1⟩).varStore =
+  (circuit.foldl (fun result next => [result, σ|next]ₛ) ⟨numAlloc, varStore, constraints2⟩).varStore
+:= by
+  rewrite [←List.reverse_reverse circuit]
+  induction circuit.reverse
+  · grind only [= List.reverse_nil, = List.foldl_nil]
+  next hd tail h_tail =>
+    have := @foldr_step_numAlloc_independent_of_constraints' p numAlloc σ constraints1 constraints2 varStore ⟨tail⟩
+    simp at ⊢ this h_tail
+    cases hd <;> simp [this, h_tail, getElem?_eq_of_varStore_eq h_tail]
+
 lemma evalInOrder_varStore_independent_of_constraints
 :
   (circuit.evalInOrder σ ⟨numAlloc, varStore, constraints1⟩).varStore =
   (circuit.evalInOrder σ ⟨numAlloc, varStore, constraints2⟩).varStore
 := by
   rcases circuit with ⟨circuit⟩
-  rewrite [←List.reverse_reverse circuit]
-  induction circuit.reverse
-  · grind
-  next hd tail h_tail =>
-    have := @foldr_step_numAlloc_independent_of_constraints' p numAlloc σ constraints1 constraints2 varStore ⟨tail⟩
-    grind
+  simp only [List.size_toArray, List.foldl_toArray']
+  exact foldl_step_varStore_independent_of_constraints
 
 @[grind .]
 lemma numAlloc_evalInOrder_eq_numAlloc_eval
@@ -464,14 +464,6 @@ lemma constraints_evalInOrder_iff
   rcases circuit with ⟨circuit⟩
   rewrite [←List.reverse_reverse circuit]
   induction circuit.reverse <;> grind
-
-lemma foldl_step_varStore_independent_of_constraints {circuit : List (Gate)}
-:
-  (circuit.foldl (fun result next => [result, σ|next]ₛ) ⟨numAlloc, varStore, constraints1⟩).varStore =
-  (circuit.foldl (fun result next => [result, σ|next]ₛ) ⟨numAlloc, varStore, constraints2⟩).varStore
-:= by
-  have := @evalInOrder_varStore_independent_of_constraints (circuit := ⟨circuit⟩) (σ := σ)
-  aesop
 
 lemma foldr_step_varStore_independent_of_constraints
 :
@@ -717,7 +709,7 @@ lemma step_of_refsValid_prefix
 := by
   unfold EvalSt.step
   cases gate
-  · grind
+  · grind [eval_eq_evalRec]
   · grind
   · grind
   · grind
@@ -741,13 +733,13 @@ lemma step_of_refsValid_prefix
             grind
           . specialize h ⟨p', σ⟩
             grind
-      . grind
-      . grind
-      . grind
-      . grind
+      . grind [eval_eq_evalRec]
+      . grind [eval_eq_evalRec]
+      . grind [eval_eq_evalRec]
+      . grind [EvalSt.getElem?_eq_evalRec_of_wellFormed]
     . expose_names
       congr 1
-      all_goals grind
+      all_goals grind [EvalSt.getElem?_eq_evalRec_of_wellFormed]
 
 
 @[grind .]
@@ -884,7 +876,7 @@ lemma varsAllocated_eval_append_left
   gate.varsAllocated [varStore, σ, numAlloc|circuit1 ++ circuit2]ₑ.varStore σ
 := by
   unfold Gate.varsAllocated at *
-  grind
+  grind [eval_eq_evalRec]
 
 @[grind <=]
 lemma refsValid_take_of_refsValid {k bound : ℕ} {circuit : Circuit} (h : circuit.refsValid bound) :
@@ -905,6 +897,27 @@ lemma refsValid_of_refsValid_of_le
   circuit.refsValid high_bound
 := by
   aesop (add simp [Circuit.refsValid, Gate.refsValid]) (add safe (by grind))
+
+@[grind =]
+lemma getElem?_eval_eq_getElem?_of_lt
+  {v : ℕ}
+  {circuit : Circuit}
+  (h : v < numAlloc)
+:
+  [varStore, σ, numAlloc|circuit]ₑ.varStore[v]? =
+  varStore[v]?
+:= by
+  induction' eq : circuit.size with size ih generalizing circuit
+  . grind
+  . have : circuit = (circuit.take size) ++ #[circuit.back (by grind)] := by grind
+    rewrite [this]
+    simp [-Array.append_singleton]
+    choose k vec h_vec using @EvalSt.exists_varStore_step_eq_insertMany
+    rewrite [h_vec.1, Std.ExtTreeMap.getElem?_insertMany_eq_getElem?_of_neq]
+    . simp
+      apply ih
+      grind
+    . grind
 
 end Circuit
 

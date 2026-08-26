@@ -215,9 +215,8 @@ lemma getElem?_of_varStore_eq_varStore (h : st.varStore = st'.varStore)
   st[e]? = st'[e]?
 := get?_of_varStore_eq_varStore h
 
-@[grind _=_]
 lemma getElem?_eq_evalRec_of_wellFormed (h : e.wellFormed) : st[e]? = e.evalRec st.varStore := by
-  grind
+  grind [eval_eq_evalRec]
 
 @[grind =>]
 lemma getM?_of_varStore_eq_varStore (h : st.varStore = st'.varStore) :
@@ -522,7 +521,6 @@ lemma step_fpmul {w k a b p'} : st.step (.fpmul w k a b p') σ = stepFpmul st σ
 
 notation "[" res ", " σ "|" cmd "]ₛ" => step res cmd σ
 
-end step
 
 @[simp, grind =]
 lemma step_numAlloc
@@ -606,6 +604,41 @@ lemma step_varStore_keys
           . grind
         . grind
       · simp
+
+lemma exists_varStore_step_eq_insertMany
+  {st : EvalSt p}
+  {gate : Gate}
+:
+  ∃ k, ∃ (vec : Vector (ℕ × (ZMod p)) k),
+    [st, σ|gate]ₛ.varStore = st.varStore.insertMany vec ∧
+    ∀ key value, ⟨key, value⟩ ∈ vec → key ≥ st.numAlloc
+:= by
+  cases gate
+  . simp
+    use 0, #v[]
+    grind
+  . expose_names
+    simp
+    use 1, #v[(st.numAlloc, (st[⦃e, σ⦄]?.getD 0))]
+    rewrite [Std.ExtTreeMap.insert_eq_insertMany_singleton_vec]
+    aesop
+  . expose_names
+    simp
+    use 1, #v[(st.numAlloc, (if st[⦃e, σ⦄]? = some 0 then 1 else 0))]
+    rewrite [Std.ExtTreeMap.insert_eq_insertMany_singleton_vec]
+    aesop
+  . expose_names
+    simp
+    use w, ((Vector.map (fun x => x + st.numAlloc) (Vector.range w)).zip (num2bitsLsbPureV w (st[⦃e, σ⦄]?.getD 0)))
+    aesop (add safe (by grind [=> Vector.of_mem_zip]))
+  . expose_names
+    simp
+    use k, ((Vector.map (fun x => x + st.numAlloc) (Vector.range k)).zip
+          (EvalSt.fpMulPureV w k (Vector.map (fun e => st[⦃e, σ⦄]?.getD 0) a)
+            (Vector.map (fun e => st[⦃e, σ⦄]?.getD 0) b) (Vector.map (fun e => st[⦃e, σ⦄]?.getD 0) p')))
+    aesop (add safe (by grind [=> Vector.of_mem_zip]))
+
+end step
 
 variable {σ : HashConsSt p} {gate : Gate}
 

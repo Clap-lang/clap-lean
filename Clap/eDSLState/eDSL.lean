@@ -45,7 +45,7 @@ lemma wellFormed_tell_eq0 (h₁ : e! < σ.size)
   unfold ClapM.wellFormed
   split_ands
   · simp [Circuit.refsValid]
-    grind
+    grind [eval_eq_evalRec]
   · simp [ClapM.numAlloc_wellFormed]
   . simp [ClapM.hashConsState_wellFormed]
 
@@ -80,7 +80,7 @@ lemma wellFormed_mk_saveExpr_of_wellFormed {e} (h : (⟨e!, σ⟩ : Expr _).well
 lemma wellFormed_tell_share_bind_alloc
         (h₁ : (Expr.mk e! σ).wellFormed) (h₂ : ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ) (h₃ : Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc) :
   (do tell #[Gate.share e!]; ClapM.alloc).wellFormed numAlloc Γ σ := by
-  have : [Γ,σ|e!].isSome := by grind
+  have : [Γ,σ|e!].isSome := by grind [eval_eq_evalRec]
   unfold ClapM.wellFormed
   split_ands
   · simp
@@ -116,7 +116,7 @@ lemma wellFormed_isZero
   (isZero e!).wellFormed numAlloc Γ σ
 := by
   unfold isZero
-  have : [Γ,σ|e!].isSome := by grind
+  have : [Γ,σ|e!].isSome := by grind [eval_eq_evalRec]
   unfold ClapM.wellFormed
   split_ands
   · simp [Circuit.refsValid]
@@ -228,7 +228,7 @@ lemma wellFormed_num2bits {width : ℕ}
   (num2bits width e!).wellFormed numAlloc Γ σ
 := by
   unfold num2bits
-  have h_isSome : [Γ,σ|e!].isSome := by grind
+  have h_isSome : [Γ,σ|e!].isSome := by grind [eval_eq_evalRec]
   have h_wellFormed : (Expr.mk e! σ).wellFormed := by grind
   unfold ClapM.wellFormed
   split_ands
@@ -262,9 +262,9 @@ lemma wellFormed_fpmul {width k : ℕ} {a b p' : Vector ExprRef k}
   (h₉ : ∀ e! ∈ p', Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc) :
   (fpmul width k a b p').wellFormed numAlloc Γ σ := by
   unfold fpmul
-  have h_isSome₁ : ∀ e! ∈ a, [Γ,σ|e!].isSome := by grind
-  have h_isSome₂ : ∀ e! ∈ b, [Γ,σ|e!].isSome := by grind
-  have h_isSome₃ : ∀ e! ∈ p', [Γ,σ|e!].isSome := by grind
+  have h_isSome₁ : ∀ e! ∈ a, [Γ,σ|e!].isSome := by grind [eval_eq_evalRec]
+  have h_isSome₂ : ∀ e! ∈ b, [Γ,σ|e!].isSome := by grind [eval_eq_evalRec]
+  have h_isSome₃ : ∀ e! ∈ p', [Γ,σ|e!].isSome := by grind [eval_eq_evalRec]
   have h_wellFormed₁ : ∀ e! ∈ a, (Expr.mk e! σ).wellFormed := by grind
   have h_wellFormed₂ : ∀ e! ∈ b, (Expr.mk e! σ).wellFormed := by grind
   have h_wellFormed₃ : ∀ e! ∈ p', (Expr.mk e! σ).wellFormed := by grind
@@ -385,7 +385,7 @@ lemma getResult_num2bits :
 
 @[simp, grind =]
 lemma getResult_fpmul :
-  (fpmul w k a b p').getResult numAlloc σ = (Vector.ofFnM fun x => ClapM.alloc).getResult numAlloc σ := by
+  (fpmul w k a b p').getResult numAlloc σ = (Vector.ofFnM fun _ => ClapM.alloc).getResult numAlloc σ := by
   unfold fpmul; rfl
 
 end GetResult
@@ -410,7 +410,7 @@ lemma getVarStore_share :
 lemma getVarStore_isZero :
   (isZero e!).getVarStore Γ numAlloc σ =
   Std.ExtTreeMap.insert Γ numAlloc (if [Γ|⦃e!, (mkVar numAlloc).getHashConsState σ⦄] = some 0 then 1 else 0) := by
-  simp [isZero, ClapM.getVarStore]  
+  simp [isZero, ClapM.getVarStore]
   rfl
 
 @[simp, grind =]

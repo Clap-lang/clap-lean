@@ -1,3 +1,78 @@
+import Clap.eDSLState.eDSL
+
+import Clap.Lang.Wheels
+
+namespace Clap
+
+structure Converts {p : ℕ} (α) (conversion : α → ZMod p)
+  (varStore : VarStore p)
+  (σ : HashConsSt p)
+  (numAlloc : ℕ)
+  (expr : ExprRef)
+  (val : α)
+: Prop where
+  varSet_wf : ⦃expr, σ⦄.varSet_wellFormed numAlloc
+  expr_wf   : ⦃expr, σ⦄.wellFormed
+  value_eq  : [varStore, σ|expr] = .some (conversion val)
+
+
+section Lemmas
+
+variable
+  {p : ℕ}
+  {α}
+  {conversion : α → ZMod p}
+  {Γ : VarStore p}
+  {σ : HashConsSt p}
+  {numAlloc : ℕ}
+  {expr : ExprRef}
+  {val : α}
+
+@[aesop unsafe, grind! .]
+lemma isSome_eval_of_isSome_toIdeal
+  (h : Converts α conversion Γ σ numAlloc expr val)
+:
+  [Γ, σ|expr].isSome = true
+:= Option.isSome_iff_exists.2 ⟨_, h.value_eq⟩
+
+end Lemmas
+
+end Clap
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 -- import Clap.eDSLState.IsValid
 
 -- namespace Clap
