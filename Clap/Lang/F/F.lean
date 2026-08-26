@@ -90,7 +90,7 @@ lemma wellFormed
       intros val hval
       rw [Std.ExtTreeMap.mem_iff_isSome_getElem?]
       rw [eval_eq_evalRec (by grind)] at h₃ h₆
-      grind -- Option.isSome_of_eq_some is useless, had to go via `wellFormed_mem_varStore_of_evalRec_eq_some`... yikes?
+      grind -- `Option.isSome_of_eq_some` is useless, had to go via `wellFormed_mem_varStore_of_evalRec_eq_some`... yikes?
     · simp at *
       grind [=Expr.varSet_wellFormed]
 

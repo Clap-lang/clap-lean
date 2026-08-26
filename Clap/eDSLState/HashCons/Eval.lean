@@ -878,4 +878,10 @@ lemma eval_eq_some_of_wellFormed_of_isPrefixOf
 := by
   grind [eval_eq_evalRec]
 
+@[grind =]
+lemma eval_isSome_iff {Γ : VarStore p} {e! : ExprRef} {σ : HashConsSt p}
+  (h : ⦃e!, σ⦄.wellFormed) : 
+  [Γ, σ|e!].isSome ↔ ∀ v ∈ ⦃e!, σ⦄.varSet, v ∈ Γ := by
+  grind [=eval_eq_evalRec]
+
 end Clap
