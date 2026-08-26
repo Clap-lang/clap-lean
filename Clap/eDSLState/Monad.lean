@@ -442,7 +442,7 @@ lemma getVarStore_bind_of_wellFormed
       f (a.getResult numAlloc σ)
     ).wellFormed
       (a.getNumAlloc numAlloc σ)
-      [varStore,(a.getHashConsState numAlloc σ),numAlloc|a.getCircuit numAlloc σ]ₑ.varStore
+      (a.getVarStore varStore numAlloc σ)
       (a.getHashConsState numAlloc σ)
   )
 :

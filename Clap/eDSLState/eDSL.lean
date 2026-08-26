@@ -363,27 +363,27 @@ section GetResult
 
 variable {e! : ExprRef} {numAlloc w k : ℕ} {σ : HashConsSt p} {a b p' : Vector ExprRef k}
 
-@[simp, grind =]
+@[grind =]
 lemma getResult_eq0 :
   (eq0 e!).getResult numAlloc σ = (HashConsM.mkVar numAlloc).getResult σ := by
   unfold eq0; rfl
 
-@[simp, grind =]
+@[grind =]
 lemma getResult_share :
   (share e!).getResult numAlloc σ = (HashConsM.mkVar numAlloc).getResult σ := by
   unfold share; rfl
 
-@[simp, grind =]
+@[grind =]
 lemma getResult_isZero :
   (isZero e!).getResult numAlloc σ = (HashConsM.mkVar numAlloc).getResult σ := by
   unfold isZero; rfl
 
-@[simp, grind =]
+@[grind =]
 lemma getResult_num2bits :
   (num2bits w e!).getResult numAlloc σ = (Vector.ofFnM fun _ => ClapM.alloc).getResult numAlloc σ := by
   unfold num2bits; rfl
 
-@[simp, grind =]
+@[grind =]
 lemma getResult_fpmul :
   (fpmul w k a b p').getResult numAlloc σ = (Vector.ofFnM fun _ => ClapM.alloc).getResult numAlloc σ := by
   unfold fpmul; rfl

@@ -207,10 +207,32 @@ lemma Converts_isZero
   constructor <;> simp at *
   . intro i h_i
     grind [=isZero]
-  . done
-  . done
+  . simp [isZero]
+    rw [Expr.wellFormed_iff_isSome, deref_mkVar_eq_some]
+    rfl
+  . simp [isZero, HashConsM.mkVar]
+    simp [HashConsM.getHashConsState_saveExpr_of_wellFormed,
+          HashConsM.getResult_saveExpr_of_wellFormed]
+    split
+    · rw [eval_eq_evalRec (by grind)]
+      unfold Expr.evalRec
+      grind
+    · rw [eval_eq_evalRec (by grind)]
+      rw [evalRec_eq_of_deref_eq_some_v (idx := numAlloc)]
+      · simp
+        rw [eval_eq_evalRec (by grind)] at a_result ⊢ 
+        rw [←evalRec_of_wellFormed_of_prefix] at ⊢
+        · rw [a_result]
+          grind
+        · grind
+        · grind
+      · grind
 
-#exit
+lemma _root_.Clap.FB.converts_of_converts_eq {Γ : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ}
+                                             {expr : Vector FB 1} {value₁ : Bool}
+                                             (value₂ : Bool) (h : value₁ = value₂) :
+  FB.Converts Γ σ numAlloc expr value₁ ↔ FB.Converts Γ σ numAlloc expr value₂ := by
+  grind
 
 lemma Converts_eq
   [p.AtLeastTwo]
@@ -229,10 +251,24 @@ lemma Converts_eq
     #v[(eq a b).getResult numAlloc σ]
     (a_val == b_val)
 := by
+  rw [FB.converts_of_converts_eq (a_val - b_val == 0) (by grind)]
   unfold eq
   simp
-  done
+  rw [ClapM.getVarStore_bind_of_wellFormed]
+  · aesop
+      (erase simp [getResult_liftM,
+                   ClapM.getResult_liftM,
+                   ClapM.getVarStore_liftM,
+                   ClapM.getNumAlloc_liftM,
+                   ClapM.getHashConsState_liftM,
+                   getVarStore_isZero])
+      (add safe apply [Converts_isZero, Converts_mkSub])
+    grind [!.Converts_isZero, .Converts_mkSub]
+  · grind
+  · apply isZero.wellFormed
+    apply Converts_mkSub h_a h_b
 
+#exit
 #exit
 #exot
 

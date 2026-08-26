@@ -18,6 +18,14 @@ structure Converts {p : ℕ} {α : Type}
   expr_wf   : ∀ (i : Fin k), ⦃exprs[i], σ⦄.wellFormed
   value_eq  : ∀ (i : Fin k), [varStore|⦃exprs[i], σ⦄] = .some (conversion val)[i]
 
+def Wendy {p : ℕ} {α : Type} (action : ClapM p α) {k : ℕ}
+          (conversion : α → Vector (ZMod p) k)
+          (varStore : VarStore p)
+          (σ : HashConsSt p)
+          (numAlloc : ℕ)
+          (exprs : Vector ExprRef k)
+          (val : α) : P
+
 section Lemmas
 
 variable
