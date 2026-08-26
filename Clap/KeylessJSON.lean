@@ -92,58 +92,685 @@ def emailVerifiedFromJson : Json → Except String Bool
   | .str s => throw s!"The field (email_verified) must be true, false, \"true\" or \"false\", but got (\"{s}\")."
   | _ => throw "The field (email_verified) must be a boolean or a string."
 
+/-
+`Json.Parser.str`/`Json.Parser.num` bottom out in `partial def`s (`strCore`, `natCore`,
+`natCoreNumDigits`) that Lean cannot prove terminating on its own, so it compiles them
+to opaque constants (confirmed via `#print`): nothing about their behavior, not even
+"the input position never moves backwards", is provable. This namespace locally
+reimplements just the string/number lexing loops that were opaque, with real
+termination proofs, so that `objectCoreAllPairs'` below can get a genuine
+`decreasing_by` proof (no `sorry`, no `partial`) instead of the placeholder it had.
+-/
+namespace Parser
+
+variable {α β : Type}
+
+/-- `p` never leaves the input position further along than where it started. -/
+def NonBacktracking (p : Parser α) : Prop :=
+  ∀ it it' a, p it = .success it' a → it'.2.remainingBytes ≤ it.2.remainingBytes
+
+/-- `p` always advances the input position when it succeeds. -/
+def Shrinking (p : Parser α) : Prop :=
+  ∀ it it' a, p it = .success it' a → it'.2.remainingBytes < it.2.remainingBytes
+
+theorem Shrinking.nonBacktracking {p : Parser α} (h : Shrinking p) : NonBacktracking p :=
+  fun it it' a hp => Nat.le_of_lt (h it it' a hp)
+
+theorem any_shrinking : Shrinking (α := Char) any := by
+  intro it it' c h
+  unfold Std.Internal.Parsec.any at h
+  simp only [Std.Internal.Parsec.Input.hasNext, Std.Internal.Parsec.Input.next', Std.Internal.Parsec.Input.curr'] at h
+  split at h
+  · rename_i hh
+    injection h with h1 h2
+    subst h1
+    exact (String.Pos.lt_iff_remainingBytes_lt _ _).mp (String.Pos.lt_next (h := of_decide_eq_true hh))
+  · injection h
+
+theorem bind_nonBacktracking {f : Parser α} {g : α → Parser β}
+    (hf : NonBacktracking f) (hg : ∀ a, NonBacktracking (g a)) :
+    NonBacktracking (f >>= g) := by
+  intro it it' b h
+  simp only [Bind.bind, Std.Internal.Parsec.bind] at h
+  split at h
+  · rename_i rem a hrem
+    exact Nat.le_trans (hg a rem it' b h) (hf it rem a hrem)
+  · injection h
+
+theorem bind_shrinking_left {f : Parser α} {g : α → Parser β}
+    (hf : Shrinking f) (hg : ∀ a, NonBacktracking (g a)) :
+    Shrinking (f >>= g) := by
+  intro it it' b h
+  simp only [Bind.bind, Std.Internal.Parsec.bind] at h
+  split at h
+  · rename_i rem a hrem
+    exact Nat.lt_of_le_of_lt (hg a rem it' b h) (hf it rem a hrem)
+  · injection h
+
+theorem pure_nonBacktracking (a : α) : NonBacktracking (Pure.pure a : Parser α) := by
+  intro it it' b h
+  simp only [Pure.pure, Std.Internal.Parsec.pure] at h
+  injection h with h1 h2
+  subst h1
+  exact Nat.le_refl _
+
+theorem fail_vacuous (msg : String) : NonBacktracking (α := α) (Std.Internal.Parsec.fail msg) := by
+  intro it it' a h
+  unfold Std.Internal.Parsec.fail at h
+  injection h
+
+theorem hexChar_shrinking : Shrinking Lean.Json.Parser.hexChar := by
+  unfold Lean.Json.Parser.hexChar
+  apply bind_shrinking_left any_shrinking
+  intro c
+  split
+  · exact pure_nonBacktracking _
+  split
+  · exact pure_nonBacktracking _
+  split
+  · exact pure_nonBacktracking _
+  · exact fail_vacuous _
+
+theorem finishSurrogatePair_shrinking (low : UInt16) :
+    Shrinking (Lean.Json.Parser.finishSurrogatePair low) := by
+  unfold Lean.Json.Parser.finishSurrogatePair
+  apply bind_shrinking_left any_shrinking
+  intro c
+  split
+  · exact fail_vacuous _
+  apply (bind_shrinking_left any_shrinking ?_).nonBacktracking
+  intro c'
+  split
+  · exact fail_vacuous _
+  apply (bind_shrinking_left any_shrinking ?_).nonBacktracking
+  intro c''
+  split
+  · exact fail_vacuous _
+  apply (bind_shrinking_left hexChar_shrinking ?_).nonBacktracking
+  intro u2
+  apply (bind_shrinking_left hexChar_shrinking ?_).nonBacktracking
+  intro u3
+  apply (bind_shrinking_left hexChar_shrinking ?_).nonBacktracking
+  intro u4
+  dsimp only
+  split
+  · exact fail_vacuous _
+  · split
+    · exact pure_nonBacktracking _
+    · exact fail_vacuous _
+
+theorem attempt_orElse_nonBacktracking {p q : Parser α}
+    (hp : NonBacktracking p) (hq : NonBacktracking q) :
+    NonBacktracking (attempt p <|> q) := by
+  intro it it' a h
+  change Std.Internal.Parsec.orElse (attempt p) (fun _ => q) it = .success it' a at h
+  unfold Std.Internal.Parsec.orElse Std.Internal.Parsec.tryCatch Std.Internal.Parsec.attempt at h
+  rcases hpit : p it with ⟨rem, res⟩ | ⟨rem, err⟩
+  · rw [hpit] at h
+    dsimp only [Std.Internal.Parsec.pure] at h
+    injection h with h1 h2
+    subst h1; subst h2
+    exact hp it rem res hpit
+  · rw [hpit] at h
+    dsimp only at h
+    rw [if_pos rfl] at h
+    exact hq it it' a h
+
+theorem escapedChar_shrinking : Shrinking Lean.Json.Parser.escapedChar := by
+  unfold Lean.Json.Parser.escapedChar
+  apply bind_shrinking_left any_shrinking
+  intro c
+  dsimp only
+  split <;> try exact pure_nonBacktracking _
+  · apply (bind_shrinking_left hexChar_shrinking ?_).nonBacktracking
+    intro u1
+    apply (bind_shrinking_left hexChar_shrinking ?_).nonBacktracking
+    intro u2
+    apply (bind_shrinking_left hexChar_shrinking ?_).nonBacktracking
+    intro u3
+    apply (bind_shrinking_left hexChar_shrinking ?_).nonBacktracking
+    intro u4
+    dsimp only
+    split
+    · exact pure_nonBacktracking _
+    split
+    · split
+      · exact attempt_orElse_nonBacktracking (finishSurrogatePair_shrinking _).nonBacktracking (pure_nonBacktracking _)
+      · exact pure_nonBacktracking _
+    · exact pure_nonBacktracking _
+  · exact fail_vacuous _
+
+theorem skip_shrinking : Shrinking skip := by
+  intro it it' u h
+  unfold Std.Internal.Parsec.skip at h
+  simp only [Std.Internal.Parsec.Input.hasNext, Std.Internal.Parsec.Input.next'] at h
+  split at h
+  · rename_i hh
+    injection h with h1 h2
+    subst h1
+    exact (String.Pos.lt_iff_remainingBytes_lt _ _).mp (String.Pos.lt_next (h := of_decide_eq_true hh))
+  · injection h
+
+theorem peek!_nonBacktracking : NonBacktracking (peek! (ι := Sigma String.Pos) (elem := Char)) := by
+  intro it it' c h
+  unfold Std.Internal.Parsec.peek! at h
+  split at h
+  · injection h with h1 h2
+    subst h1
+    exact Nat.le_refl _
+  · injection h
+
+theorem lookahead_nonBacktracking (p : Char → Prop) [DecidablePred p] (desc : String) :
+    NonBacktracking (Lean.Json.Parser.lookahead p desc) := by
+  unfold Lean.Json.Parser.lookahead
+  apply bind_nonBacktracking peek!_nonBacktracking
+  intro c
+  split
+  · exact pure_nonBacktracking _
+  · exact fail_vacuous _
+
+theorem isEof_nonBacktracking : NonBacktracking (isEof (ι := Sigma String.Pos)) := by
+  intro it it' b h
+  unfold Std.Internal.Parsec.isEof at h
+  injection h with h1 h2
+  subst h1
+  exact Nat.le_refl _
+
+theorem numSign_nonBacktracking : NonBacktracking Lean.Json.Parser.numSign := by
+  unfold Lean.Json.Parser.numSign
+  apply bind_nonBacktracking peek!_nonBacktracking
+  intro c
+  dsimp only
+  split
+  · apply bind_nonBacktracking skip_shrinking.nonBacktracking
+    intro _
+    exact pure_nonBacktracking _
+  · exact pure_nonBacktracking _
+
+/-- Replacement for the opaque `Json.Parser.natCore`, recursing directly on the
+input position (like `Std.Internal.Parsec.String.digitsCore`) so termination is provable. -/
+def natCore (acc : Nat) (it : Sigma String.Pos) : ParseResult Nat (Sigma String.Pos) :=
+  if h : ¬ it.2.IsAtEnd then
+    let c := it.2.get h
+    if '0' ≤ c ∧ c ≤ '9' then
+      natCore (10*acc + (c.val - '0'.val).toNat) ⟨it.1, it.2.next h⟩
+    else
+      .success it acc
+  else
+    .success it acc
+termination_by it.2.remainingBytes
+decreasing_by exact (String.Pos.lt_iff_remainingBytes_lt _ _).mp (String.Pos.lt_next (h := h))
+
+/-- Replacement for the opaque `Json.Parser.natCoreNumDigits`. -/
+def natCoreNumDigits (acc digits : Nat) (it : Sigma String.Pos) :
+    ParseResult (Nat × Nat) (Sigma String.Pos) :=
+  if h : ¬ it.2.IsAtEnd then
+    let c := it.2.get h
+    if '0' ≤ c ∧ c ≤ '9' then
+      natCoreNumDigits (10*acc + (c.val - '0'.val).toNat) (digits+1) ⟨it.1, it.2.next h⟩
+    else
+      .success it (acc, digits)
+  else
+    .success it (acc, digits)
+termination_by it.2.remainingBytes
+decreasing_by exact (String.Pos.lt_iff_remainingBytes_lt _ _).mp (String.Pos.lt_next (h := h))
+
+theorem natCore_nonBacktracking (acc : Nat) : NonBacktracking (natCore acc) := by
+  revert acc
+  intro acc it
+  induction acc, it using natCore.induct with
+  | case1 acc it h c hr ih =>
+    intro it' s heq
+    rw [natCore.eq_1, dif_pos h, if_pos hr] at heq
+    exact Nat.le_trans (ih it' s heq) (Nat.le_of_lt ((String.Pos.lt_iff_remainingBytes_lt _ _).mp (String.Pos.lt_next (h := h))))
+  | case2 acc it h c hr =>
+    intro it' s heq
+    rw [natCore.eq_1, dif_pos h, if_neg hr] at heq
+    injection heq with h1 h2
+    subst h1
+    exact Nat.le_refl _
+  | case3 acc it hend =>
+    intro it' s heq
+    rw [natCore.eq_1, dif_neg hend] at heq
+    injection heq with h1 h2
+    subst h1
+    exact Nat.le_refl _
+
+theorem natCoreNumDigits_nonBacktracking (acc digits : Nat) :
+    NonBacktracking (natCoreNumDigits acc digits) := by
+  revert acc digits
+  intro acc digits it
+  induction acc, digits, it using natCoreNumDigits.induct with
+  | case1 acc digits it h c hr ih =>
+    intro it' r heq
+    rw [natCoreNumDigits.eq_1, dif_pos h, if_pos hr] at heq
+    exact Nat.le_trans (ih it' r heq) (Nat.le_of_lt ((String.Pos.lt_iff_remainingBytes_lt _ _).mp (String.Pos.lt_next (h := h))))
+  | case2 acc digits it h c hr =>
+    intro it' r heq
+    rw [natCoreNumDigits.eq_1, dif_pos h, if_neg hr] at heq
+    injection heq with h1 h2
+    subst h1
+    exact Nat.le_refl _
+  | case3 acc digits it hend =>
+    intro it' r heq
+    rw [natCoreNumDigits.eq_1, dif_neg hend] at heq
+    injection heq with h1 h2
+    subst h1
+    exact Nat.le_refl _
+
+/-- Thin copies of `Json.Parser.natNonZero`/`natMaybeZero`/`natNumDigits`/`nat`/
+`numWithDecimals`/`exponent`/`num`, pointed at the local `natCore`/`natCoreNumDigits`
+above instead of the opaque originals. Bodies are otherwise identical. -/
+def ourNatNonZero : Parser Nat := do
+  Lean.Json.Parser.lookahead (fun c => '1' <= c && c <= '9') "1-9"
+  natCore 0
+
+def ourNatNumDigits : Parser (Nat × Nat) := do
+  Lean.Json.Parser.lookahead (fun c => '0' <= c && c <= '9') "digit"
+  natCoreNumDigits 0 0
+
+def ourNatMaybeZero : Parser Nat := do
+  Lean.Json.Parser.lookahead (fun c => '0' <= c && c <= '9') "0-9"
+  natCore 0
+
+def ourNat : Parser Nat := do
+  let c ← peek!
+  if c == '0' then
+    skip
+    return 0
+  else
+    ourNatNonZero
+
+def ourNumWithDecimals : Parser Lean.JsonNumber := do
+  let sign ← Lean.Json.Parser.numSign
+  let whole ← ourNat
+  if ← isEof then
+    pure <| Lean.JsonNumber.fromInt (sign * whole)
+  else
+    let c ← peek!
+    if c == '.' then
+      skip
+      let (n, d) ← ourNatNumDigits
+      if d > USize.size then fail "too many decimals"
+      let mantissa' := sign * (whole * (10^d : Nat) + n)
+      let exponent' := d
+      pure <| Lean.JsonNumber.mk mantissa' exponent'
+    else
+      pure <| Lean.JsonNumber.fromInt (sign * whole)
+
+def ourExponent (value : Lean.JsonNumber) : Parser Lean.JsonNumber := do
+  if ← isEof then
+    return value
+  else
+    let c ← peek!
+    if c == 'e' || c == 'E' then
+      skip
+      let c ← peek!
+      if c == '-' then
+        skip
+        let n ← ourNatMaybeZero
+        return value.shiftr n
+      else
+        if c = '+' then skip
+        let n ← ourNatMaybeZero
+        if n > USize.size then fail "exp too large"
+        return value.shiftl n
+    else
+      return value
+
+def ourNum : Parser Lean.JsonNumber := do
+  let res : Lean.JsonNumber ← ourNumWithDecimals
+  ourExponent res
+
+theorem ourNatNonZero_nonBacktracking : NonBacktracking ourNatNonZero := by
+  unfold ourNatNonZero
+  apply bind_nonBacktracking (lookahead_nonBacktracking _ _)
+  intro _
+  exact natCore_nonBacktracking 0
+
+theorem ourNatNumDigits_nonBacktracking : NonBacktracking ourNatNumDigits := by
+  unfold ourNatNumDigits
+  apply bind_nonBacktracking (lookahead_nonBacktracking _ _)
+  intro _
+  exact natCoreNumDigits_nonBacktracking 0 0
+
+theorem ourNatMaybeZero_nonBacktracking : NonBacktracking ourNatMaybeZero := by
+  unfold ourNatMaybeZero
+  apply bind_nonBacktracking (lookahead_nonBacktracking _ _)
+  intro _
+  exact natCore_nonBacktracking 0
+
+theorem ourNat_nonBacktracking : NonBacktracking ourNat := by
+  unfold ourNat
+  apply bind_nonBacktracking peek!_nonBacktracking
+  intro c
+  dsimp only
+  split
+  · apply bind_nonBacktracking skip_shrinking.nonBacktracking
+    intro _
+    exact pure_nonBacktracking _
+  · exact ourNatNonZero_nonBacktracking
+
+theorem ourNumWithDecimals_nonBacktracking : NonBacktracking ourNumWithDecimals := by
+  unfold ourNumWithDecimals
+  apply bind_nonBacktracking numSign_nonBacktracking
+  intro sign
+  apply bind_nonBacktracking ourNat_nonBacktracking
+  intro whole
+  apply bind_nonBacktracking isEof_nonBacktracking
+  intro b
+  dsimp only
+  split
+  · exact pure_nonBacktracking _
+  · apply bind_nonBacktracking peek!_nonBacktracking
+    intro c
+    dsimp only
+    split
+    · apply bind_nonBacktracking skip_shrinking.nonBacktracking
+      intro _
+      apply bind_nonBacktracking ourNatNumDigits_nonBacktracking
+      intro nd
+      dsimp only
+      split
+      · exact fail_vacuous _
+      · exact pure_nonBacktracking _
+    · exact pure_nonBacktracking _
+
+theorem ourExponent_nonBacktracking (value : Lean.JsonNumber) : NonBacktracking (ourExponent value) := by
+  unfold ourExponent
+  apply bind_nonBacktracking isEof_nonBacktracking
+  intro b
+  dsimp only
+  split
+  · exact pure_nonBacktracking _
+  · apply bind_nonBacktracking peek!_nonBacktracking
+    intro c
+    dsimp only
+    split
+    · apply bind_nonBacktracking skip_shrinking.nonBacktracking
+      intro _
+      apply bind_nonBacktracking peek!_nonBacktracking
+      intro c2
+      dsimp only
+      split
+      · apply bind_nonBacktracking skip_shrinking.nonBacktracking
+        intro _
+        apply bind_nonBacktracking ourNatMaybeZero_nonBacktracking
+        intro n
+        exact pure_nonBacktracking _
+      · split <;>
+        · apply bind_nonBacktracking
+          · first | exact skip_shrinking.nonBacktracking | exact pure_nonBacktracking _
+          intro _
+          apply bind_nonBacktracking ourNatMaybeZero_nonBacktracking
+          intro n
+          dsimp only
+          split
+          · exact fail_vacuous _
+          · exact pure_nonBacktracking _
+    · exact pure_nonBacktracking _
+
+theorem ourNum_nonBacktracking : NonBacktracking ourNum := by
+  unfold ourNum
+  apply bind_nonBacktracking ourNumWithDecimals_nonBacktracking
+  intro res
+  exact ourExponent_nonBacktracking res
+
+/-- Replacement for the private `Std.Internal.Parsec.String.skipWs`/`ws` (private, so
+inaccessible for proofs from this file), recursing directly on the input position. -/
+def skipWsCore (it : Sigma String.Pos) : Sigma String.Pos :=
+  if h : ¬ it.2.IsAtEnd then
+    let c := it.2.get h
+    if c = '\t' ∨ c = '\n' ∨ c = '\x0d' ∨ c = ' ' then
+      skipWsCore ⟨it.1, it.2.next h⟩
+    else
+      it
+  else
+    it
+termination_by it.2.remainingBytes
+decreasing_by exact (String.Pos.lt_iff_remainingBytes_lt _ _).mp (String.Pos.lt_next (h := h))
+
+def ws' : Parser Unit := fun it => .success (skipWsCore it) ()
+
+theorem skipWsCore_nonBacktracking (it : Sigma String.Pos) :
+    (skipWsCore it).2.remainingBytes ≤ it.2.remainingBytes := by
+  induction it using skipWsCore.induct with
+  | case1 it h c hws ih =>
+    rw [skipWsCore.eq_1, dif_pos h, if_pos hws]
+    exact Nat.le_trans ih (Nat.le_of_lt ((String.Pos.lt_iff_remainingBytes_lt _ _).mp (String.Pos.lt_next (h := h))))
+  | case2 it h c hws =>
+    rw [skipWsCore.eq_1, dif_pos h, if_neg hws]
+  | case3 it hend =>
+    rw [skipWsCore.eq_1, dif_neg hend]
+
+theorem ws'_nonBacktracking : NonBacktracking ws' := by
+  intro it it' u h
+  unfold ws' at h
+  injection h with h1 h2
+  subst h1
+  exact skipWsCore_nonBacktracking it
+
+theorem pstring_nonBacktracking (s : String) : NonBacktracking (pstring s) := by
+  intro it it' r h
+  unfold Std.Internal.Parsec.String.pstring at h
+  split at h
+  · injection h with h1 h2
+    subst h1
+    exact (String.Pos.le_iff_remainingBytes_le _ _).mp String.Pos.le_nextn
+  · injection h
+
+theorem skipString_nonBacktracking (s : String) : NonBacktracking (skipString s) := by
+  unfold Std.Internal.Parsec.String.skipString
+  apply bind_nonBacktracking (pstring_nonBacktracking s)
+  intro _
+  exact pure_nonBacktracking _
+
+/-- Replacement for the opaque `Json.Parser.strCore`, recursing directly on the input
+position; `Json.Parser.escapedChar`/`hexChar`/`finishSurrogatePair` are reused as-is
+since they're ordinary (non-`partial`, non-recursive) defs, not opaque. -/
+def strCore (acc : String) (it : Sigma String.Pos) : ParseResult String (Sigma String.Pos) :=
+  if h : ¬ it.2.IsAtEnd then
+    let c := it.2.get h
+    if c == '"' then
+      .success ⟨it.1, it.2.next h⟩ acc
+    else if c == '\\' then
+      match hEsc : Lean.Json.Parser.escapedChar ⟨it.1, it.2.next h⟩ with
+      | .success it' c' => strCore (acc.push c') it'
+      | .error it' err => .error it' err
+    else if 0x0020 ≤ c.val ∧ c.val ≤ 0x10ffff then
+      strCore (acc.push c) ⟨it.1, it.2.next h⟩
+    else
+      .error it (.other "unexpected character in string")
+  else
+    .error it .eof
+termination_by it.2.remainingBytes
+decreasing_by
+  all_goals try exact (String.Pos.lt_iff_remainingBytes_lt _ _).mp (String.Pos.lt_next (h := h))
+  all_goals (exact Nat.lt_of_le_of_lt (escapedChar_shrinking.nonBacktracking _ _ _ hEsc) ((String.Pos.lt_iff_remainingBytes_lt _ _).mp (String.Pos.lt_next (h := h))))
+
+/-- Replacement for `Json.Parser.str`. -/
+def str : Parser String := strCore ""
+
+theorem strCore_nonBacktracking :
+    ∀ (acc : String) (it : Sigma String.Pos),
+      ∀ it' s, strCore acc it = .success it' s → it'.2.remainingBytes ≤ it.2.remainingBytes := by
+  intro acc it
+  induction acc, it using strCore.induct with
+  | case1 acc it h c hquote =>
+    intro it' s heq
+    rw [strCore.eq_1, dif_pos h, if_pos hquote] at heq
+    injection heq with h1 h2
+    subst h1
+    exact Nat.le_of_lt ((String.Pos.lt_iff_remainingBytes_lt _ _).mp (String.Pos.lt_next (h := h)))
+  | case2 acc it h c hne1 hbs it0 c0 hEscEq ih =>
+    intro it' s heq
+    rw [strCore.eq_1, dif_pos h, if_neg hne1, if_pos hbs] at heq
+    rw [hEscEq] at heq
+    have hb1 : it0.2.remainingBytes ≤ (it.snd.next h).remainingBytes :=
+      escapedChar_shrinking.nonBacktracking _ _ _ hEscEq
+    have hb2 : (it.snd.next h).remainingBytes < it.snd.remainingBytes :=
+      (String.Pos.lt_iff_remainingBytes_lt _ _).mp (String.Pos.lt_next (h := h))
+    exact Nat.le_trans (ih it' s heq) (Nat.le_of_lt (Nat.lt_of_le_of_lt hb1 hb2))
+  | case3 acc it h c hne1 hbs it0 err hEscEq =>
+    intro it' s heq
+    rw [strCore.eq_1, dif_pos h, if_neg hne1, if_pos hbs] at heq
+    rw [hEscEq] at heq
+    injection heq
+  | case4 acc it h c hne1 hne2 hrange ih =>
+    intro it' s heq
+    rw [strCore.eq_1, dif_pos h, if_neg hne1, if_neg hne2, if_pos hrange] at heq
+    exact Nat.le_trans (ih it' s heq) (Nat.le_of_lt ((String.Pos.lt_iff_remainingBytes_lt _ _).mp (String.Pos.lt_next (h := h))))
+  | case5 acc it h c hne1 hne2 hrangeneg =>
+    intro it' s heq
+    rw [strCore.eq_1, dif_pos h, if_neg hne1, if_neg hne2, if_neg hrangeneg] at heq
+    injection heq
+  | case6 acc it hend =>
+    intro it' s heq
+    rw [strCore.eq_1, dif_neg hend] at heq
+    injection heq
+
+theorem str_nonBacktracking : NonBacktracking str :=
+  fun it it' s h => strCore_nonBacktracking "" it it' s h
+
 /--
 Like `Json.Parser.anyCore`, but only parses flat JSON values (strings, numbers,
 booleans, null), never arrays or objects. Since it never recurses into itself,
 unlike `anyCore` it does not need to be `partial`.
 -/
-def jsonFlatValue : Parser Json := do
+def jsonFlatValue : Parser Lean.Json := do
   let c ← peek!
   if c == '\"' then
     skip
-    let s ← Json.Parser.str
-    ws
-    return Json.str s
+    let s ← str
+    ws'
+    return Lean.Json.str s
   else if c == 'f' then
-    skipString "false"; ws
-    return Json.bool false
+    skipString "false"; ws'
+    return Lean.Json.bool false
   else if c == 't' then
-    skipString "true"; ws
-    return Json.bool true
+    skipString "true"; ws'
+    return Lean.Json.bool true
   else if c == 'n' then
-    skipString "null"; ws
-    return Json.null
+    skipString "null"; ws'
+    return Lean.Json.null
   else if c == '-' || ('0' <= c && c <= '9') then
-    let n ← Json.Parser.num
-    ws
-    return Json.num n
+    let n ← ourNum
+    ws'
+    return Lean.Json.num n
   else
     fail "unexpected input"
+
+theorem jsonFlatValue_nonBacktracking : NonBacktracking jsonFlatValue := by
+  unfold jsonFlatValue
+  apply bind_nonBacktracking peek!_nonBacktracking
+  intro c
+  dsimp only
+  split
+  · apply bind_nonBacktracking skip_shrinking.nonBacktracking
+    intro _
+    apply bind_nonBacktracking str_nonBacktracking
+    intro s
+    apply bind_nonBacktracking ws'_nonBacktracking
+    intro _
+    exact pure_nonBacktracking _
+  · split
+    · apply bind_nonBacktracking (skipString_nonBacktracking _)
+      intro _
+      apply bind_nonBacktracking ws'_nonBacktracking
+      intro _
+      exact pure_nonBacktracking _
+    · split
+      · apply bind_nonBacktracking (skipString_nonBacktracking _)
+        intro _
+        apply bind_nonBacktracking ws'_nonBacktracking
+        intro _
+        exact pure_nonBacktracking _
+      · split
+        · apply bind_nonBacktracking (skipString_nonBacktracking _)
+          intro _
+          apply bind_nonBacktracking ws'_nonBacktracking
+          intro _
+          exact pure_nonBacktracking _
+        · split
+          · apply bind_nonBacktracking ourNum_nonBacktracking
+            intro n
+            apply bind_nonBacktracking ws'_nonBacktracking
+            intro _
+            exact pure_nonBacktracking _
+          · exact fail_vacuous _
+
+theorem bind_shrinking_of_nonBacktracking_shrinking {f : Parser α} {g : α → Parser β}
+    (hf : NonBacktracking f) (hg : ∀ a, Shrinking (g a)) :
+    Shrinking (f >>= g) := by
+  intro it it' b h
+  simp only [Bind.bind, Std.Internal.Parsec.bind] at h
+  split at h
+  · rename_i rem a hrem
+    exact Nat.lt_of_lt_of_le (hg a rem it' b h) (hf it rem a hrem)
+  · injection h
+
+/-- Everything `objectCoreAllPairs'` needs to parse before it either finishes or
+recurses: one `"key" : value` pair, plus the following `}`/`,`/other separator.
+Split out from `objectCoreAllPairs'` itself so it can stay ordinary `do`-notation
+(no termination concerns, since it never recurses) while still exposing the one
+guaranteed-shrinking step (the `skip` right after the key's opening `"`) that
+`objectCoreAllPairs'` needs for its own termination proof. -/
+def parseOnePair : Parser (String × Lean.Json × Char) := do
+  Lean.Json.Parser.lookahead (fun c => c == '"') "\""
+  skip
+  let k ← str
+  ws'
+  Lean.Json.Parser.lookahead (fun c => c == ':') ":"
+  skip
+  ws'
+  let v ← jsonFlatValue
+  let c ← any
+  pure (k, v, c)
+
+theorem parseOnePair_shrinking : Shrinking parseOnePair := by
+  unfold parseOnePair
+  apply bind_shrinking_of_nonBacktracking_shrinking (lookahead_nonBacktracking _ _)
+  intro _
+  apply bind_shrinking_left skip_shrinking
+  intro _
+  apply bind_nonBacktracking str_nonBacktracking
+  intro k
+  apply bind_nonBacktracking ws'_nonBacktracking
+  intro _
+  apply bind_nonBacktracking (lookahead_nonBacktracking _ _)
+  intro _
+  apply bind_nonBacktracking skip_shrinking.nonBacktracking
+  intro _
+  apply bind_nonBacktracking ws'_nonBacktracking
+  intro _
+  apply bind_nonBacktracking jsonFlatValue_nonBacktracking
+  intro v
+  apply bind_nonBacktracking any_shrinking.nonBacktracking
+  intro c
+  exact pure_nonBacktracking _
 
 /--
 Parse a list of one or more key-value pairs followed by a "}".
 Implemented like `Json.Parser.objectCore`, but it keeps all the claims from the
 top level that share the same key.
 -/
-def objectCoreAllPairs' (acc : Std.TreeMap.Raw String (List Json)) :
-  Parser (Std.TreeMap.Raw String (List Json))
-:= do
-  Json.Parser.lookahead (fun c => c == '"') "\""; skip
-  let k ← Json.Parser.str
-  ws
-  Json.Parser.lookahead (fun c => c == ':') ":"; skip; ws
-  let v ← jsonFlatValue
-  let c ← any
-  if c == '}' then
-    ws
-    return acc.mergeWith (fun _ v₁ v₂ ↦ v₁ ++ v₂) {(k, [v])}
-  else if c == ',' then
-    ws
-    objectCoreAllPairs' <| acc.mergeWith (fun _ v₁ v₂ ↦ v₁ ++ v₂) {(k, [v])}
-  else
-    fail "unexpected character in object"
-  termination_by True
-  decreasing_by sorry
+def objectCoreAllPairs' (acc : Std.TreeMap.Raw String (List Lean.Json))
+    (it : Sigma String.Pos) :
+    ParseResult (Std.TreeMap.Raw String (List Lean.Json)) (Sigma String.Pos) :=
+  match hp : parseOnePair it with
+  | .error it' err => .error it' err
+  | .success it' (k, v, c) =>
+    if c == '}' then
+      .success (skipWsCore it') (acc.mergeWith (fun _ v₁ v₂ ↦ v₁ ++ v₂) {(k, [v])})
+    else if c == ',' then
+      objectCoreAllPairs' (acc.mergeWith (fun _ v₁ v₂ ↦ v₁ ++ v₂) {(k, [v])}) (skipWsCore it')
+    else
+      .error it' (.other "unexpected character in object")
+termination_by it.2.remainingBytes
+decreasing_by
+  exact Nat.lt_of_le_of_lt (skipWsCore_nonBacktracking it') (parseOnePair_shrinking _ _ _ hp)
+
+end Parser
 
 /-- All ways of picking one value for each key from its list of candidate values
 -/
@@ -164,7 +791,7 @@ def anyFlatNondet : Parser (List Json) := do
     skip; ws
     pure [Json.obj ∅]
   else do
-    let pairs ← objectCoreAllPairs' ∅
+    let pairs ← Parser.objectCoreAllPairs' ∅
     let alts := keyValueAlts pairs.toList
     pure (alts.map (fun kvs => Json.obj (kvs.foldl (fun m (k, v) => m.insert k v) ∅)))
 
@@ -427,5 +1054,16 @@ example : -- missing iss field
 --       alts.any (fun j => (j.getObjValAs? String "iss").toOption == some "dummy iss 2")))
 --     = .ok true
 --   := by native_decide
+
+example : -- the local string lexer (`Parser.str`) agrees with `Json.parse` on `\n`/`\t`/`\uXXXX` escapes
+  (Parser.run Parser.jsonFlatValue "\"a\\nb\\tc\\u0041\"").toOption.isSome
+  ∧ (Parser.run Parser.jsonFlatValue "\"a\\nb\\tc\\u0041\"").toOption
+      == (Lean.Json.parse "\"a\\nb\\tc\\u0041\"").toOption
+:= by native_decide
+
+example : -- the local number lexer (`Parser.ourNum`) agrees with `Json.parse` on a signed decimal with an exponent
+  (Parser.run Parser.jsonFlatValue "-1.5e2").toOption.isSome
+  ∧ (Parser.run Parser.jsonFlatValue "-1.5e2").toOption == (Lean.Json.parse "-1.5e2").toOption
+:= by native_decide
 
 end Keyless
