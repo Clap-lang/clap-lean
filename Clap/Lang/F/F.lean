@@ -65,8 +65,73 @@ opaque spec {p} (a b : ZMod p) : Bool :=
 lemma _root_.Clap.isZero.wellFormed {e! : ExprRef} {Γ : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ} {value : ZMod p}
   (h : F.Converts Γ σ numAlloc #v[e!] value)
 :
-  (isZero e!).wellFormed numAlloc Γ σ := by
-  sorry
+  (isZero e!).wellFormed numAlloc Γ σ
+:= by
+  obtain ⟨h_varSet, h_wellFormed, h_result⟩ := h
+  simp at *
+  apply wellFormed_isZero
+  . grind
+  . have : [Γ|⦃e!, σ⦄].isSome = true := by grind
+    grind
+  . grind
+
+@[grind =]
+lemma deref_idxOf_of_mem
+  {cacheExpr : CacheExpr p}
+  {σ : HashConsSt p}
+  (h_mem : cacheExpr ∈ σ.exprs)
+:
+  *⦃σ.exprs.idxOf cacheExpr, σ⦄ = cacheExpr
+:= by
+  grind
+
+lemma Converts_mkSub
+   {Γ : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ}
+   {a b : ExprRef}
+   {a_val b_val : ZMod p}
+   (h_a : F.Converts Γ σ numAlloc #v[a] a_val)
+   (h_b : F.Converts Γ σ numAlloc #v[b] b_val)
+:
+  F.Converts
+    (ClapM.getVarStore (liftM (HashConsM.mkSub (p := p) a b)) Γ numAlloc σ)
+    (ClapM.getHashConsState (liftM (HashConsM.mkSub (p := p) a b)) numAlloc σ)
+    (ClapM.getNumAlloc (liftM (HashConsM.mkSub (p := p) a b)) numAlloc σ)
+    #v[ClapM.getResult (liftM (HashConsM.mkSub (p := p) a b)) numAlloc σ]
+    (a_val - b_val)
+:= by
+  simp
+  obtain ⟨a_varSet, a_wellFormed, a_result⟩ := h_a
+  obtain ⟨b_varSet, b_wellFormed, b_result⟩ := h_b
+  constructor <;>
+  simp at *
+  . grind [=Expr.varSet_wellFormed]
+  . grind
+  . simp [HashConsM.mkSub]
+    rewrite [HashConsM.getResult_saveExpr_of_wellFormed]
+    . rewrite [HashConsM.getHashConsState_saveExpr_of_wellFormed (by grind)]
+      . split <;> rewrite [eval_eq_evalRec (by grind)]
+        . rewrite [evalRec_eq_of_deref_eq_some_sub (deref_idxOf_of_mem (by assumption))]
+          dsimp
+          rewrite [
+            ←eval_eq_evalRec (by grind),
+            ←eval_eq_evalRec (by grind),
+            a_result,
+            b_result
+          ]
+          rfl
+        . rewrite [evalRec_eq_of_deref_eq_some_sub (Expr.deref_mk_size_push)]
+          dsimp
+          rewrite [
+            ←evalRec_of_wellFormed_of_prefix (σ := σ) (by grind) (by grind),
+            ←evalRec_of_wellFormed_of_prefix (σ := σ) (σ' := HashConsSt.pushExpr _ _ _) (by grind) (by grind),
+            ←eval_eq_evalRec (by grind),
+            ←eval_eq_evalRec (by grind),
+            a_result,
+            b_result
+          ]
+          rfl
+    . grind
+
 
 #check evalRec_isSome_iff
 #check wellFormed_mem_varStore_of_evalRec_eq_some
@@ -78,32 +143,99 @@ lemma wellFormed
   {varStore : VarStore p}
   {numAlloc : ℕ}
   {σ : HashConsSt p}
-  {a b : Vector F 1} {_a' _b' : ZMod p} -- TODO: just `.isSome` without the noise
-  (h_a : F.Converts varStore σ numAlloc a _a')
-  (h_b : F.Converts varStore σ numAlloc b _b')
+  {a b : F} {_a' _b' : ZMod p}
+  (h_a : F.Converts varStore σ numAlloc #v[a] _a')
+  (h_b : F.Converts varStore σ numAlloc #v[b] _b')
 :
-  (eq a[0] b[0]).wellFormed numAlloc varStore σ
+  (eq a b).wellFormed numAlloc varStore σ
 := by
   unfold eq
   apply Clap.ClapM.bind_wellFormed
   · apply ClapM.wellFormed_liftM_of_hashConsM_wellFormed
     apply HashConsM.wellFormed_mkSub
   · apply isZero.wellFormed
-    · rw [←ClapM.getVarStore.eq_def]
-      unfold Converts
-      convert @toIdeal_run_of_toIdeal p 1 (ZMod p) (fun x : ZMod p ↦ #v[x]) varStore σ numAlloc
-                #v[ClapM.getResult (liftM (HashConsM.mkSub a[0] b[0])) numAlloc σ]
-      
-      
-      done
-    · sorry
+    · exact Converts_mkSub h_a h_b
 
-      -- convert toIdeal_run_of_toIdeal _ _
-    -- · sorry
-    -- · sorry
-  
+@[simp, grind =]
+lemma deref_mkVar_eq_some
+  {idx : ℕ}
+  {σ : HashConsSt p}
+:
+  *⦃(HashConsM.mkVar idx).getResult σ, (HashConsM.mkVar idx).getHashConsState σ⦄ =
+  .some (CacheExpr.v idx)
+:= by
+  grind [=HashConsM.mkVar]
 
-  
+@[simp, grind =]
+lemma varSet_mkVar
+  {idx : ℕ}
+  {σ : HashConsSt p}
+:
+  ⦃(HashConsM.mkVar idx).getResult σ, (HashConsM.mkVar idx).getHashConsState σ⦄.varSet =
+  {idx}
+:= by
+  unfold Expr.varSet
+  grind
+
+@[simp, grind! .]
+lemma lt_getNumAlloc_isZero
+  {numAlloc : ℕ}
+  {σ : HashConsSt p}
+  {a : ExprRef}
+:
+  numAlloc < (isZero a).getNumAlloc numAlloc σ
+:= by
+  simp [isZero]
+
+lemma Converts_isZero
+  [p.AtLeastTwo]
+  {varStore : VarStore p}
+  {numAlloc : ℕ}
+  {σ : HashConsSt p}
+  {a : F}
+  {a_val : ZMod p}
+  (h_a : F.Converts varStore σ numAlloc #v[a] a_val)
+:
+  FB.Converts
+    ((isZero a).getVarStore varStore numAlloc σ)
+    ((isZero a).getHashConsState numAlloc σ)
+    ((isZero a).getNumAlloc numAlloc σ)
+    #v[(isZero a).getResult numAlloc σ]
+    (a_val == 0)
+:= by
+  obtain ⟨a_varSet, a_wellFormed, a_result⟩ := h_a
+  constructor <;> simp at *
+  . intro i h_i
+    grind [=isZero]
+  . done
+  . done
+
+#exit
+
+lemma Converts_eq
+  [p.AtLeastTwo]
+  {varStore : VarStore p}
+  {numAlloc : ℕ}
+  {σ : HashConsSt p}
+  {a b : F}
+  {a_val b_val : ZMod p}
+  (h_a : F.Converts varStore σ numAlloc #v[a] a_val)
+  (h_b : F.Converts varStore σ numAlloc #v[b] b_val)
+:
+  FB.Converts
+    ((eq a b).getVarStore varStore numAlloc σ)
+    ((eq a b).getHashConsState numAlloc σ)
+    ((eq a b).getNumAlloc numAlloc σ)
+    #v[(eq a b).getResult numAlloc σ]
+    (a_val == b_val)
+:= by
+  unfold eq
+  simp
+  done
+
+#exit
+#exot
+
 
 
   -- apply Clap.ClapM.bind_wellFormed

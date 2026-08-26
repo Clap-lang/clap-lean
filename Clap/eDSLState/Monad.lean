@@ -268,7 +268,7 @@ Normally, use `getVarstore_bind_of_wellFormed`
 lemma getVarstore_bind
 :
   (action >>= function).getVarStore Γ numAlloc σ =
-  letI a₁ := action.getResult numAlloc σ 
+  letI a₁ := action.getResult numAlloc σ
   letI numAlloc₁ := action.getNumAlloc numAlloc σ
   letI circuit₁ := action.getCircuit numAlloc σ
   letI σ₁ := action.getHashConsState numAlloc σ
@@ -545,7 +545,7 @@ lemma bind_wellFormed
       f (a.getResult numAlloc σ)
     ).wellFormed
       (a.getNumAlloc numAlloc σ)
-      [varStore,(a.getHashConsState numAlloc σ),numAlloc|a.getCircuit numAlloc σ]ₑ.varStore
+      (a.getVarStore varStore numAlloc σ)
       (a.getHashConsState numAlloc σ)
   )
 :

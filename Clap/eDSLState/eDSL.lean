@@ -463,7 +463,7 @@ lemma getCircuit_num2bits {w : ℕ} {e! : ExprRef} {numAlloc} {σ : HashConsSt p
 lemma getResult_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :
   (liftM (m := HashConsM p) (n := ClapM p) action).getResult numAlloc σ = action.getResult σ := rfl
 
-@[simp, grind =]
+@[grind =]
 lemma getHashConsState_isZero {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
   (isZero e!).getHashConsState numAlloc σ =
   if .v numAlloc ∈ σ.exprs
