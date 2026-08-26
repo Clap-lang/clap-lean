@@ -107,11 +107,19 @@ variable {α β : Type}
 
 /-- `p` never leaves the input position further along than where it started. -/
 def NonBacktracking (p : Parser α) : Prop :=
-  ∀ it it' a, p it = .success it' a → it'.2.remainingBytes ≤ it.2.remainingBytes
+  ∀ (it it' : Sigma String.Pos) (a : α),
+    p it = .success it' a →
+    it'.2.remainingBytes ≤ it.2.remainingBytes
 
 /-- `p` always advances the input position when it succeeds. -/
 def Shrinking (p : Parser α) : Prop :=
-  ∀ it it' a, p it = .success it' a → it'.2.remainingBytes < it.2.remainingBytes
+  ∀ (it it' : Sigma String.Pos) (a : α),
+    p it = .success it' a →
+    it'.2.remainingBytes < it.2.remainingBytes
+
+#check Sigma
+#check String.Pos
+#check Sigma String.Pos
 
 theorem Shrinking.nonBacktracking {p : Parser α} (h : Shrinking p) : NonBacktracking p :=
   fun it it' a hp => Nat.le_of_lt (h it it' a hp)
@@ -787,13 +795,20 @@ def anyFlatNondet : Parser (List Json) := do
   ws
   Json.Parser.lookahead (fun c => c == '{') "{"; skip; ws
   let c ← peek!
-  if c == '}' then
-    skip; ws
-    pure [Json.obj ∅]
-  else do
-    let pairs ← Parser.objectCoreAllPairs' ∅
-    let alts := keyValueAlts pairs.toList
-    pure (alts.map (fun kvs => Json.obj (kvs.foldl (fun m (k, v) => m.insert k v) ∅)))
+  let alts ←
+    if c == '}' then
+      skip; ws
+      pure [Json.obj ∅]
+    else do
+      let pairs ← Parser.objectCoreAllPairs' ∅
+      let alts := keyValueAlts pairs.toList
+      pure (alts.map (fun kvs => Json.obj (kvs.foldl (fun m (k, v) => m.insert k v) ∅)))
+  eof
+  pure alts
+
+-- #check Parser.char
+
+-- TODO: check `ws` vs `ws'`
 
 def payload_from_json
   (uidKey : UidKey)
@@ -813,9 +828,9 @@ def payload_from_json
   let nonce : String <- j.getObjValAs? String "nonce"
   let extra_field : String <- j.getObjValAs? String extraFieldKey
 
-  if !nonce.all Char.isDigit then
+  if nonce.isEmpty || !nonce.all Char.isDigit then
     -- Equal to Poseidon(epk, epk_len, exp_date, blinder)?
-    throw s!"The field (nonce) must be a digit string, but ({nonce}) contains a non-digit character."
+    throw s!"The field (nonce) must be a non-empty digit string, but got (\"{nonce}\")."
 
   -- TODO: These checks are not syntactic. Move them outside the parsing function?
   if uidKey == UidKey.email && email_verified = false then
@@ -843,6 +858,12 @@ def payloads_from_json_string
 := do
   let j : List Json <- Parser.run anyFlatNondet s
   j.mapM (payload_from_json uidKey expHorizon extraFieldKey)
+
+/-
+  json accepted by the constraint system →
+
+  one of the results by the parser
+-/
 
 def String.quote s := "\"" ++ s ++ "\""
 def claim (k v : String) := k.quote ++ " : " ++ v
@@ -893,6 +914,155 @@ def jsonInput_duplicated_iss1 (emailVerified : String) : String :=
     claim "shoe_size" "40".quote,
     claim "email_verified" emailVerified,
     claim "nonce" dummyNonce.quote
+  ]
+  ++ " }"
+
+/-- Same shape as `jsonInput`, but with an empty `nonce`. -/
+def jsonInput_empty_nonce (emailVerified : String) : String :=
+  "{ " ++
+  String.intercalate ", "
+  [
+    claim "iss" "dummy iss".quote,
+    claim "aud" "dummy aud".quote,
+    claim "sub" "dummy sub".quote,
+    claim "email" "dummy email".quote,
+    claim "iat" "1719866138",
+    claim "exp" "1719869739",
+    claim "shoe_size" "40".quote,
+    claim "email_verified" emailVerified,
+    claim "nonce" "".quote
+  ]
+  ++ " }"
+
+def jsonInput_no_aud (emailVerified : String) : String :=
+  "{ " ++
+  String.intercalate ", "
+  [
+    claim "iss" "dummy iss".quote,
+    claim "sub" "dummy sub".quote,
+    claim "email" "dummy email".quote,
+    claim "iat" "1719866138",
+    claim "exp" "1719869739",
+    claim "shoe_size" "40".quote,
+    claim "email_verified" emailVerified,
+    claim "nonce" dummyNonce.quote
+  ]
+  ++ " }"
+
+def jsonInput_no_sub (emailVerified : String) : String :=
+  "{ " ++
+  String.intercalate ", "
+  [
+    claim "iss" "dummy iss".quote,
+    claim "aud" "dummy aud".quote,
+    claim "email" "dummy email".quote,
+    claim "iat" "1719866138",
+    claim "exp" "1719869739",
+    claim "shoe_size" "40".quote,
+    claim "email_verified" emailVerified,
+    claim "nonce" dummyNonce.quote
+  ]
+  ++ " }"
+
+def jsonInput_no_email_verified : String :=
+  "{ " ++
+  String.intercalate ", "
+  [
+    claim "iss" "dummy iss".quote,
+    claim "aud" "dummy aud".quote,
+    claim "sub" "dummy sub".quote,
+    claim "email" "dummy email".quote,
+    claim "iat" "1719866138",
+    claim "exp" "1719869739",
+    claim "shoe_size" "40".quote,
+    claim "nonce" dummyNonce.quote
+  ]
+  ++ " }"
+
+def jsonInput_no_nonce (emailVerified : String) : String :=
+  "{ " ++
+  String.intercalate ", "
+  [
+    claim "iss" "dummy iss".quote,
+    claim "aud" "dummy aud".quote,
+    claim "sub" "dummy sub".quote,
+    claim "email" "dummy email".quote,
+    claim "iat" "1719866138",
+    claim "exp" "1719869739",
+    claim "shoe_size" "40".quote,
+    claim "email_verified" emailVerified
+  ]
+  ++ " }"
+
+/-- `iat` is a non-integer JSON number. -/
+def jsonInput_bad_iat (emailVerified : String) : String :=
+  "{ " ++
+  String.intercalate ", "
+  [
+    claim "iss" "dummy iss".quote,
+    claim "aud" "dummy aud".quote,
+    claim "sub" "dummy sub".quote,
+    claim "email" "dummy email".quote,
+    claim "iat" "1719866138.5",
+    claim "exp" "1719869739",
+    claim "shoe_size" "40".quote,
+    claim "email_verified" emailVerified,
+    claim "nonce" dummyNonce.quote
+  ]
+  ++ " }"
+
+/-- `exp` is a JSON string instead of a number. -/
+def jsonInput_string_exp (emailVerified : String) : String :=
+  "{ " ++
+  String.intercalate ", "
+  [
+    claim "iss" "dummy iss".quote,
+    claim "aud" "dummy aud".quote,
+    claim "sub" "dummy sub".quote,
+    claim "email" "dummy email".quote,
+    claim "iat" "1719866138",
+    claim "exp" "1719869739".quote,
+    claim "shoe_size" "40".quote,
+    claim "email_verified" emailVerified,
+    claim "nonce" dummyNonce.quote
+  ]
+  ++ " }"
+
+/-- Duplicated `email_verified`: one occurrence valid (`true`), the other invalid (not
+`true`/`false`/`"true"`/`"false"`). -/
+def jsonInput_duplicated_email_verified_conflict : String :=
+  "{ " ++
+  String.intercalate ", "
+  [
+    claim "iss" "dummy iss".quote,
+    claim "aud" "dummy aud".quote,
+    claim "sub" "dummy sub".quote,
+    claim "email" "dummy email".quote,
+    claim "iat" "1719866138",
+    claim "exp" "1719869739",
+    claim "shoe_size" "40".quote,
+    claim "email_verified" "true",
+    claim "email_verified" "nope".quote,
+    claim "nonce" dummyNonce.quote
+  ]
+  ++ " }"
+
+/-- Duplicated `nonce`: one occurrence all-digits (valid), the other containing a letter
+(invalid). -/
+def jsonInput_duplicated_nonce_conflict : String :=
+  "{ " ++
+  String.intercalate ", "
+  [
+    claim "iss" "dummy iss".quote,
+    claim "aud" "dummy aud".quote,
+    claim "sub" "dummy sub".quote,
+    claim "email" "dummy email".quote,
+    claim "iat" "1719866138",
+    claim "exp" "1719869739",
+    claim "shoe_size" "40".quote,
+    claim "email_verified" "true",
+    claim "nonce" dummyNonce.quote,
+    claim "nonce" "abc123".quote
   ]
   ++ " }"
 
@@ -1041,19 +1211,384 @@ example : -- missing iss field
     = none
   := by native_decide
 
--- example : -- with no duplicate keys, `anyFlatNondet` returns exactly one alternative
---   (Parser.run anyFlatNondet (jsonInput (emailVerified := "true"))).map List.length = .ok 1
---   := by native_decide
+example : -- with no duplicate keys, `anyFlatNondet` returns exactly one alternative
+  (Parser.run anyFlatNondet (jsonInput (emailVerified := "true"))).toOption.map List.length
+    = some 1
+  := by native_decide
 
--- example : -- a duplicated `iss` field yields exactly the two alternatives implied by its
---           -- two occurrences, one per possible "winner"
---   ((Parser.run anyFlatNondet (jsonInput_duplicated_iss1 (emailVerified := "true"))).map
---     (fun alts =>
---       alts.length == 2 &&
---       alts.any (fun j => (j.getObjValAs? String "iss").toOption == some "dummy iss") &&
---       alts.any (fun j => (j.getObjValAs? String "iss").toOption == some "dummy iss 2")))
---     = .ok true
---   := by native_decide
+example : -- a duplicated `iss` field yields exactly the two alternatives implied by its
+          -- two occurrences, one per possible "winner"
+  ((Parser.run anyFlatNondet (jsonInput_duplicated_iss1 (emailVerified := "true"))).toOption.map
+    (fun alts =>
+      alts.length == 2 &&
+      alts.any (fun j => (j.getObjValAs? String "iss").toOption == some "dummy iss") &&
+      alts.any (fun j => (j.getObjValAs? String "iss").toOption == some "dummy iss 2")))
+    = some true
+  := by native_decide
+
+-- ---------------------------------------------------------------------------
+-- A. Regression tests for the `eof` fix (trailing garbage after the parsed
+-- object is now rejected) and the empty-`nonce` fix.
+-- ---------------------------------------------------------------------------
+
+example : -- trailing garbage after the closing `}` is rejected
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    ((jsonInput (emailVerified := "true")) ++ " garbage")
+  ).toOption
+    == .none
+:= by native_decide
+
+example : -- trailing non-whitespace after `{}` is rejected at the `Parser.run` level
+  (Parser.run anyFlatNondet "{} trailing").toOption == none
+:= by native_decide
+
+example : -- whitespace-only trailing input after `{}` is still accepted
+  (Parser.run anyFlatNondet "{}   \t\n").toOption == some [Json.obj ∅]
+:= by native_decide
+
+example : -- an empty `nonce` is rejected
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    (jsonInput_empty_nonce (emailVerified := "true"))
+  ).toOption
+    == .none
+:= by native_decide
+
+-- ---------------------------------------------------------------------------
+-- B. Number lexer (`Parser.ourNum`) — parity with `Lean.Json.parse`, and
+-- rejections of malformed literals.
+-- ---------------------------------------------------------------------------
+
+example : -- the local number lexer agrees with `Json.parse` across a range of literal forms
+  (Parser.run Parser.jsonFlatValue "0").toOption == (Lean.Json.parse "0").toOption
+  ∧ (Parser.run Parser.jsonFlatValue "-0").toOption == (Lean.Json.parse "-0").toOption
+  ∧ (Parser.run Parser.jsonFlatValue "123").toOption == (Lean.Json.parse "123").toOption
+  ∧ (Parser.run Parser.jsonFlatValue "1.5").toOption == (Lean.Json.parse "1.5").toOption
+  ∧ (Parser.run Parser.jsonFlatValue "1e10").toOption == (Lean.Json.parse "1e10").toOption
+  ∧ (Parser.run Parser.jsonFlatValue "1E-3").toOption == (Lean.Json.parse "1E-3").toOption
+  ∧ (Parser.run Parser.jsonFlatValue "1.5e+2").toOption == (Lean.Json.parse "1.5e+2").toOption
+  ∧ (Parser.run Parser.jsonFlatValue "0.0").toOption == (Lean.Json.parse "0.0").toOption
+:= by native_decide
+
+example : -- malformed numbers are rejected by the local number lexer
+  (Parser.run Parser.jsonFlatValue "1.").toOption == none
+  ∧ (Parser.run Parser.jsonFlatValue ".").toOption == none
+  ∧ (Parser.run Parser.jsonFlatValue "-").toOption == none
+:= by native_decide
+
+example : -- a number with a disallowed leading zero (e.g. `01`) is rejected once embedded in an
+          -- object: the parser reads just the `0`, then misreads the leftover `1` as the
+          -- expected `}`/`,` separator and errors out
+  (Parser.run anyFlatNondet "{\"a\":01}").toOption == none
+:= by native_decide
+
+-- ---------------------------------------------------------------------------
+-- C. String lexer (`Parser.str`) — parity with `Json.parse` on escapes, and
+-- rejections. Test strings are built with `String.ofList [...]` (explicit `Char`
+-- literals) rather than doubly-escaped string literals, to avoid mistakes in
+-- counting backslashes.
+-- ---------------------------------------------------------------------------
+
+example : -- the local string lexer agrees with `Json.parse` on the empty string
+  (Parser.run Parser.jsonFlatValue "\"\"").toOption == (Lean.Json.parse "\"\"").toOption
+:= by native_decide
+
+example : -- the local string lexer agrees with `Json.parse` on each basic escape sequence
+  let bslash := String.ofList ['"', '\\', '\\', '"']
+  let quote  := String.ofList ['"', '\\', '"', '"']
+  let slash  := String.ofList ['"', '\\', '/', '"']
+  let bksp   := String.ofList ['"', '\\', 'b', '"']
+  let ff     := String.ofList ['"', '\\', 'f', '"']
+  let cr     := String.ofList ['"', '\\', 'r', '"']
+  (Parser.run Parser.jsonFlatValue bslash).toOption == (Lean.Json.parse bslash).toOption
+  ∧ (Parser.run Parser.jsonFlatValue quote).toOption == (Lean.Json.parse quote).toOption
+  ∧ (Parser.run Parser.jsonFlatValue slash).toOption == (Lean.Json.parse slash).toOption
+  ∧ (Parser.run Parser.jsonFlatValue bksp).toOption == (Lean.Json.parse bksp).toOption
+  ∧ (Parser.run Parser.jsonFlatValue ff).toOption == (Lean.Json.parse ff).toOption
+  ∧ (Parser.run Parser.jsonFlatValue cr).toOption == (Lean.Json.parse cr).toOption
+:= by native_decide
+
+example : -- a valid surrogate pair (`\ud83d\ude00` = 😀) decodes the same way as `Json.parse`
+  let s := String.ofList ['"', '\\', 'u', 'd', '8', '3', 'd', '\\', 'u', 'd', 'e', '0', '0', '"']
+  (Parser.run Parser.jsonFlatValue s).toOption == (Lean.Json.parse s).toOption
+  ∧ (Parser.run Parser.jsonFlatValue s).toOption == some (Json.str "😀")
+:= by native_decide
+
+example : -- a lone high surrogate not followed by a valid low surrogate falls back to U+FFFD,
+          -- without swallowing the following character, matching `Json.parse`
+  let s := String.ofList ['"', '\\', 'u', 'd', '8', '0', '0', 'A', '"']
+  (Parser.run Parser.jsonFlatValue s).toOption == (Lean.Json.parse s).toOption
+  ∧ (Parser.run Parser.jsonFlatValue s).toOption == some (Json.str "\ufffdA")
+:= by native_decide
+
+example : -- an unescaped, raw multi-byte UTF-8 character is accepted directly (no `\u` needed)
+  let s := String.ofList ['"', 'h', 'é', 'l', 'l', 'o', '"']
+  (Parser.run Parser.jsonFlatValue s).toOption == (Lean.Json.parse s).toOption
+  ∧ (Parser.run Parser.jsonFlatValue s).toOption == some (Json.str "héllo")
+:= by native_decide
+
+example : -- an unterminated string (no closing quote) is rejected
+  let s := String.ofList ['"', 'a', 'b', 'c']
+  (Parser.run Parser.jsonFlatValue s).toOption == none
+:= by native_decide
+
+example : -- a raw, unescaped control character (e.g. a literal tab) inside a string is rejected
+  let s := String.ofList ['"', '\t', '"']
+  (Parser.run Parser.jsonFlatValue s).toOption == none
+:= by native_decide
+
+example : -- an unrecognized escape character (e.g. `\a`) is rejected
+  let s := String.ofList ['"', '\\', 'a', '"']
+  (Parser.run Parser.jsonFlatValue s).toOption == none
+:= by native_decide
+
+example : -- an invalid hex digit in a `\u` escape is rejected
+  let s := String.ofList ['"', '\\', 'u', 'Z', 'Z', 'Z', 'Z', '"']
+  (Parser.run Parser.jsonFlatValue s).toOption == none
+:= by native_decide
+
+-- ---------------------------------------------------------------------------
+-- D. Object-level parsing (`anyFlatNondet` / `objectCoreAllPairs'`).
+-- ---------------------------------------------------------------------------
+
+example : -- an empty object parses to a single alternative: the empty object
+  (Parser.run anyFlatNondet "{}").toOption == some [Json.obj ∅]
+:= by native_decide
+
+example : -- internal whitespace (tabs/newlines) around the braces is tolerated
+  (Parser.run anyFlatNondet "{ \t\n }").toOption == some [Json.obj ∅]
+:= by native_decide
+
+example : -- whitespace (space/tab/newline/CR) is tolerated around every separator, and the
+          -- parsed values are still correct
+  ((Parser.run anyFlatNondet "{\t\"a\"\n:\r1 ,\t\"b\"\n:\r2\n}").toOption.map List.length
+    = some 1)
+  ∧ (((Parser.run anyFlatNondet "{\t\"a\"\n:\r1 ,\t\"b\"\n:\r2\n}").toOption.bind List.head?).bind
+      (fun j => (j.getObjValAs? Nat "a").toOption) = some 1)
+:= by native_decide
+
+example : -- a trailing comma before `}` is rejected
+  (Parser.run anyFlatNondet "{\"a\":1,}").toOption == none
+:= by native_decide
+
+example : -- a missing comma between two pairs is rejected
+  (Parser.run anyFlatNondet "{\"a\":1 \"b\":2}").toOption == none
+:= by native_decide
+
+example : -- a missing colon after a key is rejected
+  (Parser.run anyFlatNondet "{\"a\" 1}").toOption == none
+:= by native_decide
+
+example : -- a nested object value is rejected (`anyFlatNondet` only supports flat values)
+  (Parser.run anyFlatNondet "{\"a\":{\"b\":1}}").toOption == none
+:= by native_decide
+
+example : -- a nested array value is rejected (`anyFlatNondet` only supports flat values)
+  (Parser.run anyFlatNondet "{\"a\":[1,2]}").toOption == none
+:= by native_decide
+
+-- ---------------------------------------------------------------------------
+-- E. Duplicate-key combinatorics.
+-- ---------------------------------------------------------------------------
+
+example : -- one duplicated key with two values yields both alternatives, in occurrence order
+  keyValueAlts [("a", [Json.str "1", Json.str "2"])]
+    == [[("a", Json.str "1")], [("a", Json.str "2")]]
+:= by native_decide
+
+example : -- two independently duplicated keys yield the full cross product of alternatives
+  keyValueAlts [("a", [Json.str "1", Json.str "2"]), ("b", [Json.str "x", Json.str "y"])]
+    == [ [("a", Json.str "1"), ("b", Json.str "x")]
+       , [("a", Json.str "1"), ("b", Json.str "y")]
+       , [("a", Json.str "2"), ("b", Json.str "x")]
+       , [("a", Json.str "2"), ("b", Json.str "y")]
+       ]
+:= by native_decide
+
+example : -- a duplicated key written two different ways (a literal `"a"` vs. the equivalent
+          -- `\u0061` escape) is still recognized as one duplicated key, not two distinct keys
+  (Parser.run anyFlatNondet "{\"a\":1,\"\\u0061\":2}").toOption.map List.length = some 2
+:= by native_decide
+
+example : -- two independently duplicated keys in the same object yield the full 4-way cross
+          -- product at the parser level too
+  (Parser.run anyFlatNondet "{\"a\":1,\"a\":2,\"b\":10,\"b\":20}").toOption.map List.length
+    = some 4
+:= by native_decide
+
+example : -- a duplicated `email_verified` where one occurrence is valid and the other is not
+          -- makes `payloads_from_json_string` reject the whole input: `mapM` requires *every*
+          -- alternative implied by the duplicate keys to validate, not just one
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    jsonInput_duplicated_email_verified_conflict
+  ).toOption
+    == .none
+:= by native_decide
+
+example : -- same interaction as above, but with a duplicated `nonce` (one all-digits, one not)
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    jsonInput_duplicated_nonce_conflict
+  ).toOption
+    == .none
+:= by native_decide
+
+-- ---------------------------------------------------------------------------
+-- F. `payload_from_json` field validation.
+-- ---------------------------------------------------------------------------
+
+example : -- missing `aud` field
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    (jsonInput_no_aud (emailVerified := "true"))
+  ).toOption
+    == .none
+:= by native_decide
+
+example : -- missing `sub` field, while `uidKey := .sub`
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    (jsonInput_no_sub (emailVerified := "true"))
+  ).toOption
+    == .none
+:= by native_decide
+
+example : -- missing `email_verified` field
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    jsonInput_no_email_verified
+  ).toOption
+    == .none
+:= by native_decide
+
+example : -- missing `nonce` field
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    (jsonInput_no_nonce (emailVerified := "true"))
+  ).toOption
+    == .none
+:= by native_decide
+
+example : -- `iat` given as a non-integer JSON number
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    (jsonInput_bad_iat (emailVerified := "true"))
+  ).toOption
+    == .none
+:= by native_decide
+
+example : -- `exp` given as a JSON string instead of a number
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    (jsonInput_string_exp (emailVerified := "true"))
+  ).toOption
+    == .none
+:= by native_decide
+
+example : -- `email_verified` given as a JSON number, array, or null is rejected
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    (jsonInput (emailVerified := "0"))
+  ).toOption
+    == .none
+  ∧ (payloads_from_json_string
+      (uidKey := .sub)
+      (extraFieldKey := "shoe_size")
+      (expHorizon := 3602)
+      (jsonInput (emailVerified := "[]"))
+    ).toOption
+    == .none
+  ∧ (payloads_from_json_string
+      (uidKey := .sub)
+      (extraFieldKey := "shoe_size")
+      (expHorizon := 3602)
+      (jsonInput (emailVerified := "null"))
+    ).toOption
+    == .none
+:= by native_decide
+
+example : -- `email_verified` given as `"True"` (wrong case) is rejected: only `true`/`false`/
+          -- `"true"`/`"false"` are accepted
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    (jsonInput (emailVerified := "True".quote))
+  ).toOption
+    == .none
+:= by native_decide
+
+example : -- `iat + expHorizon = exp` exactly (the boundary itself, not past it) is still rejected
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3601)
+    (jsonInput (emailVerified := "true"))
+  ).toOption
+    == .none
+:= by native_decide
+
+example : -- uid key is `email`, and `email_verified` is `true`: succeeds
+  (payloads_from_json_string
+    (uidKey := .email)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    (jsonInput (emailVerified := "true"))
+  ).toOption
+    == some
+      [ { iss := "dummy iss",
+          uid := "dummy email",
+          aud := "dummy aud",
+          iat := 1719866138,
+          exp := 1719869739,
+          email_verified := true,
+          nonce := "159196287899032468733794277330513742183729069551015157917",
+          extra_field := "40" }
+      ]
+:= by native_decide
+
+-- ---------------------------------------------------------------------------
+-- G. `emailVerifiedFromJson`.
+-- ---------------------------------------------------------------------------
+
+example :
+  (emailVerifiedFromJson (Json.bool true)).toOption = some true
+  ∧ (emailVerifiedFromJson (Json.bool false)).toOption = some false
+  ∧ (emailVerifiedFromJson (Json.str "true")).toOption = some true
+  ∧ (emailVerifiedFromJson (Json.str "false")).toOption = some false
+:= by native_decide
+
+example :
+  (emailVerifiedFromJson (Json.str "TRUE")).toOption = none
+  ∧ (emailVerifiedFromJson (Json.str "")).toOption = none
+  ∧ (emailVerifiedFromJson (Json.num 0)).toOption = none
+  ∧ (emailVerifiedFromJson Json.null).toOption = none
+  ∧ (emailVerifiedFromJson (Json.arr #[])).toOption = none
+:= by native_decide
 
 example : -- the local string lexer (`Parser.str`) agrees with `Json.parse` on `\n`/`\t`/`\uXXXX` escapes
   (Parser.run Parser.jsonFlatValue "\"a\\nb\\tc\\u0041\"").toOption.isSome
