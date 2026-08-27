@@ -848,12 +848,12 @@ def keyValueAlts : List (String × List Json) → List (List (String × Json))
 themselves JSON objects/arrays) and nondeterministic in the presence of duplicate keys
  -/
 def anyFlatNondet : Parser (List Json) := do
-  ws
-  skipString "{"; ws
+  Parser.ws'
+  skipString "{"; Parser.ws'
   let c ← peek!
   let alts ←
     if c == '}' then
-      skip; ws
+      skip; Parser.ws'
       pure [Json.obj ∅]
     else do
       let pairs ← Parser.objectCoreAllPairs' ∅
@@ -863,8 +863,6 @@ def anyFlatNondet : Parser (List Json) := do
   pure alts
 
 -- #check Parser.char
-
--- TODO: check `ws` vs `ws'`
 
 def payload_from_json
   (uidKey : UidKey)
