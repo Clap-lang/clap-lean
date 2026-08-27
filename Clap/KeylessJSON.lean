@@ -849,7 +849,7 @@ themselves JSON objects/arrays) and nondeterministic in the presence of duplicat
  -/
 def anyFlatNondet : Parser (List Json) := do
   ws
-  Json.Parser.lookahead (fun c => c == '{') "{"; skip; ws
+  skipString "{"; ws
   let c ← peek!
   let alts ←
     if c == '}' then
