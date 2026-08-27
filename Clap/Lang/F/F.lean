@@ -40,6 +40,10 @@ structure ConvertsM
     val
   wellFormed : action.wellFormed numAlloc varStore σ
 
+structure Spec (action : ClapM p F) (varStore) (numAlloc) (σ) where
+  spec : ZMod p
+  converts : ConvertsM action varStore numAlloc σ spec
+
 end F
 
 
@@ -103,6 +107,9 @@ lemma convertsM_bind
     . apply h_action.wellFormed
     . apply h_function.wellFormed
 
+structure Spec (action : ClapM p FB) (varStore) (numAlloc) (σ) where
+  spec : Bool
+  converts : ConvertsM action varStore numAlloc σ spec
 
 end FB
 
@@ -302,6 +309,15 @@ where
   result := converts h_a
   wellFormed := wellFormed h_a
 
+def spec [p.AtLeastTwo]
+  {a : F} {varStore : VarStore p} {numAlloc} {σ} {a_val}
+  (h: (F.Converts varStore σ numAlloc #v[a] a_val))
+:
+  FB.Spec (isZero a) varStore numAlloc σ
+where
+  spec := a_val == 0
+  converts := convertsM h
+
 end isZero
 
 
@@ -366,6 +382,16 @@ where
   result := converts h_a h_b
   wellFormed := ClapM.wellFormed_liftM_of_hashConsM_wellFormed HashConsM.wellFormed_mkSub
 
+def spec
+  {a b : F} {varStore : VarStore p} {numAlloc} {σ} {a_val b_val}
+  (h_a: (F.Converts varStore σ numAlloc #v[a] a_val))
+  (h_b: (F.Converts varStore σ numAlloc #v[b] b_val))
+:
+  F.Spec (liftM (HashConsM.mkSub (p := p) a b)) varStore numAlloc σ
+where
+  spec := a_val - b_val
+  converts := convertsM h_a h_b
+
 end mkSub
 
 namespace eq
@@ -388,6 +414,8 @@ lemma convertsM
       (mkSub.convertsM h_a h_b)
       (isZero.convertsM (mkSub.convertsM h_a h_b).result)
   . grind
+
+
 
 end eq
 
@@ -445,12 +473,14 @@ lemma convertsM
     set stepM := ((liftM (HashConsM.mkConstant (p := p) len)) >>= eq (p := p) idx)
     simp
     set stepM' := λ x => _ <$> stepM
-    convert FArray.convertsM_bind
-      (action := oneHotRaw len idx)
-      (function := stepM')
-      varStore numAlloc σ
-      (function_val := λ x => x.push (len == idx_val.val))
-      (h_action := ih)
+    convert FArray.convertsM_bind ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
+    . rewrite [Vector.ofFn_succ]
+      rfl
+      -- (action := oneHotRaw len idx)
+      -- (function := stepM')
+      -- varStore numAlloc σ
+      -- (function_val := λ x => x.push (len == idx_val.val))
+      -- (h_action := ih)
     simp [Vector.ofFn_succ]; left
     unfold stepM'
     have (varStore : VarStore p) (numAlloc σ) : FB.ConvertsM stepM varStore numAlloc σ (len == idx_val) := by

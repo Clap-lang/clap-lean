@@ -17,6 +17,20 @@ structure Converts {p : ℕ} {α : Type}
   expr_wf   : ∀ (i : Fin k), ⦃exprs[i], σ⦄.wellFormed
   value_eq  : ∀ (i : Fin k), [varStore|⦃exprs[i], σ⦄] = .some (conversion val)[i]
 
+structure HasSpec {p} {idealT} {representsT} (action : ClapM p representsT) where
+  spec : idealT
+  converts : Converts k conversion varStore σ numAlloc exprs spec
+
+/-
+isZero.hasSpec a := {
+  spec := a == 0
+  converts : FB.ConvertsM (isZero a) spec
+}
+
+(a >>= f).spec = something
+
+-/
+
 section Lemmas
 
 variable
