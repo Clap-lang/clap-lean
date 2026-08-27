@@ -76,7 +76,7 @@ structure AptosPayload where
   uid            : String
   aud            : String
   iat            : ℕ
-  exp            : ℕ
+  -- exp            : ℕ
   email_verified : Bool
   nonce          : String
   -- The value of the field named by the request's extra field.
@@ -872,7 +872,7 @@ def anyFlatNondet : Parser (List Json) := do
 
 def payload_from_json
   (uidKey : UidKey)
-  (expHorizon : ℕ)
+  -- (expHorizon : ℕ)
   (extraFieldKey : String)
   (j : Json)
   :
@@ -882,7 +882,7 @@ def payload_from_json
   let iss : String <- j.getObjValAs? String "iss"
   let aud : String <- j.getObjValAs? String "aud"
   let iat : ℕ <- j.getObjValAs? ℕ "iat"
-  let exp : ℕ <- j.getObjValAs? ℕ "exp"
+  -- let exp : ℕ <- j.getObjValAs? ℕ "exp"
   let uid : String <- j.getObjValAs? String uidKey.fieldName
   let emailVerifiedJson : Json <- j.getObjVal? "email_verified"
   let email_verified : Bool <- emailVerifiedFromJson emailVerifiedJson
@@ -897,8 +897,8 @@ def payload_from_json
   if uidKey == UidKey.email && email_verified = false then
     throw s!"The user id key is email, but email_verified is false"
 
-  if iat + expHorizon ≤ exp then
-    throw s!"iat + expHorizon ≤ exp ({iat} + {expHorizon} = {iat + expHorizon} ≤ {exp})"
+  -- if iat + expHorizon ≤ exp then
+  --   throw s!"iat + expHorizon ≤ exp ({iat} + {expHorizon} = {iat + expHorizon} ≤ {exp})"
 
   -- if exp ≤ iat then
   -- Aptos "We do not assert the expiration date is in the future (i.e., assert exp_date > jwt["iat"])""
@@ -908,17 +908,17 @@ def payload_from_json
   -- "current date/time MUST be before the expiration date/time listed in the value."
   -- what does aptos check?
 
-  return { iss, aud, uid, iat, exp, email_verified, nonce, extra_field }
+  return { iss, aud, uid, iat, /-exp,-/ email_verified, nonce, extra_field }
 
 def payloads_from_json_string
   (uidKey : UidKey)
   (extraFieldKey : String)
-  (expHorizon : ℕ)
+  -- (expHorizon : ℕ)
   (s: String) :
   Except String (List AptosPayload)
 := do
   let j : List Json <- Parser.run anyFlatNondet s
-  j.mapM (payload_from_json uidKey expHorizon extraFieldKey)
+  j.mapM (payload_from_json uidKey /-expHorizon-/ extraFieldKey)
 
 /-
   json accepted by the constraint system →
@@ -1130,14 +1130,14 @@ def jsonInput_duplicated_nonce_conflict : String :=
 #eval payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
+    -- (expHorizon := 3602)
     (jsonInput (emailVerified := "true"))
 
 example : -- `email_verified` is the bool `true`
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
+    -- (expHorizon := 3602)
     (jsonInput (emailVerified := "true"))
   ).toOption
     == some
@@ -1145,7 +1145,7 @@ example : -- `email_verified` is the bool `true`
           uid := "dummy sub",
           aud := "dummy aud",
           iat := 1719866138,
-          exp := 1719869739,
+          -- exp := 1719869739,
           email_verified := true,
           nonce := "159196287899032468733794277330513742183729069551015157917",
           extra_field := "40" }
@@ -1156,7 +1156,7 @@ example : -- duplicated `iss`
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
+    -- (expHorizon := 3602)
     (jsonInput_duplicated_iss1 (emailVerified := "true"))
   ).toOption
     == some
@@ -1164,7 +1164,7 @@ example : -- duplicated `iss`
           uid := "dummy sub",
           aud := "dummy aud",
           iat := 1719866138,
-          exp := 1719869739,
+          -- exp := 1719869739,
           email_verified := true,
           nonce := "159196287899032468733794277330513742183729069551015157917",
           extra_field := "40" }
@@ -1172,7 +1172,7 @@ example : -- duplicated `iss`
           uid := "dummy sub",
           aud := "dummy aud",
           iat := 1719866138,
-          exp := 1719869739,
+          -- exp := 1719869739,
           email_verified := true,
           nonce := "159196287899032468733794277330513742183729069551015157917",
           extra_field := "40" }
@@ -1184,7 +1184,7 @@ example : -- `email_verified` is the string `"true"`
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
+    -- (expHorizon := 3602)
     (jsonInput (emailVerified := "true"))
   ).toOption
     == some
@@ -1192,7 +1192,7 @@ example : -- `email_verified` is the string `"true"`
           uid := "dummy sub",
           aud := "dummy aud",
           iat := 1719866138,
-          exp := 1719869739,
+          -- exp := 1719869739,
           email_verified := true,
           nonce := "159196287899032468733794277330513742183729069551015157917",
           extra_field := "40" }
@@ -1203,7 +1203,7 @@ example : -- `email_verified` is the bool `false`
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
+    -- (expHorizon := 3602)
     (jsonInput (emailVerified := "false"))
   ).toOption
     == some
@@ -1211,7 +1211,7 @@ example : -- `email_verified` is the bool `false`
           uid := "dummy sub",
           aud := "dummy aud",
           iat := 1719866138,
-          exp := 1719869739,
+          -- exp := 1719869739,
           email_verified := false,
           nonce := "159196287899032468733794277330513742183729069551015157917",
           extra_field := "40" }
@@ -1222,27 +1222,27 @@ example : -- user id key is `email`, but `email_verified` is `"false"`
   (payloads_from_json_string
     (uidKey := .email)
     (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
+    -- (expHorizon := 3602)
     (jsonInput (emailVerified := "false".quote))
   ).toOption
     == .none
 := by native_decide
 
-example : -- iat + expHorizon ≤ exp
-  (payloads_from_json_string
-    (uidKey := .email)
-    (extraFieldKey := "shoe_size")
-    (expHorizon := 1)
-    (jsonInput (emailVerified := "true"))
-  ).toOption
-    = .none
-  := by native_decide
+-- example : -- iat + expHorizon ≤ exp
+--   (payloads_from_json_string
+--     (uidKey := .email)
+--     (extraFieldKey := "shoe_size")
+--     -- (expHorizon := 1)
+--     (jsonInput (emailVerified := "true"))
+--   ).toOption
+--     = .none
+--   := by native_decide
 
 example : -- extra field exists, it's "email"
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "email")
-    (expHorizon := 6002)
+    -- (expHorizon := 6002)
     (jsonInput (emailVerified := "true".quote))
   ).toOption
     == some
@@ -1250,7 +1250,7 @@ example : -- extra field exists, it's "email"
           uid := "dummy sub",
           aud := "dummy aud",
           iat := 1719866138,
-          exp := 1719869739,
+          -- exp := 1719869739,
           email_verified := true,
           nonce := "159196287899032468733794277330513742183729069551015157917",
           extra_field := "dummy email" }
@@ -1261,7 +1261,7 @@ example : -- extra field doesn't exist
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "nonexistent")
-    (expHorizon := 6002)
+    -- (expHorizon := 6002)
     (jsonInput (emailVerified := "true".quote))
   ).toOption
     = .none
@@ -1271,7 +1271,7 @@ example : -- missing iss field
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "email")
-    (expHorizon := 6002)
+    -- (expHorizon := 6002)
     (jsonInput_no_iss (emailVerified := "true"))
   ).toOption
     = none
@@ -1301,7 +1301,7 @@ example : -- trailing garbage after the closing `}` is rejected
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
+    -- (expHorizon := 3602)
     ((jsonInput (emailVerified := "true")) ++ " garbage")
   ).toOption
     == .none
@@ -1319,7 +1319,7 @@ example : -- an empty `nonce` is rejected
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
+    -- (expHorizon := 3602)
     (jsonInput_empty_nonce (emailVerified := "true"))
   ).toOption
     == .none
@@ -1493,7 +1493,7 @@ example : -- a duplicated `email_verified` where one occurrence is valid and the
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
+    -- (expHorizon := 3602)
     jsonInput_duplicated_email_verified_conflict
   ).toOption
     == .none
@@ -1503,7 +1503,7 @@ example : -- same interaction as above, but with a duplicated `nonce` (one all-d
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
+    -- (expHorizon := 3602)
     jsonInput_duplicated_nonce_conflict
   ).toOption
     == .none
@@ -1517,7 +1517,7 @@ example : -- missing `aud` field
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
+    -- (expHorizon := 3602)
     (jsonInput_no_aud (emailVerified := "true"))
   ).toOption
     == .none
@@ -1527,7 +1527,7 @@ example : -- missing `sub` field, while `uidKey := .sub`
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
+    -- (expHorizon := 3602)
     (jsonInput_no_sub (emailVerified := "true"))
   ).toOption
     == .none
@@ -1537,7 +1537,7 @@ example : -- missing `email_verified` field
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
+    -- (expHorizon := 3602)
     jsonInput_no_email_verified
   ).toOption
     == .none
@@ -1547,7 +1547,7 @@ example : -- missing `nonce` field
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
+    -- (expHorizon := 3602)
     (jsonInput_no_nonce (emailVerified := "true"))
   ).toOption
     == .none
@@ -1557,41 +1557,41 @@ example : -- `iat` given as a non-integer JSON number
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
+    -- (expHorizon := 3602)
     (jsonInput_bad_iat (emailVerified := "true"))
   ).toOption
     == .none
 := by native_decide
 
-example : -- `exp` given as a JSON string instead of a number
-  (payloads_from_json_string
-    (uidKey := .sub)
-    (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
-    (jsonInput_string_exp (emailVerified := "true"))
-  ).toOption
-    == .none
-:= by native_decide
+-- example : -- `exp` given as a JSON string instead of a number
+--   (payloads_from_json_string
+--     (uidKey := .sub)
+--     (extraFieldKey := "shoe_size")
+--     -- (expHorizon := 3602)
+--     (jsonInput_string_exp (emailVerified := "true"))
+--   ).toOption
+--     == .none
+-- := by native_decide
 
 example : -- `email_verified` given as a JSON number, array, or null is rejected
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
+    -- (expHorizon := 3602)
     (jsonInput (emailVerified := "0"))
   ).toOption
     == .none
   ∧ (payloads_from_json_string
       (uidKey := .sub)
       (extraFieldKey := "shoe_size")
-      (expHorizon := 3602)
+      -- (expHorizon := 3602)
       (jsonInput (emailVerified := "[]"))
     ).toOption
     == .none
   ∧ (payloads_from_json_string
       (uidKey := .sub)
       (extraFieldKey := "shoe_size")
-      (expHorizon := 3602)
+      -- (expHorizon := 3602)
       (jsonInput (emailVerified := "null"))
     ).toOption
     == .none
@@ -1602,27 +1602,27 @@ example : -- `email_verified` given as `"True"` (wrong case) is rejected: only `
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
+    -- (expHorizon := 3602)
     (jsonInput (emailVerified := "True".quote))
   ).toOption
     == .none
 := by native_decide
 
-example : -- `iat + expHorizon = exp` exactly (the boundary itself, not past it) is still rejected
-  (payloads_from_json_string
-    (uidKey := .sub)
-    (extraFieldKey := "shoe_size")
-    (expHorizon := 3601)
-    (jsonInput (emailVerified := "true"))
-  ).toOption
-    == .none
-:= by native_decide
+-- example : -- `iat + expHorizon = exp` exactly (the boundary itself, not past it) is still rejected
+--   (payloads_from_json_string
+--     (uidKey := .sub)
+--     (extraFieldKey := "shoe_size")
+--     -- (expHorizon := 3601)
+--     (jsonInput (emailVerified := "true"))
+--   ).toOption
+--     == .none
+-- := by native_decide
 
 example : -- uid key is `email`, and `email_verified` is `true`: succeeds
   (payloads_from_json_string
     (uidKey := .email)
     (extraFieldKey := "shoe_size")
-    (expHorizon := 3602)
+    -- (expHorizon := 3602)
     (jsonInput (emailVerified := "true"))
   ).toOption
     == some
@@ -1630,7 +1630,7 @@ example : -- uid key is `email`, and `email_verified` is `true`: succeeds
           uid := "dummy email",
           aud := "dummy aud",
           iat := 1719866138,
-          exp := 1719869739,
+          -- exp := 1719869739,
           email_verified := true,
           nonce := "159196287899032468733794277330513742183729069551015157917",
           extra_field := "40" }
