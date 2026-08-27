@@ -270,7 +270,7 @@ theorem peek!_nonBacktracking : NonBacktracking (peek! (ι := Sigma String.Pos) 
 
 theorem lookahead_nonBacktracking (p : Char → Prop) [DecidablePred p] (desc : String) :
     NonBacktracking (Lean.Json.Parser.lookahead p desc) := by
-  unfold Lean.Json.Parser.lookahead
+  unfold Json.Parser.lookahead
   apply bind_nonBacktracking peek!_nonBacktracking
   intro c
   split
@@ -370,15 +370,15 @@ theorem natCoreNumDigits_nonBacktracking (acc digits : Nat) :
 `numWithDecimals`/`exponent`/`num`, pointed at the local `natCore`/`natCoreNumDigits`
 above instead of the opaque originals. Bodies are otherwise identical. -/
 def ourNatNonZero : Parser Nat := do
-  Lean.Json.Parser.lookahead (fun c => '1' <= c && c <= '9') "1-9"
+  Parser.lookahead (fun c => '1' <= c && c <= '9') "1-9"
   natCore 0
 
 def ourNatNumDigits : Parser (Nat × Nat) := do
-  Lean.Json.Parser.lookahead (fun c => '0' <= c && c <= '9') "digit"
+  Parser.lookahead (fun c => '0' <= c && c <= '9') "digit"
   natCoreNumDigits 0 0
 
 def ourNatMaybeZero : Parser Nat := do
-  Lean.Json.Parser.lookahead (fun c => '0' <= c && c <= '9') "0-9"
+  Parser.lookahead (fun c => '0' <= c && c <= '9') "0-9"
   natCore 0
 
 def ourNat : Parser Nat := do
@@ -564,14 +564,29 @@ theorem pstring_nonBacktracking (s : String) : NonBacktracking (pstring s) := by
   split at h
   · injection h with h1 h2
     subst h1
-    exact (String.Pos.le_iff_remainingBytes_le _ _).mp String.Pos.le_nextn
+    apply (String.Pos.le_iff_remainingBytes_le _ _).mp
+    exact String.Pos.le_nextn
   · injection h
+
+-- theorem pstring_shrinking (s : String) : Shrinking (pstring s) := by
+--   intro it it' r h
+--   unfold Std.Internal.Parsec.String.pstring at h
+--   split at h
+--   · injection h with h1 h2
+--     subst h1
+--     apply (String.Pos.lt_iff_remainingBytes_lt _ _).mp
+--     exact String.Pos.lt_nextn
+--   · injection h
 
 theorem skipString_nonBacktracking (s : String) : NonBacktracking (skipString s) := by
   unfold Std.Internal.Parsec.String.skipString
   apply bind_nonBacktracking (pstring_nonBacktracking s)
   intro _
   exact pure_nonBacktracking _
+
+theorem skipString_shrinking (s : String) : Shrinking (skipString s) := by
+  unfold Std.Internal.Parsec.String.skipString
+  sorry
 
 /-- Replacement for the opaque `Json.Parser.strCore`, recursing directly on the input
 position; `Json.Parser.escapedChar`/`hexChar`/`finishSurrogatePair` are reused as-is
@@ -668,6 +683,11 @@ def jsonFlatValue : Parser Lean.Json := do
   else
     fail "unexpected input"
 
+-- { "...." ... { ... } }
+#check Parser.objectCore
+-- def parseJson' (isEscaped isQuoted : Bool) : Parser Unit := do
+--   pure ()
+
 theorem jsonFlatValue_nonBacktracking : NonBacktracking jsonFlatValue := by
   unfold jsonFlatValue
   apply bind_nonBacktracking peek!_nonBacktracking
@@ -724,30 +744,35 @@ Split out from `objectCoreAllPairs'` itself so it can stay ordinary `do`-notatio
 guaranteed-shrinking step (the `skip` right after the key's opening `"`) that
 `objectCoreAllPairs'` needs for its own termination proof. -/
 def parseOnePair : Parser (String × Lean.Json × Char) := do
-  Lean.Json.Parser.lookahead (fun c => c == '"') "\""
-  skip
+  -- TODO: use skipstring
+  -- TODO: parse quoted string
+  -- Parser.lookahead (fun c => c == '"') "\""; skip
+  skipString "\""
   let k ← str
   ws'
-  Lean.Json.Parser.lookahead (fun c => c == ':') ":"
-  skip
+  Parser.lookahead (fun c => c == ':') ":"; skip
   ws'
   let v ← jsonFlatValue
-  let c ← any
+  let c ← any -- TODO: parse c at a higher level
   pure (k, v, c)
+
+-- #check Parser.anyCore
+#check Parser.anyOfFn
 
 theorem parseOnePair_shrinking : Shrinking parseOnePair := by
   unfold parseOnePair
+  apply bind_shrinking_of_nonBacktracking_shrinking
+  apply skipString_nonBacktracking
+  intro _
+  apply bind_shrinking_of_nonBacktracking_shrinking
+  intro _
+  apply str_nonBacktracking
+  intro _
+  apply bind_shrinking_of_nonBacktracking_shrinking ws'_nonBacktracking
+  intro _
   apply bind_shrinking_of_nonBacktracking_shrinking (lookahead_nonBacktracking _ _)
   intro _
   apply bind_shrinking_left skip_shrinking
-  intro _
-  apply bind_nonBacktracking str_nonBacktracking
-  intro k
-  apply bind_nonBacktracking ws'_nonBacktracking
-  intro _
-  apply bind_nonBacktracking (lookahead_nonBacktracking _ _)
-  intro _
-  apply bind_nonBacktracking skip_shrinking.nonBacktracking
   intro _
   apply bind_nonBacktracking ws'_nonBacktracking
   intro _
@@ -818,6 +843,7 @@ def payload_from_json
   :
   Except String AptosPayload
 := do
+  -- TODO: move these checks at the json parsing level
   let iss : String <- j.getObjValAs? String "iss"
   let aud : String <- j.getObjValAs? String "aud"
   let iat : ℕ <- j.getObjValAs? ℕ "iat"
@@ -1066,6 +1092,11 @@ def jsonInput_duplicated_nonce_conflict : String :=
   ]
   ++ " }"
 
+#eval payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "shoe_size")
+    (expHorizon := 3602)
+    (jsonInput (emailVerified := "true"))
 
 example : -- `email_verified` is the bool `true`
   (payloads_from_json_string
