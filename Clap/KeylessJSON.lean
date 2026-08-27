@@ -568,15 +568,48 @@ theorem pstring_nonBacktracking (s : String) : NonBacktracking (pstring s) := by
     exact String.Pos.le_nextn
   · injection h
 
--- theorem pstring_shrinking (s : String) : Shrinking (pstring s) := by
---   intro it it' r h
---   unfold Std.Internal.Parsec.String.pstring at h
---   split at h
---   · injection h with h1 h2
---     subst h1
---     apply (String.Pos.lt_iff_remainingBytes_lt _ _).mp
---     exact String.Pos.lt_nextn
---   · injection h
+/-- `String.Pos.nextn` clamps at `endPos`, so it only strictly advances when there's at least
+one step to take (`n ≠ 0`) starting from a position that isn't already the end. -/
+theorem Pos_lt_nextn {str : String} {p : str.Pos} {n : Nat} (hn : n ≠ 0) (h : p ≠ str.endPos) :
+    p < p.nextn n := by
+  obtain ⟨n', rfl⟩ := Nat.exists_eq_succ_of_ne_zero hn
+  show p < p.nextn n'.succ
+  unfold String.Pos.nextn
+  rw [String.Pos.lt_ofToSlice_iff]
+  have hSlice : p.toSlice ≠ str.toSlice.endPos := by
+    rw [String.endPos_toSlice]
+    exact fun heq => h (String.Pos.toSlice_inj.mp heq)
+  show p.toSlice < String.Slice.Pos.nextn p.toSlice n'.succ
+  rw [String.Slice.Pos.nextn, dif_pos hSlice]
+  exact Std.lt_of_lt_of_le String.Slice.Pos.lt_next String.Slice.Pos.le_nextn
+
+theorem pstring_shrinking (s : String) (hs : s ≠ "") : Shrinking (pstring s) := by
+  intro it it' r h
+  unfold Std.Internal.Parsec.String.pstring at h
+  split at h
+  · rename_i hstart
+    injection h with h1 h2
+    subst h1
+    apply (String.Pos.lt_iff_remainingBytes_lt _ _).mp
+    have hlen : s.utf8ByteSize ≤ it.2.remainingBytes := by
+      simp only [String.Slice.startsWith, String.Slice.Pattern.ForwardPattern.startsWith,
+        String.Slice.Pattern.ForwardSliceSearcher.startsWith] at hstart
+      split at hstart
+      · rename_i hle
+        simp only [String.utf8ByteSize_sliceFrom, String.Pos.remainingBytes_eq] at hle ⊢
+        simpa using hle
+      · simp at hstart
+    have hs0 : s.utf8ByteSize ≠ 0 :=
+      fun h0 => hs (String.utf8ByteSize_eq_zero_iff.mp h0)
+    have hne : it.2 ≠ it.1.endPos := by
+      intro heq
+      have hend : it.2.remainingBytes = 0 := by
+        rw [heq, String.Pos.remainingBytes_eq, String.offset_endPos, String.byteIdx_rawEndPos]
+        omega
+      omega
+    have hlenne : s.length ≠ 0 := fun h0 => hs (String.length_eq_zero_iff.mp h0)
+    exact Pos_lt_nextn hlenne hne
+  · injection h
 
 theorem skipString_nonBacktracking (s : String) : NonBacktracking (skipString s) := by
   unfold Std.Internal.Parsec.String.skipString
@@ -584,9 +617,11 @@ theorem skipString_nonBacktracking (s : String) : NonBacktracking (skipString s)
   intro _
   exact pure_nonBacktracking _
 
-theorem skipString_shrinking (s : String) : Shrinking (skipString s) := by
+theorem skipString_shrinking (s : String) (hs : s ≠ "") : Shrinking (skipString s) := by
   unfold Std.Internal.Parsec.String.skipString
-  sorry
+  apply bind_shrinking_left (pstring_shrinking s hs)
+  intro _
+  exact pure_nonBacktracking _
 
 /-- Replacement for the opaque `Json.Parser.strCore`, recursing directly on the input
 position; `Json.Parser.escapedChar`/`hexChar`/`finishSurrogatePair` are reused as-is
@@ -741,16 +776,14 @@ theorem bind_shrinking_of_nonBacktracking_shrinking {f : Parser α} {g : α → 
 recurses: one `"key" : value` pair, plus the following `}`/`,`/other separator.
 Split out from `objectCoreAllPairs'` itself so it can stay ordinary `do`-notation
 (no termination concerns, since it never recurses) while still exposing the one
-guaranteed-shrinking step (the `skip` right after the key's opening `"`) that
-`objectCoreAllPairs'` needs for its own termination proof. -/
+guaranteed-shrinking step (the trailing `any`) that `objectCoreAllPairs'` needs
+for its own termination proof. -/
 def parseOnePair : Parser (String × Lean.Json × Char) := do
-  -- TODO: use skipstring
   -- TODO: parse quoted string
-  -- Parser.lookahead (fun c => c == '"') "\""; skip
   skipString "\""
   let k ← str
   ws'
-  Parser.lookahead (fun c => c == ':') ":"; skip
+  skipString ":"
   ws'
   let v ← jsonFlatValue
   let c ← any -- TODO: parse c at a higher level
@@ -770,15 +803,13 @@ theorem parseOnePair_shrinking : Shrinking parseOnePair := by
   intro _
   apply bind_shrinking_of_nonBacktracking_shrinking ws'_nonBacktracking
   intro _
-  apply bind_shrinking_of_nonBacktracking_shrinking (lookahead_nonBacktracking _ _)
+  apply bind_shrinking_of_nonBacktracking_shrinking (skipString_nonBacktracking _)
   intro _
-  apply bind_shrinking_left skip_shrinking
+  apply bind_shrinking_of_nonBacktracking_shrinking ws'_nonBacktracking
   intro _
-  apply bind_nonBacktracking ws'_nonBacktracking
-  intro _
-  apply bind_nonBacktracking jsonFlatValue_nonBacktracking
+  apply bind_shrinking_of_nonBacktracking_shrinking jsonFlatValue_nonBacktracking
   intro v
-  apply bind_nonBacktracking any_shrinking.nonBacktracking
+  apply bind_shrinking_left any_shrinking
   intro c
   exact pure_nonBacktracking _
 
