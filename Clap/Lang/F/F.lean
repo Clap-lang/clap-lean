@@ -46,7 +46,6 @@ structure Spec (action : ClapM p F) (varStore) (numAlloc) (σ) where
 
 end F
 
-
 namespace FB
 
 def Converts := Clap.Converts 1 (fun x : Bool ↦ #v[if x then (1 : ZMod p) else 0])
@@ -191,6 +190,30 @@ lemma convertsM_map
   . rewrite [ClapM.map_wellFormed]
     apply h_action.wellFormed
 
+@[aesop safe]
+lemma convertsM_pure
+        {varStore : VarStore p}
+        {numAlloc : ℕ}
+        {σ : HashConsSt p}
+        {k : ℕ}
+        {x : FArray k}
+        {val : Vector Bool k}
+        (h : FArray.Converts k varStore σ numAlloc x val)
+  : ConvertsM (pure x) varStore numAlloc σ val := by
+  constructor
+  · simpa
+  · grind
+
+@[simp]
+lemma converts_empty
+        {varStore : VarStore p}
+        {numAlloc : ℕ}
+        {σ : HashConsSt p}
+  : Converts 0 varStore σ numAlloc #v[] #v[] := by
+  constructor
+  · simp
+  · grind
+  · grind
 
 end FArray
 
@@ -415,9 +438,103 @@ lemma convertsM
       (isZero.convertsM (mkSub.convertsM h_a h_b).result)
   . grind
 
+-- def spec [p.AtLeastTwo]
+--   {a b : F} {varStore : VarStore p} {numAlloc} {σ} {a_val} {b_val}
+--   (h : (F.Converts varStore σ numAlloc #v[a] a_val))
+--   (h : (F.Converts varStore σ numAlloc #v[b] b_val))
+-- :
+--   FB.Spec (eq a b) varStore numAlloc σ
+-- where
+--   spec := a_val == b_val
+--   converts := by
+--     unfold eq
+--     -- 
 
+lemma convertsM'
+  [p.AtLeastTwo]
+  {varStore : VarStore p}
+  {numAlloc : ℕ}
+  {σ : HashConsSt p}
+  {a b : F}
+  {a_val b_val : ZMod p}
+  (h_a : F.Converts varStore σ numAlloc #v[a] a_val)
+  (h_b : F.Converts varStore σ numAlloc #v[b] b_val)
+:
+  FB.ConvertsM (eq a b) varStore numAlloc σ (a_val == b_val)
+:= by
+  unfold eq
+  apply FB.convertsM_of_convertsM_eq (a_val- b_val == 0)
+  . exact FB.convertsM_bind _ _ _ _ _ (λ x => x == (0 : ZMod p))
+      (mkSub.convertsM h_a h_b)
+      (isZero.convertsM (mkSub.convertsM h_a h_b).result)
+  . grind
 
 end eq
+
+namespace MkConstant
+
+@[simp]
+lemma convertsM
+  {varStore : VarStore p}
+  {numAlloc : ℕ}
+  {σ : HashConsSt p}
+  {x : ZMod p} :
+  F.ConvertsM (liftM (HashConsM.mkConstant (p := p) x)) varStore numAlloc σ x := by
+  constructor
+  · simp
+    simp_rw [HashConsM.getResult_mkConstant, HashConsM.getHashConsState_mkConstant]
+    unfold F.Converts
+    constructor <;> simp
+    · grind [=Expr.varSet, =Expr.varSet_wellFormed]
+    · grind
+    · rw [eval_eq_evalRec (by grind)]
+      grind
+  · grind
+
+end MkConstant
+
+namespace MapM
+
+@[simp]
+lemma convertsM
+  {varStore : VarStore p}
+  {numAlloc : ℕ}
+  {σ : HashConsSt p}
+  {α : Type}
+  {f : α → ClapM p FB}
+  {k : ℕ}
+  {xs : Vector α k} 
+  {vars : Vector Bool k}
+  (h : ∀ varStore numAlloc (σ : HashConsSt p),
+    ∀ (i : Fin k), FB.ConvertsM (f xs[i]) varStore numAlloc σ vars[i]) :
+  FArray.ConvertsM (xs.mapM f) varStore numAlloc σ vars := by
+  induction' k with k ih
+  · have eq₁ : xs = #v[] := by grind
+    have eq₂ : vars = #v[] := by grind
+    subst eq₁ eq₂
+    simp [FArray.convertsM_pure]
+  · rcases xs with ⟨arr, arr_size⟩
+    rcases vars with ⟨vars, vars_size⟩
+    
+    have : xs = Vector.cast (by grind) (xs.take k ++ #v[xs[k]]) := sorry
+    rw [this]
+    rw [Vector.cast]
+
+    done
+
+
+  · sorry
+  --   simp
+  --   simp_rw [HashConsM.getResult_mkConstant, HashConsM.getHashConsState_mkConstant]
+  --   unfold F.Converts
+  --   constructor <;> simp
+  --   · grind [=Expr.varSet, =Expr.varSet_wellFormed]
+  --   · grind
+  --   · rw [eval_eq_evalRec (by grind)]
+  --     grind
+  -- · grind
+
+end MapM
 
 namespace oneHotRaw
 
