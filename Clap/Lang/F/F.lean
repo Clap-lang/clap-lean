@@ -164,7 +164,7 @@ lemma convertsM_bind
     . apply h_function.wellFormed
 
 -- TODO generalize
-lemma convertsM_map
+lemma convertsM_map_FB_FArray
   {len}
   (action : ClapM p FB)
   (f : FB → Vector FB len)
@@ -190,6 +190,32 @@ lemma convertsM_map
   . rewrite [ClapM.map_wellFormed]
     apply h_action.wellFormed
 
+-- lemma convertsM_map_FB_FArray
+--   {len}
+--   (action : ClapM p FB)
+--   (f : FB → Vector FB len)
+--   (varStore : VarStore p)
+--   (numAlloc : ℕ)
+--   (σ : HashConsSt p)
+--   {action_val : Bool}
+--   (f_val : Bool → Vector Bool len)
+--   (h_action : FArray.ConvertsM action varStore numAlloc σ action_val)
+--   (h_f_val : FArray.Converts len
+--     (action.getVarStore varStore numAlloc σ)
+--     (action.getHashConsState numAlloc σ)
+--     (action.getNumAlloc numAlloc σ)
+--     (f (action.getResult numAlloc σ))
+--     (f_val action_val)
+--   )
+-- :
+--   ConvertsM (f <$> action) varStore numAlloc σ (f_val action_val)
+-- := by
+--   constructor
+--   . simp
+--     apply h_f_val
+--   . rewrite [ClapM.map_wellFormed]
+--     apply h_action.wellFormed
+
 @[aesop safe]
 lemma convertsM_pure
         {varStore : VarStore p}
@@ -214,6 +240,34 @@ lemma converts_empty
   · simp
   · grind
   · grind
+
+lemma converts_push
+  {k : ℕ}
+  {varStore : VarStore p}
+  {σ : HashConsSt p}
+  {numAlloc : ℕ}
+  {exprs : Vector FB k}
+  {expr : FB}
+  {vals : Vector Bool k}
+  {val : Bool}
+  (h_exprs : FArray.Converts k varStore σ numAlloc exprs vals)
+  (h_expr : FB.Converts varStore σ numAlloc #v[expr] val)
+:
+  FArray.Converts (k + 1) varStore σ numAlloc (exprs.push expr) (vals.push val)
+:= by
+  obtain ⟨exprs_varSet, exprs_wellFormed, exprs_result⟩ := h_exprs
+  obtain ⟨expr_varSet, expr_wellFormed, expr_result⟩ := h_expr
+  simp at *
+  constructor
+  all_goals {
+    intro i
+    simp
+    rewrite [Vector.getElem_push]
+    split
+    . specialize_all ⟨i.val, by assumption⟩
+      grind
+    . grind
+  }
 
 end FArray
 
@@ -448,7 +502,7 @@ lemma convertsM
 --   spec := a_val == b_val
 --   converts := by
 --     unfold eq
---     -- 
+--     --
 
 lemma convertsM'
   [p.AtLeastTwo]
@@ -493,51 +547,6 @@ lemma convertsM
 
 end MkConstant
 
-namespace MapM
-
-@[simp]
-lemma convertsM
-  {varStore : VarStore p}
-  {numAlloc : ℕ}
-  {σ : HashConsSt p}
-  {α : Type}
-  {f : α → ClapM p FB}
-  {k : ℕ}
-  {xs : Vector α k} 
-  {vars : Vector Bool k}
-  (h : ∀ varStore numAlloc (σ : HashConsSt p),
-    ∀ (i : Fin k), FB.ConvertsM (f xs[i]) varStore numAlloc σ vars[i]) :
-  FArray.ConvertsM (xs.mapM f) varStore numAlloc σ vars := by
-  induction' k with k ih
-  · have eq₁ : xs = #v[] := by grind
-    have eq₂ : vars = #v[] := by grind
-    subst eq₁ eq₂
-    simp [FArray.convertsM_pure]
-  · rcases xs with ⟨arr, arr_size⟩
-    rcases vars with ⟨vars, vars_size⟩
-    
-    have : xs = Vector.cast (by grind) (xs.take k ++ #v[xs[k]]) := sorry
-    rw [this]
-    rw [Vector.cast]
-
-    done
-
-
-  · sorry
-  --   simp
-  --   simp_rw [HashConsM.getResult_mkConstant, HashConsM.getHashConsState_mkConstant]
-  --   unfold F.Converts
-  --   constructor <;> simp
-  --   · grind [=Expr.varSet, =Expr.varSet_wellFormed]
-  --   · grind
-  --   · rw [eval_eq_evalRec (by grind)]
-  --     grind
-  -- · grind
-
-end MapM
-
-namespace oneHotRaw
-
 @[simp, grind =]
 lemma _root_.Vector.mapM_singleton
   {α}
@@ -553,6 +562,289 @@ lemma _root_.Vector.mapM_singleton
   funext
   simp [StateT.bind]
   cbv
+
+namespace MapM
+
+lemma _root_.Vector.take_append_last
+  {α}
+  {len : ℕ}
+  {vec : Vector α (len + 1)}
+:
+  ((vec.take len).cast (m := len) (by grind)) ++ #v[vec[len]] =
+  vec
+:= by
+  simp
+  ext
+  expose_names
+  have := Vector.getElem_append (n := len) (m := 1) (ys := #v[vec[len]]) (xs := vec.pop) (i := i) (by grind)
+  rewrite [this]
+  aesop (add safe (by grind))
+
+lemma _root_.Vector.mapM_succ
+  {α}
+  {len : ℕ}
+  {vec : Vector α (len + 1)}
+  (f : α → ClapM p FB)
+:
+  vec.mapM f =
+  (vec.pop.mapM f) >>= λ v => (λ x => v.push x) <$> f vec[len]
+:= by
+  rewrite [←Vector.take_append_last (vec:=vec)]
+  rw [Vector.mapM_append]
+  simp
+  have := Vector.take_append_last (vec:=vec)
+  simp at this
+  congr
+  . exact this.symm
+  . funext vecM
+    congr
+    exact this.symm
+
+@[simp]
+lemma convertsM
+  {varStore : VarStore p}
+  {numAlloc : ℕ}
+  {σ : HashConsSt p}
+  {α : Type}
+  {f : α → ClapM p FB}
+  {k : ℕ}
+  {xs : Vector α k}
+  {vars : Vector Bool k}
+  (h : ∀ varStore numAlloc (σ : HashConsSt p),
+    ∀ (i : Fin k), FB.ConvertsM (f xs[i]) varStore numAlloc σ vars[i]) :
+  FArray.ConvertsM (xs.mapM f) varStore numAlloc σ vars := by
+  induction' k with k ih
+  · have eq₁ : xs = #v[] := by grind
+    have eq₂ : vars = #v[] := by grind
+    subst eq₁ eq₂
+    simp [FArray.convertsM_pure]
+  . rewrite [Vector.mapM_succ]
+    have h' : ∀ (varStore : VarStore p) (numAlloc : ℕ) (σ : HashConsSt p) (i : Fin k),
+      FB.ConvertsM (f xs.pop[i]) varStore numAlloc σ vars.pop[i]
+    := by
+      intro varStore numAlloc σ i
+      rewrite [
+        show xs.pop[i] = xs[i] by grind,
+        show vars.pop[i] = vars[i] by grind,
+      ]
+      exact h varStore numAlloc σ ⟨i, by grind⟩
+    have h_action := @ih xs.pop vars.pop h'
+    have h_bind := @FArray.convertsM_bind
+      p k (k + 1)
+      (action := Vector.mapM f xs.pop)
+      (function := λ v => (λ x => v.push x ) <$> f xs[k])
+      varStore numAlloc σ
+      (action_val := vars.pop)
+      (function_val := λ v => v.push vars[k])
+      h_action
+    have h_k_plus_one : (vars.pop.push vars[k]).cast (m := k + 1) (by grind) = vars := by
+      simp
+      ext
+      rewrite [Vector.getElem_push]
+      split
+      . obtain ⟨⟨l⟩, h_l⟩ := vars
+        simp
+      . congr
+        grind
+    simp at h_k_plus_one
+    rewrite [h_k_plus_one] at h_bind
+    apply h_bind
+    have h_map := @FArray.convertsM_map_FB_FArray p (k + 1)
+      (action := f xs[k])
+      (f := (fun x => Vector.push ((Vector.mapM f xs.pop).getResult numAlloc σ) x))
+      ((Vector.mapM f xs.pop).getVarStore varStore numAlloc σ)
+      ((Vector.mapM f xs.pop).getNumAlloc numAlloc σ)
+      ((Vector.mapM f xs.pop).getHashConsState numAlloc σ)
+      (action_val := vars[k])
+      (λ x => vars.pop.push x)
+      (h
+        ((Vector.mapM f xs.pop).getVarStore varStore numAlloc σ)
+        ((Vector.mapM f xs.pop).getNumAlloc numAlloc σ)
+        ((Vector.mapM f xs.pop).getHashConsState numAlloc σ)
+        ⟨k, Nat.lt_succ_self k⟩
+      )
+    have h_k_plus_one_minus_one_plus_one : vars.pop.push vars[k] = vars := by
+      simp
+      ext
+      rewrite [Vector.getElem_push]
+      split
+      . obtain ⟨⟨l⟩, h_l⟩ := vars
+        simp
+      . congr
+        grind
+    rewrite [h_k_plus_one_minus_one_plus_one] at h_map
+    convert h_map _
+    . rfl
+    . rfl
+    . rfl
+    . rfl
+    . rfl
+    . rfl
+    . rfl
+    . rfl
+    . rfl
+    . rfl
+    . have := @FArray.converts_push p k
+        (varStore := ((f xs[k]).getVarStore ((Vector.mapM f xs.pop).getVarStore varStore numAlloc σ)
+          ((Vector.mapM f xs.pop).getNumAlloc numAlloc σ) ((Vector.mapM f xs.pop).getHashConsState numAlloc σ)))
+        (σ := ((f xs[k]).getHashConsState ((Vector.mapM f xs.pop).getNumAlloc numAlloc σ)
+          ((Vector.mapM f xs.pop).getHashConsState numAlloc σ)))
+        (numAlloc := ((f xs[k]).getNumAlloc ((Vector.mapM f xs.pop).getNumAlloc numAlloc σ)
+          ((Vector.mapM f xs.pop).getHashConsState numAlloc σ)))
+        (exprs := (xs.pop.mapM f).getResult numAlloc σ)
+        (expr := (f xs[k]).getResult ((Vector.mapM f xs.pop).getNumAlloc numAlloc σ)
+          ((Vector.mapM f xs.pop).getHashConsState numAlloc σ))
+        (vals := vars.pop)
+        (val := vars[k])
+      rewrite [h_k_plus_one] at this
+      apply this
+      . clear this
+        -- apply toIdeal_run_of_toIdeal to remove f
+        -- specialize ih
+        -- consider weakening the forall varstore thing
+        done
+      . clear this
+        simp at h
+        have := h
+          ((Vector.mapM f xs.pop).getVarStore varStore numAlloc σ)
+          ((Vector.mapM f xs.pop).getNumAlloc numAlloc σ)
+          ((Vector.mapM f xs.pop).getHashConsState numAlloc σ)
+          ⟨k, Nat.lt_succ_self k⟩
+        simp at this
+        have := this.result
+        exact this
+
+
+        done
+      done
+
+
+    -- . specialize h
+    --     ((Vector.mapM f xs.pop).getVarStore varStore numAlloc σ)
+    --     ((Vector.mapM f xs.pop).getNumAlloc numAlloc σ)
+    --     ((Vector.mapM f xs.pop).getHashConsState numAlloc σ)
+    --     ⟨k, by grind⟩
+    --   exact h
+    -- . set mapM_numAlloc := ((Vector.mapM f xs.pop).getNumAlloc numAlloc σ)
+    --   set mapM_σ := ((Vector.mapM f xs.pop).getHashConsState numAlloc σ)
+    --   set mapM_varStore := ((Vector.mapM f xs.pop).getVarStore varStore numAlloc σ)
+    --   set mapM_result := ((Vector.mapM f xs.pop).getResult numAlloc σ)
+    --   set final_varStore := ((f xs[k]).getVarStore mapM_varStore mapM_numAlloc mapM_σ)
+    --   set final_σ := ((f xs[k]).getHashConsState mapM_numAlloc mapM_σ)
+    --   set final_numAlloc := ((f xs[k]).getNumAlloc mapM_numAlloc mapM_σ)
+    --   change
+    --     FArray.Converts (k + 1)
+    --       final_varStore
+    --       final_σ
+    --       final_numAlloc
+    --       (mapM_result.push ((f xs[k]).getResult mapM_numAlloc mapM_σ))
+    --       (vars.pop.push vars[k])
+    --   constructor
+    --   . intro i
+    --     have := @Vector.getElem_push FB (k + 1 - 1) mapM_result ((f xs[k]).getResult mapM_numAlloc mapM_σ) i (by grind)
+    --     simp [Expr.varSet_wellFormed]
+    --     intro x h_x
+    --     rw! [this] at h_x
+    --     by_cases h_i: i = k
+    --     . suffices ⦃((f xs[k]).getResult mapM_numAlloc mapM_σ), final_σ⦄.varSet_wellFormed final_numAlloc from by {
+
+    --       }
+
+    --       done
+    --     simp [Vector.getElem_push (xs := mapM_result) (i := i.val) (x := ((f xs[k]).getResult mapM_numAlloc mapM_σ))]
+    --     done
+    --   . simp
+    --     done
+    --   . simp
+    --     done
+
+    --   done
+
+
+  --     done
+
+
+
+
+
+
+
+  --   have : xs = (((xs.take k).cast (m := k) (by grind)) ++ #v[xs[k]]) := by
+  --     sorry
+  --   rw [this]
+  --   specialize @ih ((xs.take k).cast (m := k) (by grind))
+  --   rw [Vector.mapM_append]
+  --   simp at ih ⊢
+  --   convert FArray.convertsM_bind
+  --     (action := (Vector.mapM f xs.pop))
+  --     (function := λ x => (x ++ ·) <$> Vector.mapM f #v[xs[k]])
+  --     varStore numAlloc σ
+  --     (function_val := λ xs => xs.push vars[k])
+  --     (ih ?x)
+  --     ?y
+  --   . omega
+  --   . omega
+  --   . omega
+  --   . grind
+  --   . done
+  --   case succ =>
+  --     exact (vars.take k).cast (m := k) (by grind)
+  --   . obtain ⟨⟨l⟩, h_l⟩ := vars
+  --     simp
+  --     simp at h_l
+  --     rw! (occs := [1]) [←List.dropLast_append_getLast (l := l)]
+  --     congr
+  --     grind
+  --     grind
+  --   . intro varStore numAlloc σ i
+  --     specialize h varStore numAlloc σ ⟨i.val, (by grind)⟩
+  --     simp at h
+  --     simp
+  --     exact h
+  --   simp
+  --   convert FArray.convertsM_map_FB_FArray
+  --     (action := f xs[k])
+  --     (f := (fun a => (Vector.mapM f xs.pop).getResult numAlloc σ ++ #v[a]))
+  --     ((Vector.mapM f xs.pop).getVarStore varStore numAlloc σ)
+  --     ((Vector.mapM f xs.pop).getNumAlloc numAlloc σ)
+  --     ((Vector.mapM f xs.pop).getHashConsState numAlloc σ)
+  --     (f_val := λ x => vars.pop.push x)
+  --   apply Iff.intro
+  --   . intro h1 h2 h3
+  --     exact h1
+  --   . intro h1
+  --     apply h1
+  --     convert h _ _ _ ⟨k, Nat.lt_succ_self k⟩
+  --     . simp
+  --     . simp
+  --     . simp
+  --       unfold FArray.Converts
+  --       set action := f xs[k]
+  --       set base_varStore := (_ : ClapM p (Vector FB k)).getVarStore varStore numAlloc σ with eq_v
+  --       set base_numAlloc := (_ : ClapM p (Vector FB k)).getNumAlloc numAlloc σ with eq_n
+  --       set base_σ := (_ : ClapM p (Vector FB k)).getHashConsState numAlloc σ with eq_σ
+  --       rw! [←eq_n]
+  --       rw! [←eq_σ]
+  --       apply toIdeal_run_of_toIdeal
+  --       done
+  --     done
+  --   done
+
+
+  -- · sorry
+  --   simp
+  --   simp_rw [HashConsM.getResult_mkConstant, HashConsM.getHashConsState_mkConstant]
+  --   unfold F.Converts
+  --   constructor <;> simp
+  --   · grind [=Expr.varSet, =Expr.varSet_wellFormed]
+  --   · grind
+  --   · rw [eval_eq_evalRec (by grind)]
+  --     grind
+  -- · grind
+
+end MapM
+
+namespace oneHotRaw
 
 -- TODO
 -- this proof is bad
