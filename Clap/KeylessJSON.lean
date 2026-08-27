@@ -135,6 +135,9 @@ theorem any_shrinking : Shrinking (α := Char) any := by
     exact (String.Pos.lt_iff_remainingBytes_lt _ _).mp (String.Pos.lt_next (h := of_decide_eq_true hh))
   · injection h
 
+theorem any_nonBacktracking : NonBacktracking (α := Char) any :=
+  any_shrinking.nonBacktracking
+
 theorem bind_nonBacktracking {f : Parser α} {g : α → Parser β}
     (hf : NonBacktracking f) (hg : ∀ a, NonBacktracking (g a)) :
     NonBacktracking (f >>= g) := by
@@ -794,22 +797,19 @@ def parseOnePair : Parser (String × Lean.Json × Char) := do
 
 theorem parseOnePair_shrinking : Shrinking parseOnePair := by
   unfold parseOnePair
-  apply bind_shrinking_of_nonBacktracking_shrinking
-  apply skipString_nonBacktracking
+  apply bind_shrinking_left (skipString_shrinking "\"" (by decide))
   intro _
-  apply bind_shrinking_of_nonBacktracking_shrinking
+  apply bind_nonBacktracking str_nonBacktracking
   intro _
-  apply str_nonBacktracking
+  apply bind_nonBacktracking ws'_nonBacktracking
   intro _
-  apply bind_shrinking_of_nonBacktracking_shrinking ws'_nonBacktracking
+  apply bind_nonBacktracking (skipString_nonBacktracking _)
   intro _
-  apply bind_shrinking_of_nonBacktracking_shrinking (skipString_nonBacktracking _)
+  apply bind_nonBacktracking ws'_nonBacktracking
   intro _
-  apply bind_shrinking_of_nonBacktracking_shrinking ws'_nonBacktracking
-  intro _
-  apply bind_shrinking_of_nonBacktracking_shrinking jsonFlatValue_nonBacktracking
+  apply bind_nonBacktracking jsonFlatValue_nonBacktracking
   intro v
-  apply bind_shrinking_left any_shrinking
+  apply bind_nonBacktracking any_nonBacktracking
   intro c
   exact pure_nonBacktracking _
 
