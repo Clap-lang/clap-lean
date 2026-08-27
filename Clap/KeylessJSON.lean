@@ -693,6 +693,18 @@ theorem strCore_nonBacktracking :
 theorem str_nonBacktracking : NonBacktracking str :=
   fun it it' s h => strCore_nonBacktracking "" it it' s h
 
+/-- Parses a JSON string including its surrounding quotes: the opening `"` plus
+everything `str` consumes (which already includes the matching closing `"`). -/
+def quotedStr : Parser String := do
+  skipString "\""
+  str
+
+theorem quotedStr_shrinking : Shrinking quotedStr := by
+  unfold quotedStr
+  apply bind_shrinking_left (skipString_shrinking "\"" (by decide))
+  intro _
+  exact str_nonBacktracking
+
 /--
 Like `Json.Parser.anyCore`, but only parses flat JSON values (strings, numbers,
 booleans, null), never arrays or objects. Since it never recurses into itself,
@@ -701,8 +713,7 @@ unlike `anyCore` it does not need to be `partial`.
 def jsonFlatValue : Parser Lean.Json := do
   let c ← peek!
   if c == '\"' then
-    skip
-    let s ← str
+    let s ← quotedStr
     ws'
     return Lean.Json.str s
   else if c == 'f' then
@@ -732,9 +743,7 @@ theorem jsonFlatValue_nonBacktracking : NonBacktracking jsonFlatValue := by
   intro c
   dsimp only
   split
-  · apply bind_nonBacktracking skip_shrinking.nonBacktracking
-    intro _
-    apply bind_nonBacktracking str_nonBacktracking
+  · apply bind_nonBacktracking quotedStr_shrinking.nonBacktracking
     intro s
     apply bind_nonBacktracking ws'_nonBacktracking
     intro _
@@ -782,9 +791,7 @@ Split out from `objectCoreAllPairs'` itself so it can stay ordinary `do`-notatio
 guaranteed-shrinking step (the trailing `any`) that `objectCoreAllPairs'` needs
 for its own termination proof. -/
 def parseOnePair : Parser (String × Lean.Json × Char) := do
-  -- TODO: parse quoted string
-  skipString "\""
-  let k ← str
+  let k ← quotedStr
   ws'
   skipString ":"
   ws'
@@ -797,9 +804,7 @@ def parseOnePair : Parser (String × Lean.Json × Char) := do
 
 theorem parseOnePair_shrinking : Shrinking parseOnePair := by
   unfold parseOnePair
-  apply bind_shrinking_left (skipString_shrinking "\"" (by decide))
-  intro _
-  apply bind_nonBacktracking str_nonBacktracking
+  apply bind_shrinking_left quotedStr_shrinking
   intro _
   apply bind_nonBacktracking ws'_nonBacktracking
   intro _
