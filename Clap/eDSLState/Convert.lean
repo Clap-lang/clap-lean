@@ -4,7 +4,6 @@ import Clap.Lang.Wheels
 
 namespace Clap
 
-@[aesop safe cases, grind]
 structure Converts {p : ℕ} {α : Type}
   (k : ℕ)
   (conversion : α → Vector (ZMod p) k)
@@ -17,14 +16,6 @@ structure Converts {p : ℕ} {α : Type}
   varSet_wf : ∀ (i : Fin k), ⦃exprs[i], σ⦄.varSet_wellFormed numAlloc
   expr_wf   : ∀ (i : Fin k), ⦃exprs[i], σ⦄.wellFormed
   value_eq  : ∀ (i : Fin k), [varStore|⦃exprs[i], σ⦄] = .some (conversion val)[i]
-
-def Wendy {p : ℕ} {α : Type} (action : ClapM p α) {k : ℕ}
-          (conversion : α → Vector (ZMod p) k)
-          (varStore : VarStore p)
-          (σ : HashConsSt p)
-          (numAlloc : ℕ)
-          (exprs : Vector ExprRef k)
-          (val : α) : P
 
 section Lemmas
 
@@ -40,6 +31,15 @@ variable
   {x : ZMod p}
   {action : ClapM p α}
   {circuit : Circuit}
+
+lemma converts_of_converts_eq
+  {val₁ : α} (val₂ : α)
+  (h : val₁ = val₂)
+:
+  Converts k conversion Γ σ numAlloc exprs val₁ ↔
+  Converts k conversion Γ σ numAlloc exprs val₂
+:= by
+  grind
 
 @[aesop unsafe]
 lemma isSome_eval_of_isSome_toIdeal
@@ -58,22 +58,22 @@ lemma eval_varStore_eval_eq_some
   intros i
   rcases circuit with ⟨l⟩
   induction' eq : l.length with len ih generalizing l
-  · rcases l <;> grind
+  · rcases l <;> grind [Converts]
   · rcases l with _ | ⟨hd, tl⟩
     · simp at eq
     · simp [-Fin.getElem_fin]
       specialize ih tl (by grind)
       rewrite [←ih]; clear ih
       apply eval_eq_of_varStore_eq_at_varSet
-      . grind
+      . grind [Converts]
       . intro v h_v
         set vashtorr := [unconstrained[numAlloc][Γ], action.getHashConsState numAlloc σ|hd]ₛ.varStore
-        rewrite [Circuit.getElem?_eval_eq_getElem?_of_lt (by grind)]
-        rewrite [Circuit.getElem?_eval_eq_getElem?_of_lt (by grind)]
+        rewrite [Circuit.getElem?_eval_eq_getElem?_of_lt (by grind [Converts])]
+        rewrite [Circuit.getElem?_eval_eq_getElem?_of_lt (by grind [Converts])]
         choose k vec h_vec using @EvalSt.exists_varStore_step_eq_insertMany
         simp [vashtorr, h_vec.1]
         rw [Std.ExtTreeMap.getElem?_insertMany_eq_getElem?_of_neq]
-        grind
+        grind [Converts]
 
 lemma toIdeal_run_of_toIdeal
   (h_a_wf : action.wellFormed numAlloc Γ σ)
@@ -90,7 +90,7 @@ lemma toIdeal_run_of_toIdeal
   · grind [=Expr.varSet_wellFormed]
   · grind
   · rcases h_a_wf with ⟨⟨h₃, h₄⟩, ⟨h₅, h₆⟩⟩
-    apply eval_varStore_eval_eq_some <;> grind
+    apply eval_varStore_eval_eq_some <;> grind [Converts]
 
 end Lemmas
 

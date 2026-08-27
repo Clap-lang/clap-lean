@@ -5,13 +5,11 @@ import Clap.Lang.Wheels
 
 namespace Clap.Lang
 
+variable {p : ℕ}
+
 abbrev F := ExprRef
 abbrev FB := F
 abbrev FArray (k) := Vector FB k
-
-namespace F
-
-variable {p : ℕ}
 
 open HashConsM in
 def eq {p : ℕ} [p.AtLeastTwo] (a b : F) : ClapM p FB := do
@@ -21,48 +19,218 @@ open HashConsM in
 def oneHotRaw [p.AtLeastTwo] (len : ℕ) (idx : F) : ClapM p (Vector FB len) :=
   (Vector.range len).mapM (fun (i:ℕ) ↦ do
     let idx_val ← mkConstant (p := p) i
-    F.eq idx idx_val
+    eq idx idx_val
   )
 
-def matches_spec
+namespace F
+
+def Converts := Clap.Converts 1 (fun x : ZMod p ↦ #v[x])
+structure ConvertsM
+  (action : ClapM p F)
   (varStore : VarStore p)
   (numAlloc : ℕ)
   (σ : HashConsSt p)
-  {α}
-  (cmd : ClapM p α)
-  {β : Type}
-  (spec : β)
-  (toIdeal : VarStore p → HashConsSt p → α → Option β)
-:= toIdeal
-    (cmd.getVarStore varStore numAlloc σ)
-    (cmd.getHashConsState numAlloc σ)
-    (cmd.getResult numAlloc σ) =
-    .some spec
+  (val : ZMod p)
+: Prop where
+  result : Converts
+    (action.getVarStore varStore numAlloc σ)
+    (action.getHashConsState numAlloc σ)
+    (action.getNumAlloc numAlloc σ)
+    #v[action.getResult numAlloc σ]
+    val
+  wellFormed : action.wellFormed numAlloc varStore σ
 
-def Converts := Clap.Converts 1 (fun x : ZMod p ↦ #v[x])
-def _root_.Clap.Lang.FB.Converts := Clap.Converts 1 (fun x : Bool ↦ #v[if x then (1 : ZMod p) else 0])
-def _root_.Clap.Lang.FArray.Converts (k : ℕ) := Clap.Converts k fun vec : Vector Bool k ↦
-                                                  vec.map fun x ↦ if x then (1 : ZMod p) else 0
+end F
 
-namespace eq
 
-opaque spec {p} (a b : ZMod p) : Bool :=
-  a == b
+namespace FB
 
--- @[simp, grind =]
--- lemma getHashConsState_isZero_of_mem {e! : ExprRef} {numAlloc} {σ : HashConsSt p}
---   (h : .v numAlloc ∈ σ.exprs) :
---   (isZero e!).getHashConsState numAlloc σ =
---   σ := by grind
+def Converts := Clap.Converts 1 (fun x : Bool ↦ #v[if x then (1 : ZMod p) else 0])
+structure ConvertsM
+  (action : ClapM p FB)
+  (varStore : VarStore p)
+  (numAlloc : ℕ)
+  (σ : HashConsSt p)
+  (val : Bool)
+: Prop where
+  result : Converts
+    (action.getVarStore varStore numAlloc σ)
+    (action.getHashConsState numAlloc σ)
+    (action.getNumAlloc numAlloc σ)
+    #v[action.getResult numAlloc σ]
+    val
+  wellFormed : action.wellFormed numAlloc varStore σ
 
--- @[simp, grind =]
--- lemma getHashConsState_isZero_of_notMem {e! : ExprRef} {numAlloc} {σ : HashConsSt p}
---   (h : .v numAlloc ∉ σ.exprs) :
---   (isZero e!).getHashConsState numAlloc σ =
---   σ.pushExpr (.v numAlloc) (by simp) := by grind
+lemma convertsM_of_convertsM_eq
+  {action : ClapM p FB}
+  {varStore numAlloc σ val₁}
+  (val₂ : Bool)
+  (h : ConvertsM action varStore numAlloc σ val₂)
+  (h_eq : val₁ = val₂)
+:
+  ConvertsM action varStore numAlloc σ val₁
+where
+  result := by rewrite [h_eq]; exact h.result
+  wellFormed := h.wellFormed
 
-@[aesop safe, grind .]
-lemma _root_.Clap.isZero.wellFormed {e! : ExprRef} {Γ : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ} {value : ZMod p}
+-- TODO generalise
+lemma convertsM_bind
+  (action : ClapM p F)
+  (function : F → ClapM p FB)
+  (varStore : VarStore p)
+  (numAlloc : ℕ)
+  (σ : HashConsSt p)
+  {action_val : ZMod p}
+  (function_val : ZMod p → Bool)
+  (h_action : F.ConvertsM action varStore numAlloc σ action_val)
+  (h_function : FB.ConvertsM
+    (function (action.getResult numAlloc σ))
+    (action.getVarStore varStore numAlloc σ)
+    (action.getNumAlloc numAlloc σ)
+    (action.getHashConsState numAlloc σ)
+    (function_val action_val)
+  )
+:
+  ConvertsM (action >>= function) varStore numAlloc σ (function_val action_val)
+:= by
+  constructor
+  . simp
+    rewrite [ClapM.getVarStore_bind_of_wellFormed]
+    . apply h_function.result
+    . apply h_action.wellFormed
+    . apply h_function.wellFormed
+  . apply ClapM.bind_wellFormed
+    . apply h_action.wellFormed
+    . apply h_function.wellFormed
+
+
+end FB
+
+
+namespace FArray
+
+def Converts (k : ℕ) := Clap.Converts k
+  fun vec : Vector Bool k ↦ vec.map fun x ↦ if x then (1 : ZMod p) else 0
+structure ConvertsM {k}
+  (action : ClapM p (Vector FB k))
+  (varStore : VarStore p)
+  (numAlloc : ℕ)
+  (σ : HashConsSt p)
+  (val : Vector Bool k)
+: Prop where
+  result : Converts k
+    (action.getVarStore varStore numAlloc σ)
+    (action.getHashConsState numAlloc σ)
+    (action.getNumAlloc numAlloc σ)
+    (action.getResult numAlloc σ)
+    val
+  wellFormed : action.wellFormed numAlloc varStore σ
+
+-- TODO generalise
+lemma convertsM_bind
+  {len1 len2}
+  (action : ClapM p (FArray len1))
+  (function : (FArray len1) → ClapM p (FArray len2))
+  (varStore : VarStore p)
+  (numAlloc : ℕ)
+  (σ : HashConsSt p)
+  {action_val : Vector Bool len1}
+  (function_val : Vector Bool len1 → Vector Bool len2)
+  (h_action : FArray.ConvertsM action varStore numAlloc σ action_val)
+  (h_function : FArray.ConvertsM
+    (function (action.getResult numAlloc σ))
+    (action.getVarStore varStore numAlloc σ)
+    (action.getNumAlloc numAlloc σ)
+    (action.getHashConsState numAlloc σ)
+    (function_val action_val)
+  )
+:
+  ConvertsM (action >>= function) varStore numAlloc σ (function_val action_val)
+:= by
+  constructor
+  . simp
+    rewrite [ClapM.getVarStore_bind_of_wellFormed]
+    . apply h_function.result
+    . apply h_action.wellFormed
+    . apply h_function.wellFormed
+  . apply ClapM.bind_wellFormed
+    . apply h_action.wellFormed
+    . apply h_function.wellFormed
+
+-- TODO generalize
+lemma convertsM_map
+  {len}
+  (action : ClapM p FB)
+  (f : FB → Vector FB len)
+  (varStore : VarStore p)
+  (numAlloc : ℕ)
+  (σ : HashConsSt p)
+  {action_val : Bool}
+  (f_val : Bool → Vector Bool len)
+  (h_action : FB.ConvertsM action varStore numAlloc σ action_val)
+  (h_f_val : FArray.Converts len
+    (action.getVarStore varStore numAlloc σ)
+    (action.getHashConsState numAlloc σ)
+    (action.getNumAlloc numAlloc σ)
+    (f (action.getResult numAlloc σ))
+    (f_val action_val)
+  )
+:
+  ConvertsM (f <$> action) varStore numAlloc σ (f_val action_val)
+:= by
+  constructor
+  . simp
+    apply h_f_val
+  . rewrite [ClapM.map_wellFormed]
+    apply h_action.wellFormed
+
+
+end FArray
+
+@[grind =]
+lemma deref_idxOf_of_mem
+  {cacheExpr : CacheExpr p}
+  {σ : HashConsSt p}
+  (h_mem : cacheExpr ∈ σ.exprs)
+:
+  *⦃σ.exprs.idxOf cacheExpr, σ⦄ = cacheExpr
+:= by
+  grind
+
+@[simp, grind =]
+lemma deref_mkVar_eq_some
+  {idx : ℕ}
+  {σ : HashConsSt p}
+:
+  *⦃(HashConsM.mkVar idx).getResult σ, (HashConsM.mkVar idx).getHashConsState σ⦄ =
+  .some (CacheExpr.v idx)
+:= by
+  grind [=HashConsM.mkVar]
+
+@[simp, grind =]
+lemma varSet_mkVar
+  {idx : ℕ}
+  {σ : HashConsSt p}
+:
+  ⦃(HashConsM.mkVar idx).getResult σ, (HashConsM.mkVar idx).getHashConsState σ⦄.varSet =
+  {idx}
+:= by
+  unfold Expr.varSet
+  grind
+
+@[simp, grind! .]
+lemma lt_getNumAlloc_isZero
+  {numAlloc : ℕ}
+  {σ : HashConsSt p}
+  {a : ExprRef}
+:
+  numAlloc < (isZero a).getNumAlloc numAlloc σ
+:= by
+  simp [isZero]
+
+namespace isZero
+
+lemma wellFormed {e! : ExprRef} {Γ : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ} {value : ZMod p}
   (h : F.Converts Γ σ numAlloc #v[e!] value)
 :
   (isZero e!).wellFormed numAlloc Γ σ
@@ -75,17 +243,71 @@ lemma _root_.Clap.isZero.wellFormed {e! : ExprRef} {Γ : VarStore p} {σ : HashC
     grind
   . grind
 
-@[grind =]
-lemma deref_idxOf_of_mem
-  {cacheExpr : CacheExpr p}
+lemma converts
+  [p.AtLeastTwo]
+  {varStore : VarStore p}
+  {numAlloc : ℕ}
   {σ : HashConsSt p}
-  (h_mem : cacheExpr ∈ σ.exprs)
+  {a : F}
+  {a_val : ZMod p}
+  (h_a : F.Converts varStore σ numAlloc #v[a] a_val)
 :
-  *⦃σ.exprs.idxOf cacheExpr, σ⦄ = cacheExpr
+  FB.Converts
+    ((isZero a).getVarStore varStore numAlloc σ)
+    ((isZero a).getHashConsState numAlloc σ)
+    ((isZero a).getNumAlloc numAlloc σ)
+    #v[(isZero a).getResult numAlloc σ]
+    (a_val == 0)
 := by
-  grind
+  obtain ⟨a_varSet, a_wellFormed, a_result⟩ := h_a
+  constructor <;> simp at *
+  . intro i h_i
+    grind [=isZero]
+  . simp [isZero]
+    rw [Expr.wellFormed_iff_isSome, deref_mkVar_eq_some]
+    rfl
+  . simp [isZero, HashConsM.mkVar]
+    simp [HashConsM.getHashConsState_saveExpr_of_wellFormed,
+          HashConsM.getResult_saveExpr_of_wellFormed]
+    split
+    · rw [eval_eq_evalRec (by grind)]
+      unfold Expr.evalRec
+      grind
+    · rw [eval_eq_evalRec (by grind)]
+      rw [evalRec_eq_of_deref_eq_some_v (idx := numAlloc)]
+      · simp
+        rw [eval_eq_evalRec (by grind)] at a_result ⊢
+        rw [←evalRec_of_wellFormed_of_prefix] at ⊢
+        · rw [a_result]
+          grind
+        · grind
+        · grind
+      · grind
 
-lemma Converts_mkSub
+lemma convertsM
+  [p.AtLeastTwo]
+  {varStore : VarStore p}
+  {numAlloc : ℕ}
+  {σ : HashConsSt p}
+  {a : F}
+  {a_val : ZMod p}
+  (h_a : F.Converts varStore σ numAlloc #v[a] a_val)
+:
+  FB.ConvertsM (isZero a)
+    varStore
+    numAlloc
+    σ
+    (a_val == 0)
+where
+  result := converts h_a
+  wellFormed := wellFormed h_a
+
+end isZero
+
+
+namespace mkSub
+
+lemma converts
    {Γ : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ}
    {a b : ExprRef}
    {a_val b_val : ZMod p}
@@ -132,109 +354,23 @@ lemma Converts_mkSub
           rfl
     . grind
 
-
-#check evalRec_isSome_iff
-#check wellFormed_mem_varStore_of_evalRec_eq_some
-/--
-TODO: This used to be just grind :eyes:.
--/
-lemma wellFormed
-  [p.AtLeastTwo]
-  {varStore : VarStore p}
-  {numAlloc : ℕ}
-  {σ : HashConsSt p}
-  {a b : F} {_a' _b' : ZMod p}
-  (h_a : F.Converts varStore σ numAlloc #v[a] _a')
-  (h_b : F.Converts varStore σ numAlloc #v[b] _b')
+lemma convertsM
+  {Γ : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ}
+  {a b : ExprRef}
+  {a_val b_val : ZMod p}
+  (h_a : F.Converts Γ σ numAlloc #v[a] a_val)
+  (h_b : F.Converts Γ σ numAlloc #v[b] b_val)
 :
-  (eq a b).wellFormed numAlloc varStore σ
-:= by
-  unfold eq
-  apply Clap.ClapM.bind_wellFormed
-  · apply ClapM.wellFormed_liftM_of_hashConsM_wellFormed
-    apply HashConsM.wellFormed_mkSub
-  · apply isZero.wellFormed
-    · exact Converts_mkSub h_a h_b
+  F.ConvertsM (liftM (HashConsM.mkSub (p := p) a b)) Γ numAlloc σ (a_val - b_val)
+where
+  result := converts h_a h_b
+  wellFormed := ClapM.wellFormed_liftM_of_hashConsM_wellFormed HashConsM.wellFormed_mkSub
 
-@[simp, grind =]
-lemma deref_mkVar_eq_some
-  {idx : ℕ}
-  {σ : HashConsSt p}
-:
-  *⦃(HashConsM.mkVar idx).getResult σ, (HashConsM.mkVar idx).getHashConsState σ⦄ =
-  .some (CacheExpr.v idx)
-:= by
-  grind [=HashConsM.mkVar]
+end mkSub
 
-@[simp, grind =]
-lemma varSet_mkVar
-  {idx : ℕ}
-  {σ : HashConsSt p}
-:
-  ⦃(HashConsM.mkVar idx).getResult σ, (HashConsM.mkVar idx).getHashConsState σ⦄.varSet =
-  {idx}
-:= by
-  unfold Expr.varSet
-  grind
+namespace eq
 
-@[simp, grind! .]
-lemma lt_getNumAlloc_isZero
-  {numAlloc : ℕ}
-  {σ : HashConsSt p}
-  {a : ExprRef}
-:
-  numAlloc < (isZero a).getNumAlloc numAlloc σ
-:= by
-  simp [isZero]
-
-lemma Converts_isZero
-  [p.AtLeastTwo]
-  {varStore : VarStore p}
-  {numAlloc : ℕ}
-  {σ : HashConsSt p}
-  {a : F}
-  {a_val : ZMod p}
-  (h_a : F.Converts varStore σ numAlloc #v[a] a_val)
-:
-  FB.Converts
-    ((isZero a).getVarStore varStore numAlloc σ)
-    ((isZero a).getHashConsState numAlloc σ)
-    ((isZero a).getNumAlloc numAlloc σ)
-    #v[(isZero a).getResult numAlloc σ]
-    (a_val == 0)
-:= by
-  obtain ⟨a_varSet, a_wellFormed, a_result⟩ := h_a
-  constructor <;> simp at *
-  . intro i h_i
-    grind [=isZero]
-  . simp [isZero]
-    rw [Expr.wellFormed_iff_isSome, deref_mkVar_eq_some]
-    rfl
-  . simp [isZero, HashConsM.mkVar]
-    simp [HashConsM.getHashConsState_saveExpr_of_wellFormed,
-          HashConsM.getResult_saveExpr_of_wellFormed]
-    split
-    · rw [eval_eq_evalRec (by grind)]
-      unfold Expr.evalRec
-      grind
-    · rw [eval_eq_evalRec (by grind)]
-      rw [evalRec_eq_of_deref_eq_some_v (idx := numAlloc)]
-      · simp
-        rw [eval_eq_evalRec (by grind)] at a_result ⊢ 
-        rw [←evalRec_of_wellFormed_of_prefix] at ⊢
-        · rw [a_result]
-          grind
-        · grind
-        · grind
-      · grind
-
-lemma _root_.Clap.FB.converts_of_converts_eq {Γ : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ}
-                                             {expr : Vector FB 1} {value₁ : Bool}
-                                             (value₂ : Bool) (h : value₁ = value₂) :
-  FB.Converts Γ σ numAlloc expr value₁ ↔ FB.Converts Γ σ numAlloc expr value₂ := by
-  grind
-
-lemma Converts_eq
+lemma convertsM
   [p.AtLeastTwo]
   {varStore : VarStore p}
   {numAlloc : ℕ}
@@ -244,29 +380,112 @@ lemma Converts_eq
   (h_a : F.Converts varStore σ numAlloc #v[a] a_val)
   (h_b : F.Converts varStore σ numAlloc #v[b] b_val)
 :
-  FB.Converts
-    ((eq a b).getVarStore varStore numAlloc σ)
-    ((eq a b).getHashConsState numAlloc σ)
-    ((eq a b).getNumAlloc numAlloc σ)
-    #v[(eq a b).getResult numAlloc σ]
-    (a_val == b_val)
+  FB.ConvertsM (eq a b) varStore numAlloc σ (a_val == b_val)
 := by
-  rw [FB.converts_of_converts_eq (a_val - b_val == 0) (by grind)]
   unfold eq
-  simp
-  rw [ClapM.getVarStore_bind_of_wellFormed]
-  · aesop
-      (erase simp [getResult_liftM,
-                   ClapM.getResult_liftM,
-                   ClapM.getVarStore_liftM,
-                   ClapM.getNumAlloc_liftM,
-                   ClapM.getHashConsState_liftM,
-                   getVarStore_isZero])
-      (add safe apply [Converts_isZero, Converts_mkSub])
-    grind [!.Converts_isZero, .Converts_mkSub]
-  · grind
-  · apply isZero.wellFormed
-    apply Converts_mkSub h_a h_b
+  apply FB.convertsM_of_convertsM_eq (a_val- b_val == 0)
+  . exact FB.convertsM_bind _ _ _ _ _ (λ x => x == (0 : ZMod p))
+      (mkSub.convertsM h_a h_b)
+      (isZero.convertsM (mkSub.convertsM h_a h_b).result)
+  . grind
+
+end eq
+
+namespace oneHotRaw
+
+@[simp, grind =]
+lemma _root_.Vector.mapM_singleton
+  {α}
+  {len : α}
+  (f : α → ClapM p FB)
+:
+  #v[len].mapM f =
+  f len >>= fun x => pure #v[x]
+:= by
+  unfold Vector.mapM
+  cbv
+  simp [WriterT.run]
+  funext
+  simp [StateT.bind]
+  cbv
+
+-- TODO
+-- this proof is bad
+-- primarily because unification isn't working
+-- but also because it's trying to do too much in one go
+-- we should have a convertsM for each component part rather than trying to do these many steps in one go
+lemma convertsM
+  [p.AtLeastTwo]
+  {varStore : VarStore p}
+  {numAlloc : ℕ}
+  {σ : HashConsSt p}
+  {len : ℕ}
+  {idx : F}
+  {idx_val : ZMod p} -- TODO : Fin len?
+  (h_idx : F.Converts varStore σ numAlloc #v[idx] idx_val)
+  (h_len : len < p)
+:
+  FArray.ConvertsM (oneHotRaw len idx) varStore numAlloc σ (Vector.ofFn (λ x => x.val == idx_val.val))
+:= by
+  unfold oneHotRaw
+  induction' len with len ih
+  . have this : Vector.range 0 = #v[] := by rfl
+    have that : Vector.ofFn (λ (x : Fin 0) => x.val == idx_val.val) = #v[] := by rfl
+    simp [this, that]
+    constructor
+    . constructor
+      . simp
+      . simp
+      . simp
+    . simp
+  . have : Vector.range (len + 1) = (Vector.range len) ++ #v[len] := by grind
+    specialize ih (by grind)
+    rewrite [this, Vector.mapM_append, Vector.mapM_singleton]
+    rewrite [←oneHotRaw.eq_def] at ⊢ ih
+    set stepM := ((liftM (HashConsM.mkConstant (p := p) len)) >>= eq (p := p) idx)
+    simp
+    set stepM' := λ x => _ <$> stepM
+    convert FArray.convertsM_bind
+      (action := oneHotRaw len idx)
+      (function := stepM')
+      varStore numAlloc σ
+      (function_val := λ x => x.push (len == idx_val.val))
+      (h_action := ih)
+    simp [Vector.ofFn_succ]; left
+    unfold stepM'
+    have (varStore : VarStore p) (numAlloc σ) : FB.ConvertsM stepM varStore numAlloc σ (len == idx_val) := by
+      unfold stepM
+      apply FB.convertsM_bind
+      . sorry
+      .
+      done
+
+    convert FArray.convertsM_map
+      (action := stepM)
+      (f := ((fun a => Vector.push ((oneHotRaw len idx).getResult numAlloc σ) a)))
+      varStore numAlloc σ
+      (f_val := λ b => (Vector.ofFn (λ x : Fin len => x.val == idx_val.val)).push b)
+
+
+    convert FArray.convertsM_bind
+      (action := oneHotRaw len idx)
+      (function_val := λ v : Vector Bool len => v.push (len == idx_val))
+      (varStore := varStore)
+      (numAlloc := numAlloc)
+      (σ := σ)
+      (h_action := ih)
+      (h_function := by convert FArray.convertsM_bind
+
+      )
+    . rewrite [Vector.ofFn_succ]
+      aesop
+      congr 1
+      sorry
+
+    rewrite [Vector.mapM_]
+    done
+
+end oneHot
 
 #exit
 #exit
@@ -382,22 +601,6 @@ lemma Convert.toIdeal_push
 --     (λ numAlloc σ => (((), ), ))
 -- := by
 --   done
-
-@[simp, grind =]
-lemma _root_.Clap.ClapM.Vector.mapM_singleton
-  {α}
-  {len : α}
-  (f : α → ClapM p FB)
-:
-  #v[len].mapM f =
-  f len >>= fun x => pure #v[x]
-:= by
-  unfold Vector.mapM
-  cbv
-  simp [WriterT.run]
-  funext
-  simp [StateT.bind]
-  cbv
 
 @[grind .]
 lemma getVarStore_precedes_of_wellFormed
