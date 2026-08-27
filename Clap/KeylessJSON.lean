@@ -784,20 +784,20 @@ theorem bind_shrinking_of_nonBacktracking_shrinking {f : Parser α} {g : α → 
     exact Nat.lt_of_lt_of_le (hg a rem it' b h) (hf it rem a hrem)
   · injection h
 
-/-- Everything `objectCoreAllPairs'` needs to parse before it either finishes or
-recurses: one `"key" : value` pair, plus the following `}`/`,`/other separator.
-Split out from `objectCoreAllPairs'` itself so it can stay ordinary `do`-notation
-(no termination concerns, since it never recurses) while still exposing the one
-guaranteed-shrinking step (the trailing `any`) that `objectCoreAllPairs'` needs
-for its own termination proof. -/
-def parseOnePair : Parser (String × Lean.Json × Char) := do
+/-- One `"key" : value` pair (not including the trailing `}`/`,`/separator
+character, which `objectCoreAllPairs'` now parses itself right after calling
+this). Split out from `objectCoreAllPairs'` so it can stay ordinary
+`do`-notation (no termination concerns, since it never recurses), while still
+exposing the one guaranteed-shrinking step (the leading `quotedStr`, which
+consumes the pair's opening `"`) that `objectCoreAllPairs'` relies on for its
+own termination proof. -/
+def parseOnePair : Parser (String × Lean.Json) := do
   let k ← quotedStr
   ws'
   skipString ":"
   ws'
   let v ← jsonFlatValue
-  let c ← any -- TODO: parse c at a higher level
-  pure (k, v, c)
+  pure (k, v)
 
 -- #check Parser.anyCore
 #check Parser.anyOfFn
@@ -814,8 +814,6 @@ theorem parseOnePair_shrinking : Shrinking parseOnePair := by
   intro _
   apply bind_nonBacktracking jsonFlatValue_nonBacktracking
   intro v
-  apply bind_nonBacktracking any_nonBacktracking
-  intro c
   exact pure_nonBacktracking _
 
 /--
@@ -828,16 +826,19 @@ def objectCoreAllPairs' (acc : Std.TreeMap.Raw String (List Lean.Json))
     ParseResult (Std.TreeMap.Raw String (List Lean.Json)) (Sigma String.Pos) :=
   match hp : parseOnePair it with
   | .error it' err => .error it' err
-  | .success it' (k, v, c) =>
-    if c == '}' then
-      .success (skipWsCore it') (acc.mergeWith (fun _ v₁ v₂ ↦ v₁ ++ v₂) {(k, [v])})
-    else if c == ',' then
-      objectCoreAllPairs' (acc.mergeWith (fun _ v₁ v₂ ↦ v₁ ++ v₂) {(k, [v])}) (skipWsCore it')
-    else
-      .error it' (.other "unexpected character in object")
+  | .success it' (k, v) =>
+    match hc : any it' with
+    | .error it'' err => .error it'' err
+    | .success it'' c =>
+      let acc' := acc.mergeWith (fun _ v₁ v₂ ↦ v₁ ++ v₂) {(k, [v])}
+      match c with
+      | '}' => .success (skipWsCore it'') acc'
+      | ',' => objectCoreAllPairs' acc' (skipWsCore it'')
+      | _ => .error it'' (.other "unexpected character in object")
 termination_by it.2.remainingBytes
 decreasing_by
-  exact Nat.lt_of_le_of_lt (skipWsCore_nonBacktracking it') (parseOnePair_shrinking _ _ _ hp)
+  exact Nat.lt_of_le_of_lt (skipWsCore_nonBacktracking it'')
+    (Nat.lt_of_le_of_lt (any_nonBacktracking _ _ _ hc) (parseOnePair_shrinking _ _ _ hp))
 
 end Parser
 
