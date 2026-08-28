@@ -781,12 +781,169 @@ theorem quotedStr_shrinking : Shrinking quotedStr := by
   intro _
   exact str_nonBacktracking
 
+namespace Parser
+
+/-- One step of `parseJSON'`: read one character with `any` and produce the next
+`(quoted, escaped, depth)` state (matching `{`/`}`). `Shrinking` since `any`
+consumes a character. -/
+def throwAwayJSONStep (quoted escaped : Bool) (depth : ℕ) : Parser (Bool × Bool × ℕ) := do
+  let c ← any
+  let quoted' := if c == '"' && !escaped then !quoted else quoted
+  let escaped' := c == '\\' && !escaped
+  let depth' :=
+    if quoted
+    then depth
+    else
+      if c == '{'
+      then depth + 1
+      else
+        if c == '}'
+        then depth - 1
+        else depth
+  pure (quoted', escaped', depth')
+
+theorem throwAwayJSONStep_shrinking (quoted escaped : Bool) (depth : ℕ) :
+    Shrinking (throwAwayJSONStep quoted escaped depth) := by
+  unfold throwAwayJSONStep
+  apply bind_shrinking_left any_shrinking
+  intro _
+  exact pure_nonBacktracking _
+
+/-- One step of `parseArray'`: like `parseJSONStep` but matching `[`/`]` instead of
+`{`/`}`. -/
+def throwAwayArrayStep (quoted escaped : Bool) (depth : ℕ) : Parser (Bool × Bool × ℕ) := do
+  let c ← any
+  let quoted' := if c == '"' && !escaped then !quoted else quoted
+  let escaped' := c == '\\' && !escaped
+  let depth' :=
+    if quoted
+    then depth
+    else
+      if c == '['
+      then depth + 1
+      else
+        if c == ']'
+        then depth - 1
+        else depth
+  pure (quoted', escaped', depth')
+
+theorem parseArrayStep_shrinking (quoted escaped : Bool) (depth : ℕ) :
+    Shrinking (throwAwayArrayStep quoted escaped depth) := by
+  unfold throwAwayArrayStep
+  apply bind_shrinking_left any_shrinking
+  intro _
+  exact pure_nonBacktracking _
+
+end Parser
+
+def throwAwayJSON' (quoted escaped init : Bool) (depth : ℕ) (it : Sigma String.Pos) :
+    ParseResult Unit (Sigma String.Pos) :=
+  match hb : Parser.throwAwayJSONStep quoted escaped depth it with
+  | .error it' err => .error it' err
+  | .success it' (quoted', escaped', depth') =>
+    if depth' == 0
+    then
+      if init
+      then .error it' (.other "")
+      else .success it' ()
+    else throwAwayJSON' quoted' escaped' false depth' it'
+termination_by it.2.remainingBytes
+decreasing_by exact Parser.Parser.throwAwayJSONStep_shrinking _ _ _ _ _ _ hb
+
+def throwAwayJSON : Parser Unit :=
+  throwAwayJSON' false false true 0
+
+theorem throwAwayJSON'_nonBacktracking :
+    ∀ (q e i : Bool) (d : ℕ) (it it' : Sigma String.Pos) (u : Unit),
+      throwAwayJSON' q e i d it = .success it' u →
+      it'.2.remainingBytes ≤ it.2.remainingBytes := by
+  intro q e i d it
+  induction q, e, i, d, it using throwAwayJSON'.induct with
+  | case1 quoted escaped init depth it it' err hb =>
+    intro itr u heq
+    rw [throwAwayJSON'.eq_def, hb] at heq
+    injection heq
+  | case2 quoted escaped depth it it' quoted' escaped' depth' hb hd0 =>
+    intro itr u heq
+    rw [throwAwayJSON'.eq_def, hb] at heq
+    simp only [hd0, if_true] at heq
+    injection heq
+  | case3 quoted escaped init depth it it' quoted' escaped' depth' hb hd0 hni =>
+    intro itr u heq
+    rw [throwAwayJSON'.eq_def, hb] at heq
+    simp only [hd0, if_true, hni] at heq
+    injection heq with h1 h2
+    subst h1
+    exact Nat.le_of_lt
+      (Parser.throwAwayJSONStep_shrinking quoted escaped depth it it' _ hb)
+  | case4 quoted escaped init depth it it' quoted' escaped' depth' hb hnd0 ih =>
+    intro itr u heq
+    rw [throwAwayJSON'.eq_def, hb] at heq
+    simp only [hnd0] at heq
+    exact Nat.le_trans (ih itr u heq)
+      (Nat.le_of_lt
+        (Parser.throwAwayJSONStep_shrinking quoted escaped depth it it' _ hb))
+
+lemma throwAwayJSON_NonBacktracking : NonBacktracking throwAwayJSON :=
+  fun it it' u h => throwAwayJSON'_nonBacktracking false false true 0 it it' u h
+
+def throwAwayArray' (quoted escaped init : Bool) (depth : ℕ) (it : Sigma String.Pos) :
+    ParseResult Unit (Sigma String.Pos) :=
+  match hb : Parser.throwAwayArrayStep quoted escaped depth it with
+  | .error it' err => .error it' err
+  | .success it' (quoted', escaped', depth') =>
+    if depth' == 0
+    then
+      if init
+      then .error it' (.other "")
+      else .success it' ()
+    else throwAwayArray' quoted' escaped' false depth' it'
+termination_by it.2.remainingBytes
+decreasing_by exact Parser.parseArrayStep_shrinking _ _ _ _ _ _ hb
+
+def throwAwayArray : Parser Unit :=
+  throwAwayArray' false false true 0
+
+theorem throwAwayArray'_nonBacktracking :
+    ∀ (q e i : Bool) (d : ℕ) (it it' : Sigma String.Pos) (u : Unit),
+      throwAwayArray' q e i d it = .success it' u →
+      it'.2.remainingBytes ≤ it.2.remainingBytes := by
+  intro q e i d it
+  induction q, e, i, d, it using throwAwayArray'.induct with
+  | case1 quoted escaped init depth it it' err hb =>
+    intro itr u heq
+    rw [throwAwayArray'.eq_def, hb] at heq
+    injection heq
+  | case2 quoted escaped depth it it' quoted' escaped' depth' hb hd0 =>
+    intro itr u heq
+    rw [throwAwayArray'.eq_def, hb] at heq
+    simp only [hd0, if_true] at heq
+    injection heq
+  | case3 quoted escaped init depth it it' quoted' escaped' depth' hb hd0 hni =>
+    intro itr u heq
+    rw [throwAwayArray'.eq_def, hb] at heq
+    simp only [hd0, if_true, hni] at heq
+    injection heq with h1 h2
+    subst h1
+    exact Nat.le_of_lt
+      (Parser.parseArrayStep_shrinking quoted escaped depth it it' _ hb)
+  | case4 quoted escaped init depth it it' quoted' escaped' depth' hb hnd0 ih =>
+    intro itr u heq
+    rw [throwAwayArray'.eq_def, hb] at heq
+    simp only [hnd0] at heq
+    exact Nat.le_trans (ih itr u heq)
+      (Nat.le_of_lt
+        (Parser.parseArrayStep_shrinking quoted escaped depth it it' _ hb))
+
+lemma throwAwayArray_NonBacktracking : NonBacktracking throwAwayArray :=
+  fun it it' u h => throwAwayArray'_nonBacktracking false false true 0 it it' u h
+
 /--
 Like `Json.Parser.anyCore`, but only parses flat JSON values (strings, numbers,
 booleans, null), never arrays or objects. Since it never recurses into itself,
 unlike `anyCore` it does not need to be `partial`.
 -/
-def jsonFlatValue : Parser Lean.Json := do
+def jsonValue : Parser Lean.Json := do
   let c ← peek!
   if c == '\"' then
     let s ← quotedStr
@@ -805,16 +962,16 @@ def jsonFlatValue : Parser Lean.Json := do
     let n ← ourNum
     ws'
     return Lean.Json.num n
-  else
-    fail "unexpected input"
+  else if c == '{' then
+    throwAwayJSON
+    pure Json.null
+  else if c == '[' then
+    throwAwayArray
+    pure Json.null
+  else fail "unexpected input"
 
--- { "...." ... { ... } }
-#check Parser.objectCore
--- def parseJson' (isEscaped isQuoted : Bool) : Parser Unit := do
---   pure ()
-
-theorem jsonFlatValue_nonBacktracking : NonBacktracking jsonFlatValue := by
-  unfold jsonFlatValue
+theorem jsonFlatValue_nonBacktracking : NonBacktracking jsonValue := by
+  unfold jsonValue
   apply bind_nonBacktracking peek!_nonBacktracking
   intro c
   dsimp only
@@ -848,7 +1005,15 @@ theorem jsonFlatValue_nonBacktracking : NonBacktracking jsonFlatValue := by
             apply bind_nonBacktracking ws'_nonBacktracking
             intro _
             exact pure_nonBacktracking _
-          · exact fail_vacuous _
+          · split
+            · exact bind_nonBacktracking
+                      throwAwayJSON_NonBacktracking
+                      fun _ ↦ pure_nonBacktracking null
+            · split
+              · exact bind_nonBacktracking
+                        throwAwayArray_NonBacktracking
+                        fun _ ↦ pure_nonBacktracking null
+              · exact fail_vacuous _
 
 theorem bind_shrinking_of_nonBacktracking_shrinking {f : Parser α} {g : α → Parser β}
     (hf : NonBacktracking f) (hg : ∀ a, Shrinking (g a)) :
@@ -860,9 +1025,6 @@ theorem bind_shrinking_of_nonBacktracking_shrinking {f : Parser α} {g : α → 
     exact Nat.lt_of_lt_of_le (hg a rem it' b h) (hf it rem a hrem)
   · injection h
 
--- #check Parser.anyCore
-#check Parser.anyOfFn
-
 /-- Parses a `"key" : value` pair, but instead of returning the parsed value verbatim, immediately
 dispatches it through `aptosFieldValueFromJson` — fusing `AptosPayload`'s per-field type
 and semantic checks into the point where each pair's value is parsed. Returns `[]` for a
@@ -873,7 +1035,7 @@ def parseOneAptosPair (uidKey : UidKey) (extraFieldKey : String) :
   ws'
   skipString ":"
   ws'
-  let v ← jsonFlatValue
+  let v ← jsonValue
   match aptosFieldValueFromJson uidKey extraFieldKey k v with
   | .ok vs => pure vs
   | .error e => fail e
@@ -1416,20 +1578,20 @@ example : -- an empty `nonce` is rejected
 -- ---------------------------------------------------------------------------
 
 example : -- the local number lexer agrees with `Json.parse` across a range of literal forms
-  (Parser.run Parser.jsonFlatValue "0").toOption == (Lean.Json.parse "0").toOption
-  ∧ (Parser.run Parser.jsonFlatValue "-0").toOption == (Lean.Json.parse "-0").toOption
-  ∧ (Parser.run Parser.jsonFlatValue "123").toOption == (Lean.Json.parse "123").toOption
-  ∧ (Parser.run Parser.jsonFlatValue "1.5").toOption == (Lean.Json.parse "1.5").toOption
-  ∧ (Parser.run Parser.jsonFlatValue "1e10").toOption == (Lean.Json.parse "1e10").toOption
-  ∧ (Parser.run Parser.jsonFlatValue "1E-3").toOption == (Lean.Json.parse "1E-3").toOption
-  ∧ (Parser.run Parser.jsonFlatValue "1.5e+2").toOption == (Lean.Json.parse "1.5e+2").toOption
-  ∧ (Parser.run Parser.jsonFlatValue "0.0").toOption == (Lean.Json.parse "0.0").toOption
+  (Parser.run Parser.jsonValue "0").toOption == (Lean.Json.parse "0").toOption
+  ∧ (Parser.run Parser.jsonValue "-0").toOption == (Lean.Json.parse "-0").toOption
+  ∧ (Parser.run Parser.jsonValue "123").toOption == (Lean.Json.parse "123").toOption
+  ∧ (Parser.run Parser.jsonValue "1.5").toOption == (Lean.Json.parse "1.5").toOption
+  ∧ (Parser.run Parser.jsonValue "1e10").toOption == (Lean.Json.parse "1e10").toOption
+  ∧ (Parser.run Parser.jsonValue "1E-3").toOption == (Lean.Json.parse "1E-3").toOption
+  ∧ (Parser.run Parser.jsonValue "1.5e+2").toOption == (Lean.Json.parse "1.5e+2").toOption
+  ∧ (Parser.run Parser.jsonValue "0.0").toOption == (Lean.Json.parse "0.0").toOption
 := by native_decide
 
 example : -- malformed numbers are rejected by the local number lexer
-  (Parser.run Parser.jsonFlatValue "1.").toOption == none
-  ∧ (Parser.run Parser.jsonFlatValue ".").toOption == none
-  ∧ (Parser.run Parser.jsonFlatValue "-").toOption == none
+  (Parser.run Parser.jsonValue "1.").toOption == none
+  ∧ (Parser.run Parser.jsonValue ".").toOption == none
+  ∧ (Parser.run Parser.jsonValue "-").toOption == none
 := by native_decide
 
 example : -- a number with a disallowed leading zero (e.g. `01`) is rejected once embedded in an
@@ -1447,7 +1609,7 @@ example : -- a number with a disallowed leading zero (e.g. `01`) is rejected onc
 -- ---------------------------------------------------------------------------
 
 example : -- the local string lexer agrees with `Json.parse` on the empty string
-  (Parser.run Parser.jsonFlatValue "\"\"").toOption == (Lean.Json.parse "\"\"").toOption
+  (Parser.run Parser.jsonValue "\"\"").toOption == (Lean.Json.parse "\"\"").toOption
 := by native_decide
 
 example : -- the local string lexer agrees with `Json.parse` on each basic escape sequence
@@ -1457,51 +1619,51 @@ example : -- the local string lexer agrees with `Json.parse` on each basic escap
   let bksp   := String.ofList ['"', '\\', 'b', '"']
   let ff     := String.ofList ['"', '\\', 'f', '"']
   let cr     := String.ofList ['"', '\\', 'r', '"']
-  (Parser.run Parser.jsonFlatValue bslash).toOption == (Lean.Json.parse bslash).toOption
-  ∧ (Parser.run Parser.jsonFlatValue quote).toOption == (Lean.Json.parse quote).toOption
-  ∧ (Parser.run Parser.jsonFlatValue slash).toOption == (Lean.Json.parse slash).toOption
-  ∧ (Parser.run Parser.jsonFlatValue bksp).toOption == (Lean.Json.parse bksp).toOption
-  ∧ (Parser.run Parser.jsonFlatValue ff).toOption == (Lean.Json.parse ff).toOption
-  ∧ (Parser.run Parser.jsonFlatValue cr).toOption == (Lean.Json.parse cr).toOption
+  (Parser.run Parser.jsonValue bslash).toOption == (Lean.Json.parse bslash).toOption
+  ∧ (Parser.run Parser.jsonValue quote).toOption == (Lean.Json.parse quote).toOption
+  ∧ (Parser.run Parser.jsonValue slash).toOption == (Lean.Json.parse slash).toOption
+  ∧ (Parser.run Parser.jsonValue bksp).toOption == (Lean.Json.parse bksp).toOption
+  ∧ (Parser.run Parser.jsonValue ff).toOption == (Lean.Json.parse ff).toOption
+  ∧ (Parser.run Parser.jsonValue cr).toOption == (Lean.Json.parse cr).toOption
 := by native_decide
 
 example : -- a valid surrogate pair (`\ud83d\ude00` = 😀) decodes the same way as `Json.parse`
   let s := String.ofList ['"', '\\', 'u', 'd', '8', '3', 'd', '\\', 'u', 'd', 'e', '0', '0', '"']
-  (Parser.run Parser.jsonFlatValue s).toOption == (Lean.Json.parse s).toOption
-  ∧ (Parser.run Parser.jsonFlatValue s).toOption == some (Json.str "😀")
+  (Parser.run Parser.jsonValue s).toOption == (Lean.Json.parse s).toOption
+  ∧ (Parser.run Parser.jsonValue s).toOption == some (Json.str "😀")
 := by native_decide
 
 example : -- a lone high surrogate not followed by a valid low surrogate falls back to U+FFFD,
           -- without swallowing the following character, matching `Json.parse`
   let s := String.ofList ['"', '\\', 'u', 'd', '8', '0', '0', 'A', '"']
-  (Parser.run Parser.jsonFlatValue s).toOption == (Lean.Json.parse s).toOption
-  ∧ (Parser.run Parser.jsonFlatValue s).toOption == some (Json.str "\ufffdA")
+  (Parser.run Parser.jsonValue s).toOption == (Lean.Json.parse s).toOption
+  ∧ (Parser.run Parser.jsonValue s).toOption == some (Json.str "\ufffdA")
 := by native_decide
 
 example : -- an unescaped, raw multi-byte UTF-8 character is accepted directly (no `\u` needed)
   let s := String.ofList ['"', 'h', 'é', 'l', 'l', 'o', '"']
-  (Parser.run Parser.jsonFlatValue s).toOption == (Lean.Json.parse s).toOption
-  ∧ (Parser.run Parser.jsonFlatValue s).toOption == some (Json.str "héllo")
+  (Parser.run Parser.jsonValue s).toOption == (Lean.Json.parse s).toOption
+  ∧ (Parser.run Parser.jsonValue s).toOption == some (Json.str "héllo")
 := by native_decide
 
 example : -- an unterminated string (no closing quote) is rejected
   let s := String.ofList ['"', 'a', 'b', 'c']
-  (Parser.run Parser.jsonFlatValue s).toOption == none
+  (Parser.run Parser.jsonValue s).toOption == none
 := by native_decide
 
 example : -- a raw, unescaped control character (e.g. a literal tab) inside a string is rejected
   let s := String.ofList ['"', '\t', '"']
-  (Parser.run Parser.jsonFlatValue s).toOption == none
+  (Parser.run Parser.jsonValue s).toOption == none
 := by native_decide
 
 example : -- an unrecognized escape character (e.g. `\a`) is rejected
   let s := String.ofList ['"', '\\', 'a', '"']
-  (Parser.run Parser.jsonFlatValue s).toOption == none
+  (Parser.run Parser.jsonValue s).toOption == none
 := by native_decide
 
 example : -- an invalid hex digit in a `\u` escape is rejected
   let s := String.ofList ['"', '\\', 'u', 'Z', 'Z', 'Z', 'Z', '"']
-  (Parser.run Parser.jsonFlatValue s).toOption == none
+  (Parser.run Parser.jsonValue s).toOption == none
 := by native_decide
 
 -- ---------------------------------------------------------------------------
@@ -1754,14 +1916,14 @@ example :
 := by native_decide
 
 example : -- the local string lexer (`Parser.str`) agrees with `Json.parse` on `\n`/`\t`/`\uXXXX` escapes
-  (Parser.run Parser.jsonFlatValue "\"a\\nb\\tc\\u0041\"").toOption.isSome
-  ∧ (Parser.run Parser.jsonFlatValue "\"a\\nb\\tc\\u0041\"").toOption
+  (Parser.run Parser.jsonValue "\"a\\nb\\tc\\u0041\"").toOption.isSome
+  ∧ (Parser.run Parser.jsonValue "\"a\\nb\\tc\\u0041\"").toOption
       == (Lean.Json.parse "\"a\\nb\\tc\\u0041\"").toOption
 := by native_decide
 
 example : -- the local number lexer (`Parser.ourNum`) agrees with `Json.parse` on a signed decimal with an exponent
-  (Parser.run Parser.jsonFlatValue "-1.5e2").toOption.isSome
-  ∧ (Parser.run Parser.jsonFlatValue "-1.5e2").toOption == (Lean.Json.parse "-1.5e2").toOption
+  (Parser.run Parser.jsonValue "-1.5e2").toOption.isSome
+  ∧ (Parser.run Parser.jsonValue "-1.5e2").toOption == (Lean.Json.parse "-1.5e2").toOption
 := by native_decide
 
 end Keyless
