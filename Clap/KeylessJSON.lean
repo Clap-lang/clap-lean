@@ -92,6 +92,83 @@ def emailVerifiedFromJson : Json → Except String Bool
   | .str s => throw s!"The field (email_verified) must be true, false, \"true\" or \"false\", but got (\"{s}\")."
   | _ => throw "The field (email_verified) must be a boolean or a string."
 
+/-- A JSON value already dispatched, converted, and validated against one of
+`AptosPayload`'s known fields (by `aptosFieldValueFromJson`). -/
+inductive AptosFieldValue where
+  | iss (s : String)
+  | aud (s : String)
+  | uid (s : String)
+  | iat (n : ℕ)
+  | emailVerified (b : Bool)
+  | nonce (s : String)
+  | extraField (s : String)
+  deriving Repr, BEq
+
+/-- Given a JSON key `key` and its already-parsed value `j`, checks which (if any) of
+`AptosPayload`'s fields `key` names — given the per-request `uidKey`/`extraFieldKey`
+configuration — and converts+validates `j` into the correspondingly typed
+`AptosFieldValue`(s). This is what used to be `payload_from_json`'s per-field type checks
+(`getObjValAs?`) and per-field semantic checks (the `nonce`/`email_verified` shape
+checks), now applied right where each field's value is parsed instead of after the whole
+JSON object has been assembled. `Json.getStr?`/`Json.getNat?` are the same conversions
+`FromJson String`/`FromJson Nat` (hence `getObjValAs?`) use, so type-check behavior is
+unchanged. The one remaining cross-field check (`uidKey == .email → email_verified`)
+still needs the whole record, so it happens once per candidate in `AptosFieldAcc.toPayloads`.
+
+`key` may name more than one field at once (e.g. `extraFieldKey == uidKey.fieldName`), in
+which case `j` is converted for every field it names; if any of those conversions fails,
+the whole call fails (matching what independently calling `getObjValAs?` once per field
+against the same JSON value would do today). A `key` naming none of `AptosPayload`'s
+fields yields `[]`. -/
+def aptosFieldValueFromJson (uidKey : UidKey) (extraFieldKey key : String) (j : Json) :
+    Except String (List AptosFieldValue) :=
+  let roles : List (Option (Except String AptosFieldValue)) :=
+    [ if key == "iss" then some (AptosFieldValue.iss <$> j.getStr?) else none
+    , if key == "aud" then some (AptosFieldValue.aud <$> j.getStr?) else none
+    , if key == uidKey.fieldName then some (AptosFieldValue.uid <$> j.getStr?) else none
+    , if key == "iat" then some (AptosFieldValue.iat <$> j.getNat?) else none
+    , if key == "email_verified" then
+        some (AptosFieldValue.emailVerified <$> emailVerifiedFromJson j)
+      else none
+    , if key == "nonce" then
+        some do
+          let s ← j.getStr?
+          if s.isEmpty || !s.all Char.isDigit then
+            throw s!"The field (nonce) must be a non-empty digit string, but got (\"{s}\")."
+          pure (AptosFieldValue.nonce s)
+      else none
+    , if key == extraFieldKey then some (AptosFieldValue.extraField <$> j.getStr?) else none
+    ]
+  roles.reduceOption.mapM id
+
+
+/-- Accumulates one candidate list of typed values per `AptosPayload` field while
+scanning a JSON object's key-value pairs, so a field appearing more than once (a
+duplicate JSON key) still yields every candidate value — mirrors
+`objectCoreAllPairs'`'s `Std.TreeMap.Raw String (List Json)` accumulator, but pre-typed
+and pre-validated per field via `aptosFieldValueFromJson`. -/
+structure AptosFieldAcc where
+  iss           : List String := []
+  aud           : List String := []
+  uid           : List String := []
+  iat           : List ℕ      := []
+  emailVerified : List Bool   := []
+  nonce         : List String := []
+  extraField    : List String := []
+  deriving Inhabited
+
+/-- Prepends one more candidate value onto whichever field it belongs to (cheaper than
+appending; the resulting per-field order is last-occurrence-first, which nothing depends
+on). -/
+def AptosFieldAcc.insert : AptosFieldAcc → AptosFieldValue → AptosFieldAcc
+  | acc, .iss s           => { acc with iss := s :: acc.iss }
+  | acc, .aud s           => { acc with aud := s :: acc.aud }
+  | acc, .uid s           => { acc with uid := s :: acc.uid }
+  | acc, .iat n           => { acc with iat := n :: acc.iat }
+  | acc, .emailVerified b => { acc with emailVerified := b :: acc.emailVerified }
+  | acc, .nonce s         => { acc with nonce := s :: acc.nonce }
+  | acc, .extraField s    => { acc with extraField := s :: acc.extraField }
+
 /-
 `Json.Parser.str`/`Json.Parser.num` bottom out in `partial def`s (`strCore`, `natCore`,
 `natCoreNumDigits`) that Lean cannot prove terminating on its own, so it compiles them
@@ -840,6 +917,61 @@ decreasing_by
   exact Nat.lt_of_le_of_lt (skipWsCore_nonBacktracking it'')
     (Nat.lt_of_le_of_lt (any_nonBacktracking _ _ _ hc) (parseOnePair_shrinking _ _ _ hp))
 
+/-- Like `parseOnePair`, but instead of returning the parsed value verbatim, immediately
+dispatches it through `aptosFieldValueFromJson` — fusing `AptosPayload`'s per-field type
+and semantic checks into the point where each pair's value is parsed. Returns `[]` for a
+key that names none of `AptosPayload`'s fields. -/
+def parseOneAptosPair (uidKey : UidKey) (extraFieldKey : String) :
+    Parser (List AptosFieldValue) := do
+  let k ← quotedStr
+  ws'
+  skipString ":"
+  ws'
+  let v ← jsonFlatValue
+  match aptosFieldValueFromJson uidKey extraFieldKey k v with
+  | .ok vs => pure vs
+  | .error e => fail e
+
+theorem parseOneAptosPair_shrinking (uidKey : UidKey) (extraFieldKey : String) :
+    Shrinking (parseOneAptosPair uidKey extraFieldKey) := by
+  unfold parseOneAptosPair
+  apply bind_shrinking_left quotedStr_shrinking
+  intro k
+  apply bind_nonBacktracking ws'_nonBacktracking
+  intro _
+  apply bind_nonBacktracking (skipString_nonBacktracking _)
+  intro _
+  apply bind_nonBacktracking ws'_nonBacktracking
+  intro _
+  apply bind_nonBacktracking jsonFlatValue_nonBacktracking
+  intro v
+  dsimp only
+  cases aptosFieldValueFromJson uidKey extraFieldKey k v with
+  | ok vs => exact pure_nonBacktracking _
+  | error e => exact fail_vacuous _
+
+/-- Like `objectCoreAllPairs'`, but accumulates typed, per-field-validated
+`AptosFieldValue`s (via `parseOneAptosPair`) into an `AptosFieldAcc` instead of a
+generic `Std.TreeMap.Raw String (List Json)`. -/
+def objectCoreAllAptosPairs' (uidKey : UidKey) (extraFieldKey : String) (acc : AptosFieldAcc)
+    (it : Sigma String.Pos) : ParseResult AptosFieldAcc (Sigma String.Pos) :=
+  match hp : parseOneAptosPair uidKey extraFieldKey it with
+  | .error it' err => .error it' err
+  | .success it' vs =>
+    match hc : any it' with
+    | .error it'' err => .error it'' err
+    | .success it'' c =>
+      let acc' := vs.foldl AptosFieldAcc.insert acc
+      match c with
+      | '}' => .success (skipWsCore it'') acc'
+      | ',' => objectCoreAllAptosPairs' uidKey extraFieldKey acc' (skipWsCore it'')
+      | _ => .error it'' (.other "unexpected character in object")
+termination_by it.2.remainingBytes
+decreasing_by
+  exact Nat.lt_of_le_of_lt (skipWsCore_nonBacktracking it'')
+    (Nat.lt_of_le_of_lt (any_nonBacktracking _ _ _ hc)
+      (parseOneAptosPair_shrinking uidKey extraFieldKey _ _ _ hp))
+
 end Parser
 
 /-- All ways of picking one value for each key from its list of candidate values
@@ -868,57 +1000,60 @@ def anyFlatNondet : Parser (List Json) := do
   eof
   pure alts
 
--- #check Parser.char
+/-- Like `anyFlatNondet`, but scans the object's pairs straight into an `AptosFieldAcc`
+via `Parser.objectCoreAllAptosPairs'`, fusing `AptosPayload`'s per-field type/semantic
+checks into the scan instead of building a generic `Json` first. -/
+def aptosFieldsFromJson (uidKey : UidKey) (extraFieldKey : String) : Parser AptosFieldAcc := do
+  Parser.ws'
+  skipString "{"; Parser.ws'
+  let c ← peek!
+  let acc ←
+    if c == '}' then
+      skip; Parser.ws'
+      pure {}
+    else
+      Parser.objectCoreAllAptosPairs' uidKey extraFieldKey {}
+  eof
+  pure acc
 
-def payload_from_json
-  (uidKey : UidKey)
-  -- (expHorizon : ℕ)
-  (extraFieldKey : String)
-  (j : Json)
-  :
-  Except String AptosPayload
-:= do
-  -- TODO: move these checks at the json parsing level
-  let iss : String <- j.getObjValAs? String "iss"
-  let aud : String <- j.getObjValAs? String "aud"
-  let iat : ℕ <- j.getObjValAs? ℕ "iat"
-  -- let exp : ℕ <- j.getObjValAs? ℕ "exp"
-  let uid : String <- j.getObjValAs? String uidKey.fieldName
-  let emailVerifiedJson : Json <- j.getObjVal? "email_verified"
-  let email_verified : Bool <- emailVerifiedFromJson emailVerifiedJson
-  let nonce : String <- j.getObjValAs? String "nonce"
-  let extra_field : String <- j.getObjValAs? String extraFieldKey
+/-- Turns a fully-scanned `AptosFieldAcc` into every candidate `AptosPayload` implied by
+its duplicate-key combinatorics (mirroring `keyValueAlts`), after checking every field
+was present at least once, and applying the one remaining cross-field check
+(`uidKey == .email → email_verified`) that needs the whole record and so couldn't be
+fused into `aptosFieldValueFromJson`. -/
+def AptosFieldAcc.toPayloads (uidKey : UidKey) (extraFieldKey : String) (acc : AptosFieldAcc) :
+    Except String (List AptosPayload) := do
+  if acc.iss.isEmpty then throw "The field (iss) is required."
+  if acc.aud.isEmpty then throw "The field (aud) is required."
+  if acc.uid.isEmpty then throw s!"The field ({uidKey.fieldName}) is required."
+  if acc.iat.isEmpty then throw "The field (iat) is required."
+  if acc.emailVerified.isEmpty then throw "The field (email_verified) is required."
+  if acc.nonce.isEmpty then throw "The field (nonce) is required."
+  if acc.extraField.isEmpty then throw s!"The field ({extraFieldKey}) is required."
 
-  if nonce.isEmpty || !nonce.all Char.isDigit then
-    -- Equal to Poseidon(epk, epk_len, exp_date, blinder)?
-    throw s!"The field (nonce) must be a non-empty digit string, but got (\"{nonce}\")."
+  let candidates : List AptosPayload :=
+    acc.iss.flatMap fun iss =>
+    acc.aud.flatMap fun aud =>
+    acc.uid.flatMap fun uid =>
+    acc.iat.flatMap fun iat =>
+    acc.emailVerified.flatMap fun email_verified =>
+    acc.nonce.flatMap fun nonce =>
+    acc.extraField.map fun extra_field =>
+      { iss, aud, uid, iat, email_verified, nonce, extra_field : AptosPayload }
 
-  -- TODO: These checks are not syntactic. Move them outside the parsing function?
-  if uidKey == UidKey.email && email_verified = false then
-    throw s!"The user id key is email, but email_verified is false"
-
-  -- if iat + expHorizon ≤ exp then
-  --   throw s!"iat + expHorizon ≤ exp ({iat} + {expHorizon} = {iat + expHorizon} ≤ {exp})"
-
-  -- if exp ≤ iat then
-  -- Aptos "We do not assert the expiration date is in the future (i.e., assert exp_date > jwt["iat"])""
-
-
-  -- https://openid.net/specs/openid-connect-core-1_0.html#IDToken
-  -- "current date/time MUST be before the expiration date/time listed in the value."
-  -- what does aptos check?
-
-  return { iss, aud, uid, iat, /-exp,-/ email_verified, nonce, extra_field }
+  candidates.mapM fun p => do
+    if uidKey == UidKey.email && p.email_verified = false then
+      throw s!"The user id key is email, but email_verified is false"
+    return p
 
 def payloads_from_json_string
   (uidKey : UidKey)
   (extraFieldKey : String)
-  -- (expHorizon : ℕ)
   (s: String) :
   Except String (List AptosPayload)
 := do
-  let j : List Json <- Parser.run anyFlatNondet s
-  j.mapM (payload_from_json uidKey /-expHorizon-/ extraFieldKey)
+  let acc ← Parser.run (aptosFieldsFromJson uidKey extraFieldKey) s
+  acc.toPayloads uidKey extraFieldKey
 
 /-
   json accepted by the constraint system →
@@ -1160,7 +1295,7 @@ example : -- duplicated `iss`
     (jsonInput_duplicated_iss1 (emailVerified := "true"))
   ).toOption
     == some
-      [ { iss := "dummy iss",
+      [ { iss := "dummy iss 2",
           uid := "dummy sub",
           aud := "dummy aud",
           iat := 1719866138,
@@ -1168,7 +1303,7 @@ example : -- duplicated `iss`
           email_verified := true,
           nonce := "159196287899032468733794277330513742183729069551015157917",
           extra_field := "40" }
-      , { iss := "dummy iss 2",
+      , { iss := "dummy iss",
           uid := "dummy sub",
           aud := "dummy aud",
           iat := 1719866138,
@@ -1266,6 +1401,25 @@ example : -- extra field doesn't exist
   ).toOption
     = .none
   := by native_decide
+
+example : -- `extraFieldKey` colliding with `uidKey.fieldName` (both "sub"): the same JSON
+          -- value populates both `uid` and `extra_field`, matching what independently
+          -- calling `getObjValAs?` twice against the same key would give
+  (payloads_from_json_string
+    (uidKey := .sub)
+    (extraFieldKey := "sub")
+    (jsonInput (emailVerified := "true"))
+  ).toOption
+    == some
+      [ { iss := "dummy iss",
+          uid := "dummy sub",
+          aud := "dummy aud",
+          iat := 1719866138,
+          email_verified := true,
+          nonce := "159196287899032468733794277330513742183729069551015157917",
+          extra_field := "dummy sub" }
+      ]
+:= by native_decide
 
 example : -- missing iss field
   (payloads_from_json_string
