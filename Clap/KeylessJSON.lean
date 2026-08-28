@@ -144,9 +144,8 @@ def aptosFieldValueFromJson (uidKey : UidKey) (extraFieldKey key : String) (j : 
 
 /-- Accumulates one candidate list of typed values per `AptosPayload` field while
 scanning a JSON object's key-value pairs, so a field appearing more than once (a
-duplicate JSON key) still yields every candidate value — mirrors
-`objectCoreAllPairs'`'s `Std.TreeMap.Raw String (List Json)` accumulator, but pre-typed
-and pre-validated per field via `aptosFieldValueFromJson`. -/
+duplicate JSON key) still yields every candidate value, pre-typed and pre-validated
+per field via `aptosFieldValueFromJson`. -/
 structure AptosFieldAcc where
   iss           : List String := []
   aud           : List String := []
@@ -155,7 +154,7 @@ structure AptosFieldAcc where
   emailVerified : List Bool   := []
   nonce         : List String := []
   extraField    : List String := []
-  deriving Inhabited
+  deriving Inhabited, BEq
 
 /-- Prepends one more candidate value onto whichever field it belongs to (cheaper than
 appending; the resulting per-field order is last-occurrence-first, which nothing depends
@@ -175,7 +174,7 @@ def AptosFieldAcc.insert : AptosFieldAcc → AptosFieldValue → AptosFieldAcc
 to opaque constants (confirmed via `#print`): nothing about their behavior, not even
 "the input position never moves backwards", is provable. This namespace locally
 reimplements just the string/number lexing loops that were opaque, with real
-termination proofs, so that `objectCoreAllPairs'` below can get a genuine
+termination proofs, so that `objectCoreAllAptosPairs'` below can get a genuine
 `decreasing_by` proof (no `sorry`, no `partial`) instead of the placeholder it had.
 -/
 namespace Parser
@@ -861,63 +860,10 @@ theorem bind_shrinking_of_nonBacktracking_shrinking {f : Parser α} {g : α → 
     exact Nat.lt_of_lt_of_le (hg a rem it' b h) (hf it rem a hrem)
   · injection h
 
-/-- One `"key" : value` pair (not including the trailing `}`/`,`/separator
-character, which `objectCoreAllPairs'` now parses itself right after calling
-this). Split out from `objectCoreAllPairs'` so it can stay ordinary
-`do`-notation (no termination concerns, since it never recurses), while still
-exposing the one guaranteed-shrinking step (the leading `quotedStr`, which
-consumes the pair's opening `"`) that `objectCoreAllPairs'` relies on for its
-own termination proof. -/
-def parseOnePair : Parser (String × Lean.Json) := do
-  let k ← quotedStr
-  ws'
-  skipString ":"
-  ws'
-  let v ← jsonFlatValue
-  pure (k, v)
-
 -- #check Parser.anyCore
 #check Parser.anyOfFn
 
-theorem parseOnePair_shrinking : Shrinking parseOnePair := by
-  unfold parseOnePair
-  apply bind_shrinking_left quotedStr_shrinking
-  intro _
-  apply bind_nonBacktracking ws'_nonBacktracking
-  intro _
-  apply bind_nonBacktracking (skipString_nonBacktracking _)
-  intro _
-  apply bind_nonBacktracking ws'_nonBacktracking
-  intro _
-  apply bind_nonBacktracking jsonFlatValue_nonBacktracking
-  intro v
-  exact pure_nonBacktracking _
-
-/--
-Parse a list of one or more key-value pairs followed by a "}".
-Implemented like `Json.Parser.objectCore`, but it keeps all the claims from the
-top level that share the same key.
--/
-def objectCoreAllPairs' (acc : Std.TreeMap.Raw String (List Lean.Json))
-    (it : Sigma String.Pos) :
-    ParseResult (Std.TreeMap.Raw String (List Lean.Json)) (Sigma String.Pos) :=
-  match hp : parseOnePair it with
-  | .error it' err => .error it' err
-  | .success it' (k, v) =>
-    match hc : any it' with
-    | .error it'' err => .error it'' err
-    | .success it'' c =>
-      let acc' := acc.mergeWith (fun _ v₁ v₂ ↦ v₁ ++ v₂) {(k, [v])}
-      match c with
-      | '}' => .success (skipWsCore it'') acc'
-      | ',' => objectCoreAllPairs' acc' (skipWsCore it'')
-      | _ => .error it'' (.other "unexpected character in object")
-termination_by it.2.remainingBytes
-decreasing_by
-  exact Nat.lt_of_le_of_lt (skipWsCore_nonBacktracking it'')
-    (Nat.lt_of_le_of_lt (any_nonBacktracking _ _ _ hc) (parseOnePair_shrinking _ _ _ hp))
-
-/-- Like `parseOnePair`, but instead of returning the parsed value verbatim, immediately
+/-- Parses a `"key" : value` pair, but instead of returning the parsed value verbatim, immediately
 dispatches it through `aptosFieldValueFromJson` — fusing `AptosPayload`'s per-field type
 and semantic checks into the point where each pair's value is parsed. Returns `[]` for a
 key that names none of `AptosPayload`'s fields. -/
@@ -950,9 +896,8 @@ theorem parseOneAptosPair_shrinking (uidKey : UidKey) (extraFieldKey : String) :
   | ok vs => exact pure_nonBacktracking _
   | error e => exact fail_vacuous _
 
-/-- Like `objectCoreAllPairs'`, but accumulates typed, per-field-validated
-`AptosFieldValue`s (via `parseOneAptosPair`) into an `AptosFieldAcc` instead of a
-generic `Std.TreeMap.Raw String (List Json)`. -/
+/-- Parses a list of one or more key-value pairs followed by a "}", accumulating typed,
+per-field-validated `AptosFieldValue`s (via `parseOneAptosPair`) into an `AptosFieldAcc`. -/
 def objectCoreAllAptosPairs' (uidKey : UidKey) (extraFieldKey : String) (acc : AptosFieldAcc)
     (it : Sigma String.Pos) : ParseResult AptosFieldAcc (Sigma String.Pos) :=
   match hp : parseOneAptosPair uidKey extraFieldKey it with
@@ -982,27 +927,9 @@ def keyValueAlts : List (String × List Json) → List (List (String × Json))
     let restAlts := keyValueAlts rest
     vs.flatMap (fun v => restAlts.map (fun r => (k, v) :: r))
 
-/-- Like `Json.Parser.any`, but restricted to flat JSON objects (values are not
-themselves JSON objects/arrays) and nondeterministic in the presence of duplicate keys
- -/
-def anyFlatNondet : Parser (List Json) := do
-  Parser.ws'
-  skipString "{"; Parser.ws'
-  let c ← peek!
-  let alts ←
-    if c == '}' then
-      skip; Parser.ws'
-      pure [Json.obj ∅]
-    else do
-      let pairs ← Parser.objectCoreAllPairs' ∅
-      let alts := keyValueAlts pairs.toList
-      pure (alts.map (fun kvs => Json.obj (kvs.foldl (fun m (k, v) => m.insert k v) ∅)))
-  eof
-  pure alts
-
-/-- Like `anyFlatNondet`, but scans the object's pairs straight into an `AptosFieldAcc`
-via `Parser.objectCoreAllAptosPairs'`, fusing `AptosPayload`'s per-field type/semantic
-checks into the scan instead of building a generic `Json` first. -/
+/-- Parses `{...}` straight into an `AptosFieldAcc` via `Parser.objectCoreAllAptosPairs'`,
+fusing `AptosPayload`'s per-field type/semantic checks into the scan instead of building a
+generic `Json` first. -/
 def aptosFieldsFromJson (uidKey : UidKey) (extraFieldKey : String) : Parser AptosFieldAcc := do
   Parser.ws'
   skipString "{"; Parser.ws'
@@ -1431,18 +1358,20 @@ example : -- missing iss field
     = none
   := by native_decide
 
-example : -- with no duplicate keys, `anyFlatNondet` returns exactly one alternative
-  (Parser.run anyFlatNondet (jsonInput (emailVerified := "true"))).toOption.map List.length
+example : -- with no duplicate keys, `aptosFieldsFromJson` records exactly one `iss` candidate
+  (Parser.run (aptosFieldsFromJson (uidKey := .sub) (extraFieldKey := "shoe_size"))
+    (jsonInput (emailVerified := "true"))).toOption.map (fun acc => acc.iss.length)
     = some 1
   := by native_decide
 
-example : -- a duplicated `iss` field yields exactly the two alternatives implied by its
-          -- two occurrences, one per possible "winner"
-  ((Parser.run anyFlatNondet (jsonInput_duplicated_iss1 (emailVerified := "true"))).toOption.map
-    (fun alts =>
-      alts.length == 2 &&
-      alts.any (fun j => (j.getObjValAs? String "iss").toOption == some "dummy iss") &&
-      alts.any (fun j => (j.getObjValAs? String "iss").toOption == some "dummy iss 2")))
+example : -- a duplicated `iss` field yields exactly the two candidates implied by its two
+          -- occurrences
+  ((Parser.run (aptosFieldsFromJson (uidKey := .sub) (extraFieldKey := "shoe_size"))
+    (jsonInput_duplicated_iss1 (emailVerified := "true"))).toOption.map
+    (fun acc =>
+      acc.iss.length == 2 &&
+      acc.iss.contains "dummy iss" &&
+      acc.iss.contains "dummy iss 2"))
     = some true
   := by native_decide
 
@@ -1462,11 +1391,13 @@ example : -- trailing garbage after the closing `}` is rejected
 := by native_decide
 
 example : -- trailing non-whitespace after `{}` is rejected at the `Parser.run` level
-  (Parser.run anyFlatNondet "{} trailing").toOption == none
+  (Parser.run (aptosFieldsFromJson (uidKey := .sub) (extraFieldKey := "shoe_size"))
+    "{} trailing").toOption == none
 := by native_decide
 
 example : -- whitespace-only trailing input after `{}` is still accepted
-  (Parser.run anyFlatNondet "{}   \t\n").toOption == some [Json.obj ∅]
+  (Parser.run (aptosFieldsFromJson (uidKey := .sub) (extraFieldKey := "shoe_size"))
+    "{}   \t\n").toOption == some {}
 := by native_decide
 
 example : -- an empty `nonce` is rejected
@@ -1504,7 +1435,8 @@ example : -- malformed numbers are rejected by the local number lexer
 example : -- a number with a disallowed leading zero (e.g. `01`) is rejected once embedded in an
           -- object: the parser reads just the `0`, then misreads the leftover `1` as the
           -- expected `}`/`,` separator and errors out
-  (Parser.run anyFlatNondet "{\"a\":01}").toOption == none
+  (Parser.run (aptosFieldsFromJson (uidKey := .sub) (extraFieldKey := "shoe_size"))
+    "{\"iat\":01}").toOption == none
 := by native_decide
 
 -- ---------------------------------------------------------------------------
@@ -1573,43 +1505,49 @@ example : -- an invalid hex digit in a `\u` escape is rejected
 := by native_decide
 
 -- ---------------------------------------------------------------------------
--- D. Object-level parsing (`anyFlatNondet` / `objectCoreAllPairs'`).
+-- D. Object-level parsing (`aptosFieldsFromJson` / `objectCoreAllAptosPairs'`).
 -- ---------------------------------------------------------------------------
 
-example : -- an empty object parses to a single alternative: the empty object
-  (Parser.run anyFlatNondet "{}").toOption == some [Json.obj ∅]
+example : -- an empty object parses to an empty accumulator
+  (Parser.run (aptosFieldsFromJson (uidKey := .sub) (extraFieldKey := "shoe_size"))
+    "{}").toOption == some {}
 := by native_decide
 
 example : -- internal whitespace (tabs/newlines) around the braces is tolerated
-  (Parser.run anyFlatNondet "{ \t\n }").toOption == some [Json.obj ∅]
+  (Parser.run (aptosFieldsFromJson (uidKey := .sub) (extraFieldKey := "shoe_size"))
+    "{ \t\n }").toOption == some {}
 := by native_decide
 
 example : -- whitespace (space/tab/newline/CR) is tolerated around every separator, and the
           -- parsed values are still correct
-  ((Parser.run anyFlatNondet "{\t\"a\"\n:\r1 ,\t\"b\"\n:\r2\n}").toOption.map List.length
-    = some 1)
-  ∧ (((Parser.run anyFlatNondet "{\t\"a\"\n:\r1 ,\t\"b\"\n:\r2\n}").toOption.bind List.head?).bind
-      (fun j => (j.getObjValAs? Nat "a").toOption) = some 1)
+  (Parser.run (aptosFieldsFromJson (uidKey := .sub) (extraFieldKey := "shoe_size"))
+    "{\t\"iss\"\n:\r\"x\" ,\t\"aud\"\n:\r\"y\"\n}").toOption
+    == some { iss := ["x"], aud := ["y"] }
 := by native_decide
 
 example : -- a trailing comma before `}` is rejected
-  (Parser.run anyFlatNondet "{\"a\":1,}").toOption == none
+  (Parser.run (aptosFieldsFromJson (uidKey := .sub) (extraFieldKey := "shoe_size"))
+    "{\"iss\":\"x\",}").toOption == none
 := by native_decide
 
 example : -- a missing comma between two pairs is rejected
-  (Parser.run anyFlatNondet "{\"a\":1 \"b\":2}").toOption == none
+  (Parser.run (aptosFieldsFromJson (uidKey := .sub) (extraFieldKey := "shoe_size"))
+    "{\"iss\":\"x\" \"aud\":\"y\"}").toOption == none
 := by native_decide
 
 example : -- a missing colon after a key is rejected
-  (Parser.run anyFlatNondet "{\"a\" 1}").toOption == none
+  (Parser.run (aptosFieldsFromJson (uidKey := .sub) (extraFieldKey := "shoe_size"))
+    "{\"iss\" \"x\"}").toOption == none
 := by native_decide
 
-example : -- a nested object value is rejected (`anyFlatNondet` only supports flat values)
-  (Parser.run anyFlatNondet "{\"a\":{\"b\":1}}").toOption == none
+example : -- a nested object value is rejected (`jsonFlatValue` only supports flat values)
+  (Parser.run (aptosFieldsFromJson (uidKey := .sub) (extraFieldKey := "shoe_size"))
+    "{\"iss\":{\"b\":1}}").toOption == none
 := by native_decide
 
-example : -- a nested array value is rejected (`anyFlatNondet` only supports flat values)
-  (Parser.run anyFlatNondet "{\"a\":[1,2]}").toOption == none
+example : -- a nested array value is rejected (`jsonFlatValue` only supports flat values)
+  (Parser.run (aptosFieldsFromJson (uidKey := .sub) (extraFieldKey := "shoe_size"))
+    "{\"iss\":[1,2]}").toOption == none
 := by native_decide
 
 -- ---------------------------------------------------------------------------
@@ -1630,15 +1568,20 @@ example : -- two independently duplicated keys yield the full cross product of a
        ]
 := by native_decide
 
-example : -- a duplicated key written two different ways (a literal `"a"` vs. the equivalent
-          -- `\u0061` escape) is still recognized as one duplicated key, not two distinct keys
-  (Parser.run anyFlatNondet "{\"a\":1,\"\\u0061\":2}").toOption.map List.length = some 2
+example : -- a duplicated key written two different ways (a literal `"iss"` vs. the equivalent
+          -- `iss` escape) is still recognized as one duplicated key, not two
+          -- distinct keys
+  (Parser.run (aptosFieldsFromJson (uidKey := .sub) (extraFieldKey := "shoe_size"))
+    "{\"iss\":\"x\",\"\\u0069\\u0073\\u0073\":\"y\"}").toOption.map (fun acc => acc.iss.length)
+    = some 2
 := by native_decide
 
-example : -- two independently duplicated keys in the same object yield the full 4-way cross
-          -- product at the parser level too
-  (Parser.run anyFlatNondet "{\"a\":1,\"a\":2,\"b\":10,\"b\":20}").toOption.map List.length
-    = some 4
+example : -- two independently duplicated keys in the same object each keep every candidate
+          -- value at the scan level too
+  (Parser.run (aptosFieldsFromJson (uidKey := .sub) (extraFieldKey := "shoe_size"))
+    "{\"iss\":\"x1\",\"iss\":\"x2\",\"aud\":\"y1\",\"aud\":\"y2\"}").toOption.map
+    (fun acc => acc.iss.length == 2 && acc.aud.length == 2)
+    = some true
 := by native_decide
 
 example : -- a duplicated `email_verified` where one occurrence is valid and the other is not
