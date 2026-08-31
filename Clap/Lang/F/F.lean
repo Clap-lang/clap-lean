@@ -1149,6 +1149,7 @@ lemma convertsM_but_sane?
   ]
 
   set list := List.range' 0 len
+  have : ∀ x ∈ list, x < p := by grind
   -- TODO add predicate over values of list
   clear_value list
 
@@ -1165,8 +1166,34 @@ lemma convertsM_but_sane?
     apply FArray.convertsM'_bind
       (action_val := head == idx_val.val)
       (function_val := λ b => b :: (List.map (fun a => a == idx_val.val) tail))
-    . sorry
-    .
+    . convert FB.convertsM_bind (p := p)
+        (action := (liftM (HashConsM.mkConstant (p := p) head)))
+        (varStore := varStore)
+        (numAlloc := numAlloc)
+        (σ := σ)
+        (function := eq idx)
+        (action_val := head)
+        (function_val := λ x => x == idx_val.val)
+        MkConstant.convertsM
+        ?eq
+      . rewrite [←ZMod.val_cast_of_lt (a := head) (this head (by grind))]
+        simp only [ZMod.val_natCast, ZMod.natCast_val, ZMod.cast_id', id_eq, beq_eq_beq]
+        apply Iff.intro
+        . intro h
+          simp [h]
+        . intro h
+          simp [←h]
+      . have h1 := toIdeal_run_of_toIdeal (p := p)
+          (liftM (HashConsM.mkConstant (p := p) head))
+          (MkConstant.convertsM.wellFormed)
+          h_idx
+        rewrite [←F.Converts.eq_def] at h1
+        have h2 := MkConstant.convertsM (x := (head: ZMod p)) (varStore := varStore) (numAlloc := numAlloc) (σ := σ)
+        have := eq.convertsM h1 h2.result
+        convert this using 1
+        simp
+        grind
+    . done
     done
 
 
