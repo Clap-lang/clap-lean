@@ -257,6 +257,12 @@ lemma getHashConsState_map :
 := rfl
 
 @[simp, grind=]
+lemma getNumAlloc_map :
+  (f <$> cmd).getNumAlloc numAlloc σ =
+  cmd.getNumAlloc numAlloc σ
+:= rfl
+
+@[simp, grind=]
 lemma getVarStore_map {varStore : VarStore p}:
   (f <$> cmd).getVarStore varStore numAlloc σ =
   cmd.getVarStore varStore numAlloc σ

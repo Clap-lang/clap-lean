@@ -11,16 +11,165 @@ abbrev F := ExprRef
 abbrev FB := F
 abbrev FArray (k) := Vector FB k
 
-open HashConsM in
+section OneHotRaw
+
+open HashConsM
+
+variable {p : ℕ} [p.AtLeastTwo] {start len : ℕ} {idx : F} {numAlloc : ℕ} {σ : HashConsSt p}
+
 def eq {p : ℕ} [p.AtLeastTwo] (a b : F) : ClapM p FB := do
   isZero (←mkSub (p := p) a b)
 
-open HashConsM in
-def oneHotRaw [p.AtLeastTwo] (len : ℕ) (idx : F) : ClapM p (Vector FB len) :=
-  (Vector.range len).mapM (fun (i:ℕ) ↦ do
+def oneHotRaw_aux (start len : ℕ) (idx : F) : ClapM p (Vector FB len) :=
+  (Vector.range' start len).mapM (fun (i:ℕ) ↦ do
     let idx_val ← mkConstant (p := p) i
     eq idx idx_val
   )
+
+/--
+Why is this missing...
+-/
+@[simp, grind =]
+lemma _root_.Vector.mapM_cast {m : Type → Type} [Monad m] [LawfulMonad m]
+  {α β : Type} {n k : Nat} {h : n = k}
+  {f : α → m β}
+  {v : Vector α n} :
+  (v.cast h).mapM f = (fun v : Vector β n ↦ v.cast h) <$> (v.mapM f) := by
+  subst h
+  simp
+
+/--
+Yeah ok...
+-/
+@[simp, grind =]
+lemma _root_.Vector.mapM_singleton {m : Type → Type} [Monad m] [LawfulMonad m]
+  {α β : Type}
+  {f : α → m β} {x} :
+  #v[x].mapM f = f x >>= (pure #v[·]) := by
+  suffices
+    (Vector.toArray <$> Vector.mapM f #v[x]) =
+    (Vector.toArray <$> do let x ← f x; pure #v[x]) by
+    rwa [map_inj_right] at this
+    intros v₁ v₂ h
+    aesop  
+  simp
+
+@[simp, grind =]
+lemma oneHotRaw_aux_zero :
+  oneHotRaw_aux (p := p) start 0 idx = pure #v[] := by
+  conv_lhs => unfold oneHotRaw_aux
+  rw [show Vector.range' start 0 = #v[] from rfl]
+  simp
+
+@[simp, grind =]
+lemma oneHotRaw_aux_succ :
+  oneHotRaw_aux start (len + 1) idx =
+  do
+    let idx_val ← liftM (mkConstant (p := p) start)
+    let eq ← eq (p := p) idx idx_val
+    return Vector.cast (show 1 + len = len + 1 by grind)
+                       (#v[eq] ++ (←oneHotRaw_aux (start + 1) len idx)) := by
+  conv_lhs => unfold oneHotRaw_aux
+  rw [Vector.range'_succ]
+  rw [Vector.mapM_cast]
+  rw [Vector.mapM_append]
+  conv_lhs => simp
+  rw [←oneHotRaw_aux.eq_def]
+  simp
+  
+def oneHotRaw (len : ℕ) (idx : F) : ClapM p (Vector FB len) :=
+  oneHotRaw_aux 0 len idx
+
+def oneHotRaw'_aux (start len : ℕ) (idx : F) : ClapM p (List FB) :=
+  (List.range' start len).mapM (fun (i : ℕ) ↦ do
+    let idx_val ← mkConstant (p := p) i
+    eq idx idx_val
+  )
+
+@[simp, grind =]
+lemma oneHotRaw'_aux_zero :
+  oneHotRaw'_aux (p := p) start 0 idx = pure [] := by
+  conv_lhs => unfold oneHotRaw'_aux
+  simp
+
+@[simp, grind =]
+lemma oneHotRaw'_aux_succ :
+  oneHotRaw'_aux start (len + 1) idx =
+  do
+    let idx_val ← liftM (mkConstant (p := p) start)
+    let eq ← eq (p := p) idx idx_val
+    return (eq :: (←oneHotRaw'_aux (start + 1) len idx)) := by
+  conv_lhs => unfold oneHotRaw'_aux
+  rw [List.range'_succ]
+  rw [List.mapM_cons]
+  rw [←oneHotRaw'_aux.eq_def]
+  simp
+
+def oneHotRaw' (len : ℕ) (idx : F) : ClapM p (List FB) := oneHotRaw'_aux 0 len idx
+
+@[simp, grind =]
+lemma oneHotRaw'_zero :
+  oneHotRaw' (p := p) 0 idx = pure [] := by
+  simp [oneHotRaw']
+
+@[simp, grind =]
+lemma oneHotRaw'_succ :
+  oneHotRaw' (len + 1) idx =
+  do
+    let idx_val ← liftM (mkConstant (p := p) 0)
+    let eq ← eq (p := p) idx idx_val
+    return (eq :: (←oneHotRaw'_aux 1 len idx)) := by
+  simp [oneHotRaw']
+
+@[simp, grind _=_]
+lemma toList_map_oneHotRaw_aux_eq_oneHotRaw'_aux :
+  Vector.toList <$> (oneHotRaw_aux (p := p) start len idx) =
+  oneHotRaw'_aux start len idx := by
+  induction' len with len ih generalizing start
+  · simp
+  · rw [oneHotRaw'_aux_succ, oneHotRaw_aux_succ]
+    specialize ih (start := start + 1)
+    rw [←ih]
+    simp
+    grind
+
+omit [p.AtLeastTwo] in
+@[simp, grind _=_]
+lemma getResult_toList {vecM : ClapM p (Vector FB len)} :
+  ClapM.getResult (Vector.toList <$> vecM) numAlloc σ =
+  (vecM.getResult numAlloc σ).toList := by
+  simp
+
+@[simp, grind _=_]
+lemma toList_getResult_oneHotRaw :
+  ((oneHotRaw_aux (p := p) start len idx).getResult numAlloc σ).toList =
+  (oneHotRaw'_aux start len idx).getResult numAlloc σ := by
+  rw [←toList_map_oneHotRaw_aux_eq_oneHotRaw'_aux, ClapM.getResult_map]
+
+@[simp, grind _=_]
+lemma getCircuit_oneHotRaw_aux :
+  (oneHotRaw_aux (p := p) start len idx).getCircuit numAlloc σ =
+  (oneHotRaw'_aux start len idx).getCircuit numAlloc σ := by
+  rw [←toList_map_oneHotRaw_aux_eq_oneHotRaw'_aux, ClapM.getCircuit_map]
+
+@[simp, grind _=_]
+lemma getHashConsState_oneHotRaw_aux :
+  (oneHotRaw_aux (p := p) start len idx).getHashConsState numAlloc σ =
+  (oneHotRaw'_aux start len idx).getHashConsState numAlloc σ := by
+  rw [←toList_map_oneHotRaw_aux_eq_oneHotRaw'_aux, ClapM.getHashConsState_map]
+
+@[simp, grind _=_]
+lemma getNumAlloc_oneHotRaw_aux :
+  (oneHotRaw_aux (p := p) start len idx).getNumAlloc numAlloc σ =
+  (oneHotRaw'_aux start len idx).getNumAlloc numAlloc σ := by
+  rw [←toList_map_oneHotRaw_aux_eq_oneHotRaw'_aux, ClapM.getNumAlloc_map]
+  
+@[simp, grind _=_]
+lemma toList_map_oneHotRaw_eq_oneHotRaw' :
+  Vector.toList <$> (oneHotRaw (p := p) len idx) =
+  oneHotRaw' len idx := toList_map_oneHotRaw_aux_eq_oneHotRaw'_aux
+
+end OneHotRaw
 
 namespace F
 
@@ -117,6 +266,24 @@ namespace FArray
 
 def Converts (k : ℕ) := Clap.Converts k
   fun vec : Vector Bool k ↦ vec.map fun x ↦ if x then (1 : ZMod p) else 0
+
+def Converts' := Clap.Converts'
+  fun l : List Bool ↦ l.map fun x ↦ if x then (1 : ZMod p) else 0
+
+@[aesop unsafe apply, grind .]
+lemma converts_of_converts' {k} {varStore : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ}
+  {exprs : Vector ExprRef k} {val : Vector Bool k}
+  (h : Converts' varStore σ numAlloc exprs.toList val.toList) :
+  Converts k varStore σ numAlloc exprs val := by
+  unfold Converts
+  unfold Converts' at h
+  rcases h with ⟨h₁, h₂, h₃, h₄⟩
+  constructor <;> intros i <;>
+  · have : exprs.toList.length = k := by aesop
+    rw! (castMode := .all) [this] at h₂ h₃ h₄
+    specialize_all i
+    grind
+
 structure ConvertsM {k}
   (action : ClapM p (Vector FB k))
   (varStore : VarStore p)
@@ -131,6 +298,63 @@ structure ConvertsM {k}
     (action.getResult numAlloc σ)
     val
   wellFormed : action.wellFormed numAlloc varStore σ
+
+lemma ConvertsM.def {k numAlloc} {action : ClapM p (Vector FB k)}
+                  {varStore : VarStore p} {σ : HashConsSt p} {val : Vector Bool k}:
+  ConvertsM action varStore numAlloc σ val ↔ 
+  Converts k
+    (action.getVarStore varStore numAlloc σ)
+    (action.getHashConsState numAlloc σ)
+    (action.getNumAlloc numAlloc σ)
+    (action.getResult numAlloc σ)
+    val ∧
+  action.wellFormed numAlloc varStore σ := by
+  apply Iff.intro <;> intros h
+  rcases h
+  grind
+  constructor
+  grind
+  grind
+
+structure ConvertsM'
+  (action : ClapM p (List FB))
+  (varStore : VarStore p)
+  (numAlloc : ℕ)
+  (σ : HashConsSt p)
+  (val : List Bool)
+: Prop where
+  result : Converts'
+    (action.getVarStore varStore numAlloc σ)
+    (action.getHashConsState numAlloc σ)
+    (action.getNumAlloc numAlloc σ)
+    (action.getResult numAlloc σ)
+    val
+  wellFormed : action.wellFormed numAlloc varStore σ
+
+lemma ConvertsM'.def {numAlloc} {action : ClapM p (List FB)}
+                     {varStore : VarStore p} {σ : HashConsSt p} {val : List Bool}:
+  ConvertsM' action varStore numAlloc σ val ↔ 
+  Converts'
+    (action.getVarStore varStore numAlloc σ)
+    (action.getHashConsState numAlloc σ)
+    (action.getNumAlloc numAlloc σ)
+    (action.getResult numAlloc σ)
+    val ∧
+  action.wellFormed numAlloc varStore σ := by
+  apply Iff.intro <;> intros h
+  rcases h
+  grind
+  constructor
+  grind
+  grind
+
+@[aesop unsafe apply, grind .]
+lemma convertsM_of_ConvertsM' {k numAlloc : ℕ} {varStore : VarStore p} {σ : HashConsSt p} {val : Vector Bool k}
+                              {action : ClapM p (Vector FB k)}
+                              (h : ConvertsM' (Vector.toList <$> action) varStore numAlloc σ val.toList) :
+  ConvertsM action varStore numAlloc σ val := by
+  rw [ConvertsM.def]; rw [ConvertsM'.def] at h
+  grind
 
 -- TODO generalise
 lemma convertsM_bind
@@ -547,8 +771,11 @@ lemma convertsM
 
 end MkConstant
 
+/--
+This one for any `LawfulMonad` sure was fun.
+-/
 @[simp, grind =]
-lemma _root_.Vector.mapM_singleton
+lemma _root_.Vector.mapM_singleton'
   {α}
   {len : α}
   (f : α → ClapM p FB)
@@ -845,6 +1072,37 @@ lemma convertsM
 end MapM
 
 namespace oneHotRaw
+
+lemma convertsM'
+  [p.AtLeastTwo]
+  {varStore : VarStore p}
+  {numAlloc : ℕ}
+  {σ : HashConsSt p}
+  {len : ℕ}
+  {idx : F}
+  {idx_val : ZMod p} -- TODO : Fin len?
+  (h_idx : F.Converts varStore σ numAlloc #v[idx] idx_val)
+  (h_len : len < p)
+:
+  FArray.ConvertsM' (oneHotRaw' len idx) varStore numAlloc σ (List.ofFn (λ (x : Fin len) => x.val == idx_val.val)) := sorry
+
+lemma convertsM_but_sane?
+  [p.AtLeastTwo]
+  {varStore : VarStore p}
+  {numAlloc : ℕ}
+  {σ : HashConsSt p}
+  {len : ℕ}
+  {idx : F}
+  {idx_val : ZMod p} -- TODO : Fin len?
+  (h_idx : F.Converts varStore σ numAlloc #v[idx] idx_val)
+  (h_len : len < p)
+:
+  FArray.ConvertsM (oneHotRaw len idx) varStore numAlloc σ (Vector.ofFn (λ x => x.val == idx_val.val))
+:= by
+  have := @toList_map_oneHotRaw_eq_oneHotRaw' p _ len idx
+  apply FArray.convertsM_of_ConvertsM'
+  rw [this]
+  sorry -- TODO: Aaaand bob's our uncle?
 
 -- TODO
 -- this proof is bad

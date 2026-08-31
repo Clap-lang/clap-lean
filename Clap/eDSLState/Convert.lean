@@ -17,6 +17,19 @@ structure Converts {p : ℕ} {α : Type}
   expr_wf   : ∀ (i : Fin k), ⦃exprs[i], σ⦄.wellFormed
   value_eq  : ∀ (i : Fin k), [varStore|⦃exprs[i], σ⦄] = .some (conversion val)[i]
 
+structure Converts' {p : ℕ} {α : Type}
+  (conversion : α → List (ZMod p))
+  (varStore : VarStore p)
+  (σ : HashConsSt p)
+  (numAlloc : ℕ)
+  (exprs : List ExprRef)
+  (val : α)
+: Prop where
+  len       : ∀ i, (conversion i).length = exprs.length
+  varSet_wf : ∀ (i : Fin exprs.length), ⦃exprs[i], σ⦄.varSet_wellFormed numAlloc
+  expr_wf   : ∀ (i : Fin exprs.length), ⦃exprs[i], σ⦄.wellFormed
+  value_eq  : ∀ (i : Fin exprs.length), [varStore|⦃exprs[i], σ⦄] = .some ((conversion val)[i]'(by grind)) -- from `Converts'.len`
+
 -- structure HasSpec {p} {idealT} {representsT} (action : ClapM p representsT) where
 --   spec : idealT
 --   converts : Converts k conversion varStore σ numAlloc exprs spec
