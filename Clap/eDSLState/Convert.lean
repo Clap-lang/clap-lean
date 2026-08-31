@@ -104,6 +104,39 @@ lemma eval_varStore_eval_eq_some
         rw [Std.ExtTreeMap.getElem?_insertMany_eq_getElem?_of_neq]
         grind [Converts]
 
+lemma eval_varStore_eval_eq_some'
+  {β}
+  {conversion : α → List (ZMod p)}
+  {exprs : List ExprRef}
+  {action : ClapM p β}
+  (h₁ : Converts' conversion Γ σ numAlloc exprs val)
+  (h₂ : action.hashConsState_wellFormed numAlloc σ)
+:
+  letI varStore' := [Γ, action.getHashConsState numAlloc σ, numAlloc|circuit]ₑ.varStore
+  ∀ i : Fin exprs.length,
+    [varStore'|⦃exprs[i], action.getHashConsState numAlloc σ⦄] =
+    some ((conversion val)[i]'(by grind [cases Converts']))
+:= by
+  intros i
+  rcases circuit with ⟨l⟩
+  induction' eq : l.length with len ih generalizing l
+  · rcases l <;> grind [Converts']
+  · rcases l with _ | ⟨hd, tl⟩
+    · simp at eq
+    · simp [-Fin.getElem_fin]
+      specialize ih tl (by grind)
+      rewrite [←ih]; clear ih
+      apply eval_eq_of_varStore_eq_at_varSet
+      . grind [Converts']
+      . intro v h_v
+        set vashtorr := [unconstrained[numAlloc][Γ], action.getHashConsState numAlloc σ|hd]ₛ.varStore
+        rewrite [Circuit.getElem?_eval_eq_getElem?_of_lt (by grind [Converts'])]
+        rewrite [Circuit.getElem?_eval_eq_getElem?_of_lt (by grind [Converts'])]
+        choose k vec h_vec using @EvalSt.exists_varStore_step_eq_insertMany
+        simp [vashtorr, h_vec.1]
+        rw [Std.ExtTreeMap.getElem?_insertMany_eq_getElem?_of_neq]
+        grind [Converts']
+
 lemma toIdeal_run_of_toIdeal
   {β}
   (action : ClapM p β)
