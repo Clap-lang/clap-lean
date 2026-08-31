@@ -46,12 +46,7 @@ lemma _root_.Vector.mapM_singleton {m : Type → Type} [Monad m] [LawfulMonad m]
   {α β : Type}
   {f : α → m β} {x} :
   #v[x].mapM f = f x >>= (pure #v[·]) := by
-  suffices
-    (Vector.toArray <$> Vector.mapM f #v[x]) =
-    (Vector.toArray <$> do let x ← f x; pure #v[x]) by
-    rwa [map_inj_right] at this
-    intros v₁ v₂ h
-    aesop  
+  rw [←map_inj_right (f := Vector.toArray) (by aesop)]
   simp
 
 @[simp, grind =]
