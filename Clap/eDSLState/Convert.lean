@@ -63,6 +63,8 @@ lemma isSome_eval_of_isSome_toIdeal
 := fun i ↦ Option.isSome_iff_exists.2 ⟨_, h.value_eq i⟩
 
 lemma eval_varStore_eval_eq_some
+  {β}
+  {action : ClapM p β}
   (h₁ : Converts k conversion Γ σ numAlloc exprs val)
   (h₂ : action.hashConsState_wellFormed numAlloc σ)
 :
@@ -90,6 +92,8 @@ lemma eval_varStore_eval_eq_some
         grind [Converts]
 
 lemma toIdeal_run_of_toIdeal
+  {β}
+  (action : ClapM p β)
   (h_a_wf : action.wellFormed numAlloc Γ σ)
   (h : Converts k conversion Γ σ numAlloc exprs val) :
   Converts k
@@ -103,8 +107,12 @@ lemma toIdeal_run_of_toIdeal
   constructor
   · grind [=Expr.varSet_wellFormed]
   · grind
-  · rcases h_a_wf with ⟨⟨h₃, h₄⟩, ⟨h₅, h₆⟩⟩
-    apply eval_varStore_eval_eq_some <;> grind [Converts]
+  · rcases h_a_wf with ⟨⟨h₄, h₅⟩, ⟨h₆, h₇⟩⟩
+    intro i
+    unfold ClapM.getVarStore
+    rw [eval_varStore_eval_eq_some (conversion := conversion) (val := val)]
+    . constructor <;> assumption
+    . assumption
 
 end Lemmas
 
