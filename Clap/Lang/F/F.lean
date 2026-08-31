@@ -1073,19 +1073,6 @@ end MapM
 
 namespace oneHotRaw
 
-lemma convertsM'
-  [p.AtLeastTwo]
-  {varStore : VarStore p}
-  {numAlloc : ℕ}
-  {σ : HashConsSt p}
-  {len : ℕ}
-  {idx : F}
-  {idx_val : ZMod p} -- TODO : Fin len?
-  (h_idx : F.Converts varStore σ numAlloc #v[idx] idx_val)
-  (h_len : len < p)
-:
-  FArray.ConvertsM' (oneHotRaw' len idx) varStore numAlloc σ (List.ofFn (λ (x : Fin len) => x.val == idx_val.val)) := sorry
-
 lemma convertsM_but_sane?
   [p.AtLeastTwo]
   {varStore : VarStore p}
@@ -1099,9 +1086,8 @@ lemma convertsM_but_sane?
 :
   FArray.ConvertsM (oneHotRaw len idx) varStore numAlloc σ (Vector.ofFn (λ x => x.val == idx_val.val))
 := by
-  have := @toList_map_oneHotRaw_eq_oneHotRaw' p _ len idx
   apply FArray.convertsM_of_ConvertsM'
-  rw [this]
+  rw [toList_map_oneHotRaw_eq_oneHotRaw']
   sorry -- TODO: Aaaand bob's our uncle?
 
 -- TODO
