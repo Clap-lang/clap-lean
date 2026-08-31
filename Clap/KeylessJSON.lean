@@ -964,9 +964,11 @@ def jsonValue : Parser Lean.Json := do
     return Lean.Json.num n
   else if c == '{' then
     throwAwayJSON
+    ws'
     pure Json.null
   else if c == '[' then
     throwAwayArray
+    ws'
     pure Json.null
   else fail "unexpected input"
 
@@ -1006,13 +1008,17 @@ theorem jsonFlatValue_nonBacktracking : NonBacktracking jsonValue := by
             intro _
             exact pure_nonBacktracking _
           · split
-            · exact bind_nonBacktracking
-                      throwAwayJSON_NonBacktracking
-                      fun _ ↦ pure_nonBacktracking null
+            · apply bind_nonBacktracking throwAwayJSON_NonBacktracking
+              intro _
+              apply bind_nonBacktracking ws'_nonBacktracking
+              intro _
+              exact pure_nonBacktracking _
             · split
-              · exact bind_nonBacktracking
-                        throwAwayArray_NonBacktracking
-                        fun _ ↦ pure_nonBacktracking null
+              · apply bind_nonBacktracking throwAwayArray_NonBacktracking
+                intro _
+                apply bind_nonBacktracking ws'_nonBacktracking
+                intro _
+                exact pure_nonBacktracking _
               · exact fail_vacuous _
 
 theorem bind_shrinking_of_nonBacktracking_shrinking {f : Parser α} {g : α → Parser β}
@@ -1351,11 +1357,42 @@ def jsonInput_duplicated_nonce_conflict : String :=
   ]
   ++ " }"
 
-#eval payloads_from_json_string
+def jsonInput_arbitrary_json : String :=
+  "{ " ++
+  String.intercalate ", "
+  [
+    claim "iss" "dummy iss".quote,
+    claim "aud" "dummy aud".quote,
+    claim "sub" "dummy sub".quote,
+    claim "email" "dummy email".quote,
+    claim "iat" "1719866138",
+    claim "exp" "1719869739",
+    claim "shoe_size" "40".quote,
+    claim "email_verified" "true",
+    claim "nonce" dummyNonce.quote,
+    claim "some_nested_field"
+      "{ \"abc\" : \"val\", \"def\" : { \"x\" : \"val\", \"y\" : \"val\"} }",
+    claim "some_arrray_field"
+      "[ {\"k₁\" : \"val\"}, \"k₂\" : [ {\"k₃\" : \"val\"}, {\"k₄\" : \"val\"}] ]",
+  ]
+  ++ " }"
+
+example : -- nested json and array values
+  (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
-    -- (expHorizon := 3602)
-    (jsonInput (emailVerified := "true"))
+    (jsonInput_arbitrary_json)
+  ).toOption
+    == some
+      [ { iss := "dummy iss",
+          uid := "dummy sub",
+          aud := "dummy aud",
+          iat := 1719866138,
+          email_verified := true,
+          nonce := "159196287899032468733794277330513742183729069551015157917",
+          extra_field := "40" }
+      ]
+:= by native_decide
 
 example : -- `email_verified` is the bool `true`
   (payloads_from_json_string
