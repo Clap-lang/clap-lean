@@ -116,12 +116,15 @@ unchanged. The one remaining cross-field check (`uidKey == .email → email_veri
 still needs the whole record, so it happens once per candidate in `AptosFieldAcc.toPayloads`.
 
 `key` may name more than one field at once (e.g. `extraFieldKey == uidKey.fieldName`), in
-which case `j` is converted for every field it names; if any of those conversions fails,
-the whole call fails (matching what independently calling `getObjValAs?` once per field
-against the same JSON value would do today). A `key` naming none of `AptosPayload`'s
-fields yields `[]`. -/
+which case `j` is converted for every field it names, independently. An ill-formed `j`
+for one of those roles (e.g. a non-digit `nonce`) simply omits that role from the
+result — it does not fail the other roles `key` also names, nor the caller's whole
+parse; this lets a duplicate key with some well-formed and some ill-formed occurrences
+still contribute its well-formed values. A `key` naming none of `AptosPayload`'s fields,
+or whose every matched role failed to convert, yields `[]`. -/
 def aptosFieldValueFromJson (uidKey : UidKey) (extraFieldKey key : String) (j : Json) :
-    Except String (List AptosFieldValue) :=
+  List AptosFieldValue
+:=
   let roles : List (Option (Except String AptosFieldValue)) :=
     [ if key == "iss" then some (AptosFieldValue.iss <$> j.getStr?) else none
     , if key == "aud" then some (AptosFieldValue.aud <$> j.getStr?) else none
@@ -139,7 +142,7 @@ def aptosFieldValueFromJson (uidKey : UidKey) (extraFieldKey key : String) (j : 
       else none
     , if key == extraFieldKey then some (AptosFieldValue.extraField <$> j.getStr?) else none
     ]
-  roles.reduceOption.mapM id
+  roles.reduceOption.filterMap Except.toOption
 
 
 /-- Accumulates one candidate list of typed values per `AptosPayload` field while
@@ -1042,9 +1045,7 @@ def parseOneAptosPair (uidKey : UidKey) (extraFieldKey : String) :
   skipString ":"
   ws'
   let v ← jsonValue
-  match aptosFieldValueFromJson uidKey extraFieldKey k v with
-  | .ok vs => pure vs
-  | .error e => fail e
+  pure (aptosFieldValueFromJson uidKey extraFieldKey k v)
 
 theorem parseOneAptosPair_shrinking (uidKey : UidKey) (extraFieldKey : String) :
     Shrinking (parseOneAptosPair uidKey extraFieldKey) := by
@@ -1059,10 +1060,7 @@ theorem parseOneAptosPair_shrinking (uidKey : UidKey) (extraFieldKey : String) :
   intro _
   apply bind_nonBacktracking jsonFlatValue_nonBacktracking
   intro v
-  dsimp only
-  cases aptosFieldValueFromJson uidKey extraFieldKey k v with
-  | ok vs => exact pure_nonBacktracking _
-  | error e => exact fail_vacuous _
+  exact pure_nonBacktracking _
 
 /-- Parses a list of one or more key-value pairs followed by a "}", accumulating typed,
 per-field-validated `AptosFieldValue`s (via `parseOneAptosPair`) into an `AptosFieldAcc`. -/
@@ -1739,14 +1737,16 @@ example : -- a missing colon after a key is rejected
     "{\"iss\" \"x\"}").toOption == none
 := by native_decide
 
-example : -- a nested object value is rejected (`jsonFlatValue` only supports flat values)
+example : -- a nested object value for a relevant key (`iss` expects a string) is syntactically
+          -- consumed fine (`jsonValue` throws away nested objects/arrays), but is ill-formed for
+          -- `iss` and so is dropped rather than failing the whole object parse
   (Parser.run (aptosFieldsFromJson (uidKey := .sub) (extraFieldKey := "shoe_size"))
-    "{\"iss\":{\"b\":1}}").toOption == none
+    "{\"iss\":{\"b\":1}}").toOption == some {}
 := by native_decide
 
-example : -- a nested array value is rejected (`jsonFlatValue` only supports flat values)
+example : -- same as above, but with a nested array value
   (Parser.run (aptosFieldsFromJson (uidKey := .sub) (extraFieldKey := "shoe_size"))
-    "{\"iss\":[1,2]}").toOption == none
+    "{\"iss\":[1,2]}").toOption == some {}
 := by native_decide
 
 -- ---------------------------------------------------------------------------
@@ -1783,26 +1783,44 @@ example : -- two independently duplicated keys in the same object each keep ever
     = some true
 := by native_decide
 
-example : -- a duplicated `email_verified` where one occurrence is valid and the other is not
-          -- makes `payloads_from_json_string` reject the whole input: `mapM` requires *every*
-          -- alternative implied by the duplicate keys to validate, not just one
+example : -- a duplicated `email_verified` where one occurrence is valid and the other is not:
+          -- the ill-formed occurrence is dropped, and the well-formed one still produces a
+          -- candidate payload
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
     -- (expHorizon := 3602)
     jsonInput_duplicated_email_verified_conflict
   ).toOption
-    == .none
+    == some
+      [ { iss := "dummy iss",
+          uid := "dummy sub",
+          aud := "dummy aud",
+          iat := 1719866138,
+          email_verified := true,
+          nonce := "159196287899032468733794277330513742183729069551015157917",
+          extra_field := "40" }
+      ]
 := by native_decide
 
-example : -- same interaction as above, but with a duplicated `nonce` (one all-digits, one not)
+example : -- same interaction as above, but with a duplicated `nonce` (one all-digits, one not):
+          -- the ill-formed occurrence is dropped, and the well-formed one still produces a
+          -- candidate payload
   (payloads_from_json_string
     (uidKey := .sub)
     (extraFieldKey := "shoe_size")
     -- (expHorizon := 3602)
     jsonInput_duplicated_nonce_conflict
   ).toOption
-    == .none
+    == some
+      [ { iss := "dummy iss",
+          uid := "dummy sub",
+          aud := "dummy aud",
+          iat := 1719866138,
+          email_verified := true,
+          nonce := "159196287899032468733794277330513742183729069551015157917",
+          extra_field := "40" }
+      ]
 := by native_decide
 
 -- ---------------------------------------------------------------------------
