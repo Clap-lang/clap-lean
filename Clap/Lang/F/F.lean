@@ -26,19 +26,6 @@ def oneHotRaw_aux (start len : ℕ) (idx : F) : ClapM p (Vector FB len) :=
     eq idx idx_val
   )
 
-/--
-Yeah ok...
-
-TODO: Remove (here to save build time)
--/
-@[simp, grind =]
-lemma _root_.Vector.mapM_singleton {m : Type → Type} [Monad m] [LawfulMonad m]
-  {α β : Type}
-  {f : α → m β} {x} :
-  #v[x].mapM f = f x >>= (pure #v[·]) := by
-  rw [←map_inj_right (f := Vector.toArray) (by aesop)]
-  simp
-
 @[simp, grind =]
 lemma oneHotRaw_aux_zero :
   oneHotRaw_aux (p := p) start 0 idx = pure #v[] := by
@@ -156,77 +143,68 @@ lemma toList_map_oneHotRaw_eq_oneHotRaw' :
 
 end OneHotRaw
 
-namespace F
-
-def Converts := Clap.Converts 1 (fun x : ZMod p ↦ #v[x])
-
 structure ConvertsM
-  (action : ClapM p F)
+  {α : Type} [Sized α] [Convertible p α]
+  -- (conversion : α → Vector (ZMod p) |α|)
+  (exprs : Vector ExprRef |α|)
+  (action : ClapM p α)
   (varStore : VarStore p)
   (numAlloc : ℕ)
   (σ : HashConsSt p)
-  (val : ZMod p)
+  (val : IdealT p α)
 : Prop where
   result : Converts
     (action.getVarStore varStore numAlloc σ)
     (action.getHashConsState numAlloc σ)
     (action.getNumAlloc numAlloc σ)
-    #v[action.getResult numAlloc σ]
+    -- #v[action.getResult numAlloc σ]
+    exprs
     val
   wellFormed : action.wellFormed numAlloc varStore σ
 
-structure Spec (action : ClapM p F) (varStore) (numAlloc) (σ) where
-  spec : ZMod p
-  converts : ConvertsM action varStore numAlloc σ spec
+namespace F
+
+instance : Sized F where size := 1
+instance {p} : Convertible p F where
+  IdealT := ZMod p
+  toRepresents := fun x ↦ #v[x]
+
+-- structure Spec (action : ClapM p F) (varStore) (numAlloc) (σ) where
+--   spec : ZMod p
+--   converts : ConvertsM action varStore numAlloc σ spec
 
 end F
 
 namespace FB
 
-def Converts := Clap.Converts 1 (fun x : Bool ↦ #v[if x then (1 : ZMod p) else 0])
-
-structure ConvertsM
-  (action : ClapM p FB)
-  (varStore : VarStore p)
-  (numAlloc : ℕ)
-  (σ : HashConsSt p)
-  (val : Bool)
-: Prop where
-  result : Converts
-    (action.getVarStore varStore numAlloc σ)
-    (action.getHashConsState numAlloc σ)
-    (action.getNumAlloc numAlloc σ)
-    #v[action.getResult numAlloc σ]
-    val
-  wellFormed : action.wellFormed numAlloc varStore σ
+instance : Sized FB where size := 1
+instance {p} : Convertible p F where
+  IdealT := Bool
+  toRepresents := fun x ↦ #v[if x then (1 : ZMod p) else 0]
 
 lemma convertsM_of_convertsM_eq
   {action : ClapM p FB}
   {varStore numAlloc σ val₁}
+  {exprs}
   (val₂ : Bool)
-  (h : ConvertsM action varStore numAlloc σ val₂)
+  (h : ConvertsM exprs action varStore numAlloc σ val₂)
   (h_eq : val₁ = val₂)
 :
-  ConvertsM action varStore numAlloc σ val₁
+  ConvertsM exprs action varStore numAlloc σ val₁
 where
   result := by rewrite [h_eq]; exact h.result
   wellFormed := h.wellFormed
 
-class ToIdeal (α : Type) where
-  toIdeal : Type
-
-instance : ToIdeal FB where
-  toIdeal := Bool
-
 -- TODO generalise
 lemma convertsM_bind
+  [ToIdeal FB]
   (action : ClapM p F)
   (function : F → ClapM p FB)
   (varStore : VarStore p)
   (numAlloc : ℕ)
   (σ : HashConsSt p)
   {action_val : ZMod p}
-  (function_val : ZMod p → Bool)
+  (function_val : ZMod p → ToIdeal.toIdeal FB)
   (h_action : F.ConvertsM action varStore numAlloc σ action_val)
   (h_function : FB.ConvertsM
     (function (action.getResult numAlloc σ))

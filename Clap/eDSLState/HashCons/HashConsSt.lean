@@ -4,7 +4,7 @@ namespace Clap
 
 @[grind]
 structure HashConsSt (p : ℕ) where
-  exprs : Array (CacheExpr p) -- ℕ → Expr
+  exprs : Array (CacheExpr p) -- ℕ → Exp
   wellFormed : ∀ i < exprs.size, exprs[i]?.any (·.wellFormed i)
 
 def HashConsSt.empty (p : ℕ) : HashConsSt p where
