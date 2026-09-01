@@ -4,25 +4,26 @@ import Clap.Lang.Wheels
 
 namespace Clap
 
-class Sized (α : Type) where
-  size : ℕ
+-- class Sized (α : Type) where
+--   size : ℕ
 
-notation "|" α "|" => Sized.size α
+-- notation "|" α "|" => Sized.size α
 
-class Convertible (p : ℕ) (α : Type) [Sized α] where
+class Convertible (p : ℕ) (α : Type) where
   IdealT : Type -- Can split off `IdealT` to allow e.g. `Bool` being ideal without prime, I guess
-  toRepresents : IdealT → Vector (ZMod p) |α|
+  toRepresents : IdealT → ZMod p
 
 export Convertible (toRepresents IdealT)
 
 structure Converts {p : ℕ}
-  {α : Type} [Sized α] [φ : Convertible p α]
+  {α : Type} [φ : Convertible p α]
   (varStore : VarStore p)
   (σ : HashConsSt p)
   (numAlloc : ℕ)
-  (exprs : Vector ExprRef |α|)
-  (val : IdealT p α)
+  (exprs : List ExprRef)
+  (val : List (IdealT p α))
 : Prop where
+  h_len     : ∀ i, (h : i ∈ exprs) → [varStore|⦃exprs[i], σ⦄]
   varSet_wf : ∀ (i : Fin |α|), ⦃exprs[i], σ⦄.varSet_wellFormed numAlloc
   expr_wf   : ∀ (i : Fin |α|), ⦃exprs[i], σ⦄.wellFormed
   value_eq  : ∀ (i : Fin |α|), [varStore|⦃exprs[i], σ⦄] = .some (toRepresents val)[i]
