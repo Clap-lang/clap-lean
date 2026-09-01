@@ -27,19 +27,9 @@ def oneHotRaw_aux (start len : ℕ) (idx : F) : ClapM p (Vector FB len) :=
   )
 
 /--
-Why is this missing...
--/
-@[simp, grind =]
-lemma _root_.Vector.mapM_cast {m : Type → Type} [Monad m] [LawfulMonad m]
-  {α β : Type} {n k : Nat} {h : n = k}
-  {f : α → m β}
-  {v : Vector α n} :
-  (v.cast h).mapM f = (fun v : Vector β n ↦ v.cast h) <$> (v.mapM f) := by
-  subst h
-  simp
-
-/--
 Yeah ok...
+
+TODO: Remove (here to save build time)
 -/
 @[simp, grind =]
 lemma _root_.Vector.mapM_singleton {m : Type → Type} [Monad m] [LawfulMonad m]
@@ -169,6 +159,7 @@ end OneHotRaw
 namespace F
 
 def Converts := Clap.Converts 1 (fun x : ZMod p ↦ #v[x])
+
 structure ConvertsM
   (action : ClapM p F)
   (varStore : VarStore p)
@@ -193,6 +184,7 @@ end F
 namespace FB
 
 def Converts := Clap.Converts 1 (fun x : Bool ↦ #v[if x then (1 : ZMod p) else 0])
+
 structure ConvertsM
   (action : ClapM p FB)
   (varStore : VarStore p)
@@ -219,6 +211,12 @@ lemma convertsM_of_convertsM_eq
 where
   result := by rewrite [h_eq]; exact h.result
   wellFormed := h.wellFormed
+
+class ToIdeal (α : Type) where
+  toIdeal : Type
+
+instance : ToIdeal FB where
+  toIdeal := Bool
 
 -- TODO generalise
 lemma convertsM_bind

@@ -216,3 +216,30 @@ end List
 namespace Option
 
 end Option
+
+namespace Vector
+
+/--
+Why is this missing...
+-/
+@[simp, grind =]
+lemma mapM_cast {m : Type → Type} [Monad m] [LawfulMonad m]
+  {α β : Type} {n k : Nat} {h : n = k}
+  {f : α → m β}
+  {v : Vector α n} :
+  (v.cast h).mapM f = (fun v : Vector β n ↦ v.cast h) <$> (v.mapM f) := by
+  subst h
+  simp
+
+/--
+Yeah ok...
+-/
+@[simp, grind =]
+lemma mapM_singleton {m : Type → Type} [Monad m] [LawfulMonad m]
+  {α β : Type}
+  {f : α → m β} {x} :
+  #v[x].mapM f = f x >>= (pure #v[·]) := by
+  rw [←_root_.map_inj_right (f := Vector.toArray) (by aesop)]
+  simp
+
+end Vector
