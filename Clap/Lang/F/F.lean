@@ -197,9 +197,10 @@ where
 
 -- TODO generalise
 lemma convertsM_bind
-  [ToIdeal FB]
-  (action : ClapM p F)
-  (function : F → ClapM p FB)
+  {α : Type} [Sized α] [Convertible p α]
+  {β : Type} [Sized β] [Convertible p β]
+  (action : ClapM p α)
+  (function : α → ClapM p β)
   (varStore : VarStore p)
   (numAlloc : ℕ)
   (σ : HashConsSt p)
