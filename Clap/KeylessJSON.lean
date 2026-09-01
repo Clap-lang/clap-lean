@@ -125,24 +125,23 @@ or whose every matched role failed to convert, yields `[]`. -/
 def aptosFieldValueFromJson (uidKey : UidKey) (extraFieldKey key : String) (j : Json) :
   List AptosFieldValue
 :=
-  let roles : List (Option (Except String AptosFieldValue)) :=
-    [ if key == "iss" then some (AptosFieldValue.iss <$> j.getStr?) else none
-    , if key == "aud" then some (AptosFieldValue.aud <$> j.getStr?) else none
-    , if key == uidKey.fieldName then some (AptosFieldValue.uid <$> j.getStr?) else none
-    , if key == "iat" then some (AptosFieldValue.iat <$> j.getNat?) else none
+  let roles : List (Option AptosFieldValue) :=
+    [ if key == "iss" then AptosFieldValue.iss <$> j.getStr?.toOption else none
+    , if key == "aud" then AptosFieldValue.aud <$> j.getStr?.toOption else none
+    , if key == uidKey.fieldName then AptosFieldValue.uid <$> j.getStr?.toOption else none
+    , if key == "iat" then AptosFieldValue.iat <$> j.getNat?.toOption else none
     , if key == "email_verified" then
-        some (AptosFieldValue.emailVerified <$> emailVerifiedFromJson j)
+        AptosFieldValue.emailVerified <$> (emailVerifiedFromJson j).toOption
       else none
     , if key == "nonce" then
-        some do
-          let s ← j.getStr?
-          if s.isEmpty || !s.all Char.isDigit then
-            throw s!"The field (nonce) must be a non-empty digit string, but got (\"{s}\")."
+        do
+          let s ← j.getStr?.toOption
+          guard (!s.isEmpty && s.all Char.isDigit)
           pure (AptosFieldValue.nonce s)
       else none
-    , if key == extraFieldKey then some (AptosFieldValue.extraField <$> j.getStr?) else none
+    , if key == extraFieldKey then AptosFieldValue.extraField <$> j.getStr?.toOption else none
     ]
-  roles.reduceOption.filterMap Except.toOption
+  roles.reduceOption
 
 
 /-- Accumulates one candidate list of typed values per `AptosPayload` field while
