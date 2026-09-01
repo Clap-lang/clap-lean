@@ -143,82 +143,70 @@ lemma toList_map_oneHotRaw_eq_oneHotRaw' :
 
 end OneHotRaw
 
-structure ConvertsM
-  {α : Type} [Sized α] [Convertible p α]
-  -- (conversion : α → Vector (ZMod p) |α|)
-  (exprs : Vector ExprRef |α|)
-  (action : ClapM p α)
-  (varStore : VarStore p)
-  (numAlloc : ℕ)
-  (σ : HashConsSt p)
-  (val : IdealT p α)
-: Prop where
-  result : Converts
-    (action.getVarStore varStore numAlloc σ)
-    (action.getHashConsState numAlloc σ)
-    (action.getNumAlloc numAlloc σ)
-    -- #v[action.getResult numAlloc σ]
-    exprs
-    val
-  wellFormed : action.wellFormed numAlloc varStore σ
-
 namespace F
 
-instance : Sized F where size := 1
 instance {p} : Convertible p F where
   IdealT := ZMod p
-  toRepresents := fun x ↦ #v[x]
+  toRepresents := id
 
--- structure Spec (action : ClapM p F) (varStore) (numAlloc) (σ) where
---   spec : ZMod p
---   converts : ConvertsM action varStore numAlloc σ spec
+instance {p} : ConvertibleM p F where
+  getResultToExprs := ([·])
 
 end F
 
 namespace FB
 
-instance : Sized FB where size := 1
-instance {p} : Convertible p F where
+instance {p} : Convertible p FB where
   IdealT := Bool
-  toRepresents := fun x ↦ #v[if x then (1 : ZMod p) else 0]
+  toRepresents := fun x ↦ if x then 1 else 0
 
-lemma convertsM_of_convertsM_eq
-  {action : ClapM p FB}
-  {varStore numAlloc σ val₁}
-  {exprs}
-  (val₂ : Bool)
-  (h : ConvertsM exprs action varStore numAlloc σ val₂)
-  (h_eq : val₁ = val₂)
-:
-  ConvertsM exprs action varStore numAlloc σ val₁
-where
-  result := by rewrite [h_eq]; exact h.result
-  wellFormed := h.wellFormed
+instance {p} : ConvertibleM p FB where
+  getResultToExprs := ([·])
+
+-- lemma convertsM_of_convertsM_eq
+--   {action : ClapM p FB}
+--   {varStore numAlloc σ val₁}
+--   {exprs}
+--   (val₂ : Bool)
+--   (h : ConvertsM exprs action varStore numAlloc σ val₂)
+--   (h_eq : val₁ = val₂)
+-- :
+--   ConvertsM exprs action varStore numAlloc σ val₁
+-- where
+--   result := by rewrite [h_eq]; exact h.result
+--   wellFormed := h.wellFormed
+
+lemma abc {α : Type} [ConvertibleM p α]
+          {β : Type} [ConvertibleM p β]
+          (action : ClapM p α)
+          (function : α → ClapM p β)
+          (state : ClapState p) :
+  (action >>= function).getExprs state = sorry := by
+  unfold ClapM.getExprs
+  simp
+
 
 -- TODO generalise
 lemma convertsM_bind
-  {α : Type} [Sized α] [Convertible p α]
-  {β : Type} [Sized β] [Convertible p β]
+  {α : Type} [ConvertibleM p α]
+  {β : Type} [ConvertibleM p β]
   (action : ClapM p α)
   (function : α → ClapM p β)
-  (varStore : VarStore p)
-  (numAlloc : ℕ)
-  (σ : HashConsSt p)
-  {action_val : ZMod p}
-  (function_val : ZMod p → ToIdeal.toIdeal FB)
-  (h_action : F.ConvertsM action varStore numAlloc σ action_val)
-  (h_function : FB.ConvertsM
-    (function (action.getResult numAlloc σ))
-    (action.getVarStore varStore numAlloc σ)
-    (action.getNumAlloc numAlloc σ)
-    (action.getHashConsState numAlloc σ)
-    (function_val action_val)
+  (state : ClapState p)
+  {action_vals : List (IdealT p α)}
+  (function_vals : List (IdealT p α) → List (IdealT p β))
+  (h_action : ConvertsM action state action_vals)
+  (h_function : ConvertsM
+    (function (action.getResult state.numAlloc state.σ))
+    (action.getState state)
+    (function_vals action_vals)
   )
 :
-  ConvertsM (action >>= function) varStore numAlloc σ (function_val action_val)
+  ConvertsM (action >>= function) state (function_vals action_vals)
 := by
   constructor
-  . simp
+  .
+    simp
     rewrite [ClapM.getVarStore_bind_of_wellFormed]
     . apply h_function.result
     . apply h_action.wellFormed
@@ -1134,7 +1122,7 @@ lemma convertsM_but_sane?
   have : ∀ x ∈ list, x < p := by grind
   -- TODO add predicate over values of list
   clear_value list
-  
+
   rw [←list.reverse_reverse] at this ⊢
   set list := list.reverse
   clear_value list

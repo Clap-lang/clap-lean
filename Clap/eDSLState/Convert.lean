@@ -15,203 +15,157 @@ class Convertible (p : ℕ) (α : Type) where
 
 export Convertible (toRepresents IdealT)
 
+structure ClapState (p : ℕ) where
+  varStore : VarStore p
+  σ : HashConsSt p
+  numAlloc : ℕ
+
+def ClapM.getState {p : ℕ} {α} (cmd : ClapM p α) (state : ClapState p) : ClapState p where
+  varStore := cmd.getVarStore state.varStore state.numAlloc state.σ
+  σ := cmd.getHashConsState state.numAlloc state.σ
+  numAlloc := cmd.getNumAlloc state.numAlloc state.σ
+
+attribute [local grind] ClapM.getState
+
 structure Converts {p : ℕ}
   {α : Type} [φ : Convertible p α]
-  (varStore : VarStore p)
-  (σ : HashConsSt p)
-  (numAlloc : ℕ)
+  (state : ClapState p)
   (exprs : List ExprRef)
-  (val : List (IdealT p α))
+  (vals : List (IdealT p α))
 : Prop where
-  h_len     : ∀ i, (h : i ∈ exprs) → [varStore|⦃exprs[i], σ⦄]
-  varSet_wf : ∀ (i : Fin |α|), ⦃exprs[i], σ⦄.varSet_wellFormed numAlloc
-  expr_wf   : ∀ (i : Fin |α|), ⦃exprs[i], σ⦄.wellFormed
-  value_eq  : ∀ (i : Fin |α|), [varStore|⦃exprs[i], σ⦄] = .some (toRepresents val)[i]
+  h_len     : exprs.length = vals.length
+  varSet_wf : ∀ (i : Fin exprs.length), ⦃exprs[i], state.σ⦄.varSet_wellFormed state.numAlloc
+  expr_wf   : ∀ (i : Fin exprs.length), ⦃exprs[i], state.σ⦄.wellFormed
+  value_eq  : ∀ (i : Fin exprs.length), [state.varStore|⦃exprs[i], state.σ⦄] = .some (toRepresents vals[i])
 
-structure Converts' {p : ℕ}
-  {α : Type}
-  (conversion : α → List (ZMod p))
-  (varStore : VarStore p)
-  (σ : HashConsSt p)
-  (numAlloc : ℕ)
-  (exprs : List ExprRef)
-  (val : α)
+class ConvertibleM (p : ℕ) (α : Type) extends Convertible p α where
+  getResultToExprs : α → List ExprRef
+
+-- def ClapM.getExprs (p : ℕ) (α : Type) [ConvertibleM p α]
+--   getExprs : ClapM p α → ClapState p → List ExprRef
+--   abc (cmd : ClapM p α) (state : ClapState p) : getResultToExprs (cmd.getResult state.numAlloc state.σ) = getExprs cmd state
+
+abbrev _root_.Clap.ClapM.getExprs {p α} [ConvertibleM p α]
+  (cmd : ClapM p α) (state : ClapState p) : List ExprRef :=
+    ConvertibleM.getResultToExprs p (cmd.getResult state.numAlloc state.σ)
+
+structure ConvertsM {p} {α}
+  [ConvertibleM p α]
+  (cmd : ClapM p α) (state : ClapState p) (vals : List (IdealT p α))
 : Prop where
-  h_conversion : (conversion val).length = exprs.length
-  varSet_wf : ∀ (i : Fin exprs.length), ⦃exprs[i], σ⦄.varSet_wellFormed numAlloc
-  expr_wf   : ∀ (i : Fin exprs.length), ⦃exprs[i], σ⦄.wellFormed
-  value_eq  : ∀ (i : Fin exprs.length), [varStore|⦃exprs[i], σ⦄] = .some ((conversion val)[i])
-
-@[aesop unsafe apply, grind .]
-lemma converts_of_converts' {p}
-  {α} [Sized α][Convertible p α]
-  {varStore : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ}
-  {exprs : Vector ExprRef |α|} {val : IdealT p α}
-  {conversionList : IdealT p α → List (ZMod p)}
-  (h : Converts' conversionList varStore σ numAlloc exprs.toList val) 
-  (h_conversion :
-    ∀ i : Fin |α|,
-      (conversionList val)[i]'(by grind [cases Converts']) = (toRepresents val)[i]) :
-  Converts varStore σ numAlloc exprs val := by
-  rcases h with ⟨h₁, h₂, h₃, h₄⟩
-  rw! (castMode := .all) [show exprs.toList.length = |α| by aesop] at h₁ h₂ h₃ h₄
-  constructor <;> aesop (add safe (by grind))
-
-section OfDubiousWorth
-
-/-
-Typeclasses make these awkward.
--/
-
-@[aesop unsafe apply, grind .]
-lemma converts'_of_converts {p}
-  {α} [Sized α] [Convertible p α]
-  {varStore : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ}
-  {exprs : Vector ExprRef |α|} {val : IdealT p α}
-  {conversionList : IdealT p α → List (ZMod p)}
-  (h_len : (conversionList val).length = |α|)
-  (h : Converts varStore σ numAlloc exprs val)
-  (h_conversion : ∀ i : Fin |α|, (conversionList val)[i] = (toRepresents val)[i]) :
-  Converts' conversionList varStore σ numAlloc exprs.toList val := by
-  rcases h with ⟨h₁, h₂, h₃⟩
-  constructor
-  all_goals
-    try intros i
-        rcases i with ⟨i, hi⟩
-    specialize_all (⟨i, by grind⟩ : Fin |α|)
-    aesop (add safe (by grind))
-
-@[grind .]
-lemma converts_iff_converts' {p}
-  {α} [Sized α] [Convertible p α]
-  {varStore : VarStore p} {σ : HashConsSt p} {numAlloc : ℕ}
-  {exprs : Vector ExprRef |α|} {val : IdealT p α}
-  {conversionList : IdealT p α → List (ZMod p)}
-  (h_len : (conversionList val).length = |α|)
-  (h_conversion : ∀ i : Fin |α|, (conversionList val)[i] = (toRepresents val)[i]) :
-  Converts varStore σ numAlloc exprs val ↔
-  Converts' conversionList varStore σ numAlloc exprs.toList val :=
-  ⟨
-    fun h ↦ converts'_of_converts h_len h h_conversion,
-    fun h ↦ converts_of_converts' h h_conversion
-  ⟩
-  
-end OfDubiousWorth
+  result : Converts (cmd.getState state) (cmd.getExprs state) vals
+  wellFormed : cmd.wellFormed state.numAlloc state.varStore state.σ
 
 section Lemmas
 
 variable
-  {p k : ℕ}
-  {α : Type}
-  {β : Type} [Sized β] [Convertible p β]
-  {conversionVec : β → Vector (ZMod p) |β|}
-  {conversionList : α  → List (ZMod p)}
-  {exprsVec : Vector ExprRef |β|}
-  {exprsList : List ExprRef}
-  {valVec : IdealT p β}
-  {valList : α}
-  {Γ : VarStore p}
-  {σ : HashConsSt p}
-  {numAlloc : ℕ}
-  {x : ZMod p}
-  {actionList : ClapM p α}
-  {actionVec : ClapM p β}
+  {p : ℕ} {α : Type}
+  {state : ClapState p}
+  [Convertible p α]
+  {exprs : List ExprRef}
+  {vals vals₁ vals₂ : List (IdealT p α)}
+  {cmd : ClapM p α}
   {circuit : Circuit}
 
 @[grind .]
-lemma coverts_of_converts_eq {val₁ val₂}
-  (h : val₁ = val₂)
+lemma coverts_of_converts_eq (h : vals₁ = vals₂)
 :
-  Converts Γ σ numAlloc exprsVec val₁ ↔
-  Converts Γ σ numAlloc exprsVec val₂
+  Converts state exprs vals₁ ↔
+  Converts state exprs vals₂
 := by
   grind
 
-@[aesop unsafe]
-lemma isSome_eval_of_isSome_toIdeal
-  (h : Converts Γ σ numAlloc exprsVec valVec)
+@[aesop unsafe, grind .]
+lemma isSome_eval_of_mem
+  (h : Converts state exprs vals)
+  {e : ExprRef}
+  (h_mem : e ∈ exprs)
 :
-  ∀ i : Fin |β|, [Γ, σ|exprsVec[i]].isSome = true
-:= fun i ↦ Option.isSome_iff_exists.2 ⟨_, h.value_eq i⟩
+  [state.varStore, state.σ|e].isSome = true
+:= by
+  rcases h with ⟨h₁, h₂, h₃, h₄⟩
+  rw [List.mem_iff_getElem?] at h_mem
+  rcases h_mem with ⟨w, hw⟩
+  specialize h₄ ⟨w, by grind⟩
+  grind
 
 @[aesop unsafe]
 lemma eval_varStore_eval_eq_some
-  (h₁ : Converts Γ σ numAlloc exprsVec valVec)
-  (h₂ : actionVec.hashConsState_wellFormed numAlloc σ)
+  (h₁ : Converts state exprs vals)
+  (h₂ : cmd.hashConsState_wellFormed state.numAlloc state.σ)
 :
-  letI varStore' := [Γ, actionVec.getHashConsState numAlloc σ, numAlloc|circuit]ₑ.varStore
-  ∀ i : Fin |β|,
-    [varStore'|⦃exprsVec[i], actionVec.getHashConsState numAlloc σ⦄] =
-    some (toRepresents valVec)[i]
+  letI varStore' := [state.varStore, (cmd.getState state).σ, state.numAlloc|circuit]ₑ.varStore
+  ∀ i : Fin exprs.length,
+    [varStore'|⦃exprs[i], (cmd.getState state).σ⦄] =
+    some (toRepresents (vals[i]'(by grind [cases Converts])))
 := by
   intros i
   rcases circuit with ⟨l⟩
   induction' eq : l.length with len ih generalizing l
-  · rcases l <;> grind [Converts]
+  · rcases l <;> grind [Converts, ClapM.getState]
   · rcases l with _ | ⟨hd, tl⟩
     · simp at eq
     · simp [-Fin.getElem_fin]
       specialize ih tl (by grind)
       rewrite [←ih]; clear ih
       apply eval_eq_of_varStore_eq_at_varSet
-      . grind [Converts]
+      . grind [Converts, ClapM.getState]
       . intro v h_v
-        set vashtorr := [unconstrained[numAlloc][Γ], actionVec.getHashConsState numAlloc σ|hd]ₛ.varStore
-        rewrite [Circuit.getElem?_eval_eq_getElem?_of_lt (by grind [Converts])]
-        rewrite [Circuit.getElem?_eval_eq_getElem?_of_lt (by grind [Converts])]
+        set vashtorr := [unconstrained[state.numAlloc][state.varStore], (cmd.getState state).σ|hd]ₛ.varStore
+        rewrite [Circuit.getElem?_eval_eq_getElem?_of_lt (by grind [Converts, ClapM.getState])]
+        rewrite [Circuit.getElem?_eval_eq_getElem?_of_lt (by grind [Converts, ClapM.getState])]
         choose k vec h_vec using @EvalSt.exists_varStore_step_eq_insertMany
         simp [vashtorr, h_vec.1]
         rw [Std.ExtTreeMap.getElem?_insertMany_eq_getElem?_of_neq]
-        grind [Converts]
+        grind [Converts, ClapM.getState]
 
-lemma eval_varStore_eval_eq_some'
-  (h₁ : Converts' conversionList Γ σ numAlloc exprsList valList)
-  (h₂ : actionList.hashConsState_wellFormed numAlloc σ)
+lemma converts_getState_of_wellFormed
+  (h_a_wf : cmd.wellFormed state.numAlloc state.varStore state.σ)
+  (h : Converts state exprs vals)
 :
-  letI varStore' := [Γ, actionList.getHashConsState numAlloc σ, numAlloc|circuit]ₑ.varStore
-  ∀ i : Fin exprsList.length,
-    [varStore'|⦃exprsList[i], actionList.getHashConsState numAlloc σ⦄] =
-    some ((conversionList valList)[i]'(by grind [cases Converts']))
+  Converts (cmd.getState state) exprs vals
 := by
-  intros i  
-  rcases circuit with ⟨l⟩
-  induction' eq : l.length with len ih generalizing l
-  · rcases l <;> grind [Converts']
-  · rcases l with _ | ⟨hd, tl⟩
-    · simp at eq
-    · simp [-Fin.getElem_fin]
-      specialize ih tl (by grind)
-      rewrite [←ih]; clear ih
-      apply eval_eq_of_varStore_eq_at_varSet
-      . grind [Converts']
-      . intro v h_v
-        set vashtorr := [unconstrained[numAlloc][Γ], actionList.getHashConsState numAlloc σ|hd]ₛ.varStore
-        rewrite [Circuit.getElem?_eval_eq_getElem?_of_lt (by grind [Converts'])]
-        rewrite [Circuit.getElem?_eval_eq_getElem?_of_lt (by grind [Converts'])]
-        choose k vec h_vec using @EvalSt.exists_varStore_step_eq_insertMany
-        simp [vashtorr, h_vec.1]
-        rw [Std.ExtTreeMap.getElem?_insertMany_eq_getElem?_of_neq]
-        grind [Converts']
-
-lemma toIdeal_run_of_toIdeal
-  (h_a_wf : actionVec.wellFormed numAlloc Γ σ)
-  (h : Converts Γ σ numAlloc exprsVec valVec) :
-  Converts (actionVec.getVarStore Γ numAlloc σ)
-           (actionVec.getHashConsState numAlloc σ)
-           (actionVec.getNumAlloc numAlloc σ)
-           exprsVec
-           valVec := by
-  rcases h with ⟨h₁, h₂, h₃⟩
+  rcases h with ⟨h₁, h₂, h₃, h₄⟩
   constructor
+  case h_len => assumption
   · grind [=Expr.varSet_wellFormed]
   · grind
   · rcases h_a_wf with ⟨⟨h₄, h₅⟩, ⟨h₆, h₇⟩⟩
     intro i
+    rw [show (cmd.getState state).varStore = cmd.getVarStore state.varStore state.numAlloc state.σ from rfl]
     unfold ClapM.getVarStore
-    rw [eval_varStore_eval_eq_some] -- a-HA!
+    change
+      [[state.varStore, (cmd.getState state).σ,
+              state.numAlloc|cmd.getCircuit state.numAlloc
+                state.σ]ₑ.varStore|⦃exprs[i], (cmd.getState state).σ⦄] =
+        some (toRepresents vals[i])
+    rw [eval_varStore_eval_eq_some]
     . constructor <;> assumption
     . assumption
 
 end Lemmas
+
+section LemmasM
+
+variable
+  {p : ℕ} {α : Type}
+  {state : ClapState p}
+  [ConvertibleM p α]
+  {exprs : List ExprRef}
+  {vals : List (IdealT p α)}
+  {cmd cmd₁ cmd₂ : ClapM p α}
+
+lemma converts_getState
+  {skip_vals}
+  (h_skip : ConvertsM cmd state skip_vals)
+  (h_vals : Converts state exprs vals)
+:
+  Converts (cmd.getState state) exprs vals
+:=
+  converts_getState_of_wellFormed
+    h_skip.wellFormed
+    h_vals
+
+end LemmasM
 
 end Clap
