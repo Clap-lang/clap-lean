@@ -26,18 +26,18 @@ def oneHotRaw_aux (start len : ℕ) (idx : F) : ClapM p (Vector FB len) :=
     eq idx idx_val
   )
 
-/--
-Yeah ok...
+-- /--
+-- Yeah ok...
 
-TODO: Remove (here to save build time)
--/
-@[simp, grind =]
-lemma _root_.Vector.mapM_singleton {m : Type → Type} [Monad m] [LawfulMonad m]
-  {α β : Type}
-  {f : α → m β} {x} :
-  #v[x].mapM f = f x >>= (pure #v[·]) := by
-  rw [←map_inj_right (f := Vector.toArray) (by aesop)]
-  simp
+-- TODO: Remove (here to save build time)
+-- -/
+-- @[simp, grind =]
+--lemma _root_.Vector.mapM_singleton {m : Type → Type} [Monad m] [LawfulMonad m]
+--   {α β : Type}
+--   {f : α → m β} {x} :
+--   #v[x].mapM f = f x >>= (pure #v[·]) := by
+--   rw [←map_inj_right (f := Vector.toArray) (by aesop)]
+--   simp
 
 @[simp, grind =]
 lemma oneHotRaw_aux_zero :
