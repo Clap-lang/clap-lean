@@ -162,6 +162,33 @@ lemma toIdeal_run_of_toIdeal
     . constructor <;> assumption
     . assumption
 
+lemma toIdeal_run_of_toIdeal'
+  {β}
+  {exprs : List ExprRef}
+  {conversion : α → List (ZMod p)}
+  (action : ClapM p β)
+  (h_a_wf : action.wellFormed state.numAlloc state.varStore state.σ)
+  (h : Converts' conversion state exprs val) :
+  Converts'
+           conversion
+           (action.getState state)
+           exprs
+           val := by
+  rcases h with ⟨h₁, h₂, h₃, h₄⟩
+  constructor
+  · grind [=Expr.varSet_wellFormed, ClapM.getState]
+  · grind [ClapM.getState]
+  · intro i
+    unfold ClapM.getState ClapM.getVarStore
+    rw [eval_varStore_eval_eq_some' (conversion := conversion) (val := val)]
+    . constructor
+      . assumption
+      . assumption
+      . assumption
+      . assumption
+    . grind
+  . assumption
+
 end Lemmas
 
 end Clap

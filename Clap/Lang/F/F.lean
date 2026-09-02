@@ -158,7 +158,12 @@ end OneHotRaw
 
 namespace F
 
-def Converts := Clap.Converts 1 (fun x : ZMod p ↦ #v[x])
+def Converts
+  (state : ClapMState p)
+  (expr : F)
+  (val : ZMod p)
+:=
+  Clap.Converts' (fun x : ZMod p ↦ [x]) state [expr] val
 
 structure ConvertsM
   (action : ClapM p F)
@@ -167,7 +172,7 @@ structure ConvertsM
 : Prop where
   result : Converts
     (action.getState state)
-    #v[action.getResult state.numAlloc state.σ]
+    (action.getResult state.numAlloc state.σ)
     val
   wellFormed : action.wellFormed state.numAlloc state.varStore state.σ
   -- constraints : [state.varStore, (action.getState state).σ, state.numAlloc|action.getCircuit state.numAlloc state.σ]ₑ.constraints
@@ -181,7 +186,12 @@ end F
 
 namespace FB
 
-def Converts := Clap.Converts 1 (fun x : Bool ↦ #v[if x then (1 : ZMod p) else 0])
+def Converts
+  (state : ClapMState p)
+  (expr : FB)
+  (val : Bool)
+:=
+  Clap.Converts' (fun x : Bool ↦ [if x then (1 : ZMod p) else 0]) state [expr] val
 
 structure ConvertsM
   (action : ClapM p FB)
@@ -190,7 +200,7 @@ structure ConvertsM
 : Prop where
   result : Converts
     (action.getState state)
-    #v[action.getResult state.numAlloc state.σ]
+    (action.getResult state.numAlloc state.σ)
     val
   wellFormed : action.wellFormed state.numAlloc state.varStore state.σ
   -- constraints : [state.varStore, (action.getState state).σ, state.numAlloc|action.getCircuit state.numAlloc state.σ]ₑ.constraints
@@ -251,13 +261,22 @@ namespace FArray
 def Converts (k : ℕ) := Clap.Converts k
   fun vec : Vector Bool k ↦ vec.map fun x ↦ if x then (1 : ZMod p) else 0
 
-def Converts' := Clap.Converts'
-  fun l : List Bool ↦ l.map fun x ↦ if x then (1 : ZMod p) else 0
+def Converts'
+  {k}
+  (state : ClapMState p)
+  (exprs : Vector FB k)
+  (val : Vector Bool k)
+:= Clap.Converts'
+  (fun l : List Bool ↦ l.map fun x ↦ if x then 1 else 0)
+  state
+  exprs.toList
+  val.toList
+
 
 @[aesop unsafe apply, grind .]
 lemma converts_of_converts' {k} {state : ClapMState p}
   {exprs : Vector ExprRef k} {val : Vector Bool k}
-  (h : Converts' state exprs.toList val.toList) :
+  (h : Converts' state exprs val) :
   Converts k state exprs val := by
   unfold Converts
   unfold Converts' at h
@@ -296,9 +315,10 @@ lemma ConvertsM.def {k state} {action : ClapM p (Vector FB k)}
   grind
 
 structure ConvertsM'
-  (action : ClapM p (List FB))
+  {k}
+  (action : ClapM p (Vector FB k))
   (state)
-  (val : List Bool)
+  (val : Vector Bool k)
 : Prop where
   result : Converts'
     (action.getState state)
@@ -307,8 +327,8 @@ structure ConvertsM'
   wellFormed : action.wellFormed state.numAlloc state.varStore state.σ
   -- constraints : [state.varStore, (action.getState state).σ, state.numAlloc|action.getCircuit state.numAlloc state.σ]ₑ.constraints
 
-lemma ConvertsM'.def {state} {action : ClapM p (List FB)}
-                     {val : List Bool}
+lemma ConvertsM'.def {k} {state} {action : ClapM p (Vector FB k)}
+                     {val : Vector Bool k}
 :
   ConvertsM' action state val ↔
   Converts'
@@ -325,8 +345,9 @@ lemma ConvertsM'.def {state} {action : ClapM p (List FB)}
 
 @[aesop unsafe apply, grind =>]
 lemma converts'_skip
-  {skip : ClapM p (List FB)} {state}
-  {val val' : List Bool} {exprs : List ExprRef}
+  {k1 k2}
+  {skip : ClapM p (Vector FB k2)} {state}
+  {val : Vector Bool k1} {val' : Vector Bool k2} {exprs : Vector ExprRef k1}
   (h_skip : FArray.ConvertsM' skip state val')
   (h : FArray.Converts' state exprs val) :
   FArray.Converts' (skip.getState state)
@@ -346,7 +367,8 @@ lemma converts'_skip
 
 @[aesop unsafe apply, grind =>]
 lemma converts'_skip_FB
-  {skip : ClapM p FB} {state} {val : List Bool} {val' : Bool} {exprs : List ExprRef}
+  {k}
+  {skip : ClapM p FB} {state} {val : Vector Bool k} {val' : Bool} {exprs : Vector ExprRef k}
   (h_skip : FB.ConvertsM skip state val')
   (h : FArray.Converts' state exprs val) :
   FArray.Converts' (skip.getState state)
@@ -366,7 +388,8 @@ lemma converts'_skip_FB
 
 @[aesop unsafe apply, grind =>]
 lemma converts'_skip_F
-  {skip : ClapM p F} {state} {val : List Bool} {val' : ZMod p} {exprs : List ExprRef}
+  {k}
+  {skip : ClapM p F} {state} {val : Vector Bool k} {val' : ZMod p} {exprs : Vector ExprRef k}
   (h_skip : F.ConvertsM skip state val')
   (h : FArray.Converts' state exprs val) :
   FArray.Converts' (skip.getState state)
@@ -387,7 +410,7 @@ lemma converts'_skip_F
 @[aesop unsafe apply, grind .]
 lemma convertsM_of_ConvertsM' {k : ℕ} {state} {val : Vector Bool k}
                               {action : ClapM p (Vector FB k)}
-                              (h : ConvertsM' (Vector.toList <$> action) state val.toList) :
+                              (h : ConvertsM' action state val) :
   ConvertsM action state val := by
   rw [ConvertsM.def]; rw [ConvertsM'.def] at h
   grind [ClapM.getState]
@@ -420,11 +443,12 @@ lemma convertsM_bind
     . apply h_function.wellFormed
 
 lemma convertsM'_bind_F
+  {k}
   (action : ClapM p F)
-  (function : F → ClapM p (List ExprRef))
+  (function : F → ClapM p (Vector ExprRef k))
   (state)
   {action_val : ZMod p}
-  (function_val : ZMod p → List Bool)
+  (function_val : ZMod p → Vector Bool k)
   (h_action : F.ConvertsM action state action_val)
   (h_function : FArray.ConvertsM'
     (function (action.getResult state.numAlloc state.σ))
@@ -445,11 +469,12 @@ lemma convertsM'_bind_F
     . apply h_function.wellFormed
 
 lemma convertsM'_bind_FB
+  {k}
   (action : ClapM p FB)
-  (function : FB → ClapM p (List ExprRef))
+  (function : FB → ClapM p (Vector ExprRef k))
   (state)
   {action_val : Bool}
-  (function_val : Bool → List Bool)
+  (function_val : Bool → Vector Bool k)
   (h_action : FB.ConvertsM action state action_val)
   (h_function : FArray.ConvertsM'
     (function (action.getResult state.numAlloc state.σ))
@@ -469,12 +494,13 @@ lemma convertsM'_bind_FB
     . apply h_action.wellFormed
     . apply h_function.wellFormed
 
-lemma convertsM'_bind_FList
-  (action : ClapM p (List FB))
-  (function : List FB → ClapM p (List FB))
+lemma convertsM'_bind_FArray
+  {k1 k2}
+  (action : ClapM p (Vector FB k1))
+  (function : Vector FB k1 → ClapM p (Vector FB k2))
   (state)
-  {action_val : List Bool}
-  (function_val : List Bool → List Bool)
+  {action_val : Vector Bool k1}
+  (function_val : Vector Bool k1 → Vector Bool k2)
   (h_action : FArray.ConvertsM' action state action_val)
   (h_function : FArray.ConvertsM'
     (function (action.getResult state.numAlloc state.σ))
@@ -518,11 +544,12 @@ lemma convertsM_map_FB_FArray
     apply h_action.wellFormed
 
 lemma convertsM'_map_FB_FArray
+  {k}
   (action : ClapM p FB)
-  (f : FB → List FB)
+  (f : FB → Vector FB k)
   (state)
   {action_val : Bool}
-  (f_val : Bool → List Bool)
+  (f_val : Bool → Vector Bool k)
   (h_action : FB.ConvertsM action state action_val)
   (h_f_val : FArray.Converts'
     (action.getState state)
@@ -587,9 +614,10 @@ lemma converts_empty
 
 @[aesop safe]
 lemma convertsM'_pure
+        {k}
         {state : ClapMState p}
-        {x : List ExprRef}
-        {val : List Bool}
+        {x : Vector ExprRef k}
+        {val : Vector Bool k}
         (h : FArray.Converts' state x val)
   : ConvertsM' (pure x) state val := by
   constructor
@@ -599,7 +627,7 @@ lemma convertsM'_pure
 @[simp]
 lemma converts'_empty
         {state : ClapMState p}
-  : Converts' state [] [] := by
+  : Converts' state #v[] #v[] := by
   constructor
   . simp
   · simp
@@ -614,7 +642,7 @@ lemma converts_push
   {vals : Vector Bool k}
   {val : Bool}
   (h_exprs : FArray.Converts k state exprs vals)
-  (h_expr : FB.Converts state #v[expr] val)
+  (h_expr : FB.Converts state expr val)
 :
   FArray.Converts (k + 1) state (exprs.push expr) (vals.push val)
 := by
@@ -633,66 +661,238 @@ lemma converts_push
   }
 
 lemma converts'_push
+  {k}
   {state : ClapMState p}
-  {exprs : List FB}
+  {exprs : Vector FB k}
   {expr : FB}
-  {vals : List Bool}
+  {vals : Vector Bool k}
   {val : Bool}
   (h_exprs : FArray.Converts' state exprs vals)
-  (h_expr : FB.Converts state #v[expr] val)
+  (h_expr : FB.Converts state expr val)
 :
-  FArray.Converts' state (exprs ++ [expr]) (vals ++ [val])
+  FArray.Converts' state (exprs.push expr) (vals.push val)
 := by
-  obtain ⟨exprs_varSet, exprs_wellFormed, exprs_result⟩ := h_exprs
-  obtain ⟨expr_varSet, expr_wellFormed, expr_result⟩ := h_expr
+  obtain ⟨exprs_length, exprs_varSet, exprs_wellFormed, exprs_result⟩ := h_exprs
+  obtain ⟨expr_lengh, expr_varSet, expr_wellFormed, expr_result⟩ := h_expr
   simp at *
   constructor
-  all_goals {
-    try intro i
-    simp
-    try (
-      rewrite [List.getElem_append]
-      split
-      . specialize_all ⟨i.val, by assumption⟩
-        grind
-      . grind
-    )
-    try grind
-  }
+  . intro i
+    simp [Vector.getElem_push]
+    split
+    . exact exprs_varSet ⟨i.val, by grind⟩
+    . assumption
+  . intro i
+    simp [Vector.getElem_push]
+    split
+    . exact exprs_wellFormed ⟨i.val, by grind⟩
+    . assumption
+  . intro i
+    simp [Vector.getElem_push]
+    split
+    . exact exprs_result ⟨i.val, by grind⟩
+    . assumption
+  . grind
 
 end FArray
+
+namespace FList
+
+def Converts'
+  (state : ClapMState p)
+  (exprs : List FB)
+  (val : List Bool)
+:= Clap.Converts'
+  (fun l : List Bool ↦ l.map fun x ↦ if x then 1 else 0)
+  state
+  exprs
+  val
+
+structure ConvertsM'
+  (action : ClapM p (List FB))
+  (state)
+  (val : List Bool)
+: Prop where
+  result : Converts'
+    (action.getState state)
+    (action.getResult state.numAlloc state.σ)
+    val
+  wellFormed : action.wellFormed state.numAlloc state.varStore state.σ
+
+@[aesop safe]
+lemma convertsM'_pure
+        {state : ClapMState p}
+        {x : List FB}
+        {val : List Bool}
+        (h : FList.Converts' state x val)
+  : ConvertsM' (pure x) state val := by
+  constructor
+  · simpa
+  · grind
+
+@[simp]
+lemma converts'_empty
+        {state : ClapMState p}
+  : Converts' state [] [] := by
+  constructor
+  . simp
+  · simp
+  · grind
+  · grind
+
+@[aesop unsafe apply, grind =>]
+lemma converts'_skip_F
+  {skip : ClapM p F} {state}
+  {val' : ZMod p} {expr : List FB} {val : List Bool}
+  (h_skip : F.ConvertsM skip state val')
+  (h : FList.Converts' state expr val) :
+  FList.Converts' (skip.getState state)
+             expr
+             val := toIdeal_run_of_toIdeal' _ h_skip.wellFormed h
+
+@[aesop unsafe apply, grind =>]
+lemma converts'_skip_FB
+  {skip : ClapM p FB} {state}
+  {val' : Bool} {expr : List FB} {val : List Bool}
+  (h_skip : FB.ConvertsM skip state val')
+  (h : FList.Converts' state expr val) :
+  FList.Converts' (skip.getState state)
+             expr
+             val := toIdeal_run_of_toIdeal' _ h_skip.wellFormed h
+
+lemma converts'_append
+  {state : ClapMState p}
+  {exprs1 exprs2 : List FB}
+  {vals1 vals2 : List Bool}
+  (h_exprs1 : FList.Converts' state exprs1 vals1)
+  (h_exprs2 : FList.Converts' state exprs2 vals2)
+:
+  FList.Converts' state (exprs1 ++ exprs2) (vals1 ++ vals2)
+:= by
+  obtain ⟨exprs1_length, exprs1_varSet, exprs1_wellFormed, exprs1_result⟩ := h_exprs1
+  obtain ⟨exprs2_lengh, exprs2_varSet, exprs2_wellFormed, exprs2_result⟩ := h_exprs2
+  simp at *
+  constructor
+  . intro i
+    simp [List.getElem_append]
+    split
+    . exact exprs1_varSet ⟨i.val, by grind⟩
+    . exact exprs2_varSet ⟨_, by grind⟩
+  . intro i
+    simp [List.getElem_append]
+    split
+    . exact exprs1_wellFormed ⟨i.val, by grind⟩
+    . exact exprs2_wellFormed ⟨_, by grind⟩
+  . intro i
+    simp [List.getElem_append, exprs1_length]
+    split
+    . exact exprs1_result ⟨i.val, by grind⟩
+    . exact exprs2_result ⟨_, by grind⟩
+  . grind
+
+lemma converts'_of_converts_FB
+  {state : ClapMState p}
+  {exprs}
+  {vals}
+  (h_length : exprs.length = vals.length)
+  (h_converts : ∀ i : Fin exprs.length, FB.Converts state exprs[i] vals[i])
+:
+  FList.Converts' state exprs vals
+:= by
+  constructor
+  . intro i
+    have := (h_converts i).varSet_wf
+    simp at this
+    assumption
+  . intro i
+    have := (h_converts i).expr_wf
+    simp at this
+    assumption
+  . intro i
+    have := (h_converts i).value_eq
+    simp at this
+    simp [this]
+  . grind
+
+lemma converts'_singleton_of_converts_FB
+  {state : ClapMState p}
+  {expr}
+  {val}
+  (h_converts : FB.Converts state expr val)
+:
+  FList.Converts' state [expr] [val]
+:= by
+  apply converts'_of_converts_FB
+  . simpa
+  . simp
+
+end FList
+
+@[simp, grind =]
+lemma getState_map
+  {α β}
+  {state}
+  (action : ClapM p α)
+  (f : α → β)
+:
+  (f <$> action).getState state =
+  action.getState state
+:= by
+  grind [ClapM.getState]
+
+lemma FArray.convertsM'_of_convertsM'_toList
+  {k}
+  {action : ClapM p (Vector FB k)}
+  {state}
+  {val : Vector Bool k}
+  (h : FList.ConvertsM' (Vector.toList <$> action) state val.toList)
+:
+  FArray.ConvertsM' action state val
+:= by
+  constructor
+  . grind [FArray.Converts', FList.ConvertsM', FList.Converts']
+  . grind [FList.ConvertsM']
+
 
 -- h_idx : F.Converts varStore σ numAlloc #v[idx] idx_val
 -- h_tail : FArray.ConvertsM' mapM varStore numAlloc σ (List.map (fun a => a == idx_val.val) tail.reverse)
 
 @[aesop unsafe apply, grind =>]
 lemma F.converts_skip_FArray
-  {skip : ClapM p (List FB)} {state}
-  {val' : List Bool} {expr : F} {val : ZMod p}
+  {k}
+  {skip : ClapM p (Vector FB k)} {state}
+  {val' : Vector Bool k} {expr : F} {val : ZMod p}
   (h_skip : FArray.ConvertsM' skip state val')
-  (h : F.Converts state #v[expr] val) :
+  (h : F.Converts state expr val) :
   F.Converts (skip.getState state)
-             #v[expr]
-             val := toIdeal_run_of_toIdeal _ h_skip.wellFormed h
+             expr
+             val := toIdeal_run_of_toIdeal' _ h_skip.wellFormed h
 
 @[aesop unsafe apply, grind =>]
 lemma F.converts_skip_F
   {skip : ClapM p F} {state : ClapMState p}
   {val' : ZMod p} {expr : F} {val : ZMod p}
   (h_skip : F.ConvertsM skip state val')
-  (h : F.Converts state #v[expr] val) :
+  (h : F.Converts state expr val) :
   F.Converts (skip.getState state)
-             #v[expr]
-             val := toIdeal_run_of_toIdeal _ h_skip.wellFormed h
+             expr
+             val := toIdeal_run_of_toIdeal' _ h_skip.wellFormed h
 
 @[aesop unsafe apply, grind =>]
 lemma F.converts_skip_FB
-  {skip : ClapM p FB} {state} {val' : Bool} {expr : FB} {val : ZMod p}
+  {skip : ClapM p FB} {state} {val' : Bool} {expr : F} {val : ZMod p}
   (h_skip : FB.ConvertsM skip state val')
-  (h : F.Converts state #v[expr] val) :
+  (h : F.Converts state expr val) :
   F.Converts (skip.getState state)
-             #v[expr]
-             val := toIdeal_run_of_toIdeal _ h_skip.wellFormed h
+             expr
+             val := toIdeal_run_of_toIdeal' _ h_skip.wellFormed h
+
+lemma F.converts_skip_FList
+  {skip : ClapM p (List FB)} {state} {val' : List Bool} {expr : F} {val : ZMod p}
+  (h_skip : FList.ConvertsM' skip state val')
+  (h : F.Converts state expr val) :
+  F.Converts (skip.getState state)
+             expr
+             val := toIdeal_run_of_toIdeal' _ h_skip.wellFormed h
 
 @[grind =]
 lemma deref_idxOf_of_mem
@@ -738,7 +938,7 @@ lemma lt_getNumAlloc_isZero
 namespace isZero
 
 lemma wellFormed {e! : ExprRef} {state} {value : ZMod p}
-  (h : F.Converts state #v[e!] value)
+  (h : F.Converts state e! value)
 :
   (isZero e!).wellFormed state.numAlloc state.varStore state.σ
 := by
@@ -755,14 +955,14 @@ lemma converts
   {state}
   {a : F}
   {a_val : ZMod p}
-  (h_a : F.Converts state #v[a] a_val)
+  (h_a : F.Converts state a a_val)
 :
   FB.Converts
     ((isZero a).getState state)
-    #v[(isZero a).getResult state.numAlloc state.σ]
+    ((isZero a).getResult state.numAlloc state.σ)
     (a_val == 0)
 := by
-  obtain ⟨a_varSet, a_wellFormed, a_result⟩ := h_a
+  obtain ⟨a_length, a_varSet, a_wellFormed, a_result⟩ := h_a
   obtain ⟨varStore, σ, numAlloc⟩ := state
   simp [ClapM.getState]
   constructor <;> simp at *
@@ -794,7 +994,7 @@ lemma convertsM
   {state}
   {a : F}
   {a_val : ZMod p}
-  (h_a : F.Converts state #v[a] a_val)
+  (h_a : F.Converts state a a_val)
 :
   FB.ConvertsM (isZero a)
     state
@@ -823,7 +1023,7 @@ where
 
 def spec [p.AtLeastTwo]
   {a : F} {state : ClapMState p} {a_val}
-  (h: (F.Converts state #v[a] a_val))
+  (h: (F.Converts state a a_val))
 :
   FB.Spec (isZero a) state
 where
@@ -839,17 +1039,17 @@ lemma converts
    {state}
    {a b : ExprRef}
    {a_val b_val : ZMod p}
-   (h_a : F.Converts state #v[a] a_val)
-   (h_b : F.Converts state #v[b] b_val)
+   (h_a : F.Converts state a a_val)
+   (h_b : F.Converts state b b_val)
 :
   F.Converts
     (ClapM.getState (liftM (HashConsM.mkSub (p := p) a b)) state)
-    #v[ClapM.getResult (liftM (HashConsM.mkSub (p := p) a b)) state.numAlloc state.σ]
+    (ClapM.getResult (liftM (HashConsM.mkSub (p := p) a b)) state.numAlloc state.σ)
     (a_val - b_val)
 := by
   simp [ClapM.getState]
-  obtain ⟨a_varSet, a_wellFormed, a_result⟩ := h_a
-  obtain ⟨b_varSet, b_wellFormed, b_result⟩ := h_b
+  obtain ⟨a_length, a_varSet, a_wellFormed, a_result⟩ := h_a
+  obtain ⟨b_length, b_varSet, b_wellFormed, b_result⟩ := h_b
   constructor <;>
   simp at *
   . grind [=Expr.varSet_wellFormed]
@@ -884,8 +1084,8 @@ lemma convertsM
   {state}
   {a b : ExprRef}
   {a_val b_val : ZMod p}
-  (h_a : F.Converts state #v[a] a_val)
-  (h_b : F.Converts state #v[b] b_val)
+  (h_a : F.Converts state a a_val)
+  (h_b : F.Converts state b b_val)
 :
   F.ConvertsM (liftM (HashConsM.mkSub (p := p) a b)) state (a_val - b_val)
 where
@@ -894,8 +1094,8 @@ where
 
 def spec
   {a b : F} {state : ClapMState p} {a_val b_val}
-  (h_a: (F.Converts state #v[a] a_val))
-  (h_b: (F.Converts state #v[b] b_val))
+  (h_a: (F.Converts state a a_val))
+  (h_b: (F.Converts state b b_val))
 :
   F.Spec state
 where
@@ -912,8 +1112,8 @@ lemma convertsM
   {state}
   {a b : F}
   {a_val b_val : ZMod p}
-  (h_a : F.Converts state #v[a] a_val)
-  (h_b : F.Converts state #v[b] b_val)
+  (h_a : F.Converts state a a_val)
+  (h_b : F.Converts state b b_val)
 :
   FB.ConvertsM (eq a b) state (a_val == b_val)
 := by
@@ -935,23 +1135,6 @@ lemma convertsM
 --   converts := by
 --     unfold eq
 --     --
-
-lemma convertsM'
-  [p.AtLeastTwo]
-  {state}
-  {a b : F}
-  {a_val b_val : ZMod p}
-  (h_a : F.Converts state #v[a] a_val)
-  (h_b : F.Converts state #v[b] b_val)
-:
-  FB.ConvertsM (eq a b) state (a_val == b_val)
-:= by
-  unfold eq
-  apply FB.convertsM_of_convertsM_eq (a_val- b_val == 0)
-  . exact FB.convertsM_bind _ _ _ (λ x => x == (0 : ZMod p))
-      (mkSub.convertsM h_a h_b)
-      (isZero.convertsM (mkSub.convertsM h_a h_b).result)
-  . grind
 
 end eq
 
@@ -1055,11 +1238,12 @@ namespace oneHotRaw
 
 -- TODO generalize
 lemma convertsM'_map_FArray_FArray
-  (action : ClapM p (List FB))
-  (f : List FB → List FB)
+  {k1 k2}
+  (action : ClapM p (Vector FB k1))
+  (f : Vector FB k1 → Vector FB k2)
   (state)
-  {action_val : List Bool}
-  (f_val : List Bool → List Bool)
+  {action_val : Vector Bool k1}
+  (f_val : Vector Bool k1 → Vector Bool k2)
   (h_action : FArray.ConvertsM' action state action_val)
   (h_f_val : FArray.Converts'
     (action.getState state)
@@ -1100,12 +1284,12 @@ lemma convertsM_but_sane?
   {len : ℕ}
   {idx : F}
   {idx_val : ZMod p} -- TODO : Fin len?
-  (h_idx : F.Converts state #v[idx] idx_val)
+  (h_idx : F.Converts state idx idx_val)
   (h_len : len < p)
 :
-  FArray.ConvertsM (oneHotRaw len idx) state (Vector.ofFn (λ x => x.val == idx_val.val))
+  FArray.ConvertsM' (oneHotRaw len idx) state (Vector.ofFn (λ x => x.val == idx_val.val))
 := by
-  apply FArray.convertsM_of_ConvertsM'
+  apply FArray.convertsM'_of_convertsM'_toList
   simp_rw [toList_map_oneHotRaw_eq_oneHotRaw']
   unfold oneHotRaw' oneHotRaw'_aux
 
@@ -1136,7 +1320,7 @@ lemma convertsM_but_sane?
 
       -- assert that our previous state still holds after the mapM
       obtain ⟨h_mapM_result, h_wellFormed⟩ := h_len
-      apply F.converts_skip_FArray ⟨h_mapM_result, h_wellFormed⟩ at h_idx
+      apply F.converts_skip_FList ⟨h_mapM_result, h_wellFormed⟩ at h_idx
       set mapM := List.mapM
           (fun i => do
             let idx_val ← liftM (HashConsM.mkConstant (i : ZMod p))
@@ -1148,7 +1332,7 @@ lemma convertsM_but_sane?
       -- Get ConvertsM for mkConstant and assert that previous state still holds
       obtain ⟨h_a, h_wellFormed⟩ := @MkConstant.convertsM p state hd
       apply F.converts_skip_F ⟨h_a, h_wellFormed⟩ at h_idx
-      apply FArray.converts'_skip_F ⟨h_a, h_wellFormed⟩ at h_mapM_result
+      apply FList.converts'_skip_F ⟨h_a, h_wellFormed⟩ at h_mapM_result
       set mkConst := (liftM (n := ClapM p) (HashConsM.mkConstant (p := p) (hd : ZMod p)))
       set c_result := mkConst.getResult state.numAlloc state.σ
       set state := mkConst.getState state
@@ -1156,13 +1340,15 @@ lemma convertsM_but_sane?
       -- Get ConvertsM for eq and assert that previous state still holds
       obtain ⟨h_eq, h_wellFormed⟩ := eq.convertsM h_idx h_a
       apply F.converts_skip_FB ⟨h_eq, h_wellFormed⟩ at h_idx
-      apply FArray.converts'_skip_FB ⟨h_eq, h_wellFormed⟩ at h_mapM_result
+      apply FList.converts'_skip_FB ⟨h_eq, h_wellFormed⟩ at h_mapM_result
       set eq := eq (p := p) idx c_result
       set eq_result := eq.getResult state.numAlloc state.σ
       set eq_state := eq.getState state
 
       -- Apply the Functor map to the result of our eq, leaving the state unaffected
-      have h_eq_map := FArray.converts'_push h_mapM_result h_eq
+      have h_eq_map := FList.converts'_append
+        h_mapM_result
+        (FList.converts'_singleton_of_converts_FB h_eq)
 
       -- We've reached the end of the function, so strip away the boilerplate and prove
       -- that the canonical spec matches our hand written one
