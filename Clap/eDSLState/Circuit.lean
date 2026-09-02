@@ -157,7 +157,7 @@ def varsAllocated (c : Circuit) (varStore : VarStore p) (σ : HashConsSt p) (num
   ∀ i (h : i < c.size),
     letI evalSt := [varStore, σ, numAlloc|c.take i]ₑ
     c[i].varsAllocated evalSt.varStore σ ∧
-    ∀ e ∈ c[i].exprs, ⦃e, σ⦄.varSet_wellFormed evalSt.numAlloc
+    ∀ e ∈ c[i].exprs, {{e, σ}}.varSet_wellFormed evalSt.numAlloc
 
 @[simp, grind .]
 lemma varsAllocated_nil : varsAllocated #[] varStore σ numAlloc := by

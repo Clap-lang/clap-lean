@@ -13,7 +13,7 @@ structure Expr (p : ℕ) where
 
 namespace Expr
 
-notation "⦃" ref ", " σ "⦄" => Expr.mk ref σ
+notation "{{" ref ", " σ "}}" => Expr.mk ref σ
 
 section Expr
 

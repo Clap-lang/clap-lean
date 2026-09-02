@@ -403,13 +403,13 @@ lemma getVarStore_eq0 :
 @[simp, grind =]
 lemma getVarStore_share :
   (share e!).getVarStore Γ numAlloc σ =
-  Γ.insert numAlloc ([Γ|⦃e!, (mkVar numAlloc).getHashConsState σ⦄].getD 0) := by
+  Γ.insert numAlloc ([Γ|{{e!, (mkVar numAlloc).getHashConsState σ}}].getD 0) := by
   simp [share, ClapM.getVarStore]
 
 @[simp, grind =]
 lemma getVarStore_isZero :
   (isZero e!).getVarStore Γ numAlloc σ =
-  Std.ExtTreeMap.insert Γ numAlloc (if [Γ|⦃e!, (mkVar numAlloc).getHashConsState σ⦄] = some 0 then 1 else 0) := by
+  Std.ExtTreeMap.insert Γ numAlloc (if [Γ|{{e!, (mkVar numAlloc).getHashConsState σ}}] = some 0 then 1 else 0) := by
   simp [isZero, ClapM.getVarStore]
   rfl
 
@@ -418,7 +418,7 @@ lemma getVarStore_num2bits :
   (num2bits w e!).getVarStore Γ numAlloc σ =
   Γ.insertMany
     (((Vector.range w).map (fun x => x + numAlloc)).zip
-      (num2bitsLsbPureV w ([Γ|⦃e!, (Vector.ofFnM fun _ : Fin w => ClapM.alloc).getHashConsState numAlloc σ⦄].getD 0))) := by
+      (num2bitsLsbPureV w ([Γ|{{e!, (Vector.ofFnM fun _ : Fin w => ClapM.alloc).getHashConsState numAlloc σ}}].getD 0))) := by
   unfold num2bits ClapM.getVarStore
   simp
 
@@ -429,9 +429,9 @@ lemma getVarStore_fpmul :
   Γ.insertMany
     (((Vector.range k).map (fun x => x + numAlloc)).zip
     (EvalSt.fpMulPureV w k
-      (a.map (fun e => [Γ|⦃e, map⦄].getD 0))
-      (b.map (fun e => [Γ|⦃e, map⦄].getD 0))
-      (p'.map (fun e => [Γ|⦃e, map⦄].getD 0)))) := by
+      (a.map (fun e => [Γ|{{e, map}}].getD 0))
+      (b.map (fun e => [Γ|{{e, map}}].getD 0))
+      (p'.map (fun e => [Γ|{{e, map}}].getD 0)))) := by
   unfold fpmul ClapM.getVarStore
   simp
 

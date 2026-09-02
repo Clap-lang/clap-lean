@@ -3,6 +3,9 @@ import Clap.eDSLState.Convert
 
 import Clap.Lang.Wheels
 
+import Std.Tactic.Do
+open Std.Do
+
 namespace Clap.Lang
 
 variable {p : ℕ}
@@ -700,7 +703,7 @@ lemma deref_idxOf_of_mem
   {σ : HashConsSt p}
   (h_mem : cacheExpr ∈ σ.exprs)
 :
-  *⦃σ.exprs.idxOf cacheExpr, σ⦄ = cacheExpr
+  *{{σ.exprs.idxOf cacheExpr, σ}} = cacheExpr
 := by
   grind
 
@@ -709,7 +712,7 @@ lemma deref_mkVar_eq_some
   {idx : ℕ}
   {σ : HashConsSt p}
 :
-  *⦃(HashConsM.mkVar idx).getResult σ, (HashConsM.mkVar idx).getHashConsState σ⦄ =
+  *{{(HashConsM.mkVar idx).getResult σ, (HashConsM.mkVar idx).getHashConsState σ}} =
   .some (CacheExpr.v idx)
 := by
   grind [=HashConsM.mkVar]
@@ -719,7 +722,7 @@ lemma varSet_mkVar
   {idx : ℕ}
   {σ : HashConsSt p}
 :
-  ⦃(HashConsM.mkVar idx).getResult σ, (HashConsM.mkVar idx).getHashConsState σ⦄.varSet =
+  {{(HashConsM.mkVar idx).getResult σ, (HashConsM.mkVar idx).getHashConsState σ}}.varSet =
   {idx}
 := by
   unfold Expr.varSet
@@ -746,9 +749,41 @@ lemma wellFormed {e! : ExprRef} {state} {value : ZMod p}
   simp at *
   apply wellFormed_isZero
   . grind
-  . have : [state.varStore|⦃e!, state.σ⦄].isSome = true := by grind
+  . have : [state.varStore|{{e!, state.σ}}].isSome = true := by grind
     grind
   . grind
+
+section Writer
+
+universe u v
+
+variable {m : Type u → Type v} [Monad m]
+         {ps : PostShape}
+         {ω : Type u} [Monoid ω]
+
+instance _root_.WriterT.instWP [WP m ps] : WP (WriterT ω m) (.arg ω ps) where
+  wp x :=
+    PredTrans.pushArg fun s ↦
+      let res := (fun (x, s') ↦ (x, s * s')) <$> x.run
+      wp res
+
+instance _root_.WriterT.instWPMonad [WPMonad m ps] : WPMonad (WriterT ω m) (.arg ω ps) where
+  wp_pure a := by ext Q s; simp [wp]
+  wp_bind x f := by ext Q s; simp [wp, WPMonad.wp_bind]
+                    grind
+
+end Writer
+
+@[spec]
+theorem isZero_spec (c : ExprRef) :
+  ⦃fun state ↦ ⌜True⌝⦄
+  isZero (p := p) c
+  ⦃⇓ r state => ⌜False⌝⦄ := by
+  mvcgen [isZero]
+  intros circuit numAlloc σ
+  
+
+#exit
 
 lemma converts
   [p.AtLeastTwo]
@@ -1199,8 +1234,8 @@ lemma convertsM_but_sane?
   --     intros val hval
   --     rw [Std.ExtTreeMap.mem_iff_isSome_getElem?]
   --     -- rw [eval_eq_evalRec (by grind)] at h₃ h₆
-  --     have : [varStore | ⦃a[0], σ⦄].isSome := by grind
-  --     have : [varStore | ⦃b[0], σ⦄].isSome := by grind
+  --     have : [varStore | {{a[0], σ}}].isSome := by grind
+  --     have : [varStore | {{b[0], σ}}].isSome := by grind
   --     grind -- `Option.isSome_of_eq_some` is useless, had to go via `wellFormed_mem_varStore_of_evalRec_eq_some`... yikes?
   --   · simp at *
   --     grind [=Expr.varSet_wellFormed]
@@ -1254,7 +1289,7 @@ lemma matches_spec
   rw [this]
   let res₀ := (HashConsM.mkSub a b).getResult σ
   set res₁ := (HashConsM.mkVar numAlloc).getResult σ₁ with eq_res₁
-  let res₀_val := [varStore| ⦃res₀, (HashConsM.mkVar numAlloc).getHashConsState σ₁⦄]
+  let res₀_val := [varStore| {{res₀, (HashConsM.mkVar numAlloc).getHashConsState σ₁}}]
   have : f.getVarStore varStore numAlloc σ =
          varStore.insert numAlloc (if res₀_val = some 0 then 1 else 0) := by
     rw [hf]

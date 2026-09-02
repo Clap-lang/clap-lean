@@ -350,7 +350,7 @@ lemma evalRec_eq_of_deref_eq_some_add
   (h: *e = .some (CacheExpr.binary_op lhs rhs .add))
 :
   evalRec Γ e =
-  (· + ·) <$> evalRec Γ ⦃lhs, e.σ⦄ <*> evalRec Γ ⦃rhs, e.σ⦄
+  (· + ·) <$> evalRec Γ {{lhs, e.σ}} <*> evalRec Γ {{rhs, e.σ}}
 := by
   conv_lhs => unfold evalRec
   grind only
@@ -361,7 +361,7 @@ lemma evalRec_eq_of_deref_eq_some_sub
   (h: *e = .some (CacheExpr.binary_op lhs rhs .sub))
 :
   evalRec Γ e =
-  (· - ·) <$> evalRec Γ ⦃lhs, e.σ⦄ <*> evalRec Γ ⦃rhs, e.σ⦄
+  (· - ·) <$> evalRec Γ {{lhs, e.σ}} <*> evalRec Γ {{rhs, e.σ}}
 := by
   conv_lhs => unfold evalRec
   grind only
@@ -372,7 +372,7 @@ lemma evalRec_eq_of_deref_eq_some_mul
   (h: *e = .some (CacheExpr.binary_op lhs rhs .mul))
 :
   evalRec Γ e =
-  (· * ·) <$> evalRec Γ ⦃lhs, e.σ⦄ <*> evalRec Γ ⦃rhs, e.σ⦄
+  (· * ·) <$> evalRec Γ {{lhs, e.σ}} <*> evalRec Γ {{rhs, e.σ}}
 := by
   conv_lhs => unfold evalRec
   grind only
@@ -383,7 +383,7 @@ lemma isSome_evalRec_lhs_of_isSome_evalRec_binop
   (h_deref: *e = .some (CacheExpr.binary_op lhs rhs op))
   (h : (evalRec Γ e).isSome = true)
 :
-  (evalRec Γ ⦃lhs, e.σ⦄).isSome = true
+  (evalRec Γ {{lhs, e.σ}}).isSome = true
 := by
   unfold evalRec at h
   split at h
@@ -400,7 +400,7 @@ lemma isSome_evalRec_rhs_of_isSome_evalRec_binop
   (h_deref: *e = .some (CacheExpr.binary_op lhs rhs op))
   (h : (evalRec Γ e).isSome = true)
 :
-  (evalRec Γ ⦃rhs, e.σ⦄).isSome = true
+  (evalRec Γ {{rhs, e.σ}}).isSome = true
 := by
   unfold evalRec at h
   split at h
@@ -867,7 +867,7 @@ lemma eval_eq_some_of_wellFormed_of_isPrefixOf
   {result : ExprRef}
   {σ σ' : HashConsSt p}
   {varStore : VarStore p}
-  (h₁ : ⦃result, σ⦄.wellFormed)
+  (h₁ : {{result, σ}}.wellFormed)
   (h₂ : σ.exprs.isPrefixOf σ'.exprs = true)
 :
   [varStore, σ'|result] = [varStore, σ|result]
@@ -876,8 +876,8 @@ lemma eval_eq_some_of_wellFormed_of_isPrefixOf
 
 @[grind =]
 lemma eval_isSome_iff {Γ : VarStore p} {e! : ExprRef} {σ : HashConsSt p}
-  (h : ⦃e!, σ⦄.wellFormed) :
-  [Γ, σ|e!].isSome ↔ ∀ v ∈ ⦃e!, σ⦄.varSet, v ∈ Γ := by
+  (h : {{e!, σ}}.wellFormed) :
+  [Γ, σ|e!].isSome ↔ ∀ v ∈ {{e!, σ}}.varSet, v ∈ Γ := by
   grind [=eval_eq_evalRec]
 
 end Clap

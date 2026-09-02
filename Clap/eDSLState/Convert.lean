@@ -21,9 +21,9 @@ structure Converts {p : ℕ} {α : Type}
   (exprs : Vector ExprRef k)
   (val : α)
 : Prop where
-  varSet_wf : ∀ (i : Fin k), ⦃exprs[i], state.σ⦄.varSet_wellFormed state.numAlloc
-  expr_wf   : ∀ (i : Fin k), ⦃exprs[i], state.σ⦄.wellFormed
-  value_eq  : ∀ (i : Fin k), [state.varStore|⦃exprs[i], state.σ⦄] = .some (conversion val)[i]
+  varSet_wf : ∀ (i : Fin k), {{exprs[i], state.σ}}.varSet_wellFormed state.numAlloc
+  expr_wf   : ∀ (i : Fin k), {{exprs[i], state.σ}}.wellFormed
+  value_eq  : ∀ (i : Fin k), [state.varStore|{{exprs[i], state.σ}}] = .some (conversion val)[i]
 
 structure Converts' {p : ℕ} {α : Type}
   (conversion : α → List (ZMod p))
@@ -32,9 +32,9 @@ structure Converts' {p : ℕ} {α : Type}
   (val : α)
 : Prop where
   h_conversion : (conversion val).length = exprs.length
-  varSet_wf : ∀ (i : Fin exprs.length), ⦃exprs[i], state.σ⦄.varSet_wellFormed state.numAlloc
-  expr_wf   : ∀ (i : Fin exprs.length), ⦃exprs[i], state.σ⦄.wellFormed
-  value_eq  : ∀ (i : Fin exprs.length), [state.varStore|⦃exprs[i], state.σ⦄] = .some ((conversion val)[i])
+  varSet_wf : ∀ (i : Fin exprs.length), {{exprs[i], state.σ}}.varSet_wellFormed state.numAlloc
+  expr_wf   : ∀ (i : Fin exprs.length), {{exprs[i], state.σ}}.wellFormed
+  value_eq  : ∀ (i : Fin exprs.length), [state.varStore|{{exprs[i], state.σ}}] = .some ((conversion val)[i])
 
 -- structure HasSpec {p} {idealT} {representsT} (action : ClapM p representsT) where
 --   spec : idealT
@@ -86,7 +86,7 @@ lemma eval_varStore_eval_eq_some
   (h₂ : action.hashConsState_wellFormed state.numAlloc state.σ)
 :
   letI varStore' := [state.varStore, action.getHashConsState state.numAlloc state.σ, state.numAlloc|circuit]ₑ.varStore
-  ∀ i : Fin k, [varStore'|⦃exprs[i], action.getHashConsState state.numAlloc state.σ⦄] = some (conversion val)[i]
+  ∀ i : Fin k, [varStore'|{{exprs[i], action.getHashConsState state.numAlloc state.σ}}] = some (conversion val)[i]
 := by
   intros i
   rcases circuit with ⟨l⟩
@@ -118,7 +118,7 @@ lemma eval_varStore_eval_eq_some'
 :
   letI varStore' := [state.varStore, action.getHashConsState state.numAlloc state.σ, state.numAlloc|circuit]ₑ.varStore
   ∀ i : Fin exprs.length,
-    [varStore'|⦃exprs[i], action.getHashConsState state.numAlloc state.σ⦄] =
+    [varStore'|{{exprs[i], action.getHashConsState state.numAlloc state.σ}}] =
     some ((conversion val)[i]'(by grind [cases Converts']))
 := by
   intros i
@@ -171,8 +171,8 @@ end Clap
 --                           (numAlloc : ℕ)
 --                           (result : F)
 --                           (x : ZMod p) : Prop where
---   varSet_wf : ⦃result, σ⦄.varSet_wellFormed numAlloc
---   expr_wf   : ⦃result, σ⦄.wellFormed
+--   varSet_wf : {{result, σ}}.varSet_wellFormed numAlloc
+--   expr_wf   : {{result, σ}}.wellFormed
 --   value_eq  : [varStore, σ|result] = .some x
 
 -- structure _root_.Clap.Lang.FB.Convert.toIdeal (varStore : VarStore p)
@@ -180,8 +180,8 @@ end Clap
 --                                               (numAlloc : ℕ)
 --                                               (result : FB)
 --                                               (x : Bool) : Prop where
---   varSet_wf : ⦃result, σ⦄.varSet_wellFormed numAlloc
---   expr_wf   : ⦃result, σ⦄.wellFormed
+--   varSet_wf : {{result, σ}}.varSet_wellFormed numAlloc
+--   expr_wf   : {{result, σ}}.wellFormed
 --   value_eq  : [varStore, σ|result] = .some (if x then 1 else 0)
 
 -- structure _root_.Clap.Lang.FArray.Convert.toIdeal (varStore : VarStore p)
@@ -190,8 +190,8 @@ end Clap
 --                                                   {k : ℕ}
 --                                                   (result : FArray k)
 --                                                   (x : Vector Bool k) : Prop where
---   varSet_wf : ∀ elem ∈ result, ⦃elem, σ⦄.varSet_wellFormed numAlloc
---   expr_wf   : ∀ elem ∈ result, ⦃elem, σ⦄.wellFormed
+--   varSet_wf : ∀ elem ∈ result, {{elem, σ}}.varSet_wellFormed numAlloc
+--   expr_wf   : ∀ elem ∈ result, {{elem, σ}}.wellFormed
 --   value_eq  : ∀ (i : Fin k), [varStore, σ|result[i]] = .some (if x[i] then 1 else 0)
 
 
