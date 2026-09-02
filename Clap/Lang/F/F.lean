@@ -774,14 +774,55 @@ instance _root_.WriterT.instWPMonad [WPMonad m ps] : WPMonad (WriterT ω m) (.ar
 
 end Writer
 
+section mvcgen
+
+set_option mvcgen.warning false
+
+@[spec]
+theorem saveExpr_spec {e : CacheExpr p} (σ₀ : HashConsSt p) (h : e.wellFormed σ₀.size) :
+  ⦃fun σ ↦ ⌜σ = σ₀⌝⦄ -- `∧ e.wellFormed σ₀.size` - ah, interesting, cannot dependently type with this
+  HashConsM.saveExpr e
+  ⦃⇓ r σ => ⌜(σ = if e ∈ σ₀.exprs then σ else (σ₀.pushExpr e h)) ∧
+             (r = if e ∈ σ₀.exprs then σ₀.exprs.idxOf e else σ₀.size)⌝⦄ := by
+  mvcgen [HashConsM.saveExpr] with grind
+
+@[spec]
+theorem mkVar_spec (x : ℕ) (σ₀ : HashConsSt p) (h : (CacheExpr.v x).wellFormed σ₀.size) :
+  ⦃fun σ ↦ ⌜σ = σ₀⌝⦄
+  HashConsM.mkVar (p := p) x
+  ⦃⇓ r σ => ⌜(σ = if (.v x) ∈ σ₀.exprs then σ else (σ₀.pushExpr (.v x) h)) ∧
+             (r = if (.v x) ∈ σ₀.exprs then σ₀.exprs.idxOf (.v x) else σ₀.size) ⌝⦄ := by
+  mvcgen [HashConsM.mkVar]
+
+@[spec]
+theorem monadLift_hashConsSt_state_spec {α} (numAlloc₀ : ℕ) {cmd : HashConsM p α}:
+  ⦃fun numAlloc ↦ ⌜numAlloc = numAlloc₀⌝⦄
+  MonadLift.monadLift (n := (StateT ℕ (HashConsM p))) cmd
+  ⦃⇓ _ numAlloc _ => ⌜numAlloc = numAlloc₀⌝⦄ := by
+  mvcgen
+
+@[spec]
+theorem alloc_spec (numAlloc₀ : ℕ) :
+  ⦃fun _ numAlloc _ ↦ ⌜numAlloc = numAlloc₀⌝⦄
+  ClapM.alloc (p := p)
+  ⦃⇓ _ _ numAlloc => ⌜numAlloc = numAlloc₀ + 1⌝⦄ := by
+  mvcgen [ClapM.alloc]
+  
+  -- ok now what, need to get through the lifts somehow
+
+  simp [wp, StateT.run, WriterT.run, Functor.map, StateT.map, Id.run]
+  
+  
+  sorry
+
 @[spec]
 theorem isZero_spec (c : ExprRef) :
   ⦃fun state ↦ ⌜True⌝⦄
   isZero (p := p) c
-  ⦃⇓ r state => ⌜False⌝⦄ := by
-  mvcgen [isZero]
-  intros circuit numAlloc σ
-  
+  ⦃⇓ r circuit => ⌜False⌝⦄ := by
+  sorry
+
+end mvcgen
 
 #exit
 
