@@ -15,17 +15,6 @@ def ClapM.getState {p} {α} (cmd : ClapM p α) (state : ClapMState p) : ClapMSta
   numAlloc := cmd.getNumAlloc state.numAlloc state.σ
 
 structure Converts {p : ℕ} {α : Type}
-  (k : ℕ)
-  (conversion : α → Vector (ZMod p) k)
-  (state : ClapMState p)
-  (exprs : Vector ExprRef k)
-  (val : α)
-: Prop where
-  varSet_wf : ∀ (i : Fin k), ⦃exprs[i], state.σ⦄.varSet_wellFormed state.numAlloc
-  expr_wf   : ∀ (i : Fin k), ⦃exprs[i], state.σ⦄.wellFormed
-  value_eq  : ∀ (i : Fin k), [state.varStore|⦃exprs[i], state.σ⦄] = .some (conversion val)[i]
-
-structure Converts' {p : ℕ} {α : Type}
   (conversion : α → List (ZMod p))
   (state : ClapMState p)
   (exprs : List ExprRef)
@@ -55,38 +44,51 @@ section Lemmas
 variable
   {p k : ℕ}
   {α : Type}
-  {conversion : α → Vector (ZMod p) k}
+  {conversion : α → List (ZMod p)}
   {state : ClapMState p}
-  {exprs : Vector ExprRef k}
+  {exprs : List ExprRef}
   {val : α}
   {x : ZMod p}
   {action : ClapM p α}
   {circuit : Circuit}
 
-lemma converts_of_converts_eq
-  {val₁ : α} (val₂ : α)
-  (h : val₁ = val₂)
+@[simp, grind =]
+lemma getState_map
+  {β}
+  {f : α → β}
 :
-  Converts k conversion state exprs val₁ ↔
-  Converts k conversion state exprs val₂
+  (f <$> action).getState state =
+  action.getState state
 := by
-  grind
+  grind [ClapM.getState]
 
-@[aesop unsafe]
-lemma isSome_eval_of_isSome_toIdeal
-  (h : Converts k conversion state exprs val)
+@[grind =]
+lemma getState_bind
+  {β}
+  {function : α → ClapM p β}
+  (h_action : action.wellFormed state.numAlloc state.varStore state.σ)
+  (h_function : (function (action.getResult state.numAlloc state.σ)).wellFormed
+    (action.getState state).numAlloc
+    (action.getState state).varStore
+    (action.getState state).σ
+  )
 :
-  ∀ i : Fin k, [state.varStore, state.σ|exprs[i]].isSome = true
-:= fun i ↦ Option.isSome_iff_exists.2 ⟨_, h.value_eq i⟩
+  (action >>= function).getState state =
+  (function (action.getResult state.numAlloc state.σ)).getState (action.getState state)
+:= by
+  grind [ClapM.getState]
+
 
 lemma eval_varStore_eval_eq_some
   {β}
   {action : ClapM p β}
-  (h₁ : Converts k conversion state exprs val)
+  (h₁ : Converts conversion state exprs val)
   (h₂ : action.hashConsState_wellFormed state.numAlloc state.σ)
 :
   letI varStore' := [state.varStore, action.getHashConsState state.numAlloc state.σ, state.numAlloc|circuit]ₑ.varStore
-  ∀ i : Fin k, [varStore'|⦃exprs[i], action.getHashConsState state.numAlloc state.σ⦄] = some (conversion val)[i]
+  ∀ i : Fin exprs.length,
+    [varStore'|⦃exprs[i], action.getHashConsState state.numAlloc state.σ⦄] =
+    some ((conversion val)[i]'(by grind [cases Converts]))
 := by
   intros i
   rcases circuit with ⟨l⟩
@@ -108,68 +110,12 @@ lemma eval_varStore_eval_eq_some
         rw [Std.ExtTreeMap.getElem?_insertMany_eq_getElem?_of_neq]
         grind [Converts]
 
-lemma eval_varStore_eval_eq_some'
-  {β}
-  {conversion : α → List (ZMod p)}
-  {exprs : List ExprRef}
-  {action : ClapM p β}
-  (h₁ : Converts' conversion state exprs val)
-  (h₂ : action.hashConsState_wellFormed state.numAlloc state.σ)
-:
-  letI varStore' := [state.varStore, action.getHashConsState state.numAlloc state.σ, state.numAlloc|circuit]ₑ.varStore
-  ∀ i : Fin exprs.length,
-    [varStore'|⦃exprs[i], action.getHashConsState state.numAlloc state.σ⦄] =
-    some ((conversion val)[i]'(by grind [cases Converts']))
-:= by
-  intros i
-  rcases circuit with ⟨l⟩
-  induction' eq : l.length with len ih generalizing l
-  · rcases l <;> grind [Converts']
-  · rcases l with _ | ⟨hd, tl⟩
-    · simp at eq
-    · simp [-Fin.getElem_fin]
-      specialize ih tl (by grind)
-      rewrite [←ih]; clear ih
-      apply eval_eq_of_varStore_eq_at_varSet
-      . grind [Converts']
-      . intro v h_v
-        set vashtorr := [unconstrained[state.numAlloc][state.varStore], action.getHashConsState state.numAlloc state.σ|hd]ₛ.varStore
-        rewrite [Circuit.getElem?_eval_eq_getElem?_of_lt (by grind [Converts'])]
-        rewrite [Circuit.getElem?_eval_eq_getElem?_of_lt (by grind [Converts'])]
-        choose k vec h_vec using @EvalSt.exists_varStore_step_eq_insertMany
-        simp [vashtorr, h_vec.1]
-        rw [Std.ExtTreeMap.getElem?_insertMany_eq_getElem?_of_neq]
-        grind [Converts']
-
 lemma toIdeal_run_of_toIdeal
   {β}
   (action : ClapM p β)
   (h_a_wf : action.wellFormed state.numAlloc state.varStore state.σ)
-  (h : Converts k conversion state exprs val) :
-  Converts k
-           conversion
-           (action.getState state)
-           exprs
-           val := by
-  rcases h with ⟨h₁, h₂, h₃⟩
-  constructor
-  · grind [=Expr.varSet_wellFormed, ClapM.getState]
-  · grind [ClapM.getState]
-  · rcases h_a_wf with ⟨⟨h₄, h₅⟩, ⟨h₆, h₇⟩⟩
-    intro i
-    unfold ClapM.getState ClapM.getVarStore
-    rw [eval_varStore_eval_eq_some (conversion := conversion) (val := val)]
-    . constructor <;> assumption
-    . assumption
-
-lemma toIdeal_run_of_toIdeal'
-  {β}
-  {exprs : List ExprRef}
-  {conversion : α → List (ZMod p)}
-  (action : ClapM p β)
-  (h_a_wf : action.wellFormed state.numAlloc state.varStore state.σ)
-  (h : Converts' conversion state exprs val) :
-  Converts'
+  (h : Converts conversion state exprs val) :
+  Converts
            conversion
            (action.getState state)
            exprs
@@ -180,7 +126,7 @@ lemma toIdeal_run_of_toIdeal'
   · grind [ClapM.getState]
   · intro i
     unfold ClapM.getState ClapM.getVarStore
-    rw [eval_varStore_eval_eq_some' (conversion := conversion) (val := val)]
+    rw [eval_varStore_eval_eq_some (conversion := conversion) (val := val)]
     . constructor
       . assumption
       . assumption
@@ -189,137 +135,81 @@ lemma toIdeal_run_of_toIdeal'
     . grind
   . assumption
 
+@[grind .]
+lemma isSome_eval_of_mem
+  {expr}
+  (h : Converts conversion state exprs val)
+  (h_mem : expr ∈ exprs)
+:
+  [state.varStore, state.σ|expr].isSome = true
+:= by
+  obtain ⟨_, _, _, h_value⟩ := h
+  obtain ⟨i, h_i, h_expr⟩ := List.getElem_of_mem h_mem
+  apply Option.isSome_of_eq_some
+  rewrite [←h_value ⟨i, by grind⟩]
+  grind
+
+@[grind .]
+lemma expr_wellFormed_of_mem
+  {expr}
+  (h : Converts conversion state exprs val)
+  (h_mem : expr ∈ exprs)
+:
+  ⦃expr, state.σ⦄.wellFormed
+:= by
+  obtain ⟨_, _, h_wf, _⟩ := h
+  obtain ⟨i, h_i, h_expr⟩ := List.getElem_of_mem h_mem
+  grind [h_wf ⟨i, by grind⟩]
+
+@[grind .]
+lemma isSome_eval_singleton
+  {state : ClapMState p}
+  {expr : ExprRef}
+  (h : Converts conversion state [expr] val)
+:
+  [state.varStore, state.σ|expr].isSome = true
+:= by
+  grind
+
+@[grind .]
+lemma expr_wellFormed_of_mem_singleton
+  {expr}
+  (h : Converts conversion state [expr] val)
+:
+  ⦃expr, state.σ⦄.wellFormed
+:= by
+  grind
+
+
 end Lemmas
 
+structure ConvertsM
+  {p IdealT}
+  (conversion : IdealT → List (ZMod p))
+  (action : ClapM p (List ExprRef))
+  (state : ClapMState p)
+  (val : IdealT)
+: Prop where
+  result : Converts
+    conversion
+    (action.getState state)
+    (action.getResult state.numAlloc state.σ)
+    val
+  wellFormed : action.wellFormed state.numAlloc state.varStore state.σ
+  constraints : (action.runAndEval state.numAlloc state.varStore state.σ).2.constraints
+
+lemma converts_skip
+  {p IdealT1 IdealT2}
+  {conversion1 conversion2}
+  {action : ClapM p (List ExprRef)}
+  {state}
+  {val1 : IdealT1}
+  {val2 : IdealT2}
+  {exprs}
+  (h_action : ConvertsM conversion1 action state val1)
+  (h : Converts conversion2 state exprs val2)
+:
+  Converts conversion2 (action.getState state) exprs val2
+:= toIdeal_run_of_toIdeal _ h_action.wellFormed h
+
 end Clap
-
--- structure Convert.toIdeal (varStore : VarStore p)
---                           (σ : HashConsSt p)
---                           (numAlloc : ℕ)
---                           (result : F)
---                           (x : ZMod p) : Prop where
---   varSet_wf : ⦃result, σ⦄.varSet_wellFormed numAlloc
---   expr_wf   : ⦃result, σ⦄.wellFormed
---   value_eq  : [varStore, σ|result] = .some x
-
--- structure _root_.Clap.Lang.FB.Convert.toIdeal (varStore : VarStore p)
---                                               (σ : HashConsSt p)
---                                               (numAlloc : ℕ)
---                                               (result : FB)
---                                               (x : Bool) : Prop where
---   varSet_wf : ⦃result, σ⦄.varSet_wellFormed numAlloc
---   expr_wf   : ⦃result, σ⦄.wellFormed
---   value_eq  : [varStore, σ|result] = .some (if x then 1 else 0)
-
--- structure _root_.Clap.Lang.FArray.Convert.toIdeal (varStore : VarStore p)
---                                                   (σ : HashConsSt p)
---                                                   (numAlloc : ℕ)
---                                                   {k : ℕ}
---                                                   (result : FArray k)
---                                                   (x : Vector Bool k) : Prop where
---   varSet_wf : ∀ elem ∈ result, ⦃elem, σ⦄.varSet_wellFormed numAlloc
---   expr_wf   : ∀ elem ∈ result, ⦃elem, σ⦄.wellFormed
---   value_eq  : ∀ (i : Fin k), [varStore, σ|result[i]] = .some (if x[i] then 1 else 0)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
--- import Clap.eDSLState.IsValid
-
--- namespace Clap
-
--- class Convert (p : ℕ) (representsT idealT : Type) extends IsValid p representsT where
---   toIdeal : (VarStore p) → (HashConsSt p) → representsT → Option idealT
---   toRepresents : idealT → HashConsM p representsT
---   isValid_iff_isSome_toIdeal :
---     ∀ (varStore : VarStore p) (σ : HashConsSt p) (x : representsT),
---       isValid varStore σ x ↔ (toIdeal varStore σ x).isSome
---   toIdeal_toRepresents :
---     ∀ (varStore : VarStore p) (σ : HashConsSt p) (x : idealT),
---       toIdeal varStore ((toRepresents x).getHashConsState σ) ((toRepresents x).getResult σ) = .some x
-
--- @[simp, grind =]
--- lemma Convert.toRepresents_toIdeal
---   {p : ℕ}
---   {representsT idealT : Type}
---   [inst: Convert p representsT idealT]
---   {varStore : VarStore p}
---   {σ : HashConsSt p}
---   {x : representsT}
---   (h : IsValid.isValid varStore σ x)
--- :
---   toIdeal (representsT := representsT) (idealT := idealT) varStore σ
---     ((toRepresents (representsT := representsT) ((toIdeal (idealT := idealT) varStore σ x).get ((isValid_iff_isSome_toIdeal varStore σ x).mp h))).getResult σ) =
---   inst.toIdeal varStore σ x
--- := by
---   have := inst.toIdeal_toRepresents
---   simp [HashConsM.getHashConsState, HashConsM.getResult] at this ⊢
-
---   simp [inst.toIdeal_toRepresents]
-
--- instance {p : ℕ} : Convert p Unit Unit where
---   isValid := fun _ _ _ ↦ True
---   toIdeal _ x := .some x
---   toRepresents x := x
---   isValid_iff_isSome_toIdeal _ _ := by grind
---   toIdeal_toRepresents _ _ := by grind
-
--- @[simp, grind .]
--- lemma isValid_iff_isSome_toIdeal {p} {α β : Type} [Convert p α β]
---   {varStore : VarStore p} {σ : HashConsSt p} {x : α}
--- :
---   (Convert.toIdeal (idealT := β) varStore x).isSome ↔
---   IsValid.isValid varStore σ x
--- := by
---   aesop (add safe cases Convert)
-
--- @[grind .]
--- lemma isValid_of_toIdeal_eq_some {p} {α β : Type} [Convert p α β]
---   {varStore : VarStore p} {x : α} {b : β}
---   (h : (Convert.toIdeal (idealT := β) varStore x) = .some b)
--- :
---   IsValid.isValid varStore x
--- := by
---   have := Option.isSome_of_eq_some h
---   grind
-
--- @[simp, grind .]
--- lemma toIdealtoRepresents_of_convert {p} {α β : Type} [Convert p α β]
---   {varStore : VarStore p} {x : β}
--- :
---   Convert.toIdeal (representsT := α) varStore (Convert.toRepresents p x) = .some x
--- := by
---   aesop (add safe cases Convert)
-
--- end Clap

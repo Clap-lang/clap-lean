@@ -160,7 +160,7 @@ lemma getCircuit_bind :
 := rfl
 
 @[simp, grind =]
-lemma getState_bind
+lemma getNumAlloc_bind
 :
   (action >>= function).getNumAlloc numAlloc σ =
   ((function (action.getResult numAlloc σ)).getNumAlloc (action.getNumAlloc numAlloc σ) (action.getHashConsState numAlloc σ))
@@ -215,7 +215,7 @@ lemma getCircuit_pure :
 := rfl
 
 @[simp, grind=]
-lemma getState_pure :
+lemma getNumAlloc_pure :
   ClapM.getNumAlloc (pure x) numAlloc σ =
   numAlloc
 := rfl
@@ -239,7 +239,7 @@ lemma getResult_map :
 := rfl
 
 @[simp, grind=]
-lemma getState_map :
+lemma getNumAlloc_map :
   (f <$> cmd).getNumAlloc numAlloc σ =
   cmd.getNumAlloc numAlloc σ
 := rfl
@@ -254,12 +254,6 @@ lemma getCircuit_map :
 lemma getHashConsState_map :
   (f <$> cmd).getHashConsState numAlloc σ =
   cmd.getHashConsState numAlloc σ
-:= rfl
-
-@[simp, grind=]
-lemma getNumAlloc_map :
-  (f <$> cmd).getNumAlloc numAlloc σ =
-  cmd.getNumAlloc numAlloc σ
 := rfl
 
 @[simp, grind=]
@@ -623,6 +617,7 @@ lemma eval_bind
 lemma getHashConsState_apply {α β} {result : α} {numAlloc} {σ} {f : α → ClapM p β} :
   (f result).getHashConsState numAlloc σ = ((f result).run numAlloc σ).2 := rfl
 
+@[grind =]
 lemma runAndEval_bind
   {α β : Type}
   {varStore : VarStore p}
@@ -646,6 +641,58 @@ lemma runAndEval_bind
 := by
   simp [ClapM.runAndEval]
   grind [seq]
+
+@[grind =]
+lemma runAndEval_bind_constraints
+  {α β : Type}
+  {varStore : VarStore p}
+  {numAlloc : ℕ}
+  {action : ClapM p α}
+  {function : α → ClapM p β}
+  {σ : HashConsSt p}
+  (h_wf_action : action.wellFormed numAlloc varStore σ)
+  (
+    h_wf_function :
+      (function (action.getResult numAlloc σ)).wellFormed
+        (action.getNumAlloc numAlloc σ)
+        (action.runAndEval numAlloc varStore σ).2.varStore
+        (action.getHashConsState numAlloc σ)
+  )
+:
+  ((action >>= function).runAndEval numAlloc varStore σ).2.constraints ↔
+  ((action.runAndEval numAlloc varStore σ).2.constraints ∧
+  ((function (action.getResult numAlloc σ)).runAndEval
+    (action.getNumAlloc numAlloc σ)
+    (action.runAndEval numAlloc varStore σ).2.varStore
+    (action.getHashConsState numAlloc σ)).2.constraints)
+:= by
+  simp only [runAndEval_bind h_wf_action h_wf_function, EvalSt.constraints_addConstraint]
+  unfold ClapM.runAndEval
+  grind only [ClapM.wellFormed, ClapM.numAlloc_wellFormed, = eval_numAlloc]
+
+@[simp, grind =]
+lemma runAndEval_map_constraints
+  {α β : Type}
+  {varStore : VarStore p}
+  {numAlloc : ℕ}
+  {action : ClapM p α}
+  {f : α → β}
+  {σ : HashConsSt p}
+:
+  ((f <$> action).runAndEval numAlloc varStore σ).2.constraints ↔
+  (action.runAndEval numAlloc varStore σ).2.constraints
+:= by
+  simp [ClapM.runAndEval]
+
+@[simp, grind _=_]
+lemma runAndEval_varStore
+  {p α}
+  {numAlloc varStore σ}
+  {action : ClapM p α}
+:
+  (action.runAndEval numAlloc varStore σ).2.varStore =
+  (action.getVarStore varStore numAlloc σ)
+:= rfl
 
 end Circuit
 

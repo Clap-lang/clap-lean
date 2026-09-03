@@ -236,10 +236,45 @@ Yeah ok...
 -/
 @[simp, grind =]
 lemma mapM_singleton {m : Type → Type} [Monad m] [LawfulMonad m]
-  {α β : Type}
+  {α β}
   {f : α → m β} {x} :
   #v[x].mapM f = f x >>= (pure #v[·]) := by
   rw [←_root_.map_inj_right (f := Vector.toArray) (by aesop)]
   simp
+
+lemma take_append_last
+  {α}
+  {len : ℕ}
+  {vec : Vector α (len + 1)}
+:
+  ((vec.take len).cast (m := len) (by grind)) ++ #v[vec[len]] =
+  vec
+:= by
+  simp
+  ext
+  expose_names
+  have := Vector.getElem_append (n := len) (m := 1) (ys := #v[vec[len]]) (xs := vec.pop) (i := i) (by grind)
+  rewrite [this]
+  aesop (add safe (by grind))
+
+lemma mapM_succ {m : Type → Type} [Monad m] [LawfulMonad m]
+  {α β}
+  {len : ℕ}
+  {vec : Vector α (len + 1)}
+  (f : α → m β)
+:
+  vec.mapM f =
+  (vec.pop.mapM f) >>= λ v => (λ x => v.push x) <$> f vec[len]
+:= by
+  rewrite [←Vector.take_append_last (vec:=vec)]
+  rw [Vector.mapM_append]
+  simp
+  have := Vector.take_append_last (vec:=vec)
+  simp at this
+  congr
+  . exact this.symm
+  . funext vecM
+    rw! [this]
+    rfl
 
 end Vector

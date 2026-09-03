@@ -131,6 +131,17 @@ lemma varSet_mkConstant
 := by
   grind [=varSet]
 
+@[simp, grind =]
+lemma varSet_mkVar
+  {idx : ℕ}
+  {σ : HashConsSt p}
+:
+  ⦃(HashConsM.mkVar idx).getResult σ, (HashConsM.mkVar idx).getHashConsState σ⦄.varSet =
+  {idx}
+:= by
+  unfold Expr.varSet
+  grind
+
 @[grind =]
 lemma varSet_mkAdd
   {l r}
@@ -840,6 +851,111 @@ lemma eval_mkConstant {c : ZMod p}
     simp [HashConsM.mkConstant]
     grind
   . grind
+
+@[grind .]
+lemma eval_mkAdd {a b : ExprRef} {a_val b_val : ZMod p}
+  (h_a_wf : ⦃a, σ⦄.wellFormed)
+  (h_b_wf : ⦃b, σ⦄.wellFormed)
+  (h_a : [Γ,σ|a] = .some a_val)
+  (h_b : [Γ,σ|b] = .some b_val)
+:
+  [Γ, (HashConsM.mkAdd a b).getHashConsState σ|(HashConsM.mkAdd a b).getResult σ] =
+  .some (a_val + b_val)
+:= by
+  simp [HashConsM.mkAdd]
+  rewrite [HashConsM.getResult_saveExpr_of_wellFormed (by grind)]
+  . rewrite [HashConsM.getHashConsState_saveExpr_of_wellFormed (by grind)]
+    . split <;> rewrite [eval_eq_evalRec (by grind)]
+      . rewrite [evalRec_eq_of_deref_eq_some_add (deref_idxOf_of_mem (by assumption))]
+        dsimp
+        rewrite [
+          ←eval_eq_evalRec (by grind),
+          ←eval_eq_evalRec (by grind),
+          h_a,
+          h_b
+        ]
+        rfl
+      . rewrite [evalRec_eq_of_deref_eq_some_add (Expr.deref_mk_size_push)]
+        dsimp
+        rewrite [
+          ←evalRec_of_wellFormed_of_prefix (σ := σ) (by grind) (by grind),
+          ←evalRec_of_wellFormed_of_prefix (σ := σ) (σ' := HashConsSt.pushExpr _ _ _) (by grind) (by grind),
+          ←eval_eq_evalRec (by grind),
+          ←eval_eq_evalRec (by grind),
+          h_a,
+          h_b
+        ]
+        rfl
+
+@[grind .]
+lemma eval_mkSub {a b : ExprRef} {a_val b_val : ZMod p}
+  (h_a_wf : ⦃a, σ⦄.wellFormed)
+  (h_b_wf : ⦃b, σ⦄.wellFormed)
+  (h_a : [Γ,σ|a] = .some a_val)
+  (h_b : [Γ,σ|b] = .some b_val)
+:
+  [Γ, (HashConsM.mkSub a b).getHashConsState σ|(HashConsM.mkSub a b).getResult σ] =
+  .some (a_val - b_val)
+:= by
+  simp [HashConsM.mkSub]
+  rewrite [HashConsM.getResult_saveExpr_of_wellFormed (by grind)]
+  . rewrite [HashConsM.getHashConsState_saveExpr_of_wellFormed (by grind)]
+    . split <;> rewrite [eval_eq_evalRec (by grind)]
+      . rewrite [evalRec_eq_of_deref_eq_some_sub (deref_idxOf_of_mem (by assumption))]
+        dsimp
+        rewrite [
+          ←eval_eq_evalRec (by grind),
+          ←eval_eq_evalRec (by grind),
+          h_a,
+          h_b
+        ]
+        rfl
+      . rewrite [evalRec_eq_of_deref_eq_some_sub (Expr.deref_mk_size_push)]
+        dsimp
+        rewrite [
+          ←evalRec_of_wellFormed_of_prefix (σ := σ) (by grind) (by grind),
+          ←evalRec_of_wellFormed_of_prefix (σ := σ) (σ' := HashConsSt.pushExpr _ _ _) (by grind) (by grind),
+          ←eval_eq_evalRec (by grind),
+          ←eval_eq_evalRec (by grind),
+          h_a,
+          h_b
+        ]
+        rfl
+
+@[grind .]
+lemma eval_mkMul {a b : ExprRef} {a_val b_val : ZMod p}
+  (h_a_wf : ⦃a, σ⦄.wellFormed)
+  (h_b_wf : ⦃b, σ⦄.wellFormed)
+  (h_a : [Γ,σ|a] = .some a_val)
+  (h_b : [Γ,σ|b] = .some b_val)
+:
+  [Γ, (HashConsM.mkMul a b).getHashConsState σ|(HashConsM.mkMul a b).getResult σ] =
+  .some (a_val * b_val)
+:= by
+  simp [HashConsM.mkMul]
+  rewrite [HashConsM.getResult_saveExpr_of_wellFormed (by grind)]
+  . rewrite [HashConsM.getHashConsState_saveExpr_of_wellFormed (by grind)]
+    . split <;> rewrite [eval_eq_evalRec (by grind)]
+      . rewrite [evalRec_eq_of_deref_eq_some_mul (deref_idxOf_of_mem (by assumption))]
+        dsimp
+        rewrite [
+          ←eval_eq_evalRec (by grind),
+          ←eval_eq_evalRec (by grind),
+          h_a,
+          h_b
+        ]
+        rfl
+      . rewrite [evalRec_eq_of_deref_eq_some_mul (Expr.deref_mk_size_push)]
+        dsimp
+        rewrite [
+          ←evalRec_of_wellFormed_of_prefix (σ := σ) (by grind) (by grind),
+          ←evalRec_of_wellFormed_of_prefix (σ := σ) (σ' := HashConsSt.pushExpr _ _ _) (by grind) (by grind),
+          ←eval_eq_evalRec (by grind),
+          ←eval_eq_evalRec (by grind),
+          h_a,
+          h_b
+        ]
+        rfl
 
 end Precedes
 

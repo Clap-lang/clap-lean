@@ -51,6 +51,75 @@ lemma deref_mk_size_push
 := by
   grind
 
+@[grind =]
+lemma deref_idxOf_of_mem
+  {cacheExpr : CacheExpr p}
+  {σ : HashConsSt p}
+  (h_mem : cacheExpr ∈ σ.exprs)
+:
+  *⦃σ.exprs.idxOf cacheExpr, σ⦄ = cacheExpr
+:= by
+  grind
+
+@[simp, grind =]
+lemma deref_mkConstant_eq_some
+  {c : ZMod p}
+  {σ : HashConsSt p}
+:
+  *⦃(HashConsM.mkConstant c).getResult σ, (HashConsM.mkConstant c).getHashConsState σ⦄ =
+  .some (CacheExpr.c c)
+:= by
+  grind
+
+@[simp, grind =]
+lemma deref_mkVar_eq_some
+  {idx : ℕ}
+  {σ : HashConsSt p}
+:
+  *⦃(HashConsM.mkVar idx).getResult σ, (HashConsM.mkVar idx).getHashConsState σ⦄ =
+  .some (CacheExpr.v idx)
+:= by
+  grind [=HashConsM.mkVar]
+
+@[grind =]
+lemma deref_mkAdd_eq_some
+  {l r : ExprRef}
+  {σ : HashConsSt p}
+  (h_l : ⦃l,σ⦄.wellFormed)
+  (h_r : ⦃r,σ⦄.wellFormed)
+:
+  *⦃(HashConsM.mkAdd l r).getResult σ, (HashConsM.mkAdd l r).getHashConsState σ⦄ =
+  .some (CacheExpr.binary_op l r .add)
+:= by
+  unfold HashConsM.mkAdd
+  grind
+
+@[grind =]
+lemma deref_mkSub_eq_some
+  {l r : ExprRef}
+  {σ : HashConsSt p}
+  (h_l : ⦃l,σ⦄.wellFormed)
+  (h_r : ⦃r,σ⦄.wellFormed)
+:
+  *⦃(HashConsM.mkSub l r).getResult σ, (HashConsM.mkSub l r).getHashConsState σ⦄ =
+  .some (CacheExpr.binary_op l r .sub)
+:= by
+  unfold HashConsM.mkSub
+  grind
+
+@[grind =]
+lemma deref_mkMul_eq_some
+  {l r : ExprRef}
+  {σ : HashConsSt p}
+  (h_l : ⦃l,σ⦄.wellFormed)
+  (h_r : ⦃r,σ⦄.wellFormed)
+:
+  *⦃(HashConsM.mkMul l r).getResult σ, (HashConsM.mkMul l r).getHashConsState σ⦄ =
+  .some (CacheExpr.binary_op l r .mul)
+:= by
+  unfold HashConsM.mkMul
+  grind
+
 end Expr
 
 end Expr
