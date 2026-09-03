@@ -1,5 +1,6 @@
 import Clap.eDSLState.eDSL
 import Clap.eDSLState.Convert
+import Clap.eDSLState.ConvertTactic
 
 import Clap.Lang.Wheels
 
@@ -106,21 +107,20 @@ def Converts
   (state : ClapMState p)
   (exprs : List FB)
   (val : List Bool)
-:= Clap.Converts
-  (fun l : List Bool ↦ l.map fun x ↦ if x then 1 else 0)
-  state
-  exprs
-  val
+:=
+  Clap.Converts serializeVal state (toExprs exprs) val
 
+/--
+Stated in the uniform `toExprs <$> action` shape (here `toExprs` is the identity) so that the
+generic combinators in `Clap/eDSLState/Convert.lean` unify against it, exactly as they do for
+`F`, `FB` and `FArray`.
+-/
 def ConvertsM
   (action : ClapM p FList)
   (state : ClapMState p)
   (val : List Bool)
-:= Clap.ConvertsM
-  (fun l : List Bool ↦ l.map fun x ↦ if x then 1 else 0)
-  action
-  state
-  val
+:=
+  Clap.ConvertsM serializeVal (toExprs <$> action) state val
 
 end FList
 
@@ -137,9 +137,7 @@ lemma converts_of_convertsM
   (h : (ConvertsM action state val))
 :
   Converts (action.getState state) (action.getResult state.numAlloc state.σ) val
-:= by
-  convert h.result
-  simp [Converts]
+:= Clap.ConvertsM.converts h
 
 structure Spec (state) where
   action : ClapM p F
@@ -157,8 +155,12 @@ lemma converts_skip
   Converts (skip.getState state)
            expr
            val
-:=
-  Clap.converts_skip h_skip h
+:= Clap.Converts.skip h_skip.wellFormed h
+
+/-- `F.Converts` is a stable frame: it survives running any well-formed action. -/
+lemma stable {expr : F} {val : ZMod p} :
+  Clap.Stable (fun st : ClapMState p => F.Converts st expr val)
+:= Clap.Stable.converts
 
 @[aesop safe]
 lemma convertsM_pure
@@ -166,11 +168,7 @@ lemma convertsM_pure
         {x : F}
         {val : ZMod p}
         (h : F.Converts state x val)
-  : ConvertsM (pure x) state val := by
-  constructor
-  · simpa
-  · grind
-  . simp [ClapM.runAndEval]
+  : ConvertsM (pure x) state val := Clap.ConvertsM.pure h
 
 lemma converts_of_FB_converts
   {state : ClapMState p}
@@ -194,42 +192,26 @@ lemma converts_of_convertsM
   (h : (ConvertsM action state val))
 :
   Converts (action.getState state) (action.getResult state.numAlloc state.σ) val
-:= by
-  convert h.result
-  simp [Converts]
+:= Clap.ConvertsM.converts h
 
-/-
-Best not to use because unification struggles to pick out function_val
-Instead, build forwards, applying action and function to the state in order
+/--
+Frame rule for `FB`. Previously missing, which meant an `FB` result could never be carried
+across a later action.
 -/
-lemma convertsM_bind_F
-  (action : ClapM p F)
-  (function : F → ClapM p FB)
-  (state)
-  {action_val : ZMod p}
-  (function_val : ZMod p → Bool)
-  (h_action : F.ConvertsM action state action_val)
-  (h_function : FB.ConvertsM
-    (function (action.getResult state.numAlloc state.σ))
-    (action.getState state)
-    (function_val action_val)
-  )
+lemma converts_skip
+  {α} {conversion}
+  {skip : ClapM p (List ExprRef)} {state}
+  {val' : α} {expr : FB} {val : Bool}
+  (h_skip : Clap.ConvertsM conversion skip state val')
+  (h : Converts state expr val)
 :
-  ConvertsM (action >>= function) state (function_val action_val)
-:= by
-  constructor
-  . simp [ClapM.getState]
-    rewrite [ClapM.getVarStore_bind_of_wellFormed]
-    . apply h_function.result
-    . apply h_action.wellFormed
-    . apply h_function.wellFormed
-  . apply ClapM.bind_wellFormed
-    . apply h_action.wellFormed
-    . apply h_function.wellFormed
-  . obtain ⟨_,_,a_constraints⟩ := h_action
-    obtain ⟨_,_,f_constraints⟩ := h_function
-    grind [ClapM.getState]
+  Converts (skip.getState state) expr val
+:= Clap.Converts.skip h_skip.wellFormed h
 
+/-- `FB.Converts` is a stable frame: it survives running any well-formed action. -/
+lemma stable {expr : FB} {val : Bool} :
+  Clap.Stable (fun st : ClapMState p => FB.Converts st expr val)
+:= Clap.Stable.converts
 
 structure Spec (state) where
   action : ClapM p FB
@@ -237,6 +219,41 @@ structure Spec (state) where
   converts : ConvertsM action state spec
 
 end FB
+
+
+namespace FUnit
+
+lemma converts_of_convertsM
+  {action : ClapM p Unit}
+  {state} {val}
+  (h : (ConvertsM action state val))
+:
+  Converts (action.getState state) (action.getResult state.numAlloc state.σ) val
+:= Clap.ConvertsM.converts h
+
+/-- Frame rule for `FUnit`. Previously missing. -/
+lemma converts_skip
+  {α} {conversion}
+  {skip : ClapM p (List ExprRef)} {state}
+  {val' : α} {expr : Unit} {val : Unit}
+  (h_skip : Clap.ConvertsM conversion skip state val')
+  (h : Converts state expr val)
+:
+  Converts (skip.getState state) expr val
+:= Clap.Converts.skip h_skip.wellFormed h
+
+/-- `FUnit.Converts` is a stable frame: it survives running any well-formed action. -/
+lemma stable {expr : Unit} {val : Unit} :
+  Clap.Stable (fun st : ClapMState p => FUnit.Converts st expr val)
+:= Clap.Stable.converts
+
+/-- The empty representation converts to the unit value at any state. -/
+@[simp]
+lemma converts_trivial {state : ClapMState p} {expr : Unit} {val : Unit} :
+  Converts state expr val
+:= by constructor <;> simp
+
+end FUnit
 
 
 namespace FArray
@@ -248,9 +265,7 @@ lemma converts_of_convertsM
   (h : (ConvertsM action state val))
 :
   Converts (action.getState state) (action.getResult state.numAlloc state.σ) val
-:= by
-  convert h.result
-  simp [Converts]
+:= Clap.ConvertsM.converts h
 
 lemma converts_skip
   {k1} {α} {conversion}
@@ -260,132 +275,12 @@ lemma converts_skip
   (h : FArray.Converts state exprs val) :
   FArray.Converts (skip.getState state)
                    exprs
-                   val := by
-  rcases eq! : h
-  rcases h_skip
-  constructor
-  · grind [=Expr.varSet_wellFormed, ClapM.getState]
-  · grind [ClapM.getState]
-  next _ _ _ _ _ H _ =>
-    intro i
-    unfold ClapM.getState ClapM.getVarStore
-    rw [eval_varStore_eval_eq_some h]
-    exact H.2.2
-  · exact h.1
+                   val := Clap.Converts.skip h_skip.wellFormed h
 
-lemma convertsM_bind_F
-  {k}
-  (action : ClapM p F)
-  (function : F → ClapM p (Vector ExprRef k))
-  (state)
-  {action_val : ZMod p}
-  (function_val : ZMod p → Vector Bool k)
-  (h_action : F.ConvertsM action state action_val)
-  (h_function : FArray.ConvertsM
-    (function (action.getResult state.numAlloc state.σ))
-    (action.getState state)
-    (function_val action_val)
-  )
-:
-  ConvertsM (action >>= function) state (function_val action_val)
-:= by
-  constructor
-  . simp [ClapM.getState]
-    rewrite [ClapM.getVarStore_bind_of_wellFormed]
-    . apply h_function.result
-    . apply h_action.wellFormed
-    . apply h_function.wellFormed
-  . apply ClapM.bind_wellFormed
-    . apply h_action.wellFormed
-    . apply h_function.wellFormed
-  . rewrite [Circuit.runAndEval_map_constraints, Circuit.runAndEval_bind_constraints]
-    . exact ⟨h_action.constraints, h_function.constraints⟩
-    . exact h_action.wellFormed
-    . grind [ClapM.getState, FArray.ConvertsM, cases Clap.ConvertsM]
-
-lemma convertsM_bind_FB
-  {k}
-  (action : ClapM p FB)
-  (function : FB → ClapM p (Vector ExprRef k))
-  (state)
-  {action_val : Bool}
-  (function_val : Bool → Vector Bool k)
-  (h_action : FB.ConvertsM action state action_val)
-  (h_function : FArray.ConvertsM
-    (function (action.getResult state.numAlloc state.σ))
-    (action.getState state)
-    (function_val action_val)
-  )
-:
-  ConvertsM (action >>= function) state (function_val action_val)
-:= by
-  constructor
-  . simp [ClapM.getState]
-    rewrite [ClapM.getVarStore_bind_of_wellFormed]
-    . apply h_function.result
-    . apply h_action.wellFormed
-    . apply h_function.wellFormed
-  . apply ClapM.bind_wellFormed
-    . apply h_action.wellFormed
-    . apply h_function.wellFormed
-  . rewrite [Circuit.runAndEval_map_constraints, Circuit.runAndEval_bind_constraints]
-    . exact ⟨h_action.constraints, h_function.constraints⟩
-    . exact h_action.wellFormed
-    . grind [ClapM.getState, FArray.ConvertsM, cases Clap.ConvertsM]
-
-lemma convertsM_bind_FArray
-  {k1 k2}
-  (action : ClapM p (Vector FB k1))
-  (function : Vector FB k1 → ClapM p (Vector FB k2))
-  (state)
-  {action_val : Vector Bool k1}
-  (function_val : Vector Bool k1 → Vector Bool k2)
-  (h_action : FArray.ConvertsM action state action_val)
-  (h_function : FArray.ConvertsM
-    (function (action.getResult state.numAlloc state.σ))
-    (action.getState state)
-    (function_val action_val)
-  )
-:
-  ConvertsM (action >>= function) state (function_val action_val)
-:= by
-  constructor
-  . simp [ClapM.getState]
-    rewrite [ClapM.getVarStore_bind_of_wellFormed]
-    . apply h_function.result
-    . apply h_action.wellFormed
-    . apply h_function.wellFormed
-  . apply ClapM.bind_wellFormed
-    . apply h_action.wellFormed
-    . apply h_function.wellFormed
-  . rewrite [Circuit.runAndEval_map_constraints, Circuit.runAndEval_bind_constraints]
-    . exact ⟨h_action.constraints, h_function.constraints⟩
-    . exact h_action.wellFormed
-    . grind [ClapM.getState, FArray.ConvertsM, cases Clap.ConvertsM]
-
-lemma convertsM_map_FB_FArray
-  {k}
-  (action : ClapM p FB)
-  (f : FB → Vector FB k)
-  (state)
-  {action_val : Bool}
-  (f_val : Bool → Vector Bool k)
-  (h_action : FB.ConvertsM action state action_val)
-  (h_f_val : FArray.Converts
-    (action.getState state)
-    (f (action.getResult state.numAlloc state.σ))
-    (f_val action_val)
-  )
-:
-  ConvertsM (f <$> action) state (f_val action_val)
-:= by
-  constructor
-  . simp
-    apply h_f_val
-  . rewrite [ClapM.map_wellFormed]
-    apply h_action.wellFormed
-  . simp [ClapM.runAndEval]
-    exact h_action.constraints
+/-- `FArray.Converts` is a stable frame: it survives running any well-formed action. -/
+lemma stable {k} {exprs : FArray k} {vals : Vector Bool k} :
+  Clap.Stable (fun st : ClapMState p => FArray.Converts st exprs vals)
+:= Clap.Stable.converts
 
 @[aesop safe]
 lemma convertsM_pure
@@ -394,11 +289,7 @@ lemma convertsM_pure
         {x : Vector ExprRef k}
         {val : Vector Bool k}
         (h : FArray.Converts state x val)
-  : ConvertsM (pure x) state val := by
-  constructor
-  · simpa
-  · grind
-  . simp [ClapM.runAndEval]
+  : ConvertsM (pure x) state val := Clap.ConvertsM.pure h
 
 @[simp]
 lemma converts_empty
@@ -553,9 +444,7 @@ lemma converts_of_convertsM
   (h : (ConvertsM action state val))
 :
   Converts (action.getState state) (action.getResult state.numAlloc state.σ) val
-:= by
-  convert h.result
-  simp [Converts]
+:= Clap.ConvertsM.converts h
 
 @[aesop safe]
 lemma convertsM_pure
@@ -563,11 +452,7 @@ lemma convertsM_pure
         {x : List FB}
         {val : List Bool}
         (h : FList.Converts state x val)
-  : ConvertsM (pure x) state val := by
-  constructor
-  · simpa
-  · grind
-  . grind [ClapM.runAndEval]
+  : ConvertsM (pure x) state val := Clap.ConvertsM.pure h
 
 @[simp]
 lemma converts_empty
@@ -587,7 +472,12 @@ lemma converts_skip
   (h : FList.Converts state expr val) :
   FList.Converts (skip.getState state)
              expr
-             val := toIdeal_run_of_toIdeal _ h_skip.wellFormed h
+             val := Clap.Converts.skip h_skip.wellFormed h
+
+/-- `FList.Converts` is a stable frame: it survives running any well-formed action. -/
+lemma stable {exprs : List FB} {vals : List Bool} :
+  Clap.Stable (fun st : ClapMState p => FList.Converts st exprs vals)
+:= Clap.Stable.converts
 
 lemma converts_append
   {state : ClapMState p}
@@ -654,6 +544,65 @@ lemma converts_singleton_of_converts_FB
   apply converts_of_converts_FB
   . simpa
   . simp
+
+lemma converts_cons
+  {state : ClapMState p}
+  {expr : FB} {exprs : List FB}
+  {val : Bool} {vals : List Bool}
+  (h_expr : FB.Converts state expr val)
+  (h_exprs : FList.Converts state exprs vals)
+:
+  FList.Converts state (expr :: exprs) (val :: vals)
+:= by
+  have := converts_append (converts_singleton_of_converts_FB h_expr) h_exprs
+  simpa using this
+
+private lemma convertsM_mapM_aux
+  {X : Type}
+  {f : X → ClapM p FB}
+  {g : X → Bool}
+  {P : ClapMState p → Prop}
+  (hP : Clap.Stable P)
+:
+  ∀ (xs : List X), (∀ x ∈ xs, ∀ st, P st → FB.ConvertsM (f x) st (g x)) →
+    ∀ (state : ClapMState p), P state → FList.ConvertsM (xs.mapM f) state (xs.map g)
+:= by
+  intro xs
+  induction xs with
+  | nil =>
+    intro _ state _
+    simpa using convertsM_pure converts_empty
+  | cons x xs ih =>
+    intro h_step state h_P
+    rw [List.mapM_cons]
+    simp only [List.map_cons]
+    have h_x := h_step x (by simp) state h_P
+    refine Clap.ConvertsM.bind h_x ?_
+    have h_xs := ih (fun y h_y => h_step y (by simp [h_y])) _ (hP _ _ h_x.wellFormed' h_P)
+    refine Clap.ConvertsM.bind h_xs ?_
+    exact Clap.ConvertsM.pure (converts_cons (h_xs.skip h_x.converts) h_xs.converts)
+
+/--
+Traversal rule for `List.mapM`: the whole traversal converts elementwise, provided each step
+converts under a frame `P` that survives running an action (`Clap.Stable`).
+
+`P` is what lets the per-element obligation refer to the loop's read-only inputs — for
+`oneHotRaw`, `fun st => F.Converts st idx idx_val`. Re-basing it across every iteration is
+done once, here, instead of by hand at each unrolled step.
+-/
+lemma convertsM_mapM
+  {X : Type}
+  {xs : List X}
+  {f : X → ClapM p FB}
+  {g : X → Bool}
+  {P : ClapMState p → Prop}
+  {state : ClapMState p}
+  (hP : Clap.Stable P)
+  (h_P : P state)
+  (h_step : ∀ x ∈ xs, ∀ st, P st → FB.ConvertsM (f x) st (g x))
+:
+  FList.ConvertsM (xs.mapM f) state (xs.map g)
+:= convertsM_mapM_aux hP xs h_step state h_P
 
 end FList
 
@@ -1072,6 +1021,48 @@ lemma fold_spec {x : ZMod p} (state : ClapMState p):
 end MkConstant
 
 
+/-!
+## Pure bridges
+
+Arithmetic and container identities are proved here, in isolation, so that the circuit proofs
+below contain no reasoning about `ZMod` or `Vector` at all.
+-/
+
+/--
+Over `ZMod p`, comparing a small natural to `v.val` is the same as comparing `v` to its cast.
+This is the whole arithmetic content of `oneHotRaw`'s specification.
+-/
+lemma beq_natCast_comm
+  [NeZero p] {i : ℕ} {v : ZMod p}
+  (h : i < p)
+:
+  (i == v.val) = (v == (i : ZMod p))
+:= by
+  rw [Bool.eq_iff_iff]
+  simp only [beq_iff_eq]
+  constructor
+  · rintro rfl; simp
+  · rintro rfl; simp [ZMod.val_cast_of_lt h]
+
+/--
+The one-hot specification, as a list indexed the way `oneHotRaw'` traverses it.
+Every index of `List.range' 0 len` is below `p`, which is where `h_len` is spent.
+-/
+lemma oneHot_spec
+  [NeZero p] {len : ℕ} {idx_val : ZMod p}
+  (h_len : len < p)
+:
+  (Vector.ofFn (fun i : Fin len => (i.val == idx_val.val))).toList
+  = (List.range' 0 len).map (fun i : ℕ => (idx_val == (Nat.cast i : ZMod p)))
+:= by
+  apply List.ext_getElem
+  · simp
+  · intro i h1 h2
+    simp only [Vector.length_toList] at h1
+    rw [List.getElem_map, List.getElem_range']
+    simp only [Vector.getElem_toList, Vector.getElem_ofFn, Nat.zero_add, Nat.one_mul]
+    exact beq_natCast_comm (by omega)
+
 section OneHotRaw
 
 open HashConsM
@@ -1201,51 +1192,15 @@ lemma toList_map_oneHotRaw_eq_oneHotRaw' :
 
 namespace oneHotRaw
 
-omit [p.AtLeastTwo] in
-lemma convertsM_map_FArray_FArray
-  {k1 k2}
-  (action : ClapM p (Vector FB k1))
-  (f : Vector FB k1 → Vector FB k2)
-  (state)
-  {action_val : Vector Bool k1}
-  (f_val : Vector Bool k1 → Vector Bool k2)
-  (h_action : FArray.ConvertsM action state action_val)
-  (h_f_val : FArray.Converts
-    (action.getState state)
-    (f (action.getResult state.numAlloc state.σ))
-    (f_val action_val)
-  )
-:
-  FArray.ConvertsM (f <$> action) state (f_val action_val)
-:= by
-  constructor
-  . simp
-    apply h_f_val
-  . rewrite [ClapM.map_wellFormed]
-    apply h_action.wellFormed
-  . grind [ClapM.runAndEval, h_action.constraints]
+/--
+`oneHotRaw len idx` produces the length-`len` bit vector that is `1` exactly at index
+`idx_val`.
 
-omit [p.AtLeastTwo] in
-@[grind .]
-lemma bind_wellFormed'
-  {α β}
-  {a : ClapM p α}
-  {f : α → ClapM p β}
-  {state: ClapMState p}
-  (h_a : a.wellFormed state.numAlloc state.varStore state.σ)
-  (h_f : (f (a.getResult state.numAlloc state.σ)).wellFormed
-    (a.getState state).numAlloc
-    (a.getState state).varStore
-    (a.getState state).σ
-  )
-:
-  (a >>= f).wellFormed state.numAlloc state.varStore state.σ
-:= by
-  apply ClapM.bind_wellFormed h_a
-  grind [ClapM.getState]
-
-
-lemma convertsM_but_sane?
+The proof is the whole rule system in miniature: normalise to the list mirror, replace the
+spec with the shape the traversal produces (`oneHot_spec`), apply the loop rule once with the
+frame `F.Converts st idx idx_val`, then walk the two-line body with `clap_step`/`clap_finish`.
+-/
+lemma convertsM
   {state}
   {len : ℕ}
   {idx : F}
@@ -1253,103 +1208,17 @@ lemma convertsM_but_sane?
   (h_idx : F.Converts state idx idx_val)
   (h_len : len < p)
 :
-  FArray.ConvertsM (oneHotRaw len idx) state (Vector.ofFn (λ x => x.val == idx_val.val))
+  FArray.ConvertsM (oneHotRaw len idx) state (Vector.ofFn (fun i => i.val == idx_val.val))
 := by
+  have : NeZero p := ⟨by omega⟩
   apply FArray.convertsM_of_convertsM_toList
   simp_rw [toList_map_oneHotRaw_eq_oneHotRaw']
+  rw [oneHot_spec h_len]
   unfold oneHotRaw' oneHotRaw'_aux
-
-  simp [
-    Vector.toList_ofFn,
-    List.ofFn_eq_map,
-    List.finRange_eq_pmap_range,
-    List.map_pmap,
-    List.range_eq_range'
-  ]
-
-  set list := List.range' 0 len
-  have not_this : ∀ x ∈ list, x < p := by grind
-  clear_value list
-
-  rw [←list.reverse_reverse] at not_this ⊢
-  set list := list.reverse
-  clear_value list
-  induction' eq_ih : list.length with len h_len generalizing list
-  . aesop
-  . rcases list with _ | ⟨hd, tl⟩
-    · grind
-    · simp
-
-      -- Get ConvertsM for the mapM over the first len elements
-      specialize h_len tl (by aesop (add safe (by grind))) (by grind)
-      simp at h_len
-
-      -- assert that our previous state still holds after the mapM
-      have := h_len
-      have h_mapM_result := FList.converts_of_convertsM this
-      have h_wellFormed := this.wellFormed
-      have h_constraints1 := this.constraints
-      apply F.converts_skip this at h_idx
-      set mapM := List.mapM
-          (fun i => do
-            let idx_val ← liftM (HashConsM.mkConstant (i : ZMod p))
-            eq (p := p) idx idx_val)
-          tl.reverse
-      set mapM_result := mapM.getResult state.numAlloc state.σ
-      set state := mapM.getState state
-      clear this
-
-      -- Get ConvertsM for mkConstant and assert that previous state still holds
-      have := @MkConstant.convertsM p state hd
-      have h_a := F.converts_of_convertsM this
-      have h_wellFormed := this.wellFormed
-      have h_constraints2 := this.constraints
-      apply F.converts_skip this at h_idx
-      apply FList.converts_skip this at h_mapM_result
-      set mkConst := (liftM (n := ClapM p) (HashConsM.mkConstant (p := p) (hd : ZMod p)))
-      set c_result := mkConst.getResult state.numAlloc state.σ
-      set state := mkConst.getState state
-      clear this
-
-      -- Get ConvertsM for eq and assert that previous state still holds
-      have := eq.convertsM h_idx h_a
-      have h_eq := FB.converts_of_convertsM this
-      have h_wellFormed := this.wellFormed
-      have h_constraints2 := this.constraints
-      apply F.converts_skip this at h_idx
-      apply FList.converts_skip this at h_mapM_result
-      set eq := eq (p := p) idx c_result
-      set eq_result := eq.getResult state.numAlloc state.σ
-      set eq_state := eq.getState state
-      clear this
-
-      -- Apply the Functor map to the result of our eq, leaving the state unaffected
-      have h_eq_map := FList.converts_append
-        h_mapM_result
-        (FList.converts_singleton_of_converts_FB h_eq)
-
-      simp at *
-          -- We've reached the end of the function, so strip away the boilerplate and prove
-                -- that the canonical spec matches our hand written one
-
-
-      -- We've reached the end of the function, so strip away the boilerplate and prove
-      -- that the canonical spec matches our hand written one
-      constructor
-      . unfold FList.Converts at h_eq_map
-        convert h_eq_map
-        . grind [ClapM.getState]
-        . grind [ClapM.getState]
-        . -- Spec proof
-          rewrite [←ZMod.val_cast_of_lt (a := hd) (not_this hd (by grind))]
-          simp only [ZMod.val_natCast, beq_eq_beq]
-          apply Iff.intro
-          . intro h
-            simp [h]
-          . intro h
-            simp [h]
-      . grind
-      . grind [ClapM.getState]
+  refine FList.convertsM_mapM (P := fun st => F.Converts st idx idx_val) Clap.Stable.converts h_idx ?_
+  intro i _ st h_st
+  clap_step (MkConstant.convertsM (x := (Nat.cast i : ZMod p))) with h_const
+  clap_finish (eq.convertsM h_st h_const)
 
 end oneHotRaw
 end OneHotRaw
@@ -1552,7 +1421,7 @@ lemma convertsM
 := by
   unfold singleOneArray
 
-  have := oneHotRaw.convertsM_but_sane? h_idx h_len
+  have := oneHotRaw.convertsM h_idx h_len
   have h_oneHot := FArray.converts_of_convertsM this
   have h_wellFormed := this.wellFormed
   have h_constraints2 := this.constraints
