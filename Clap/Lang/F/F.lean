@@ -1244,6 +1244,56 @@ lemma bind_wellFormed'
   apply ClapM.bind_wellFormed h_a
   grind [ClapM.getState]
 
+namespace X
+
+def y : Nat := 42
+end X
+
+open Lean Elab Tactic Meta in
+def step_impl (name : Name) (goal : MVarId) : MetaM MVarId := goal.withContext do
+  let foundThing := (←getLCtx).getFromUserName! name
+  logInfo m!"foundThing: {foundThing.type}"
+  logInfo m!"foundThingT: {repr foundThing.type}"
+  
+  return goal
+
+open Lean Elab Tactic Meta in
+elab "step" convertsM:ident : tactic => withMainContext do
+  logInfo m!"Called `step` with arguments: {convertsM}"
+  liftMetaTactic' (step_impl convertsM.getId)
+
+  let newHaveName := mkIdent (.mkSimple "this")
+  Elab.Tactic.evalTactic (←`(tactic|have this := $convertsM))
+  withMainContext do
+  logInfo m!"NAME: {convertsM.getId}\nLCTX:{(←getLCtx).getFVars}"
+  let foundThing := (←getLCtx).getFromUserName! convertsM.getId
+  logInfo m!"heh :{foundThing.toExpr}"
+  
+  logInfo m!"heh :{←inferType (←instantiateMVars foundThing.toExpr)}"
+  match_expr ←inferType (←instantiateMVars foundThing.toExpr) with
+    | Clap.Lang.FList.ConvertsM _ _ _ _ => logInfo m!"FList"
+    | Clap.Lang.FArray.ConvertsM _ _ _ _ => logInfo m!"FArray"
+    | Clap.Lang.FUnit.ConvertsM _ _ _ _ => logInfo m!"FUnit"
+    | Clap.Lang.FB.ConvertsM _ _ _ _ => logInfo m!"FB"
+    | Clap.Lang.F.ConvertsM _ _ _ _ => logInfo m!"F"
+    | _ => logInfo m!"Your mother"
+
+
+  -- let stuff := foundThing.getAppFnArgs
+  -- logInfo m!"stuff: {repr foundThing}"
+  -- -- let_expr Clap.Lang.FList.ConvertsM _ _ _ _ := foundThing | logInfo m!"Your mother."
+  -- logInfo m!"foundThing: {foundThing}"
+  
+  -- let key := (←getLCtx)
+  -- logInfo m!"hello: {key.decls.toArray.map fun ldcl ↦ ldcl.get!.fvarId}"
+
+
+
+  -- let ourActualThing := (←getLCtx).findFromUserName? convertsM.getId |>.get!.value
+  -- -- let hypExpr : Lean.Expr ← elabTerm ourActualThing .none
+  -- let hypExprT : Lean.Expr ← inferType ourActualThing
+  -- logInfo m!"Expr: {ourActualThing} of type: {hypExprT}"
+  -- pure ()
 
 lemma convertsM_but_sane?
   {state}
@@ -1283,9 +1333,9 @@ lemma convertsM_but_sane?
       -- Get ConvertsM for the mapM over the first len elements
       specialize h_len tl (by aesop (add safe (by grind))) (by grind)
       simp at h_len
-
       -- assert that our previous state still holds after the mapM
       have := h_len
+      step this
       have h_mapM_result := FList.converts_of_convertsM this
       have h_wellFormed := this.wellFormed
       have h_constraints1 := this.constraints
