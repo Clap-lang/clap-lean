@@ -39,3 +39,4 @@ import Clap.Test.Compiler.Compile
 import Clap.Test.Integration
 
 import Clap.KeylessJSON
+import Clap.JWTJsonSpec
