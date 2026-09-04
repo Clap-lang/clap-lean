@@ -1249,51 +1249,96 @@ namespace X
 def y : Nat := 42
 end X
 
-open Lean Elab Tactic Meta in
-def step_impl (name : Name) (goal : MVarId) : MetaM MVarId := goal.withContext do
-  let foundThing := (←getLCtx).getFromUserName! name
-  logInfo m!"foundThing: {foundThing.type}"
-  logInfo m!"foundThingT: {repr foundThing.type}"
-  
+section
+
+open Lean Elab Tactic Meta
+
+def baseNamespace := Name.mkStr2 "Clap" "Lang"
+
+def convertsMlemmaOfType (convertsMT : Lean.Expr) : MetaM ConstantInfo := do
+  let convertsMT ← instantiateMVars convertsMT
+  let prefixNamespace :=
+    match_expr convertsMT with
+    | Clap.Lang.FList.ConvertsM _ _ _ _ => `FList
+    | Clap.Lang.FArray.ConvertsM _ _ _ _ => `FArray
+    | Clap.Lang.FUnit.ConvertsM _ _ _ _ => `FUnit
+    | Clap.Lang.FB.ConvertsM _ _ _ _ => `FB
+    | Clap.Lang.F.ConvertsM _ _ _ _ => `F
+    | _ => unreachable!
+  let name := baseNamespace ++ prefixNamespace ++ convertsMname
+  let .some «lemma» := (←getEnv).find? name
+    | throwError m!"Undeclared constant: {name}"
+  return «lemma»
+  where 
+    convertsMname := `converts_of_convertsM
+
+def convertsLemmaOfType (convertsT : Lean.Expr) : MetaM ConstantInfo := do
+  let convertsT ← instantiateMVars convertsT
+  let prefixNamespace :=
+    match_expr convertsT with
+    | Clap.Lang.FList.Converts _ _ _ _ => `FList
+    | Clap.Lang.FArray.Converts _ _ _ _ => `FArray
+    | Clap.Lang.FUnit.Converts _ _ _ _ => `FUnit
+    | Clap.Lang.FB.Converts _ _ _ _ => `FB
+    | Clap.Lang.F.Converts _ _ _ _ => `F
+    | _ => unreachable!
+  let name := baseNamespace ++ prefixNamespace ++ convertsMname
+  let .some «lemma» := (←getEnv).find? name
+    | throwError m!"Undeclared constant: {name}"
+  return «lemma»
+  where 
+    convertsMname := `converts_skip
+
+def _root_.Lean.Meta.Hypothesis.ofNameValue (userName : Name) (value : Lean.Expr) : MetaM Hypothesis := do
+  return {
+    userName := userName
+    type     := ←inferType value
+    value    := value
+  }
+
+def step_impl (convertsME convertsM : Lean.Expr) (goal : MVarId) : MetaM MVarId := goal.withContext do
+  let convertsMType ← inferType convertsME
+  let convertsType ← inferType convertsM
+  -- `Clap.Lang.<type>.convertsOfConvertsM`
+  let lemmaConvertsM : ConstantInfo ← convertsMlemmaOfType convertsMType
+  let lemmaConverts : ConstantInfo ← convertsLemmaOfType convertsType
+  let stepE ← mkAppM lemmaConvertsM.name #[convertsME]
+  let skipE ← mkAppM lemmaConverts.name #[convertsME, convertsM]
+  let hypWFE ← Expr.mkDirectProjection convertsME `wellFormed
+  let hypConstraintsE ← Expr.mkDirectProjection convertsME `constraints
+  let (_, goal) ← goal.assertHypotheses #[
+    ←Hypothesis.ofNameValue `this convertsME,
+    ←Hypothesis.ofNameValue `h_mapM_result stepE,
+    ←Hypothesis.ofNameValue `h_wellFormed hypWFE,
+    ←Hypothesis.ofNameValue `h_constraints hypConstraintsE,
+    ←Hypothesis.ofNameValue `h_idx skipE
+  ]
   return goal
 
-open Lean Elab Tactic Meta in
-elab "step" convertsM:ident : tactic => withMainContext do
-  logInfo m!"Called `step` with arguments: {convertsM}"
-  liftMetaTactic' (step_impl convertsM.getId)
+elab "step" convertsM:term "using" converts:ident : tactic => withMainContext do
+  let convertsME ← elabTerm convertsM .none
+  let convertsE := (←getLCtx).getFromUserName! converts.getId
+  logInfo m!"Called `step` with arguments:\n{←elabTerm convertsM .none}\n{converts.getId}"
+  liftMetaTactic' (step_impl convertsME convertsE.toExpr)
 
-  let newHaveName := mkIdent (.mkSimple "this")
-  Elab.Tactic.evalTactic (←`(tactic|have this := $convertsM))
-  withMainContext do
-  logInfo m!"NAME: {convertsM.getId}\nLCTX:{(←getLCtx).getFVars}"
-  let foundThing := (←getLCtx).getFromUserName! convertsM.getId
-  logInfo m!"heh :{foundThing.toExpr}"
-  
-  logInfo m!"heh :{←inferType (←instantiateMVars foundThing.toExpr)}"
-  match_expr ←inferType (←instantiateMVars foundThing.toExpr) with
-    | Clap.Lang.FList.ConvertsM _ _ _ _ => logInfo m!"FList"
-    | Clap.Lang.FArray.ConvertsM _ _ _ _ => logInfo m!"FArray"
-    | Clap.Lang.FUnit.ConvertsM _ _ _ _ => logInfo m!"FUnit"
-    | Clap.Lang.FB.ConvertsM _ _ _ _ => logInfo m!"FB"
-    | Clap.Lang.F.ConvertsM _ _ _ _ => logInfo m!"F"
-    | _ => logInfo m!"Your mother"
+  -- liftMetaTactic' (step_impl convertsM.getId)
+  -- evalTactic (←`(tactic|have $(mkIdent (.mkSimple "this")) := $convertsM))
+  -- withMainContext do
+  -- let typeOfConvertsM : Lean.Expr ←
+  --   instantiateMVars <| (←getLCtx).getFromUserName! convertsM.getId |>.type
+  -- -- have h_mapM_result := FList.converts_of_convertsM this
+  -- --     have h_wellFormed := this.wellFormed
+  -- --     have h_constraints1 := this.constraints
+  -- match_expr typeOfConvertsM with
+  -- | Clap.Lang.FList.ConvertsM _ _ _ _ =>
+  --   logInfo m!"FList"
+  -- | Clap.Lang.FArray.ConvertsM _ _ _ _ => logInfo m!"FArray"
+  -- | Clap.Lang.FUnit.ConvertsM _ _ _ _ => logInfo m!"FUnit"
+  -- | Clap.Lang.FB.ConvertsM _ _ _ _ => logInfo m!"FB"
+  -- | Clap.Lang.F.ConvertsM _ _ _ _ => logInfo m!"F"
+  -- | _ => logInfo m!"Your mother"
 
-
-  -- let stuff := foundThing.getAppFnArgs
-  -- logInfo m!"stuff: {repr foundThing}"
-  -- -- let_expr Clap.Lang.FList.ConvertsM _ _ _ _ := foundThing | logInfo m!"Your mother."
-  -- logInfo m!"foundThing: {foundThing}"
-  
-  -- let key := (←getLCtx)
-  -- logInfo m!"hello: {key.decls.toArray.map fun ldcl ↦ ldcl.get!.fvarId}"
-
-
-
-  -- let ourActualThing := (←getLCtx).findFromUserName? convertsM.getId |>.get!.value
-  -- -- let hypExpr : Lean.Expr ← elabTerm ourActualThing .none
-  -- let hypExprT : Lean.Expr ← inferType ourActualThing
-  -- logInfo m!"Expr: {ourActualThing} of type: {hypExprT}"
-  -- pure ()
+end
 
 lemma convertsM_but_sane?
   {state}
@@ -1335,7 +1380,7 @@ lemma convertsM_but_sane?
       simp at h_len
       -- assert that our previous state still holds after the mapM
       have := h_len
-      step this
+      -- step this using h_idx
       have h_mapM_result := FList.converts_of_convertsM this
       have h_wellFormed := this.wellFormed
       have h_constraints1 := this.constraints
