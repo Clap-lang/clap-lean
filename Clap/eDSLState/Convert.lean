@@ -4,6 +4,21 @@ import Clap.Lang.Wheels
 
 namespace Clap
 
+class BundleOfSticks (p : ℕ) (α : Type) where
+  IdealT : Type
+  conversion : IdealT → List (ZMod p)
+  toExprs : α → List ExprRef
+
+attribute [reducible] BundleOfSticks.IdealT
+
+-- class HasConversion (p : ℕ) (α : Type) where
+--   conversion : α → List (ZMod p)
+
+-- class HasToExprs (α : Type) where
+--   toExprs : α → List ExprRef
+
+export BundleOfSticks (conversion)
+
 structure ClapMState (p : ℕ) where
   varStore : VarStore p
   σ : HashConsSt p
@@ -15,15 +30,15 @@ def ClapM.getState {p} {α} (cmd : ClapM p α) (state : ClapMState p) : ClapMSta
   numAlloc := cmd.getNumAlloc state.numAlloc state.σ
 
 structure Converts {p : ℕ} {α : Type}
-  (conversion : α → List (ZMod p))
+  [bundle : BundleOfSticks p α]
   (state : ClapMState p)
-  (exprs : List ExprRef)
-  (val : α)
+  (exprs : α)
+  (val : bundle.IdealT)
 : Prop where
-  h_conversion : (conversion val).length = exprs.length
-  varSet_wf : ∀ (i : Fin exprs.length), ⦃exprs[i], state.σ⦄.varSet_wellFormed state.numAlloc
-  expr_wf   : ∀ (i : Fin exprs.length), ⦃exprs[i], state.σ⦄.wellFormed
-  value_eq  : ∀ (i : Fin exprs.length), [state.varStore|⦃exprs[i], state.σ⦄] = .some ((conversion val)[i])
+  h_conversion : (conversion (p := p) val).length = (bundle.toExprs exprs).length
+  varSet_wf : ∀ (i : Fin (bundle.toExprs exprs).length), ⦃(bundle.toExprs exprs)[i], state.σ⦄.varSet_wellFormed state.numAlloc
+  expr_wf   : ∀ (i : Fin (bundle.toExprs exprs).length), ⦃(bundle.toExprs exprs)[i], state.σ⦄.wellFormed
+  value_eq  : ∀ (i : Fin (bundle.toExprs exprs).length), [state.varStore|⦃(bundle.toExprs exprs)[i], state.σ⦄] = .some ((conversion val)[i])
 
 -- structure HasSpec {p} {idealT} {representsT} (action : ClapM p representsT) where
 --   spec : idealT
@@ -39,15 +54,12 @@ isZero.hasSpec a := {
 
 -/
 
-section Lemmas
+section AnotherSection
 
 variable
   {p k : ℕ}
   {α : Type}
-  {conversion : α → List (ZMod p)}
   {state : ClapMState p}
-  {exprs : List ExprRef}
-  {val : α}
   {x : ZMod p}
   {action : ClapM p α}
   {circuit : Circuit}
@@ -78,16 +90,30 @@ lemma getState_bind
 := by
   grind [ClapM.getState]
 
+end AnotherSection
+
+section Lemmas
+
+variable
+  {p k : ℕ}
+  {α : Type} [bundle : BundleOfSticks p α]
+  {state : ClapMState p}
+  -- {exprs : List ExprRef}
+  {val : bundle.IdealT}
+  {x : ZMod p}
+  {action : ClapM p α}
+  {circuit : Circuit}
 
 lemma eval_varStore_eval_eq_some
   {β}
   {action : ClapM p β}
-  (h₁ : Converts conversion state exprs val)
+  {exprs : α}
+  (h₁ : Converts state exprs val)
   (h₂ : action.hashConsState_wellFormed state.numAlloc state.σ)
 :
   letI varStore' := [state.varStore, action.getHashConsState state.numAlloc state.σ, state.numAlloc|circuit]ₑ.varStore
-  ∀ i : Fin exprs.length,
-    [varStore'|⦃exprs[i], action.getHashConsState state.numAlloc state.σ⦄] =
+  ∀ i : Fin (bundle.toExprs exprs).length,
+    [varStore'|⦃(bundle.toExprs exprs)[i], action.getHashConsState state.numAlloc state.σ⦄] =
     some ((conversion val)[i]'(by grind [cases Converts]))
 := by
   intros i
@@ -112,12 +138,11 @@ lemma eval_varStore_eval_eq_some
 
 lemma toIdeal_run_of_toIdeal
   {β}
+  {exprs : α}
   (action : ClapM p β)
   (h_a_wf : action.wellFormed state.numAlloc state.varStore state.σ)
-  (h : Converts conversion state exprs val) :
-  Converts
-           conversion
-           (action.getState state)
+  (h : Converts state exprs val) :
+  Converts (action.getState state)
            exprs
            val := by
   rcases h with ⟨h₁, h₂, h₃, h₄⟩
@@ -126,7 +151,7 @@ lemma toIdeal_run_of_toIdeal
   · grind [ClapM.getState]
   · intro i
     unfold ClapM.getState ClapM.getVarStore
-    rw [eval_varStore_eval_eq_some (conversion := conversion) (val := val)]
+    rw [eval_varStore_eval_eq_some (val := val)]
     . constructor
       . assumption
       . assumption
@@ -138,8 +163,9 @@ lemma toIdeal_run_of_toIdeal
 @[grind .]
 lemma isSome_eval_of_mem
   {expr}
-  (h : Converts conversion state exprs val)
-  (h_mem : expr ∈ exprs)
+  {exprs : α}
+  (h : Converts state exprs val)
+  (h_mem : expr ∈ bundle.toExprs exprs)
 :
   [state.varStore, state.σ|expr].isSome = true
 := by
@@ -152,8 +178,9 @@ lemma isSome_eval_of_mem
 @[grind .]
 lemma expr_wellFormed_of_mem
   {expr}
-  (h : Converts conversion state exprs val)
-  (h_mem : expr ∈ exprs)
+  {exprs : α}
+  (h : Converts state exprs val)
+  (h_mem : expr ∈ bundle.toExprs exprs)
 :
   ⦃expr, state.σ⦄.wellFormed
 := by
@@ -165,7 +192,9 @@ lemma expr_wellFormed_of_mem
 lemma isSome_eval_singleton
   {state : ClapMState p}
   {expr : ExprRef}
-  (h : Converts conversion state [expr] val)
+  {exprs : α}
+  (h₁ : bundle.toExprs exprs = [expr])
+  (h₂ : Converts state exprs val)
 :
   [state.varStore, state.σ|expr].isSome = true
 := by
@@ -174,24 +203,24 @@ lemma isSome_eval_singleton
 @[grind .]
 lemma expr_wellFormed_of_mem_singleton
   {expr}
-  (h : Converts conversion state [expr] val)
+  {exprs : α}
+  (h₁ : bundle.toExprs exprs = [expr])
+  (h : Converts state exprs val)
 :
   ⦃expr, state.σ⦄.wellFormed
 := by
   grind
 
-
 end Lemmas
 
 structure ConvertsM
-  {p IdealT}
-  (conversion : IdealT → List (ZMod p))
-  (action : ClapM p (List ExprRef))
+  {p α}
+  [bundle : BundleOfSticks p α]
+  (action : ClapM p α)
   (state : ClapMState p)
-  (val : IdealT)
+  (val : bundle.IdealT)
 : Prop where
   result : Converts
-    conversion
     (action.getState state)
     (action.getResult state.numAlloc state.σ)
     val
@@ -199,17 +228,18 @@ structure ConvertsM
   constraints : (action.runAndEval state.numAlloc state.varStore state.σ).2.constraints
 
 lemma converts_skip
-  {p IdealT1 IdealT2}
-  {conversion1 conversion2}
-  {action : ClapM p (List ExprRef)}
+  {p α β}
+  [bundle₁ : BundleOfSticks p α]
+  [bundle₂ : BundleOfSticks p β]
+  {action : ClapM p α}
   {state}
-  {val1 : IdealT1}
-  {val2 : IdealT2}
-  {exprs}
-  (h_action : ConvertsM conversion1 action state val1)
-  (h : Converts conversion2 state exprs val2)
+  {val1 : bundle₁.IdealT}
+  {val2 : bundle₂.IdealT}
+  {exprs : β}
+  (h_action : ConvertsM action state val1)
+  (h : Converts state exprs val2)
 :
-  Converts conversion2 (action.getState state) exprs val2
+  Converts (action.getState state) exprs val2
 := toIdeal_run_of_toIdeal _ h_action.wellFormed h
 
 end Clap

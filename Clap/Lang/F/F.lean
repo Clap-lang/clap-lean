@@ -16,111 +16,47 @@ section Converts
 
 namespace F
 
-abbrev toExprs (x : F) : List ExprRef := [x]
-abbrev serializeVal (x : ZMod p) : List (ZMod p) := [x]
-
-def Converts
-  (state : ClapMState p)
-  (expr : F)
-  (val : ZMod p)
-:=
-  Clap.Converts serializeVal state (toExprs expr) val
-
-def ConvertsM
-  (action : ClapM p F)
-:=
-  Clap.ConvertsM serializeVal (toExprs <$> action)
+instance : BundleOfSticks p F where
+  IdealT := ZMod p
+  toExprs x := [x]
+  conversion x := [x]
 
 end F
 
 
 namespace FB
 
-abbrev toExprs (x : FB) : List ExprRef := [x]
-abbrev serializeVal (x : Bool) : List (ZMod p) := [if x then 1 else 0]
-
-def Converts
-  (state : ClapMState p)
-  (expr : FB)
-  (val : Bool)
-:=
-  Clap.Converts serializeVal state (toExprs expr) val
-
-def ConvertsM
-  (action : ClapM p FB)
-:=
-  Clap.ConvertsM serializeVal (toExprs <$> action)
+instance : BundleOfSticks p FB where
+  IdealT := Bool
+  toExprs x := [x]
+  conversion x := [if x then 1 else 0]
 
 end FB
 
-
 namespace FUnit
 
-abbrev toExprs (_ : Unit) : List ExprRef := []
-abbrev serializeVal (_ : Unit) : List (ZMod p) := []
-
-def Converts
-  (state : ClapMState p)
-  (expr : Unit)
-  (val : Unit)
-:=
-  Clap.Converts serializeVal state (toExprs expr) val
-
-def ConvertsM
-  (action : ClapM p Unit)
-:=
-  Clap.ConvertsM serializeVal (toExprs <$> action)
+instance : BundleOfSticks p Unit where
+  IdealT := Unit
+  toExprs _ := []
+  conversion _ := []
 
 end FUnit
 
-
 namespace FArray
 
-abbrev toExprs {k} (x : FArray k) : List ExprRef := x.toList
-abbrev serializeVal {k} (x : Vector Bool k) : List (ZMod p) := (x.map fun x ↦ if x then 1 else 0).toList
-
-def Converts
-  {k}
-  (state : ClapMState p)
-  (exprs : FArray k)
-  (vals : Vector Bool k)
-:=
-  Clap.Converts serializeVal state (toExprs exprs) vals
-
-def ConvertsM {k}
-  (action : ClapM p (FArray k))
-  (state : ClapMState p)
-  (vals : Vector Bool k)
-:=
-  Clap.ConvertsM serializeVal (toExprs <$> action) state vals
+instance {k} : BundleOfSticks p (FArray k) where
+  IdealT := Vector Bool k
+  toExprs x := x.toList
+  conversion x := (x.map fun x ↦ if x then 1 else 0).toList
 
 end FArray
 
-
 namespace FList
 
-abbrev toExprs (x : FList) : List ExprRef := x
-abbrev serializeVal (x : List Bool) : List (ZMod p) := x.map fun x ↦ if x then 1 else 0
-
-def Converts
-  (state : ClapMState p)
-  (exprs : List FB)
-  (val : List Bool)
-:= Clap.Converts
-  (fun l : List Bool ↦ l.map fun x ↦ if x then 1 else 0)
-  state
-  exprs
-  val
-
-def ConvertsM
-  (action : ClapM p FList)
-  (state : ClapMState p)
-  (val : List Bool)
-:= Clap.ConvertsM
-  (fun l : List Bool ↦ l.map fun x ↦ if x then 1 else 0)
-  action
-  state
-  val
+instance : BundleOfSticks p FList where
+  IdealT := List Bool
+  toExprs x := x
+  conversion x := x.map fun x ↦ if x then 1 else 0
 
 end FList
 
@@ -137,9 +73,23 @@ lemma converts_of_convertsM
   (h : (ConvertsM action state val))
 :
   Converts (action.getState state) (action.getResult state.numAlloc state.σ) val
-:= by
-  convert h.result
-  simp [Converts]
+:= h.result
+
+lemma wellFormed_of_convertsM
+  {action : ClapM p F}
+  {state} {val}
+  (h : ConvertsM action state val)
+:
+  action.wellFormed state.numAlloc state.varStore state.σ
+:= h.wellFormed
+
+lemma constraints_of_convertsM
+  {action : ClapM p F}
+  {state} {val}
+  (h : ConvertsM action state val)
+:
+  (action.runAndEval state.numAlloc state.varStore state.σ).2.constraints
+:= h.constraints
 
 structure Spec (state) where
   action : ClapM p F
@@ -189,7 +139,7 @@ end F
 namespace FB
 
 lemma converts_of_convertsM
-  {action : ClapM p F}
+  {action : ClapM p FB}
   {state} {val}
   (h : (ConvertsM action state val))
 :
@@ -197,6 +147,26 @@ lemma converts_of_convertsM
 := by
   convert h.result
   simp [Converts]
+
+lemma wellFormed_of_convertsM
+  {action : ClapM p FB}
+  {state} {val}
+  (h : ConvertsM action state val)
+:
+  action.wellFormed state.numAlloc state.varStore state.σ
+:= by
+  convert h.wellFormed
+  simp
+
+lemma constraints_of_convertsM
+  {action : ClapM p FB}
+  {state} {val}
+  (h : ConvertsM action state val)
+:
+  (action.runAndEval state.numAlloc state.varStore state.σ).2.constraints
+:= by
+  convert h.constraints
+  simp [ClapM.runAndEval]
 
 /-
 Best not to use because unification struggles to pick out function_val
@@ -251,6 +221,28 @@ lemma converts_of_convertsM
 := by
   convert h.result
   simp [Converts]
+
+lemma wellFormed_of_convertsM
+  {k}
+  {action : ClapM p (FArray k)}
+  {state} {val}
+  (h : ConvertsM action state val)
+:
+  action.wellFormed state.numAlloc state.varStore state.σ
+:= by
+  convert h.wellFormed
+  simp
+
+lemma constraints_of_convertsM
+  {k}
+  {action : ClapM p (FArray k)}
+  {state} {val}
+  (h : ConvertsM action state val)
+:
+  (action.runAndEval state.numAlloc state.varStore state.σ).2.constraints
+:= by
+  convert h.constraints
+  simp [ClapM.runAndEval]
 
 lemma converts_skip
   {k1} {α} {conversion}
@@ -557,6 +549,24 @@ lemma converts_of_convertsM
   convert h.result
   simp [Converts]
 
+lemma wellFormed_of_convertsM
+  {action : ClapM p FList}
+  {state} {val}
+  (h : ConvertsM action state val)
+:
+  action.wellFormed state.numAlloc state.varStore state.σ
+:= by
+  convert h.wellFormed
+
+lemma constraints_of_convertsM
+  {action : ClapM p FList}
+  {state} {val}
+  (h : ConvertsM action state val)
+:
+  (action.runAndEval state.numAlloc state.varStore state.σ).2.constraints
+:= by
+  convert h.constraints
+
 @[aesop safe]
 lemma convertsM_pure
         {state : ClapMState p}
@@ -656,6 +666,40 @@ lemma converts_singleton_of_converts_FB
   . simp
 
 end FList
+
+namespace FUnit
+
+lemma converts_of_convertsM
+  {action : ClapM p Unit}
+  {state} {val}
+  (h : (ConvertsM action state val))
+:
+  Converts (action.getState state) (action.getResult state.numAlloc state.σ) val
+:= by
+  convert h.result
+  simp [Converts]
+
+lemma wellFormed_of_convertsM
+  {action : ClapM p Unit}
+  {state} {val}
+  (h : ConvertsM action state val)
+:
+  action.wellFormed state.numAlloc state.varStore state.σ
+:= by
+  convert h.wellFormed
+  simp
+
+lemma constraints_of_convertsM
+  {action : ClapM p Unit}
+  {state} {val}
+  (h : ConvertsM action state val)
+:
+  (action.runAndEval state.numAlloc state.varStore state.σ).2.constraints
+:= by
+  convert h.constraints
+  simp [ClapM.runAndEval]
+
+end FUnit
 
 end ConvertsLemmas
 
@@ -1261,7 +1305,8 @@ def lemmaOfIdentifiers (prefixNamespace lemmaName : Name) : MetaM ConstantInfo :
     | throwError m!"Undeclared constant: {name}"
   return «lemma»
 
-def convertsMlemmaAndActionOfType (convertsMT : Lean.Expr) : MetaM (ConstantInfo × Lean.Expr) := do
+def convertsMlemmaAndActionOfType (convertsMT : Lean.Expr) :
+  MetaM (ConstantInfo × ConstantInfo × ConstantInfo × Lean.Expr) := do
   let convertsMT ← instantiateMVars convertsMT
   let (prefixNamespace, action) :=
     match_expr convertsMT with
@@ -1271,7 +1316,12 @@ def convertsMlemmaAndActionOfType (convertsMT : Lean.Expr) : MetaM (ConstantInfo
     | Clap.Lang.FB.ConvertsM _ action _ _ => (`FB, action)
     | Clap.Lang.F.ConvertsM _ action _ _ => (`F, action)
     | _ => unreachable!
-  return (←lemmaOfIdentifiers prefixNamespace `converts_of_convertsM, action)
+  return (
+    ←lemmaOfIdentifiers prefixNamespace `converts_of_convertsM,
+    ←lemmaOfIdentifiers prefixNamespace `wellFormed_of_convertsM,
+    ←lemmaOfIdentifiers prefixNamespace `constraints_of_convertsM,
+    action
+  )
 
 def convertsLemmaAndStateOfType (convertsT : Lean.Expr) : MetaM (ConstantInfo × Lean.Expr) := do
   let convertsT ← instantiateMVars convertsT
@@ -1304,48 +1354,84 @@ Execute `set`s in order, ensuring the local context is updated between every inv
 def _root_.Lean.MVarId.setManyInOrder (goal : MVarId) (nameXrhs : List (Name × Term)) : MetaM MVarId :=
   nameXrhs.foldlM (fun acc (name, rhs) ↦ do acc.withContext do acc.set name rhs) goal
 
-def step_impl (convertsME convertsE : Lean.Expr) (goal : MVarId) : TermElabM MVarId := goal.withContext do
+/--
+Yields tuples `(namespace, fvar, state, type)` of local hypotheses of the shape `<_>.Converts`.
+-/
+def stateAssertions (goal : MVarId) :
+  MetaM (Array (Name × Lean.Expr × Lean.Expr × Lean.Expr)) := goal.withContext do
+  let allAssertions := (←getLCtx).getFVars
+  let allAssertionsT ← allAssertions.filterMapM fun fvar ↦ do
+    let type ← instantiateMVars (←inferType fvar)
+    return match_expr type with
+    | Clap.Lang.FList.Converts _ st _ _ => .some (`FList, fvar, st, type)
+    | Clap.Lang.FArray.Converts _ st _ _ => .some (`FArray, fvar, st, type)
+    | Clap.Lang.FUnit.Converts _ st _ _ => .some (`FUnit, fvar, st, type)
+    | Clap.Lang.FB.Converts _ st _ _ => .some (`FB, fvar, st, type)
+    | Clap.Lang.F.Converts _ st _ _ => .some (`F, fvar, st, type)
+    | _ => .none
+  if (allAssertionsT.groupByKey (fun (_, _, st, _) ↦ st) |>.size) > 1
+  then
+    -- logWarning m!"OUR GUY:\n{(allAssertionsT.groupByKey fun (_, _, st, _) ↦ st).toArray}"
+    logWarning m!"Assumptions of shape `Converts` refer to multiple states. Are you ~~mad~~ sure?"
+  return allAssertionsT
+
+def step_impl (convertsME : Lean.Expr) (hypName : Name) (goal : MVarId) : TermElabM MVarId := goal.withContext do
   let convertsMType ← inferType convertsME
-  let convertsType ← inferType convertsE
   -- `Clap.Lang.<type>.convertsOfConvertsM`
-  let (lemmaConvertsM, actionE) ← convertsMlemmaAndActionOfType convertsMType
-  logInfo m!"action: {actionE}"
+  let (convertsConvertsM, wellFormedConvertsM, constraintsConvertsM, actionE) ←
+    convertsMlemmaAndActionOfType convertsMType
   -- `Clap.Lang.<type>.converts_skip`
-  let (lemmaConverts, state) ← convertsLemmaAndStateOfType convertsType
-  let stateS ← Term.exprToSyntax state
-  let stepE ← mkAppM lemmaConvertsM.name #[convertsME]
-  let skipE ← mkAppM lemmaConverts.name #[convertsME, convertsE]
-  let hypWFE ← Expr.mkDirectProjection convertsME `wellFormed
-  let hypConstraintsE ← Expr.mkDirectProjection convertsME `constraints
-  let (_, goal) ← goal.assertHypotheses #[
-    ←Hypothesis.ofNameValue `this convertsME,
-    ←Hypothesis.ofNameValue (((←getLCtx).getUnusedName `action).appendBefore "h_") stepE,
-    ←Hypothesis.ofNameValue `h_wellFormed hypWFE,
-    ←Hypothesis.ofNameValue `h_constraints hypConstraintsE,
-    ←Hypothesis.ofNameValue `h_idx skipE
-  ]
-  let actionName := .mkSimple "action"
-  let actionIdent := Lean.mkIdent actionName
+  let stepE ← mkAppM convertsConvertsM.name #[convertsME]
+  let hypWFE ← mkAppM wellFormedConvertsM.name #[convertsME]
+  let hypConstraintsE ← mkAppM constraintsConvertsM.name #[convertsME]
 
-  goal.setManyInOrder [
-    -- `set action := <action_from_monad>`
-    (actionName, ←Term.exprToSyntax actionE),
-    -- `set <action>_result := <action>.getResult <state>.numAlloc <state>.σ`
-    (actionName.appendAfter "_result", ←`($(actionIdent).getResult $(stateS).numAlloc $(stateS).σ)),
-    -- `set <state> := <action>.getState <state>`
-    (((←getLCtx).getFVar! state).userName, ←`($(actionIdent).getState $stateS))
-  ]
+  let stateAssertions ← stateAssertions goal
+  let assertions ← stateAssertions.mapM fun («namespace», fvar, state, type) ↦ do
+    let stateS ← Term.exprToSyntax state
+    let «lemma» ← lemmaOfIdentifiers «namespace» `converts_skip
+    return (fvar, ←mkAppM «lemma».name #[convertsME, fvar])
+  
+  let goal ← assertions.foldlM (init := goal) fun goal (fvar, _) ↦
+    goal.clear fvar.fvarId!
 
-elab "step" convertsM:term "using" converts:ident : tactic => withMainContext do
+  let (_, goal) ← goal.assertHypotheses <|
+    #[
+      -- ←Hypothesis.ofNameValue `this convertsME,
+      ←Hypothesis.ofNameValue hypName stepE,
+      ←Hypothesis.ofNameValue `h_wellFormed hypWFE,
+      ←Hypothesis.ofNameValue `h_constraints hypConstraintsE,
+    ] ++ (
+      ←assertions.mapM fun (fvar, expr) ↦ do
+        let name := ((←getLCtx).get! fvar.fvarId!).userName
+        Hypothesis.ofNameValue name expr
+    )
+  
+  return goal
+  -- let actionName := .mkSimple "action"
+  -- let actionIdent := Lean.mkIdent actionName
+
+  -- goal.setManyInOrder [
+  --   -- `set action := <action_from_monad>`
+  --   (actionName, ←Term.exprToSyntax actionE),
+  --   -- `set <action>_result := <action>.getResult <state>.numAlloc <state>.σ`
+  --   (actionName.appendAfter "_result", ←`($(actionIdent).getResult $(stateS).numAlloc $(stateS).σ)),
+  --   -- `set <state> := <action>.getState <state>`
+  --   (((←getLCtx).getFVar! state).userName, ←`($(actionIdent).getState $stateS))
+  -- ]  
+  -- _
+
+elab "step" convertsM:term "as" hypName:ident : tactic => withMainContext do
   let convertsME ← elabTerm convertsM .none
-  let convertsE := (←getLCtx).getFromUserName! converts.getId
-  logInfo m!"Called `step` with arguments:\n{←elabTerm convertsM .none}\n{converts.getId}"
+  -- let convertsE := (←getLCtx).getFromUserName! converts.getId
+  logInfo m!"Called `step` with arguments:\n{←elabTerm convertsM .none}"
+  -- logInfo m!"Called `step` with arguments:\n{←elabTerm convertsM .none}\n{converts.getId}"
   -- This is `liftTermElabMTactic'` sort of deal
-  let goal ← step_impl convertsME convertsE.toExpr (←getMainGoal)
+  let goal ← step_impl convertsME hypName.getId (←getMainGoal)
   replaceMainGoal [goal]
 
 end
 
+#check F.ConvertsM
 lemma convertsM_but_sane?
   {state}
   {len : ℕ}
@@ -1386,8 +1472,14 @@ lemma convertsM_but_sane?
       simp at h_len
       -- assert that our previous state still holds after the mapM
       have := h_len
-      step this using h_idx
-      -- have h_mapM_result := FList.converts_of_convertsM this
+      step this as yourFace
+      set mapM := List.mapM
+          (fun i => do
+            let idx_val ← liftM (HashConsM.mkConstant (i : ZMod p))
+            eq (p := p) idx idx_val)
+          tl.reverse
+      set state := mapM.getState state
+      -- have h_action := FList.converts_of_convertsM this
       -- have h_wellFormed := this.wellFormed
       -- have h_constraints1 := this.constraints
       -- apply F.converts_skip this at h_idx
@@ -1401,20 +1493,21 @@ lemma convertsM_but_sane?
       -- clear this
 
       -- Get ConvertsM for mkConstant and assert that previous state still holds
-      have := @MkConstant.convertsM p state hd
-      -- step this using h_mapM_result
-      have h_a := F.converts_of_convertsM this
-      have h_wellFormed := this.wellFormed
-      have h_constraints2 := this.constraints
-      apply F.converts_skip this at h_idx
-      apply FList.converts_skip this at h_action
-      set mkConst := (liftM (n := ClapM p) (HashConsM.mkConstant (p := p) (hd : ZMod p)))
-      set c_result := mkConst.getResult state.numAlloc state.σ
-      set state := mkConst.getState state
-      clear this
-
+      -- have := @MkConstant.convertsM p state hd
+      step @MkConstant.convertsM p state hd as myFace
+      
+      -- have h_a := F.converts_of_convertsM this
+      -- have h_wellFormed := this.wellFormed
+      -- have h_constraints2 := this.constraints
+      -- apply F.converts_skip this at h_idx
+      -- apply FList.converts_skip this at h_action
+      -- set mkConst := (liftM (n := ClapM p) (HashConsM.mkConstant (p := p) (hd : ZMod p)))
+      -- set c_result := mkConst.getResult state.numAlloc state.σ
+      -- set state := mkConst.getState state
+      -- clear this
+      
       -- Get ConvertsM for eq and assert that previous state still holds
-      have := eq.convertsM h_idx h_a
+      have := eq.convertsM h_idx h_action_1
       have h_eq := FB.converts_of_convertsM this
       have h_wellFormed := this.wellFormed
       have h_constraints2 := this.constraints
@@ -1452,6 +1545,7 @@ lemma convertsM_but_sane?
             simp [h]
       . grind
       . grind [ClapM.getState]
+#exit
 
 end oneHotRaw
 end OneHotRaw
