@@ -1292,6 +1292,15 @@ def _root_.Lean.Meta.Hypothesis.ofNameValue (userName : Name) (value : Lean.Expr
     value    := value
   }
 
+def _root_.Lean.MVarId.set (goal : MVarId) (name : Name) (rhs : Term) : MetaM MVarId := do
+  let ident := mkIdent name
+  let ([goal], _) ← runTactic goal (←`(tactic| set $ident:ident := $rhs))
+    | throwError m!"set failed (rhs := {rhs})"
+  return goal
+
+def _root_.Lean.MVarId.setManyInOrder (goal : MVarId) (nameXrhs : List (Name × Term)) : MetaM MVarId :=
+  nameXrhs.foldlM (fun acc (name, rhs) ↦ do acc.withContext do acc.set name rhs) goal
+
 def step_impl (convertsME convertsE : Lean.Expr) (goal : MVarId) : TermElabM MVarId := goal.withContext do
   let convertsMType ← inferType convertsME
   let convertsType ← inferType convertsE
@@ -1300,6 +1309,7 @@ def step_impl (convertsME convertsE : Lean.Expr) (goal : MVarId) : TermElabM MVa
   logInfo m!"action: {actionE}"
   -- `Clap.Lang.<type>.converts_skip`
   let (lemmaConverts, state) ← convertsLemmaAndStateOfType convertsType
+  let stateS ← Term.exprToSyntax state
   let stepE ← mkAppM lemmaConvertsM.name #[convertsME]
   let skipE ← mkAppM lemmaConverts.name #[convertsME, convertsE]
   let hypWFE ← Expr.mkDirectProjection convertsME `wellFormed
@@ -1313,32 +1323,12 @@ def step_impl (convertsME convertsE : Lean.Expr) (goal : MVarId) : TermElabM MVa
   ]
   let actionName := .mkSimple "action"
   let actionIdent := Lean.mkIdent actionName
-  goal.withContext do
-  -- `set action := <action_from_monad>`
-  let ([goal], _) ←
-    runTactic goal
-      (←`(tactic| set $actionIdent:ident := $(←Term.exprToSyntax actionE)))
-    | logError m!"Failed to replace {actionE} in the goal."; return goal
-  goal.withContext do
-  -- `set <action>_result := <action>.getResult <state>.numAlloc <state>.σ`
-  let ([goal], _) ←
-    runTactic
-      goal
-      (←`(tactic| (
-        set $(Lean.mkIdent (actionName.appendAfter "_result")):ident :=
-          $(actionIdent).getResult
-            $(←Term.exprToSyntax state).numAlloc
-            $(←Term.exprToSyntax state).σ)))
-    | logError m!"Failed to replace {actionE} in the goal."; return goal
-  goal.withContext do
-  -- `set <state> := <action>.getState <state>`
-  let ([goal], _) ←
-    runTactic goal
-      (←`(tactic| (
-        set $(mkIdent ((←getLCtx).getFVar! state).userName):ident :=
-          $(actionIdent).getState $(←Term.exprToSyntax state))))
-    | logError m!"Failed to replace {actionE} in the goal."; return goal
-  return goal
+
+  goal.setManyInOrder [
+    (actionName, (←Term.exprToSyntax actionE)),
+    (actionName.appendAfter "_result", ←`($(actionIdent).getResult $(stateS).numAlloc $(stateS).σ)),
+    (((←getLCtx).getFVar! state).userName, ←`($(actionIdent).getState $stateS))
+  ]
 
 elab "step" convertsM:term "using" converts:ident : tactic => withMainContext do
   let convertsME ← elabTerm convertsM .none
