@@ -1255,39 +1255,35 @@ open Lean Elab Tactic Meta
 
 def baseNamespace := Name.mkStr2 "Clap" "Lang"
 
-def convertsMlemmaOfType (convertsMT : Lean.Expr) : MetaM ConstantInfo := do
-  let convertsMT ← instantiateMVars convertsMT
-  let prefixNamespace :=
-    match_expr convertsMT with
-    | Clap.Lang.FList.ConvertsM _ _ _ _ => `FList
-    | Clap.Lang.FArray.ConvertsM _ _ _ _ => `FArray
-    | Clap.Lang.FUnit.ConvertsM _ _ _ _ => `FUnit
-    | Clap.Lang.FB.ConvertsM _ _ _ _ => `FB
-    | Clap.Lang.F.ConvertsM _ _ _ _ => `F
-    | _ => unreachable!
-  let name := baseNamespace ++ prefixNamespace ++ convertsMname
+def lemmaOfIdentifiers (prefixNamespace lemmaName : Name) : MetaM ConstantInfo := do
+  let name := baseNamespace ++ prefixNamespace ++ lemmaName
   let .some «lemma» := (←getEnv).find? name
     | throwError m!"Undeclared constant: {name}"
   return «lemma»
-  where 
-    convertsMname := `converts_of_convertsM
 
-def convertsLemmaOfType (convertsT : Lean.Expr) : MetaM ConstantInfo := do
-  let convertsT ← instantiateMVars convertsT
-  let prefixNamespace :=
-    match_expr convertsT with
-    | Clap.Lang.FList.Converts _ _ _ _ => `FList
-    | Clap.Lang.FArray.Converts _ _ _ _ => `FArray
-    | Clap.Lang.FUnit.Converts _ _ _ _ => `FUnit
-    | Clap.Lang.FB.Converts _ _ _ _ => `FB
-    | Clap.Lang.F.Converts _ _ _ _ => `F
+def convertsMlemmaAndActionOfType (convertsMT : Lean.Expr) : MetaM (ConstantInfo × Lean.Expr) := do
+  let convertsMT ← instantiateMVars convertsMT
+  let (prefixNamespace, action) :=
+    match_expr convertsMT with
+    | Clap.Lang.FList.ConvertsM _ action _ _ => (`FList, action)
+    | Clap.Lang.FArray.ConvertsM _ action _ _ => (`FArray, action)
+    | Clap.Lang.FUnit.ConvertsM _ action _ _ => (`FUnit, action)
+    | Clap.Lang.FB.ConvertsM _ action _ _ => (`FB, action)
+    | Clap.Lang.F.ConvertsM _ action _ _ => (`F, action)
     | _ => unreachable!
-  let name := baseNamespace ++ prefixNamespace ++ convertsMname
-  let .some «lemma» := (←getEnv).find? name
-    | throwError m!"Undeclared constant: {name}"
-  return «lemma»
-  where 
-    convertsMname := `converts_skip
+  return (←lemmaOfIdentifiers prefixNamespace `converts_of_convertsM, action)
+
+def convertsLemmaAndStateOfType (convertsT : Lean.Expr) : MetaM (ConstantInfo × Lean.Expr) := do
+  let convertsT ← instantiateMVars convertsT
+  let (prefixNamespace, st) :=
+    match_expr convertsT with
+    | Clap.Lang.FList.Converts _ st _ _ => (`FList, st)
+    | Clap.Lang.FArray.Converts _ st _ _ => (`FArray, st)
+    | Clap.Lang.FUnit.Converts _ st _ _ => (`FUnit, st)
+    | Clap.Lang.FB.Converts _ st _ _ => (`FB, st)
+    | Clap.Lang.F.Converts _ st _ _ => (`F, st)
+    | _ => unreachable!
+  return (←lemmaOfIdentifiers prefixNamespace `converts_skip, st)
 
 def _root_.Lean.Meta.Hypothesis.ofNameValue (userName : Name) (value : Lean.Expr) : MetaM Hypothesis := do
   return {
@@ -1296,14 +1292,16 @@ def _root_.Lean.Meta.Hypothesis.ofNameValue (userName : Name) (value : Lean.Expr
     value    := value
   }
 
-def step_impl (convertsME convertsM : Lean.Expr) (goal : MVarId) : MetaM MVarId := goal.withContext do
+def step_impl (convertsME convertsE : Lean.Expr) (goal : MVarId) : TermElabM MVarId := goal.withContext do
   let convertsMType ← inferType convertsME
-  let convertsType ← inferType convertsM
+  let convertsType ← inferType convertsE
   -- `Clap.Lang.<type>.convertsOfConvertsM`
-  let lemmaConvertsM : ConstantInfo ← convertsMlemmaOfType convertsMType
-  let lemmaConverts : ConstantInfo ← convertsLemmaOfType convertsType
+  let (lemmaConvertsM, actionE) ← convertsMlemmaAndActionOfType convertsMType
+  logInfo m!"action: {actionE}"
+  -- `Clap.Lang.<type>.converts_skip`
+  let (lemmaConverts, state) ← convertsLemmaAndStateOfType convertsType
   let stepE ← mkAppM lemmaConvertsM.name #[convertsME]
-  let skipE ← mkAppM lemmaConverts.name #[convertsME, convertsM]
+  let skipE ← mkAppM lemmaConverts.name #[convertsME, convertsE]
   let hypWFE ← Expr.mkDirectProjection convertsME `wellFormed
   let hypConstraintsE ← Expr.mkDirectProjection convertsME `constraints
   let (_, goal) ← goal.assertHypotheses #[
@@ -1313,30 +1311,42 @@ def step_impl (convertsME convertsM : Lean.Expr) (goal : MVarId) : MetaM MVarId 
     ←Hypothesis.ofNameValue `h_constraints hypConstraintsE,
     ←Hypothesis.ofNameValue `h_idx skipE
   ]
+  let actionName := .mkSimple "action"
+  let actionIdent := Lean.mkIdent actionName
+  goal.withContext do
+  -- `set action := <action_from_monad>`
+  let ([goal], _) ←
+    runTactic goal
+      (←`(tactic| set $actionIdent:ident := $(←Term.exprToSyntax actionE)))
+    | logError m!"Failed to replace {actionE} in the goal."; return goal
+  goal.withContext do
+  -- `set <action>_result := <action>.getResult <state>.numAlloc <state>.σ`
+  let ([goal], _) ←
+    runTactic
+      goal
+      (←`(tactic| (
+        set $(Lean.mkIdent (actionName.appendAfter "_result")):ident :=
+          $(actionIdent).getResult
+            $(←Term.exprToSyntax state).numAlloc
+            $(←Term.exprToSyntax state).σ)))
+    | logError m!"Failed to replace {actionE} in the goal."; return goal
+  goal.withContext do
+  -- `set <state> := <action>.getState <state>`
+  let ([goal], _) ←
+    runTactic goal
+      (←`(tactic| (
+        set $(mkIdent ((←getLCtx).getFVar! state).userName):ident :=
+          $(actionIdent).getState $(←Term.exprToSyntax state))))
+    | logError m!"Failed to replace {actionE} in the goal."; return goal
   return goal
 
 elab "step" convertsM:term "using" converts:ident : tactic => withMainContext do
   let convertsME ← elabTerm convertsM .none
   let convertsE := (←getLCtx).getFromUserName! converts.getId
   logInfo m!"Called `step` with arguments:\n{←elabTerm convertsM .none}\n{converts.getId}"
-  liftMetaTactic' (step_impl convertsME convertsE.toExpr)
-
-  -- liftMetaTactic' (step_impl convertsM.getId)
-  -- evalTactic (←`(tactic|have $(mkIdent (.mkSimple "this")) := $convertsM))
-  -- withMainContext do
-  -- let typeOfConvertsM : Lean.Expr ←
-  --   instantiateMVars <| (←getLCtx).getFromUserName! convertsM.getId |>.type
-  -- -- have h_mapM_result := FList.converts_of_convertsM this
-  -- --     have h_wellFormed := this.wellFormed
-  -- --     have h_constraints1 := this.constraints
-  -- match_expr typeOfConvertsM with
-  -- | Clap.Lang.FList.ConvertsM _ _ _ _ =>
-  --   logInfo m!"FList"
-  -- | Clap.Lang.FArray.ConvertsM _ _ _ _ => logInfo m!"FArray"
-  -- | Clap.Lang.FUnit.ConvertsM _ _ _ _ => logInfo m!"FUnit"
-  -- | Clap.Lang.FB.ConvertsM _ _ _ _ => logInfo m!"FB"
-  -- | Clap.Lang.F.ConvertsM _ _ _ _ => logInfo m!"F"
-  -- | _ => logInfo m!"Your mother"
+  -- This is `liftTermElabMTactic'` sort of deal
+  let goal ← step_impl convertsME convertsE.toExpr (←getMainGoal)
+  replaceMainGoal [goal]
 
 end
 
@@ -1380,18 +1390,18 @@ lemma convertsM_but_sane?
       simp at h_len
       -- assert that our previous state still holds after the mapM
       have := h_len
-      -- step this using h_idx
-      have h_mapM_result := FList.converts_of_convertsM this
-      have h_wellFormed := this.wellFormed
-      have h_constraints1 := this.constraints
-      apply F.converts_skip this at h_idx
-      set mapM := List.mapM
-          (fun i => do
-            let idx_val ← liftM (HashConsM.mkConstant (i : ZMod p))
-            eq (p := p) idx idx_val)
-          tl.reverse
-      set mapM_result := mapM.getResult state.numAlloc state.σ
-      set state := mapM.getState state
+      step this using h_idx
+      -- have h_mapM_result := FList.converts_of_convertsM this
+      -- have h_wellFormed := this.wellFormed
+      -- have h_constraints1 := this.constraints
+      -- apply F.converts_skip this at h_idx
+      -- set mapM := List.mapM
+      --     (fun i => do
+      --       let idx_val ← liftM (HashConsM.mkConstant (i : ZMod p))
+      --       eq (p := p) idx idx_val)
+      --     tl.reverse
+      -- set mapM_result := mapM.getResult state.numAlloc state.σ
+      -- set state := mapM.getState state
       clear this
 
       -- Get ConvertsM for mkConstant and assert that previous state still holds
