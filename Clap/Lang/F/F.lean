@@ -1319,7 +1319,7 @@ def step_impl (convertsME convertsE : Lean.Expr) (goal : MVarId) : TermElabM MVa
   let hypConstraintsE ← Expr.mkDirectProjection convertsME `constraints
   let (_, goal) ← goal.assertHypotheses #[
     ←Hypothesis.ofNameValue `this convertsME,
-    ←Hypothesis.ofNameValue `h_mapM_result stepE,
+    ←Hypothesis.ofNameValue (((←getLCtx).getUnusedName `action).appendBefore "h_") stepE,
     ←Hypothesis.ofNameValue `h_wellFormed hypWFE,
     ←Hypothesis.ofNameValue `h_constraints hypConstraintsE,
     ←Hypothesis.ofNameValue `h_idx skipE
@@ -1398,15 +1398,16 @@ lemma convertsM_but_sane?
       --     tl.reverse
       -- set mapM_result := mapM.getResult state.numAlloc state.σ
       -- set state := mapM.getState state
-      clear this
+      -- clear this
 
       -- Get ConvertsM for mkConstant and assert that previous state still holds
       have := @MkConstant.convertsM p state hd
+      -- step this using h_mapM_result
       have h_a := F.converts_of_convertsM this
       have h_wellFormed := this.wellFormed
       have h_constraints2 := this.constraints
       apply F.converts_skip this at h_idx
-      apply FList.converts_skip this at h_mapM_result
+      apply FList.converts_skip this at h_action
       set mkConst := (liftM (n := ClapM p) (HashConsM.mkConstant (p := p) (hd : ZMod p)))
       set c_result := mkConst.getResult state.numAlloc state.σ
       set state := mkConst.getState state
@@ -1418,7 +1419,7 @@ lemma convertsM_but_sane?
       have h_wellFormed := this.wellFormed
       have h_constraints2 := this.constraints
       apply F.converts_skip this at h_idx
-      apply FList.converts_skip this at h_mapM_result
+      apply FList.converts_skip this at h_action
       set eq := eq (p := p) idx c_result
       set eq_result := eq.getResult state.numAlloc state.σ
       set eq_state := eq.getState state
@@ -1426,7 +1427,7 @@ lemma convertsM_but_sane?
 
       -- Apply the Functor map to the result of our eq, leaving the state unaffected
       have h_eq_map := FList.converts_append
-        h_mapM_result
+        h_action
         (FList.converts_singleton_of_converts_FB h_eq)
 
       simp at *
