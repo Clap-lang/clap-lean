@@ -1298,6 +1298,9 @@ def _root_.Lean.MVarId.set (goal : MVarId) (name : Name) (rhs : Term) : MetaM MV
     | throwError m!"set failed (rhs := {rhs})"
   return goal
 
+/--
+Execute `set`s in order, ensuring the local context is updated between every invocation.
+-/
 def _root_.Lean.MVarId.setManyInOrder (goal : MVarId) (nameXrhs : List (Name × Term)) : MetaM MVarId :=
   nameXrhs.foldlM (fun acc (name, rhs) ↦ do acc.withContext do acc.set name rhs) goal
 
@@ -1325,8 +1328,11 @@ def step_impl (convertsME convertsE : Lean.Expr) (goal : MVarId) : TermElabM MVa
   let actionIdent := Lean.mkIdent actionName
 
   goal.setManyInOrder [
-    (actionName, (←Term.exprToSyntax actionE)),
+    -- `set action := <action_from_monad>`
+    (actionName, ←Term.exprToSyntax actionE),
+    -- `set <action>_result := <action>.getResult <state>.numAlloc <state>.σ`
     (actionName.appendAfter "_result", ←`($(actionIdent).getResult $(stateS).numAlloc $(stateS).σ)),
+    -- `set <state> := <action>.getState <state>`
     (((←getLCtx).getFVar! state).userName, ←`($(actionIdent).getState $stateS))
   ]
 
