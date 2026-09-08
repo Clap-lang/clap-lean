@@ -1,5 +1,6 @@
 import Clap.eDSLState.eDSL
 import Clap.eDSLState.Convert
+import Clap.Lang.F.Extensions
 
 import Clap.Lang.Wheels
 
@@ -1002,6 +1003,9 @@ def step_impl (convertsME : Lean.Expr) (actionName : Name) (goal : MVarId) : Ter
         Hypothesis.ofNameValue name expr
     )
 
+  let env ← getEnv
+  modifyEnv (fun _ ↦ stepExt.setState env ⟨actionName.appendBefore "h_"⟩)
+
   let actionIdent := Lean.mkIdent actionName
   -- logInfo m!"actionName: {actionName}"
   -- logInfo m!"actionE: {actionE}"
@@ -1013,15 +1017,6 @@ def step_impl (convertsME : Lean.Expr) (actionName : Name) (goal : MVarId) : Ter
     -- `set <state> := <action>.getState <state>`
     (actionName.appendAfter "_state", ←`($(actionIdent).getState $stateS))
   ]
-
--- elab "step" convertsM:term "as" actionName:ident : tactic => withMainContext do
---   let convertsME ← elabTerm convertsM .none
---   -- let convertsE := (←getLCtx).getFromUserName! converts.getId
---   -- logInfo m!"Called `step` with arguments:\n{convertsME}"
---   -- logInfo m!"Called `step` with arguments:\n{←elabTerm convertsM .none}\n{converts.getId}"
---   -- This is `liftTermElabMTactic'` sort of deal
---   let goal ← step_impl convertsME actionName.getId (←getMainGoal)
---   replaceMainGoal [goal]
 
 elab "step" convertsM:term "as" actionName:ident : tactic => withMainContext do
   let goal ← getMainGoal
@@ -1035,6 +1030,35 @@ elab "step" convertsM:term "as" actionName:ident : tactic => withMainContext do
       replaceMainGoal (←goal.apply convertsME)
   let goal ← step_impl convertsME actionName.getId (←getMainGoal)
   replaceMainGoal [goal]
+
+elab "finish" : tactic => withMainContext do
+  let target ← whnf (←getMainTarget)
+
+  logInfo m!"target: {target}\n{repr target}"
+
+  if !target.isAppOf ``Clap.ConvertsM
+  then logWarning m!"Made no progress - the concluson must be of shape ConvertsM."
+       return ()
+
+  let result :: goalsRest ← (←getMainGoal).constructor | unreachable!
+  for goal in goalsRest do
+    try
+      let ([], _) ← runTactic goal (←`(tactic| grind)) | continue
+    catch _ =>
+      continue
+  
+  let goalsRest ← goalsRest.filterM fun goal ↦ return !(←goal.isAssigned)
+
+  let lastConvertsM := stepExt.getState (← getEnv) |>.lastLemmaUserName
+  let lastConvertsME := (←getLCtx).getFromUserName! lastConvertsM |>.toExpr
+  
+  -- let [result] ← result.apply (mkConst ``Clap.converts_of_converts)
+  --   | logWarning m!"Failed to apply: {``Clap.converts_of_converts}"
+
+  replaceMainGoal (result :: goalsRest)
+
+
+  logInfo m!"hyp: {lastConvertsME}"
 
 end
 
@@ -1176,19 +1200,19 @@ lemma convertsM
     have h_fvals_k := F.converts_of_FB_converts (FArray.converts_getElem h_vals (Nat.lt_succ_self k))
     step mkAdd.convertsM h_mapM h_fvals_k as add
 
-    -- TODO "finish" tactic
-    constructor
-    . apply converts_of_converts h_add
-      have : vals = vals_base.push vals[k] := by
-        ext
-        rewrite [Vector.getElem_push]
-        split
-        . simp [vals_base]
-        . grind
-      rewrite [this]
-      simp
-    . assumption
-    . assumption
+    finish
+    sorry
+    -- constructor
+    -- . apply converts_of_converts h_add
+    --   have : vals = vals_base.push vals[k] := by
+    --     ext
+    --     rewrite [Vector.getElem_push]
+    --     split
+    --     . simp [vals_base]
+    --     . grind
+    --   rewrite [this]
+    --   simp
+    
 
 end FArray.sum'
 
