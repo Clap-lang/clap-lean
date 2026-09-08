@@ -1,8 +1,8 @@
 import Clap.eDSLState.eDSL
 import Clap.eDSLState.Convert
-import Clap.Lang.F.Extensions
 
 import Clap.Lang.Wheels
+import Clap.Lang.F.Tactics
 
 namespace Clap.Lang
 
@@ -872,204 +872,6 @@ lemma bind_wellFormed'
   apply ClapM.bind_wellFormed h_a
   grind [ClapM.getState]
 
-namespace X
-
-def y : Nat := 42
-end X
-
-section
-
-open Lean Elab Tactic Meta
-
-def baseNamespace := Name.mkStr2 "Clap" "Lang"
-
-def lemmaOfIdentifiers (prefixNamespace lemmaName : Name) : MetaM ConstantInfo := do
-  let name := baseNamespace ++ prefixNamespace ++ lemmaName
-  let .some «lemma» := (←getEnv).find? name
-    | throwError m!"Undeclared constant: {name}"
-  return «lemma»
-
-def convertsMargs (convertsME convertsMT : Lean.Expr) (goal : MVarId) :
-  MetaM (Lean.Expr × Lean.Expr × Lean.Expr × Lean.Expr × Lean.Expr × Lean.Expr × Lean.Expr) := goal.withContext do
-  -- logInfo m!"In"
-  let convertsMT ← instantiateMVars convertsMT
-  -- logInfo m!"Instantiated"
-  match_expr convertsMT with
-    | Clap.ConvertsM p α _ action state _ => return (
-        -- ←Expr.mkDirectProjection convertsMT `result,
-        ←mkAppM ``Clap.ConvertsM.result #[convertsME],
-        -- ←Expr.mkDirectProjection convertsMT `wellFormed,
-        ←mkAppM ``Clap.ConvertsM.wellFormed #[convertsME],
-        -- ←Expr.mkDirectProjection convertsMT `constraints,
-        ←mkAppM ``Clap.ConvertsM.constraints #[convertsME],
-        p,
-        α,
-        action,
-        state
-      )
-    | _ => panic! "Not a convertsM"
-
-
--- def convertsLemmaAndStateOfType (convertsT : Lean.Expr) : MetaM (ConstantInfo × Lean.Expr) := do
---   let convertsT ← instantiateMVars convertsT
---   let (prefixNamespace, st) :=
---     match_expr convertsT with
---     | Clap.Lang.FList.Converts _ st _ _ => (`FList, st)
---     | Clap.Lang.FArray.Converts _ st _ _ => (`FArray, st)
---     | Clap.Lang.FUnit.Converts _ st _ _ => (`FUnit, st)
---     | Clap.Lang.FB.Converts _ st _ _ => (`FB, st)
---     | Clap.Lang.F.Converts _ st _ _ => (`F, st)
---     | _ => unreachable!
---   return (←lemmaOfIdentifiers prefixNamespace `converts_skip, st)
-
-def _root_.Lean.Meta.Hypothesis.ofNameValue (userName : Name) (value : Lean.Expr) : MetaM Hypothesis := do
-  return {
-    userName := userName
-    type     := ←inferType value
-    value    := value
-  }
-
-def _root_.Lean.MVarId.set (goal : MVarId) (name : Name) (rhs : Term) : MetaM MVarId := do
-  let ident := mkIdent name
-  let ([goal], _) ← runTactic goal (←`(tactic| set $ident:ident := $rhs))
-    | throwError m!"set failed (rhs := {rhs})"
-  return goal
-
-/--
-Execute `set`s in order, ensuring the local context is updated between every invocation.
--/
-def _root_.Lean.MVarId.setManyInOrder (goal : MVarId) (nameXrhs : List (Name × Term)) : MetaM MVarId :=
-  nameXrhs.foldlM (fun acc (name, rhs) ↦ do acc.withContext do acc.set name rhs) goal
-
-/--
-Yields tuples `(namespace, fvar, state, type)` of local hypotheses of the shape `<_>.Converts`.
--/
-def stateAssertions (goal : MVarId) :
-  MetaM (Array (Lean.Expr × Lean.Expr × Lean.Expr)) := goal.withContext do
-  let allAssertions := (←getLCtx).getFVars
-  let allAssertionsT ← allAssertions.filterMapM fun fvar ↦ do
-    let type ← instantiateMVars (←inferType fvar)
-    return match_expr type with
-    | Clap.Converts _ _ _ st _ _ => .some (fvar, st, type)
-    | _ => .none
-  if (allAssertionsT.groupByKey (fun (_, st, _) ↦ st) |>.size) > 1
-  then
-    -- logWarning m!"OUR GUY:\n{(allAssertionsT.groupByKey fun (_, _, st, _) ↦ st).toArray}"
-    logWarning m!"Assumptions of shape `Converts` refer to multiple states. Are you ~~mad~~ sure?"
-  return allAssertionsT
-
-def lemmaOfNextCommand (goal : MVarId) : MetaM (Option Lean.Expr) := do
-  let conclusion ← (instantiateMVars (←goal.getType))
-  let_expr Clap.ConvertsM _ _ _ action _ _ := conclusion |
-    logWarning m!"Cannot infer the next step - expected `Clap.ConvertsM`.\nGot instead:\n{conclusion}"
-    return .none
-  let ⟨name, _args⟩ := action.getAppFnArgs
-
-  if name == `Bind.bind then logInfo m!"Bind.bind"; return mkConst `Clap.convertsM_bind
-  if name == `Functor.map then logInfo m!"Functor.map"; return mkConst `Clap.convertsM_map
-
-  logInfo m!"Conclusion unchanged; spec missing for:\n{action}"
-  return .none
-
-def step_impl (convertsME : Lean.Expr) (actionName : Name) (goal : MVarId) : TermElabM MVarId := goal.withContext do
-  let convertsMType ← inferType convertsME
-  -- logInfo m!"convertsMType : {convertsMType}"
-  let (convertsConvertsM, wellFormedConvertsM, constraintsConvertsM, pE, αE, actionE, stateE) ←
-    convertsMargs convertsME convertsMType goal
-  let stateS ← Term.exprToSyntax stateE
-  -- logInfo m!"Done"
-  let stepE := convertsConvertsM
-  let hypWFE := wellFormedConvertsM
-  let hypConstraintsE := constraintsConvertsM
-
-  let stateAssertions ← stateAssertions goal
-  let assertions ← stateAssertions.mapM fun (fvar, state, type) ↦ do
-    -- let stateS ← Term.exprToSyntax state
-    -- let «lemma» ← lemmaOfIdentifiers `converts_skip
-    return (fvar, ←mkAppM `Clap.converts_skip #[convertsME, fvar])
-
-  let goal ← assertions.foldlM (init := goal) fun goal (fvar, _) ↦
-    goal.clear fvar.fvarId!
-
-  let (_, goal) ← goal.assertHypotheses <|
-    #[
-      -- ←Hypothesis.ofNameValue `this convertsME,
-      ←Hypothesis.ofNameValue (actionName.appendBefore "h_") stepE,
-      ←Hypothesis.ofNameValue `h_wellFormed hypWFE,
-      ←Hypothesis.ofNameValue `h_constraints hypConstraintsE,
-    ] ++ (
-      ←assertions.mapM fun (fvar, expr) ↦ do
-        let name := ((←getLCtx).get! fvar.fvarId!).userName
-        Hypothesis.ofNameValue name expr
-    )
-
-  let env ← getEnv
-  modifyEnv (fun _ ↦ stepExt.setState env ⟨actionName.appendBefore "h_"⟩)
-
-  let actionIdent := Lean.mkIdent actionName
-  -- logInfo m!"actionName: {actionName}"
-  -- logInfo m!"actionE: {actionE}"
-  goal.setManyInOrder [
-    -- `set action := <action_from_monad>`
-    (actionName, ←Term.exprToSyntax actionE),
-    -- `set <action>_result := <action>.getResult <state>.numAlloc <state>.σ`
-    (actionName.appendAfter "_result", ←`($(actionIdent).getResult $(stateS).numAlloc $(stateS).σ)),
-    -- `set <state> := <action>.getState <state>`
-    (actionName.appendAfter "_state", ←`($(actionIdent).getState $stateS))
-  ]
-
-elab "step" convertsM:term "as" actionName:ident : tactic => withMainContext do
-  let goal ← getMainGoal
-  let convertsME ← instantiateMVars (←elabTerm convertsM .none)
-  discard do 
-    match ←lemmaOfNextCommand goal with
-    | .none => pure ()
-    | .some stepConclusion =>
-      replaceMainGoal (←goal.apply stepConclusion)
-      let goal ← getMainGoal
-      replaceMainGoal (←goal.apply convertsME)
-  let goal ← step_impl convertsME actionName.getId (←getMainGoal)
-  replaceMainGoal [goal]
-
-elab "finish" : tactic => withMainContext do
-  let target ← whnf (←getMainTarget)
-
-  logInfo m!"target: {target}\n{repr target}"
-
-  if !target.isAppOf ``Clap.ConvertsM
-  then logWarning m!"Made no progress - the concluson must be of shape ConvertsM."
-       return ()
-
-  let result :: goalsRest ← (←getMainGoal).constructor | unreachable!
-  for goal in goalsRest do
-    try
-      let ([], _) ← runTactic goal (←`(tactic| grind)) | continue
-    catch _ =>
-      continue
-  
-  let goalsRest ← goalsRest.filterM fun goal ↦ return !(←goal.isAssigned)
-
-  let lastConvertsM := stepExt.getState (← getEnv) |>.lastLemmaUserName
-  let lastConvertsME := (←getLCtx).getFromUserName! lastConvertsM |>.toExpr
-  
-  let ([result], _) ←
-    try
-      runTactic result
-        (←`(tactic| apply Clap.converts_of_converts $(←Term.exprToSyntax lastConvertsME)))
-    catch _ =>
-      return default
-    | logWarning m!"Cannot apply Clap.converts_of_converts"
-
-  -- let [result] ← result.apply (mkConst ``Clap.converts_of_converts)
-  --   | logWarning m!"Failed to apply: {``Clap.converts_of_converts}"
-
-  replaceMainGoal (result :: goalsRest)
-
-
-  logInfo m!"hyp: {lastConvertsME}"
-
-end
-
 lemma convertsM_but_sane?
   {state}
   {len : ℕ}
@@ -1109,7 +911,7 @@ lemma convertsM_but_sane?
       simp at h_len
 
       step h_len as yourFace
-      step @MkConstant.convertsM p yourFace_state hd as myFace
+      step MkConstant.convertsM as myFace
       step eq.convertsM h_idx h_myFace as eq
 
       apply FList.converts_append h_yourFace
@@ -1208,7 +1010,7 @@ lemma convertsM
     have h_fvals_k := F.converts_of_FB_converts (FArray.converts_getElem h_vals (Nat.lt_succ_self k))
     step mkAdd.convertsM h_mapM h_fvals_k as add
 
-    finish
+    apply ConvertsM.mk (converts_of_converts h_add _) (by assumption) (by assumption)
     have : vals = vals_base.push vals[k] := by
       ext
       rewrite [Vector.getElem_push]
@@ -1243,10 +1045,7 @@ lemma convertsM
   step MkConstant.convertsM as zero
   step sum'.convertsM h_vals h_zero as sum'
 
-  constructor
-  . grind
-  . assumption
-  . assumption
+  exact ConvertsM.mk (converts_of_converts h_sum' rfl) (by assumption) (by assumption)
 
 end FArray.sum
 end sum
