@@ -1052,6 +1052,14 @@ elab "finish" : tactic => withMainContext do
   let lastConvertsM := stepExt.getState (← getEnv) |>.lastLemmaUserName
   let lastConvertsME := (←getLCtx).getFromUserName! lastConvertsM |>.toExpr
   
+  let ([result], _) ←
+    try
+      runTactic result
+        (←`(tactic| apply Clap.converts_of_converts $(←Term.exprToSyntax lastConvertsME)))
+    catch _ =>
+      return default
+    | logWarning m!"Cannot apply Clap.converts_of_converts"
+
   -- let [result] ← result.apply (mkConst ``Clap.converts_of_converts)
   --   | logWarning m!"Failed to apply: {``Clap.converts_of_converts}"
 
@@ -1201,18 +1209,14 @@ lemma convertsM
     step mkAdd.convertsM h_mapM h_fvals_k as add
 
     finish
-    sorry
-    -- constructor
-    -- . apply converts_of_converts h_add
-    --   have : vals = vals_base.push vals[k] := by
-    --     ext
-    --     rewrite [Vector.getElem_push]
-    --     split
-    --     . simp [vals_base]
-    --     . grind
-    --   rewrite [this]
-    --   simp
-    
+    have : vals = vals_base.push vals[k] := by
+      ext
+      rewrite [Vector.getElem_push]
+      split
+      . simp [vals_base]
+      . grind
+    rewrite [this]
+    simp
 
 end FArray.sum'
 
