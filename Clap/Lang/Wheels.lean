@@ -10,3 +10,11 @@ attribute [grind =]
   Option.isNone_iff_eq_none
 
 end Clap
+
+@[simp, grind .]
+lemma ZMod.val_one_le_one
+  {n : ℕ}
+:
+  ZMod.val (n := n) 1 ≤ 1
+:= by
+  simp [ZMod.val_one_eq_one_mod, Nat.mod_le]

@@ -1,244 +1,195 @@
-import Clap.Lang.F.eq
+import Clap.Lang.F.mkF
+import Clap.Lang.F.mkAdd
+import Clap.Lang.FB.eq
+import Clap.Lang.FUnit.eq0
 
-namespace Clap.Edsl.Lang.FArray
+namespace Clap.Lang
 
 variable {p : ℕ}
 
-def oneHotRaw [p.AtLeastTwo] (len : ℕ) (idx : F p) : ClapM p (Vector (FB p) len) :=
-  (Vector.range len).mapM (fun (i:ℕ) ↦ F.eq idx i)
+section OneHotRaw
+
+open HashConsM
+
+variable {p : ℕ} [p.AtLeastTwo] {start len : ℕ} {idx : F} {numAlloc : ℕ} {σ : HashConsSt p}
+
+def oneHotRaw_aux (start len : ℕ) (idx : F) : ClapM p (Vector FB len) :=
+  (Vector.range' start len).mapM (fun (i:ℕ) ↦ do
+    let idx_val ← mkF i
+    eq idx idx_val
+  )
+
+@[simp, grind =]
+lemma oneHotRaw_aux_zero :
+  oneHotRaw_aux (p := p) start 0 idx = pure #v[] := by
+  conv_lhs => unfold oneHotRaw_aux
+  rw [show Vector.range' start 0 = #v[] from rfl]
+  simp
+
+@[simp, grind =]
+lemma oneHotRaw_aux_succ :
+  oneHotRaw_aux start (len + 1) idx =
+  do
+    let idx_val ← mkF start
+    let eq ← eq (p := p) idx idx_val
+    return Vector.cast (show 1 + len = len + 1 by grind)
+                       (#v[eq] ++ (←oneHotRaw_aux (start + 1) len idx)) := by
+  conv_lhs => unfold oneHotRaw_aux
+  rw [Vector.range'_succ]
+  rw [Vector.mapM_cast]
+  rw [Vector.mapM_append]
+  conv_lhs => simp
+  rw [←oneHotRaw_aux.eq_def]
+  simp
+
+def oneHotRaw (len : ℕ) (idx : F) : ClapM p (FArray len) :=
+  oneHotRaw_aux 0 len idx
+
+def oneHotRaw'_aux (start len : ℕ) (idx : F) : ClapM p (List FB) :=
+  (List.range' start len).mapM (fun (i : ℕ) ↦ do
+    let idx_val ← mkF i
+    eq idx idx_val
+  )
+
+@[simp, grind =]
+lemma oneHotRaw'_aux_zero :
+  oneHotRaw'_aux (p := p) start 0 idx = pure [] := by
+  conv_lhs => unfold oneHotRaw'_aux
+  simp
+
+@[simp, grind =]
+lemma oneHotRaw'_aux_succ :
+  oneHotRaw'_aux start (len + 1) idx =
+  do
+    let idx_val ← mkF start
+    let eq ← eq (p := p) idx idx_val
+    return (eq :: (←oneHotRaw'_aux (start + 1) len idx)) := by
+  conv_lhs => unfold oneHotRaw'_aux
+  rw [List.range'_succ]
+  rw [List.mapM_cons]
+  rw [←oneHotRaw'_aux.eq_def]
+  simp
+
+def oneHotRaw' (len : ℕ) (idx : F) : ClapM p (List FB) := oneHotRaw'_aux 0 len idx
+
+@[simp, grind =]
+lemma oneHotRaw'_zero :
+  oneHotRaw' (p := p) 0 idx = pure [] := by
+  simp [oneHotRaw']
+
+@[simp, grind =]
+lemma oneHotRaw'_succ :
+  oneHotRaw' (p := p) (len + 1) idx =
+  do
+    let idx_val ← mkF 0
+    let eq ← eq idx idx_val
+    return (eq :: (←oneHotRaw'_aux 1 len idx)) := by
+  simp [oneHotRaw']
+
+@[simp, grind _=_]
+lemma toList_map_oneHotRaw_aux_eq_oneHotRaw'_aux :
+  Vector.toList <$> (oneHotRaw_aux (p := p) start len idx) =
+  oneHotRaw'_aux start len idx := by
+  induction' len with len ih generalizing start
+  · simp
+  · rw [oneHotRaw'_aux_succ, oneHotRaw_aux_succ]
+    specialize ih (start := start + 1)
+    rw [←ih]
+    simp
+    grind
+
+omit [p.AtLeastTwo] in
+@[simp, grind _=_]
+lemma getResult_toList {vecM : ClapM p (Vector FB len)} :
+  ClapM.getResult (Vector.toList <$> vecM) numAlloc σ =
+  (vecM.getResult numAlloc σ).toList := by
+  simp
+
+@[simp, grind _=_]
+lemma toList_getResult_oneHotRaw :
+  ((oneHotRaw_aux (p := p) start len idx).getResult numAlloc σ).toList =
+  (oneHotRaw'_aux start len idx).getResult numAlloc σ := by
+  rw [←toList_map_oneHotRaw_aux_eq_oneHotRaw'_aux, ClapM.getResult_map]
+
+@[simp, grind _=_]
+lemma getCircuit_oneHotRaw_aux :
+  (oneHotRaw_aux (p := p) start len idx).getCircuit numAlloc σ =
+  (oneHotRaw'_aux start len idx).getCircuit numAlloc σ := by
+  rw [←toList_map_oneHotRaw_aux_eq_oneHotRaw'_aux, ClapM.getCircuit_map]
+
+@[simp, grind _=_]
+lemma getHashConsState_oneHotRaw_aux :
+  (oneHotRaw_aux (p := p) start len idx).getHashConsState numAlloc σ =
+  (oneHotRaw'_aux start len idx).getHashConsState numAlloc σ := by
+  rw [←toList_map_oneHotRaw_aux_eq_oneHotRaw'_aux, ClapM.getHashConsState_map]
+
+@[simp, grind _=_]
+lemma getNumAlloc_oneHotRaw_aux :
+  (oneHotRaw_aux (p := p) start len idx).getNumAlloc numAlloc σ =
+  (oneHotRaw'_aux start len idx).getNumAlloc numAlloc σ := by
+  rw [←toList_map_oneHotRaw_aux_eq_oneHotRaw'_aux, ClapM.getNumAlloc_map]
+
+@[simp, grind _=_]
+lemma toList_map_oneHotRaw_eq_oneHotRaw' :
+  Vector.toList <$> (oneHotRaw (p := p) len idx) =
+  oneHotRaw' len idx := toList_map_oneHotRaw_aux_eq_oneHotRaw'_aux
 
 namespace oneHotRaw
 
-lemma spec
+lemma convertsM -- sane at last
+  {state}
+  {len : ℕ}
+  {idx : F}
+  {idx_val : ZMod p} -- TODO : Fin len?
+  (h_idx : Converts F.conversion state idx idx_val)
+  (h_len : len < p)
 :
-  oneHotRaw len
+  ConvertsM FArray.conversion (oneHotRaw len idx) state (Vector.ofFn (λ x => x.val == idx_val.val)) True
+:= by
+  apply FArray.convertsM_of_convertsM_toList
+  simp_rw [toList_map_oneHotRaw_eq_oneHotRaw']
+  unfold oneHotRaw' oneHotRaw'_aux
 
--- def runAndEval
---   {p : ℕ} {ResultT : Type} (cmd : CircuitM p ResultT) (numAlloc : ℕ) (varStore : Std.ExtTreeMap ℕ (ZMod p))
--- :
---   ResultT × CircuitResult p
--- :=
---   let ⟨⟨result, circuit⟩, _numAlloc⟩ := (cmd.run numAlloc)
---   ⟨result, Edsl.Circuit.eval circuit varStore numAlloc⟩
+  simp [
+    Vector.toList_ofFn,
+    List.ofFn_eq_map,
+    List.finRange_eq_pmap_range,
+    List.map_pmap,
+    List.range_eq_range'
+  ]
 
+  set list := List.range' 0 len
+  have not_this : ∀ x ∈ list, x < p := by grind
+  clear_value list
 
--- -- def matchesUnaryBitVecFunctionWithSideEffects
--- --   {length: ℕ}
--- --   (p : ℕ)
--- --   [p.AtLeastTwo]
--- --   (spec_function : (ZMod p) → Vector Bool length)
--- --   (function : (F p) → Edsl.CircuitM p (Vector (FB p) length))
--- --   (allocates : ℕ)
--- -- : Prop :=
--- --   ∀ (a : F p) varStorePre numAllocPre,
--- --   a.isValid (varStorePre.get?) →
--- --   let a_eval := (a.eval varStorePre.get?).getD 0
--- --   let ⟨result, numAllocPost, varStorePost, constraints⟩ := runAndEval (function a) numAllocPre varStorePre
--- --   result.map (FB.toBool · varStorePost.get?) = spec_function a_eval ∧
--- --   constraints = True ∧
--- --   numAllocPost = numAllocPre + allocates ∧
--- --   ∀ i < numAllocPre, varStorePost.get? i = varStorePre.get? i ∧
--- --   ∀ (i: Fin length),
--- --     varStorePost.get? (numAllocPost - i) =
--- --     .some (((spec_function a_eval).get ⟨length - 1 - i, by {
--- --       omega
--- --     }⟩).toNat)
+  rw [←list.reverse_reverse] at not_this ⊢
+  set list := list.reverse
+  clear_value list
+  induction' eq_ih : list.length with len h_len generalizing list
+  . aesop
+  . rcases list with _ | ⟨hd, tl⟩
+    · grind
+    · simp
 
--- def specFunction (n : ℕ) : Fin n → Vector Bool n := fun i ↦
---   Vector.ofFn λ (idx : Fin n) => idx.val == i
+      specialize h_len tl (by aesop (add safe (by grind))) (by grind)
+      simp at h_len
 
--- def isValidRange (varStore : VarStore p) (x : F p) (lt : ℕ) : Prop :=
---   (x.eval varStore).any (λ val => val.val < lt)
+      step h_len as mapM <;> [skip; exact λ _ ↦ True.intro]
+      step mkF.convertsM as mkHd <;> [skip; exact λ _ ↦ True.intro]
+      step eq.convertsM h_idx h_mkHd as eq <;> [skip; trivial]
 
--- lemma eval_of_isValidRange
---   {varStore : VarStore p}
---   {x : F p}
---   {lt : ℕ}
---   (h: isValidRange varStore x lt)
--- :
---   ∃ val, x.eval varStore = .some val ∧ val.val < lt
--- := by
---   unfold isValidRange at h
---   grind [Option.any_eq_true]
-
--- -- TODO there must surely be a better name for this
--- -- DONE Yes, it's this name.
--- lemma val_get_eval_mod_lt
---   {varStore : VarStore p}
---   {k : ℕ}
---   {x : F p}
---   {h : (FixedExp.eval varStore x).isSome = true}
---   [Fact (k ≤ p)]
---   (h_isValid : isValidRange varStore x k)
--- :
---   ((x.eval varStore).get h).val % p < k
--- := by
---   apply Nat.mod_lt_of_lt
---   grind [eval_of_isValidRange]
-
--- attribute [local grind _=_] Array.toList_mapM Vector.toArray_mapM
--- attribute [local grind =] Vector.map_id_fun Vector.map_id ZMod.val_natCast
--- attribute [local grind .] Vector.mem_toArray_iff
-
--- instance {k p} [inst_lt : Fact (k ≤ p)] : FB.Convert p (F p) (Fin k) where
---   isValid varStore x :=
---     isValidRange varStore x k
---   size :=
---     1
---   toLinear varStore x :=
---     #v[x.eval varStore |>.getD 42]
---   toIdeal varStore x :=
---     (x.eval varStore).bind (λ x => if h: x.val < k then .some ⟨x.val, h⟩ else .none)
---   toRepresents x :=
---     x.val
---   isValid_iff_isSome_toIdeal varStore x h_isValid := by
---     grind [eval_of_isValidRange]
---   toIdealtoRepresents varStore x := by
---     simp [Nat.mod_eq_of_lt (lt_of_lt_of_le x.2 inst_lt.out)]
---   toRepresentstoIdeal varStore x h_isValidRange:= by
---     obtain ⟨x, ⟨h_some, h_range⟩⟩ := eval_of_isValidRange h_isValidRange
---     have : x.val % p = x.val := Nat.mod_eq_of_lt (Nat.lt_of_lt_of_le h_range inst_lt.out)
---     grind
-
--- @[grind _=_]
--- lemma _root_.Vector.isSome_mapM_eq_all_isSome
---   {elemT resultT}
---   {length}
---   {f : elemT → Option resultT}
---   {xs : Vector elemT length}
--- :
---   (Vector.mapM f xs).isSome =
---   (xs.map f).all Option.isSome
--- := by
---   have :
---     (Vector.mapM f xs).isSome =
---     (Vector.toArray <$> (Vector.mapM f xs)).isSome
---   := by grind
---   rewrite [this]; clear this
---   simp
---   rewrite [Array.mapM_eq_mapM_toList]
---   have :
---     xs.toArray.toList = xs.toList
---   := rfl
---   rewrite [this]; clear this
---   have :
---     (xs.all λ a => (f a).isSome) =
---     xs.toList.all fun a => (f a).isSome
---   := by
---     rw [←Vector.all_toList]
---   rewrite [this]; clear this
---   induction xs.toList with
---   | nil => simp
---   | cons head tail h_tail =>
---     simp
---     cases (f head) with
---     | none => simp
---     | some head =>
---       rewrite [←h_tail]
---       simp
---       cases (List.mapM f tail) with
---       | none => grind
---       | some rest => grind
-
--- @[grind =_]
--- lemma toIdeal_eq_pure_get_of_isValid
---   {representsT idealT}
---   {varStore : VarStore p}
---   {x : representsT}
---   [FB.Convert p representsT idealT]
---   (h : FB.IsValid.isValid varStore x)
--- :
---   FB.Convert.toIdeal varStore x =
---   pure ((FB.Convert.toIdeal varStore x).get (FB.Convert.isValid_iff_isSome_toIdeal varStore x h))
--- := by
---   simp
-
--- @[grind =]
--- lemma _root_.List.mapM_toRepresentstoIdeal
---   {representsT idealT}
---   {varStore : VarStore p}
---   {xs : List representsT}
---   [base : FB.Convert p representsT idealT]
---   {h}
--- :
---   List.mapM (base.toIdeal varStore ∘ base.toRepresents)
---     ((List.mapM (FB.Convert.toIdeal varStore) xs).get h) =
---   List.mapM (FB.Convert.toIdeal varStore) xs
--- := by
---   induction xs with
---   | nil => simp
---   | cons head tail h_tail =>
---     simp [h_tail, base.toIdealtoRepresents]
-
--- @[grind .]
--- lemma _root_.List.isSome_mapM_of_isSome
---   {T T'}
---   {list : List T}
---   {f : T → Option T'}
---   (h : ∀ x ∈ list, (f x).isSome)
--- :
---   (List.mapM f list).isSome
--- := by
---   induction list with
---   | nil => simp
---   | cons head tail h_tail =>
---     have h_head := h head (by simp)
---     obtain ⟨head, h_head⟩ := Option.isSome_iff_exists.mp h_head
---     simp [h_head]
---     simp_all -- forgive me
---     obtain ⟨tail, h_tail⟩ := Option.isSome_iff_exists.mp h_tail
---     simp [h_tail]
-
--- instance
---   {representsT idealT length}
---   [base: FB.Convert p representsT idealT]
--- : FB.Convert p (Vector representsT length) (Vector idealT length) where
---   isValid varStore xs :=
---     ∀ x ∈ xs, base.isValid varStore x
---   size := length * base.size
---   toLinear varStore xs :=
---     xs.flatMap (base.toLinear varStore)
---   toIdeal varStore xs :=
---     let ideals := xs.map (base.toIdeal varStore)
---     ideals.mapM id
---   toRepresents xs :=
---     xs.map base.toRepresents
---   isValid_iff_isSome_toIdeal varStore x h_isValid := by
---     grind
---   toIdealtoRepresents varStore xs := by
---     simp only [Function.comp_def, Vector.mapM_map]
---     have := Vector.mapM_pure (m := Option) (xs := xs) (id : idealT → idealT)
---     grind
---   toRepresentstoIdeal varStore xs h := by
---     simp
---     rewrite [←Vector.map_toArray_inj, ←Array.map_toList_inj]
---     simp
---     have (h : (Vector.mapM (FB.Convert.toIdeal varStore) xs).isSome) (h') :
---       ((Vector.mapM (base.toIdeal varStore) xs).get h).toArray.toList =
---       (Array.toList <$> Vector.toArray <$> (Vector.mapM (base.toIdeal varStore) xs)).get h'
---     := by
---       grind
---     grind
-
--- def spec (p : ℕ) (length : ℕ) [p.AtLeastTwo] [Fact (length ≤ p)] : Prop :=
---   Clap.Edsl.Lang.FB.matchesUnaryMonadFunction
---   p
---   (specFunction length)
---   (oneHotRaw length)
---   length
-
--- lemma equiv (p : ℕ) (length : ℕ) [p.AtLeastTwo] :
---   spec p length
--- := by
---   unfold spec
---   intro a varStorePre numAllocPre h_a_isValid
---   obtain ⟨a_eval, h_a_eval⟩ := Option.isSome_iff_exists.mp h_a_isValid
---   aesop (add simp [
---     Clap.monads,
---     oneHotRaw,
---     F.eq.equiv
---   ]) (add safe (by grind))
+      apply FList.converts_append h_mapM
+      apply FList.converts_singleton_of_converts_FB
+      apply converts_of_converts h_eq
+      rewrite [←ZMod.val_cast_of_lt (a := hd) (not_this hd (by grind))]
+      simp only [ZMod.val_natCast, beq_eq_beq]
+      apply Iff.intro
+      . intro h
+        simp [h]
+      . intro h
+        simp [h]
 
 end oneHotRaw
+end OneHotRaw
 
-end Clap.Edsl.Lang.FArray
+end Clap.Lang

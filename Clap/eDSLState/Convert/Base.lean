@@ -219,6 +219,7 @@ structure ConvertsM
   (action : ClapM p α)
   (state : ClapMState p)
   (val : conversion.IdealT)
+  (constraints : Prop)
 : Prop where
   result : Converts
     conversion
@@ -226,7 +227,7 @@ structure ConvertsM
     (action.getResult state.numAlloc state.σ)
     val
   wellFormed : action.wellFormed state.numAlloc state.varStore state.σ
-  constraints : (action.runAndEval state.numAlloc state.varStore state.σ).2.constraints
+  constraints : (action.runAndEval state.numAlloc state.varStore state.σ).2.constraints ↔ constraints
 
 lemma converts_skip
   {p α β}
@@ -237,7 +238,8 @@ lemma converts_skip
   {val1 : conversion₁.IdealT}
   {val2 : conversion₂.IdealT}
   {exprs : β}
-  (h_action : ConvertsM conversion₁ action state val1)
+  {constraints}
+  (h_action : ConvertsM conversion₁ action state val1 constraints)
   (h : Converts conversion₂ state exprs val2)
 :
   Converts conversion₂ (action.getState state) exprs val2
@@ -250,14 +252,16 @@ lemma convertsM_pure
   {state : ClapMState p}
   {x : α}
   {val : conversion.IdealT}
+  {constraints}
   (h : Converts conversion state x val)
+  (h_constraints : constraints)
 :
-  ConvertsM conversion (pure x) state val
+  ConvertsM conversion (pure x) state val constraints
 := by
   constructor
   · simpa
   · grind
-  . simp [ClapM.runAndEval]
+  . simpa [ClapM.runAndEval]
 
 lemma converts_cast
   {p α β}
@@ -295,17 +299,34 @@ lemma convertsM_bind
   {state}
   {action_val}
   {function_val}
-  (h_action : ConvertsM conversion1 action state action_val)
+  {constraints constraints1}
+  (h_action : ConvertsM conversion1 action state action_val constraints1)
   (h_function : ConvertsM
     conversion2
     (function (action.getResult state.numAlloc state.σ))
     (action.getState state)
     function_val
+    (constraints1 → constraints)
   )
+  (h : constraints → constraints1)
 :
-  ConvertsM conversion2 (action >>= function) state function_val
+  ConvertsM conversion2 (action >>= function) state function_val constraints
 := by
-  grind [ConvertsM, Converts, ClapM.getState]
+  constructor
+  . grind [ConvertsM, Converts, ClapM.getState]
+  . grind [ConvertsM, Converts, ClapM.getState]
+  . obtain ⟨_, _, h_constraints⟩ := h_function
+    rewrite [
+      Circuit.runAndEval_bind_constraints
+        (by grind [ConvertsM, Converts, ClapM.getState])
+        (by grind [ConvertsM, Converts, ClapM.getState])
+    ]
+    rewrite [h_action.constraints]
+    simp [ClapM.getState, ClapM.runAndEval, ClapM.getVarStore] at h_constraints ⊢
+    rewrite [h_constraints]
+    by_cases constraints1
+    . grind
+    . grind
 
 lemma convertsM_map
   {p α β}
@@ -316,10 +337,12 @@ lemma convertsM_map
   {state}
   {action_val}
   {function_val}
-  (h_action : ConvertsM conversion1 action state action_val)
+  {action_constraints constraints}
+  (h_action : ConvertsM conversion1 action state action_val action_constraints)
   (h_function : Converts conversion2 (action.getState state) (f (action.getResult state.numAlloc state.σ)) function_val)
+  (h_constraints : constraints ↔ action_constraints)
 :
-  ConvertsM conversion2 (f <$> action) state function_val
+  ConvertsM conversion2 (f <$> action) state function_val constraints
 := by
   constructor
   . grind
@@ -341,5 +364,23 @@ lemma converts_of_converts
 := by
   rewrite [h_eq] at h
   exact h
+
+lemma convertsM_of_convertsM
+  {p α}
+  {conversion : Conversion p α}
+  {state}
+  {action}
+  {val1 val2}
+  {constraints1 constraints2}
+  (h : ConvertsM conversion action state val1 constraints1)
+  (h_val : val1 = val2)
+  (h_constraints : constraints1 ↔ constraints2)
+:
+  ConvertsM conversion action state val2 constraints2
+:= by
+  constructor
+  . exact converts_of_converts h.result h_val
+  . exact h.wellFormed
+  . rw [h.constraints, h_constraints]
 
 end Clap
