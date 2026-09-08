@@ -108,7 +108,7 @@ lemma converts_of_F_converts
       rewrite [←ZMod.val_eq_zero]
       rewrite [←ZMod.val_eq_one] at h_neq
       grind
-      exact Nat.AtLeastTwo.one_lt
+      exact Nat.AtLeastTwo.one_lt 
 
 end FB
 
@@ -957,6 +957,19 @@ def stateAssertions (goal : MVarId) :
     logWarning m!"Assumptions of shape `Converts` refer to multiple states. Are you ~~mad~~ sure?"
   return allAssertionsT
 
+def lemmaOfNextCommand (goal : MVarId) : MetaM (Option Lean.Expr) := do
+  let conclusion ← (instantiateMVars (←goal.getType))
+  let_expr Clap.ConvertsM _ _ _ action _ _ := conclusion |
+    logWarning m!"Cannot infer the next step - expected `Clap.ConvertsM`.\nGot instead:\n{conclusion}"
+    return .none
+  let ⟨name, _args⟩ := action.getAppFnArgs
+
+  if name == `Bind.bind then logInfo m!"Bind.bind"; return mkConst `Clap.convertsM_bind
+  if name == `Functor.map then logInfo m!"Functor.map"; return mkConst `Clap.convertsM_map
+
+  logInfo m!"Conclusion unchanged; spec missing for:\n{action}"
+  return .none
+
 def step_impl (convertsME : Lean.Expr) (actionName : Name) (goal : MVarId) : TermElabM MVarId := goal.withContext do
   let convertsMType ← inferType convertsME
   -- logInfo m!"convertsMType : {convertsMType}"
@@ -1001,36 +1014,27 @@ def step_impl (convertsME : Lean.Expr) (actionName : Name) (goal : MVarId) : Ter
     (actionName.appendAfter "_state", ←`($(actionIdent).getState $stateS))
   ]
 
+-- elab "step" convertsM:term "as" actionName:ident : tactic => withMainContext do
+--   let convertsME ← elabTerm convertsM .none
+--   -- let convertsE := (←getLCtx).getFromUserName! converts.getId
+--   -- logInfo m!"Called `step` with arguments:\n{convertsME}"
+--   -- logInfo m!"Called `step` with arguments:\n{←elabTerm convertsM .none}\n{converts.getId}"
+--   -- This is `liftTermElabMTactic'` sort of deal
+--   let goal ← step_impl convertsME actionName.getId (←getMainGoal)
+--   replaceMainGoal [goal]
 
 elab "step" convertsM:term "as" actionName:ident : tactic => withMainContext do
-  let convertsME ← elabTerm convertsM .none
-  -- let convertsE := (←getLCtx).getFromUserName! converts.getId
-  -- logInfo m!"Called `step` with arguments:\n{convertsME}"
-  -- logInfo m!"Called `step` with arguments:\n{←elabTerm convertsM .none}\n{converts.getId}"
-  -- This is `liftTermElabMTactic'` sort of deal
-  let goal ← step_impl convertsME actionName.getId (←getMainGoal)
-  replaceMainGoal [goal]
-
-elab "step_bind" convertsM:term "as" actionName:ident : tactic => withMainContext do
   let goal ← getMainGoal
   let convertsME ← instantiateMVars (←elabTerm convertsM .none)
-  let bind := mkConst `Clap.convertsM_bind
-  replaceMainGoal (←goal.apply bind)
-  let goal ← getMainGoal
-  replaceMainGoal (←goal.apply convertsME)
+  discard do 
+    match ←lemmaOfNextCommand goal with
+    | .none => pure ()
+    | .some stepConclusion =>
+      replaceMainGoal (←goal.apply stepConclusion)
+      let goal ← getMainGoal
+      replaceMainGoal (←goal.apply convertsME)
   let goal ← step_impl convertsME actionName.getId (←getMainGoal)
   replaceMainGoal [goal]
-
-elab "step_map" convertsM:term "as" actionName:ident : tactic => withMainContext do
-  let goal ← getMainGoal
-  let convertsME ← instantiateMVars (←elabTerm convertsM .none)
-  let bind := mkConst `Clap.convertsM_map
-  replaceMainGoal (←goal.apply bind)
-  let goal ← getMainGoal
-  replaceMainGoal (←goal.apply convertsME)
-  let goal ← step_impl convertsME actionName.getId (←getMainGoal)
-  replaceMainGoal [goal]
-
 
 end
 
@@ -1072,9 +1076,9 @@ lemma convertsM_but_sane?
       specialize h_len tl (by aesop (add safe (by grind))) (by grind)
       simp at h_len
 
-      step_bind h_len as yourFace
-      step_bind @MkConstant.convertsM p yourFace_state hd as myFace
-      step_map eq.convertsM h_idx h_myFace as eq
+      step h_len as yourFace
+      step @MkConstant.convertsM p yourFace_state hd as myFace
+      step eq.convertsM h_idx h_myFace as eq
 
       apply FList.converts_append h_yourFace
       apply FList.converts_singleton_of_converts_FB
@@ -1110,7 +1114,7 @@ lemma convertsM
 := by
   unfold assert_eq
 
-  step_bind mkSub.convertsM h_a h_b as sub
+  step mkSub.convertsM h_a h_b as sub
   -- TODO adjust to not assume constraints
   simp at h_sub
   step eq0.convertsM h_sub as eq0
@@ -1168,7 +1172,7 @@ lemma convertsM
     rewrite [h_push]
     simp [Vector.foldlM_push]
 
-    step_bind @h_k fvals_base vals_base this as mapM
+    step @h_k fvals_base vals_base this as mapM
     have h_fvals_k := F.converts_of_FB_converts (FArray.converts_getElem h_vals (Nat.lt_succ_self k))
     step mkAdd.convertsM h_mapM h_fvals_k as add
 
@@ -1208,14 +1212,13 @@ lemma convertsM
   unfold sum
   simp [←sum'.eq_def]
 
-  step_bind MkConstant.convertsM as zero
+  step MkConstant.convertsM as zero
   step sum'.convertsM h_vals h_zero as sum'
 
   constructor
   . grind
   . assumption
   . assumption
-
 
 end FArray.sum
 end sum
@@ -1245,11 +1248,11 @@ lemma convertsM
 := by
   unfold singleOneArray
 
-  step_bind oneHotRaw.convertsM_but_sane? h_idx h_len as oneHot
-  step_bind FArray.sum.convertsM h_oneHot as sum
+  step oneHotRaw.convertsM_but_sane? h_idx h_len as oneHot
+  step FArray.sum.convertsM h_oneHot as sum
   -- lean stack overflows while typing these, but succeeds when they are done
   -- TODO better error handling?
-  step_bind MkConstant.convertsM as one
+  step MkConstant.convertsM as one
 
   have : (Vector.ofFn ((fun x => if x = true then 1 else 0) ∘ (λ x : Fin len => x == idx_val.val))).sum = (1 : ZMod p) := by
     clear *-h_len h_idx_val
@@ -1287,7 +1290,7 @@ lemma convertsM
     funext
     rw [this]
 
-  step_bind assert_eq.convertsM h_sum h_one as assert_eq
+  step assert_eq.convertsM h_sum h_one as assert_eq
 
   apply convertsM_pure
 
