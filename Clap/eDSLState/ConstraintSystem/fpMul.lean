@@ -24,34 +24,37 @@ def evalPoly {p k : ℕ} (coeffs : Vector ExprRef k) (x : ZMod p) : HashConsM p 
 def assertPolyEqProd {p k : ℕ}
     (a : Vector ExprRef k)
     (b : Vector ExprRef k)
-    (c : Vector ExprRef (2*k - 1)) : HashConsM p (Array ExprRef) := do
-  (List.range (2*k - 1)).mapM
-    fun k : ℕ => do
+    (c : Vector ExprRef (2 * k - 1)) : HashConsM p (Array ExprRef) :=
+  (Array.range (2 * k - 1)).mapM
+    fun (k : ℕ) ↦ do
       let mul ← mkMul (←evalPoly a k) (←evalPoly b k)
-      let sub ← mkSub mul (←evalPoly c k)
-
-      _
-      -- Cs.eq0 ((evalPoly a k) * (evalPoly b k) - (evalPoly c k)) rest
-
-def assert_poly_eq_prod {k : ℕ}
-    (a : Vector (Exp p var) k)
-    (b : Vector (Exp p var) k)
-    (c : Vector (Exp p var) (2*k - 1))
-    (rest : Cs p var) : Cs p var :=
-  List.foldr
-    (fun k rest =>
-      Cs.eq0 ((evalPoly a k) * (evalPoly b k) - (evalPoly c k)) rest
-    )
-    rest
-    (List.range (2*k - 1))
+      mkSub mul (←evalPoly c k)
 
 def fpMul {p : ℕ} (width k numAlloc : ℕ) (a b p' : Vector ExprRef k) : HashConsM p (Array ExprRef × ℕ) := do
   let (constraints₁, numAlloc) ← rangeCheckVec numAlloc width a
   let (constraints₂, numAlloc) ← rangeCheckVec numAlloc width a
   let (constraints₃, numAlloc) ← rangeCheckVec numAlloc width a
   let constraints := constraints₁ ++ constraints₂ ++ constraints₃
+
   let ab ← Vector.ofFnM fun i : Fin (2 * k - 1) ↦ mkVar (numAlloc + i)
-  let numAlloc := numAlloc + 1
+  let numAlloc := numAlloc + (2 * k - 1)
+  let prodConstraints ← assertPolyEqProd a b ab
+  let constraints := constraints ++ prodConstraints
+
+  let q ← Vector.ofFnM fun i : Fin k ↦ mkVar (numAlloc + i)
+  let numAlloc := numAlloc + k
+  let (constraints₄, numAlloc) ← rangeCheckVec numAlloc width q
+  let constraints := constraints ++ constraints₄
+
+  let r ← Vector.ofFnM fun i : Fin k ↦ mkVar (numAlloc + i)
+  let numAlloc := numAlloc + k
+  let (constraints₅, numAlloc) ← rangeCheckVec numAlloc width r
+  let constraints := constraints ++ constraints₅
+  
+  let t ← Vector.ofFnM fun i : Fin (2 * k - 1) ↦ mkVar (numAlloc + i)
+  let numAlloc := numAlloc + (2 * k - 1)
+  -- range check missing on purpose
+
   _
 
 end Bob
