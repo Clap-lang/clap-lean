@@ -28,6 +28,5 @@ lemma convertsM
   . grind
   . trivial
   . cases a_val <;> simp
-  . trivial
 
 end Clap.Lang.not

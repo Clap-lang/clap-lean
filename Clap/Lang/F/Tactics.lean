@@ -145,6 +145,18 @@ def lemmaOfNextCommand (goal : MVarId) : MetaM (Option Lean.Expr) := do
   logWarning m!"Conclusion unchanged; spec missing for:\n{args.action}"
   return .none
 
+/--
+Extend me.
+-/
+elab "constraints" : tactic => do
+  evalTactic <| ←`(tactic|
+    (
+      first
+        | (intros; trivial)
+        | skip
+    )
+  )
+
 def step_impl (convertsME : Lean.Expr) (actionName : Name) (goal : MVarId) : TermElabM MVarId := goal.withContext do
   let convertsMType ← inferType convertsME
   let .some convertsM ←
@@ -196,6 +208,32 @@ elab "step" convertsM:term "as" actionName:ident : tactic => withMainContext do
       let [] := ← goal.apply convertsME | throwError m!"Failed to unify. Bad."
   let goal ← step_impl convertsME actionName.getId (←getMainGoal)
   replaceMainGoal [goal]
+  evalTactic (←`(tactic| all_goals constraints))
+
+-- elab "step" convertsM:term "as" actionName:ident : tactic => withMainContext do
+--   let goal ← getMainGoal
+--   let convertsME ← instantiateMVars (←elabTerm convertsM .none)
+--   let goals ← do
+--     match ←lemmaOfNextCommand goal with
+--     | .none => pure []
+--     | .some stepConclusion =>
+--       let (goal :: goals) ← goal.apply stepConclusion
+--         | unreachable! -- ).filterM fun goal ↦ return !(←goal.isAssigned)
+--       let [] := ← goal.apply convertsME | throwError m!"Failed to unify. Bad."
+--       let mut unsolvedGoals := []
+--       for goal in ←goals.filterM fun goal ↦ return !(←goal.isAssigned) do
+--         let goalT ← goal.getType
+--         if goalT.isAppOf ``Clap.ConvertsM || goalT.isAppOf ``Clap.Converts then
+--           unsolvedGoals := goal :: unsolvedGoals; continue
+--         -- Assign the goal if solved, otherwise store the original for further automation / user
+--         logInfo m!"runtac: {goal}"
+--         let ([], _) ← runTactic goal (←`(tactic | constraints))
+--           | unsolvedGoals := unsolvedGoals ++ [goal]; continue
+--       pure unsolvedGoals
+--   logInfo m!"goals:\n{goals}"
+--   setGoals goals
+--   let goal ← step_impl convertsME actionName.getId (←getMainGoal)
+--   replaceMainGoal [goal]
 
 -- Used for if step is missing functionality for the specific shape of conclusion
 elab "step_state" convertsM:term "as" actionName:ident : tactic => withMainContext do

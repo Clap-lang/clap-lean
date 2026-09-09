@@ -24,7 +24,7 @@ lemma convertsM
 := by
   unfold eq
 
-  step mkSub.convertsM h_a h_b as sub <;> [skip; exact λ _ ↦ True.intro]
+  step mkSub.convertsM h_a h_b as sub
   apply convertsM_of_convertsM (isZero.convertsM h_sub)
   . grind
   . grind

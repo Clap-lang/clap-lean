@@ -51,7 +51,7 @@ lemma convertsM
     rewrite [h_push]
     simp [Vector.foldlM_push]
 
-    step @h_k fvals_base vals_base this as mapM <;> [skip; trivial]
+    step @h_k fvals_base vals_base this as mapM
 
     have h_fvals_k := F.converts_of_FB_converts (FArray.converts_getElem h_vals (Nat.lt_succ_self k))
     apply convertsM_of_convertsM (mkAdd.convertsM h_mapM h_fvals_k)
@@ -64,7 +64,6 @@ lemma convertsM
       rewrite [this]
       simp
     . trivial
-
 
 end FArray.sum'
 
@@ -88,7 +87,7 @@ lemma convertsM
   unfold sum
   simp [←sum'.eq_def]
 
-  step mkF.convertsM as zero <;> [skip; trivial]
+  step mkF.convertsM as zero
 
   apply convertsM_of_convertsM (sum'.convertsM h_vals h_zero)
   . rfl

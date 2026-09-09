@@ -174,9 +174,9 @@ lemma convertsM -- sane at last
       specialize h_len tl (by aesop (add safe (by grind))) (by grind)
       simp at h_len
 
-      step h_len as mapM <;> [skip; exact λ _ ↦ True.intro]
-      step mkF.convertsM as mkHd <;> [skip; exact λ _ ↦ True.intro]
-      step eq.convertsM h_idx h_mkHd as eq <;> [skip; trivial]
+      step h_len as mapM
+      step mkF.convertsM as mkHd
+      step eq.convertsM h_idx h_mkHd as eq
 
       apply FList.converts_append h_mapM
       apply FList.converts_singleton_of_converts_FB

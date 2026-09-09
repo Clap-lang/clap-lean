@@ -85,9 +85,6 @@ lemma convertsM
           convert ih
           grind
         . grind
-  . exact λ _ ↦ True.intro
-  . exact λ _ ↦ True.intro
-  . exact λ _ ↦ True.intro
 
 end singleOneArray
 

@@ -25,6 +25,5 @@ lemma convertsM
   apply convertsM_of_convertsM (eq0.convertsM h_not_f)
   . rfl
   . grind
-  . exact λ _ => True.intro
 
 end Clap.Lang.assert
