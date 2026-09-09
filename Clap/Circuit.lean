@@ -1,5 +1,6 @@
 import Clap.BitVec
 import Clap.Wheels
+import Clap.eDSLState.Wheels
 import Mathlib.FieldTheory.Finite.Basic -- field operations
 
 /-
@@ -28,9 +29,6 @@ import Mathlib.FieldTheory.Finite.Basic -- field operations
 -/
 
 namespace Clap
-
-instance {p} : Hashable (ZMod p) where
-  hash x := UInt64.ofNat x.val
 
 inductive Exp (p : ℕ) (var : Type) where
   | v   (_ : var)

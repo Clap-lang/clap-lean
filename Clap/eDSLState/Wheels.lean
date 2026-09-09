@@ -278,3 +278,10 @@ lemma mapM_succ {m : Type → Type} [Monad m] [LawfulMonad m]
     rfl
 
 end Vector
+
+namespace Clap
+
+instance {p} : Hashable (ZMod p) where
+  hash x := UInt64.ofNat x.val
+
+end Clap
