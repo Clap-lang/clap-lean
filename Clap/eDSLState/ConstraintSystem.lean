@@ -4,6 +4,8 @@ import Clap.eDSLState.Varstore
 
 namespace Clap
 
+open HashConsM
+
 structure ConstraintSystem (p : ℕ) where
   eq0s : Array ExprRef
   σ : HashConsSt p
@@ -38,12 +40,43 @@ def HashConsM.mkBits2num {p : ℕ} (bits : Array ExprRef) : HashConsM p ExprRef 
   let init ← mkConstant 0
   bits.foldrM (λ bit acc => do mkAdd bit (←mkMul (←mkConstant 2) acc)) init
 
-def rangeCheckCircuit (w : ℕ) {k : ℕ} (vec : Vector ExprRef k) : HashConsM p _ :=
+-- def rangeCheckCircuit (w : ℕ) {k : ℕ} (vec : Vector ExprRef k) : HashConsM p _ :=
 
-def fpMul_circuit
-  {p k w : ℕ}
-  (a b p' : Vector ExprRef k) : HashConsM p (Array ExprRef × ℕ) := do
-  _
+-- def fpMul_circuit
+--   {p k w : ℕ}
+--   (a b p' : Vector ExprRef k) : HashConsM p (Array ExprRef × ℕ) := do
+--   _
+
+def eq0ToCs {p} (constraints : Array ExprRef) (numAlloc : ℕ) (expr : ExprRef) :
+  HashConsM p (Array ExprRef × ℕ) :=
+  return (constraints.push expr, numAlloc)
+
+def shareToCs {p}
+  (constraints : Array ExprRef) (numAlloc : ℕ) (expr : ExprRef)
+:
+  HashConsM p (ExprRef × Array ExprRef × ℕ)
+:= do
+  let v ← mkVar numAlloc
+  let s ← expr - v
+  return (v, constraints.push s, numAlloc + 1)
+
+def isZeroToCs {p} (constraints : Array ExprRef) (numAlloc : ℕ) (expr : ExprRef) :
+  HashConsM p (ExprRef × Array ExprRef × ℕ) := do
+  let inv ← mkVar numAlloc
+  let o ← mkVar (numAlloc + 1)
+  let constraint1 ← (←((←mkConstant 1) - (←inv * expr))) - o
+  let constraint2 ← o * expr
+  return (o, constraints.append #[constraint1, constraint2], numAlloc + 2)
+
+def num2bitsToCs {p} (cs : Array ExprRef) (numAlloc width : ℕ) (expr : BoundRef p) :
+  HashConsM p (Array ExprRef × Array ExprRef × ℕ) := do
+  let bits ← (Array.range width).mapM (λ idx => mkVar (numAlloc + idx))
+  let bit_constraints ← bits.mapM (λ bit => do bit * (←(←mkConstant 1) - bit)) -- equivalent to assert_bit_e
+  let value_constraint ← (←mkBits2num bits) - expr
+  let constraints := bit_constraints.push value_constraint
+  return (bits, cs.append constraints, numAlloc + width)
+
+
 
 open HashConsM in
 def Circuit.toCs {p : ℕ} (circuit : Circuit) (σ : HashConsSt p) (numInputs : ℕ)
@@ -53,23 +86,10 @@ def Circuit.toCs {p : ℕ} (circuit : Circuit) (σ : HashConsSt p) (numInputs : 
   let ((eq0s, _numAlloc), σPost) :=
     (circuit.foldlM (m := HashConsM p) (λ (eq0s, numAlloc) gate => do
       match gate with
-      | .eq0 expr => return (eq0s.push expr, numAlloc)
-      | .share expr =>
-        let v ← mkVar numAlloc
-        let s ← mkSub expr v
-        return (eq0s.push s, numAlloc + 1)
-      | .isZero expr =>
-        let inv ← mkVar numAlloc
-        let o ← mkVar (numAlloc + 1)
-        let constraint1 ← mkSub (←(mkSub (←mkConstant 1) (←mkMul inv expr))) o
-        let constraint2 ← mkMul o expr
-        return (eq0s.append #[constraint1, constraint2], numAlloc + 2)
-      | .num2bits width expr =>
-        let bits ← (Array.range width).mapM (λ idx => mkVar (numAlloc + idx))
-        let bit_constraints ← bits.mapM (λ bit => do mkMul bit (←mkSub (←mkConstant 1) bit)) -- equivalent to assert_bit_e
-        let value_constraint ← mkSub (←mkBits2num bits) expr
-        let constraints := bit_constraints.push value_constraint
-        return (eq0s.append constraints, numAlloc + width)
+      | .eq0 expr => eq0ToCs eq0s numAlloc expr
+      | .share expr => return (←shareToCs eq0s numAlloc expr).2
+      | .isZero expr => return (←isZeroToCs eq0s numAlloc expr).2
+      | .num2bits width expr => return (←num2bitsToCs eq0s numAlloc width expr).2
       | .fpmul w k a b p' => sorry
     ) (Array.emptyWithCapacity (circuit.map ConstraintSystem.num_constraints).sum , numInputs)).run σ
   ⟨eq0s, σPost⟩

@@ -120,7 +120,6 @@ def check_lt_impl
     let x ← mkConstant 0
     return (constraints, numAlloc)
 
-
 def check_lt
   {p : ℕ}
   {k}
