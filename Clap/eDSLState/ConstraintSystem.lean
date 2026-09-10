@@ -76,7 +76,51 @@ def num2bitsToCs {p} (cs : Array ExprRef) (numAlloc width : ℕ) (expr : BoundRe
   let constraints := bit_constraints.push value_constraint
   return (bits, cs.append constraints, numAlloc + width)
 
+def offsetSince (threshold idx offset : ℕ) : ℕ :=
+  if idx < threshold then idx else idx + offset
 
+/--
+Not to be confused with Colonel Allocs.
+-/
+def privateAllocs (gate : Gate) : ℕ :=
+  match gate with
+  | .eq0 e => 0
+  | .share e => 0
+  | .isZero e => 1
+  | .num2bits w e => 0
+  | .fpmul w k a b p' => 42
+
+def offsetIdx (circuit : Circuit) : ℕ → ℕ :=
+  (·.1) <| circuit.foldr (init := (id, circuit.numAllocStep))
+    fun gate (f, threshold) ↦
+      let privateAllocs := privateAllocs gate
+      let publicAllocs := gate.numAllocStep
+      /-
+        [public₁, public₂]
+                         ^ threshold
+        ^ threshold - publicAllocs
+        [priv₁, priv₂, public₁, public₂]
+      -/
+      let nextThreshold := threshold - publicAllocs
+      -- dbg_trace s!"t: {threshold}\npriv: {privateAllocs}\npublic: {publicAllocs}\nnextT: {nextThreshold}"
+      let yourFace := fun idx ↦ offsetSince nextThreshold (f idx) privateAllocs
+      -- dbg_trace s!"{List.range 50 |>.map yourFace}"
+      (yourFace, nextThreshold)
+
+-- def hashConsStateButBetter (σ : HashConsSt p)
+
+def ranDom (n : ℕ) : Gate :=
+  match n with
+  | 1 => .isZero 0
+  | 2 => .eq0 0
+  | 3 => .share 0
+  | _ => .num2bits 5 5
+
+def yourFace : Circuit := #[4, 1, 2, 1, 2, 1, 3, 2, 2, 3, 2, 3, 1, 4, 1, 4, 2, 2, 3, 2].map ranDom
+-- [0, 1, 2, 3, 4, 6, 8, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21, 
+#eval yourFace.numAllocStep
+#eval List.range yourFace.numAllocStep |>.map (offsetIdx yourFace)
+-- #eval List.range yourFace.size |>.map (offsetIdx yourFace)
 
 open HashConsM in
 def Circuit.toCs {p : ℕ} (circuit : Circuit) (σ : HashConsSt p) (numInputs : ℕ)
