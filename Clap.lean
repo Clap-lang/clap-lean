@@ -29,9 +29,16 @@ import Clap.Lang.FArray.singleOneArray
 import Clap.Lang.FArray.sum
 import Clap.Lang.FB.and
 import Clap.Lang.FB.assert
+import Clap.Lang.FB.assertBool
+import Clap.Lang.FB.assert_eq
+import Clap.Lang.FB.conditionallyAssert
 import Clap.Lang.FB.eq
+import Clap.Lang.FB.eqBool
 import Clap.Lang.FB.isZero
 import Clap.Lang.FB.not
+import Clap.Lang.FB.ofBool
+import Clap.Lang.FB.or
+import Clap.Lang.FB.xor
 import Clap.Lang.FUnit.assert_eq
 import Clap.Lang.FUnit.eq0
 
