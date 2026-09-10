@@ -5,7 +5,7 @@ namespace Clap.Lang
 
 variable {p : ℕ}
 
-def assert (a : FB) : ClapM p Unit := do
+def assert (a : FB p) : ClapM p Unit := do
   eq0 (←not a)
 
 namespace assert
@@ -13,7 +13,7 @@ namespace assert
 lemma convertsM
   [p.AtLeastTwo]
   {state : ClapMState p}
-  {a : FB}
+  {a : FB p}
   {a_val : Bool}
   (h_a : Converts FB.conversion state a a_val)
 :

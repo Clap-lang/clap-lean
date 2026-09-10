@@ -174,20 +174,43 @@ end Run
 
 section MkExpr
 
-def mkConstant (x : ZMod p) : HashConsM p ExprRef := do
+abbrev BoundRef (_ : ℕ) : Type := ExprRef
+
+def mkConstant (x : ZMod p) : HashConsM p (BoundRef p) := do
   HashConsM.saveExpr (.c x)
 
-def mkVar (x : ℕ) : HashConsM p ExprRef := do
+def mkVar (x : ℕ) : HashConsM p (BoundRef p) := do
   HashConsM.saveExpr (.v x)
 
-def mkAdd (l r : ExprRef) : HashConsM p ExprRef := do
+def mkAdd (l r : BoundRef p) : HashConsM p (BoundRef p) := do
   HashConsM.saveExpr (.binary_op l r .add)
 
-def mkSub (l r : ExprRef) : HashConsM p ExprRef := do
+def mkSub (l r : BoundRef p) : HashConsM p (BoundRef p) := do
   HashConsM.saveExpr (.binary_op l r .sub)
 
-def mkMul (l r : ExprRef) : HashConsM p ExprRef := do
+def mkMul (l r : BoundRef p) : HashConsM p (BoundRef p) := do
   HashConsM.saveExpr (.binary_op l r .mul)
+
+instance (priority := 9999) {p} : HAdd (BoundRef p) (BoundRef p) (HashConsM p (BoundRef p)) where
+  hAdd x y := mkAdd x y
+
+instance (priority := 9999) {p} : HSub (BoundRef p) (BoundRef p) (HashConsM p (BoundRef p)) where
+  hSub x y := mkSub x y
+
+instance (priority := 9999) {p} : HMul (BoundRef p) (BoundRef p) (HashConsM p (BoundRef p)) where
+  hMul x y := mkMul x y
+
+@[grind norm] -- I cannot believe `norm` works
+lemma add_def {p} {l r : BoundRef p} :
+  l + r = mkAdd l r := rfl
+
+@[grind norm] -- I cannot believe `norm` works
+lemma sub_def {p} {l r : BoundRef p} :
+  l - r = mkSub l r := rfl
+
+@[grind norm] -- I cannot believe `norm` works
+lemma mul_def {p} {l r : BoundRef p} :
+  l * r = mkMul l r := rfl
 
 section Lemmas
 

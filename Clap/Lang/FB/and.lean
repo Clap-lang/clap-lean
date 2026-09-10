@@ -4,15 +4,15 @@ namespace Clap.Lang.FB
 
 variable {p : ℕ}
 
-def and (a b : FB) : ClapM p FB := do
-  HashConsM.mkMul (p := p) a b
+def and (a b : FB p) : ClapM p (FB p) := do
+  a * b
 
 namespace and
 
 lemma convertsM
   [p.AtLeastTwo]
   {state : ClapMState p}
-  {a b : FB}
+  {a b : FB p}
   {a_val b_val : Bool}
   (h_a : Converts FB.conversion state a a_val)
   (h_b : Converts FB.conversion state b b_val)

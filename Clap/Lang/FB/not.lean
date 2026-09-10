@@ -5,7 +5,7 @@ namespace Clap.Lang
 
 variable {p : ℕ}
 
-def not (a : FB) : ClapM p FB := do
+def not (a : FB p) : ClapM p (FB p) := do
   let one ← mkF 1
   mkSub one a
 
@@ -14,7 +14,7 @@ namespace not
 lemma convertsM
   [p.AtLeastTwo]
   {state : ClapMState p}
-  {a : FB}
+  {a : FB p}
   {a_val : Bool}
   (h_a : Converts FB.conversion state a a_val)
 :

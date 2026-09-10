@@ -2,23 +2,25 @@ import Clap.eDSLState.Convert.Specialised
 
 namespace Clap.Lang
 
+open HashConsM
+
 variable {p : ℕ}
 
-def mkAdd (a b : F) : ClapM p F :=
-  HashConsM.mkAdd (p := p) a b
+def mkAdd (a b : F p) : ClapM p (F p) :=
+  a + b
 
 namespace mkAdd
 
 lemma hashConsM_converts
    {state}
-   {a b : ExprRef}
+   {a b : BoundRef p}
    {a_val b_val : ZMod p}
    (h_a : Converts F.conversion state a a_val)
    (h_b : Converts F.conversion state b b_val)
 :
   Converts F.conversion
-    (ClapM.getState (liftM (HashConsM.mkAdd (p := p) a b)) state)
-    (ClapM.getResult (liftM (HashConsM.mkAdd (p := p) a b)) state.numAlloc state.σ)
+    (ClapM.getState (a + b) state)
+    (ClapM.getResult (a + b) state.numAlloc state.σ)
     (a_val + b_val)
 := by
   simp [ClapM.getState]
@@ -32,7 +34,7 @@ lemma hashConsM_converts
 
 lemma convertsM
   {state : ClapMState p}
-  {a b : F}
+  {a b : F p}
   {a_val b_val : ZMod p}
   (h_a : Converts F.conversion state a a_val)
   (h_b : Converts F.conversion state b b_val)
@@ -41,7 +43,7 @@ lemma convertsM
 := by
   unfold mkAdd
   constructor
-  . exact hashConsM_converts h_a h_b
+  · exact hashConsM_converts h_a h_b
   . grind
   . grind [ClapM.runAndEval]
 

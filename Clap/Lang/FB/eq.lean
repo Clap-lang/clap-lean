@@ -7,15 +7,15 @@ variable {p : ℕ}
 
 section eq
 
-def eq {p : ℕ} [p.AtLeastTwo] (a b : F) : ClapM p FB := do
-  isZero (←HashConsM.mkSub (p := p) a b)
+def eq {p : ℕ} [p.AtLeastTwo] (a b : F p) : ClapM p (FB p) := do
+  isZero (←(a - b))
 
 namespace eq
 
 lemma convertsM
   [p.AtLeastTwo]
   {state}
-  {a b : F}
+  {a b : F p}
   {a_val b_val : ZMod p}
   (h_a : Converts F.conversion state a a_val)
   (h_b : Converts F.conversion state b b_val)
@@ -23,6 +23,7 @@ lemma convertsM
   ConvertsM FB.conversion (eq a b) state (a_val == b_val) True
 := by
   unfold eq
+  rw [sub_def]
 
   step mkSub.convertsM h_a h_b as sub
   apply convertsM_of_convertsM (isZero.convertsM h_sub)

@@ -471,6 +471,26 @@ lemma getHashConsState_isZero {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
   else σ.pushExpr (.v numAlloc) (by simp) := by
   grind [isZero]
 
+instance (priority := high) {p} : HAdd (BoundRef p) (BoundRef p) (ClapM p (BoundRef p)) where
+  hAdd x y := liftM (mkAdd (p := p) x y)
+
+instance (priority := high) {p} : HSub (BoundRef p) (BoundRef p) (ClapM p (BoundRef p)) where
+  hSub x y := liftM (mkSub (p := p) x y)
+
+instance (priority := high) {p} : HMul (BoundRef p) (BoundRef p) (ClapM p (BoundRef p)) where
+  hMul x y := liftM (mkMul (p := p) x y)
+
+@[grind norm]
+lemma add_def {p} {l r : BoundRef p} :
+  (l + r : ClapM p (BoundRef p)) = liftM (mkAdd l r) := rfl
+
+@[grind norm]
+lemma sub_def {p} {l r : BoundRef p} :
+  (l - r : ClapM p (BoundRef p)) = liftM (mkSub l r) := rfl
+
+@[grind norm]
+lemma mul_def {p} {l r : BoundRef p} :
+  (l * r : ClapM p (BoundRef p)) = liftM (mkMul l r) := rfl
 
 end GetCircuit
 

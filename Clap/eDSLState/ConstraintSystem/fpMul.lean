@@ -9,33 +9,33 @@ section Bob
 
 open HashConsM
 
-def rangeCheckVec {p k : ℕ} (numAlloc width : ℕ) (vec : Vector ExprRef k) : HashConsM p (Array ExprRef × ℕ) := do
+def rangeCheckVec {p k : ℕ} (numAlloc width : ℕ) (vec : Vector (BoundRef p) k) : HashConsM p (Array (BoundRef p) × ℕ) := do
   vec.foldlM (b := (#[], numAlloc)) fun (acc, numAlloc) elem ↦ do
     let (cs, numAlloc) ← num2bits width numAlloc elem
     return (acc ++ cs, numAlloc)
 
-def evalPoly {p k : ℕ} (coeffs : Vector ExprRef k) (x : ZMod p) : HashConsM p ExprRef := do
+def evalPoly {p k : ℕ} (coeffs : Vector (BoundRef p) k) (x : ZMod p) : HashConsM p (BoundRef p) := do
   (List.finRange k).foldrM
     (fun ind acc => do
-      let term ← mkMul coeffs[ind] (←mkConstant (x ^ ind.val))
-      mkAdd acc term
+      let term ← coeffs[ind] * (←mkConstant (x ^ ind.val))
+      acc + term
     ) (←mkConstant 0)
 
 def assertPolyEqProd {p k : ℕ}
-    (a : Vector ExprRef k)
-    (b : Vector ExprRef k)
-    (c : Vector ExprRef (2 * k - 1)) : HashConsM p (Array ExprRef) :=
+    (a : Vector (BoundRef p) k)
+    (b : Vector (BoundRef p) k)
+    (c : Vector (BoundRef p) (2 * k - 1)) : HashConsM p (Array (BoundRef p)) :=
   (Array.range (2 * k - 1)).mapM
     fun (k : ℕ) ↦ do
-      let mul ← mkMul (←evalPoly a k) (←evalPoly b k)
-      mkSub mul (←evalPoly c k)
+      let mul ← (←evalPoly a k) * (←evalPoly b k)
+      mul - (←evalPoly c k)
 
 def rangeCheckInputs
   {p k : ℕ}
-  (constraints : Array ExprRef) (numAlloc : ℕ)
+  (constraints : Array (BoundRef p)) (numAlloc : ℕ)
   (width : ℕ)
-  (a b p' : Vector ExprRef k)
-: HashConsM p (Array ExprRef × ℕ) := do
+  (a b p' : Vector (BoundRef p) k)
+: HashConsM p (Array (BoundRef p) × ℕ) := do
   let (constraints₁, numAlloc) ← rangeCheckVec numAlloc width a
   let (constraints₂, numAlloc) ← rangeCheckVec numAlloc width b
   let (constraints₃, numAlloc) ← rangeCheckVec numAlloc width p'
@@ -45,25 +45,25 @@ def allocUnchecked
   {p : ℕ}
   (numAlloc : ℕ)
   (k : ℕ)
-: HashConsM p (Vector ExprRef k × ℕ) := do
+: HashConsM p (Vector (BoundRef p) k × ℕ) := do
   let vec ← Vector.ofFnM fun i : Fin k ↦ mkVar (numAlloc + i)
   return (vec, numAlloc + k)
 
 def allocRangeChecked
   {p : ℕ}
-  (constraints : Array ExprRef) (numAlloc : ℕ)
+  (constraints : Array (BoundRef p)) (numAlloc : ℕ)
   (k : ℕ)
   (width : ℕ)
-: HashConsM p (Vector ExprRef k × (Array ExprRef × ℕ)) := do
+: HashConsM p (Vector (BoundRef p) k × (Array (BoundRef p) × ℕ)) := do
   let (vec, numAlloc) ← allocUnchecked numAlloc k
   let (range_check_constraints, numAlloc) ← rangeCheckVec numAlloc width vec
   return (vec, (constraints ++ range_check_constraints, numAlloc))
 
 def polyMult
   {p k : ℕ}
-  (constraints : Array ExprRef) (numAlloc : ℕ)
-  (a b : Vector ExprRef k)
-: HashConsM p (Vector ExprRef (2*k-1) × (Array ExprRef × ℕ)) := do
+  (constraints : Array (BoundRef p)) (numAlloc : ℕ)
+  (a b : Vector (BoundRef p) k)
+: HashConsM p (Vector (BoundRef p) (2*k-1) × (Array (BoundRef p) × ℕ)) := do
   let (ab, numAlloc) ← allocUnchecked numAlloc (2*k-1)
   let prodConstraints ← assertPolyEqProd a b ab
   return (ab, (constraints ++ prodConstraints, numAlloc))
@@ -71,48 +71,48 @@ def polyMult
 def check_carry_zero
   {p : ℕ}
   {k : ℕ}
-  (constraints : Array ExprRef) (numAlloc : ℕ)
+  (constraints : Array (BoundRef p)) (numAlloc : ℕ)
   (width : ℕ)
-  (t : Vector ExprRef k)
-: HashConsM p (Array ExprRef × ℕ) := do
+  (t : Vector (BoundRef p) k)
+: HashConsM p (Array (BoundRef p) × ℕ) := do
   if _ : k = 0 then return (constraints, numAlloc)
   else
     let (carry, numAlloc) ← allocUnchecked numAlloc (k - 1)
     let (constraints, numAlloc) ← (List.finRange (k - 1)).foldrM (λ (i : Fin (k - 1)) (constraints, numAlloc) => do
       let e ← if _ : i.val = 0
         then pure t[i]
-        else mkAdd t[i] carry[(⟨i - 1, by omega⟩ : Fin (k - 1))]
-      let constraints := constraints.push (←mkSub e (←mkMul (←mkConstant (2^width)) carry[i]))
+        else t[i] + carry[(⟨i - 1, by omega⟩ : Fin (k - 1))]
+      let constraints := constraints.push (←e - (←(←mkConstant (2^width)) * carry[i]))
       let (num2bits_constraints, numAlloc) ← num2bits
           (width := width + Nat.clog 2 k + 2)
           (numAlloc := numAlloc)
-          (expr := ←mkAdd carry[i] (←mkConstant (k * 2 ^ (width + 1))))
+          (expr := ← carry[i] + (←mkConstant (k * 2 ^ (width + 1))))
       return (constraints ++ num2bits_constraints, numAlloc)
     ) (constraints, numAlloc)
-    let overflow ← mkAdd t[(⟨k-1, by omega⟩ : Fin k)] (
+    let overflow ← t[(⟨k - 1, by omega⟩ : Fin k)] + (
         ←if _ : k = 1 then mkConstant 0
-        else pure carry[(⟨k-2, by omega⟩ : Fin (k - 1))]
+        else pure carry[(⟨k - 2, by omega⟩ : Fin (k - 1))]
     )
     return (constraints.push overflow, numAlloc)
 
 def check_lt_impl
   {p : ℕ}
   {k : ℕ}
-  (constraints : Array ExprRef) (numAlloc : ℕ)
+  (constraints : Array (BoundRef p)) (numAlloc : ℕ)
   (width : ℕ)
-  (isLt : ExprRef)
-  (a b : Vector ExprRef k)
-: HashConsM p (Array ExprRef × ℕ):= do
+  (isLt : (BoundRef p))
+  (a b : Vector (BoundRef p) k)
+: HashConsM p (Array (BoundRef p) × ℕ):= do
   match _ : k with
-  | .zero => return (constraints.push (←mkSub isLt (←mkConstant 1)), numAlloc)
+  | .zero => return (constraints.push (←isLt - (←mkConstant 1)), numAlloc)
   | .succ k =>
     let (constraints, numAlloc) ← num2bits
       (numAlloc := numAlloc)
       (width := width)
-      (expr := ←mkMul
-        (←mkSub (←mkConstant 1) isLt)
-        (←mkAdd
-          (←mkSub a[Fin.last k] b[Fin.last k])
+      (expr := ←
+        (←(←mkConstant 1) - isLt) * 
+        (←
+          (←a[Fin.last k] - b[Fin.last k]) +
           (←mkConstant ((2 ^ width : ZMod p) - 1))
         )
       )
@@ -124,13 +124,13 @@ def check_lt_impl
 def check_lt
   {p : ℕ}
   {k}
-  (constraints : Array ExprRef) (numAlloc : ℕ)
+  (constraints : Array (BoundRef p)) (numAlloc : ℕ)
   (width : ℕ)
-  (a b : Vector ExprRef k)
-: HashConsM p (Array ExprRef × ℕ) := do
+  (a b : Vector (BoundRef p) k)
+: HashConsM p (Array (BoundRef p) × ℕ) := do
   check_lt_impl constraints numAlloc width (←mkConstant 0) a b
 
-def fpMul {p : ℕ} (width k numAlloc : ℕ) (a b p' : Vector ExprRef k) : HashConsM p (Array ExprRef × ℕ) := do
+def fpMul {p : ℕ} (width k numAlloc : ℕ) (a b p' : Vector (BoundRef p) k) : HashConsM p (Array (BoundRef p) × ℕ) := do
   let (constraints, numAlloc) ← rangeCheckInputs #[] numAlloc width a b p'
 
   let (ab, (constraints, numAlloc)) ← polyMult constraints numAlloc a b
@@ -140,9 +140,9 @@ def fpMul {p : ℕ} (width k numAlloc : ℕ) (a b p' : Vector ExprRef k) : HashC
   let (t, numAlloc) ← allocUnchecked numAlloc (2*k - 1)
 
   let constraints ← (List.range (2*k - 1)).foldrM (λ (x : ℕ) constraints ↦ do
-    let pq_plus_r ← mkAdd (←mkMul (←evalPoly p' x) (←evalPoly q x)) (←evalPoly r x)
-    let ab_sub ← mkSub (←evalPoly ab x) pq_plus_r
-    let res ← mkSub (←evalPoly t x) ab_sub
+    let pq_plus_r ← (←(←evalPoly p' x) * (←evalPoly q x)) + (←evalPoly r x)
+    let ab_sub ← (←evalPoly ab x) - pq_plus_r
+    let res ← (←evalPoly t x) - ab_sub
     return constraints.push res
   ) (constraints)
 

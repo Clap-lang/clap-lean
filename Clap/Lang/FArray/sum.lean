@@ -8,7 +8,7 @@ variable {p : ℕ}
 section sum
 
 open HashConsM in
-def FArray.sum' {k} (init : F) (vals : FArray k) : ClapM p F := do
+def FArray.sum' {k} (init : F p) (vals : FArray p k) : ClapM p (F p) := do
   vals.foldlM mkAdd init
 
 namespace FArray.sum'
@@ -16,9 +16,9 @@ namespace FArray.sum'
 lemma convertsM
   {k}
   {state : ClapMState p}
-  {f_vals : FArray k}
+  {f_vals : FArray p k}
   {vals : Vector Bool k}
-  {init : F}
+  {init : F p}
   (h_vals : Converts FArray.conversion state f_vals vals)
   (h_init : Converts F.conversion state init 0)
 :
@@ -70,7 +70,7 @@ end FArray.sum'
 
 
 open HashConsM in
-def FArray.sum {k} (vals : FArray k) : ClapM p F := do
+def FArray.sum {k} (vals : FArray p k) : ClapM p (F p) := do
   vals.foldlM mkAdd (←mkF 0)
 
 namespace FArray.sum
@@ -78,7 +78,7 @@ namespace FArray.sum
 lemma convertsM
   {k}
   {state : ClapMState p}
-  {f_vals : FArray k}
+  {f_vals : FArray p k}
   {vals : Vector Bool k}
   (h_vals : Converts FArray.conversion state f_vals vals)
 :

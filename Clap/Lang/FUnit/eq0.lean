@@ -22,7 +22,7 @@ lemma wellFormed {e! : ExprRef} {state} {value : ZMod p}
 lemma converts
   [p.AtLeastTwo]
   {state : ClapMState p}
-  {a : F}
+  {a : F p}
 :
   Converts FUnit.conversion
     ((eq0 a).getState state)
@@ -48,7 +48,7 @@ lemma constraints
 lemma convertsM
   [p.AtLeastTwo]
   {state}
-  {a : F}
+  {a : F p}
   {a_val : ZMod p}
   (h_a : Converts F.conversion state a a_val)
 :

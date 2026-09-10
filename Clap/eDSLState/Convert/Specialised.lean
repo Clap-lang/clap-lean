@@ -1,4 +1,5 @@
 import Clap.eDSLState.Convert.Base
+import Clap.eDSLState.HashCons.HashConsM
 
 import Clap.Lang.Wheels
 import Clap.Lang.F.Tactics
@@ -7,16 +8,48 @@ namespace Clap.Lang
 
 variable {p : ℕ}
 
-abbrev F := ExprRef
-abbrev FB := F
-abbrev FArray (k) := Vector FB k -- TODO FB_Vector?
-abbrev FList := List FB
+section User
+
+abbrev F (p : ℕ) : Type := HashConsM.BoundRef p
+abbrev FB (p : ℕ) : Type := F p
+abbrev FArray (p k : ℕ) : Type := Vector (FB p) k
+abbrev FList (p : ℕ) : Type := List (FB p)
+
+section OverrideInstance
+
+open HashConsM in
+instance : HAdd (F p) (F p) (ClapM p (F p)) :=
+  inferInstanceAs (HAdd (BoundRef p) (BoundRef p) (ClapM p (BoundRef p)))
+
+open HashConsM in
+instance : HSub (F p) (F p) (ClapM p (F p)) :=
+  inferInstanceAs (HSub (BoundRef p) (BoundRef p) (ClapM p (BoundRef p)))
+
+open HashConsM in
+instance : HMul (F p) (F p) (ClapM p (F p)) :=
+  inferInstanceAs (HMul (BoundRef p) (BoundRef p) (ClapM p (BoundRef p)))
+
+open HashConsM in
+instance : HAdd (FB p) (FB p) (ClapM p (FB p)) :=
+  inferInstanceAs (HAdd (BoundRef p) (BoundRef p) (ClapM p (BoundRef p)))
+
+open HashConsM in
+instance : HSub (FB p) (FB p) (ClapM p (FB p)) :=
+  inferInstanceAs (HSub (BoundRef p) (BoundRef p) (ClapM p (BoundRef p)))
+
+open HashConsM in
+instance : HMul (FB p) (FB p) (ClapM p (FB p)) :=
+  inferInstanceAs (HMul (BoundRef p) (BoundRef p) (ClapM p (BoundRef p)))
+
+end OverrideInstance
+
+end User
 
 section Converts
 
 namespace F
 
-abbrev conversion : Conversion p F where
+abbrev conversion : Conversion p (F p) where
   IdealT := ZMod p
   toExprs x := [x]
   conversion x := [x]
@@ -26,7 +59,7 @@ end F
 
 namespace FB
 
-abbrev conversion : Conversion p FB where
+abbrev conversion : Conversion p (FB p) where
   IdealT := Bool
   toExprs x := [x]
   conversion x := [if x then 1 else 0]
@@ -46,7 +79,7 @@ end FUnit
 
 namespace FArray
 
-abbrev conversion {k} : Conversion p (FArray k) where
+abbrev conversion {k} : Conversion p (FArray p k) where
   IdealT := Vector Bool k
   toExprs x := x.toList
   conversion x := (x.map fun x ↦ if x then 1 else 0).toList
@@ -56,7 +89,7 @@ end FArray
 
 namespace FList
 
-abbrev conversion : Conversion p FList where
+abbrev conversion : Conversion p (FList p) where
   IdealT := List Bool
   toExprs x := x
   conversion x := x.map fun x ↦ if x then 1 else 0
@@ -72,7 +105,7 @@ namespace F
 
 lemma converts_of_FB_converts
   {state : ClapMState p}
-  {expr : FB}
+  {expr : FB p}
   {b : Bool}
   (h : Converts FB.conversion state expr b)
 :
@@ -91,12 +124,12 @@ namespace FB
 lemma converts_of_F_converts
   [p.AtLeastTwo]
   {state : ClapMState p}
-  {expr : F}
+  {expr : F p}
   {val}
   (h : Converts F.conversion state expr val)
   (h_val : val.val < 2)
 :
-  Converts FB.conversion state (expr : FB) (val == 1)
+  Converts FB.conversion state (expr : FB p) (val == 1)
 := by
   apply converts_cast h
   . rfl
@@ -112,7 +145,7 @@ lemma converts_of_F_converts
 
 lemma convertsM_of_F_convertsM
   [p.AtLeastTwo]
-  {action : ClapM p F}
+  {action : ClapM p (F p)}
   {state : ClapMState p}
   {val : ZMod p}
   {constraints}
@@ -160,7 +193,7 @@ lemma converts_empty
 lemma converts_iff_FB_converts
   {k}
   {state : ClapMState p}
-  {exprs : FArray k}
+  {exprs : FArray p k}
   {val : Vector Bool k}
 :
   Converts conversion state exprs val ↔
@@ -199,8 +232,8 @@ lemma converts_iff_FB_converts
 lemma converts_push
   {k}
   {state : ClapMState p}
-  {exprs : Vector FB k}
-  {expr : FB}
+  {exprs : Vector (FB p) k}
+  {expr : FB p}
   {vals : Vector Bool k}
   {val : Bool}
   (h_exprs : Converts conversion state exprs vals)
@@ -220,7 +253,7 @@ lemma converts_push
 
 lemma convertsM_of_convertsM_toList
   {k}
-  {action : ClapM p (Vector FB k)}
+  {action : ClapM p (Vector (FB p) k)}
   {state}
   {val : Vector Bool k}
   {constraints}
@@ -240,7 +273,7 @@ lemma convertsM_of_convertsM_toList
 lemma converts_vector_cast
   {k1 k2}
   {state : ClapMState p}
-  {exprs : FArray k1}
+  {exprs : FArray p k1}
   {val : Vector Bool k1}
   (h : Converts conversion state exprs val)
   (h_k : k1 = k2)
@@ -254,7 +287,7 @@ lemma converts_vector_cast
 lemma converts_pop
   {k}
   {state : ClapMState p}
-  {exprs : FArray k}
+  {exprs : FArray p k}
   {val : Vector Bool k}
   (h : Converts conversion state exprs val)
 :
@@ -269,7 +302,7 @@ lemma converts_pop
 lemma converts_getElem
   {k i}
   {state : ClapMState p}
-  {exprs : FArray k}
+  {exprs : FArray p k}
   {vals : Vector Bool k}
   (h : Converts conversion state exprs vals)
   (h_i : i < k)
@@ -294,7 +327,7 @@ lemma converts_empty
 
 lemma converts_append
   {state : ClapMState p}
-  {exprs1 exprs2 : List FB}
+  {exprs1 exprs2 : List (FB p)}
   {vals1 vals2 : List Bool}
   (h_exprs1 : Converts FList.conversion state exprs1 vals1)
   (h_exprs2 : Converts FList.conversion state exprs2 vals2)

@@ -10,9 +10,9 @@ variable {p : ℕ}
 section singleOneArray
 
 /-- Returns a one-hot bit mask of length `len` with a 1 at index `idx` and 0s elsewhere. Only satisfiable when `0 ≤ idx < len`. -/
-def singleOneArray [p.AtLeastTwo] (len : ℕ) (idx : F) : ClapM p (FArray len) := do
+def singleOneArray [p.AtLeastTwo] (len : ℕ) (idx : F p) : ClapM p (FArray p len) := do
   let out ← oneHotRaw len idx
-  let s : F ← out.sum
+  let s : F p ← out.sum
   assert_eq s (←mkF 1)
   return out
 
@@ -35,7 +35,7 @@ lemma Vector.sum_ofFn_eq_zero_of_eq_zero
 lemma convertsM
   [p.AtLeastTwo]
   {len : ℕ}
-  {idx : F}
+  {idx : F p}
   {state}
   {idx_val : ZMod p}
   (h_idx : Converts F.conversion state idx idx_val)

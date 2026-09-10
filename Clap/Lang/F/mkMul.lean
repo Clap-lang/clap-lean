@@ -2,23 +2,25 @@ import Clap.eDSLState.Convert.Specialised
 
 namespace Clap.Lang
 
+open HashConsM
+
 variable {p : ℕ}
 
-def mkMul (a b : F) : ClapM p F :=
-  HashConsM.mkMul (p := p) a b
+def mkMul (a b : BoundRef p) : ClapM p (F p) :=
+  a * b
 
 namespace mkMul
 
 lemma hashConsM_converts
    {state}
-   {a b : ExprRef}
+   {a b : BoundRef p}
    {a_val b_val : ZMod p}
    (h_a : Converts F.conversion state a a_val)
    (h_b : Converts F.conversion state b b_val)
 :
   Converts F.conversion
-    (ClapM.getState (liftM (HashConsM.mkMul (p := p) a b)) state)
-    (ClapM.getResult (liftM (HashConsM.mkMul (p := p) a b)) state.numAlloc state.σ)
+    (ClapM.getState (a * b) state)
+    (ClapM.getResult (a * b) state.numAlloc state.σ)
     (a_val * b_val)
 := by
   simp [ClapM.getState]
@@ -32,7 +34,7 @@ lemma hashConsM_converts
 
 lemma convertsM
   {state : ClapMState p}
-  {a b : F}
+  {a b : F p}
   {a_val b_val : ZMod p}
   (h_a : Converts F.conversion state a a_val)
   (h_b : Converts F.conversion state b b_val)

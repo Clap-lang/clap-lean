@@ -32,7 +32,7 @@ lemma wellFormed {e! : ExprRef} {state} {value : ZMod p}
 lemma converts
   [p.AtLeastTwo]
   {state}
-  {a : F}
+  {a : F p}
   {a_val : ZMod p}
   (h_a : Converts F.conversion state a a_val)
 :
@@ -85,7 +85,7 @@ lemma constraints
 lemma convertsM
   [p.AtLeastTwo]
   {state}
-  {a : F}
+  {a : F p}
   {a_val : ZMod p}
   (h_a : Converts F.conversion state a a_val)
 :

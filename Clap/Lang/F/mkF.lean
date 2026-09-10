@@ -4,7 +4,7 @@ namespace Clap.Lang
 
 variable {p : ℕ}
 
-def mkF (a : ZMod p) : ClapM p F :=
+def mkF (a : ZMod p) : ClapM p (F p) :=
   HashConsM.mkConstant (p := p) a
 
 namespace mkF

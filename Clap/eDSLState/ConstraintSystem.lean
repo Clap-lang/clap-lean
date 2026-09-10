@@ -53,24 +53,24 @@ def Circuit.toCs {p : ℕ} (circuit : Circuit) (σ : HashConsSt p) (numInputs : 
   let ((eq0s, _numAlloc), σPost) :=
     (circuit.foldlM (m := HashConsM p) (λ (eq0s, numAlloc) gate => do
       match gate with
-        | .eq0 expr => return (eq0s.push expr, numAlloc)
-        | .share expr =>
-          let v ← mkVar numAlloc
-          let s ← mkSub expr v
-          return (eq0s.push s, numAlloc + 1)
-        | .isZero expr =>
-          let inv ← mkVar numAlloc
-          let o ← mkVar (numAlloc + 1)
-          let constraint1 ← mkSub (←(mkSub (←mkConstant 1) (←mkMul inv expr))) o
-          let constraint2 ← mkMul o expr
-          return (eq0s.append #[constraint1, constraint2], numAlloc + 2)
-        | .num2bits width expr =>
-          let bits ← (Array.range width).mapM (λ idx => mkVar (numAlloc + idx))
-          let bit_constraints ← bits.mapM (λ bit => do mkMul bit (←mkSub (←mkConstant 1) bit)) -- equivalent to assert_bit_e
-          let value_constraint ← mkSub (←mkBits2num bits) expr
-          let constraints := bit_constraints.push value_constraint
-          return (eq0s.append constraints, numAlloc + width)
-        | .fpmul w k a b p' => sorry
+      | .eq0 expr => return (eq0s.push expr, numAlloc)
+      | .share expr =>
+        let v ← mkVar numAlloc
+        let s ← mkSub expr v
+        return (eq0s.push s, numAlloc + 1)
+      | .isZero expr =>
+        let inv ← mkVar numAlloc
+        let o ← mkVar (numAlloc + 1)
+        let constraint1 ← mkSub (←(mkSub (←mkConstant 1) (←mkMul inv expr))) o
+        let constraint2 ← mkMul o expr
+        return (eq0s.append #[constraint1, constraint2], numAlloc + 2)
+      | .num2bits width expr =>
+        let bits ← (Array.range width).mapM (λ idx => mkVar (numAlloc + idx))
+        let bit_constraints ← bits.mapM (λ bit => do mkMul bit (←mkSub (←mkConstant 1) bit)) -- equivalent to assert_bit_e
+        let value_constraint ← mkSub (←mkBits2num bits) expr
+        let constraints := bit_constraints.push value_constraint
+        return (eq0s.append constraints, numAlloc + width)
+      | .fpmul w k a b p' => sorry
     ) (Array.emptyWithCapacity (circuit.map ConstraintSystem.num_constraints).sum , numInputs)).run σ
   ⟨eq0s, σPost⟩
 

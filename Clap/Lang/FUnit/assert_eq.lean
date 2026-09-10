@@ -7,7 +7,7 @@ variable {p : ℕ}
 
 section assert_eq
 
-def assert_eq (a b : F) : ClapM p Unit := do
+def assert_eq (a b : F p) : ClapM p Unit := do
   let diff ← HashConsM.mkSub (p := p) a b
   eq0 diff
 

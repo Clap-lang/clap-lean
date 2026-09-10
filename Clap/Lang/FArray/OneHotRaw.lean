@@ -11,9 +11,9 @@ section OneHotRaw
 
 open HashConsM
 
-variable {p : ℕ} [p.AtLeastTwo] {start len : ℕ} {idx : F} {numAlloc : ℕ} {σ : HashConsSt p}
+variable {p : ℕ} [p.AtLeastTwo] {start len : ℕ} {idx : F p} {numAlloc : ℕ} {σ : HashConsSt p}
 
-def oneHotRaw_aux (start len : ℕ) (idx : F) : ClapM p (Vector FB len) :=
+def oneHotRaw_aux (start len : ℕ) (idx : F p) : ClapM p (Vector (FB p) len) :=
   (Vector.range' start len).mapM (fun (i:ℕ) ↦ do
     let idx_val ← mkF i
     eq idx idx_val
@@ -42,10 +42,10 @@ lemma oneHotRaw_aux_succ :
   rw [←oneHotRaw_aux.eq_def]
   simp
 
-def oneHotRaw (len : ℕ) (idx : F) : ClapM p (FArray len) :=
+def oneHotRaw (len : ℕ) (idx : F p) : ClapM p (FArray p len) :=
   oneHotRaw_aux 0 len idx
 
-def oneHotRaw'_aux (start len : ℕ) (idx : F) : ClapM p (List FB) :=
+def oneHotRaw'_aux (start len : ℕ) (idx : F p) : ClapM p (List (FB p)) :=
   (List.range' start len).mapM (fun (i : ℕ) ↦ do
     let idx_val ← mkF i
     eq idx idx_val
@@ -70,7 +70,7 @@ lemma oneHotRaw'_aux_succ :
   rw [←oneHotRaw'_aux.eq_def]
   simp
 
-def oneHotRaw' (len : ℕ) (idx : F) : ClapM p (List FB) := oneHotRaw'_aux 0 len idx
+def oneHotRaw' (len : ℕ) (idx : F p) : ClapM p (List (FB p)) := oneHotRaw'_aux 0 len idx
 
 @[simp, grind =]
 lemma oneHotRaw'_zero :
@@ -100,7 +100,7 @@ lemma toList_map_oneHotRaw_aux_eq_oneHotRaw'_aux :
 
 omit [p.AtLeastTwo] in
 @[simp, grind _=_]
-lemma getResult_toList {vecM : ClapM p (Vector FB len)} :
+lemma getResult_toList {vecM : ClapM p (Vector (FB p) len)} :
   ClapM.getResult (Vector.toList <$> vecM) numAlloc σ =
   (vecM.getResult numAlloc σ).toList := by
   simp
@@ -139,7 +139,7 @@ namespace oneHotRaw
 lemma convertsM -- sane at last
   {state}
   {len : ℕ}
-  {idx : F}
+  {idx : F p}
   {idx_val : ZMod p} -- TODO : Fin len?
   (h_idx : Converts F.conversion state idx idx_val)
   (h_len : len < p)
