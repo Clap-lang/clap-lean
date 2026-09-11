@@ -44,6 +44,64 @@ def wellFormed
 : Prop :=
   σ.exprs.isPrefixOf (action.getHashConsState σ).exprs
 
+@[simp, grind =]
+lemma getResult_pure
+  {α}
+  {a : α}
+:
+  HashConsM.getResult (pure a) σ = a
+:= by
+  cbv
+
+@[simp, grind =]
+lemma getResult_bind
+  {α β}
+  {a : HashConsM p α}
+  {f : α → HashConsM p β}
+:
+  HashConsM.getResult (a >>= f) σ = (f (a.getResult σ)).getResult (a.getHashConsState σ)
+:= by
+  cbv
+
+@[simp, grind =]
+lemma getResult_map
+  {α β}
+  {a : HashConsM p α}
+  {f : α → β}
+:
+  HashConsM.getResult (f <$> a) σ = (f (a.getResult σ))
+:= by
+  cbv
+
+@[simp, grind =]
+lemma length_getResult_mapM_list
+  {p}
+  {α β}
+  {l : List α}
+  {cmd : α → HashConsM p β}
+  {σ}
+:
+  ((l.mapM cmd).getResult σ).length =
+  l.length
+:= by
+  induction l generalizing σ
+  . simp
+  . simp_all
+
+@[simp, grind =]
+lemma size_getResult_mapM_array
+  {p}
+  {α β}
+  {as : Array α}
+  {cmd : α → HashConsM p β}
+  {σ}
+:
+  ((as.mapM cmd).getResult σ).size =
+  as.size
+:= by
+  obtain ⟨l⟩ := as
+  simp [length_getResult_mapM_list]
+
 @[grind =]
 lemma isPrefixOf_of_wellFormed
   {p : ℕ}

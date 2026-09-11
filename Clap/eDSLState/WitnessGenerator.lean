@@ -15,6 +15,7 @@ def trace_capacity : Gate → ℕ
   | .share _ => 1
   | .isZero _ => 2
   | .num2bits w _ => w
+  | .fpmul .. => 42
 
 def run (inputs : Array (ZMod p)) : Array (ZMod p) :=
   let max := (wg.circuit.map (λ gate => match gate with
@@ -22,8 +23,9 @@ def run (inputs : Array (ZMod p)) : Array (ZMod p) :=
     | .share e => e
     | .isZero e => e
     | .num2bits _w e => e
+    | .fpmul .. => 42
   )).max?.getD 0
-  let cache := HashConsM.evalWithCache (VarStore.ofArray (inputs.zipIdx.map Prod.swap)) max #[] wg.σ
+  let cache := Expr.evalWithCache (.ofArray (inputs.zipIdx.map Prod.swap)) #[] ⦃max, wg.σ⦄
   wg.circuit.foldl (λ trace gate => match gate with
     | .eq0 _expr => trace
     | .share expr => trace.push cache[expr]!.get!
@@ -36,6 +38,8 @@ def run (inputs : Array (ZMod p)) : Array (ZMod p) :=
       let e := cache[expr]!.get!
       let bits := num2bitsLsbPureV width e
       trace.append bits.toArray
+    | .fpmul .. =>
+      trace.append #[42]
   ) (inputs.append (Array.emptyWithCapacity (wg.circuit.map trace_capacity).sum))
 
 end WitnessGenerator

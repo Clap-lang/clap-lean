@@ -1,6 +1,7 @@
 import Clap.eDSLState.Circuit
 import Clap.eDSLState.Varstore
--- import Clap.eDSLState.Convert.Specialised
+
+import Clap.eDSLState.ConstraintSystem.isZero
 
 namespace Clap
 
@@ -11,6 +12,8 @@ structure ConstraintSystem (p : ℕ) where
   σ : HashConsSt p
 
 namespace ConstraintSystem
+
+open HashConsM
 
 variable {p : ℕ} (cs: ConstraintSystem p)
 
@@ -34,47 +37,6 @@ def num_constraints : Gate → ℕ
   | .num2bits w _ => w + 1
   | .fpmul w k a b p' => 42
 
-end ConstraintSystem
-
-def HashConsM.mkBits2num {p : ℕ} (bits : Array ExprRef) : HashConsM p ExprRef := do
-  let init ← mkConstant 0
-  bits.foldrM (λ bit acc => do mkAdd bit (←mkMul (←mkConstant 2) acc)) init
-
--- def rangeCheckCircuit (w : ℕ) {k : ℕ} (vec : Vector ExprRef k) : HashConsM p _ :=
-
--- def fpMul_circuit
---   {p k w : ℕ}
---   (a b p' : Vector ExprRef k) : HashConsM p (Array ExprRef × ℕ) := do
---   _
-
-def eq0ToCs {p} (constraints : Array ExprRef) (numAlloc : ℕ) (expr : ExprRef) :
-  HashConsM p (Array ExprRef × ℕ) :=
-  return (constraints.push expr, numAlloc)
-
-def shareToCs {p}
-  (constraints : Array ExprRef) (numAlloc : ℕ) (expr : ExprRef)
-:
-  HashConsM p (ExprRef × Array ExprRef × ℕ)
-:= do
-  let v ← mkVar numAlloc
-  let s ← expr - v
-  return (v, constraints.push s, numAlloc + 1)
-
-def isZeroToCs {p} (constraints : Array ExprRef) (numAlloc : ℕ) (expr : ExprRef) :
-  HashConsM p (ExprRef × Array ExprRef × ℕ) := do
-  let inv ← mkVar numAlloc
-  let o ← mkVar (numAlloc + 1)
-  let constraint1 ← (←((←mkConstant 1) - (←inv * expr))) - o
-  let constraint2 ← o * expr
-  return (o, constraints.append #[constraint1, constraint2], numAlloc + 2)
-
-def num2bitsToCs {p} (cs : Array ExprRef) (numAlloc width : ℕ) (expr : BoundRef p) :
-  HashConsM p (Array ExprRef × Array ExprRef × ℕ) := do
-  let bits ← (Array.range width).mapM (λ idx => mkVar (numAlloc + idx))
-  let bit_constraints ← bits.mapM (λ bit => do bit * (←(←mkConstant 1) - bit)) -- equivalent to assert_bit_e
-  let value_constraint ← (←mkBits2num bits) - expr
-  let constraints := bit_constraints.push value_constraint
-  return (bits, cs.append constraints, numAlloc + width)
 
 def offsetSince (threshold idx offset : ℕ) : ℕ :=
   if idx < threshold then idx else idx + offset
@@ -107,35 +69,52 @@ def offsetIdx (circuit : Circuit) : ℕ → ℕ :=
       -- dbg_trace s!"{List.range 50 |>.map yourFace}"
       (yourFace, nextThreshold)
 
--- def hashConsStateButBetter (σ : HashConsSt p)
+-- def offsetIdx' (circuit : Circuit) (idx : ℕ) : ℕ :=
+--   let allPrivateAllocs := (circuit.map privateAllocs).sum
+--   let allAllocs := circuit.numAllocStep + allPrivateAllocs
+--   let idxs := (circuit.mapIdx (λ idx gate => (
+--     let preceding := circuit.take idx
+--     let start := Circuit.numAllocStep preceding + (preceding.map privateAllocs).sum
+--     let privates := (List.range' start (privateAllocs gate)).map (λ x => (false, x))
+--     let publics := (List.range' (start + privateAllocs gate) gate.numAllocStep).map (λ x => (true, x))
+--     privates ++ publics
+--   ))).toList.flatten
+--   dbg_trace s!"{idxs}"
+--   if idx > circuit.numAllocStep
+--   then idx + allPrivateAllocs
+--   else (idxs.filter Prod.fst)[idx]!.2
 
-def ranDom (n : ℕ) : Gate :=
-  match n with
-  | 1 => .isZero 0
-  | 2 => .eq0 0
-  | 3 => .share 0
-  | _ => .num2bits 5 5
+def offsetHashConsState {p : ℕ}
+  (σ : HashConsSt p) (circuit : Circuit)
+: HashConsSt p :=
+  let offsets := offsetIdx circuit
+  let exprs := σ.exprs.map (λ cacheExpr => match cacheExpr with
+    | .c x=> .c x
+    | .v x => .v (offsets x)
+    | .binary_op lhs rhs op => .binary_op lhs rhs op
+  )
+  let wellFormed := by
+    intro i h_i
+    obtain ⟨_, h_wellFormed⟩ := σ
+    specialize h_wellFormed i (by grind)
+    grind
+  ⟨exprs, wellFormed⟩
 
-def yourFace : Circuit := #[4, 1, 2, 1, 2, 1, 3, 2, 2, 3, 2, 3, 1, 4, 1, 4, 2, 2, 3, 2].map ranDom
--- [0, 1, 2, 3, 4, 6, 8, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21, 
-#eval yourFace.numAllocStep
-#eval List.range yourFace.numAllocStep |>.map (offsetIdx yourFace)
--- #eval List.range yourFace.size |>.map (offsetIdx yourFace)
 
-open HashConsM in
 def Circuit.toCs {p : ℕ} (circuit : Circuit) (σ : HashConsSt p) (numInputs : ℕ)
 :
   ConstraintSystem p
 :=
+  let σMapped := offsetHashConsState σ circuit
   let ((eq0s, _numAlloc), σPost) :=
     (circuit.foldlM (m := HashConsM p) (λ (eq0s, numAlloc) gate => do
       match gate with
       | .eq0 expr => eq0ToCs eq0s numAlloc expr
       | .share expr => return (←shareToCs eq0s numAlloc expr).2
-      | .isZero expr => return (←isZeroToCs eq0s numAlloc expr).2
+      | .isZero expr => return (←isZero eq0s numAlloc expr).2
       | .num2bits width expr => return (←num2bitsToCs eq0s numAlloc width expr).2
       | .fpmul w k a b p' => sorry
-    ) (Array.emptyWithCapacity (circuit.map ConstraintSystem.num_constraints).sum , numInputs)).run σ
+    ) (Array.emptyWithCapacity (circuit.map ConstraintSystem.num_constraints).sum , numInputs)).run σMapped
   ⟨eq0s, σPost⟩
 
-end Clap
+end Clap.ConstraintSystem
