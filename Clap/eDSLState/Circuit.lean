@@ -229,7 +229,7 @@ lemma eval_varStore_insert_isSome_of_isSome
 := by
   rw [eval_eq_evalRec h₁] at h ⊢
   unfold Expr.evalRec at *
-  obtain ⟨exp, wexp⟩ : ∃ a, *e = some a := by grind
+  obtain ⟨exp, wexp⟩ : ∃ a, *ₑe = some a := by grind
   split at h
   · aesop
   · expose_names

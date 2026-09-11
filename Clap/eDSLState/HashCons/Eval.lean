@@ -34,7 +34,7 @@ def evalWithCache (Γ : VarStore p) (cache : ValueCache p) (e : Expr p) : ValueC
   decreasing_by grind
 
 def evalRec (Γ : VarStore p) (e : Expr p) : Option (ZMod p) :=
-  match h : *e with
+  match h : *ₑe with
   | .none => .none
   | .some expr =>
     match expr with
@@ -49,7 +49,7 @@ def evalRec (Γ : VarStore p) (e : Expr p) : Option (ZMod p) :=
   termination_by e.ref
   decreasing_by all_goals grind
 
-def varSet (e : Expr p) : Set ℕ := match _h : *e with
+def varSet (e : Expr p) : Set ℕ := match _h : *ₑe with
   | .some (.c _) => {}
   | .some (.v idx) => {idx}
   | .some (.binary_op lhs rhs _op) =>
@@ -85,7 +85,7 @@ lemma deref_eq_of_ref_eq_prefix {e₁ e₂ : Expr p}
   (h₀ : e₁.ref = e₂.ref)
   (h₁ : e₁.wellFormed)
   (h₂ : e₁.σ.exprs.isPrefixOf e₂.σ.exprs = true) :
-  *e₁ = *e₂ := by
+  *ₑe₁ = *ₑe₂ := by
   unfold deref
   rcases eq₁ : e₁.σ.exprs with ⟨l₁⟩
   rcases eq₂ : e₂.σ.exprs with ⟨l₂⟩
@@ -216,15 +216,15 @@ section MemVarset
 variable {var : ℕ} {e : Expr p} {x x₁ x₂ : ExprRef} {op : BinaryOp}
 
 @[grind =>]
-lemma mem_varSet_of_deref_c (h : *e = .some (.c x)) : var ∈ varSet e ↔ False := by
+lemma mem_varSet_of_deref_c (h : *ₑe = .some (.c x)) : var ∈ varSet e ↔ False := by
   grind [varSet]
 
 @[grind =>]
-lemma mem_varSet_of_deref_v (h : *e = .some (.v x)) : var ∈ varSet e ↔ var = x := by
+lemma mem_varSet_of_deref_v (h : *ₑe = .some (.v x)) : var ∈ varSet e ↔ var = x := by
   grind [varSet]
 
 @[grind =>]
-lemma mem_varSet_of_deref_binOp (h : *e = .some (.binary_op x₁ x₂ op)) :
+lemma mem_varSet_of_deref_binOp (h : *ₑe = .some (.binary_op x₁ x₂ op)) :
   var ∈ varSet e ↔ var ∈ (Expr.mk x₁ e.σ).varSet ∨ var ∈ (Expr.mk x₂ e.σ).varSet := by
   grind [=varSet]
 
@@ -247,7 +247,7 @@ lemma evalRec_eq_none_of_not_wellFormed (h : ¬e.wellFormed) : evalRec Γ e = .n
 
 @[grind =>]
 lemma evalRec_eq_none_of_ {idx}
-  (h₁ : *e = .some (.v idx)) (h₂ : idx ∉ Γ) : evalRec Γ e = .none := by
+  (h₁ : *ₑe = .some (.v idx)) (h₂ : idx ∉ Γ) : evalRec Γ e = .none := by
   unfold evalRec
   grind
 
@@ -264,14 +264,14 @@ lemma binaryOp_eq_none_iff {p} {f : ZMod p → ZMod p → ZMod p} {a b : Option 
   aesop (add simp Option.map)
 
 @[grind ->]
-lemma wellFormed_of_deref_eq_binop {lhs rhs op} (h : *e = some (CacheExpr.binary_op lhs rhs op)) :
+lemma wellFormed_of_deref_eq_binop {lhs rhs op} (h : *ₑe = some (CacheExpr.binary_op lhs rhs op)) :
   (Expr.mk lhs e.σ).wellFormed ∧ (Expr.mk rhs e.σ).wellFormed := by
   grind
 
 @[grind ->]
 lemma evalRec_eq_none_of_binOp_evalRec_eq_none {lhs rhs op}
   (h₁ : evalRec Γ ⟨lhs, e.σ⟩ = .none ∨ evalRec Γ ⟨rhs, e.σ⟩ = .none)
-  (h₂ : *e = .some (CacheExpr.binary_op lhs rhs op)) :
+  (h₂ : *ₑe = .some (CacheExpr.binary_op lhs rhs op)) :
   evalRec Γ e = .none := by
   rcases e with ⟨ref, σ⟩
   simp at *
@@ -338,7 +338,7 @@ lemma isSome_evalRec_insert_of_isSome_evalRec {k : ℕ} {v : ZMod p}
 
 @[grind =>]
 lemma evalRec_eq_none_of_deref_eq_none
-  (h: *e = .none)
+  (h: *ₑe = .none)
 :
   evalRec Γ e = .none
 := by
@@ -348,7 +348,7 @@ lemma evalRec_eq_none_of_deref_eq_none
 @[grind .]
 lemma evalRec_eq_of_deref_eq_some_v
   {idx}
-  (h: *e = .some (CacheExpr.v idx))
+  (h: *ₑe = .some (CacheExpr.v idx))
 :
   evalRec Γ e = Γ[idx]?
 := by
@@ -358,7 +358,7 @@ lemma evalRec_eq_of_deref_eq_some_v
 @[grind .]
 lemma evalRec_eq_of_deref_eq_some_add
   {lhs rhs}
-  (h: *e = .some (CacheExpr.binary_op lhs rhs .add))
+  (h: *ₑe = .some (CacheExpr.binary_op lhs rhs .add))
 :
   evalRec Γ e =
   (· + ·) <$> evalRec Γ ⦃lhs, e.σ⦄ <*> evalRec Γ ⦃rhs, e.σ⦄
@@ -369,7 +369,7 @@ lemma evalRec_eq_of_deref_eq_some_add
 @[grind .]
 lemma evalRec_eq_of_deref_eq_some_sub
   {lhs rhs}
-  (h: *e = .some (CacheExpr.binary_op lhs rhs .sub))
+  (h: *ₑe = .some (CacheExpr.binary_op lhs rhs .sub))
 :
   evalRec Γ e =
   (· - ·) <$> evalRec Γ ⦃lhs, e.σ⦄ <*> evalRec Γ ⦃rhs, e.σ⦄
@@ -380,7 +380,7 @@ lemma evalRec_eq_of_deref_eq_some_sub
 @[grind .]
 lemma evalRec_eq_of_deref_eq_some_mul
   {lhs rhs}
-  (h: *e = .some (CacheExpr.binary_op lhs rhs .mul))
+  (h: *ₑe = .some (CacheExpr.binary_op lhs rhs .mul))
 :
   evalRec Γ e =
   (· * ·) <$> evalRec Γ ⦃lhs, e.σ⦄ <*> evalRec Γ ⦃rhs, e.σ⦄
@@ -391,7 +391,7 @@ lemma evalRec_eq_of_deref_eq_some_mul
 @[grind .]
 lemma isSome_evalRec_lhs_of_isSome_evalRec_binop
   {op lhs rhs}
-  (h_deref: *e = .some (CacheExpr.binary_op lhs rhs op))
+  (h_deref: *ₑe = .some (CacheExpr.binary_op lhs rhs op))
   (h : (evalRec Γ e).isSome = true)
 :
   (evalRec Γ ⦃lhs, e.σ⦄).isSome = true
@@ -408,7 +408,7 @@ lemma isSome_evalRec_lhs_of_isSome_evalRec_binop
 @[grind .]
 lemma isSome_evalRec_rhs_of_isSome_evalRec_binop
   {op lhs rhs}
-  (h_deref: *e = .some (CacheExpr.binary_op lhs rhs op))
+  (h_deref: *ₑe = .some (CacheExpr.binary_op lhs rhs op))
   (h : (evalRec Γ e).isSome = true)
 :
   (evalRec Γ ⦃rhs, e.σ⦄).isSome = true
@@ -433,13 +433,13 @@ lemma isSome_evalRec_of_isSome_evalRec_subset {Γbig Γsmol : VarStore p}
   . grind
 
 @[grind .]
-lemma evalRec_c {c : ZMod p} (h : *e = .some (.c c)) :
+lemma evalRec_c {c : ZMod p} (h : *ₑe = .some (.c c)) :
   evalRec Γ e = some c := by
   unfold evalRec
   grind
 
 @[grind .]
-lemma evalRec_v {ptr : ℕ} (h : *e = .some (.v ptr)) :
+lemma evalRec_v {ptr : ℕ} (h : *ₑe = .some (.v ptr)) :
   evalRec Γ e = Γ[ptr]? := by
   unfold evalRec
   grind
@@ -528,7 +528,7 @@ lemma lt_size_evalWithCache_of_lt_size (h : e.wellFormed) :
 
 lemma evalCore_evalRec
   {expr : CacheExpr p}
-  (h_lookup : *e = .some expr)
+  (h_lookup : *ₑe = .some expr)
   (h_cache : ∀ ref < e.ref, cache[ref]! = evalRec Γ ⟨ref, e.σ⟩)
 :
   evalCore Γ expr cache =
@@ -586,7 +586,7 @@ abbrev toExpr (e : ExprRef) : HashConsM p (Expr p) := do
   return ⟨e, ←get⟩
 
 abbrev deref (e : ExprRef) : HashConsM p (Option (CacheExpr p)) :=
-  get <&> (*{ref := e, σ := ·})
+  get <&> (*ₑ{ref := e, σ := ·})
 
 abbrev evalM (Γ : VarStore p) (e : HashConsM p ExprRef) : HashConsM p (Option (ZMod p)) := do
   let expr ← e
