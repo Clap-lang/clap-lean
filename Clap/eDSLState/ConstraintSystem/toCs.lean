@@ -1,7 +1,11 @@
 import Clap.eDSLState.Circuit
 import Clap.eDSLState.Varstore
 
+import Clap.eDSLState.ConstraintSystem.eq0
+import Clap.eDSLState.ConstraintSystem.fpMul
 import Clap.eDSLState.ConstraintSystem.isZero
+import Clap.eDSLState.ConstraintSystem.num2bits
+import Clap.eDSLState.ConstraintSystem.share
 
 namespace Clap
 
@@ -35,8 +39,23 @@ def num_constraints : Gate → ℕ
   | .share _ => 1
   | .isZero _ => 2
   | .num2bits w _ => w + 1
-  | .fpmul w k a b p' => 42
-
+  | .fpmul w k .. =>
+    -- `rangeCheckInputs #[] numAlloc width a b p'`
+    3 * k * w + 3 * k +
+    -- `polyMult constraints numAlloc a b`
+    2 * k - 1 +
+    -- `allocRangeChecked constraints numAlloc k width` (for `q`)
+    k * w + k +
+    -- `allocRangeChecked constraints numAlloc k width` (for `r`)
+    k * w + k +
+    -- `allocUnchecked numAlloc (2 * k - 1)`
+    0 +
+    -- `inner constraints ab t p' q r`
+    2 * k - 1 +
+    -- `check_carry_zero constraints numAlloc width t`
+    (if k == 0 then 0 else 1) +
+    -- `check_lt constraints numAlloc width r p'`
+    1 + k * (w + 3)
 
 def offsetSince (threshold idx offset : ℕ) : ℕ :=
   if idx < threshold then idx else idx + offset
@@ -46,11 +65,28 @@ Not to be confused with Colonel Allocs.
 -/
 def privateAllocs (gate : Gate) : ℕ :=
   match gate with
-  | .eq0 e => 0
-  | .share e => 0
-  | .isZero e => 1
-  | .num2bits w e => 0
-  | .fpmul w k a b p' => 42
+  | .eq0 _ => 0
+  | .share _ => 0
+  | .isZero _ => 1
+  | .num2bits .. => 0
+  | .fpmul w k .. =>
+    -- `rangeCheckInputs #[] numAlloc width a b p'`
+    3 * k * w +
+    -- `polyMult constraints numAlloc a b`
+    k +
+    -- `allocRangeChecked constraints numAlloc k width` (for `q`)
+    k * w + k +
+    -- PUBLIC: `allocRangeChecked constraints numAlloc k width` (for `r`) (I think; TODO)
+    -- k * w + k +
+    0 +
+    -- `allocUnchecked numAlloc (2 * k - 1)`
+    k + 
+    -- `inner constraints ab t p' q r`
+    0 + 
+    -- `check_carry_zero constraints numAlloc width t`
+    (if k == 0 then 0 else k - 1) +
+    -- `check_lt constraints numAlloc width r p'`
+    k * (w + 2)
 
 def offsetIdx (circuit : Circuit) : ℕ → ℕ :=
   (·.1) <| circuit.foldr (init := (id, circuit.numAllocStep))
@@ -109,11 +145,11 @@ def Circuit.toCs {p : ℕ} (circuit : Circuit) (σ : HashConsSt p) (numInputs : 
   let ((eq0s, _numAlloc), σPost) :=
     (circuit.foldlM (m := HashConsM p) (λ (eq0s, numAlloc) gate => do
       match gate with
-      | .eq0 expr => eq0ToCs eq0s numAlloc expr
-      | .share expr => return (←shareToCs eq0s numAlloc expr).2
+      | .eq0 expr => eq0 eq0s numAlloc expr
+      | .share expr => return (←share eq0s numAlloc expr).2
       | .isZero expr => return (←isZero eq0s numAlloc expr).2
-      | .num2bits width expr => return (←num2bitsToCs eq0s numAlloc width expr).2
-      | .fpmul w k a b p' => sorry
+      | .num2bits width expr => return (←num2bits eq0s numAlloc width expr).2
+      | .fpmul w k a b p' => return (←fpMul eq0s numAlloc w k a b p').2
     ) (Array.emptyWithCapacity (circuit.map ConstraintSystem.num_constraints).sum , numInputs)).run σMapped
   ⟨eq0s, σPost⟩
 

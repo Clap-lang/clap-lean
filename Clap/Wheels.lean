@@ -158,6 +158,7 @@ def natToLimbs {p : ℕ} (w : ℕ) : ℕ → ℕ → List (ZMod p)
     | 0,     _ => []
     | k + 1, n => ((n % 2^w : ℕ) : ZMod p) :: natToLimbs w k (n / 2^w)
 
+@[simp, grind =]
 lemma length_natToLimbs {p w k n : ℕ}:
   (natToLimbs (p := p) w k n).length =
   k

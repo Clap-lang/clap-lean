@@ -17,7 +17,7 @@ def trace_capacity : Gate → ℕ
   | .num2bits w _ => w
   | .fpmul .. => 42
 
-def run (inputs : Array (ZMod p)) : Array (ZMod p) :=
+def run (inputs : Array (ZMod p)) (σ : HashConsSt p) : Array (ZMod p) :=
   let max := (wg.circuit.map (λ gate => match gate with
     | .eq0 _e => 0
     | .share e => e
@@ -38,7 +38,7 @@ def run (inputs : Array (ZMod p)) : Array (ZMod p) :=
       let e := cache[expr]!.get!
       let bits := num2bitsLsbPureV width e
       trace.append bits.toArray
-    | .fpmul .. =>
+    | .fpmul w k a b p' =>
       trace.append #[42]
   ) (inputs.append (Array.emptyWithCapacity (wg.circuit.map trace_capacity).sum))
 

@@ -77,7 +77,7 @@ def polyMult
 
 -- if k = 0 then 0 allocations, 0 constraints
 -- else k-1 allocations
---      0 constraints
+--      1 constraints
 /-
         + (k-1) * 1 + num2bits.num_constraints (width + Nat.clog 2 k + 2)
         + 1
@@ -165,6 +165,7 @@ def check_lt
 : HashConsM p (Array (BoundRef p) × ℕ) := do
   check_lt_impl constraints numAlloc width (←mkConstant 0) a b
 
+-- 2 * k - 1 constraints, 0 allocs
 def inner
   {p}
   {k}
