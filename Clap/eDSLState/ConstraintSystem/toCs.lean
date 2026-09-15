@@ -80,13 +80,14 @@ def privateAllocs (gate : Gate) : ℕ :=
     -- k * w + k +
     0 +
     -- `allocUnchecked numAlloc (2 * k - 1)`
-    k + 
+    k +
     -- `inner constraints ab t p' q r`
-    0 + 
+    0 +
     -- `check_carry_zero constraints numAlloc width t`
     (if k == 0 then 0 else k - 1) +
     -- `check_lt constraints numAlloc width r p'`
     k * (w + 2)
+    -- TODO replace with subtraction of circuit step numAlloc from cs numalloc
 
 def offsetIdx (circuit : Circuit) : ℕ → ℕ :=
   (·.1) <| circuit.foldr (init := (id, circuit.numAllocStep))

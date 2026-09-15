@@ -1,4 +1,9 @@
 import Clap.eDSLState.Circuit
+import Clap.eDSLState.WitnessGenerator.eq0
+import Clap.eDSLState.WitnessGenerator.fpMul
+import Clap.eDSLState.WitnessGenerator.isZero
+import Clap.eDSLState.WitnessGenerator.num2bits
+import Clap.eDSLState.WitnessGenerator.share
 
 namespace Clap
 
@@ -17,7 +22,7 @@ def trace_capacity : Gate → ℕ
   | .num2bits w _ => w
   | .fpmul .. => 42
 
-def run (inputs : Array (ZMod p)) (σ : HashConsSt p) : Array (ZMod p) :=
+def run (inputs : Array (ZMod p)) : Array (ZMod p) :=
   let max := (wg.circuit.map (λ gate => match gate with
     | .eq0 _e => 0
     | .share e => e

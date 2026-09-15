@@ -10,9 +10,8 @@ section Bob
 
 open HashConsM
 
---k*width+k constraints, k*width allocations
 def rangeCheckVec {p k : ℕ} (constraints : Array (BoundRef p)) (numAlloc width : ℕ) (vec : Vector (BoundRef p) k) : HashConsM p (Array (BoundRef p) × ℕ) := do
-  vec.foldlM (b := (constraints, numAlloc)) fun (constraints, numAlloc) elem ↦ do
+  vec.foldrM (b := (constraints, numAlloc)) fun elem (constraints, numAlloc) ↦ do
     let (_bits, constraints, numAlloc) ← num2bits constraints numAlloc width elem
     return (constraints, numAlloc)
 
@@ -23,7 +22,6 @@ def evalPoly {p k : ℕ} (coeffs : Vector (BoundRef p) k) (x : ZMod p) : HashCon
       acc + term
     ) (←mkConstant 0)
 
--- return size 2*k - 1
 def assertPolyEqProd {p k : ℕ}
     (a : Vector (BoundRef p) k)
     (b : Vector (BoundRef p) k)
@@ -33,7 +31,6 @@ def assertPolyEqProd {p k : ℕ}
       let mul ← (←evalPoly a k) * (←evalPoly b k)
       mul - (←evalPoly c k)
 
--- 3*k*width + 3*k constraints, 3*k*width allocations
 def rangeCheckInputs
   {p k : ℕ}
   (constraints : Array (BoundRef p)) (numAlloc : ℕ)
@@ -45,7 +42,6 @@ def rangeCheckInputs
   let (constraints, numAlloc) ← rangeCheckVec constraints numAlloc width p'
   return (constraints, numAlloc)
 
--- k allocations
 def allocUnchecked
   {p : ℕ}
   (numAlloc : ℕ)
@@ -54,7 +50,6 @@ def allocUnchecked
   let vec ← Vector.ofFnM fun i : Fin k ↦ mkVar (numAlloc + i)
   return (vec, numAlloc + k)
 
---k*width+k constraints, k*width+k allocations
 def allocRangeChecked
   {p : ℕ}
   (constraints : Array (BoundRef p)) (numAlloc : ℕ)
@@ -65,7 +60,6 @@ def allocRangeChecked
   let (constraints, numAlloc) ← rangeCheckVec constraints numAlloc width vec
   return (vec, (constraints, numAlloc))
 
--- 2*k-1 constraints, k allocations
 def polyMult
   {p k : ℕ}
   (constraints : Array (BoundRef p)) (numAlloc : ℕ)
@@ -165,7 +159,6 @@ def check_lt
 : HashConsM p (Array (BoundRef p) × ℕ) := do
   check_lt_impl constraints numAlloc width (←mkConstant 0) a b
 
--- 2 * k - 1 constraints, 0 allocs
 def inner
   {p}
   {k}
