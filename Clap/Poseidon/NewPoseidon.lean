@@ -1,6 +1,8 @@
 import Clap.eDSLState.HashCons.HashConsM
 import Clap.Poseidon.Constant
 import Clap.eDSLState.HashCons.Eval
+import Clap.eDSLState.Monad
+import Clap.eDSLState.Convert.Specialised
 
 namespace Clap
 
@@ -8,18 +10,18 @@ open HashConsM
 
 variable {p : ℕ}
 
-def sigma (x : ExprRef) : HashConsM p ExprRef := do
-  let x2 ← mkMul x x
-  let x4 ← mkMul x2 x2
-  mkMul x4 x
+def sigma (x : BoundRef p) : ClapM p ExprRef := do
+  let x2 ← x * x
+  let x4 ← x2 * x2
+  x4 * x
 
 def ark
   {t c : ℕ}
-  (state : Vector ExprRef t)
-  (C : Vector ExprRef c)
+  (state : Vector (BoundRef p) t)
+  (C : Vector (BoundRef p) c)
   (r : ℕ)
-: HashConsM p (Vector ExprRef t) :=
-  state.mapIdxM (fun i s ↦ mkAdd s C[i + r]!)
+: ClapM p (Vector (BoundRef p) t) :=
+  state.mapIdxM (fun i s ↦ s + C[i + r]!)
 
 def _root_.Vector.zipWithM.{u, v, w, x}
   {n : ℕ} {α : Type u} {β : Type v} {φ : Type w} {m : Type w → Type x} [Monad m]
@@ -38,46 +40,46 @@ def _root_.Vector.zipWithM.{u, v, w, x}
     return Vector.mk ⟨z :: zs.toList⟩ (by grind)
 
 def mix {t : ℕ}
-  (state : Vector ExprRef t)
-  (M : Vector (Vector ExprRef t) t)
-: HashConsM p (Vector ExprRef t) :=
+  (state : Vector (BoundRef p) t)
+  (M : Vector (Vector (BoundRef p) t) t)
+: ClapM p (Vector (BoundRef p) t) :=
   state.mapIdxM (fun (i : ℕ) _ ↦ do
-    let x ← state.zipWithM (fun (sj : ExprRef) (row : Vector ExprRef t) ↦ mkMul row[i]! sj) M
-    x.foldrM (λ x y => mkAdd x y) (←mkConstant 0)
+    let x ← state.zipWithM (fun (sj : (BoundRef p)) (row : Vector (BoundRef p) t) ↦ row[i]! * sj) M
+    x.foldrM (λ x y => x + y) (←liftM (mkConstant 0))
   )
 
 def mixLast {t : ℕ}
-  (state : Vector ExprRef t)
-  (M : Vector (Vector ExprRef t) t)
+  (state : Vector (BoundRef p) t)
+  (M : Vector (Vector (BoundRef p) t) t)
   (s : ℕ)
-: HashConsM p ExprRef := do
-  let x ← (state.zipWithM (fun (sj : ExprRef) (row : Vector ExprRef t) ↦ mkMul row[s]! sj) M)
-  x.foldrM (λ x y => mkAdd x y) (←mkConstant 0)
+: ClapM p (BoundRef p) := do
+  let x ← (state.zipWithM (fun (sj : (BoundRef p)) (row : Vector (BoundRef p) t) ↦ mkMul row[s]! sj) M)
+  x.foldrM (λ x y => mkAdd x y) (←liftM (mkConstant 0))
 
 def mixS {t s : ℕ}
   (r : ℕ)
-  (state : Vector ExprRef t)
-  (S : Vector ExprRef s)
-: HashConsM p (Vector ExprRef t) := do
+  (state : Vector (BoundRef p) t)
+  (S : Vector (BoundRef p) s)
+: ClapM p (Vector (BoundRef p) t) := do
   -- let t : ℕ := state.length
   let base : ℕ := (2 * t - 1) * r
   return ⟨#[←dotProduct base] ++ (←tail base).toArray, sorry⟩ -- t must not be 0
 where
   /-- `out[0] = Σᵢ S[base + i] · in[i]` — full dot product for element 0 -/
-  dotProduct (base : ℕ) : HashConsM p ExprRef := do
+  dotProduct (base : ℕ) : ClapM p (BoundRef p) := do
     let s' : Vector _ t := ⟨S.extract base (base+t) |>.toArray, sorry⟩
-    (←state.zipWithM (mkMul · ·) s').foldrM (λ x y => mkAdd x y) (←mkConstant 0)
+    (←state.zipWithM (· * ·) s').foldrM (λ x y => mkAdd x y) (←liftM (mkConstant 0))
   /-- `out[i] = in[i] + in[0] · S[base + t + i − 1]` for `i ∈ [1, t)` -/
-  tail (base : ℕ) : HashConsM p (Vector ExprRef (t-1)) := do
-    (state.drop 1).mapIdxM (fun i sᵢ ↦ do mkAdd sᵢ (←mkMul state[0]! S[base + t + i]!))
+  tail (base : ℕ) : ClapM p (Vector (BoundRef p) (t-1)) := do
+    (state.drop 1).mapIdxM (fun i sᵢ ↦ do mkAdd sᵢ (←state[0]! * S[base + t + i]!))
 
 def poseidonEx {n c s : ℕ}
-  (inputs : Vector ExprRef n)
-  (initState : ExprRef)
-  (C : Vector ExprRef c)
-  (S : Vector ExprRef s)
-  (M P : Vector (Vector ExprRef (1+n)) (1+n))
-: HashConsM p ExprRef := do
+  (inputs : Vector (BoundRef p) n)
+  (initState : (BoundRef p))
+  (C : Vector (BoundRef p) c)
+  (S : Vector (BoundRef p) s)
+  (M P : Vector (Vector (BoundRef p) (1+n)) (1+n))
+: ClapM p (BoundRef p) := do
   -- Poseidon parameters (from circomlib's PoseidonEx template)
   -- N_ROUNDS_P[t-2] for t ∈ [2, 17]
   let N_ROUNDS_P : List ℕ := [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
@@ -118,13 +120,13 @@ def poseidon {n c s}
   (C : Vector ExprRef c)
   (S : Vector ExprRef s)
   (M P : Vector (Vector ExprRef (1+n)) (1+n))
-: HashConsM p ExprRef := do
-  poseidonEx inputs (←mkConstant 0) C S M P
+: ClapM p ExprRef := do
+  poseidonEx inputs (←liftM (mkConstant 0)) C S M P
 
-def allocateVector {n} (values : Vector (ZMod p) n) : HashConsM p (Vector ExprRef n) := do
-  values.mapM mkConstant
+def allocateVector {n} (values : Vector (ZMod p) n) : ClapM p (Vector ExprRef n) := do
+  values.mapM (liftM ∘ mkConstant)
 
-def poseidonBN254 {n} (inputs : Vector ExprRef n) : HashConsM Primes.bn254 ExprRef := do
+def poseidonBN254 {n} (inputs : Vector ExprRef n) : ClapM Primes.bn254 ExprRef := do
   let t := 1 + n -- element 2 is at list index 0 and so on
   let C ← allocateVector (Clap.Poseidon.Constant.C t)
   let S ← allocateVector (Clap.Poseidon.Constant.S t)
@@ -132,44 +134,37 @@ def poseidonBN254 {n} (inputs : Vector ExprRef n) : HashConsM Primes.bn254 ExprR
   let P ← (Clap.Poseidon.Constant.P t).mapM allocateVector
   poseidon inputs C S M P
 
-def mkSigmaExpr (p : ℕ) (n : ℕ) : HashConsM p ExprRef := do
-  let x ← HashConsM.saveExpr (.c 2)
-  Array.range n |>.foldlM (init := x) (λ x _ => sigma x)
-
-def evalSigma (p : ℕ) : HashConsM p (Option (ZMod p)) := do
-  let x ← mkSigmaExpr p 1028
-  let val := [{}, ←get|x]
-  return val
-
 section examples
 
-private def test₁ : HashConsM Primes.bn254 (Option (ZMod Primes.bn254)) := do
-  let x ← mkConstant 1
-  let y ← mkConstant 2
+private def test₁ : ClapM Primes.bn254 (Option (ZMod Primes.bn254)) := do
+  let x ← liftM (mkConstant (p := Primes.bn254) 1)
+  let y ← liftM (mkConstant (p := Primes.bn254) 2)
   let z ← poseidonBN254 #v[x, y]
-  return [{}, ←get|z]
+  let σ ← getThe (HashConsSt Primes.bn254)
+  return [{}, σ|z]
 
 /--
 circomlib test vector: hash([1, 2]) with t=3
 https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L50
 -/
 example :
-  (StateT.run' test₁ (HashConsSt.empty Primes.bn254)).run =
+  test₁.getResult 0 (HashConsSt.empty Primes.bn254) =
   .some 7853200120776062878684798364095072458815029376092732009249414926327459813530 := by
   native_decide
 
-private def test₂ : HashConsM Primes.bn254 (Option (ZMod Primes.bn254)) := do
-  let x ← mkConstant 3
-  let y ← mkConstant 4
+private def test₂ : ClapM Primes.bn254 (Option (ZMod Primes.bn254)) := do
+  let x ← mkConstant (p := Primes.bn254) 3
+  let y ← mkConstant (p := Primes.bn254) 4
   let z ← poseidonBN254 #v[x, y]
-  return [{}, ←get|z]
+  let σ ← getThe (HashConsSt Primes.bn254)
+  return [{}, σ|z]
 
 /--
 circomlib test vector: hash([3, 4]) with t=3
 https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L60
 -/
 example :
-  (StateT.run' test₂ (HashConsSt.empty Primes.bn254)).run =
+  test₂.getResult 0 (HashConsSt.empty Primes.bn254) =
   some 14763215145315200506921711489642608356394854266165572616578112107564877678998 := by
   native_decide
 
