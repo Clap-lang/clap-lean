@@ -218,7 +218,6 @@ namespace fpMul
 def num_constraints (width k: ℕ) : ℕ :=
   if k = 0 then 1
   else
-    -- TODO fix priority on deref
     (Nat.mul 2 (k-1)) * (Nat.clog 2 (2 * k - 1) : ℕ) +
     (8*k-2) * width +
     20*k
@@ -471,10 +470,7 @@ lemma rangeCheckVec_numAlloc
   . obtain _ | k := k
     . exfalso; grind
     simp at ⊢ ih
-    rewrite [ih (k := k)]
-    . simp
-      grind
-    . grind
+    grind
 
 @[simp, grind =]
 lemma allocRangeChecked_num_constraints

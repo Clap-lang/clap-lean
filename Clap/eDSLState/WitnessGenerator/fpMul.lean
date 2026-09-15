@@ -11,9 +11,9 @@ section FpMulImplementation
 
 open CompPoly HashConsM
 
-variable {p : ℕ} {var : Type} [inst : Fact (Nat.Prime p)] [inst' : Fact (p > 2)]
+variable {p : ℕ} {var : Type} -- [inst' : Fact (p > 2)]
 
-def toCompPoly {k : ℕ} (vec : Vector (ZMod p) k) : CPolynomial (ZMod p) :=
+def toCompPoly {p k : ℕ} [inst : Fact (Nat.Prime p)] (vec : Vector (ZMod p) k) : CPolynomial (ZMod p) :=
   List.foldr (fun i p ↦ p + CPolynomial.C (vec[i]) * CPolynomial.X ^ i.1) 0 (List.finRange k)
 
 def rangeCheckVec
@@ -35,7 +35,7 @@ def rangeCheckInputs
   let trace := rangeCheckVec cache trace width p'
   trace
 
-def carry (w : ℕ) : List (ZMod p) → ZMod p → List (ZMod p)
+def carry [inst : Fact (Nat.Prime p)] (w : ℕ) : List (ZMod p) → ZMod p → List (ZMod p)
 | l :: l' :: ls, c => let c' : ZMod p := (l + c) / (2 ^ w); c' :: carry w (l' :: ls) c'
 | _ :: []      , _ => []
 | []           , _ => []
@@ -65,7 +65,7 @@ def insertVecInCache
   let cache := refs.foldr (λ ref cache => Expr.evalWithCache varStore cache ⦃ref, σ⦄) cache
   return (cache, refs)
 
-def checkCarryZeroUnsafe {k : ℕ}
+def checkCarryZeroUnsafe [inst : Fact (Nat.Prime p)] {k : ℕ}
   (cache : ValueCache p) (trace : Array (ZMod p)) (w : ℕ) (t : Vector ExprRef k)
 : HashConsM p (Array (ZMod p)) := do
   let carry : List (ZMod p) := carry w (t.toList.map (cache[·]!.get!)) 0
@@ -114,7 +114,7 @@ def checkLtUnsafe {k : ℕ}
   check_lt_wg' cache trace w (←mkConstant 0) t₀ t₁
 
 
-def polyMult
+def polyMult [inst : Fact (Nat.Prime p)]
   {k}
   (cache : ValueCache p) (trace : Array (ZMod p))
   (a b : Vector ExprRef k)
@@ -140,7 +140,7 @@ def allocRangeCheckedUnsafe
   rangeCheckVec cache trace width values
 
 
-def fpMulUnsafe {k : ℕ}
+def fpMulUnsafe [inst : Fact (Nat.Prime p)] {k : ℕ}
   (cache : ValueCache p) (trace : Array (ZMod p))
   (width : ℕ) (a b p' : Vector ExprRef k)
 : HashConsM p (ValueCache p × Array (ZMod p)) := do

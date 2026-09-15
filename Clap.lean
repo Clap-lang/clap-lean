@@ -6,7 +6,12 @@ import Clap.eDSLState.HashCons.HashConsM
 import Clap.eDSLState.HashCons.HashConsSt
 import Clap.eDSLState.Circuit
 import Clap.eDSLState.CircuitEvalSt
--- import Clap.eDSLState.ConstraintSystem -- TODO
+import Clap.eDSLState.ConstraintSystem.eq0
+import Clap.eDSLState.ConstraintSystem.fpMul
+import Clap.eDSLState.ConstraintSystem.isZero
+import Clap.eDSLState.ConstraintSystem.num2bits
+import Clap.eDSLState.ConstraintSystem.share
+import Clap.eDSLState.ConstraintSystem.toCs
 import Clap.eDSLState.eDSL
 import Clap.eDSLState.Expr
 import Clap.eDSLState.Gate
@@ -16,7 +21,12 @@ import Clap.eDSLState.Monad
 -- import Clap.eDSLState.Test -- TODO(wrt. Constraints/WG)
 import Clap.eDSLState.Varstore
 import Clap.eDSLState.Wheels
--- import Clap.eDSLState.WitnessGenerator -- TODO
+import Clap.eDSLState.WitnessGenerator.eq0
+import Clap.eDSLState.WitnessGenerator.fpMul
+import Clap.eDSLState.WitnessGenerator.isZero
+import Clap.eDSLState.WitnessGenerator.num2bits
+import Clap.eDSLState.WitnessGenerator.share
+import Clap.eDSLState.WitnessGenerator.toWg
 
 import Clap.Lang.F.Extensions
 import Clap.Lang.F.mkAdd
