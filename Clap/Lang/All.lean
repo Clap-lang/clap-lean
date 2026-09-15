@@ -5,6 +5,7 @@ import Clap.Lang.F.mkMul
 import Clap.Lang.F.mkSub
 import Clap.Lang.F.Tactics
 import Clap.Lang.FArray.OneHotRaw
+import Clap.Lang.FArray.num2bits
 import Clap.Lang.FArray.singleOneArray
 import Clap.Lang.FArray.sum
 import Clap.Lang.FB.and
