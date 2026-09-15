@@ -30,14 +30,14 @@ def run [Fact (Nat.Prime p)] (wg : WitnessGenerator p) (inputs : Array (ZMod p))
     | .num2bits _w e => e
     | .fpmul _ k a b p' => if h : k = 0 then 0 else (a ++ b ++ p').toList.max (by simpa)
   )).max?.getD 0
-  let cache := Expr.evalWithCache (.ofArray (inputs.zipIdx.map Prod.swap)) #[] ⦃max, wg.σ⦄
-  wg.circuit.foldl (λ trace gate => match gate with
-    | .eq0 expr => eq0 cache trace expr
-    | .share expr => share cache trace expr
-    | .isZero expr => isZeroUnsafe cache trace expr
-    | .num2bits width expr => num2bitsUnsafe cache trace width expr
-    | .fpmul w k a b p' => ((fpMulUnsafe cache trace w a b p').getResult wg.σ).2
-  ) (inputs.append (Array.emptyWithCapacity (wg.circuit.map trace_capacity).sum))
+  let cache : ValueCache p := Expr.evalWithCache (.ofArray (inputs.zipIdx.map Prod.swap)) #[] ⦃max, wg.σ⦄
+  (·.2) <| (wg.circuit.foldlM (λ ((cache, trace) : ValueCache p × _) gate => do match gate with
+    | Gate.eq0 expr => return (cache, eq0 cache trace expr)
+    | Gate.share expr => return (cache, share cache trace expr)
+    | Gate.isZero expr => return (cache, isZeroUnsafe cache trace expr)
+    | Gate.num2bits width expr => return (cache, num2bitsUnsafe cache trace width expr)
+    | Gate.fpmul w k a b p' => fpMulUnsafe cache trace w a b p'
+   ) (cache, inputs.append (Array.emptyWithCapacity (wg.circuit.map trace_capacity).sum))).getResult wg.σ
 
 end WitnessGenerator
 
