@@ -19,6 +19,7 @@ import Clap.eDSLState.Wheels
 -- import Clap.eDSLState.WitnessGenerator -- TODO
 
 import Clap.Lang.F.Extensions
+import Clap.Lang.F.lessThan
 import Clap.Lang.F.mkAdd
 import Clap.Lang.F.mkF
 import Clap.Lang.F.mkMul
