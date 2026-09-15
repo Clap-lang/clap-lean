@@ -19,6 +19,15 @@ def lessThan (w : ℕ) (a b : F p) : ClapM p (FB p) := do
   let d ← num2bits (w + 1) d
   not d[w]
 
+def lessEqThan (w : ℕ) (a b : F p) : ClapM p (FB p) :=
+  lessThan w a (b + 1)
+
+def greaterThan (w : ℕ) (a b : F p) : ClapM p (FB p) :=
+  lessThan w b a
+
+def greaterEqThan (w : ℕ) (a b : F p) : ClapM p (FB p) :=
+  lessThan w b (a + 1)
+
 namespace lessThan
 
 /-- The "offset trick": for `a, b ∈ [0, 2^w)` and `2^(w+1) < p`, `a - b + 2^w` never wraps the
