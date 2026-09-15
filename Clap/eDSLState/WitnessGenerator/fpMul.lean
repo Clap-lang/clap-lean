@@ -11,10 +11,12 @@ section FpMulImplementation
 
 open CompPoly HashConsM
 
-variable {p : ℕ} {var : Type} -- [inst' : Fact (p > 2)]
+variable {p : ℕ} {var : Type}
 
-def toCompPoly {p k : ℕ} [inst : Fact (Nat.Prime p)] (vec : Vector (ZMod p) k) : CPolynomial (ZMod p) :=
-  List.foldr (fun i p ↦ p + CPolynomial.C (vec[i]) * CPolynomial.X ^ i.1) 0 (List.finRange k)
+instance {p : ℕ} [p.AtLeastTwo] : Fact (1 < p) := ⟨by grind [cases Nat.AtLeastTwo]⟩
+
+def toCompPoly {p k : ℕ} [p.AtLeastTwo] (vec : Vector (ZMod p) k) : CPolynomial (ZMod p) :=
+  List.foldr (fun i poly ↦ poly + CPolynomial.C (vec[i]) * CPolynomial.X (R := ZMod p) ^ i.1) 0 (List.finRange k)
 
 def rangeCheckVec
   {k}
@@ -35,7 +37,7 @@ def rangeCheckInputs
   let trace := rangeCheckVec cache trace width p'
   trace
 
-def carry [inst : Fact (Nat.Prime p)] (w : ℕ) : List (ZMod p) → ZMod p → List (ZMod p)
+def carry [Fact (Nat.Prime p)] (w : ℕ) : List (ZMod p) → ZMod p → List (ZMod p)
 | l :: l' :: ls, c => let c' : ZMod p := (l + c) / (2 ^ w); c' :: carry w (l' :: ls) c'
 | _ :: []      , _ => []
 | []           , _ => []
@@ -65,7 +67,7 @@ def insertVecInCache
   let cache := refs.foldr (λ ref cache => Expr.evalWithCache varStore cache ⦃ref, σ⦄) cache
   return (cache, refs)
 
-def checkCarryZeroUnsafe [inst : Fact (Nat.Prime p)] {k : ℕ}
+def checkCarryZeroUnsafe {k : ℕ} [Fact (Nat.Prime p)]
   (cache : ValueCache p) (trace : Array (ZMod p)) (w : ℕ) (t : Vector ExprRef k)
 : HashConsM p (Array (ZMod p)) := do
   let carry : List (ZMod p) := carry w (t.toList.map (cache[·]!.get!)) 0
@@ -113,8 +115,10 @@ def checkLtUnsafe {k : ℕ}
 : HashConsM p (ValueCache p × Array (ZMod p)) := do
   check_lt_wg' cache trace w (←mkConstant 0) t₀ t₁
 
+instance {p : ℕ} [prime : Fact (Nat.Prime p)] : p.AtLeastTwo := ⟨Nat.Prime.two_le prime.out⟩
 
-def polyMult [inst : Fact (Nat.Prime p)]
+def polyMult
+  [p.AtLeastTwo]
   {k}
   (cache : ValueCache p) (trace : Array (ZMod p))
   (a b : Vector ExprRef k)
@@ -140,7 +144,7 @@ def allocRangeCheckedUnsafe
   rangeCheckVec cache trace width values
 
 
-def fpMulUnsafe [inst : Fact (Nat.Prime p)] {k : ℕ}
+def fpMulUnsafe {k : ℕ} [Fact (Nat.Prime p)]
   (cache : ValueCache p) (trace : Array (ZMod p))
   (width : ℕ) (a b p' : Vector ExprRef k)
 : HashConsM p (ValueCache p × Array (ZMod p)) := do

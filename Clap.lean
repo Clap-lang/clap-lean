@@ -18,7 +18,7 @@ import Clap.eDSLState.Gate
 import Clap.eDSLState.IsValid
 import Clap.eDSLState.Monad
 -- import Clap.eDSLState.Plan -- TODO(probably Discard)
--- import Clap.eDSLState.Test -- TODO(wrt. Constraints/WG)
+import Clap.eDSLState.Test
 import Clap.eDSLState.Varstore
 import Clap.eDSLState.Wheels
 import Clap.eDSLState.WitnessGenerator.eq0

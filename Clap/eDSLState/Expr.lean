@@ -27,6 +27,8 @@ Dereference is valid.
 -/
 def wellFormed (e : Expr p) : Prop := e.ref < e.σ.size
 
+lemma wellFormed_mk_of_lt {ref} {σ : HashConsSt p} (h : ref < σ.size) : wellFormed ⦃ref, σ⦄ := h
+
 instance : Decidable (wellFormed e) := inferInstanceAs <| Decidable (e.ref < e.σ.size)
 
 prefix:max "*ₑ" => deref

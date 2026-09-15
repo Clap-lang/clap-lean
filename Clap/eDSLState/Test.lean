@@ -1,59 +1,62 @@
-import Clap.eDSLState.ConstraintSystem
-import Clap.eDSLState.WitnessGenerator
+import Clap.eDSLState.ConstraintSystem.toCs
+import Clap.eDSLState.WitnessGenerator.toWg
 
 namespace Clap.Tests
 
 def testCache : HashConsSt 47 where
   exprs := #[
-    .v 0,
-    .v 1,
-    .v 2,
-    .binary_op 0 1 .add,
-    .binary_op 3 2 .sub,
-    .v 4
+    .v 0, -- 0
+    .v 1, -- 1 
+    .v 2, -- 2
+    .binary_op 0 1 .add, -- 3
+    .binary_op 3 2 .sub, -- 4
+    .v 3 -- 5
   ]
   wellFormed := by decide
 
 -- NOTE this is a bad example and I'm only doing it like this because the monad doesn't work yet
-def testCircuit : Circuit 47 := #[
-  .isZero 4,
-  .eq0 5
+def testCircuit : Circuit := #[
+  .isZero 4, -- (.v 0 + .v 1) - .v 2
+  .eq0 5 -- .v 2 ≠ .v 0 + .v 1
+]
+#eval List.range 47 |>.map fun x ↦ (x : ZMod 47)⁻¹
+def testCs := testCircuit.toCs testCache 3
+def testWg := testCircuit.toWg testCache 3
+def inputs : Array (Vector (ZMod 47) 3) := #[
+  #v[0,0,0],
+  #v[0,1,0],
+  #v[0,2,0],
+  #v[1,0,0],
+  #v[1,1,0],
+  #v[1,2,0],
+  #v[2,0,0],
+  #v[2,1,0],
+  #v[2,2,0],
+  #v[0,0,1],
+  #v[0,1,1],
+  #v[0,2,1],
+  #v[1,0,1],
+  #v[1,1,1],
+  #v[1,2,1],
+  #v[2,0,1],
+  #v[2,1,1],
+  #v[2,2,1],
+  #v[0,0,2],
+  #v[0,1,2],
+  #v[0,2,2],
+  #v[1,0,2],
+  #v[1,1,2],
+  #v[1,2,2],
+  #v[2,0,2],
+  #v[2,1,2],
+  #v[2,2,2],
 ]
 
-def testCs := testCircuit.toCs testCache 3
-def testWg := testCircuit.toWg testCache
-def inputs : Array (Array (ZMod 47)) := #[
-  #[0,0,0],
-  #[0,1,0],
-  #[0,2,0],
-  #[1,0,0],
-  #[1,1,0],
-  #[1,2,0],
-  #[2,0,0],
-  #[2,1,0],
-  #[2,2,0],
-  #[0,0,1],
-  #[0,1,1],
-  #[0,2,1],
-  #[1,0,1],
-  #[1,1,1],
-  #[1,2,1],
-  #[2,0,1],
-  #[2,1,1],
-  #[2,2,1],
-  #[0,0,2],
-  #[0,1,2],
-  #[0,2,2],
-  #[1,0,2],
-  #[1,1,2],
-  #[1,2,2],
-  #[2,0,2],
-  #[2,1,2],
-  #[2,2,2],
-]
+instance : Fact (Nat.Prime 47) := ⟨by norm_num⟩
+
 def witnesses := inputs.map (λ x => testWg.run x)
 def evaluations := witnesses.map (λ x => testCs.run x)
-def wellbehaved := (inputs.zip witnesses).map (λ (x,y) => x.isPrefixOf y) |>.all (.)
+def wellbehaved := (inputs.zip witnesses).map (λ (x,y) => x.toArray.isPrefixOf y) |>.all (.)
 def satisfiable := inputs.map (λ x => x[0]! + x[1]! != x[2]!)
 def complete := satisfiable.zip evaluations |>.map (λ (s, e) => !s || e) |>.all (.)
 def sound := satisfiable.zip evaluations |>.map (λ (s, e) => s || !e) |>.all (.) --special case
@@ -65,6 +68,6 @@ def results := witnesses.zip evaluations
 #eval complete
 #eval sound
 
-#eval testWg.run #[1,1,2]
+#eval testWg.run #v[1,1,2]
 
 end Clap.Tests

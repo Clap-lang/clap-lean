@@ -4,10 +4,12 @@ import Clap.eDSLState.WitnessGenerator.fpMul
 import Clap.eDSLState.WitnessGenerator.isZero
 import Clap.eDSLState.WitnessGenerator.num2bits
 import Clap.eDSLState.WitnessGenerator.share
+import Clap.eDSLState.ConstraintSystem.toCs
 
 namespace Clap
 
 structure WitnessGenerator (p : ℕ) where
+  numInputs : ℕ
   circuit : Circuit
   σ : HashConsSt p
 
@@ -22,7 +24,7 @@ def trace_capacity : Gate → ℕ
   | .num2bits w _ => num2bits.trace_capacity w
   | .fpmul w k .. => fpMul.trace_capacity k w
 
-def run [Fact (Nat.Prime p)] (wg : WitnessGenerator p) (inputs : Array (ZMod p)) : Array (ZMod p) :=
+def run [Fact (Nat.Prime p)] (wg : WitnessGenerator p) (inputs : Vector (ZMod p) wg.numInputs) : Array (ZMod p) :=
   let max := (wg.circuit.map (λ gate => match gate with
     | .eq0 _e => 0
     | .share e => e
@@ -30,22 +32,24 @@ def run [Fact (Nat.Prime p)] (wg : WitnessGenerator p) (inputs : Array (ZMod p))
     | .num2bits _w e => e
     | .fpmul _ k a b p' => if h : k = 0 then 0 else (a ++ b ++ p').toList.max (by simpa)
   )).max?.getD 0
-  let cache : ValueCache p := Expr.evalWithCache (.ofArray (inputs.zipIdx.map Prod.swap)) #[] ⦃max, wg.σ⦄
+  let cache : ValueCache p := Expr.evalWithCache (.ofArray (inputs.toArray.zipIdx.map Prod.swap)) #[] ⦃max, wg.σ⦄
+  
   (·.2) <| (wg.circuit.foldlM (λ ((cache, trace) : ValueCache p × _) gate => do match gate with
     | Gate.eq0 expr => return (cache, eq0 cache trace expr)
     | Gate.share expr => return (cache, share cache trace expr)
     | Gate.isZero expr => return (cache, isZeroUnsafe cache trace expr)
     | Gate.num2bits width expr => return (cache, num2bitsUnsafe cache trace width expr)
     | Gate.fpmul w k a b p' => fpMulUnsafe cache trace w a b p'
-   ) (cache, inputs.append (Array.emptyWithCapacity (wg.circuit.map trace_capacity).sum))).getResult wg.σ
+   ) (cache, inputs.toArray.append (Array.emptyWithCapacity (wg.circuit.map trace_capacity).sum))).getResult wg.σ
 
 end WitnessGenerator
 
-def Circuit.toWg {p : ℕ} (circuit : Circuit) (σ : HashConsSt p)
+def Circuit.toWg {p : ℕ} (circuit : Circuit) (σ : HashConsSt p) (numInputs : ℕ)
 :
   WitnessGenerator p
 where
+  numInputs := numInputs
   circuit := circuit.filter (λ x => match x with | .eq0 _ => false | _ => true)
-  σ
+  σ := ConstraintSystem.offsetHashConsState numInputs σ circuit
 
 end Clap

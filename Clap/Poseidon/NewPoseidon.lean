@@ -7,7 +7,7 @@ import Clap.eDSLState.Convert.Specialised
 namespace Clap
 
 open HashConsM
-
+#check Lean.Meta.Sym.simp
 variable {p : ℕ}
 
 def sigma (x : BoundRef p) : ClapM p ExprRef := do

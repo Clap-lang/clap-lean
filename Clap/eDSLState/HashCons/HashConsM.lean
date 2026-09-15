@@ -390,12 +390,12 @@ lemma getResult_lt_getHashConsState_size_mkConstant {c}
 @[grind .]
 lemma getResult_mkVar {c}
 :
-  (mkConstant c).getResult σ =
-  if (.c c) ∈ σ.exprs
-  then σ.exprs.idxOf (.c c)
+  (mkVar c).getResult σ =
+  if .v c ∈ σ.exprs
+  then σ.exprs.idxOf (.v c)
   else σ.size
 := by
-  unfold getResult mkConstant
+  unfold getResult mkVar
   grind
 
 @[grind .]

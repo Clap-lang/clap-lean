@@ -122,12 +122,13 @@ def offsetIdx (circuit : Circuit) : ℕ → ℕ :=
 --   else (idxs.filter Prod.fst)[idx]!.2
 
 def offsetHashConsState {p : ℕ}
+  (numPublicInputs : ℕ)
   (σ : HashConsSt p) (circuit : Circuit)
 : HashConsSt p :=
   let offsets := offsetIdx circuit
   let exprs := σ.exprs.map (λ cacheExpr => match cacheExpr with
     | .c x=> .c x
-    | .v x => .v (offsets x)
+    | .v x => .v (if x < numPublicInputs then x else numPublicInputs + offsets (x - numPublicInputs))
     | .binary_op lhs rhs op => .binary_op lhs rhs op
   )
   let wellFormed := by
@@ -138,11 +139,11 @@ def offsetHashConsState {p : ℕ}
   ⟨exprs, wellFormed⟩
 
 
-def Circuit.toCs {p : ℕ} (circuit : Circuit) (σ : HashConsSt p) (numInputs : ℕ)
+def _root_.Clap.Circuit.toCs {p : ℕ} (circuit : Circuit) (σ : HashConsSt p) (numInputs : ℕ)
 :
   ConstraintSystem p
 :=
-  let σMapped := offsetHashConsState σ circuit
+  let σMapped := offsetHashConsState numInputs σ circuit
   let ((eq0s, _numAlloc), σPost) :=
     (circuit.foldlM (m := HashConsM p) (λ (eq0s, numAlloc) gate => do
       match gate with
