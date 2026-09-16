@@ -221,28 +221,288 @@ structure FKeylessInput (p) where
   commit           : CommitmentInput p
   publicInputsHash : F p
 
-def mkInputF8
+section mkInput
 
-def mkInputFString {p} (numAlloc : ℕ) (maxLen : ℕ) : HashConsM p (FString p maxLen) := do
-  let (data, numAlloc) ← (Vector.range maxLen).foldlM (λ (data, numAlloc) elem => )
+variable {p numAlloc : ℕ} {σ : HashConsSt p} {α : Type}
 
-def mkInputJWTRawInput {p} (numAlloc : ℕ) : HashConsM p (JWTRawInput p) := do
-  let (field, numAlloc)             ← mkInputFString maxPairLen
-  let (name, numAlloc)              ← mkInputFString maxNameLen
-  let (value, numAlloc)             ← mkInputFString maxValueLen
-  let (fieldStringBodies, numAlloc) ← mkInputFBPaddedVector maxPairLen
-  let (nameIndex, numAlloc)         ← mkInputF
-  let (colonIndex, numAlloc)        ← mkInputF
-  let (valueIndex, numAlloc)        ← mkInputF
-  return {
-    field             := field
-    name              := name
-    value             := value
-    fieldStringBodies := fieldStringBodies
-    nameIndex         := nameIndex
-    colonIndex        := colonIndex
-    valueIndex        := valueIndex
-  }
+def mkInputF (numAlloc : ℕ) : HashConsM p (F p × ℕ) := do
+  let x ← HashConsM.mkVar numAlloc
+  return (x, numAlloc + 1)
+
+@[simp, grind =]
+lemma numAlloc_mkInputF :
+  (ClapM.getResult (p := p) (liftM (mkInputF (p := p) numAlloc)) numAlloc σ).2 =
+  numAlloc + 1 := rfl
+
+def mkInputF8 (numAlloc : ℕ) : HashConsM p (F8 p × ℕ) := do
+  let x ← HashConsM.mkVar numAlloc
+  return (x, numAlloc + 1)
+
+@[simp, grind =]
+lemma numAlloc_mkInputF8 :
+  (ClapM.getResult (p := p) (liftM (mkInputF8 (p := p) numAlloc)) numAlloc σ).2 =
+  numAlloc + 1 := rfl  
+
+def mkInputFB {p} (numAlloc : ℕ) : HashConsM p (FB p × ℕ) := do
+  let x ← HashConsM.mkVar numAlloc
+  return (x, numAlloc + 1)
+
+@[simp, grind =]
+lemma numAlloc_mkInputFB :
+  (ClapM.getResult (p := p) (liftM (mkInputFB (p := p) numAlloc)) numAlloc σ).2 =
+  numAlloc + 1 := rfl  
+
+def mkInputFString (numAlloc : ℕ) (maxLen : ℕ) : HashConsM p (FString p maxLen × ℕ) := do
+  let (data, _numAllocs) ← Vector.unzip <$> ((Vector.range maxLen).map (·+numAlloc)).mapM mkInputF8
+  let numAlloc := numAlloc + maxLen
+  let (len, numAlloc) ← mkInputF8 numAlloc
+  return (⟨data, len⟩, numAlloc)
+
+@[simp, grind =]
+lemma numAlloc_mkInputFString {maxLen} :
+  (ClapM.getResult (p := p) (liftM (mkInputFString (p := p) numAlloc maxLen)) numAlloc σ).2 =
+  numAlloc + maxLen + 1 := rfl
+
+def mkInputFBPaddedVector (numAlloc : ℕ) (maxLen : ℕ) : HashConsM p (PaddedVector (FB p) p maxLen × ℕ) := do
+  let (data, _numAllocs) ← Vector.unzip <$> ((Vector.range maxLen).map (·+numAlloc)).mapM mkInputFB
+  let numAlloc := numAlloc + maxLen
+  let (len, numAlloc) ← mkInputF8 numAlloc
+  return (⟨data, len⟩, numAlloc)
+
+@[simp, grind =]
+lemma numAlloc_mkInputFBPaddedVector {maxLen} :
+  (ClapM.getResult (p := p) (liftM (mkInputFBPaddedVector (p := p) numAlloc maxLen)) numAlloc σ).2 =
+  numAlloc + maxLen + 1 := rfl
+
+def mkInputVectorF (numAlloc k : ℕ) : HashConsM p (Vector (F p) k × ℕ) := do
+  let (data, _numAllocs) ← Vector.unzip <$> ((Vector.range k).map (·+numAlloc)).mapM mkInputF
+  return (data, numAlloc + k)
+
+@[simp, grind =]
+lemma numAlloc_mkInputVectorF {k} :
+  (ClapM.getResult (p := p) (liftM (mkInputVectorF (p := p) numAlloc k)) numAlloc σ).2 =
+  numAlloc + k := rfl
+
+def mkInputJWTRawInput {p} (numAlloc : ℕ) : HashConsM p (JWTRawInput p × ℕ) := do
+  let (b64u_jwt_no_sig_sha2_padded, numAlloc) ← mkInputFString numAlloc MAX_B64U_JWT_NO_SIG_LEN
+  let (b64u_jwt_header_w_dot, numAlloc) ← mkInputFString numAlloc MAX_B64U_JWT_HEADER_W_DOT_LEN
+  let (b64u_jwt_payload_sha2_padded, numAlloc) ← mkInputFString numAlloc MAX_B64U_JWT_PAYLOAD_SHA2_PADDED_LEN
+  let (b64u_jwt_payload, numAlloc) ← mkInputFString numAlloc MAX_B64U_JWT_PAYLOAD_SHA2_PADDED_LEN
+  let (sha2_num_blocks, numAlloc) ← mkInputF numAlloc
+  let (sha2_num_bits, numAlloc) ← mkInputVectorF numAlloc SHA2_NUM_BITS_LEN
+  let (sha2_padding, numAlloc) ← mkInputVectorF numAlloc SHA2_PADDING_LEN
+  return (
+    {
+      b64u_jwt_no_sig_sha2_padded := b64u_jwt_no_sig_sha2_padded
+      b64u_jwt_header_w_dot := b64u_jwt_header_w_dot
+      b64u_jwt_payload_sha2_padded := b64u_jwt_payload_sha2_padded
+      b64u_jwt_payload := b64u_jwt_payload
+      sha2_num_blocks := sha2_num_blocks
+      sha2_num_bits := sha2_num_bits
+      sha2_padding := sha2_padding
+    },
+    numAlloc
+  )
+
+@[simp, grind =]
+lemma numAlloc_mkInputJWTRawInput :
+  (ClapM.getResult (p := p) (liftM (mkInputJWTRawInput (p := p) numAlloc)) numAlloc σ).2 =
+  numAlloc +
+  MAX_B64U_JWT_NO_SIG_LEN + 1 +
+  MAX_B64U_JWT_HEADER_W_DOT_LEN + 1 +
+  MAX_B64U_JWT_PAYLOAD_SHA2_PADDED_LEN + 1 +
+  MAX_B64U_JWT_PAYLOAD_SHA2_PADDED_LEN + 1 +
+  1 +
+  SHA2_NUM_BITS_LEN +
+  SHA2_PADDING_LEN  := rfl
+
+def mkInputRSAInput (numAlloc : ℕ) : HashConsM p (RSAInput p × ℕ) := do
+  let (signature, numAlloc) ← mkInputVectorF numAlloc RSA_NUM_LIMBS
+  let (pubkeyModulus, numAlloc) ← mkInputVectorF numAlloc RSA_NUM_LIMBS
+  return (
+    {
+      signature := signature
+      pubkeyModulus := pubkeyModulus
+    },
+    numAlloc
+  )
+
+@[simp, grind =]
+lemma numAlloc_mkInputRSAInput :
+  (ClapM.getResult (p := p) (liftM (mkInputRSAInput (p := p) numAlloc)) numAlloc σ).2 =
+  numAlloc + RSA_NUM_LIMBS + RSA_NUM_LIMBS := rfl
+
+def mkInputJWTQuotedFieldInput (numAlloc : ℕ) (maxPairLen maxNameLen maxValueLen) :
+  HashConsM p (JWT.QuotedFieldInput p maxPairLen maxNameLen maxValueLen × ℕ) := do
+  let (field, numAlloc) ← mkInputFString numAlloc maxPairLen
+  let (name, numAlloc) ← mkInputFString numAlloc maxNameLen
+  let (value, numAlloc) ← mkInputFString numAlloc maxValueLen
+  let (fieldStringBodies, numAlloc) ← mkInputFBPaddedVector numAlloc maxPairLen
+  let (nameIndex, numAlloc) ← mkInputF numAlloc
+  let (colonIndex, numAlloc) ← mkInputF numAlloc
+  let (valueIndex, numAlloc) ← mkInputF numAlloc
+  return (
+    {
+      field := field
+      name := name
+      value := value
+      fieldStringBodies := fieldStringBodies
+      nameIndex := nameIndex
+      colonIndex := colonIndex
+      valueIndex := valueIndex
+    },
+    numAlloc
+  )
+
+@[simp, grind =]
+lemma numAlloc_mkInputJWTQuotedFieldInput {maxPairLen maxNameLen maxValueLen} :
+  (ClapM.getResult (p := p) (liftM (mkInputJWTQuotedFieldInput (p := p) numAlloc maxPairLen maxNameLen maxValueLen)) numAlloc σ).2 =
+  numAlloc +
+  maxPairLen + 1 +
+  maxNameLen + 1 +
+  maxValueLen + 1 +
+  maxPairLen + 1 +
+  1 +
+  1 +
+  1 := rfl
+
+def mkInputAudOverrideInput (numAlloc : ℕ) : HashConsM p (AudOverrideInput p × ℕ) := do
+  let (useAudOverride, numAlloc) ← mkInputF numAlloc
+  let (skipAudChecks, numAlloc) ← mkInputF numAlloc
+  let (privateAudValue, numAlloc) ← mkInputFString numAlloc MAX_AUD_VALUE_LEN
+  let (overrideAudValue, numAlloc) ← mkInputFString numAlloc MAX_AUD_VALUE_LEN
+  return (
+    { 
+      useAudOverride := useAudOverride
+      skipAudChecks := skipAudChecks
+      privateAudValue := privateAudValue
+      overrideAudValue := overrideAudValue
+    },
+    numAlloc
+  )
+
+@[simp, grind =]
+lemma numAlloc_mkInputAudOverrideInput :
+  (ClapM.getResult (p := p) (liftM (mkInputAudOverrideInput (p := p) numAlloc)) numAlloc σ).2 =
+  numAlloc +
+  1 +
+  1 +
+  MAX_AUD_VALUE_LEN + 1 + 
+  MAX_AUD_VALUE_LEN + 1 := rfl
+
+def mkInputJWTUnquotedFieldInput (numAlloc : ℕ) (maxPairLen maxNameLen maxValueLen) :
+  HashConsM p (JWT.UnquotedFieldInput p maxPairLen maxNameLen maxValueLen × ℕ) := do
+  let (field, numAlloc) ← mkInputFString numAlloc maxPairLen
+  let (name, numAlloc) ← mkInputFString numAlloc maxNameLen
+  let (value, numAlloc) ← mkInputFString numAlloc maxValueLen
+  let (nameIndex, numAlloc) ← mkInputF numAlloc
+  let (colonIndex, numAlloc) ← mkInputF numAlloc
+  let (valueIndex, numAlloc) ← mkInputF numAlloc
+  return (
+    {
+      field := field
+      name := name
+      value := value
+      nameIndex := nameIndex
+      colonIndex := colonIndex
+      valueIndex := valueIndex
+    },
+    numAlloc
+  )
+
+@[simp, grind =]
+lemma numAlloc_mkInputJWTUnquotedFieldInput {maxPairLen maxNameLen maxValueLen} :
+  (ClapM.getResult (p := p)
+    (liftM (mkInputJWTUnquotedFieldInput (p := p) numAlloc maxPairLen maxNameLen maxValueLen)) numAlloc σ).2 =
+  numAlloc +
+  maxPairLen + 1 +
+  maxNameLen + 1 +
+  maxValueLen + 1 +
+  1 + 1 + 1 := rfl
+
+def mkInputEvFieldInput (numAlloc : ℕ) (maxPairLen maxNameLen maxValueLen) :
+  HashConsM p (EvFieldInput p maxPairLen maxNameLen maxValueLen × ℕ) := do
+  let (field, numAlloc) ← mkInputFString numAlloc maxPairLen
+  let (name, numAlloc) ← mkInputFString numAlloc maxNameLen
+  let (value, numAlloc) ← mkInputFString numAlloc maxValueLen
+  let (nameIndex, numAlloc) ← mkInputF numAlloc
+  let (colonIndex, numAlloc) ← mkInputF numAlloc
+  let (valueIndex, numAlloc) ← mkInputF numAlloc
+  return (
+    { 
+      field := field
+      name := name
+      value := value
+      nameIndex := nameIndex
+      colonIndex := colonIndex
+      valueIndex := valueIndex
+    },
+    numAlloc
+  )
+
+@[simp, grind =]
+lemma numAlloc_mkInputEvFieldInput {maxPairLen maxNameLen maxValueLen} :
+  (ClapM.getResult (p := p)
+    (liftM (mkInputEvFieldInput (p := p) numAlloc maxPairLen maxNameLen maxValueLen)) numAlloc σ).2 =
+  numAlloc +
+  maxPairLen + 1 +
+  maxNameLen + 1 +
+  maxValueLen + 1 +
+  1 +
+  1 +
+  1 := rfl
+
+def mkInputExtraFieldInput (numAlloc : ℕ) :
+  HashConsM p (ExtraFieldInput p × ℕ) := do
+  let (extraField, numAlloc) ← mkInputFString numAlloc MAX_EXTRA_FIELD_KV_PAIR_LEN
+  let (extraFieldIndex, numAlloc) ← mkInputF numAlloc 
+  let (useExtraField, numAlloc) ← mkInputF numAlloc
+  return (
+    {
+      extraField := extraField
+      extraFieldIndex := extraFieldIndex
+      useExtraField := useExtraField
+    },
+    numAlloc
+  )
+
+@[simp, grind =]
+lemma numAlloc_mkInputExtraFieldInput :
+  (ClapM.getResult (p := p)
+    (liftM (mkInputExtraFieldInput (p := p) numAlloc)) numAlloc σ).2 =
+  numAlloc +
+  MAX_EXTRA_FIELD_KV_PAIR_LEN + 1 +
+  1 + 
+  1 := rfl
+
+def mkInputCommitmentInput (numAlloc : ℕ) :
+  HashConsM p (CommitmentInput p × ℕ) := do
+  let (epk, numAlloc) ← mkInputVectorF numAlloc EPK_NUM_FIELDS
+  let (epkLen, numAlloc) ← mkInputF numAlloc
+  let (epkBlinder, numAlloc) ← mkInputF numAlloc
+  let (expDate, numAlloc) ← mkInputF numAlloc
+  let (expHorizon, numAlloc) ← mkInputF numAlloc
+  let (pepper, numAlloc) ← mkInputF numAlloc
+  return (
+    {
+      epk := epk
+      epkLen := epkLen
+      epkBlinder := epkBlinder
+      expDate := expDate
+      expHorizon := expHorizon
+      pepper := pepper
+    },
+    numAlloc
+  )
+
+@[simp, grind =]
+lemma numAlloc_mkInputCommitmentInput :
+  (ClapM.getResult (p := p) (liftM (mkInputCommitmentInput (p := p) numAlloc)) numAlloc σ).2 =
+  numAlloc + EPK_NUM_FIELDS + 1 + 1 + 1 + 1 + 1 
+  := by
+  rfl
+
+end mkInput
 
 def keyless (p : ℕ) : theEnvisaged p where
   StructExprRef := FKeylessInput p
@@ -252,7 +512,7 @@ def keyless (p : ℕ) : theEnvisaged p where
     let numAlloc := 0
     let (jwtRaw, numAlloc)            ← mkInputJWTRawInput numAlloc
     let (rsa, numAlloc)               ← mkInputRSAInput numAlloc
-    let (aud, numAlloc)               ← mkInputJWT.QuotedFieldInput numAlloc MAX_AUD_KV_PAIR_LEN MAX_AUD_NAME_LEN MAX_AUD_VALUE_LEN
+    let (aud, numAlloc)               ← mkInputJWTQuotedFieldInput numAlloc MAX_AUD_KV_PAIR_LEN MAX_AUD_NAME_LEN MAX_AUD_VALUE_LEN
     let (audOverride, numAlloc)       ← mkInputAudOverrideInput numAlloc
     let (uid, numAlloc)               ← mkInputJWTQuotedFieldInput numAlloc MAX_UID_KV_PAIR_LEN MAX_UID_NAME_LEN MAX_UID_VALUE_LEN
     let (iss, numAlloc)               ← mkInputJWTQuotedFieldInput numAlloc MAX_ISS_KV_PAIR_LEN MAX_ISS_NAME_LEN MAX_ISS_VALUE_LEN
