@@ -26,7 +26,7 @@ lemma wellFormed {e! : ExprRef} {state} {value : ZMod p} {w : ℕ}
 /-- Dereferencing is stable along a heap prefix, for a ref that was already well-formed. -/
 private lemma deref_frame {e e' : Expr p}
   (h₁ : e.wellFormed) (h₂ : e.σ.exprs.isPrefixOf e'.σ.exprs) (h₃ : e.ref = e'.ref) :
-  *e' = *e
+  *ₑe' = *ₑe
 := by
   have : e.σ.exprs.toList.isPrefixOf e'.σ.exprs.toList = true := by grind
   grind [List.prefix_iff_getElem?, =Expr.deref]
@@ -59,7 +59,7 @@ dereferences (against the final heap) to exactly the fresh variable node `numAll
 -/
 lemma key_getElem_ofFnM_alloc {w : ℕ} :
   ∀ {numAlloc : ℕ} {σ : HashConsSt p} (i : Fin w),
-  *(Expr.mk
+  *ₑ(Expr.mk
     ((Vector.ofFnM (fun (_ : Fin w) => (ClapM.alloc : ClapM p ExprRef))).getResult numAlloc σ)[i.val]
     ((Vector.ofFnM (fun (_ : Fin w) => (ClapM.alloc : ClapM p ExprRef))).getHashConsState numAlloc σ)
   ) = some (CacheExpr.v (numAlloc + i.val))
@@ -86,7 +86,7 @@ lemma key_getElem_ofFnM_alloc {w : ℕ} :
           ((Vector.ofFnM (fun (_ : Fin w) => (ClapM.alloc : ClapM p ExprRef))).getHashConsState numAlloc σ)).exprs
       := Clap.isPrefixOf_mkVar
       have h_deref' :
-        *(Expr.mk
+        *ₑ(Expr.mk
             (((Vector.ofFnM (fun (_ : Fin w) => (ClapM.alloc : ClapM p ExprRef))).getResult numAlloc σ)[j.val])
             ((ClapM.alloc : ClapM p ExprRef).getHashConsState (numAlloc + w)
               ((Vector.ofFnM (fun (_ : Fin w) => (ClapM.alloc : ClapM p ExprRef))).getHashConsState numAlloc σ))
