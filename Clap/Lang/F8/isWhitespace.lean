@@ -60,6 +60,28 @@ lemma convertsM [p.AtLeastTwo] {state}
           rw [← UInt8.toNat_inj]; rfl]
   · trivial
 
+lemma convertsM_high [p.AtLeastTwo] {state}
+  {e : F8 p}
+  {e_val : UInt8}
+  (hp : 2^(8+1) < p)
+  (h_e : Converts F8.conversion state e e_val)
+  :
+  ConvertsM FB.conversion
+    (isWhitespace e)
+    state
+    (e_val ∈
+      [ '\t',   -- tab
+        '\n',   -- line feed
+        '\x0B', -- \∨ vertical tab
+        '\x0C', -- \f form feed
+        '\x0D', -- \r carriage return
+        ' '
+        ].map Char.toUInt8
+    )
+    True
+:= by
+  sorry
+
 end isWhitespace
 
 end Clap.Lang.F8
