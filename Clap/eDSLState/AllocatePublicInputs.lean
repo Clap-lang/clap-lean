@@ -418,7 +418,9 @@ lemma numAlloc_mkInputJWTUnquotedFieldInput {maxPairLen maxNameLen maxValueLen} 
   maxPairLen + 1 +
   maxNameLen + 1 +
   maxValueLen + 1 +
-  1 + 1 + 1 := rfl
+  1 +
+  1 +
+  1 := rfl
 
 def mkInputEvFieldInput (numAlloc : ℕ) (maxPairLen maxNameLen maxValueLen) :
   HashConsM p (EvFieldInput p maxPairLen maxNameLen maxValueLen × ℕ) := do
