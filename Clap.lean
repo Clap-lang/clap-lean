@@ -25,6 +25,8 @@ import Clap.Lang.F.mkF
 import Clap.Lang.F.mkMul
 import Clap.Lang.F.mkSub
 import Clap.Lang.F.Tactics
+import Clap.Lang.F8.F8
+import Clap.Lang.F8.isWhitespace
 import Clap.Lang.FArray.OneHotRaw
 import Clap.Lang.FArray.num2bits
 import Clap.Lang.FArray.singleOneArray
