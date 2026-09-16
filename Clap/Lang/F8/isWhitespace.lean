@@ -60,6 +60,37 @@ lemma convertsM [p.AtLeastTwo] {state}
           rw [← UInt8.toNat_inj]; rfl]
   · trivial
 
+/-- The range-check characterisation of whitespace agrees with the explicit character-set one. -/
+lemma isWhitespace_eq_isWhitespace_high (e_val : UInt8) :
+    (e_val > 8 && e_val < 14 || e_val = 32) =
+    (decide (e_val ∈ [ '\t', '\n', '\x0B', '\x0C', '\x0D', ' ' ].map Char.toUInt8) : Bool)
+:= by
+  rw [Bool.eq_iff_iff]
+  simp only [Bool.and_eq_true, Bool.or_eq_true, decide_eq_true_eq]
+  rw [show e_val ∈
+        [ '\t', '\n', '\x0B', '\x0C', '\x0D', ' ' ].map Char.toUInt8 ↔
+        (e_val = 9 ∨ e_val = 10 ∨ e_val = 11 ∨ e_val = 12 ∨ e_val = 13 ∨ e_val = 32) from by
+      simp only [List.mem_map, List.mem_cons, List.not_mem_nil, or_false]
+      constructor
+      · rintro ⟨c, hc, rfl⟩
+        rcases hc with h | h | h | h | h | h <;> subst h <;> decide
+      · rintro (h | h | h | h | h | h) <;> subst h
+        · exact ⟨'\t', by tauto, by decide⟩
+        · exact ⟨'\n', by tauto, by decide⟩
+        · exact ⟨'\x0B', by tauto, by decide⟩
+        · exact ⟨'\x0C', by tauto, by decide⟩
+        · exact ⟨'\x0D', by tauto, by decide⟩
+        · exact ⟨' ', by tauto, by decide⟩,
+      show (e_val > (8 : UInt8)) ↔ (8 : ℕ) < e_val.toNat from Iff.rfl,
+      show (e_val < (14 : UInt8)) ↔ e_val.toNat < (14 : ℕ) from Iff.rfl,
+      show (e_val = (9 : UInt8)) ↔ e_val.toNat = (9 : ℕ) from by rw [← UInt8.toNat_inj]; rfl,
+      show (e_val = (10 : UInt8)) ↔ e_val.toNat = (10 : ℕ) from by rw [← UInt8.toNat_inj]; rfl,
+      show (e_val = (11 : UInt8)) ↔ e_val.toNat = (11 : ℕ) from by rw [← UInt8.toNat_inj]; rfl,
+      show (e_val = (12 : UInt8)) ↔ e_val.toNat = (12 : ℕ) from by rw [← UInt8.toNat_inj]; rfl,
+      show (e_val = (13 : UInt8)) ↔ e_val.toNat = (13 : ℕ) from by rw [← UInt8.toNat_inj]; rfl,
+      show (e_val = (32 : UInt8)) ↔ e_val.toNat = (32 : ℕ) from by rw [← UInt8.toNat_inj]; rfl]
+  omega
+
 lemma convertsM_high [p.AtLeastTwo] {state}
   {e : F8 p}
   {e_val : UInt8}
@@ -80,7 +111,9 @@ lemma convertsM_high [p.AtLeastTwo] {state}
     )
     True
 := by
-  sorry
+  apply convertsM_of_convertsM (convertsM hp h_e)
+  · exact isWhitespace_eq_isWhitespace_high e_val
+  · trivial
 
 end isWhitespace
 
