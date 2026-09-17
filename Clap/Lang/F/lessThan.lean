@@ -25,7 +25,7 @@ def lessThan (w : ℕ) (a b : F p) : ClapM p (FB p) := do
 
 /-- `a ≤ b`, as `¬(b < a)`.
 
-The old model (`Clap/Lang.lean:181`) wrote this as `lessThan w a (b + 1)`. That spelling does
+The old model (`Clap/Lang.lean:181`) had this as `lessThan w a (b + 1)`. That spelling does
 not survive the move to `F p = BoundRef p`: `F p` reduces through `abbrev` to `ℕ`, so `b + 1`
 elaborates as `Nat.succ` on the *heap index* rather than a field addition, and the gadget
 silently compares against whatever node sits at slot `b + 1`. The negation form is equivalent,

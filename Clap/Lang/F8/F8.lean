@@ -15,12 +15,7 @@ def lessEqThan (a b : F p) : ClapM p (FB p) := Clap.Lang.lessEqThan 8 a b
 
 def greaterEqThan (a b : F p) : ClapM p (FB p) := Clap.Lang.greaterEqThan 8 a b
 
-/-! ## Specifications
-
-These gadgets are byte-width specialisations, so they take `F8.conversion` hypotheses
-(`IdealT := UInt8`) and state their results over `UInt8`, while the underlying
-`Clap.Lang.lessThan` family works over `ZMod p`. The two `val_*` lemmas below bridge the two
-and are shared by all five specifications. -/
+/-! ## Specifications -/
 
 /-- A byte's field value is its `toNat`, when the field is big enough to hold a byte. -/
 lemma val_eq {e_val : UInt8} (hp : 2 ^ (8 + 1) < p) :

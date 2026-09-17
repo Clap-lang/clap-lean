@@ -22,7 +22,7 @@ lemma convertsM
   (h_b : Converts FArray.conversion state b b_val)
 :
   ConvertsM FArray.conversion (FArray.xor a b) state
-    (Vector.ofFn (fun i => a_val[i] ^^ b_val[i])) True
+    (Vector.ofFn (fun i ↦ a_val[i] ^^ b_val[i])) True
 := by
   unfold FArray.xor
 
