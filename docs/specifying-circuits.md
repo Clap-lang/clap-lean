@@ -107,7 +107,7 @@ work of A; if you can express your gadget without iteration, do.
 | `FArray.zeroExtend v w'` | [FArray/zeroExtend.lean](../Clap/Lang/FArray/zeroExtend.lean) | `ClapM p (FArray p (w+w'))` | `vals ++ Vector.replicate w' false` | `True` |
 | `FArray.eq a b` | [FArray/eq.lean](../Clap/Lang/FArray/eq.lean) | `ClapM p (FB p)` | `decide (a_vals = b_vals)` | `True` |
 | `FArray.assert_eq a b` | [FArray/assert_eq.lean](../Clap/Lang/FArray/assert_eq.lean) | `ClapM p Unit` | `()` | `∀ i : Fin w, a_vals[i] = b_vals[i]` |
-| `FArray.bits2num bits` | [FArray/bits2num.lean](../Clap/Lang/FArray/bits2num.lean) | `ClapM p (F p)` | `bits_val.reverse.foldl (fun acc b ↦ (if b then 1 else 0) + 2 * acc) 0` | `True` |
+| `FArray.bits2num bits` | [FArray/bits2num.lean](../Clap/Lang/FArray/bits2num.lean) | `ClapM p (F p)` | `FArray.toNum bits_val` | `True` |
 | `FBV8.ofUInt8 u` | [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean) | `ClapM p (FBV8 p)` | `Vector.ofFn (u.toBitVec[·])` | `True` |
 | `F32.default` | [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean) | `ClapM p (F32 p)` | `Vector.replicate 32 false` | `True` |
 | `F32.ofUInt32 u` | [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean) | `ClapM p (F32 p)` | `Vector.ofFn (u.toBitVec[·])` | `True` |
@@ -116,10 +116,14 @@ work of A; if you can express your gadget without iteration, do.
 | `FVec.eq a b` | [FVec/eq.lean](../Clap/Lang/FVec/eq.lean) | `ClapM p (FB p)` | `decide (a_vals = b_vals)` | `True` |
 | `FString.ofString s` | [FString/ofString.lean](../Clap/Lang/FString/ofString.lean) | `ClapM p (FString p w)` | `s` | `True` |
 | `FString.isPaddedOf a b` | [FString/isPaddedOf.lean](../Clap/Lang/FString/isPaddedOf.lean) | `ClapM p (FB p)` | `decide (encodeV w a_val = encodeV w b) && (a_val.length == b.length)` | `True` |
-| `num2bits w e` | [FArray/num2bits.lean](../Clap/Lang/FArray/num2bits.lean) | `ClapM p (FArray p w)` | `num2bitsLsbPureV w e_val` as bits | `e_val.val < 2 ^ w` |
+| `num2bits w e` | [FArray/num2bits.lean](../Clap/Lang/FArray/num2bits.lean) | `ClapM p (FArray p w)` | `num2bitsLsbPureV w e_val` as bits | `True` — see the warning below |
 | `lessThan w a b` | [F/lessThan.lean](../Clap/Lang/F/lessThan.lean) | `ClapM p (FB p)` | `a_val.val < b_val.val` | `True` |
 | `lessEqThan`, `greaterThan`, `greaterEqThan` | [F/lessThan.lean](../Clap/Lang/F/lessThan.lean) | `ClapM p (FB p)` | the obvious variants | `True` |
-| `F8.eq`, `F8.lessThan`, `F8.greaterThan` | [F8/F8.lean](../Clap/Lang/F8/F8.lean) | `ClapM p (FB p)` | byte-width delegations to the above at `w = 8` | `True` |
+| `assert_range w e` | [FUnit/assert_range.lean](../Clap/Lang/FUnit/assert_range.lean) | `ClapM p Unit` | `()` | `True` — see the warning below |
+| `F8.eq`, `F8.lessThan`, `F8.greaterThan`, `F8.lessEqThan`, `F8.greaterEqThan` | [F8/F8.lean](../Clap/Lang/F8/F8.lean) | `ClapM p (FB p)` | byte-width delegations to the above at `w = 8`, stated over `UInt8` | `True` |
+| `FBitVec.binSum a b` | [FBitVec/binSum.lean](../Clap/Lang/FBitVec/binSum.lean) | `ClapM p (FBitVec p (w+1))` | low `w+1` bits of `toNum a_vals + toNum b_vals` | `True` |
+| `F32.add a b` | [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean) | `ClapM p (F32 p)` | the above, `take 32` — i.e. wrapping 32-bit addition | `True` |
+| `FBV8.ofF`, `F32.ofF`, `F64.ofF` | [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean) | `ClapM p (FArray p w)` | `num2bits` at `w = 8`/`32`/`64` | `True` |
 | `F8.isWhitespace c` | [F8/isWhitespace.lean](../Clap/Lang/F8/isWhitespace.lean) | `ClapM p (FB p)` | `c_val` is space, tab, CR or LF | `True` |
 | `arraySelector len s e` | [FArray/arraySelector.lean](../Clap/Lang/FArray/arraySelector.lean) | `ClapM p (FArray p len)` | 1s on `[startIdx, endIdx)` | index bounds |
 | `singleEndArray len idx` | [FArray/singleEndArray.lean](../Clap/Lang/FArray/singleEndArray.lean) | `ClapM p (FArray p len)` | 1s from `idx` on | `idx_val.val < len` |
@@ -139,9 +143,13 @@ Three things the table cannot show:
 - **`PaddedVector` is polymorphic in its element type.** `PaddedVector α p w` is
   `data : Vector α w` plus `len : F p`; `FString p w = PaddedVector (F p) p w`, and the keyless
   inputs use `PaddedVector (FB p) p w` for per-character flags.
-- **`FArray/Widths.lean` also defines `abbrev F64 p := FArray p 64`**, but no `F64` gadget exists
-  yet. Its `FBV8`/`F32` entries are thin delegations — `F32.ofFBV8` is
+- **`FArray/Widths.lean` also defines `abbrev F64 p := FArray p 64`**, whose only gadget is
+  `F64.ofF`. Most `FBV8`/`F32` entries are thin delegations — `F32.ofFBV8` is
   `FArray.zeroExtend u8 24` and its `convertsM` is a bare term, which is the pattern to copy.
+- **There is no width-generic `FBitVec.ofF`.** The old model's `FBitVec.ofF w e` was defined as
+  `num2bits w e` with the same argument order, so porting it would add a pure alias. Use
+  `num2bits` directly; only the width-specialised `FBV8.ofF` / `F32.ofF` / `F64.ofF` exist, for
+  symmetry with `ofUInt8` / `ofUInt32`.
 - **`isPaddedOf` has a second spec**, `isPaddedOf.convertsM_string`, whose ideal value is the
   cleaner `decide (a_val = b)`. It costs the explicit injectivity hypotheses `256 < p`,
   `w < p`, `s.length < w`, because injectivity of the encoding is not part of `Converts`.
@@ -150,10 +158,37 @@ For iterating gadgets, do not hand-roll the induction — see
 [§Iterating gadgets need rewrite lemmas *first*](#iterating-gadgets-need-rewrite-lemmas-first)
 for `convertsM_foldlM`, `convertsM_foldlM_constraints` and `convertsM_ofFnM`.
 
-Not yet wrapped, though the gate exists: **`share`** and **`fpmul`**. If your gadget needs one
-of these you must write its `Lang/` wrapper and `convertsM` first. `num2bits` used to be on this
-list and is the bottleneck for every comparison, range check, packing and hashing gadget; it is
-now wrapped, along with the whole comparison family built on it.
+Not yet wrapped: **`share`** and **`fpmul`**. Both are fully implemented *gates* — they are in
+[eDSL.lean](../Clap/eDSLState/eDSL.lean) with the complete `wellFormed_*` / `eval_edsl_*` /
+`getResult_*` / `getVarStore_*` / `getCircuit_*` family, and both have `ConstraintSystem/` and
+`WitnessGenerator/` modules. What neither has is a `Clap/Lang/` wrapper carrying a `convertsM`,
+and that is what your gadget needs; write it first. `num2bits` used to be on this list and is
+the bottleneck for every comparison, range check, packing and hashing gadget; it is now
+wrapped, along with the whole comparison family built on it.
+
+### ⚠ `num2bits` asserts nothing in the model, but range-checks in the circuit
+
+`num2bits.convertsM`'s constraints slot is `True`. That is not an oversight in the lemma: the
+evaluation semantics `stepNum2bits`
+([CircuitEvalSt.lean:412](../Clap/eDSLState/CircuitEvalSt.lean#L412)) stores the *truncated*
+low `w` bits of its input and `constraints_stepNum2bits` contributes only allocatedness. So in
+the model `num2bits` is a total, truncating decomposition.
+
+The compiled circuit is stronger. The lowering in
+[ConstraintSystem/num2bits.lean](../Clap/eDSLState/ConstraintSystem/num2bits.lean) emits
+`bits2num(bits) - expr` alongside the booleanity constraints, and is unsatisfiable when
+`e ≥ 2^w`. The smoke tests at the bottom of
+[FUnit/assert_range.lean](../Clap/Lang/FUnit/assert_range.lean) demonstrate this: a one-gate
+`assert_range 4` accepts `5` and `15` and rejects `16`, `20` and `31`.
+
+Two consequences. `assert_range`'s slot 5 is `True` even though the old model's `num2bits`
+returned `none` out of range — the condition has nowhere honest to live until the semantics
+change. And `binSum` / `F32.add` get `True` and *wrapping* arithmetic for free, which is what
+the old model's own `(2^32 - 1) + 1 = 0` vector already said.
+
+Closing the gap means strengthening `stepNum2bits` to carry the range condition and reproving
+`num2bits.constraints` as `e_val.val < 2 ^ w`; `lessThan.convertsM` and everything built on it
+would then have to discharge it. That is a change to the core semantics, not to a gadget.
 
 For public inputs — giving a circuit a top-level input rather than taking `Converts`
 hypotheses — see [public-inputs.md](public-inputs.md).

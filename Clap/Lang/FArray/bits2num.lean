@@ -10,6 +10,15 @@ variable {p : ℕ}
 section bits2num
 
 /--
+The field element a `Bool` vector denotes, LSB first.
+
+This is exactly the ideal value of `bits2num` below, named so that the specifications built on
+top of it (`FBitVec.binSum`, `F32.add`) stay readable.
+-/
+def toNum {w : ℕ} (bits : Vector Bool w) : ZMod p :=
+  bits.reverse.foldl (fun acc b ↦ (if b then (1 : ZMod p) else 0) + 2 * acc) 0
+
+/--
 The field element a bit vector denotes, LSB first.
 -/
 def bits2num {w : ℕ} (bits : FArray p w) : ClapM p (F p) := do
@@ -46,9 +55,7 @@ lemma convertsM
   {bits_val : Vector Bool w}
   (h_bits : Converts FArray.conversion state bits bits_val)
 :
-  ConvertsM F.conversion (bits2num bits) state
-    (bits_val.reverse.foldl
-      (fun acc b ↦ (if b then (1 : ZMod p) else 0) + 2 * acc) 0) True
+  ConvertsM F.conversion (bits2num bits) state (toNum bits_val) True
 := by
   unfold bits2num
 

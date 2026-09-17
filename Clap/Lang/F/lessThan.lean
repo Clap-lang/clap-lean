@@ -1,9 +1,13 @@
+import Clap.eDSLState.ConstraintSystem.toCs
 import Clap.eDSLState.Convert.Specialised
+import Clap.eDSLState.WitnessGenerator.toWg
 import Clap.Lang.F.mkAdd
 import Clap.Lang.F.mkF
 import Clap.Lang.F.mkSub
 import Clap.Lang.FArray.num2bits
+import Clap.Lang.FB.assert_eq
 import Clap.Lang.FB.not
+import Clap.Lang.FB.ofBool
 
 namespace Clap.Lang
 
@@ -19,14 +23,24 @@ def lessThan (w : ℕ) (a b : F p) : ClapM p (FB p) := do
   let d ← num2bits (w + 1) d
   not d[w]
 
-def lessEqThan (w : ℕ) (a b : F p) : ClapM p (FB p) :=
-  lessThan w a (b + 1)
+/-- `a ≤ b`, as `¬(b < a)`.
+
+The old model (`Clap/Lang.lean:181`) wrote this as `lessThan w a (b + 1)`. That spelling does
+not survive the move to `F p = BoundRef p`: `F p` reduces through `abbrev` to `ℕ`, so `b + 1`
+elaborates as `Nat.succ` on the *heap index* rather than a field addition, and the gadget
+silently compares against whatever node sits at slot `b + 1`. The negation form is equivalent,
+needs no extra bound on the operands, and allocates no constant. -/
+def lessEqThan (w : ℕ) (a b : F p) : ClapM p (FB p) := do
+  let gt ← lessThan w b a
+  not gt
 
 def greaterThan (w : ℕ) (a b : F p) : ClapM p (FB p) :=
   lessThan w b a
 
-def greaterEqThan (w : ℕ) (a b : F p) : ClapM p (FB p) :=
-  lessThan w b (a + 1)
+/-- `a ≥ b`, as `¬(a < b)`. See `lessEqThan` for why this is not `lessThan w b (a + 1)`. -/
+def greaterEqThan (w : ℕ) (a b : F p) : ClapM p (FB p) := do
+  let lt ← lessThan w a b
+  not lt
 
 namespace lessThan
 
@@ -82,15 +96,119 @@ lemma convertsM
   · by_cases hab : a_val.val < b_val.val <;> simp [hab]
   · trivial
 
--- Old-model native_decide test vectors (Clap/Lang.lean:1064-1080), carried over as documentation
--- since there is no way to re-run them against the new model:
---   F.lessThan 1 (0 : F p) 1 == some 1
---   F.lessThan 1 (0 : F p) 0 == some 0
---   F.lessThan 2 (1 : F p) 2 == some 1
---   F.lessThan 2 (2 : F p) 1 == some 0
---   F.lessThan 8 (42 : F p) (2^8 - 1) == some 1
---   F.lessThan 8 (2^8 - 1) (42 : F p) == some 0
-
 end lessThan
+
+namespace greaterThan
+
+lemma convertsM
+  [p.AtLeastTwo]
+  {state} {w : ℕ} {a b : F p} {a_val b_val : ZMod p}
+  (h_a : Converts F.conversion state a a_val)
+  (h_b : Converts F.conversion state b b_val)
+  (ha : a_val.val < 2^w)
+  (hb : b_val.val < 2^w)
+  (hw : 2^(w+1) < p)
+:
+  ConvertsM FB.conversion (greaterThan w a b) state (decide (b_val.val < a_val.val)) True
+:= lessThan.convertsM h_b h_a hb ha hw
+
+end greaterThan
+
+namespace lessEqThan
+
+lemma convertsM
+  [p.AtLeastTwo]
+  {state} {w : ℕ} {a b : F p} {a_val b_val : ZMod p}
+  (h_a : Converts F.conversion state a a_val)
+  (h_b : Converts F.conversion state b b_val)
+  (ha : a_val.val < 2^w)
+  (hb : b_val.val < 2^w)
+  (hw : 2^(w+1) < p)
+:
+  ConvertsM FB.conversion (lessEqThan w a b) state (decide (a_val.val ≤ b_val.val)) True
+:= by
+  unfold lessEqThan
+  step lessThan.convertsM h_b h_a hb ha hw as gt
+  apply convertsM_of_convertsM (not.convertsM h_gt)
+  · simp only [← decide_not, Nat.not_lt]
+  · trivial
+
+end lessEqThan
+
+namespace greaterEqThan
+
+lemma convertsM
+  [p.AtLeastTwo]
+  {state} {w : ℕ} {a b : F p} {a_val b_val : ZMod p}
+  (h_a : Converts F.conversion state a a_val)
+  (h_b : Converts F.conversion state b b_val)
+  (ha : a_val.val < 2^w)
+  (hb : b_val.val < 2^w)
+  (hw : 2^(w+1) < p)
+:
+  ConvertsM FB.conversion (greaterEqThan w a b) state (decide (b_val.val ≤ a_val.val)) True
+:= by
+  unfold greaterEqThan
+  step lessThan.convertsM h_a h_b ha hb hw as lt
+  apply convertsM_of_convertsM (not.convertsM h_lt)
+  · simp only [← decide_not, Nat.not_lt]
+  · trivial
+
+end greaterEqThan
+
+section examples
+
+/-! The old model's `native_decide` vectors (`Clap/Lang.lean:1064-1080`), now runnable: the
+gadget is lowered with `Circuit.toWg` / `Circuit.toCs` and its result asserted equal to the
+expected bit, so the circuit is satisfiable exactly when the gadget computes what the old
+model computed.
+
+These are also the regression test for `lessEqThan` / `greaterEqThan`, whose old spelling
+`lessThan w a (b + 1)` silently did `Nat` arithmetic on the heap index — see the doc comment
+on `lessEqThan`.
+
+`q` must exceed `2^(w+1)`, so `2^9 = 512` for the `w = 8` vectors, and needs a real primality
+proof: `Primes.goldilocks` and `Primes.bn254` are `sorry`'d in `Clap/Primes.lean`, and
+`native_decide` refuses anything depending on `sorry`. -/
+
+private abbrev q : ℕ := 1031
+
+local instance instFactPrimeComparisonQ : Fact (Nat.Prime q) := ⟨by norm_num⟩
+
+private def check (g : ℕ → F q → F q → ClapM q (FB q))
+    (w : ℕ) (a b : ZMod q) (expected : Bool) : ClapM q Unit := do
+  let a' ← mkF a
+  let b' ← mkF b
+  let r ← g w a' b'
+  let e ← FB.ofBool expected
+  FB.assert_eq r e
+
+/-- `true` when `g w a b` really does evaluate to `expected` in the emitted circuit. -/
+private def sat (g : ℕ → F q → F q → ClapM q (FB q))
+    (w : ℕ) (a b : ZMod q) (expected : Bool) : Bool :=
+  let c := check g w a b expected
+  let circ  := c.getCircuit 0 (HashConsSt.empty q)
+  let cache := c.getHashConsState 0 (HashConsSt.empty q)
+  (circ.toCs cache 0).run ((circ.toWg cache 0).run #v[])
+
+example : sat lessThan 1 0 1   true  = true := by native_decide
+example : sat lessThan 1 0 0   false = true := by native_decide
+example : sat lessThan 2 1 2   true  = true := by native_decide
+example : sat lessThan 2 2 1   false = true := by native_decide
+example : sat lessThan 8 42 255 true  = true := by native_decide
+example : sat lessThan 8 255 42 false = true := by native_decide
+
+example : sat lessEqThan 2 2 2 true  = true := by native_decide
+example : sat lessEqThan 2 1 2 true  = true := by native_decide
+example : sat lessEqThan 2 3 2 false = true := by native_decide
+
+example : sat greaterThan 2 3 2 true  = true := by native_decide
+example : sat greaterThan 2 2 2 false = true := by native_decide
+
+example : sat greaterEqThan 2 3 2 true  = true := by native_decide
+example : sat greaterEqThan 2 2 2 true  = true := by native_decide
+example : sat greaterEqThan 2 2 3 false = true := by native_decide
+
+end examples
 
 end Clap.Lang

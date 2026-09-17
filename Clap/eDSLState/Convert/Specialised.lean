@@ -493,6 +493,21 @@ lemma converts_ofFn
   intro ⟨i, h_i⟩
   convert h ⟨i, h_i⟩ using 1 <;> simp
 
+lemma converts_take
+  {k n}
+  {state : ClapMState p}
+  {exprs : FArray p k}
+  {val : Vector Bool k}
+  (h : Converts conversion state exprs val)
+:
+  Converts conversion state (exprs.take n) (val.take n)
+:= by
+  rewrite [converts_iff_FB_converts] at ⊢ h
+  intro ⟨i, h_i⟩
+  convert (h ⟨i, by grind⟩) using 1
+  . grind
+  . grind
+
 lemma converts_tail
   {k}
   {state : ClapMState p}

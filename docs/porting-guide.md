@@ -182,7 +182,8 @@ four `get*` transfer lemmas. Budget for that on any iterating gadget.
    before touching the spec.
 6. State `convertsM`, then prove it. See [proving-circuits.md](proving-circuits.md).
 7. Register the file in `Clap/Lang/All.lean` and `Clap.lean`.
-8. Carry the old test vectors over as comments. There is no way to re-run them.
+8. Re-run the old test vectors. They *are* executable now — see §Smoke tests below. Carry over
+   as comments only the ones you genuinely cannot run, and say why.
 
 ## Blockers — do not start these yet
 
@@ -196,6 +197,13 @@ missing is a `Clap/Lang/` wrapper with a `convertsM`:
 - **`share`** — still unwrapped. Needed for degree reduction (`Sha2.Circuit.maj`/`xor3`,
   `Base64Len.base64UrlDecodedLength`).
 - **`fpmul`** — still unwrapped, and the deepest of the three. RSA is blocked on it.
+
+Note what "unwrapped" means here: both `share` and `fpmul` are *implemented* gates. They sit in
+[eDSL.lean](../Clap/eDSLState/eDSL.lean) (lines 16 and 31) with the full `wellFormed_*` /
+`eval_edsl_*` / `getResult_*` / `getVarStore_*` / `getCircuit_*` lemma family, and each has both
+a `ConstraintSystem/` lowering and a `WitnessGenerator/` module. What is missing is only a
+`Clap/Lang/` wrapper carrying a `convertsM` — grep finds neither name anywhere under
+`Clap/Lang/`. So the work is writing that wrapper, not implementing a gate.
 
 **The back end works.** `Circuit.toCs` lives in
 [ConstraintSystem/toCs.lean](../Clap/eDSLState/ConstraintSystem/toCs.lean) as
@@ -273,8 +281,30 @@ deliberately not ported.
 
 **`num2bits` and everything it gated are also done**, which is the big change since this guide
 was first written: `num2bits`, `lessThan` / `lessEqThan` / `greaterThan` /
-`greaterEqThan`, `F8.eq` / `lessThan` / `greaterThan`, `F8.isWhitespace`, `arraySelector`,
-`singleEndArray`, `FArray.xor`, `FArray.xorScan`, and `FBitVec.eq` / `assert_eq`.
+`greaterEqThan`, `F8.eq` / `lessThan` / `greaterThan` / `lessEqThan` / `greaterEqThan`,
+`F8.isWhitespace`, `arraySelector`, `singleEndArray`, `FArray.xor`, `FArray.xorScan`, and
+`FBitVec.eq` / `assert_eq`.
+
+**`Clap/Lang.lean` is now fully accounted for.** The last round added `assert_range`,
+`FBitVec.binSum`, `F32.add` and the `FBV8`/`F32`/`F64` `ofF` wrappers, and gave the comparison
+family and the `F8` specialisations the `convertsM` lemmas they had been missing. Three things
+were deliberately *not* ported, and should not be added back:
+
+- **`FBitVec.ofF`** — was `num2bits w e` with the same argument order, so it is a pure alias.
+  Use `num2bits`. Only the width-specialised `FBV8.ofF` / `F32.ofF` / `F64.ofF` exist.
+- **`FByteArray`** (`Clap/Lang.lean:1050`) — its namespace is empty, and the type itself is
+  `Vector (FBV8 p) w`, i.e. `Vector (Vector (FB p) 8) w`. That is the *nested* conversion
+  `FArray.conversion` cannot express (see Conversions above). Design the conversion first.
+- **The `Spec.*` decode layer** — `toBV`, `toUInt8`, `toUInt32`, `toChar`, `toString`, `valid`
+  and the `left_inv` / `right_inv` round-trips. Superseded by the conversions, as everywhere
+  else. Note the *arithmetic* underneath them is not lost: `Clap.bits2num_bound`,
+  `Clap.num2bitsLsbPure_of_bits2num_eq` and `Clap.bits2num_of_num2bitsLsbPure_eq` are live in
+  `Clap/BitVec.lean` and should be reused rather than re-derived.
+
+One warning carried over from that round: **`num2bits` asserts nothing in the `ConvertsM`
+semantics, but does range-check in the compiled circuit.** See the ⚠ section in
+[specifying-circuits.md](specifying-circuits.md); it is why `assert_range`'s slot 5 is `True`
+and why `binSum` / `F32.add` are honestly `True`-constrained and wrapping.
 
 Note `FBitVec p k`, `FArray p k` and `FVec p k` are all `Vector _ k` over the same cell type;
 `FBitVec.eq` and `FBitVec.assert_eq` are thin delegations to the `FArray` ones, differing only
@@ -286,9 +316,6 @@ a gadget that already exists under another of these three names — check all th
 | `selectArrayValue` | `Clap/Array.lean` | `dotProduct` of `singleOneArray` with the array |
 | `leftArraySelector`, `rightArraySelector` | `Clap/Array.lean` | need `Vector.scanl`/`scanr` analogues; `FArray/xorScan.lean` is the closest existing pattern |
 | `arraySelectorComplex` | `Clap/Array.lean` | after the two selectors |
-| `F.assert_range` | `Clap/Lang.lean` | direct on `num2bits` |
-| `FBitVec.ofF`, `FBitVec.binSum` | `Clap/Lang.lean` | on `num2bits` |
-| `F32.add`, `F32.ofF`, `FBV8.ofF`, `F64.ofF` | `Clap/Lang.lean` | on `num2bits`; mind the dependent casts under Traps |
 | all of `Clap/Packing.lean` | | on `num2bits` |
 | all of `Clap/Base64Len.lean` | | on `num2bits`, and `share` for the degree reduction |
 
@@ -333,10 +360,14 @@ Note `Fact (Nat.Prime goldilocks)` and `Fact (Nat.Prime bn254)` are `sorry`'d in
   underlying type, and the intended invariant lives only in whichever `Conversion` you cite at
   proof time. Consider real `structure` wrappers before porting `Sha2` or `Packing`.
 - **Dependent casts now sit inside binds.** `F32.add`'s `min 32 (32+1) = 32`,
-  `Base64Len`'s `(w*4/3)*6 = w*8`, `Sha2`'s `32 - n + n = 32`. The new model already fights
-  this (`Vector.cast (show 1 + len = len + 1 by grind)` in `OneHotRaw`, `converts_cast` in
-  `Convert/Base.lean`), but every cast now has `ClapM.getResult`/`getState` to be pushed
-  through. Build the commuting lemmas early rather than per-gadget.
+  `Base64Len`'s `(w*4/3)*6 = w*8`, `Sha2`'s `32 - n + n = 32`. This is less painful than it
+  looks, and `F32.add` is the worked case: **put the cast in the spec value, not in the proof**,
+  and discharge it with `FArray.converts_vector_cast`. Because the reshape sits under a
+  `return`, `convertsM_pure` closes the goal at the `Converts` level and no
+  `ClapM.getResult`/`getState` commuting lemma is needed at all. `FArray/xorScan.lean` is the
+  pattern to copy; `OneHotRaw`'s heavier `Vector.mapM_cast` route is only needed when the cast
+  is inside an *iteration*. `FArray.converts_take` was added for `F32.add` and is the one to
+  extend if you need `drop` or `extract`.
 - **The old `Spec` namespace convention is dead.** Old code put spec functions in
   `Clap.Lang.Spec.X` shadowing the gadget namespace `Clap.Lang.X`, forcing `Lang.FB.assert` vs
   `assert` disambiguation inside proofs. The new model puts the spec in `ConvertsM`'s arguments
@@ -358,7 +389,8 @@ Note `Fact (Nat.Prime goldilocks)` and `Fact (Nat.Prime bn254)` are `sorry`'d in
       hypothesis — none was dropped.
 - [ ] No `v[i]!` survives; indices are bounded.
 - [ ] No `partial def` survives.
-- [ ] Old test vectors are carried over as comments, with a note that they cannot be re-run.
+- [ ] Old test vectors are re-run as `native_decide` smoke tests where possible, and carried
+      over as comments with a reason where not.
 - [ ] The gadget passes the [specifying-circuits.md](specifying-circuits.md) and
       [proving-circuits.md](proving-circuits.md) checklists too.
 - [ ] You did not depend on `num2bits`, `share` or `fpmul` without first porting the wrapper.

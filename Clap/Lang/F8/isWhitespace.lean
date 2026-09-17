@@ -44,10 +44,10 @@ lemma convertsM [p.AtLeastTwo] {state}
   step mkF.convertsM as eight
   step mkF.convertsM as fourteen
   step mkF.convertsM as thirtytwo
-  step lessThan.convertsM h_eight h_e_f (by rw [hv8]; omega) (by rw [hve]; omega) hp as gt8
-  step lessThan.convertsM h_e_f h_fourteen (by rw [hve]; omega) (by rw [hv14]; omega) hp as lt14
+  step Clap.Lang.lessThan.convertsM h_eight h_e_f (by rw [hv8]; omega) (by rw [hve]; omega) hp as gt8
+  step Clap.Lang.lessThan.convertsM h_e_f h_fourteen (by rw [hve]; omega) (by rw [hv14]; omega) hp as lt14
   step FB.and.convertsM h_gt8 h_lt14 as isLineBreak
-  step eq.convertsM h_e_f h_thirtytwo as isSpace
+  step Clap.Lang.eq.convertsM h_e_f h_thirtytwo as isSpace
   apply convertsM_of_convertsM (FB.or.convertsM h_isLineBreak h_isSpace)
   · rw [Bool.eq_iff_iff]
     simp only [Bool.and_eq_true, Bool.or_eq_true, decide_eq_true_eq, beq_iff_eq]

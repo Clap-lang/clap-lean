@@ -738,8 +738,10 @@ Flagged so you do not chase them:
 5. The `seq` unexpander prints its arguments in a different order than the macro parses them.
 6. `Circuit.varsAllocated` says `c.take i` while `bind_Circuit_wellFormed` says
    `circuit.extract 0 i` — the same thing, two spellings.
-7. `Clap.Lang.F8` is both an `abbrev` and a namespace, which trips `linter.dupNamespace`. So do
-   the `Clap.monads` attributes in `eDSLState/Wheels.lean:15`. Those warnings are baseline.
+7. `Clap.Lang.F8` is both an `abbrev` and a namespace. That does *not* currently trip
+   `linter.dupNamespace` — the only baseline warnings are the two from the `Clap.monads`
+   attributes in `eDSLState/Wheels.lean:15`, plus the expected `sorry` in
+   `eDSLState/AllocatedProgram.lean`. Three warnings total; anything else is yours.
 8. Three old-model files — `Clap/BitVec.lean`, `Clap/Wheels.lean`, `Clap/Primes.lean` — are in
    the live import closure via `CircuitEvalSt.lean`, even though `Clap.lean` lists them only
    inside the "Goodbye, sweet prince" comment. `num2bitsLsbPureV` is the reason. Editing them

@@ -491,16 +491,60 @@ acceptance criterion for a `convertsM`.
 `lake build Clap` has exactly one expected `sorry`: `poseidon.convertsM` in
 [AllocatedProgram.lean](../Clap/eDSLState/AllocatedProgram.lean), which is unprovable by design
 against the `opaque poseidonSpec` in that example. A second one is yours. The expected warnings
-are `linter.dupNamespace` on `eDSLState/Wheels.lean:15` and on `Clap.Lang.F8`.
+are exactly three: two `linter.dupNamespace` on `eDSLState/Wheels.lean:15`, and the `sorry`
+warning above. (Earlier revisions of this guide also listed a `Clap.Lang.F8`
+`dupNamespace` warning; there is no such warning — do not treat one as baseline.)
 
 There *is* now an executable path, which there was not when this guide was written:
-`Circuit.toCs` and `Circuit.toWg` both run, and
-[Test.lean](../Clap/eDSLState/Test.lean) `#eval`s `wellbehaved`/`complete`/`sound` end to end.
-So you can smoke-test a gadget with `native_decide` on a concrete instance —
-[NewPoseidon.lean](../Clap/Poseidon/NewPoseidon.lean) pins two circomlib hash vectors that way,
-and that is what catches a refactor silently changing allocation order. Use it as a
-cross-check, never as the proof of a `convertsM`: a `native_decide` on one input says nothing
-about the `↔` you actually have to establish.
+`Circuit.toCs` and `Circuit.toWg` both run. Use a smoke test as a cross-check, never as the
+proof of a `convertsM`: a `native_decide` on one input says nothing about the `↔` you actually
+have to establish.
+
+### Two smoke-test styles, and when each works
+
+**The constant-folding style**, [NewPoseidon.lean](../Clap/Poseidon/NewPoseidon.lean): build the
+inputs with `mkConstant`, then evaluate the result ref against the *empty* varStore with
+`return [{}, σ|z]` and `native_decide` on `.getResult 0 (HashConsSt.empty p)`.
+
+This only works when every value is constant-folded through the hash-cons heap. **It cannot be
+used for anything built on `num2bits`**, whose outputs are freshly allocated *variables* — they
+have no value in `σ`, so the evaluation yields `none`.
+
+**The lowering style**, for everything else. Take the gadget to a real constraint system and
+run it, exactly as [Test.lean](../Clap/eDSLState/Test.lean) does for a hand-built `Circuit`:
+
+```lean
+private abbrev q : ℕ := 47
+local instance instFactPrimeMyQ : Fact (Nat.Prime q) := ⟨by norm_num⟩
+
+private def check (…) : ClapM q Unit := do …        -- assert the expected result
+private def sat (…) : Bool :=
+  let c := check …
+  let circ  := c.getCircuit 0 (HashConsSt.empty q)
+  let cache := c.getHashConsState 0 (HashConsSt.empty q)
+  (circ.toCs cache 0).run ((circ.toWg cache 0).run #v[])
+
+example : sat … = true := by native_decide
+```
+
+`getCircuit` / `getHashConsState` are what bridge `ClapM` to `Circuit`. Feed constants via
+`FArray.ofBitVec` / `mkF` and use `0` public inputs, or allocate with `HashConsM.mkVar` and pass
+values in the `#v[…]`. Four traps:
+
+- **`wg.run` needs `[Fact (Nat.Prime p)]`, and `Primes.goldilocks` / `Primes.bn254` are
+  `sorry`'d** in `Clap/Primes.lean`. `native_decide` refuses anything depending on `sorry`, so
+  pick a concrete prime with a real `by norm_num` proof. `47` and `1031` are cheap; `norm_num`
+  also certifies `8589934609` (just over `2^33`, needed for 32-bit `binSum`) quickly.
+- **Name the instance.** A bare `local instance : Fact (Nat.Prime q)` is auto-named from the
+  type, so two files in the same namespace collide at import time with *"environment already
+  contains"*. Give each an explicit distinct name.
+- `private abbrev q` and `private def` keep the scaffolding out of the module's API.
+- The gadget file now depends on `ConstraintSystem/toCs` and `WitnessGenerator/toWg`. That is
+  acyclic — the back end does not import `Clap/Lang/` — but it does widen the import graph.
+
+Worked examples live at the bottom of [FUnit/assert_range.lean](../Clap/Lang/FUnit/assert_range.lean),
+[FBitVec/binSum.lean](../Clap/Lang/FBitVec/binSum.lean), [F/lessThan.lean](../Clap/Lang/F/lessThan.lean)
+and [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean).
 
 ## Checklist
 

@@ -41,11 +41,13 @@ import Clap.Lang.FB.ofBool
 import Clap.Lang.FB.or
 import Clap.Lang.FB.xor
 import Clap.Lang.FBitVec.assert_eq
+import Clap.Lang.FBitVec.binSum
 import Clap.Lang.FBitVec.eq
 import Clap.Lang.FString.Basic
 import Clap.Lang.FString.isPaddedOf
 import Clap.Lang.FString.ofString
 import Clap.Lang.FUnit.assert_eq
+import Clap.Lang.FUnit.assert_range
 import Clap.Lang.FUnit.eq0
 import Clap.Lang.FUnit.guardedAssertEq
 import Clap.Lang.FUnit.guardedEq0
