@@ -69,13 +69,23 @@ elab "reduce_curry" : tactic => Elab.Tactic.liftMetaTactic' reduceCurry
 end
 
 /-- Computes minimum number of bits necessary to represent the input. -/
-def minBits (x : ℕ) : ℕ :=
+def minBits_initial (x : ℕ) : ℕ :=
   if x = 0 then 1 else
   let nb := Nat.log2 x
   if 2^nb ≤ x then nb + 1 else nb
 
+def minBits' (x : ℕ) : ℕ :=
+  if x = 0 then 1 else Nat.log2 x + 1
+
+lemma minBits_eq : ∀ x, minBits_initial x = minBits' x := by
+  intro x
+  cases x with
+  | zero => simp [minBits_initial, minBits']
+  | succ x' =>
+    simp [minBits_initial, minBits', Nat.log2_eq_log_two, Nat.pow_log_le_self]
+
 def minBytes (x : ℕ) : ℕ :=
-  let nb := minBits x
+  let nb := minBits' x
   let nb8 := nb / 8
   if nb % 8 = 0 then nb8 else nb8 + 1
 

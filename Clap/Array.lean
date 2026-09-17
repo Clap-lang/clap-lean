@@ -29,8 +29,9 @@ private def singleEndArray (len : ℕ) (idx : F p) : Option (Vector (FB p) len) 
 /-- Outputs a bit array with 1s at `[startIdx, endIdx)` and 0s elsewhere.
     Satisfiable when `startIdx < endIdx` and `startIdx < len`. If `endIdx ≥ len`, the bit array has 1s at `[startIdx, len)`. -/
 def arraySelector (len : ℕ) (startIdx endIdx : F p) : Option (Vector (FB p) len) := do
-  let w := Clap.minBits len
-  assert! w ≤ Clap.minBits p
+  let w := Clap.minBits' len
+  assert! w ≤ Clap.minBits' p
+  -- Need to check that startIdx and endIdx < 2^w
   FB.assert (← F.lessThan w startIdx endIdx)
   let startMask ← singleOneArray len startIdx
   let endMask ← singleEndArray len endIdx

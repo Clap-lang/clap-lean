@@ -374,6 +374,22 @@ lemma converts_getElem
   Converts FB.conversion state exprs[i] vals[i]
 := (converts_iff_FB_converts.mp h) ⟨i, h_i⟩
 
+lemma converts_tail
+  {k}
+  {state : ClapMState p}
+  {exprs : FArray p k}
+  {val : Vector Bool k}
+  (h : Converts conversion state exprs val)
+:
+  Converts conversion state (exprs.tail) (val.tail)
+:= by
+  rewrite [converts_iff_FB_converts] at ⊢ h
+  intro ⟨i, h_i⟩
+  have h_i' : i + 1 < k := by grind
+  convert (h ⟨i + 1, h_i'⟩) using 1
+  . simp; congr 1; omega
+  . simp; congr 1; omega
+
 end FArray
 
 

@@ -28,9 +28,13 @@ import Clap.Lang.F.Tactics
 import Clap.Lang.F8.F8
 import Clap.Lang.F8.isWhitespace
 import Clap.Lang.FArray.OneHotRaw
+import Clap.Lang.FArray.arraySelector
 import Clap.Lang.FArray.num2bits
+import Clap.Lang.FArray.singleEndArray
 import Clap.Lang.FArray.singleOneArray
 import Clap.Lang.FArray.sum
+import Clap.Lang.FArray.xor
+import Clap.Lang.FArray.xorScan
 import Clap.Lang.FB.and
 import Clap.Lang.FB.assert
 import Clap.Lang.FB.assertBool
