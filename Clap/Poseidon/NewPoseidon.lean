@@ -11,8 +11,8 @@ open HashConsM
 variable {p : ℕ}
 
 def sigma (x : BoundRef p) : ClapM p ExprRef := do
-  let x2 ← (x * x : ClapM p ExprRef)
-  let x4 ← x2 * x2
+  let x2 : BoundRef p ← share (←x * x)
+  let x4 ← share (←x2 * x2)
   x4 * x
 
 def ark
