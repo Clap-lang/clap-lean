@@ -12,7 +12,9 @@ section User
 
 abbrev F (p : ℕ) : Type := HashConsM.BoundRef p
 abbrev FB (p : ℕ) : Type := F p
+abbrev F8 (p : ℕ) : Type := F p
 abbrev FArray (p k : ℕ) : Type := Vector (FB p) k
+abbrev FBitVec (p k : ℕ) : Type := Vector (FB p) k
 abbrev FList (p : ℕ) : Type := List (FB p)
 /-- A vector of arbitrary field elements. Same underlying type as `FArray p k`; the two differ
 only in which `Conversion` you cite, `FVec.conversion` (`Vector (ZMod p) k`) or
@@ -70,6 +72,14 @@ abbrev conversion : Conversion p (FB p) where
 
 end FB
 
+namespace F8
+
+abbrev conversion : Conversion p (F8 p) where
+  IdealT := UInt8
+  toExprs x := [x]
+  conversion x := [(x.toNat : ZMod p)]
+
+end F8
 
 namespace FUnit
 
@@ -142,12 +152,26 @@ lemma converts_of_FB_converts
   (val2 := if b then (1 : ZMod p) else (0 : ZMod p))
   h (by rfl) (by rfl)
 
+lemma converts_of_F8_converts
+  {state : ClapMState p}
+  {expr : F8 p}
+  {u : UInt8}
+  (h : Converts F8.conversion state expr u)
+:
+  Converts F.conversion state expr (u.toNat : ZMod p)
+:= converts_cast
+  (conversion1 := F8.conversion)
+  (conversion2 := F.conversion)
+  (y := expr)
+  (val2 := (u.toNat : ZMod p))
+  h (by rfl) (by rfl)
+
 end F
 
 namespace FB
 
 lemma converts_of_F_converts
-  [p.AtLeastTwo]
+  [NeZero p]
   {state : ClapMState p}
   {expr : F p}
   {val}
@@ -163,10 +187,15 @@ lemma converts_of_F_converts
     split
     . trivial
     next h_neq =>
-      rewrite [←ZMod.val_eq_zero]
-      rewrite [←ZMod.val_eq_one] at h_neq
-      grind
-      exact Nat.AtLeastTwo.one_lt
+      have h_ne : val ≠ 1 := by simpa using h_neq
+      have h01 : val.val = 0 ∨ val.val = 1 := by omega
+      rcases h01 with h0 | h1
+      . exact (ZMod.val_eq_zero val).mp h0
+      . exfalso
+        apply h_ne
+        have h_round := ZMod.natCast_rightInverse (n := p) val
+        rw [h1] at h_round
+        simpa using h_round.symm
 
 /-- A field element known to be `0` is the bit `false`. -/
 lemma converts_zero
@@ -199,7 +228,7 @@ lemma converts_one
   omega
 
 lemma convertsM_of_F_convertsM
-  [p.AtLeastTwo]
+  [NeZero p]
   {action : ClapM p (F p)}
   {state : ClapMState p}
   {val : ZMod p}
@@ -216,6 +245,42 @@ lemma convertsM_of_F_convertsM
 
 end FB
 
+namespace F8
+
+lemma converts_of_F_converts
+  [NeZero p]
+  {state : ClapMState p}
+  {expr : F p}
+  {val}
+  (h : Converts F.conversion state expr val)
+  (h_val : val.val < UInt8.size)
+:
+  Converts F8.conversion state (expr : F8 p) (UInt8.ofNat val.val)
+:= by
+  apply converts_cast h
+  . rfl
+  . unfold F.conversion conversion
+    simp
+    rw [Nat.mod_eq_of_lt h_val]
+    exact (ZMod.natCast_rightInverse (n := p) val).symm
+
+lemma convertsM_of_F_convertsM
+  [NeZero p]
+  {action : ClapM p (F p)}
+  {state : ClapMState p}
+  {val : ZMod p}
+  {constraints}
+  (h : ConvertsM F.conversion action state val constraints)
+  (h_val : val.val < UInt8.size)
+:
+  ConvertsM F8.conversion action state (UInt8.ofNat val.val) constraints
+:= by
+  constructor
+  . exact converts_of_F_converts h.result h_val
+  . exact h.wellFormed
+  . exact h.constraints
+
+end F8
 
 namespace FUnit
 
@@ -427,6 +492,22 @@ lemma converts_ofFn
   rewrite [converts_iff_FB_converts]
   intro ⟨i, h_i⟩
   convert h ⟨i, h_i⟩ using 1 <;> simp
+
+lemma converts_tail
+  {k}
+  {state : ClapMState p}
+  {exprs : FArray p k}
+  {val : Vector Bool k}
+  (h : Converts conversion state exprs val)
+:
+  Converts conversion state (exprs.tail) (val.tail)
+:= by
+  rewrite [converts_iff_FB_converts] at ⊢ h
+  intro ⟨i, h_i⟩
+  have h_i' : i + 1 < k := by grind
+  convert (h ⟨i + 1, h_i'⟩) using 1
+  . simp; congr 1; omega
+  . simp; congr 1; omega
 
 end FArray
 

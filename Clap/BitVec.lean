@@ -94,6 +94,27 @@ lemma num2bitsLsbPure_bits {w : ℕ} {v : ZMod p} : ∀ i : Fin _, (num2bitsLsbP
 #guard num2bitsLsbPure (p := Primes.babybear) 3 4 = [0,0,1]
 #guard num2bitsLsbPure (p := Primes.babybear) 4 1 = [1,0,0,0]
 
+private lemma num2bitsLsbPureV.aux_getElem_zero [NeZero p] :
+    ∀ (n : ℕ) (f : ZMod p), (num2bitsLsbPureV.aux (n+1) f)[0]'(by omega) = ((f.val / 2^n % 2 : ℕ) : ZMod p) := by
+  intro n
+  induction n with
+  | zero => intro f; unfold num2bitsLsbPureV.aux; simp
+  | succ n ih =>
+    intro f
+    unfold num2bitsLsbPureV.aux
+    rw [Vector.getElem_push_lt (by omega), ih]
+    have h1 : ((f.val/2 : ℕ) : ZMod p).val = f.val/2 := by
+      rw [ZMod.val_natCast_of_lt]
+      exact lt_of_le_of_lt (Nat.div_le_self _ _) (ZMod.val_lt f)
+    rw [h1, Nat.div_div_eq_div_mul, ←pow_succ']
+
+/-- The top (most significant) bit of the `(n+1)`-bit LSB-first decomposition of `f`. -/
+lemma num2bitsLsbPureV_getElem_last [NeZero p] (n : ℕ) (f : ZMod p) :
+    (num2bitsLsbPureV (n+1) f)[n]'(by omega) = ((f.val / 2^n % 2 : ℕ) : ZMod p) := by
+  unfold num2bitsLsbPureV
+  rw [Vector.getElem_reverse (by omega)]
+  simpa using num2bitsLsbPureV.aux_getElem_zero n f
+
 def num2bitsMsbPure (n : ℕ) (f : ZMod p) : List (ZMod p) :=
   num2bitsLsbPure n f |> List.reverse
 
