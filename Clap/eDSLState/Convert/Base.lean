@@ -328,6 +328,50 @@ lemma convertsM_bind
     . grind
     . grind
 
+/--
+Conjunction form of `convertsM_bind`, for a `do` block in which **both** halves assert
+something.
+
+`convertsM_bind` requires the continuation's constraint to be `constraints1 → constraints`,
+which forces every step but the last to have constraint `True`: for two real assertions it
+would demand `C₂ ↔ (C₁ → C₁ ∧ C₂)`, false whenever `C₁` fails. Sequencing two assertions
+therefore needs this lemma rather than that one.
+-/
+lemma convertsM_bind_and
+  {p α β}
+  {conversion1 : Conversion p α}
+  {conversion2 : Conversion p β}
+  {action : ClapM p α}
+  {function : α → ClapM p β}
+  {state}
+  {action_val}
+  {function_val}
+  {constraints1 constraints2}
+  (h_action : ConvertsM conversion1 action state action_val constraints1)
+  (h_function : ConvertsM
+    conversion2
+    (function (action.getResult state.numAlloc state.σ))
+    (action.getState state)
+    function_val
+    constraints2
+  )
+:
+  ConvertsM conversion2 (action >>= function) state function_val (constraints1 ∧ constraints2)
+:= by
+  constructor
+  . grind [ConvertsM, Converts, ClapM.getState]
+  . grind [ConvertsM, Converts, ClapM.getState]
+  . obtain ⟨_, _, h_constraints⟩ := h_function
+    rewrite [
+      Circuit.runAndEval_bind_constraints
+        (by grind [ConvertsM, Converts, ClapM.getState])
+        (by grind [ConvertsM, Converts, ClapM.getState])
+    ]
+    rewrite [h_action.constraints]
+    simp [ClapM.getState, ClapM.runAndEval, ClapM.getVarStore] at h_constraints ⊢
+    rewrite [h_constraints]
+    grind
+
 lemma convertsM_map
   {p α β}
   {conversion1 : Conversion p α}
