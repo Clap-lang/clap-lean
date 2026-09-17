@@ -12,9 +12,14 @@ This file only covers what is *different* about a port versus writing a gadget f
 
 ## State of play
 
-Everything old is on disk and out of the build, behind a comment block at
-[Clap.lean:40](../Clap.lean#L40) headed *"Goodbye, sweet prince."* Porting means **rewriting
-into `Clap/Lang/`**, never editing an old file into shape.
+Almost everything old is on disk and out of the build, behind the comment block in
+[Clap.lean](../Clap.lean) headed *"Goodbye, sweet prince."* Porting means **rewriting into
+`Clap/Lang/`**, never editing an old file into shape.
+
+Three old files are the exception and are already *live*, pulled in transitively rather than
+listed: `Clap/BitVec.lean` (via `Clap/eDSLState/CircuitEvalSt.lean`, because the `num2bits`
+gate's semantics `stepNum2bits` is specified against `num2bitsLsbPureV`), and `Clap/Wheels.lean`
+and `Clap/Primes.lean` beneath it. Editing those three changes the live build.
 
 **The `Clap/Lang.lean` trap.** The *file* `Clap/Lang.lean` (~1100 lines) is the OLD gadget
 library. The *directory* `Clap/Lang/` is the new one. They share a name and nothing else. If
@@ -181,21 +186,36 @@ four `get*` transfer lemmas. Budget for that on any iterating gadget.
 
 ## Blockers — do not start these yet
 
-**Missing primitives.** These gates exist but have no `Clap/Lang/` wrapper and no `convertsM`:
+**Missing primitives.** All five gates now have a lowering *and* a witness generator, under
+`eDSLState/ConstraintSystem/` and `eDSLState/WitnessGenerator/`. What a gate can still be
+missing is a `Clap/Lang/` wrapper with a `convertsM`:
 
-- **`num2bits`** — `Gate.num2bits` exists, `Circuit.toCs` handles it,
-  `eDSLState/ConstraintSystem/num2bits.lean` has the lowering. **Every** comparison, range
-  check, packing, base64 and SHA gadget bottoms out here. Port this first; it unblocks the most.
-- **`share`** — needed for degree reduction (`Sha2.Circuit.maj`/`xor3`,
+- **`num2bits`** — **done.** [FArray/num2bits.lean](../Clap/Lang/FArray/num2bits.lean), and with
+  it `F.lessThan` and the rest of the comparison family. This was the blocker that gated most
+  of the backlog; it no longer is.
+- **`share`** — still unwrapped. Needed for degree reduction (`Sha2.Circuit.maj`/`xor3`,
   `Base64Len.base64UrlDecodedLength`).
-- **`fpmul`** — `Gate.fpmul` exists but `Circuit.toCs`'s branch is `sorry`,
-  `ConstraintSystem/fpMul.lean`'s `check_lt_impl` is a stub, and `num_constraints .fpmul = 42`
-  is a placeholder. RSA is blocked on it.
+- **`fpmul`** — still unwrapped, and the deepest of the three. RSA is blocked on it.
 
-**No back end.** `ConstraintSystem.lean` and `WitnessGenerator.lean` are not imported and do
-not compile, and R1CS serialisation (`Clap/Quadratic.lean` + `R1Serialize/`) has no new-model
-counterpart. So there is no executable path and no smoke test: a `convertsM` proof is your only
-evidence.
+**The back end works.** `Circuit.toCs` lives in
+[ConstraintSystem/toCs.lean](../Clap/eDSLState/ConstraintSystem/toCs.lean) as
+`_root_.Clap.Circuit.toCs (circuit) (σ) (numInputs)`, with real branches for all five gates and
+a genuine `num_constraints` per gate. `Circuit.toWg` is its counterpart in
+[WitnessGenerator/toWg.lean](../Clap/eDSLState/WitnessGenerator/toWg.lean).
+[Test.lean](../Clap/eDSLState/Test.lean) runs both end to end and `#eval`s
+`wellbehaved`/`complete`/`sound`. So a `native_decide` smoke test is available, and
+[NewPoseidon.lean](../Clap/Poseidon/NewPoseidon.lean) uses one to pin two circomlib hash
+vectors.
+
+Two caveats. The *legacy* single-file `Clap/eDSLState/ConstraintSystem.lean` is still on disk
+with `.fpmul => sorry` at line 137; it is not the live path and `Clap.lean` does not import it —
+do not read it for current behaviour. And R1CS serialisation (`Clap/Quadratic.lean` +
+`R1Serialize/`) still has no new-model counterpart.
+
+**Public inputs are solved.** See [public-inputs.md](public-inputs.md): `AllocatedProgram`, the
+`mkInput*` allocator family in
+[PublicInput.lean](../Clap/eDSLState/PublicInput.lean), and a worked end-to-end theorem. This is
+what the old `#compile` reifier used to give you for free.
 
 **Iteration combinators — partly solved.** [Clap/Lang/Combinators/](../Clap/Lang/Combinators/)
 now has `convertsM_foldlM`, `convertsM_foldlM_constraints` and `convertsM_ofFnM`, all generic in
@@ -203,8 +223,13 @@ the element conversion. Use them instead of copying `OneHotRaw.lean`'s ~120 line
 still no `forIn` combinator, and old code uses `for … in … do` inside `Option` freely.
 
 **Conversions.** The original five (`F`/`FB`/`FUnit`/`FArray`/`FList`) are all fixed-length and
-element-wise. Three more now exist in
-[Convert/Specialised.lean](../Clap/eDSLState/Convert/Specialised.lean):
+element-wise. Four more now exist, three in
+[Convert/Specialised.lean](../Clap/eDSLState/Convert/Specialised.lean) and one in
+`FString/Basic.lean`:
+
+- `F8.conversion` — `IdealT := UInt8`, a byte held in one field element, with
+  `F.converts_of_F8_converts` and `F8.converts_of_F_converts` (the latter needs
+  `val.val < UInt8.size`) to move between it and `F`.
 
 - `FVec.conversion` — `Vector (F p) k` with `IdealT := Vector (ZMod p) k`. `FArray`'s ideal type
   is `Vector Bool k`, so before this there was **no way to specify a vector of general field
@@ -218,6 +243,10 @@ element-wise. Three more now exist in
   the statement that `Converts FString.conversion` holds. It is injective only for strings
   shorter than `w` with characters under 256, `256 < p` and `w < p`, so gadgets needing
   injectivity take those as explicit hypotheses — see `isPaddedOf.encode_eq_iff`.
+
+`PaddedVector` is now polymorphic in its element type — `PaddedVector α p w` is
+`data : Vector α w` plus `len : F p`, and `FString p w = PaddedVector (F p) p w`. The keyless
+inputs also use `PaddedVector (FB p) p w` for per-character flags.
 
 Still missing: `Sha2`'s `Hash = Vector t.U32 8`, where each `U32` is itself `Vector (FB p) 32` —
 a *nested* conversion, which `FArray.conversion : Conversion p (Vector (FB p) k)` cannot
@@ -234,24 +263,37 @@ ported (they would shadow the `Bool` literals; use `ofBool`), and the `Spec.FB` 
 superseded by `FB.conversion`. Use those files as the worked reference for this table's
 remaining rows.
 
-The rest of the old `Clap/Lang.lean` is **done** too, except where it needs `num2bits`:
-`dotProduct`, `conditionalSwap`, `guardedEq0`, `guardedAssertEq`, `ofUInt8`, `ofChar`,
+The rest of the old `Clap/Lang.lean` is **done** too: `dotProduct`, `conditionalSwap`,
+`guardedEq0`, `guardedAssertEq`, `ofUInt8`, `ofChar`,
 `FArray.{default, ofBitVec, zeroExtend, bits2num, assert_eq, eq}` (the old `FBitVec.*`),
 `FVec.eq`, the `F32`/`FBV8`/`F64` wrappers in `FArray/Widths.lean`, and
 `FString.{ofString, isPaddedOf}`. The old `Spec.*` layer is gone throughout, superseded by the
 conversions. `Inhabited (F p) := 42`, `FB.true`/`FB.false` and the `Coe`/`OfNat` instances were
 deliberately not ported.
 
+**`num2bits` and everything it gated are also done**, which is the big change since this guide
+was first written: `num2bits`, `lessThan` / `lessEqThan` / `greaterThan` /
+`greaterEqThan`, `F8.eq` / `lessThan` / `greaterThan`, `F8.isWhitespace`, `arraySelector`,
+`singleEndArray`, `FArray.xor`, `FArray.xorScan`, and `FBitVec.eq` / `assert_eq`.
+
+Note `FBitVec p k`, `FArray p k` and `FVec p k` are all `Vector _ k` over the same cell type;
+`FBitVec.eq` and `FBitVec.assert_eq` are thin delegations to the `FArray` ones, differing only
+in stating vector equality rather than the pointwise form. Do not add a third implementation of
+a gadget that already exists under another of these three names — check all three first.
+
 | Gadget | Old location | Note |
 |---|---|---|
-| `singleEndArray` | `Clap/Array.lean` | one-hot asserting `s² = s` |
 | `selectArrayValue` | `Clap/Array.lean` | `dotProduct` of `singleOneArray` with the array |
-| `leftArraySelector`, `rightArraySelector` | `Clap/Array.lean` | need `Vector.scanl`/`scanr` analogues |
+| `leftArraySelector`, `rightArraySelector` | `Clap/Array.lean` | need `Vector.scanl`/`scanr` analogues; `FArray/xorScan.lean` is the closest existing pattern |
 | `arraySelectorComplex` | `Clap/Array.lean` | after the two selectors |
+| `F.assert_range` | `Clap/Lang.lean` | direct on `num2bits` |
+| `FBitVec.ofF`, `FBitVec.binSum` | `Clap/Lang.lean` | on `num2bits` |
+| `F32.add`, `F32.ofF`, `FBV8.ofF`, `F64.ofF` | `Clap/Lang.lean` | on `num2bits`; mind the dependent casts under Traps |
+| all of `Clap/Packing.lean` | | on `num2bits` |
+| all of `Clap/Base64Len.lean` | | on `num2bits`, and `share` for the degree reduction |
 
-**After `num2bits` lands**: `F.assert_range`, `F.lessThan` / `lessEqThan` / `greaterThan` /
-`greaterEqThan`, `arraySelector`, `FBitVec.ofF`, `FBitVec.binSum`, `F8.lessThan`, `F32.add`,
-`F32.ofF`, `FBV8.ofF`, `F64.ofF`, all of `Clap/Packing.lean`, all of `Clap/Base64Len.lean`.
+**After `share` is wrapped**: the degree-reducing parts of `Clap/Base64Len.lean`, and
+`Sha2.Circuit.maj` / `xor3`.
 
 **After `fpmul` lands**: `Clap/RSA.lean`.
 
@@ -270,10 +312,16 @@ that `Cfold` and `Dedup` are subsumed by hash-consing at construction time — b
 decision worth confirming with a maintainer rather than assuming, and `Dedup.dedup_sem_pre` was
 `sorry` in the old model anyway.
 
-**Reuse verbatim**: `Clap/BitVec.lean` (`num2bitsLsbPure(V)`, `bits2num(V)` and their lemmas),
-`Clap/Primes.lean`, and most of `Clap/Wheels.lean` (`Vector.scanl`/`scanr`, `minBits`,
+**Already live, do not re-port**: `Clap/BitVec.lean` (`num2bitsLsbPure(V)`, `bits2num(V)` and
+their lemmas), `Clap/Primes.lean`, and `Clap/Wheels.lean` (`Vector.scanl`/`scanr`, `minBits`,
 `limbsToNat`, `natToLimbs(V)`, `toChunks`, `ZMod.val_sum`). These are model-agnostic
-mathematics. Note `Fact (Nat.Prime goldilocks)` and `Fact (Nat.Prime bn254)` are `sorry`'d in
+mathematics and they are in the live import closure already, via `CircuitEvalSt.lean` — import
+and use them directly. This is the one place where rule 1 of the agent guide does not apply.
+
+`Clap/Lang/Wheels.lean` holds the new model's own small additions, including `minBits'`, a
+cleaner restatement of `Clap.minBits` that `arraySelector` uses.
+
+Note `Fact (Nat.Prime goldilocks)` and `Fact (Nat.Prime bn254)` are `sorry`'d in
 `Clap/Primes.lean`; anything requiring primality inherits that.
 
 ## Traps
@@ -293,10 +341,14 @@ mathematics. Note `Fact (Nat.Prime goldilocks)` and `Fact (Nat.Prime bn254)` are
   `Clap.Lang.Spec.X` shadowing the gadget namespace `Clap.Lang.X`, forcing `Lang.FB.assert` vs
   `assert` disambiguation inside proofs. The new model puts the spec in `ConvertsM`'s arguments
   instead. Do not reintroduce it.
-- **`#compile` gave you argument serialisation for free.** It flattened user `structure`
-  arguments into vectors and fixed the public-input ordering. `KeylessInput` has ~8 nested
-  structures. In the new model you must write an explicit `Conversion` and a manual flattening
-  convention, and re-establish the input-order contract by hand.
+- **`#compile` gave you argument serialisation for free** — and the replacement is now built.
+  It flattened user `structure` arguments into vectors and fixed the public-input ordering.
+  `AllocatedProgram` plus the `mkInput*` allocators do that job explicitly; the whole keyless
+  input, ~8 nested structures, is allocated in
+  [Clap/Keyless/Allocate.lean](../Clap/Keyless/Allocate.lean). Read
+  [public-inputs.md](public-inputs.md) before writing an allocator by hand. The contract that
+  input `i` is circuit variable `i` is maintained by allocating in order and nothing else, so it
+  is still yours to keep.
 
 ## Checklist
 

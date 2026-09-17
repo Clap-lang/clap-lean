@@ -41,7 +41,7 @@ Can two or more steps each fail (non-`True` constraints)?
 
 ## The `step` tactic
 
-Defined at [Clap/Lang/F/Tactics.lean:160-217](../Clap/Lang/F/Tactics.lean#L160-L217). This is
+Defined at [Clap/Lang/F/Tactics.lean:199](../Clap/Lang/F/Tactics.lean#L199) (`step`) and [:214](../Clap/Lang/F/Tactics.lean#L214) (`step_state`), over `step_impl` at [:160](../Clap/Lang/F/Tactics.lean#L160). This is
 the whole proof engine and it is not documented anywhere else.
 
 ```
@@ -484,9 +484,23 @@ lake build Clap                          # everything
 lake build Clap.Lang.FArray.sum          # one gadget and its dependencies
 ```
 
-Lean `v4.32.0`, Mathlib pinned to `v4.32.0`, `autoImplicit false`,
-`linter.unusedVariables true`. There is no test suite and no `native_decide` path for the new
-model, so a clean build with no `sorry` is the entire acceptance criterion.
+Lean `v4.32.0`, Mathlib and CompPoly both pinned to `v4.32.0`, `autoImplicit false`,
+`linter.unusedVariables true`. There is no test suite, so a clean build with no `sorry` is the
+acceptance criterion for a `convertsM`.
+
+`lake build Clap` has exactly one expected `sorry`: `poseidon.convertsM` in
+[AllocatedProgram.lean](../Clap/eDSLState/AllocatedProgram.lean), which is unprovable by design
+against the `opaque poseidonSpec` in that example. A second one is yours. The expected warnings
+are `linter.dupNamespace` on `eDSLState/Wheels.lean:15` and on `Clap.Lang.F8`.
+
+There *is* now an executable path, which there was not when this guide was written:
+`Circuit.toCs` and `Circuit.toWg` both run, and
+[Test.lean](../Clap/eDSLState/Test.lean) `#eval`s `wellbehaved`/`complete`/`sound` end to end.
+So you can smoke-test a gadget with `native_decide` on a concrete instance —
+[NewPoseidon.lean](../Clap/Poseidon/NewPoseidon.lean) pins two circomlib hash vectors that way,
+and that is what catches a refactor silently changing allocation order. Use it as a
+cross-check, never as the proof of a `convertsM`: a `native_decide` on one input says nothing
+about the `↔` you actually have to establish.
 
 ## Checklist
 

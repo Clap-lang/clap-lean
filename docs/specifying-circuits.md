@@ -116,12 +116,29 @@ work of A; if you can express your gadget without iteration, do.
 | `FVec.eq a b` | [FVec/eq.lean](../Clap/Lang/FVec/eq.lean) | `ClapM p (FB p)` | `decide (a_vals = b_vals)` | `True` |
 | `FString.ofString s` | [FString/ofString.lean](../Clap/Lang/FString/ofString.lean) | `ClapM p (FString p w)` | `s` | `True` |
 | `FString.isPaddedOf a b` | [FString/isPaddedOf.lean](../Clap/Lang/FString/isPaddedOf.lean) | `ClapM p (FB p)` | `decide (encodeV w a_val = encodeV w b) && (a_val.length == b.length)` | `True` |
+| `num2bits w e` | [FArray/num2bits.lean](../Clap/Lang/FArray/num2bits.lean) | `ClapM p (FArray p w)` | `num2bitsLsbPureV w e_val` as bits | `e_val.val < 2 ^ w` |
+| `lessThan w a b` | [F/lessThan.lean](../Clap/Lang/F/lessThan.lean) | `ClapM p (FB p)` | `a_val.val < b_val.val` | `True` |
+| `lessEqThan`, `greaterThan`, `greaterEqThan` | [F/lessThan.lean](../Clap/Lang/F/lessThan.lean) | `ClapM p (FB p)` | the obvious variants | `True` |
+| `F8.eq`, `F8.lessThan`, `F8.greaterThan` | [F8/F8.lean](../Clap/Lang/F8/F8.lean) | `ClapM p (FB p)` | byte-width delegations to the above at `w = 8` | `True` |
+| `F8.isWhitespace c` | [F8/isWhitespace.lean](../Clap/Lang/F8/isWhitespace.lean) | `ClapM p (FB p)` | `c_val` is space, tab, CR or LF | `True` |
+| `arraySelector len s e` | [FArray/arraySelector.lean](../Clap/Lang/FArray/arraySelector.lean) | `ClapM p (FArray p len)` | 1s on `[startIdx, endIdx)` | index bounds |
+| `singleEndArray len idx` | [FArray/singleEndArray.lean](../Clap/Lang/FArray/singleEndArray.lean) | `ClapM p (FArray p len)` | 1s from `idx` on | `idx_val.val < len` |
+| `FArray.xor a b` | [FArray/xor.lean](../Clap/Lang/FArray/xor.lean) | `ClapM p (FArray p k)` | pointwise `xor` | `True` |
+| `FArray.xorScan a` | [FArray/xorScan.lean](../Clap/Lang/FArray/xorScan.lean) | `ClapM p (FArray p k)` | running `xor` prefix scan | `True` |
+| `FBitVec.eq a b` | [FBitVec/eq.lean](../Clap/Lang/FBitVec/eq.lean) | `ClapM p (FB p)` | `a_val == b_val` | `True` |
+| `FBitVec.assert_eq a b` | [FBitVec/assert_eq.lean](../Clap/Lang/FBitVec/assert_eq.lean) | `ClapM p Unit` | `()` | `a_val = b_val` |
 
 Three things the table cannot show:
 
-- **`FVec.eq` and `FArray.eq` are the same circuit.** They differ only in the conversion cited —
-  `FVec.conversion` (`Vector (ZMod p) w`) or `FArray.conversion` (`Vector Bool w`). Pick by what
-  your neighbours' `Converts` facts are about.
+- **`FVec.eq`, `FArray.eq` and `FBitVec.eq` are the same circuit.** `FVec p k`, `FArray p k`
+  and `FBitVec p k` are all `Vector _ k` over the same cell type; they differ only in the
+  conversion cited — `FVec.conversion` (`Vector (ZMod p) w`), `FArray.conversion`
+  (`Vector Bool w`) — and, for `FBitVec`, in stating vector equality where `FArray` states the
+  pointwise form. `FBitVec.eq` / `assert_eq` are thin delegations to the `FArray` ones. Before
+  adding a gadget, check all three namespaces.
+- **`PaddedVector` is polymorphic in its element type.** `PaddedVector α p w` is
+  `data : Vector α w` plus `len : F p`; `FString p w = PaddedVector (F p) p w`, and the keyless
+  inputs use `PaddedVector (FB p) p w` for per-character flags.
 - **`FArray/Widths.lean` also defines `abbrev F64 p := FArray p 64`**, but no `F64` gadget exists
   yet. Its `FBV8`/`F32` entries are thin delegations — `F32.ofFBV8` is
   `FArray.zeroExtend u8 24` and its `convertsM` is a bare term, which is the pattern to copy.
@@ -133,10 +150,13 @@ For iterating gadgets, do not hand-roll the induction — see
 [§Iterating gadgets need rewrite lemmas *first*](#iterating-gadgets-need-rewrite-lemmas-first)
 for `convertsM_foldlM`, `convertsM_foldlM_constraints` and `convertsM_ofFnM`.
 
-Not yet wrapped, though the gate exists: **`share`**, **`num2bits`**, **`fpmul`**. If your
-gadget needs one of these you must write its `Lang/` wrapper and `convertsM` first. `num2bits`
-is the bottleneck for every comparison, range check, packing and hashing gadget — expect it to
-be the first thing you need.
+Not yet wrapped, though the gate exists: **`share`** and **`fpmul`**. If your gadget needs one
+of these you must write its `Lang/` wrapper and `convertsM` first. `num2bits` used to be on this
+list and is the bottleneck for every comparison, range check, packing and hashing gadget; it is
+now wrapped, along with the whole comparison family built on it.
+
+For public inputs — giving a circuit a top-level input rather than taking `Converts`
+hypotheses — see [public-inputs.md](public-inputs.md).
 
 ## The specification
 

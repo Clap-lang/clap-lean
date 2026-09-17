@@ -108,12 +108,12 @@ structure Expr (p : ℕ) where
 notation "⦃" ref ", " σ "⦄" => Expr.mk ref σ      -- Expr.lean:16
 
 @[grind =] def deref (e : Expr p) : Option (CacheExpr p) := e.σ.exprs[e.ref]?
-prefix:max "*" => deref
+prefix:max "*ₑ" => deref
 
 /-- Dereference is valid. -/
 def wellFormed (e : Expr p) : Prop := e.ref < e.σ.size
 
-@[grind _=_] lemma wellFormed_iff_isSome : e.wellFormed ↔ (*e).isSome
+@[grind _=_] lemma wellFormed_iff_isSome : e.wellFormed ↔ (*ₑe).isSome
 @[grind →]   lemma wellFormed_frame
   (h₁ : e.wellFormed) (h₂ : e.σ.exprs.isPrefixOf e'.σ.exprs) (h₃ : e.ref = e'.ref) : e'.wellFormed
 ```
@@ -307,7 +307,7 @@ instance (priority := high) {p} : HAdd (BoundRef p) (BoundRef p) (ClapM p (Bound
 
 3. Six `inferInstanceAs` re-wrappings at the `F p` / `FB p` spelling, in
    `Convert/Specialised.lean`'s `section OverrideInstance`
-   ([Specialised.lean:22-47](../Clap/eDSLState/Convert/Specialised.lean#L22-L47)). These are
+   ([Specialised.lean:24-50](../Clap/eDSLState/Convert/Specialised.lean#L24-L50)). These are
    what make `diff * sel` elaborate in `conditionalSwap`, where `diff : F p` and `sel : FB p`.
 
 So `a + b : ClapM p (F p)`; inside a `do` block you write `←(a + b)`.
@@ -570,46 +570,59 @@ own honest constraint and conjoins them, which is what the underlying semantics
 the last step has constraint `True` — which is every single-assertion gadget, hence most of
 them — and `convertsM_bind_and` as soon as two steps can each fail.
 
-### The eight standard conversions
+### The standard conversions
 
-Seven of them in
-[Convert/Specialised.lean:52-122](../Clap/eDSLState/Convert/Specialised.lean#L52-L122):
+Eight of them in
+[Convert/Specialised.lean:54-134](../Clap/eDSLState/Convert/Specialised.lean#L54-L134), plus
+`FString.conversion` in [FString/Basic.lean](../Clap/Lang/FString/Basic.lean):
 
 ```lean
-abbrev F      (p : ℕ)   : Type := HashConsM.BoundRef p   -- a field element
-abbrev FB     (p : ℕ)   : Type := F p                    -- a *boolean* field element
-abbrev FArray (p k : ℕ) : Type := Vector (FB p) k
-abbrev FVec   (p k : ℕ) : Type := Vector (F p) k         -- arbitrary field elements
-abbrev FList  (p : ℕ)   : Type := List (FB p)
+abbrev F       (p : ℕ)   : Type := HashConsM.BoundRef p   -- a field element
+abbrev FB      (p : ℕ)   : Type := F p                    -- a *boolean* field element
+abbrev F8      (p : ℕ)   : Type := F p                    -- a *byte* in one field element
+abbrev FArray  (p k : ℕ) : Type := Vector (FB p) k
+abbrev FBitVec (p k : ℕ) : Type := Vector (FB p) k        -- alias of FArray
+abbrev FVec    (p k : ℕ) : Type := Vector (F p) k         -- arbitrary field elements
+abbrev FList   (p : ℕ)   : Type := List (FB p)
 ```
 
 | conversion | `IdealT` | `toExprs` | `conversion` |
 |---|---|---|---|
 | `F.conversion` | `ZMod p` | `[x]` | `[x]` |
 | `FB.conversion` | `Bool` | `[x]` | `[if x then 1 else 0]` |
+| `F8.conversion` | `UInt8` | `[x]` | `[(x.toNat : ZMod p)]` |
 | `FUnit.conversion` | `Unit` | `[]` | `[]` |
 | `FArray.conversion` | `Vector Bool k` | `x.toList` | `(x.map (if · then 1 else 0)).toList` |
 | `FVec.conversion` | `Vector (ZMod p) k` | `x.toList` | `x.toList` |
 | `FList.conversion` | `List Bool` | `x` | `x.map (if · then 1 else 0)` |
 | `FPair.conversion` | `ZMod p × ZMod p` | `[x.1, x.2]` | `[x.1, x.2]` |
+| `FString.conversion` | `String` | `x.data.toList ++ [x.len]` | `(encodeV w s).toList ++ [s.length]` |
 
-`F p`, `FB p`, `FArray p k`, `FVec p k` and `FList p` are all *the same underlying type* up to
-`Vector`/`List` wrapping — `ExprRef`. The distinction is entirely in which `Conversion` you cite
-in the spec. Choosing `FB.conversion` is a claim that the value is a bit; `FArray` and `FVec`
-have identical carriers and differ only in whether the ideal values are `Bool` or `ZMod p`.
+`F p`, `FB p`, `F8 p`, `FArray p k`, `FBitVec p k`, `FVec p k` and `FList p` are all *the same
+underlying type* up to `Vector`/`List` wrapping — `ExprRef`. The distinction is entirely in
+which `Conversion` you cite in the spec. Choosing `FB.conversion` is a claim that the value is a
+bit, and `F8.conversion` that it is a byte; `FArray`, `FBitVec` and `FVec` have identical
+carriers and differ only in whether the ideal values are `Bool` or `ZMod p`.
+
+`FString` is the one that is not a bare carrier: it is `PaddedVector (F p) p w`, a
+`data : Vector α w` beside a `len : F p`, and its `IdealT` is a variable-length `String` behind
+that fixed width. `PaddedVector` is polymorphic in `α` so the keyless inputs can also use
+`PaddedVector (FB p) p w`. The encoding is injective only for strings shorter than `w` whose
+characters fit in a byte, with `256 < p` and `w < p`; gadgets needing injectivity take those as
+explicit hypotheses rather than folding them into `Converts`.
 
 `FPair.conversion` exists so that a fold over `a.zip b` has an element conversion to name — see
 [Combinators/foldlM.lean](../Clap/Lang/Combinators/foldlM.lean) and any two-vector gadget.
 
-The eighth is `FString.conversion`, in
-[FString/Basic.lean:37](../Clap/Lang/FString/Basic.lean#L37) rather than `Specialised.lean`:
+`FString.conversion` is the odd one out, living in
+[FString/Basic.lean](../Clap/Lang/FString/Basic.lean) rather than `Specialised.lean`:
 
 ```lean
-structure PaddedVector (p w : ℕ) where
-  data : FVec p w
+structure PaddedVector (α : Type) (p w : ℕ) where
+  data : Vector α w
   len  : F p
 
-abbrev FString (p w : ℕ) := PaddedVector p w
+abbrev FString (p w : ℕ) := PaddedVector (F p) p w
 
 abbrev conversion {w} : Conversion p (FString p w) where
   IdealT := String
@@ -648,7 +661,7 @@ FList.converts_empty / converts_append / converts_of_converts_FB / converts_sing
 | Notation | Means | Defined at |
 |---|---|---|
 | `⦃ref, σ⦄` | `Expr.mk ref σ` | [Expr.lean:16](../Clap/eDSLState/Expr.lean#L16) |
-| `*e` | `Expr.deref e` | [Expr.lean:32](../Clap/eDSLState/Expr.lean#L32) |
+| `*ₑe` | `Expr.deref e` | [Expr.lean:34](../Clap/eDSLState/Expr.lean#L34) |
 | `[Γ, σ\|e]` | `eval Γ ⟨e, σ⟩` | [Eval.lean:476](../Clap/eDSLState/HashCons/Eval.lean#L476) |
 | `[Γ\|e]` | `eval Γ e` | [Eval.lean:478](../Clap/eDSLState/HashCons/Eval.lean#L478) |
 | `[Γ, σ\|←x]` | `HashConsM.run (evalM Γ x) σ` | [Eval.lean:596](../Clap/eDSLState/HashCons/Eval.lean#L596) |
@@ -709,19 +722,30 @@ Mathlib names inside `namespace Clap`.
 
 Flagged so you do not chase them:
 
-1. `ConstraintSystem.lean`, `WitnessGenerator.lean`, `Plan.lean`, `Test.lean` are commented out
-   of [Clap.lean](../Clap.lean); two of them do not parse.
-2. `Circuit.toCs`'s `.fpmul` branch is `sorry`; `num_constraints (.fpmul …) = 42` is a
-   placeholder; `ConstraintSystem/fpMul.lean`'s `check_lt_impl` is a stub.
-3. `Gate.numAllocStep (.isZero _) = 1`, but `WitnessGenerator.trace_capacity` and
-   `ConstraintSystem.num_constraints` both say `2` (the R1CS lowering also needs the inverse
-   hint). Unreconciled.
-4. [IsValid.lean](../Clap/eDSLState/IsValid.lean) compiles but is referenced nowhere — a
+1. The *legacy* single-file `Clap/eDSLState/ConstraintSystem.lean` is still on disk, still has
+   `.fpmul => sorry` at line 137, and is **not** what runs. The live lowering is
+   `ConstraintSystem/toCs.lean` plus the per-gate modules beside it; `Clap.lean` imports those.
+   Same story for `WitnessGenerator.lean`, which was replaced by the `WitnessGenerator/`
+   directory. Do not read either for current behaviour. `Plan.lean` really is still commented
+   out.
+2. `Gate.numAllocStep (.isZero _) = 1`, but the witness generator's `trace_capacity` and
+   `num_constraints` both say `2` (the R1CS lowering also needs the inverse hint).
+   Unreconciled — check which one you mean before relying on either.
+3. [IsValid.lean](../Clap/eDSLState/IsValid.lean) compiles but is referenced nowhere — a
    superseded design. Never build on it.
-5. `HashConsM.saveExpr` returns a magic `42` in its unreachable ill-formed branch. There is no
+4. `HashConsM.saveExpr` returns a magic `42` in its unreachable ill-formed branch. There is no
    failure monad anywhere.
-6. The `seq` unexpander prints its arguments in a different order than the macro parses them.
-7. `HashConsM.getResult_mkVar` is a copy-paste of `getResult_mkConstant` and states a fact
-   about `mkConstant`.
-8. `Circuit.varsAllocated` says `c.take i` while `bind_Circuit_wellFormed` says
+5. The `seq` unexpander prints its arguments in a different order than the macro parses them.
+6. `Circuit.varsAllocated` says `c.take i` while `bind_Circuit_wellFormed` says
    `circuit.extract 0 i` — the same thing, two spellings.
+7. `Clap.Lang.F8` is both an `abbrev` and a namespace, which trips `linter.dupNamespace`. So do
+   the `Clap.monads` attributes in `eDSLState/Wheels.lean:15`. Those warnings are baseline.
+8. Three old-model files — `Clap/BitVec.lean`, `Clap/Wheels.lean`, `Clap/Primes.lean` — are in
+   the live import closure via `CircuitEvalSt.lean`, even though `Clap.lean` lists them only
+   inside the "Goodbye, sweet prince" comment. `num2bitsLsbPureV` is the reason. Editing them
+   affects the build.
+
+Fixed since this file was first written, in case you remember them: `Circuit.toCs`'s `.fpmul`
+branch and the `num_constraints .fpmul = 42` placeholder (both real now),
+`HashConsM.getResult_mkVar` (was a copy-paste of `getResult_mkConstant`), and the absence of any
+executable path at all.

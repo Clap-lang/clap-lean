@@ -20,6 +20,7 @@ Read this file, then go to the one that matches your task.
 | Write a new gadget, or state what an existing one does | [specifying-circuits.md](specifying-circuits.md) — check §Existing inventory before writing anything, and §Iterating gadgets for the `foldlM`/`ofFnM` combinators | [proving-circuits.md](proving-circuits.md) |
 | Prove a `convertsM` lemma; a proof is stuck; `step` is misbehaving | [proving-circuits.md](proving-circuits.md) | §Failure modes |
 | Move a gadget from `Clap/Array.lean`, `Clap/Lang.lean`, `Sha2`, `JWT`, … into the new model | [porting-guide.md](porting-guide.md) | then the two above |
+| Give a circuit public inputs; state an end-to-end theorem about a whole program | [public-inputs.md](public-inputs.md) | [clap-model.md](clap-model.md) |
 
 If you are writing a gadget you MUST read both `specifying-circuits.md` and
 `proving-circuits.md` before writing Lean. The definition and its proof are designed together;
@@ -30,11 +31,16 @@ a gadget written without the proof in mind is usually unprovable without rewriti
 These hold for every task. Violating them produces code that does not compile, or proofs that
 cannot be closed.
 
-1. **Only two trees are live.** [Clap.lean](../Clap.lean) imports `Clap/eDSLState/*` and
-   `Clap/Lang/*` and nothing else. Everything from line 40 onwards sits inside a comment block
-   headed *"Goodbye, sweet prince."* — `Clap/Array.lean`, `Clap/Lang.lean`, `Clap/Spec.lean`,
-   `Sha2`, `JWT`, `RSA`, `Poseidon`, the `Compiler/` metaprogram, all of it. **NEVER** add an
-   import of an old file to make something compile.
+1. **Most of the old tree is dead.** [Clap.lean](../Clap.lean) imports `Clap/eDSLState/*`,
+   `Clap/Lang/*`, `Clap/Keyless/Allocate.lean` and (transitively) `Clap/Poseidon/NewPoseidon.lean`.
+   Everything after the comment block headed *"Goodbye, sweet prince."* is dead —
+   `Clap/Array.lean`, `Clap/Lang.lean`, `Clap/Spec.lean`, `Sha2`, `JWT`, `RSA`, the `Compiler/`
+   metaprogram, all of it. **NEVER** add an import of an old file to make something compile.
+
+   Three old files are the exception, and they are *already* live, reached transitively rather
+   than listed: [Clap/BitVec.lean](../Clap/BitVec.lean) (via `CircuitEvalSt.lean`, because
+   `stepNum2bits` is specified against `num2bitsLsbPureV`), and `Clap/Wheels.lean` and
+   `Clap/Primes.lean` beneath it. Editing those three affects the live build.
 
 2. **`Clap/Lang.lean` is not `Clap/Lang/`.** The *file* `Clap/Lang.lean` (~1100 lines) is the
    OLD `Option`/`ZMod`-valued model. The *directory* `Clap/Lang/` is the new gadget library.
@@ -60,16 +66,25 @@ cannot be closed.
    compiles but is referenced nowhere. It is a superseded design for what `Conversion` /
    `Converts` now does.
 
-7. **Do not assume the back end works.** `ConstraintSystem.lean`, `WitnessGenerator.lean`,
-   `Plan.lean` and `Test.lean` are commented out of `Clap.lean`; two of them do not even parse.
-   `Circuit.toCs`'s `.fpmul` branch is `sorry`. There is no working executable path from a
-   `ClapM` action to a satisfying witness, so there is **no `native_decide` smoke test
-   available** for a new gadget. The `ConvertsM` lemma is the only evidence a gadget works.
+7. **The back end works; use it.** `Circuit.toCs`
+   ([ConstraintSystem/toCs.lean](../Clap/eDSLState/ConstraintSystem/toCs.lean)) and
+   `Circuit.toWg` ([WitnessGenerator/toWg.lean](../Clap/eDSLState/WitnessGenerator/toWg.lean))
+   both take a `numInputs` and have real branches for all five gates, with per-gate modules
+   under `ConstraintSystem/` and `WitnessGenerator/`.
+   [Test.lean](../Clap/eDSLState/Test.lean) runs a circuit end to end and `#eval`s
+   `wellbehaved` / `complete` / `sound`. So a `native_decide` smoke test *is* available — see
+   [NewPoseidon.lean](../Clap/Poseidon/NewPoseidon.lean), which pins two circomlib hash vectors
+   that way. The `ConvertsM` lemma is still the real evidence; a smoke test is a cheap sanity
+   check on top, not a substitute.
+
+   Two traps remain. The *legacy* single-file `Clap/eDSLState/ConstraintSystem.lean` still
+   exists and still has `.fpmul => sorry` at line 137 — it is **not** the live path and
+   `Clap.lean` does not import it. And `Plan.lean` is still commented out.
 
 8. **`autoImplicit` is off and the unused-variable linter is on**
    ([lakefile.toml](../lakefile.toml)). Bind every implicit explicitly — hence the ubiquitous
-   `variable {p : ℕ}` at the top of every file. Lean is `v4.32.0`, Mathlib is pinned to
-   `v4.32.0`.
+   `variable {p : ℕ}` at the top of every file. Lean is `v4.32.0`; Mathlib and CompPoly are
+   both pinned to `v4.32.0`.
 
 9. **Verify with `lake build`.** There is no test suite for the new model. `lake build Clap`
    builds everything; `lake build Clap.Lang.FArray.singleOneArray` builds one gadget and its
@@ -99,10 +114,16 @@ Follow these or your code will read as foreign to the rest of the tree.
 ## Checklist before you declare a task done
 
 - [ ] `lake build` passes.
-- [ ] No `sorry`, no `admit`, no `native_decide` in what you added.
+- [ ] No `sorry` and no `admit` in what you added. `lake build Clap` has exactly one expected
+      `sorry`, `poseidon.convertsM` in
+      [AllocatedProgram.lean](../Clap/eDSLState/AllocatedProgram.lean) — it is unprovable by
+      design, standing in for the `opaque poseidonSpec` in that example. If you see a second
+      one, it is yours.
+- [ ] `native_decide` is allowed as a smoke test, never as the proof of a `convertsM`.
 - [ ] The gadget has exactly one aggregate lemma, named `convertsM`, in a namespace matching
       the definition's name.
 - [ ] Its constraints slot is `True` only if the gadget genuinely emits no assertion.
 - [ ] The new file is imported from [Clap/Lang/All.lean](../Clap/Lang/All.lean) **and**
-      [Clap.lean](../Clap.lean), in alphabetical position in both.
+      [Clap.lean](../Clap.lean), in alphabetical position in both (case-insensitive order; the
+      two Lang blocks are identical apart from `Clap.Lang.Wheels`).
 - [ ] You did not touch any file behind the "Goodbye, sweet prince" comment.
