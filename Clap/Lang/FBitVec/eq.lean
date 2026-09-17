@@ -1,16 +1,15 @@
-import Clap.Lang.FB.and
-import Clap.Lang.FB.eq
-import Clap.Lang.FB.ofBool
+import Clap.Lang.FArray.eq
 
 namespace Clap.Lang.FBitVec
 
 variable {p : ℕ}
 
-def eq₀ [p.AtLeastTwo] {w : ℕ} (init : FB p) (a b : FArray p w) : ClapM p (FB p) :=
-  (a.zip b).foldlM (fun acc (x, y) => do FB.and acc (← _root_.Clap.Lang.eq x y)) init
+/-- Is one bit vector equal to another, as a circuit bit.
 
-def eq [p.AtLeastTwo] {w : ℕ} (a b : FArray p w) : ClapM p (FB p) := do
-  eq₀ (← FB.ofBool true) a b
+`FBitVec p w` is the same carrier as `FArray p w`, so this is `FArray.eq`; the namespace
+exists to mirror the old model's `FBitVec.*`. -/
+def eq [p.AtLeastTwo] {w : ℕ} (a b : FBitVec p w) : ClapM p (FB p) :=
+  FArray.eq a b
 
 namespace eq
 
@@ -22,11 +21,12 @@ lemma convertsM
   {a_val b_val : Vector Bool k}
   (h_a : Converts FArray.conversion state a a_val)
   (h_b : Converts FArray.conversion state b b_val)
-
-  :
+:
   ConvertsM FB.conversion (eq a b) state (a_val == b_val) True
 := by
-  sorry
+  apply convertsM_of_convertsM (FArray.eq.convertsM h_a h_b) _ Iff.rfl
+  by_cases h : a_val = b_val <;> simp [h]
 
 end eq
+
 end Clap.Lang.FBitVec
