@@ -11,7 +11,7 @@ open HashConsM
 variable {p : ℕ}
 
 def sigma (x : BoundRef p) : ClapM p ExprRef := do
-  let x2 ← x * x
+  let x2 ← (x * x : ClapM p ExprRef)
   let x4 ← x2 * x2
   x4 * x
 
@@ -44,7 +44,7 @@ def mix {t : ℕ}
   (M : Vector (Vector (BoundRef p) t) t)
 : ClapM p (Vector (BoundRef p) t) :=
   state.mapIdxM (fun (i : ℕ) _ ↦ do
-    let x ← state.zipWithM (fun (sj : (BoundRef p)) (row : Vector (BoundRef p) t) ↦ row[i]! * sj) M
+    let x ← state.zipWithM (fun (sj : BoundRef p) (row : Vector (BoundRef p) t) ↦ row[i]! * sj) M
     x.foldrM (λ x y => x + y) (←liftM (mkConstant 0))
   )
 
@@ -53,7 +53,7 @@ def mixLast {t : ℕ}
   (M : Vector (Vector (BoundRef p) t) t)
   (s : ℕ)
 : ClapM p (BoundRef p) := do
-  let x ← (state.zipWithM (fun (sj : (BoundRef p)) (row : Vector (BoundRef p) t) ↦ mkMul row[s]! sj) M)
+  let x ← (state.zipWithM (fun (sj : (BoundRef p)) (row : Vector (BoundRef p) t) ↦ row[s]! * sj) M)
   x.foldrM (λ x y => mkAdd x y) (←liftM (mkConstant 0))
 
 def mixS {t s : ℕ}

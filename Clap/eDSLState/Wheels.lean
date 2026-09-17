@@ -285,3 +285,35 @@ instance {p} : Hashable (ZMod p) where
   hash x := UInt64.ofNat x.val
 
 end Clap
+
+lemma Std.ExtTreeMap.toArray_eq_toArray {α β : Type} [Ord α] [inst : Std.TransCmp (compare (α := α))] [Std.LawfulEqCmp (compare (α := α))] {kvPairs : List (α × β)} :
+  Std.ExtTreeMap.ofArray kvPairs.toArray compare = Std.ExtTreeMap.ofList kvPairs compare := by
+  ext k v
+  
+  unfold Std.ExtTreeMap.ofArray
+  unfold Std.ExtTreeMap.ofList
+  unfold Std.ExtDTreeMap.Const.ofArray
+  unfold Std.ExtDTreeMap.Const.ofList
+  unfold Std.DTreeMap.Const.ofArray
+  unfold Std.DTreeMap.Const.ofList
+  unfold Std.DTreeMap.Internal.Impl.Const.ofArray
+  unfold Std.DTreeMap.Internal.Impl.Const.ofList
+  unfold Std.DTreeMap.Internal.Impl.Const.insertMany
+  unfold_projs
+  simp
+  rfl
+
+lemma Std.ExtTreeMap.getElem?_insertMany_eq_getElem?
+  {p} {idx : ℕ}
+  {input : List (ZMod p)}
+:
+  (Std.ExtTreeMap.insertMany ∅ (α := ℕ) (β := ZMod p) (cmp := compare) (List.map Prod.swap input.zipIdx))[idx]? =
+  input[idx]?
+:= by
+  rewrite [←input.reverse_reverse]
+  induction' input.reverse with head tail h_tail
+  . grind
+  . simp [List.zipIdx_append, Std.ExtTreeMap.insertMany_append]
+    by_cases h : idx = tail.length
+    . grind
+    . grind

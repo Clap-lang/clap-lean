@@ -525,6 +525,26 @@ lemma getResult_lt_getHashConsState_size_mkMul {l r}
   unfold mkMul
   grind
 
+@[grind =]
+lemma getHashConsState_bind
+  {α β p}
+  {action : HashConsM p α} {function : α → HashConsM p β}
+  {σ : HashConsSt p}
+:
+  (action >>= function).getHashConsState σ =
+  ((function (action.getResult σ)).getHashConsState (action.getHashConsState σ))
+:= rfl
+
+@[simp, grind =]
+lemma getHashConsState_map
+  {α β p}
+  {action : HashConsM p α} {function : α → β}
+  {σ : HashConsSt p}
+:
+  (function <$> action).getHashConsState σ =
+  action.getHashConsState σ
+:= rfl
+
 end Lemmas
 
 end MkExpr
