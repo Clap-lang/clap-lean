@@ -260,7 +260,7 @@ def mkInputF8Width := 1
 @[simp, grind =]
 lemma numAlloc_mkInputF8 :
   (HashConsM.getResult (mkInputF8 numAlloc) σ).2 =
-  numAlloc + mkInputF8Width := rfl  
+  numAlloc + mkInputF8Width := rfl
 
 def mkInputFB {p} (numAlloc : ℕ) : HashConsM p (FB p × ℕ) := do
   let x ← HashConsM.mkVar numAlloc
@@ -419,7 +419,7 @@ def mkInputAudOverrideInput (numAlloc : ℕ) : HashConsM p (AudOverrideInput p �
   let (privateAudValue, numAlloc) ← mkInputFString numAlloc MAX_AUD_VALUE_LEN
   let (overrideAudValue, numAlloc) ← mkInputFString numAlloc MAX_AUD_VALUE_LEN
   return (
-    { 
+    {
       useAudOverride := useAudOverride
       skipAudChecks := skipAudChecks
       privateAudValue := privateAudValue
@@ -432,7 +432,7 @@ def mkInputAudOverrideInput (numAlloc : ℕ) : HashConsM p (AudOverrideInput p �
 def mkInputAudOverrideInputWidth :=
   1 +
   1 +
-  MAX_AUD_VALUE_LEN + 1 + 
+  MAX_AUD_VALUE_LEN + 1 +
   MAX_AUD_VALUE_LEN + 1
 
 @[simp, grind =]
@@ -471,7 +471,7 @@ def mkInputJWTUnquotedFieldInputWidth (maxPairLen maxNameLen maxValueLen) :=
   maxValueLen + 1 +
   1 +
   1 +
-  1 
+  1
 
 @[simp, grind =]
 lemma numAlloc_mkInputJWTUnquotedFieldInput {maxPairLen maxNameLen maxValueLen} :
@@ -492,7 +492,7 @@ def mkInputEvFieldInput (numAlloc : ℕ) (maxPairLen maxNameLen maxValueLen) :
   let (colonIndex, numAlloc) ← mkInputF numAlloc
   let (valueIndex, numAlloc) ← mkInputF numAlloc
   return (
-    { 
+    {
       field := field
       name := name
       value := value
@@ -525,7 +525,7 @@ lemma numAlloc_mkInputEvFieldInput {maxPairLen maxNameLen maxValueLen} :
 def mkInputExtraFieldInput (numAlloc : ℕ) :
   HashConsM p (ExtraFieldInput p × ℕ) := do
   let (extraField, numAlloc) ← mkInputFString numAlloc MAX_EXTRA_FIELD_KV_PAIR_LEN
-  let (extraFieldIndex, numAlloc) ← mkInputF numAlloc 
+  let (extraFieldIndex, numAlloc) ← mkInputF numAlloc
   let (useExtraField, numAlloc) ← mkInputF numAlloc
   return (
     {
@@ -539,7 +539,7 @@ def mkInputExtraFieldInput (numAlloc : ℕ) :
 @[simp, grind =]
 def mkInputExtraFieldInputWidth :=
   MAX_EXTRA_FIELD_KV_PAIR_LEN + 1 +
-  1 + 
+  1 +
   1
 
 @[simp, grind =]
@@ -709,7 +709,7 @@ theorem poseidon_the_specd
   apply convertsM_of_convertsM (assert_eq.convertsM h_poseidon h₀) rfl
   simp
 
-lemma theLemma {α β : Type} [Ord α] [inst : Std.TransCmp (compare (α := α))] [Std.LawfulEqCmp (compare (α := α))] {kvPairs : List (α × β)} : 
+lemma theLemma {α β : Type} [Ord α] [inst : Std.TransCmp (compare (α := α))] [Std.LawfulEqCmp (compare (α := α))] {kvPairs : List (α × β)} :
   Std.ExtTreeMap.ofArray kvPairs.toArray compare = Std.ExtTreeMap.ofList kvPairs compare := by
   ext k v
   unfold Std.ExtTreeMap.ofArray
@@ -730,18 +730,192 @@ abbrev _root_.Clap.Lang.FVector.conversion {p} {k} : Conversion p (Vector (F p) 
   toExprs x := x.toList
   conversion x := x.toList
 
-theorem tutatis {k : ℕ} {numAlloc} {input : Vector (ZMod Primes.bn254) (k + 1)} :
-  ∀ (i : Fin k),
-    ConvertsM FVector.conversion (mkInputVectorF numAlloc k) := sorry
+@[simp, grind =]
+lemma poseidon_the_envisaged_getResult_length
+  {k}
+  {σ}
+:
+  ((poseidon_the_envisaged k).allocate.getResult σ).1.toList.length = k
+:= by
+  simp [poseidon_the_envisaged]
+
+@[simp, grind .]
+lemma isPrefixOf_mkInputF
+  {p} {x}
+  {σ : HashConsSt p}
+:
+  σ.exprs.isPrefixOf ((mkInputF x).getHashConsState σ).exprs
+:= by
+  unfold mkInputF
+  simp
+
+@[simp, grind =]
+lemma deref_mkInputF
+  {p} {x}
+  {σ : HashConsSt p}
+:
+  *ₑ⦃((mkInputF x).getResult σ).1, (mkInputF x).getHashConsState σ⦄ =
+  .some (.v x)
+:= by
+  simp [mkInputF]
+
+@[simp, grind .]
+lemma wellFormed_mkInputF
+  {p} {x}
+  {σ : HashConsSt p}
+:
+  ⦃((mkInputF x).getResult σ).1, (mkInputF x).getHashConsState σ⦄.wellFormed
+:= by
+  aesop (add safe (by grind))
+
+@[grind =]
+lemma deref_poseidon_allocate_1
+  {k}
+  {σ}
+  {i}
+  (h: i < k)
+:
+  *ₑ⦃
+    ((poseidon_the_envisaged k).allocate.getResult σ).1[i],
+    (poseidon_the_envisaged k).allocate.getHashConsState σ
+  ⦄ = .some (.v i)
+:= by
+  simp [
+    poseidon_the_envisaged,
+    mkInputVectorF,
+    HashConsM.getHashConsState_bind
+  ]
+  induction' k with k ih generalising σ
+  . grind
+  . simp only [Vector.range_succ]
+    simp only [Vector.mapM_append]
+    by_cases h_i : i = k
+    . simp [
+        h_i,
+        HashConsM.getHashConsState_bind,
+        HashConsM.getHashConsState_map
+      ]
+      rewrite [
+        ←varSet.deref_eq_of_ref_eq_prefix
+          (e₁ := ⦃((mkInputF k).getResult ((Vector.mapM mkInputF (Vector.range k)).getHashConsState σ)).1, _⦄)
+      ]
+      case pos.h₂ =>
+        simp
+        exact isPrefixOf_mkInputF
+      . grind
+      . rfl
+      . grind
+    . simp [Vector.getElem_push]
+      rewrite [dite_cond_eq_true (by grind)]
+      simp [
+        HashConsM.getHashConsState_bind,
+        HashConsM.getHashConsState_map
+      ]
+      rewrite [←varSet.deref_eq_of_ref_eq_prefix]
+      . exact ih (by grind)
+      . simp
+      . grind
+      . grind
+
+@[simp, grind =]
+lemma deref_poseidon_allocate_2
+  {k}
+  {σ}
+:
+  *ₑ⦃
+    ((poseidon_the_envisaged k).allocate.getResult σ).2,
+    (poseidon_the_envisaged k).allocate.getHashConsState σ
+  ⦄ = .some (.v k)
+:= by
+  simp [
+    poseidon_the_envisaged,
+    mkInputVectorF,
+    HashConsM.getHashConsState_bind
+  ]
+
+-- TODO name, move
+lemma getElem_aux
+  {p} {idx : ℕ}
+  {input : List (ZMod p)}
+:
+  (Std.ExtTreeMap.insertMany ∅ (α := ℕ) (β := ZMod p) (cmp := compare) (List.map Prod.swap input.zipIdx))[idx]? =
+  input[idx]?
+:= by
+  rewrite [←input.reverse_reverse]
+  induction' input.reverse with head tail h_tail
+  . grind
+  . simp [List.zipIdx_append, Std.ExtTreeMap.insertMany_append]
+    by_cases h : idx = tail.length
+    . grind
+    . grind
+
+theorem poseidon.converts_input_vec
+  {k : ℕ} {input : Vector (ZMod Primes.bn254) (k + 1)}
+:
+  Converts
+  FVector.conversion
+  ⟨
+    Std.ExtTreeMap.ofArray (Array.map Prod.swap input.toArray.zipIdx) compare,
+    ((poseidon_the_envisaged k).allocate.getHashConsState (HashConsSt.empty Primes.bn254)),
+    k+1
+  ⟩
+  ((poseidon_the_envisaged k).allocate.getResult (HashConsSt.empty Primes.bn254)).1
+  ((input.take k).cast (by grind))
+:= by
+  constructor
+  case h_conversion =>
+    grind
+  case varSet_wf =>
+    intro ⟨i, h_i⟩
+    simp at ⊢ h_i
+    unfold Expr.varSet_wellFormed
+    unfold Expr.varSet
+    grind
+  case expr_wf =>
+    intro ⟨i, h_i⟩
+    simp at ⊢ h_i
+    grind
+  case value_eq =>
+    intro ⟨i, h_i⟩
+    simp at ⊢ h_i
+    rewrite [eval_eq_evalRec]
+    . unfold Expr.evalRec
+      obtain ⟨⟨input⟩, h_input⟩ := input
+      simp [
+        theLemma,
+        Std.ExtTreeMap.ofList_eq_insertMany_empty,
+        getElem_aux
+      ]
+      grind
+    . grind
 
 
+lemma FVector.conversion_getElem
+  {p} {k}
+  {state : ClapMState p}
+  {exprs : Vector (F p) k}
+  {vals : Vector (ZMod p) k}
+  {i : Fin k}
+  (h : Converts FVector.conversion state exprs vals)
+:
+  Converts F.conversion state exprs[i] vals[i]
+:= by
+  obtain ⟨h_conversion, varSet_wf, expr_wf, value_eq⟩ := h
+  constructor
+  case h_conversion => grind
+  case varSet_wf => intro i'; simp; exact varSet_wf ⟨i.val, by grind⟩
+  case expr_wf => intro i'; simp; exact expr_wf ⟨i.val, by grind⟩
+  case value_eq => intro i'; simp; exact value_eq ⟨i.val, by grind⟩
+
+-- the requested end-to-end spec
 theorem odysseus
   {k}
   {input : Vector (ZMod Primes.bn254) (k + 1)} :
   (poseidon_the_envisaged k).getConstraints input ↔
   letI inputInit := input.take k
   letI inputLast := input.back!
-  poseidon_the_opaque inputInit = inputLast := by
+  poseidon_the_opaque inputInit = inputLast
+:= by
   unfold theEnvisaged.getConstraints
   dsimp [theEnvisaged.getCircuit]
   set numAlloc := (poseidon_the_envisaged k).numAlloc with eq₁
@@ -806,7 +980,7 @@ theorem odysseus
       rw [HashConsM.getResult_mkVar]
       rw [HashConsM.getHashConsState_mkVar]
       unfold Expr.evalRec
-      
+
       simp_all only [Option.map_eq_map, inputRef]
       split
       next heq =>
@@ -846,116 +1020,8 @@ theorem odysseus
           simp_all only [Option.some.injEq]
           subst h
           (grind)
-  · extract_goal
-    unfold poseidon_the_envisaged
-    dsimp
-    intros i
-    rcases i with ⟨i, hi⟩
-    clear eq₁
-    clear_value numAlloc
-    clear eq₃
-    clear_value σ
-    clear_value inputRef
-    clear eq₅
-    clear eq₄
-
-
-    induction' k with k ih generalizing σ
-    · exfalso; grind
-    · unfold mkInputVectorF mkInputF
-      constructor <;> simp
-      · simp [←HashConsM.getHashConsState.eq_def] at ih ⊢
-        simp [←HashConsM.getResult.eq_def] at ih ⊢
-        simp [Vector.mapM_succ]
-        specialize @ih ((input.take (k + 1)).cast (by grind))
-        rcases inputRef with ⟨vec, f⟩
-        specialize ih ?yourFace ⟨vec.take k |>.cast (by grind), f⟩
-        swap
-        by_cases eq₉ : i < k
-        · specialize ih (by grind)
-          simp [Vector.range_succ]
-          rw [Vector.getElem_push]
-          simp [eq₉]
-          rcases ih with ⟨_, here, _, _⟩
-          specialize here 0
-          
-          simp [mkInputVectorF] at here
-          delta mkInputF at here
-          simp at here
-          exact here
-        · simp at eq₉
-          have : i = k := by grind
-          subst this
-          rw [Vector.getElem_push]
-          simp
-
-          sorry
-      · subst σ
-        subst state numAlloc
-        simp [←HashConsM.getHashConsState.eq_def]
-        simp [←HashConsM.getResult.eq_def]
-        dsimp [poseidon_the_envisaged]
-        simp [Expr.wellFormed]
-        unfold mkInputF
-        rw [HashConsM.getHashConsState_bind]
-        simp
-        exact HashConsM.getResult_lt_getHashConsState_size_mkVar
-      · subst σ
-        subst state numAlloc
-        subst varStore
-        simp [←HashConsM.getHashConsState.eq_def]
-        simp [←HashConsM.getResult.eq_def]
-        dsimp [poseidon_the_envisaged]
-        unfold mkInputF
-        rw [HashConsM.getHashConsState_bind]
-        simp
-        rw [eval_eq_evalRec (by grind)]
-        rw [HashConsM.getResult_mkVar]
-        rw [HashConsM.getHashConsState_mkVar]
-        unfold Expr.evalRec
-        
-        simp_all only [Option.map_eq_map, inputRef]
-        split
-        next heq =>
-          simp_all only [reduceCtorEq]
-          (grind)
-        next expr heq =>
-          split
-          next expr h k_1 h_1 =>
-            simp_all only [Option.some.injEq]
-            subst h
-            (grind)
-          next expr h idx h_1 =>
-            simp_all only [Option.some.injEq]
-            subst h
-            split at heq
-            all_goals {
-              rcases input with ⟨⟨a⟩, c⟩
-              simp
-              have : idx = k := by grind
-              subst this
-              rw [theLemma]
-              rw [Std.ExtTreeMap.ofList_eq_insertMany_empty]
-              let aSplit := a.take idx ++ [a.getLast!]
-              have : a = aSplit := by
-                simp [aSplit]
-                ext1 i
-                grind
-              rw [this]
-              simp [aSplit]
-              rw [List.zipIdx_append]
-              simp
-              rw [Std.ExtTreeMap.insertMany_append]
-              simp
-              grind
-            }
-          next expr h lhs rhs op h_1 =>
-            simp_all only [Option.some.injEq]
-            subst h
-            (grind)
-  -- have := @poseidon_the_specd
-  -- -- rw [(poseidon_the_specd _ _).constraints]
-  -- have := @ClapM.runAndEval.eq_def
-  -- rw [←ClapM.runAndEval.eq_def]
+  · intro ⟨i, h_i⟩
+    apply FVector.conversion_getElem
+    exact poseidon.converts_input_vec
 
 end Clap
