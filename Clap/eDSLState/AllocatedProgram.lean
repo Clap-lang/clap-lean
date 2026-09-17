@@ -1,7 +1,7 @@
 import Clap.eDSLState.Monad
 import Clap.eDSLState.Convert.Specialised
 import Clap.eDSLState.ConstraintSystem.toCs
-import Clap.eDSLState.Fabricio
+import Clap.eDSLState.PublicInput
 import Clap.eDSLState.Wheels
 import Clap.eDSLState.WitnessGenerator.toWg
 import Clap.Poseidon.NewPoseidon
@@ -23,7 +23,7 @@ Note that `liftM allocate >>= program` is a valid composition in `ClapM`.
 NB:
 Technically, `allocate` should actually just fill the `numAlloc`, but whatever.
 This will likely just be used once at the top level (depending on the proof structure),
-and we have the ingredients for keyless. Namely: in `Clap/eDSLState/Fabricio.lean` we have:
+and we have the ingredients for keyless. Namely: in `Clap/Keyless/Allocate.lean` we have:
 - allocateKeyless : `HashConsM p (FKeylessInput p)`, i.e. the `allocate` function
 - allocateKeylessWidth : `ℕ`, i.e. the `numAlloc`
 -/
@@ -134,12 +134,7 @@ theorem PoseidonCircuitSpec
 
 end Spec
 
-abbrev _root_.Clap.Lang.FVector.conversion {p} {k} : Conversion p (Vector (F p) k) where
-  IdealT := Vector (ZMod p) k
-  toExprs x := x.toList
-  conversion x := x.toList
-
-section IgnoreThisSection
+section PoseidonAllocationLemmas
 
 @[simp, grind =]
 lemma poseidon_the_envisaged_getResult_length
@@ -149,35 +144,6 @@ lemma poseidon_the_envisaged_getResult_length
   ((poseidonProgram k).allocate.getResult σ).1.toList.length = k
 := by
   simp [poseidonProgram]
-
-@[simp, grind .]
-lemma isPrefixOf_mkInputF
-  {p} {x}
-  {σ : HashConsSt p}
-:
-  σ.exprs.isPrefixOf ((mkInputF x).getHashConsState σ).exprs
-:= by
-  unfold mkInputF
-  simp
-
-@[simp, grind =]
-lemma deref_mkInputF
-  {p} {x}
-  {σ : HashConsSt p}
-:
-  *ₑ⦃((mkInputF x).getResult σ).1, (mkInputF x).getHashConsState σ⦄ =
-  .some (.v x)
-:= by
-  simp [mkInputF]
-
-@[simp, grind .]
-lemma wellFormed_mkInputF
-  {p} {x}
-  {σ : HashConsSt p}
-:
-  ⦃((mkInputF x).getResult σ).1, (mkInputF x).getHashConsState σ⦄.wellFormed
-:= by
-  aesop (add safe (by grind))
 
 @[grind =]
 lemma deref_poseidon_allocate_1
@@ -246,7 +212,7 @@ lemma deref_poseidon_allocate_2
 
 -- TODO name, mov
 
-end IgnoreThisSection
+end PoseidonAllocationLemmas
 
 /--
 Important proof.
@@ -257,7 +223,7 @@ theorem poseidon.converts_input_vec
   {k : ℕ} {input : Vector (ZMod Primes.bn254) (k + 1)}
 :
   Converts
-  FVector.conversion
+  FVec.conversion
   ⟨
     Std.ExtTreeMap.ofArray (Array.map Prod.swap input.toArray.zipIdx) compare,
     ((poseidonProgram k).allocate.getHashConsState (HashConsSt.empty Primes.bn254)),
@@ -293,23 +259,6 @@ theorem poseidon.converts_input_vec
       grind
     . grind
 
-
-lemma FVector.conversion_getElem
-  {p} {k}
-  {state : ClapMState p}
-  {exprs : Vector (F p) k}
-  {vals : Vector (ZMod p) k}
-  {i : Fin k}
-  (h : Converts FVector.conversion state exprs vals)
-:
-  Converts F.conversion state exprs[i] vals[i]
-:= by
-  obtain ⟨h_conversion, varSet_wf, expr_wf, value_eq⟩ := h
-  constructor
-  case h_conversion => grind
-  case varSet_wf => intro i'; simp; exact varSet_wf ⟨i.val, by grind⟩
-  case expr_wf => intro i'; simp; exact expr_wf ⟨i.val, by grind⟩
-  case value_eq => intro i'; simp; exact value_eq ⟨i.val, by grind⟩
 
 -- the requested end-to-end spec
 theorem odysseus
@@ -425,7 +374,7 @@ theorem odysseus
           subst h
           (grind)
   · intro ⟨i, h_i⟩
-    apply FVector.conversion_getElem
+    apply FVec.converts_getElem _ h_i
     exact poseidon.converts_input_vec
 
 end PoseidonExample

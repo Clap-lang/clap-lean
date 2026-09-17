@@ -15,11 +15,15 @@ namespace Clap.Lang
 
 variable {p : ℕ}
 
-structure PaddedVector (p w : ℕ) where
-  data : FVec p w
+/-- A fixed-width vector of `α` carrying a circuit-level length, so that a variable-length
+value can be represented at a fixed width. Polymorphic in the element type: `FString` fills it
+with field elements, while the keyless JWT inputs also use `PaddedVector (FB p) p w` for
+per-character bit flags. -/
+structure PaddedVector (α : Type) (p w : ℕ) where
+  data : Vector α w
   len : F p
 
-abbrev FString (p w : ℕ) := PaddedVector p w
+abbrev FString (p w : ℕ) := PaddedVector (F p) p w
 
 namespace FString
 

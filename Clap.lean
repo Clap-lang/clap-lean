@@ -1,3 +1,4 @@
+import Clap.eDSLState.AllocatedProgram
 import Clap.eDSLState.Convert.Base
 import Clap.eDSLState.Convert.Specialised
 import Clap.eDSLState.HashCons.CacheExpr
@@ -17,6 +18,7 @@ import Clap.eDSLState.Expr
 import Clap.eDSLState.Gate
 import Clap.eDSLState.IsValid
 import Clap.eDSLState.Monad
+import Clap.eDSLState.PublicInput
 -- import Clap.eDSLState.Plan -- TODO(probably Discard)
 import Clap.eDSLState.Test
 import Clap.eDSLState.Varstore
@@ -81,7 +83,10 @@ import Clap.Lang.FUnit.guardedAssertEq
 import Clap.Lang.FUnit.guardedEq0
 import Clap.Lang.FVec.eq
 
+import Clap.Lang.Keyless.Input
 import Clap.Lang.Wheels
+
+import Clap.Keyless.Allocate
 
 /-
 Goodbye, sweet prince.

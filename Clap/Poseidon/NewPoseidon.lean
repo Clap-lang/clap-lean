@@ -56,22 +56,29 @@ def mixLast {t : ℕ}
   let x ← (state.zipWithM (fun (sj : (BoundRef p)) (row : Vector (BoundRef p) t) ↦ row[s]! * sj) M)
   x.foldrM (λ x y => mkAdd x y) (←liftM (mkConstant 0))
 
+/--
+Built with `mapIdxM` over `state` rather than as `#[out₀] ++ tail`, so the result has width
+`t` by construction. The old shape needed `1 + (t - 1) = t`, i.e. `t ≠ 0`, which is not
+available here. Effect order is unchanged: element 0 first, then 1 … t-1 in order.
+-/
 def mixS {t s : ℕ}
   (r : ℕ)
   (state : Vector (BoundRef p) t)
   (S : Vector (BoundRef p) s)
 : ClapM p (Vector (BoundRef p) t) := do
-  -- let t : ℕ := state.length
   let base : ℕ := (2 * t - 1) * r
-  return ⟨#[←dotProduct base] ++ (←tail base).toArray, sorry⟩ -- t must not be 0
+  state.mapIdxM (fun i _ ↦ if i = 0 then dotProduct base else tailAt base i)
 where
   /-- `out[0] = Σᵢ S[base + i] · in[i]` — full dot product for element 0 -/
   dotProduct (base : ℕ) : ClapM p (BoundRef p) := do
-    let s' : Vector _ t := ⟨S.extract base (base+t) |>.toArray, sorry⟩
+    -- `ofFn` rather than `S.extract base (base + t)`: the latter has width
+    -- `min (base + t) s - base`, which is `t` only under `base + t ≤ s`. Indexing agrees
+    -- with `extract` on that range, and `!` matches how the rest of this file reads `S`.
+    let s' : Vector (BoundRef p) t := Vector.ofFn (fun i : Fin t ↦ S[base + i.val]!)
     (←state.zipWithM (· * ·) s').foldrM (λ x y => mkAdd x y) (←liftM (mkConstant 0))
   /-- `out[i] = in[i] + in[0] · S[base + t + i − 1]` for `i ∈ [1, t)` -/
-  tail (base : ℕ) : ClapM p (Vector (BoundRef p) (t-1)) := do
-    (state.drop 1).mapIdxM (fun i sᵢ ↦ do mkAdd sᵢ (←state[0]! * S[base + t + i]!))
+  tailAt (base i : ℕ) : ClapM p (BoundRef p) := do
+    mkAdd state[i]! (←state[0]! * S[base + t + i - 1]!)
 
 def poseidonEx {n c s : ℕ}
   (inputs : Vector (BoundRef p) n)
