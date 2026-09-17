@@ -14,6 +14,10 @@ abbrev F (p : ℕ) : Type := HashConsM.BoundRef p
 abbrev FB (p : ℕ) : Type := F p
 abbrev FArray (p k : ℕ) : Type := Vector (FB p) k
 abbrev FList (p : ℕ) : Type := List (FB p)
+/-- A vector of arbitrary field elements. Same underlying type as `FArray p k`; the two differ
+only in which `Conversion` you cite, `FVec.conversion` (`Vector (ZMod p) k`) or
+`FArray.conversion` (`Vector Bool k`). -/
+abbrev FVec (p k : ℕ) : Type := Vector (F p) k
 
 section OverrideInstance
 
@@ -96,6 +100,27 @@ abbrev conversion : Conversion p (FList p) where
 
 end FList
 
+
+namespace FVec
+
+abbrev conversion {k} : Conversion p (FVec p k) where
+  IdealT := Vector (ZMod p) k
+  toExprs x := x.toList
+  conversion x := x.toList
+
+end FVec
+
+
+-- A pair of field elements, so that a fold over `a.zip b` has an element conversion.
+namespace FPair
+
+abbrev conversion : Conversion p (F p × F p) where
+  IdealT := ZMod p × ZMod p
+  toExprs x := [x.1, x.2]
+  conversion x := [x.1, x.2]
+
+end FPair
+
 end Converts
 
 
@@ -142,6 +167,36 @@ lemma converts_of_F_converts
       rewrite [←ZMod.val_eq_one] at h_neq
       grind
       exact Nat.AtLeastTwo.one_lt
+
+/-- A field element known to be `0` is the bit `false`. -/
+lemma converts_zero
+  [p.AtLeastTwo]
+  {state : ClapMState p}
+  {expr : F p}
+  (h : Converts F.conversion state expr 0)
+:
+  Converts FB.conversion state expr false
+:= by
+  haveI : Fact (1 < p) := ⟨Nat.AtLeastTwo.one_lt⟩
+  have h01 : ((0 : ZMod p) == 1) = false := beq_eq_false_iff_ne.mpr zero_ne_one
+  rw [← h01]
+  exact converts_of_F_converts h (by simp)
+
+/-- A field element known to be `1` is the bit `true`. -/
+lemma converts_one
+  [p.AtLeastTwo]
+  {state : ClapMState p}
+  {expr : F p}
+  (h : Converts F.conversion state expr 1)
+:
+  Converts FB.conversion state expr true
+:= by
+  haveI : Fact (1 < p) := ⟨Nat.AtLeastTwo.one_lt⟩
+  have h11 : ((1 : ZMod p) == 1) = true := beq_self_eq_true 1
+  rw [← h11]
+  refine converts_of_F_converts h ?_
+  have := ZMod.val_one_le_one (n := p)
+  omega
 
 lemma convertsM_of_F_convertsM
   [p.AtLeastTwo]
@@ -310,7 +365,304 @@ lemma converts_getElem
   Converts FB.conversion state exprs[i] vals[i]
 := (converts_iff_FB_converts.mp h) ⟨i, h_i⟩
 
+lemma converts_append
+  {k1 k2}
+  {state : ClapMState p}
+  {exprs1 : FArray p k1}
+  {exprs2 : FArray p k2}
+  {vals1 : Vector Bool k1}
+  {vals2 : Vector Bool k2}
+  (h_exprs1 : Converts conversion state exprs1 vals1)
+  (h_exprs2 : Converts conversion state exprs2 vals2)
+:
+  Converts conversion state (exprs1 ++ exprs2) (vals1 ++ vals2)
+:= by
+  rewrite [converts_iff_FB_converts] at h_exprs1 h_exprs2 ⊢
+  intro ⟨i, h_i⟩
+  by_cases h : i < k1
+  . convert (h_exprs1 ⟨i, h⟩) using 1
+    . grind
+    . grind
+  . convert (h_exprs2 ⟨i - k1, by grind⟩) using 1
+    . grind
+    . grind
+
+lemma converts_replicate
+  {k}
+  {state : ClapMState p}
+  {expr : FB p}
+  {val : Bool}
+  (h : Converts FB.conversion state expr val)
+:
+  Converts conversion state (Vector.replicate k expr) (Vector.replicate k val)
+:= by
+  rewrite [converts_iff_FB_converts]
+  intro ⟨i, h_i⟩
+  convert h using 1 <;> simp
+
+lemma converts_reverse
+  {k}
+  {state : ClapMState p}
+  {exprs : FArray p k}
+  {vals : Vector Bool k}
+  (h : Converts conversion state exprs vals)
+:
+  Converts conversion state exprs.reverse vals.reverse
+:= by
+  rewrite [converts_iff_FB_converts] at ⊢ h
+  intro ⟨i, h_i⟩
+  convert (h ⟨k - 1 - i, by grind⟩) using 1
+  . grind
+  . grind
+
+lemma converts_ofFn
+  {k}
+  {state : ClapMState p}
+  {f : Fin k → FB p}
+  {g : Fin k → Bool}
+  (h : ∀ i : Fin k, Converts FB.conversion state (f i) (g i))
+:
+  Converts conversion state (Vector.ofFn f) (Vector.ofFn g)
+:= by
+  rewrite [converts_iff_FB_converts]
+  intro ⟨i, h_i⟩
+  convert h ⟨i, h_i⟩ using 1 <;> simp
+
 end FArray
+
+
+namespace FPair
+
+lemma converts_intro
+  {state : ClapMState p}
+  {x y : F p}
+  {xv yv : ZMod p}
+  (h_x : Converts F.conversion state x xv)
+  (h_y : Converts F.conversion state y yv)
+:
+  Converts conversion state (x, y) (xv, yv)
+:= by
+  obtain ⟨_, x_varSet, x_wf, x_val⟩ := h_x
+  obtain ⟨_, y_varSet, y_wf, y_val⟩ := h_y
+  simp at x_varSet x_wf x_val y_varSet y_wf y_val
+  refine ⟨by simp, ?_, ?_, ?_⟩ <;>
+  · intro ⟨ib, h_ib⟩
+    simp at h_ib ⊢
+    interval_cases ib <;> simp [*]
+
+lemma converts_fst
+  {state : ClapMState p}
+  {xy : F p × F p}
+  {xy_val : ZMod p × ZMod p}
+  (h : Converts conversion state xy xy_val)
+:
+  Converts F.conversion state xy.1 xy_val.1
+:= by
+  have v0 := h.varSet_wf ⟨0, by simp⟩
+  have w0 := h.expr_wf ⟨0, by simp⟩
+  have a0 := h.value_eq ⟨0, by simp⟩
+  simp at v0 w0 a0
+  exact ⟨by simp, fun _ ↦ by simpa using v0, fun _ ↦ by simpa using w0,
+         fun _ ↦ by simpa using a0⟩
+
+lemma converts_snd
+  {state : ClapMState p}
+  {xy : F p × F p}
+  {xy_val : ZMod p × ZMod p}
+  (h : Converts conversion state xy xy_val)
+:
+  Converts F.conversion state xy.2 xy_val.2
+:= by
+  have v1 := h.varSet_wf ⟨1, by simp⟩
+  have w1 := h.expr_wf ⟨1, by simp⟩
+  have a1 := h.value_eq ⟨1, by simp⟩
+  simp at v1 w1 a1
+  exact ⟨by simp, fun _ ↦ by simpa using v1, fun _ ↦ by simpa using w1,
+         fun _ ↦ by simpa using a1⟩
+
+end FPair
+
+
+namespace FVec
+
+@[simp]
+lemma converts_empty
+  {state : ClapMState p}
+:
+  Converts conversion state #v[] #v[]
+:= by
+  constructor <;> grind
+
+lemma converts_iff_F_converts
+  {k}
+  {state : ClapMState p}
+  {exprs : FVec p k}
+  {val : Vector (ZMod p) k}
+:
+  Converts conversion state exprs val ↔
+  (∀ i : Fin k, Converts F.conversion state exprs[i] val[i])
+:= by
+  constructor
+  . intro h ⟨i, h_i⟩
+    constructor
+    . intro ⟨ib, h_ib⟩
+      simp
+      convert h.varSet_wf ⟨i, by grind⟩
+      simp [conversion]
+    . intro ⟨ib, h_ib⟩
+      simp
+      convert h.expr_wf ⟨i, by grind⟩
+      simp [conversion]
+    . intro ⟨ib, h_ib⟩
+      simp
+      convert h.value_eq ⟨i, by grind⟩
+      . simp [conversion]
+      . simp [conversion]
+    . rfl
+  . intro h
+    constructor
+    . intro ⟨i, h_i⟩
+      convert (h ⟨i, by grind⟩).varSet_wf
+      simp [conversion]
+    . intro ⟨i, h_i⟩
+      convert (h ⟨i, by grind⟩).expr_wf
+      simp [conversion]
+    . intro ⟨i, h_i⟩
+      convert (h ⟨i, by grind⟩).value_eq
+      simp [conversion]
+    . grind
+
+lemma converts_getElem
+  {k i}
+  {state : ClapMState p}
+  {exprs : FVec p k}
+  {vals : Vector (ZMod p) k}
+  (h : Converts conversion state exprs vals)
+  (h_i : i < k)
+:
+  Converts F.conversion state exprs[i] vals[i]
+:= (converts_iff_F_converts.mp h) ⟨i, h_i⟩
+
+lemma converts_push
+  {k}
+  {state : ClapMState p}
+  {exprs : FVec p k}
+  {expr : F p}
+  {vals : Vector (ZMod p) k}
+  {val : ZMod p}
+  (h_exprs : Converts conversion state exprs vals)
+  (h_expr : Converts F.conversion state expr val)
+:
+  Converts conversion state (exprs.push expr) (vals.push val)
+:= by
+  rewrite [converts_iff_F_converts] at h_exprs ⊢
+  intro ⟨i, h_i⟩
+  by_cases i = k
+  . convert h_expr
+    . grind
+    . grind
+  . convert (h_exprs ⟨i, by grind⟩) using 1
+    . grind
+    . grind
+
+lemma converts_pop
+  {k}
+  {state : ClapMState p}
+  {exprs : FVec p k}
+  {val : Vector (ZMod p) k}
+  (h : Converts conversion state exprs val)
+:
+  Converts conversion state (exprs.pop) (val.pop)
+:= by
+  rewrite [converts_iff_F_converts] at ⊢ h
+  intro ⟨i, h_i⟩
+  convert (h ⟨i, by grind⟩) using 1
+  . grind
+  . grind
+
+lemma converts_vector_cast
+  {k1 k2}
+  {state : ClapMState p}
+  {exprs : FVec p k1}
+  {val : Vector (ZMod p) k1}
+  (h : Converts conversion state exprs val)
+  (h_k : k1 = k2)
+:
+  Converts conversion state (exprs.cast h_k) (val.cast h_k)
+:= by
+  rewrite [converts_iff_F_converts] at ⊢ h
+  intro ⟨i, h_i⟩
+  exact h ⟨i, by grind⟩
+
+lemma converts_append
+  {k1 k2}
+  {state : ClapMState p}
+  {exprs1 : FVec p k1}
+  {exprs2 : FVec p k2}
+  {vals1 : Vector (ZMod p) k1}
+  {vals2 : Vector (ZMod p) k2}
+  (h_exprs1 : Converts conversion state exprs1 vals1)
+  (h_exprs2 : Converts conversion state exprs2 vals2)
+:
+  Converts conversion state (exprs1 ++ exprs2) (vals1 ++ vals2)
+:= by
+  rewrite [converts_iff_F_converts] at h_exprs1 h_exprs2 ⊢
+  intro ⟨i, h_i⟩
+  by_cases h : i < k1
+  . convert (h_exprs1 ⟨i, h⟩) using 1
+    . grind
+    . grind
+  . convert (h_exprs2 ⟨i - k1, by grind⟩) using 1
+    . grind
+    . grind
+
+lemma converts_reverse
+  {k}
+  {state : ClapMState p}
+  {exprs : FVec p k}
+  {vals : Vector (ZMod p) k}
+  (h : Converts conversion state exprs vals)
+:
+  Converts conversion state exprs.reverse vals.reverse
+:= by
+  rewrite [converts_iff_F_converts] at ⊢ h
+  intro ⟨i, h_i⟩
+  convert (h ⟨k - 1 - i, by grind⟩) using 1
+  . grind
+  . grind
+
+/-- Element-wise view of `a.zip b`, the shape every two-vector fold needs. -/
+lemma converts_zip
+  {k i}
+  {state : ClapMState p}
+  {a b : FVec p k}
+  {a_vals b_vals : Vector (ZMod p) k}
+  (h_a : Converts conversion state a a_vals)
+  (h_b : Converts conversion state b b_vals)
+  (h_i : i < k)
+:
+  Converts FPair.conversion state (a.zip b)[i] ((a_vals.zip b_vals)[i])
+:= by
+  have h := FPair.converts_intro (converts_getElem h_a h_i) (converts_getElem h_b h_i)
+  convert h using 2 <;> grind
+
+/-- Every `FArray` (bit vector) is an `FVec` whose ideal values are the bits' field images. -/
+lemma converts_of_FArray_converts
+  {k}
+  {state : ClapMState p}
+  {exprs : FArray p k}
+  {vals : Vector Bool k}
+  (h : Converts FArray.conversion state exprs vals)
+:
+  Converts conversion state exprs (vals.map (fun b ↦ if b then (1 : ZMod p) else 0))
+:= by
+  rewrite [converts_iff_F_converts]
+  rewrite [FArray.converts_iff_FB_converts] at h
+  intro ⟨i, h_i⟩
+  convert F.converts_of_FB_converts (h ⟨i, h_i⟩) using 1
+  simp
+
+end FVec
 
 
 namespace FList

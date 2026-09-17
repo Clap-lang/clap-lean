@@ -76,12 +76,20 @@ def saveExpr (e : CacheExpr p) : HashConsM p ExprRef := do
 
 abbrev BoundRef (_ : ℕ) : Type := ExprRef  -- a phantom-typed reference
 
-def mkConstant (x : ZMod p) : HashConsM p (BoundRef p) := saveExpr (.c x)
-def mkVar      (x : ℕ)      : HashConsM p (BoundRef p) := saveExpr (.v x)
-def mkAdd (l r : BoundRef p) : HashConsM p (BoundRef p) := saveExpr (.binary_op l r .add)
-def mkSub (l r : BoundRef p) : HashConsM p (BoundRef p) := saveExpr (.binary_op l r .sub)
-def mkMul (l r : BoundRef p) : HashConsM p (BoundRef p) := saveExpr (.binary_op l r .mul)
+def mkConstant (x : ZMod p) : HashConsM p (BoundRef p) := do
+  HashConsM.saveExpr (.c x)
+def mkVar (x : ℕ) : HashConsM p (BoundRef p) := do
+  HashConsM.saveExpr (.v x)
+def mkAdd (l r : BoundRef p) : HashConsM p (BoundRef p) := do
+  HashConsM.saveExpr (.binary_op l r .add)
+def mkSub (l r : BoundRef p) : HashConsM p (BoundRef p) := do
+  HashConsM.saveExpr (.binary_op l r .sub)
+def mkMul (l r : BoundRef p) : HashConsM p (BoundRef p) := do
+  HashConsM.saveExpr (.binary_op l r .mul)
 ```
+
+The `+ - *` instances live in this same `section MkExpr`, directly under these definitions —
+see [§Arithmetic notation](#arithmetic-notation) for the full story.
 
 Note the `pure 42` fallback: **`saveExpr` cannot fail**, so nothing downstream can either.
 Hash-consing here is what constant folding and de-duplication were in the old model — it
@@ -278,9 +286,15 @@ hypotheses — ref in range, all needed vars present, no forward references), `e
 
 ### Arithmetic notation
 
-`+ - *` on refs are *monadic*, at two priorities. In `HashConsM`
-([HashConsM.lean](../Clap/eDSLState/HashCons/HashConsM.lean)) and, at higher priority, in
-`ClapM` ([eDSL.lean](../Clap/eDSLState/eDSL.lean)):
+**`←(a + b)`, `←(a - b)`, `←(a * b)` is the spelling to use in a gadget definition.**
+[F/conditionalSwap.lean](../Clap/Lang/F/conditionalSwap.lean) is the reference example.
+
+`+ - *` on refs are *monadic*, and the instances exist at three layers:
+
+1. `HashConsM` ([HashConsM.lean](../Clap/eDSLState/HashCons/HashConsM.lean), `priority := 9999`)
+   — `HAdd (BoundRef p) (BoundRef p) (HashConsM p (BoundRef p))`.
+2. `ClapM` ([eDSL.lean](../Clap/eDSLState/eDSL.lean), `priority := high`, so this is the one a
+   gadget gets):
 
 ```lean
 instance (priority := high) {p} : HAdd (BoundRef p) (BoundRef p) (ClapM p (BoundRef p)) where
@@ -291,8 +305,75 @@ instance (priority := high) {p} : HAdd (BoundRef p) (BoundRef p) (ClapM p (Bound
 -- likewise sub_def, mul_def
 ```
 
-So `a + b : ClapM p (F p)`; inside a `do` block you write `←(a + b)`. `add_def`/`sub_def`/
-`mul_def` are the rewrites that expose the underlying bind to the `step` tactic.
+3. Six `inferInstanceAs` re-wrappings at the `F p` / `FB p` spelling, in
+   `Convert/Specialised.lean`'s `section OverrideInstance`
+   ([Specialised.lean:22-47](../Clap/eDSLState/Convert/Specialised.lean#L22-L47)). These are
+   what make `diff * sel` elaborate in `conditionalSwap`, where `diff : F p` and `sel : FB p`.
+
+So `a + b : ClapM p (F p)`; inside a `do` block you write `←(a + b)`.
+
+Both the `HashConsM` and the `ClapM` layer declare lemmas named `add_def` / `sub_def` /
+`mul_def`. They are the rewrites that expose the underlying bind to the `step` tactic; inside
+`namespace Clap.Lang` the bare name resolves to the `ClapM` one.
+
+#### `p` comes from the operands, never from the expected type
+
+`abbrev BoundRef (_ : ℕ) : Type := ExprRef` and `abbrev ExprRef := ℕ`
+([CacheExpr.lean:6](../Clap/eDSLState/HashCons/CacheExpr.lean#L6)). Two consequences, and the
+second one bites:
+
+**`p` is a phantom parameter**, recoverable only from an operand whose *binder type is written*
+`F p` / `FB p` / `BoundRef p`. That alone is enough, with no expected type in sight — one
+operand suffices:
+
+```lean
+def a1 {p : ℕ} (x y : BoundRef p) := x + y   -- : ClapM p (BoundRef p)
+def a2 {p : ℕ} (x : BoundRef p) (y : ExprRef) := x + y   -- also fine
+```
+
+**The expected type does not help.** If both operands are bare `ExprRef`, then — because
+`ExprRef` is `ℕ` — `Nat`'s own `HAdd` wins, and it wins *before* the expected type is consulted:
+
+```lean
+def bad {p : ℕ} (x y : ExprRef) : ClapM p (F p) := x + y
+-- error: Type mismatch: `x + y` has type ExprRef but is expected to have type ClapM p (F p)
+```
+
+The same happens inside a `do` block typed `ClapM p _`. And where no monadic value is expected
+at all, there is no error — `x + y` silently becomes **natural-number addition on two heap
+indices**, which is meaningless:
+
+```lean
+def worse (x y : ExprRef) := x + y   -- : ExprRef, silently ℕ addition
+```
+
+This is why every gadget writes its signature with the type aliases. Doing so is not a style
+rule; it is what makes the operators mean anything.
+
+If you really are holding a bare `ExprRef`, a type **ascription does not work** — `BoundRef` is
+an `abbrev` and unfolds straight back to `ExprRef`, so `((x : BoundRef p) + y)` fails exactly
+like the above. Rebind it, or name the wrapper:
+
+```lean
+let x' : BoundRef p := x    -- a typed let binder does stick
+let d ← x' + y
+
+mkAdd (p := p) x y          -- or just call the wrapper with p explicit
+```
+
+#### `mkAdd` / `mkSub` / `mkMul` *are* the operators
+
+[F/mkAdd.lean:9-10](../Clap/Lang/F/mkAdd.lean#L9-L10) and its two siblings are now one-liners:
+
+```lean
+def mkAdd (a b : F p) : ClapM p (F p) := a + b
+```
+
+They survive as the named wrappers that host the spec lemmas `mkAdd.hashConsM_converts` and
+`mkAdd.convertsM`. So the division of labour is: **definitions use the operator, proofs cite
+`mkAdd.convertsM` / `mkSub.convertsM` / `mkMul.convertsM`.** `conditionalSwap` does exactly
+this. Most gadgets in `Clap/Lang/` predate the change and still spell out `mk*` in their
+definitions; that is equivalent, not wrong.
 
 ---
 
@@ -451,6 +532,12 @@ lemma convertsM_bind
   (h : constraints → constraints1)
   : ConvertsM conversion2 (action >>= function) state function_val constraints
 
+lemma convertsM_bind_and
+  (h_action   : ConvertsM conversion1 action state action_val constraints1)
+  (h_function : ConvertsM conversion2 (function (action.getResult state.numAlloc state.σ))
+                          (action.getState state) function_val constraints2)
+  : ConvertsM conversion2 (action >>= function) state function_val (constraints1 ∧ constraints2)
+
 lemma convertsM_map (h_action …) (h_function : Converts …)
                     (h_constraints : constraints ↔ action_constraints)
   : ConvertsM conversion2 (f <$> action) state function_val constraints
@@ -466,14 +553,33 @@ Note the contravariant shape of `convertsM_bind`: the continuation is proved und
 implication `constraints1 → constraints`. That is how "constraints established earlier in the
 circuit may be assumed later" is threaded through a `do` block.
 
-### The five standard conversions
+**That shape also makes `convertsM_bind` unusable for a `do` block with two real assertions**,
+and `convertsM_bind_and` exists for exactly that case. Because `ConvertsM`'s third field is an
+`↔` with the constraints the action *actually* emits, the continuation's slot 5 is pinned to its
+true constraint `C₂`; `convertsM_bind` then demands `C₂ ↔ (C₁ → constraints)`, and no choice of
+`constraints` satisfies that when `C₁` can fail. Concretely, for `do eq0 a; eq0 b` with the
+intended spec `a_val = 0 ∧ b_val = 0` the obligation reduces to
 
-[Convert/Specialised.lean:50-97](../Clap/eDSLState/Convert/Specialised.lean#L50-L97):
+```
+b_val = 0  ↔  (a_val = 0 → a_val = 0 ∧ b_val = 0)
+```
+
+which is false whenever `a_val ≠ 0` and `b_val ≠ 0`. `convertsM_bind_and` takes each half at its
+own honest constraint and conjoins them, which is what the underlying semantics
+(`Circuit.runAndEval_bind_constraints`) says anyway. Use `convertsM_bind` when everything before
+the last step has constraint `True` — which is every single-assertion gadget, hence most of
+them — and `convertsM_bind_and` as soon as two steps can each fail.
+
+### The eight standard conversions
+
+Seven of them in
+[Convert/Specialised.lean:52-122](../Clap/eDSLState/Convert/Specialised.lean#L52-L122):
 
 ```lean
 abbrev F      (p : ℕ)   : Type := HashConsM.BoundRef p   -- a field element
 abbrev FB     (p : ℕ)   : Type := F p                    -- a *boolean* field element
 abbrev FArray (p k : ℕ) : Type := Vector (FB p) k
+abbrev FVec   (p k : ℕ) : Type := Vector (F p) k         -- arbitrary field elements
 abbrev FList  (p : ℕ)   : Type := List (FB p)
 ```
 
@@ -483,21 +589,55 @@ abbrev FList  (p : ℕ)   : Type := List (FB p)
 | `FB.conversion` | `Bool` | `[x]` | `[if x then 1 else 0]` |
 | `FUnit.conversion` | `Unit` | `[]` | `[]` |
 | `FArray.conversion` | `Vector Bool k` | `x.toList` | `(x.map (if · then 1 else 0)).toList` |
+| `FVec.conversion` | `Vector (ZMod p) k` | `x.toList` | `x.toList` |
 | `FList.conversion` | `List Bool` | `x` | `x.map (if · then 1 else 0)` |
+| `FPair.conversion` | `ZMod p × ZMod p` | `[x.1, x.2]` | `[x.1, x.2]` |
 
-`F p`, `FB p`, `FArray p k` and `FList p` are all *the same underlying type* up to `Vector`/
-`List` wrapping — `ExprRef`. The distinction is entirely in which `Conversion` you cite in the
-spec. Choosing `FB.conversion` is a claim that the value is a bit.
+`F p`, `FB p`, `FArray p k`, `FVec p k` and `FList p` are all *the same underlying type* up to
+`Vector`/`List` wrapping — `ExprRef`. The distinction is entirely in which `Conversion` you cite
+in the spec. Choosing `FB.conversion` is a claim that the value is a bit; `FArray` and `FVec`
+have identical carriers and differ only in whether the ideal values are `Bool` or `ZMod p`.
 
-Bridging lemmas, in the same file:
+`FPair.conversion` exists so that a fold over `a.zip b` has an element conversion to name — see
+[Combinators/foldlM.lean](../Clap/Lang/Combinators/foldlM.lean) and any two-vector gadget.
+
+The eighth is `FString.conversion`, in
+[FString/Basic.lean:37](../Clap/Lang/FString/Basic.lean#L37) rather than `Specialised.lean`:
+
+```lean
+structure PaddedVector (p w : ℕ) where
+  data : FVec p w
+  len  : F p
+
+abbrev FString (p w : ℕ) := PaddedVector p w
+
+abbrev conversion {w} : Conversion p (FString p w) where
+  IdealT := String
+  toExprs x := x.data.toList ++ [x.len]
+  conversion s := (encodeV w s).toList ++ [(s.length : ZMod p)]
+```
+
+It is the first conversion in the repo that is **not** a fixed-length element-wise map: the
+ideal type is `String`, of unbounded length, encoded into `w` padded cells plus a length cell.
+Note that injectivity is not part of `Converts` — a gadget that needs `encodeV` to be injective
+takes `256 < p`, `w < p`, `s.length < w` as explicit hypotheses.
+
+Bridging lemmas, in `Specialised.lean`:
 
 ```lean
 F.converts_of_FB_converts        -- FB fact ⟹ F fact (value becomes `if b then 1 else 0`)
 FB.converts_of_F_converts        -- F fact + `val.val < 2` ⟹ FB fact (needs [p.AtLeastTwo])
 FB.convertsM_of_F_convertsM      -- the same, at the action level
+FB.converts_zero / converts_one  -- a field element known to be 0/1 is the bit false/true
 FUnit.converts                   -- always true
 FArray.converts_empty / converts_iff_FB_converts / converts_push / converts_pop
 FArray.converts_getElem / converts_vector_cast / convertsM_of_convertsM_toList
+FArray.converts_append / converts_replicate / converts_reverse / converts_ofFn
+FVec.converts_empty / converts_iff_F_converts / converts_getElem / converts_push / converts_pop
+FVec.converts_vector_cast / converts_append / converts_reverse
+FVec.converts_zip                -- the pairwise view every two-vector fold needs
+FVec.converts_of_FArray_converts -- every bit vector is an FVec (values `if b then 1 else 0`)
+FPair.converts_intro / converts_fst / converts_snd
 FList.converts_empty / converts_append / converts_of_converts_FB / converts_singleton_of_converts_FB
 ```
 

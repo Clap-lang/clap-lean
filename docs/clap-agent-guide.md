@@ -17,7 +17,7 @@ Read this file, then go to the one that matches your task.
 | Your task | Read | Then |
 |---|---|---|
 | "What is `Converts`?", "how does `ClapM` work?", "where is X defined?" | [clap-model.md](clap-model.md) | — |
-| Write a new gadget, or state what an existing one does | [specifying-circuits.md](specifying-circuits.md) | [proving-circuits.md](proving-circuits.md) |
+| Write a new gadget, or state what an existing one does | [specifying-circuits.md](specifying-circuits.md) — check §Existing inventory before writing anything, and §Iterating gadgets for the `foldlM`/`ofFnM` combinators | [proving-circuits.md](proving-circuits.md) |
 | Prove a `convertsM` lemma; a proof is stuck; `step` is misbehaving | [proving-circuits.md](proving-circuits.md) | §Failure modes |
 | Move a gadget from `Clap/Array.lean`, `Clap/Lang.lean`, `Sha2`, `JWT`, … into the new model | [porting-guide.md](porting-guide.md) | then the two above |
 

@@ -35,15 +35,38 @@ work of A; if you can express your gadget without iteration, do.
    means your file is never built.
 3. **`namespace Clap.Lang`**, then `variable {p : ℕ}`. (`Clap/Lang/FB/and.lean` uses
    `Clap.Lang.FB`; either is acceptable, match the neighbours.)
-4. **Add `open HashConsM`** if you use `mkAdd`/`mkSub`/`mkMul`/`mkConstant`/`BoundRef`
-   unqualified.
-5. **Use the type aliases** `F p`, `FB p`, `FArray p k`, `FList p`. Never write `ExprRef` in a
-   gadget signature.
+4. **You almost certainly do not need `open HashConsM`.** `mkF`/`mkAdd`/`mkSub`/`mkMul` are
+   `Clap.Lang.*` ([F/mkAdd.lean](../Clap/Lang/F/mkAdd.lean) and siblings) and are already in
+   scope inside `namespace Clap.Lang`. Only `BoundRef`, `mkConstant`, `mkVar` and the
+   *homonymous* `HashConsM.mkAdd`/`mkSub`/`mkMul` need the `open` — and rule 5 says not to write
+   those in a gadget anyway.
+5. **Use the type aliases** `F p`, `FB p`, `FArray p k`, `FVec p k`, `FList p`,
+   `FString p w`. Never write `ExprRef` in a gadget signature — besides the style, it is what
+   makes `+ - *` mean the right thing (rule 7a).
 6. **Add `[p.AtLeastTwo]` only if the proof needs it.** It is needed when boolean semantics are
    involved (`eq`, `singleOneArray`, everything going through `FB.converts_of_F_converts`); it
-   is *not* on `mkAdd`/`mkSub`/`mkMul`/`mkF`.
-7. **Every arithmetic node is a bind.** `←(a + b)`, `←(a * b)`. There is no pure arithmetic on
+   is *not* on the arithmetic gadgets or `mkF`.
+7. **Every arithmetic node is a bind, and the operator is the preferred spelling.**
+   Write `←(a + b)`, `←(a - b)`, `←(a * b)`, not `←mkAdd a b`. There is no pure arithmetic on
    `F p` — see [porting-guide.md](porting-guide.md) if that surprises you.
+   [F/conditionalSwap.lean:10-13](../Clap/Lang/F/conditionalSwap.lean#L10-L13) is the model:
+
+   ```lean
+   def conditionalSwap (sel : FB p) (a b : F p) : ClapM p (F p) := do
+     let diff ← a - b
+     let scaled ← diff * sel
+     mkAdd scaled b
+   ```
+
+   Two caveats. **(a)** The operator takes `p` **from its operands** — at least one must be
+   written at `F p`/`FB p`/`BoundRef p`. The expected type does *not* supply it: with two bare
+   `ExprRef` operands you get `Nat` addition on heap indices, silently where no monadic value is
+   expected. Rule 5 already keeps you safe here; see
+   [clap-model.md §Arithmetic notation](clap-model.md#arithmetic-notation) for the details and
+   the escape hatch.
+   **(b)** `mkAdd`/`mkSub`/`mkMul` have not gone away: they are *defined as* the operators and
+   remain the names your **proof** cites, as `mkSub.convertsM` etc. Most gadgets in `Clap/Lang/`
+   predate the change and still spell out `mk*` in their definitions; that is equivalent.
 8. **Constants must be allocated**: `←mkF 1`, never a bare `1`.
 9. **Compose from what exists.** Do not re-derive a gadget that is already in `Clap/Lang/`.
 
@@ -52,9 +75,13 @@ work of A; if you can express your gadget without iteration, do.
 | Gadget | File | Type | Ideal value | Constraints |
 |---|---|---|---|---|
 | `mkF a` | [F/mkF.lean](../Clap/Lang/F/mkF.lean) | `ClapM p (F p)` | `a` | `True` |
-| `mkAdd a b` | [F/mkAdd.lean](../Clap/Lang/F/mkAdd.lean) | `ClapM p (F p)` | `a_val + b_val` | `True` |
-| `mkSub a b` | [F/mkSub.lean](../Clap/Lang/F/mkSub.lean) | `ClapM p (F p)` | `a_val - b_val` | `True` |
-| `mkMul a b` | [F/mkMul.lean](../Clap/Lang/F/mkMul.lean) | `ClapM p (F p)` | `a_val * b_val` | `True` |
+| `mkAdd a b` — write `←(a + b)` | [F/mkAdd.lean](../Clap/Lang/F/mkAdd.lean) | `ClapM p (F p)` | `a_val + b_val` | `True` |
+| `mkSub a b` — write `←(a - b)` | [F/mkSub.lean](../Clap/Lang/F/mkSub.lean) | `ClapM p (F p)` | `a_val - b_val` | `True` |
+| `mkMul a b` — write `←(a * b)` | [F/mkMul.lean](../Clap/Lang/F/mkMul.lean) | `ClapM p (F p)` | `a_val * b_val` | `True` |
+| `ofUInt8 u` | [F/ofUInt8.lean](../Clap/Lang/F/ofUInt8.lean) | `ClapM p (F p)` | `(u.toNat : ZMod p)` | `True` |
+| `ofChar c` | [F/ofChar.lean](../Clap/Lang/F/ofChar.lean) | `ClapM p (F p)` | `(c.toUInt8.toNat : ZMod p)` | `True` |
+| `conditionalSwap sel a b` | [F/conditionalSwap.lean](../Clap/Lang/F/conditionalSwap.lean) | `ClapM p (F p)` | `if sel_val then a_val else b_val` | `True` |
+| `dotProduct a b` | [F/dotProduct.lean](../Clap/Lang/F/dotProduct.lean) | `ClapM p (F p)` | `(a_vals.zip b_vals).foldl (fun acc xy ↦ acc + xy.1 * xy.2) 0` | `True` |
 | `isZero a` | [FB/isZero.lean](../Clap/Lang/FB/isZero.lean) | `ClapM p (FB p)` | `a_val == 0` | `True` |
 | `not a` | [FB/not.lean](../Clap/Lang/FB/not.lean) | `ClapM p (FB p)` | `!a_val` | `True` |
 | `FB.and a b` | [FB/and.lean](../Clap/Lang/FB/and.lean) | `ClapM p (FB p)` | `a_val && b_val` | `True` |
@@ -69,10 +96,42 @@ work of A; if you can express your gadget without iteration, do.
 | `assert a` | [FB/assert.lean](../Clap/Lang/FB/assert.lean) | `ClapM p Unit` | `()` | `a_val = true` |
 | `FB.assertBool f` | [FB/assertBool.lean](../Clap/Lang/FB/assertBool.lean) | `ClapM p Unit` | `()` | `f_val = 0 ∨ f_val = 1` |
 | `FB.conditionallyAssert a c` | [FB/conditionallyAssert.lean](../Clap/Lang/FB/conditionallyAssert.lean) | `ClapM p Unit` | `()` | `a_val = true → c_val = true` |
+| `guardedEq0 g c` | [FUnit/guardedEq0.lean](../Clap/Lang/FUnit/guardedEq0.lean) | `ClapM p Unit` | `()` | `g_val = true → c_val = 0` |
+| `guardedAssertEq g a b` | [FUnit/guardedAssertEq.lean](../Clap/Lang/FUnit/guardedAssertEq.lean) | `ClapM p Unit` | `()` | `g_val = true → a_val = b_val` |
 | `FArray.sum vals` | [FArray/sum.lean](../Clap/Lang/FArray/sum.lean) | `ClapM p (F p)` | `(vals.map (if · then 1 else 0)).sum` | `True` |
 | `FArray.sum' init vals` | [FArray/sum.lean](../Clap/Lang/FArray/sum.lean) | `ClapM p (F p)` | as above | `True` |
 | `oneHotRaw len idx` | [FArray/OneHotRaw.lean](../Clap/Lang/FArray/OneHotRaw.lean) | `ClapM p (FArray p len)` | `Vector.ofFn (·.val == idx_val.val)` | `True` |
 | `singleOneArray len idx` | [FArray/singleOneArray.lean](../Clap/Lang/FArray/singleOneArray.lean) | `ClapM p (FArray p len)` | as above | `idx_val.val < len` |
+| `FArray.default w` | [FArray/default.lean](../Clap/Lang/FArray/default.lean) | `ClapM p (FArray p w)` | `Vector.replicate w false` | `True` |
+| `FArray.ofBitVec bv` | [FArray/ofBitVec.lean](../Clap/Lang/FArray/ofBitVec.lean) | `ClapM p (FArray p w)` | `Vector.ofFn (bv[·])` | `True` |
+| `FArray.zeroExtend v w'` | [FArray/zeroExtend.lean](../Clap/Lang/FArray/zeroExtend.lean) | `ClapM p (FArray p (w+w'))` | `vals ++ Vector.replicate w' false` | `True` |
+| `FArray.eq a b` | [FArray/eq.lean](../Clap/Lang/FArray/eq.lean) | `ClapM p (FB p)` | `decide (a_vals = b_vals)` | `True` |
+| `FArray.assert_eq a b` | [FArray/assert_eq.lean](../Clap/Lang/FArray/assert_eq.lean) | `ClapM p Unit` | `()` | `∀ i : Fin w, a_vals[i] = b_vals[i]` |
+| `FArray.bits2num bits` | [FArray/bits2num.lean](../Clap/Lang/FArray/bits2num.lean) | `ClapM p (F p)` | `bits_val.reverse.foldl (fun acc b ↦ (if b then 1 else 0) + 2 * acc) 0` | `True` |
+| `FBV8.ofUInt8 u` | [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean) | `ClapM p (FBV8 p)` | `Vector.ofFn (u.toBitVec[·])` | `True` |
+| `F32.default` | [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean) | `ClapM p (F32 p)` | `Vector.replicate 32 false` | `True` |
+| `F32.ofUInt32 u` | [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean) | `ClapM p (F32 p)` | `Vector.ofFn (u.toBitVec[·])` | `True` |
+| `F32.ofFBV8 u8` | [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean) | `ClapM p (F32 p)` | `vals ++ Vector.replicate 24 false` | `True` |
+| `F32.assert_eq a b` | [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean) | `ClapM p Unit` | `()` | `∀ i : Fin 32, a_vals[i] = b_vals[i]` |
+| `FVec.eq a b` | [FVec/eq.lean](../Clap/Lang/FVec/eq.lean) | `ClapM p (FB p)` | `decide (a_vals = b_vals)` | `True` |
+| `FString.ofString s` | [FString/ofString.lean](../Clap/Lang/FString/ofString.lean) | `ClapM p (FString p w)` | `s` | `True` |
+| `FString.isPaddedOf a b` | [FString/isPaddedOf.lean](../Clap/Lang/FString/isPaddedOf.lean) | `ClapM p (FB p)` | `decide (encodeV w a_val = encodeV w b) && (a_val.length == b.length)` | `True` |
+
+Three things the table cannot show:
+
+- **`FVec.eq` and `FArray.eq` are the same circuit.** They differ only in the conversion cited —
+  `FVec.conversion` (`Vector (ZMod p) w`) or `FArray.conversion` (`Vector Bool w`). Pick by what
+  your neighbours' `Converts` facts are about.
+- **`FArray/Widths.lean` also defines `abbrev F64 p := FArray p 64`**, but no `F64` gadget exists
+  yet. Its `FBV8`/`F32` entries are thin delegations — `F32.ofFBV8` is
+  `FArray.zeroExtend u8 24` and its `convertsM` is a bare term, which is the pattern to copy.
+- **`isPaddedOf` has a second spec**, `isPaddedOf.convertsM_string`, whose ideal value is the
+  cleaner `decide (a_val = b)`. It costs the explicit injectivity hypotheses `256 < p`,
+  `w < p`, `s.length < w`, because injectivity of the encoding is not part of `Converts`.
+
+For iterating gadgets, do not hand-roll the induction — see
+[§Iterating gadgets need rewrite lemmas *first*](#iterating-gadgets-need-rewrite-lemmas-first)
+for `convertsM_foldlM`, `convertsM_foldlM_constraints` and `convertsM_ofFnM`.
 
 Not yet wrapped, though the gate exists: **`share`**, **`num2bits`**, **`fpmul`**. If your
 gadget needs one of these you must write its `Lang/` wrapper and `convertsM` first. `num2bits`
@@ -197,9 +256,21 @@ proceed without them.
      rw [←toList_map_oneHotRaw_aux_eq_oneHotRaw'_aux, ClapM.getCircuit_map]
    ```
 
-There is currently **no reusable `mapM`/`foldlM`/`forIn` `ConvertsM` combinator library**. Each
-iterating gadget repeats this scaffolding — about 120 lines in `OneHotRaw.lean`. If you are
-about to write the third one, build the combinator instead.
+Some of this scaffolding is now unnecessary. [Clap/Lang/Combinators/](../Clap/Lang/Combinators/)
+has reusable `ConvertsM` lemmas for the two common iteration shapes, both generic in the
+*element* conversion, so one lemma serves bit vectors (`FB.conversion`), field vectors
+(`F.conversion`) and zipped pairs of vectors (`FPair.conversion`, via `FVec.converts_zip`):
+
+| Lemma | For |
+|---|---|
+| `convertsM_foldlM` | `Vector.foldlM` whose step asserts nothing |
+| `convertsM_foldlM_constraints` | `Vector.foldlM` whose step asserts; the fold's constraint is `∀ i, …` |
+| `convertsM_ofFnM` | `Vector.ofFnM`, building a vector position by position |
+
+Reach for those before hand-rolling an induction. `dotProduct`, `FArray.bits2num`,
+`FArray.eq`, `FArray.assert_eq`, `FVec.eq` and `FString.ofString` are all built on them.
+`OneHotRaw.lean` predates them and still carries its own ~120 lines; `FArray/sum.lean` likewise.
+There is still no `forIn` combinator, and no `mapM` one beyond `ofFnM`.
 
 ## Templates
 
@@ -217,7 +288,7 @@ variable {p : ℕ}
 
 def <NAME> (a : FB p) : ClapM p (FB p) := do
   let one ← mkF 1
-  mkSub one a
+  one - a          -- the operator; `p` comes from the operands (`one : F p`, `a : FB p`)
 
 namespace <NAME>
 
@@ -233,6 +304,7 @@ lemma convertsM
   unfold <NAME>
   step mkF.convertsM as one
   have h_a_f := F.converts_of_FB_converts h_a
+  -- note the asymmetry: the definition wrote `one - a`, the proof names `mkSub.convertsM`
   have h_sub := FB.convertsM_of_F_convertsM (mkSub.convertsM h_one h_a_f)
   apply convertsM_of_convertsM (h_sub _)
   . grind                      -- value equality
@@ -334,7 +406,8 @@ end Clap.Lang
       `variable {p : ℕ}`.
 - [ ] Imported from `Clap/Lang/All.lean` **and** `Clap.lean`, alphabetically in both.
 - [ ] Signature uses `F p` / `FB p` / `FArray p k` / `FList p`, not `ExprRef`.
-- [ ] Every constant goes through `mkF`; every arithmetic node is a bind.
+- [ ] Every constant goes through `mkF`; every arithmetic node is a bind, spelled `←(a + b)`,
+      `←(a - b)`, `←(a * b)`.
 - [ ] Exactly one lemma named `convertsM`, in `namespace <name>`.
 - [ ] One `h_<arg> : Converts …` hypothesis per circuit-valued input.
 - [ ] Slot 5 is `True` **only** if the gadget cannot fail to be satisfied.

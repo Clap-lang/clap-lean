@@ -36,15 +36,23 @@ abbrev F (p : ℕ) := HashConsM.BoundRef p   -- NEW: an index into the expressio
 
 Old code wrote `x * (y - z) + z`, `a + b - 2*a*b`, `(a - b) * sel + b` as ordinary Lean
 arithmetic — free, pure, with all of Mathlib's `CommRing (ZMod p)` available. New code must
-allocate every node: `←mkMul`, `←mkSub`, `←mkAdd`.
+allocate every node, one bind each: `←(a * b)`, `←(a - b)`, `←(a + b)`. (`mkMul`, `mkSub`,
+`mkAdd` are the same three operations under a name — they are *defined as* the operators — and
+they are what the proofs cite, as `mkMul.convertsM` etc.)
 
 Consequences you will hit immediately:
 
 - **Every pure helper becomes monadic, and so does every caller.** `F.dotProduct`,
   `F.conditionalSwap`, `FB.and/or/not/xor`, `Packing.chunksToFieldElem`, `Sha2.Circuit.ch`,
   `rotR`, `shiftRight` all change type.
-- **The operator instances change meaning.** Old `FB.and` was `HAnd (FB p) (FB p) (FB p)` — a
-  value. New `+ - *` return `ClapM p (F p)`. Old `a &&& b &&& c` becomes three explicit binds.
+- **The operator instances change meaning, but they are still there.** `+ - *` did not go away:
+  they became monadic, returning `ClapM p (F p)` instead of a value, so each one is a bind. Old
+  `FB.and` was `HAnd (FB p) (FB p) (FB p)` — a value; `a &&& b &&& c` becomes three explicit
+  binds. One new snag: `p` is a phantom parameter of `BoundRef`, and the operator takes it from
+  its **operands** — so keep your signatures on the `F p`/`FB p` aliases. Two bare `ExprRef`
+  operands silently get `Nat` addition instead, because `ExprRef` is `ℕ`, and the expected type
+  will not correct it. See
+  [clap-model.md §Arithmetic notation](clap-model.md#arithmetic-notation).
   Old `FB.conditionallyAssert` is `eq0 (antecedent &&& FB.not consequent)` — one line, three
   operations, now three binds.
 - **Literals need allocation.** `F.assert_eq s 1` becomes `assert_eq s (←mkF 1)`. `RSA.lean`
@@ -82,7 +90,7 @@ the fifth slot of `ConvertsM`. Therefore:
 | `def g … : Option (F p)` | `def g … : ClapM p (F p)` |
 | `Option`'s `do`; `none` = reject | `ClapM`'s `do`; rejection lives in `ConvertsM`'s slot 5 |
 | `F p = ZMod p`, a value | `F p = BoundRef p`, a reference; the value is the spec's slot 4 |
-| `a + b`, `a * b` (pure) | `←(a + b)`, `←(a * b)` |
+| `a + b`, `a - b`, `a * b` (pure) | `←(a + b)`, `←(a - b)`, `←(a * b)` — needs `p` inferable; equivalently `←mkAdd a b` etc. |
 | `(1 : F p)` | `←mkF 1` |
 | `FB.and a b` (pure, `&&&`) | `←FB.and a b` |
 | `FB.not a` (pure) | `←not a` |
@@ -189,20 +197,31 @@ not compile, and R1CS serialisation (`Clap/Quadratic.lean` + `R1Serialize/`) has
 counterpart. So there is no executable path and no smoke test: a `convertsM` proof is your only
 evidence.
 
-**No iteration combinators.** There is no reusable `mapM`/`foldlM`/`forIn` `ConvertsM` lemma
-library. Old code uses `for … in … do` inside `Option` freely. If you are the third person to
-copy `OneHotRaw.lean`'s scaffolding, build the combinator instead of copying.
+**Iteration combinators — partly solved.** [Clap/Lang/Combinators/](../Clap/Lang/Combinators/)
+now has `convertsM_foldlM`, `convertsM_foldlM_constraints` and `convertsM_ofFnM`, all generic in
+the element conversion. Use them instead of copying `OneHotRaw.lean`'s ~120 lines. There is
+still no `forIn` combinator, and old code uses `for … in … do` inside `Option` freely.
 
-**Conversions that do not exist yet.** The five conversions
-(`F`/`FB`/`FUnit`/`FArray`/`FList`) are all fixed-length and element-wise. Two old shapes do
-not fit:
+**Conversions.** The original five (`F`/`FB`/`FUnit`/`FArray`/`FList`) are all fixed-length and
+element-wise. Three more now exist in
+[Convert/Specialised.lean](../Clap/eDSLState/Convert/Specialised.lean):
 
-- `FString` / `PaddedVector` bundles `data : Vector (α p) w` with `len : F p`, and its natural
-  `IdealT` is a variable-length `String` behind a fixed-length representation.
-- `Sha2`'s `Hash = Vector t.U32 8` where each `U32` is itself `Vector (FB p) 32` — a *nested*
-  conversion, which `FArray.conversion : Conversion p (Vector (FB p) k)` cannot express.
+- `FVec.conversion` — `Vector (F p) k` with `IdealT := Vector (ZMod p) k`. `FArray`'s ideal type
+  is `Vector Bool k`, so before this there was **no way to specify a vector of general field
+  elements** at all. `FVec p k` and `FArray p k` are the same underlying type; which one you
+  mean is only ever the conversion you cite, so cite it deliberately.
+- `FPair.conversion` — `F p × F p`. Gives a fold over `a.zip b` an element conversion, which is
+  what every two-vector gadget (`dotProduct`, `FArray.eq`, `FArray.assert_eq`) needs.
+- `FString.conversion` in [FString/Basic.lean](../Clap/Lang/FString/Basic.lean) — the
+  variable-length one, `IdealT := String`: one field element per character, zero-padded to `w`,
+  then the length. The old `Spec.FString.valid` is not a separate predicate any more; it *is*
+  the statement that `Converts FString.conversion` holds. It is injective only for strings
+  shorter than `w` with characters under 256, `256 < p` and `w < p`, so gadgets needing
+  injectivity take those as explicit hypotheses — see `isPaddedOf.encode_eq_iff`.
 
-Design these conversions deliberately before porting anything that needs them.
+Still missing: `Sha2`'s `Hash = Vector t.U32 8`, where each `U32` is itself `Vector (FB p) 32` —
+a *nested* conversion, which `FArray.conversion : Conversion p (Vector (FB p) k)` cannot
+express. Design it deliberately before porting anything that needs it.
 
 ## Suggested order
 
@@ -215,26 +234,34 @@ ported (they would shadow the `Bool` literals; use `ofBool`), and the `Spec.FB` 
 superseded by `FB.conversion`. Use those files as the worked reference for this table's
 remaining rows.
 
+The rest of the old `Clap/Lang.lean` is **done** too, except where it needs `num2bits`:
+`dotProduct`, `conditionalSwap`, `guardedEq0`, `guardedAssertEq`, `ofUInt8`, `ofChar`,
+`FArray.{default, ofBitVec, zeroExtend, bits2num, assert_eq, eq}` (the old `FBitVec.*`),
+`FVec.eq`, the `F32`/`FBV8`/`F64` wrappers in `FArray/Widths.lean`, and
+`FString.{ofString, isPaddedOf}`. The old `Spec.*` layer is gone throughout, superseded by the
+conversions. `Inhabited (F p) := 42`, `FB.true`/`FB.false` and the `Coe`/`OfNat` instances were
+deliberately not ported.
+
 | Gadget | Old location | Note |
 |---|---|---|
-| `F.dotProduct` | `Clap/Lang.lean` | monadic `zipWith`+`foldl`; reuse `FArray.sum'` |
-| `F.guardedEq0`, `F.guardedAssertEq` | `Clap/Lang.lean` | gated assertions |
-| `F.conditionalSwap` | `Clap/Lang.lean` | mux `(a-b)*sel + b` |
 | `singleEndArray` | `Clap/Array.lean` | one-hot asserting `s² = s` |
 | `selectArrayValue` | `Clap/Array.lean` | `dotProduct` of `singleOneArray` with the array |
 | `leftArraySelector`, `rightArraySelector` | `Clap/Array.lean` | need `Vector.scanl`/`scanr` analogues |
 | `arraySelectorComplex` | `Clap/Array.lean` | after the two selectors |
 
 **After `num2bits` lands**: `F.assert_range`, `F.lessThan` / `lessEqThan` / `greaterThan` /
-`greaterEqThan`, `arraySelector`, `FBitVec.*`, `F8.lessThan`, `F32.*`, all of
-`Clap/Packing.lean`, all of `Clap/Base64Len.lean`.
+`greaterEqThan`, `arraySelector`, `FBitVec.ofF`, `FBitVec.binSum`, `F8.lessThan`, `F32.add`,
+`F32.ofF`, `FBV8.ofF`, `F64.ofF`, all of `Clap/Packing.lean`, all of `Clap/Base64Len.lean`.
 
 **After `fpmul` lands**: `Clap/RSA.lean`.
 
-**After nested/variable-length conversions are designed**: `Clap/Sha2/*` (note
-`Sha2/Basic.lean` is already monad-polymorphic over `[Monad m]` and typeclass-parameterised
-over the word representation — it is the most portable old code in the repo),
-`Clap/FString.lean`, `Clap/HashToField.lean`, `Clap/JWT.lean`, `Clap/Keyless.lean`.
+**After the nested conversion is designed**: `Clap/Sha2/*` (note `Sha2/Basic.lean` is already
+monad-polymorphic over `[Monad m]` and typeclass-parameterised over the word representation — it
+is the most portable old code in the repo).
+
+**Unblocked by `FString.conversion`, not yet done**: the separate, larger `Clap/FString.lean`
+(only `Clap/Lang.lean`'s `FString` has been ported), `Clap/HashToField.lean`, `Clap/JWT.lean`,
+`Clap/Keyless.lean`.
 
 **Retired, do not port**: `Clap/Circuit.lean` (PHOAS syntax), `Clap/Simulation.lean`,
 `Clap/Compilation.lean`, `Clap/Compiler/*` (the `#compile` reifier), `Clap/Milestone.lean`.

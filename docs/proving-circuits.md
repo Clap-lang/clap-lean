@@ -34,6 +34,9 @@ Does the gadget body end in `return` / `pure`?
            (constructor / where-clause, three field lemmas)
 
 Does the body iterate (mapM / foldlM)?  → additionally the induction recipe below.
+
+Can two or more steps each fail (non-`True` constraints)?
+  → `step` will not do it; apply `convertsM_bind_and` by hand. See below.
 ```
 
 ## The `step` tactic
@@ -69,6 +72,9 @@ Consequences worth internalising:
   you see nothing. For a real-constraint chain it cannot, and the two implication goals of
   `convertsM_bind` survive to the end of the proof. That is where soundness and completeness
   show up — see below.
+- **`step` goes through `convertsM_bind`, so it cannot sequence two assertions.** At most one
+  step in the chain may have a non-`True` constraint, and it must be the last. See
+  [When `step` does not apply](#when-step-does-not-apply--two-or-more-assertions).
 - `step` takes an arbitrary term, not just a library lemma. Feeding it an induction hypothesis
   is idiomatic: `step @h_k fvals_base vals_base this as mapM` in
   [FArray/sum.lean](../Clap/Lang/FArray/sum.lean), and `step h_len as mapM` in
@@ -91,12 +97,94 @@ hand. No current gadget needs it.
 | Situation | Do |
 |---|---|
 | Always, first line | `unfold <name>` |
-| The body uses `+`, `-`, `*` on `F p` | `rw [add_def]` / `rw [sub_def]` / `rw [mul_def]` |
+| The body uses `+`, `-`, `*` on `F p` and `step` will not match | `rw [add_def]` / `rw [sub_def]` / `rw [mul_def]` |
 | The body should be read as its generalised helper | `simp [←<helper>.eq_def]` |
 | The body is a `mapM`/`foldlM` | rewrite with the `_succ` equation first |
 
 `sub_def` in [FB/eq.lean](../Clap/Lang/FB/eq.lean) and `simp [←sum'.eq_def]` in
 [FArray/sum.lean](../Clap/Lang/FArray/sum.lean) are the worked cases.
+
+**Whichever spelling the definition used, the proof names `mk*`.** `Clap.Lang.mkAdd`/`mkSub`/
+`mkMul` are *defined as* `+`/`-`/`*` ([F/mkAdd.lean:9-10](../Clap/Lang/F/mkAdd.lean#L9-L10)), so
+a body written with operators is stepped with `mkAdd.convertsM` / `mkSub.convertsM` /
+`mkMul.convertsM` exactly as before. There is no `add.convertsM`.
+
+Whether you also need the `*_def` rewrite depends on where the operator sits:
+
+- **No rewrite** when each operator is the action of its own bind, i.e. `let x ← a - b`. `step`'s
+  `lemmaOfNextCommand` sees `Bind.bind` as the head and matches directly —
+  [F/conditionalSwap.lean:31-35](../Clap/Lang/F/conditionalSwap.lean#L31-L35) steps three times
+  with no normalisation at all.
+- **Rewrite first** when the operator is buried in a continuation, as in `isZero (←(a - b))` —
+  [FB/eq.lean:26](../Clap/Lang/FB/eq.lean#L26) needs its `rw [sub_def]`.
+
+When in doubt, try `step` first; if it reports no match, add the rewrite.
+
+### When `step` does not apply — two or more assertions
+
+`step` applies `convertsM_bind`, whose continuation obligation is
+`ConvertsM … (constraints1 → constraints)`. Because `ConvertsM`'s third field is an `↔` with the
+constraints the continuation *actually* emits, that slot is pinned to its true constraint `C₂`.
+So `convertsM_bind` demands
+
+```
+C₂  ↔  (C₁ → constraints)
+```
+
+and when `C₁` can fail there is no `constraints` that satisfies it. For `do eq0 a; eq0 b` with
+the intended spec `a_val = 0 ∧ b_val = 0` the goal reduces to
+
+```
+b_val = 0  ↔  (a_val = 0 → a_val = 0 ∧ b_val = 0)
+```
+
+false whenever `a_val ≠ 0` and `b_val ≠ 0`. **This is not a proof you are getting wrong. The
+statement is unprovable in that shape.**
+
+So the rule is: in a `step` chain **at most one action may have a non-`True` constraint, and it
+must be the last one.** Every gadget written before this was documented happens to satisfy that
+— `assertBool` is three `True` steps then one `eq0`, `singleOneArray` is three `True` steps then
+one `assert_eq` — which is why it never surfaced.
+
+As soon as two steps can each fail, drop `step` for that bind and apply
+[`convertsM_bind_and`](../Clap/eDSLState/Convert/Base.lean) by hand:
+
+```lean
+lemma convertsM_bind_and
+  (h_action   : ConvertsM conversion1 action state action_val constraints1)
+  (h_function : ConvertsM conversion2 (function (action.getResult state.numAlloc state.σ))
+                          (action.getState state) function_val constraints2)
+  : ConvertsM conversion2 (action >>= function) state function_val (constraints1 ∧ constraints2)
+```
+
+It takes each half at its own honest constraint and conjoins them, which is what
+`Circuit.runAndEval_bind_constraints` says the semantics does anyway. Then reshape the
+conjunction into the spec you want with `convertsM_of_convertsM`.
+
+Two consequences for the hand-rolled version, both easy to trip on:
+
+- `step` was also doing the state reframing for you (stage 3). Applying `convertsM_bind_and`
+  directly means you must carry hypotheses forward yourself with `converts_skip`, and reach the
+  accumulator's post-state fact as `h_action.result`.
+- `step` was `set`ting `<name>_state`. Without it you write `action.getState state` out, or
+  bind it with a `have` first.
+
+The worked case is `convertsM_foldlM_constraints` in
+[Combinators/foldlM.lean](../Clap/Lang/Combinators/foldlM.lean) — a fold whose every element
+asserts, so every iteration is a two-assertion bind:
+
+```lean
+    apply convertsM_of_convertsM
+      (convertsM_bind_and h_ih (h_f h_ih.result (converts_skip h_ih h_last)))
+    . conv_rhs => rewrite [h_vals]
+      simp
+    . constructor
+      . rintro ⟨h_prefix, h_elem⟩ ⟨i, h_i⟩     -- (∀ i < k, P) ∧ P k  →  ∀ i < k+1, P
+        …
+```
+
+Its sibling `convertsM_foldlM` (step constraint `True`) could have used `step`; it uses
+`convertsM_bind_and` too, purely so the two proofs stay the same shape.
 
 ## Skeleton 1 — straight-line composition
 
@@ -118,6 +206,25 @@ lemma convertsM
   apply convertsM_of_convertsM (isZero.convertsM h_sub)
   . grind      -- val1 = val2
   . grind      -- constraints1 ↔ constraints2
+```
+
+[F/conditionalSwap.lean](../Clap/Lang/F/conditionalSwap.lean) is the same skeleton one step
+longer, and shows the operator spelling in the definition with no `*_def` rewrite needed:
+
+```lean
+def conditionalSwap (sel : FB p) (a b : F p) : ClapM p (F p) := do
+  let diff ← a - b
+  let scaled ← diff * sel
+  mkAdd scaled b
+
+-- …
+  unfold conditionalSwap
+  have h_sel_f := F.converts_of_FB_converts h_sel
+  step mkSub.convertsM h_a h_b as diff
+  step mkMul.convertsM h_diff h_sel_f as scaled
+  apply convertsM_of_convertsM (mkAdd.convertsM h_scaled h_b)
+  . cases sel_val <;> simp
+  . trivial
 ```
 
 `convertsM_of_convertsM h h_val h_constraints` leaves exactly two goals: the value equality and
@@ -159,7 +266,9 @@ Same, but finish with `convertsM_pure`. From
 
 `constructor` (or a `where` clause) and discharge the three fields separately.
 
-From [F/mkAdd.lean](../Clap/Lang/F/mkAdd.lean):
+From [F/mkAdd.lean](../Clap/Lang/F/mkAdd.lean), whose body is now just `def mkAdd (a b : F p) :
+ClapM p (F p) := a + b` — so `unfold mkAdd` exposes the operator, which is by `rfl` the
+`liftM (HashConsM.mkAdd a b)` the instance produces, not a `saveExpr` call:
 
 ```lean
   unfold mkAdd
@@ -169,7 +278,9 @@ From [F/mkAdd.lean](../Clap/Lang/F/mkAdd.lean):
   . grind [ClapM.runAndEval]
 ```
 
-The `Converts` half is factored into its own lemma and proved by destructuring both inputs:
+The `Converts` half is factored into its own lemma, stated directly on the operator form
+(`ClapM.getState (a + b) state` and `ClapM.getResult (a + b) state.numAlloc state.σ`) and proved
+by destructuring both inputs:
 
 ```lean
   simp [ClapM.getState]
@@ -324,6 +435,7 @@ These are non-obvious and both proofs depend on them:
 | `converts_of_converts` | rewrite the ideal value of a `Converts` |
 | `convertsM_of_convertsM` | rewrite value **and** constraints of a `ConvertsM` |
 | `converts_skip` | carry a `Converts` past an intervening action (what `step` uses) |
+| `convertsM_bind_and` | sequence two actions that **both** assert; `step`/`convertsM_bind` cannot |
 | `FArray.converts_iff_FB_converts` | pointwise view of an `FArray` fact |
 | `FArray.converts_push` / `converts_pop` / `converts_getElem` / `converts_vector_cast` | vector surgery |
 | `FArray.convertsM_of_convertsM_toList` | turn an `FArray` goal into an `FList` goal |
@@ -354,12 +466,14 @@ bidirectional, `→` / `←` implication, `.` use-as-fact, `! .` aggressive, `ca
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| *"Conclusion unchanged; spec missing for: …"* | the action's head is not `bind`/`map` | `unfold` first; or `rw [add_def/sub_def/mul_def]`; or use `step_state` |
+| *"Conclusion unchanged; spec missing for: …"* | the action's head is not `bind`/`map` | `unfold` first; or `rw [add_def/sub_def/mul_def]` if an operator is buried in a continuation (see [Before you can step](#before-you-can-step)); or use `step_state` |
+| No `.convertsM` lemma seems to exist for the `+`/`-`/`*` in the body | you are looking for the wrong name | the operators *are* `mkAdd`/`mkSub`/`mkMul`; step with `mkAdd.convertsM` etc. |
 | *"Failed to unify. Bad."* | the supplied `ConvertsM` does not match the head of the bind | check the conversion (`F` vs `FB`), and whether you need a cast lemma first |
 | *"Assumptions of shape `Converts` refer to multiple states"* | a hypothesis was not carried forward | it should have been reframed by `step`; if you introduced it manually, apply `converts_skip` yourself |
 | *"Expected ConvertsM. Got: …"* | you passed a `Converts`, not a `ConvertsM`, to `step` | use `step` with the `.convertsM` lemma; a bare `Converts` is a `have`, not a step |
 | Goal explodes into raw `WriterT`/`StateT` terms | you unfolded an `@[irreducible]` gate | undo; go through `getResult_*` / `getCircuit_*` / `wellFormed_*` instead |
 | The constraints `↔` will not close and looks false | your slot-5 condition is wrong (often spuriously `True`) | fix the specification, not the proof |
+| The constraints `↔` reads `C₂ ↔ (C₁ → … C₁ … ∧ C₂)` and is false when `C₁` fails | you used `step`/`convertsM_bind` across **two** assertions; the shape is unprovable, not merely hard | re-do that bind with `convertsM_bind_and`, then reshape with `convertsM_of_convertsM`. See [When `step` does not apply](#when-step-does-not-apply--two-or-more-assertions) |
 | An extra unexplained goal at the end of a Skeleton-2 proof | the `convertsM_bind` implications for a non-`True` constraint | that is soundness/completeness; prove them |
 | The constraints goal reads `… ↔ (True → True → … → P)` and `constructor`/`intro` then mismatches | each preceding `True`-constraint step contributes one `True →` via `convertsM_bind` | a bare `simp` absorbs them, but a targeted script must strip them first: `simp only [true_implies]`. See [FB/assertBool.lean](../Clap/Lang/FB/assertBool.lean) |
 
@@ -378,7 +492,9 @@ model, so a clean build with no `sorry` is the entire acceptance criterion.
 
 - [ ] `lake build` passes with no `sorry`, no `admit`, and no warnings beyond the two
       pre-existing `linter.dupNamespace` ones from `Clap/eDSLState/Wheels.lean:15`.
-- [ ] The proof uses `step` for each bind rather than manual `convertsM_bind` applications.
+- [ ] The proof uses `step` for each bind rather than manual `convertsM_bind` applications —
+      except where two steps can each fail, which `step` cannot express; those use
+      `convertsM_bind_and`.
 - [ ] No `@[irreducible]` gate was `unfold`ed.
 - [ ] If the constraints slot is not `True`, both `↔` directions are genuinely proved — not
       papered over by weakening the specification.
