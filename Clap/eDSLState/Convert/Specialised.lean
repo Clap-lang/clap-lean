@@ -14,6 +14,7 @@ abbrev F (p : ℕ) : Type := HashConsM.BoundRef p
 abbrev FB (p : ℕ) : Type := F p
 abbrev F8 (p : ℕ) : Type := F p
 abbrev FArray (p k : ℕ) : Type := Vector (FB p) k
+abbrev FBitVec (p k : ℕ) : Type := Vector (FB p) k
 abbrev FList (p : ℕ) : Type := List (FB p)
 
 section OverrideInstance

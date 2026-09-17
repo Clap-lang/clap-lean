@@ -27,5 +27,7 @@ import Clap.Lang.FB.not
 import Clap.Lang.FB.ofBool
 import Clap.Lang.FB.or
 import Clap.Lang.FB.xor
+import Clap.Lang.FBitVec.assert_eq
+import Clap.Lang.FBitVec.eq
 import Clap.Lang.FUnit.assert_eq
 import Clap.Lang.FUnit.eq0
