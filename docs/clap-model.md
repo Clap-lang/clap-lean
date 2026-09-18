@@ -1,10 +1,10 @@
 ---
 name: clap-model
-description: Reference for the CLAP eDSLState circuit model - the expression heap, gates, the ClapM monad, the EvalSt semantics, and the Converts/ConvertsM refinement relation.
+description: Reference for the CLAP circuit model - the expression heap, gates, the ClapM monad, the EvalSt semantics, and the Converts/ConvertsM refinement relation.
 when-to-use: Look up a definition, a notation, or what a well-formedness condition actually says. Read the layer you need; you do not need to read the whole file.
 ---
 
-# The CLAP model (`Clap/eDSLState/`)
+# The CLAP model (`Clap/Model/`)
 
 Reference material. For *how to write* a gadget see [specifying-circuits.md](specifying-circuits.md);
 for *how to prove* one see [proving-circuits.md](proving-circuits.md).
@@ -23,7 +23,7 @@ The model is four layers. Read bottom-up the first time; after that jump to the 
 
 ## 1. Expressions: a hash-consed heap, not an inductive tree
 
-[HashCons/CacheExpr.lean](../Clap/eDSLState/HashCons/CacheExpr.lean):
+[HashCons/CacheExpr.lean](../Clap/Model/HashCons/CacheExpr.lean):
 
 ```lean
 abbrev ExprRef := ℕ
@@ -44,7 +44,7 @@ def CacheExpr.wellFormed {p : ℕ} (e : CacheExpr p) (idx : ExprRef) : Prop :=
 
 `CacheExpr` is flat and non-recursive. Sub-expressions are `ℕ` indices into a heap:
 
-[HashCons/HashConsSt.lean](../Clap/eDSLState/HashCons/HashConsSt.lean):
+[HashCons/HashConsSt.lean](../Clap/Model/HashCons/HashConsSt.lean):
 
 ```lean
 @[grind]
@@ -61,7 +61,7 @@ whole development is **`σ.exprs.isPrefixOf σ'.exprs`**.
 
 ### The builder monad
 
-[HashCons/HashConsM.lean](../Clap/eDSLState/HashCons/HashConsM.lean):
+[HashCons/HashConsM.lean](../Clap/Model/HashCons/HashConsM.lean):
 
 ```lean
 abbrev HashConsM (p : ℕ) := StateM (HashConsSt p)
@@ -97,7 +97,7 @@ happens at construction time, not as a proved rewrite pass.
 
 ### `Expr` = a ref bundled with its heap
 
-[Expr.lean](../Clap/eDSLState/Expr.lean):
+[Expr.lean](../Clap/Model/Expr.lean):
 
 ```lean
 @[grind cases]
@@ -120,7 +120,7 @@ def wellFormed (e : Expr p) : Prop := e.ref < e.σ.size
 
 ### Variable store
 
-[Varstore.lean](../Clap/eDSLState/Varstore.lean):
+[Varstore.lean](../Clap/Model/Varstore.lean):
 
 ```lean
 abbrev VarStore (p : ℕ) := Std.ExtTreeMap ℕ (ZMod p) (cmp := compare)
@@ -137,7 +137,7 @@ everything already present".
 
 ## 2. Gates and circuits
 
-[Gate.lean](../Clap/eDSLState/Gate.lean):
+[Gate.lean](../Clap/Model/Gate.lean):
 
 ```lean
 @[grind cases]
@@ -160,7 +160,7 @@ structure wellFormed (gate : Gate) (Γ : VarStore p) (σ : HashConsSt p) : Prop 
 
 `Gate` is *not* indexed by `p`; it holds only `ExprRef = ℕ`. The prime enters via `σ` and `Γ`.
 
-[Circuit.lean](../Clap/eDSLState/Circuit.lean):
+[Circuit.lean](../Clap/Model/Circuit.lean):
 
 ```lean
 abbrev Circuit := Array Gate
@@ -179,7 +179,7 @@ prefix's varStore and to touch only variables below the prefix's `numAlloc`.
 
 ## 3. The monad
 
-[Monad.lean:11-15](../Clap/eDSLState/Monad.lean#L11-L15):
+[Monad.lean:11-15](../Clap/Model/Monad.lean#L11-L15):
 
 ```lean
 abbrev CircuitT (m : Type → Type) (α : Type) : Type := WriterT Circuit (StateT ℕ m) α
@@ -232,7 +232,7 @@ primitive, named `<accessor>_<construct>` — `getCircuit_bind`, `getVarStore_sh
 
 ### Well-formedness of an action
 
-[Monad.lean:348](../Clap/eDSLState/Monad.lean#L348):
+[Monad.lean:348](../Clap/Model/Monad.lean#L348):
 
 ```lean
 @[grind =]
@@ -264,7 +264,7 @@ lemma ClapM.bind_wellFormed
 
 ### The five eDSL gates
 
-[eDSL.lean:11-33](../Clap/eDSLState/eDSL.lean#L11-L33). All `@[irreducible]` — **never unfold
+[eDSL.lean:11-33](../Clap/Model/eDSL.lean#L11-L33). All `@[irreducible]` — **never unfold
 them** (see rule 5 in [clap-agent-guide.md](clap-agent-guide.md)).
 
 ```lean
@@ -287,13 +287,13 @@ hypotheses — ref in range, all needed vars present, no forward references), `e
 ### Arithmetic notation
 
 **`←(a + b)`, `←(a - b)`, `←(a * b)` is the spelling to use in a gadget definition.**
-[F/conditionalSwap.lean](../Clap/Lang/F/conditionalSwap.lean) is the reference example.
+[F/conditionalSwap.lean](../Clap/Lang/Core/F/conditionalSwap.lean) is the reference example.
 
 `+ - *` on refs are *monadic*, and the instances exist at three layers:
 
-1. `HashConsM` ([HashConsM.lean](../Clap/eDSLState/HashCons/HashConsM.lean), `priority := 9999`)
+1. `HashConsM` ([HashConsM.lean](../Clap/Model/HashCons/HashConsM.lean), `priority := 9999`)
    — `HAdd (BoundRef p) (BoundRef p) (HashConsM p (BoundRef p))`.
-2. `ClapM` ([eDSL.lean](../Clap/eDSLState/eDSL.lean), `priority := high`, so this is the one a
+2. `ClapM` ([eDSL.lean](../Clap/Model/eDSL.lean), `priority := high`, so this is the one a
    gadget gets):
 
 ```lean
@@ -307,7 +307,7 @@ instance (priority := high) {p} : HAdd (BoundRef p) (BoundRef p) (ClapM p (Bound
 
 3. Six `inferInstanceAs` re-wrappings at the `F p` / `FB p` spelling, in
    `Convert/Specialised.lean`'s `section OverrideInstance`
-   ([Specialised.lean:24-50](../Clap/eDSLState/Convert/Specialised.lean#L24-L50)). These are
+   ([Specialised.lean:24-50](../Clap/Model/Convert/Specialised.lean#L24-L50)). These are
    what make `diff * sel` elaborate in `conditionalSwap`, where `diff : F p` and `sel : FB p`.
 
 So `a + b : ClapM p (F p)`; inside a `do` block you write `←(a + b)`.
@@ -319,7 +319,7 @@ Both the `HashConsM` and the `ClapM` layer declare lemmas named `add_def` / `sub
 #### `p` comes from the operands, never from the expected type
 
 `abbrev BoundRef (_ : ℕ) : Type := ExprRef` and `abbrev ExprRef := ℕ`
-([CacheExpr.lean:6](../Clap/eDSLState/HashCons/CacheExpr.lean#L6)). Two consequences, and the
+([CacheExpr.lean:6](../Clap/Model/HashCons/CacheExpr.lean#L6)). Two consequences, and the
 second one bites:
 
 **`p` is a phantom parameter**, recoverable only from an operand whose *binder type is written*
@@ -363,7 +363,7 @@ mkAdd (p := p) x y          -- or just call the wrapper with p explicit
 
 #### `mkAdd` / `mkSub` / `mkMul` *are* the operators
 
-[F/mkAdd.lean:9-10](../Clap/Lang/F/mkAdd.lean#L9-L10) and its two siblings are now one-liners:
+[F/mkAdd.lean:9-10](../Clap/Lang/Core/F/mkAdd.lean#L9-L10) and its two siblings are now one-liners:
 
 ```lean
 def mkAdd (a b : F p) : ClapM p (F p) := a + b
@@ -379,7 +379,7 @@ definitions; that is equivalent, not wrong.
 
 ## 4. Semantics: `EvalSt`
 
-[CircuitEvalSt.lean:15-19](../Clap/eDSLState/CircuitEvalSt.lean#L15-L19):
+[CircuitEvalSt.lean:15-19](../Clap/Model/CircuitEvalSt.lean#L15-L19):
 
 ```lean
 structure EvalSt (p : ℕ) where
@@ -438,7 +438,7 @@ Key structural facts:
 
 ### Expression evaluation
 
-[HashCons/Eval.lean](../Clap/eDSLState/HashCons/Eval.lean) gives two evaluators, proved equal:
+[HashCons/Eval.lean](../Clap/Model/HashCons/Eval.lean) gives two evaluators, proved equal:
 `eval` (memoised, bottom-up, *the definition*) and `evalRec` (recursive, induction-friendly).
 
 ```lean
@@ -464,7 +464,7 @@ notation "[" σ "|" Γ₁ " ⊑ " Γ₂ "]" => precedes Γ₁ Γ₂ σ          
 
 ## 5. Refinement: `Conversion`, `Converts`, `ConvertsM`
 
-This is what "correct" means. [Convert/Base.lean](../Clap/eDSLState/Convert/Base.lean):
+This is what "correct" means. [Convert/Base.lean](../Clap/Model/Convert/Base.lean):
 
 ```lean
 structure Conversion (p : ℕ) (α : Type) where
@@ -573,8 +573,8 @@ them — and `convertsM_bind_and` as soon as two steps can each fail.
 ### The standard conversions
 
 Eight of them in
-[Convert/Specialised.lean:54-134](../Clap/eDSLState/Convert/Specialised.lean#L54-L134), plus
-`FString.conversion` in [FString/Basic.lean](../Clap/Lang/FString/Basic.lean):
+[Convert/Specialised.lean:54-134](../Clap/Model/Convert/Specialised.lean#L54-L134), plus
+`FString.conversion` in [FString/Basic.lean](../Clap/Model/Convert/PaddedVector.lean):
 
 ```lean
 abbrev F       (p : ℕ)   : Type := HashConsM.BoundRef p   -- a field element
@@ -612,10 +612,10 @@ characters fit in a byte, with `256 < p` and `w < p`; gadgets needing injectivit
 explicit hypotheses rather than folding them into `Converts`.
 
 `FPair.conversion` exists so that a fold over `a.zip b` has an element conversion to name — see
-[Combinators/foldlM.lean](../Clap/Lang/Combinators/foldlM.lean) and any two-vector gadget.
+[Combinators/foldlM.lean](../Clap/Lang/Core/Combinators/foldlM.lean) and any two-vector gadget.
 
 `FString.conversion` is the odd one out, living in
-[FString/Basic.lean](../Clap/Lang/FString/Basic.lean) rather than `Specialised.lean`:
+[FString/Basic.lean](../Clap/Model/Convert/PaddedVector.lean) rather than `Specialised.lean`:
 
 ```lean
 structure PaddedVector (α : Type) (p w : ℕ) where
@@ -660,16 +660,16 @@ FList.converts_empty / converts_append / converts_of_converts_FB / converts_sing
 
 | Notation | Means | Defined at |
 |---|---|---|
-| `⦃ref, σ⦄` | `Expr.mk ref σ` | [Expr.lean:16](../Clap/eDSLState/Expr.lean#L16) |
-| `*ₑe` | `Expr.deref e` | [Expr.lean:34](../Clap/eDSLState/Expr.lean#L34) |
-| `[Γ, σ\|e]` | `eval Γ ⟨e, σ⟩` | [Eval.lean:476](../Clap/eDSLState/HashCons/Eval.lean#L476) |
-| `[Γ\|e]` | `eval Γ e` | [Eval.lean:478](../Clap/eDSLState/HashCons/Eval.lean#L478) |
-| `[Γ, σ\|←x]` | `HashConsM.run (evalM Γ x) σ` | [Eval.lean:596](../Clap/eDSLState/HashCons/Eval.lean#L596) |
-| `[σ\|Γ₁ ⊑ Γ₂]` | `precedes Γ₁ Γ₂ σ` | [Eval.lean:716](../Clap/eDSLState/HashCons/Eval.lean#L716) |
-| `unconstrained[n][Γ]` | `EvalSt.unconstrained n Γ` | [CircuitEvalSt.lean:40](../Clap/eDSLState/CircuitEvalSt.lean#L40) |
-| `[st, σ\|gate]ₛ` | `EvalSt.step st gate σ` | [CircuitEvalSt.lean:522](../Clap/eDSLState/CircuitEvalSt.lean#L522) |
-| `[Γ, σ, n\|circuit]ₑ` | `Circuit.eval circuit Γ n σ` | [Circuit.lean:98](../Clap/eDSLState/Circuit.lean#L98) |
-| `[Γ, σ, n\|c₁; c₂]ₑ` | `Circuit.seq c₁ c₂ Γ n σ` | [Circuit.lean:566](../Clap/eDSLState/Circuit.lean#L566) |
+| `⦃ref, σ⦄` | `Expr.mk ref σ` | [Expr.lean:16](../Clap/Model/Expr.lean#L16) |
+| `*ₑe` | `Expr.deref e` | [Expr.lean:34](../Clap/Model/Expr.lean#L34) |
+| `[Γ, σ\|e]` | `eval Γ ⟨e, σ⟩` | [Eval.lean:476](../Clap/Model/HashCons/Eval.lean#L476) |
+| `[Γ\|e]` | `eval Γ e` | [Eval.lean:478](../Clap/Model/HashCons/Eval.lean#L478) |
+| `[Γ, σ\|←x]` | `HashConsM.run (evalM Γ x) σ` | [Eval.lean:596](../Clap/Model/HashCons/Eval.lean#L596) |
+| `[σ\|Γ₁ ⊑ Γ₂]` | `precedes Γ₁ Γ₂ σ` | [Eval.lean:716](../Clap/Model/HashCons/Eval.lean#L716) |
+| `unconstrained[n][Γ]` | `EvalSt.unconstrained n Γ` | [CircuitEvalSt.lean:40](../Clap/Model/CircuitEvalSt.lean#L40) |
+| `[st, σ\|gate]ₛ` | `EvalSt.step st gate σ` | [CircuitEvalSt.lean:522](../Clap/Model/CircuitEvalSt.lean#L522) |
+| `[Γ, σ, n\|circuit]ₑ` | `Circuit.eval circuit Γ n σ` | [Circuit.lean:98](../Clap/Model/Circuit.lean#L98) |
+| `[Γ, σ, n\|c₁; c₂]ₑ` | `Circuit.seq c₁ c₂ Γ n σ` | [Circuit.lean:566](../Clap/Model/Circuit.lean#L566) |
 
 For metavariable conventions (`Γ`, `σ`, `e!` vs `e`, `x` vs `x_val`) see
 [clap-agent-guide.md](clap-agent-guide.md).
@@ -681,10 +681,10 @@ For metavariable conventions (`Γ`, `σ`, `e!` vs `e`, `x` vs `x_val`) see
 You will find the words **wellbehaved**, **complete** and **sound** in two places, and neither
 is live code:
 
-- [Test.lean](../Clap/eDSLState/Test.lean) defines them as `#eval` sanity checks —
+- [Test/Backend.lean](../Clap/Test/Backend.lean) defines them as `#eval` sanity checks —
   *wellbehaved* = the witness generator extends the inputs, *complete* = satisfiable implies the
   generated witness satisfies the constraint system, *sound* = the converse.
-- [Plan.lean](../Clap/eDSLState/Plan.lean) states them as `theorem … := by done` skeletons. The
+- [Plan.lean](../old/Clap/eDSLState/Plan.lean) states them as `theorem … := by done` skeletons. The
   entire file is commented out; it is a design document, not code.
 
 In the live model these are the two directions of `ConvertsM.constraints`. Do not go looking
@@ -701,19 +701,19 @@ for a `soundness` theorem, and do not write one.
 - **`aesop`**: `@[aesop safe]`, `@[aesop unsafe]`, `@[aesop safe cases]`.
 - **`@[irreducible]`** on the five eDSL gates — deliberate; see rule 5.
 - **Custom simp set** `Clap.monads`, registered at
-  [Wheels.lean:15](../Clap/eDSLState/Wheels.lean#L15) and populated at
-  [Monad.lean:580](../Clap/eDSLState/Monad.lean#L580) with `bind`, `pure`, `ClapM.run`,
+  [Util/Containers.lean:15](../Clap/Util/Containers.lean#L15) and populated at
+  [Monad.lean:580](../Clap/Model/Monad.lean#L580) with `bind`, `pure`, `ClapM.run`,
   `WriterT.run`, `WriterT.mk`, `tell`, `StateT.run/bind/pure/map`, `Functor.map`. Use
   `simp [Clap.monads]` to blast through monad plumbing.
-- **Global tweaks** in [Clap/Lang/Wheels.lean](../Clap/Lang/Wheels.lean):
+- **Global tweaks** in [Clap/Util/Lemmas.lean](../Clap/Util/Lemmas.lean):
   `attribute [simp] sub_eq_zero`, `attribute [grind =] Option.isSome_eq_false_iff
   Option.isNone_iff_eq_none`, and `ZMod.val_one_le_one`.
-- **Ambient lemma library** [eDSLState/Wheels.lean](../Clap/eDSLState/Wheels.lean): the
+- **Ambient lemma library** [Util/Containers.lean](../Clap/Util/Containers.lean): the
   `Array.isPrefixOf_*` prefix machinery that underpins all heap-frame reasoning, the
   `Std.ExtTreeMap.insertMany*` lemmas for the varStore, and `Vector.mapM_cast`,
   `Vector.mapM_succ`, `Vector.take_append_last`.
 
-Note that `Clap.ZMod.zero_ne_one` / `Clap.ZMod.one_ne_zero` in `eDSLState/Wheels.lean` shadow
+Note that `Clap.ZMod.zero_ne_one` / `Clap.ZMod.one_ne_zero` in `Util/Containers.lean` shadow
 Mathlib names inside `namespace Clap`.
 
 ---
@@ -722,32 +722,24 @@ Mathlib names inside `namespace Clap`.
 
 Flagged so you do not chase them:
 
-1. The *legacy* single-file `Clap/eDSLState/ConstraintSystem.lean` is still on disk, still has
-   `.fpmul => sorry` at line 137, and is **not** what runs. The live lowering is
-   `ConstraintSystem/toCs.lean` plus the per-gate modules beside it; `Clap.lean` imports those.
-   Same story for `WitnessGenerator.lean`, which was replaced by the `WitnessGenerator/`
-   directory. Do not read either for current behaviour. `Plan.lean` really is still commented
-   out.
-2. `Gate.numAllocStep (.isZero _) = 1`, but the witness generator's `trace_capacity` and
+1. `Gate.numAllocStep (.isZero _) = 1`, but the witness generator's `trace_capacity` and
    `num_constraints` both say `2` (the R1CS lowering also needs the inverse hint).
    Unreconciled — check which one you mean before relying on either.
-3. [IsValid.lean](../Clap/eDSLState/IsValid.lean) compiles but is referenced nowhere — a
-   superseded design. Never build on it.
-4. `HashConsM.saveExpr` returns a magic `42` in its unreachable ill-formed branch. There is no
+2. `HashConsM.saveExpr` returns a magic `42` in its unreachable ill-formed branch. There is no
    failure monad anywhere.
-5. The `seq` unexpander prints its arguments in a different order than the macro parses them.
-6. `Circuit.varsAllocated` says `c.take i` while `bind_Circuit_wellFormed` says
+3. The `seq` unexpander prints its arguments in a different order than the macro parses them.
+4. `Circuit.varsAllocated` says `c.take i` while `bind_Circuit_wellFormed` says
    `circuit.extract 0 i` — the same thing, two spellings.
-7. `Clap.Lang.F8` is both an `abbrev` and a namespace. That does *not* currently trip
+5. `Clap.Lang.F8` is both an `abbrev` and a namespace. That does *not* currently trip
    `linter.dupNamespace` — the only baseline warnings are the two from the `Clap.monads`
-   attributes in `eDSLState/Wheels.lean:15`, plus the expected `sorry` in
-   `eDSLState/AllocatedProgram.lean`. Three warnings total; anything else is yours.
-8. Three old-model files — `Clap/BitVec.lean`, `Clap/Wheels.lean`, `Clap/Primes.lean` — are in
-   the live import closure via `CircuitEvalSt.lean`, even though `Clap.lean` lists them only
-   inside the "Goodbye, sweet prince" comment. `num2bitsLsbPureV` is the reason. Editing them
-   affects the build.
+   attributes in `Util/Containers.lean:15`, plus the expected `sorry` in
+   `Examples/PoseidonProgram.lean`. Three warnings total; anything else is yours.
+6. `Clap/Util/BitVec.lean`, `Clap/Util/Wheels.lean` and `Clap/Util/Primes.lean` came from the
+   old model but are model-agnostic maths, and are live via `CircuitEvalSt.lean`
+   (`num2bitsLsbPureV` is the reason). Editing them affects the build.
 
 Fixed since this file was first written, in case you remember them: `Circuit.toCs`'s `.fpmul`
 branch and the `num_constraints .fpmul = 42` placeholder (both real now),
-`HashConsM.getResult_mkVar` (was a copy-paste of `getResult_mkConstant`), and the absence of any
-executable path at all.
+`HashConsM.getResult_mkVar` (was a copy-paste of `getResult_mkConstant`), the absence of any
+executable path at all, and the superseded `ConstraintSystem.lean` / `WitnessGenerator.lean` /
+`IsValid.lean` / `Plan.lean`, which now live in [`old/Clap/eDSLState/`](../old/Clap/eDSLState/).

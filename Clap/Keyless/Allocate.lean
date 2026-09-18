@@ -1,11 +1,10 @@
-import Clap.eDSLState.PublicInput
-import Clap.Lang.Keyless.Input
-
+import Clap.Model.PublicInput
+import Clap.Keyless.Input
 /-!
 # Keyless circuit public-input allocation
 
 Allocators for the top-level Keyless circuit's input, built from the generic ones in
-`Clap/eDSLState/PublicInput.lean`. `allocateKeyless` is the `allocate` field of an
+`Clap/Model/PublicInput.lean`. `allocateKeyless` is the `allocate` field of an
 `AllocatedProgram`, and `allocateKeylessWidth` is its `numAlloc`.
 -/
 

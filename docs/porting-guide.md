@@ -1,7 +1,7 @@
 ---
 name: porting-guide
 description: Rules for porting a CLAP gadget from the old Option/ZMod model to the new ClapM/ConvertsM model, with a worked before-and-after and an inventory of what remains.
-when-to-use: You are moving a gadget out of Clap/Array.lean, Clap/Lang.lean, Clap/Packing.lean, Sha2, JWT, RSA, Poseidon, or any other file behind the "Goodbye, sweet prince" comment.
+when-to-use: You are moving a gadget out of the old/ tree — old/Clap/Array.lean, old/Clap/Lang.lean, old/Clap/Packing.lean, Sha2, JWT, RSA, or any other file there.
 ---
 
 # Porting from the old model
@@ -12,23 +12,19 @@ This file only covers what is *different* about a port versus writing a gadget f
 
 ## State of play
 
-Almost everything old is on disk and out of the build, behind the comment block in
-[Clap.lean](../Clap.lean) headed *"Goodbye, sweet prince."* Porting means **rewriting into
-`Clap/Lang/`**, never editing an old file into shape.
+Everything old lives in [`old/`](../old/), outside every Lake target, and is never compiled.
+Porting means **rewriting into `Clap/Lang/`**, never editing a file in `old/` into shape.
+Read [`old/README.md`](../old/README.md) for what is where.
 
-Three old files are the exception and are already *live*, pulled in transitively rather than
-listed: `Clap/BitVec.lean` (via `Clap/eDSLState/CircuitEvalSt.lean`, because the `num2bits`
-gate's semantics `stepNum2bits` is specified against `num2bitsLsbPureV`), and `Clap/Wheels.lean`
-and `Clap/Primes.lean` beneath it. Editing those three changes the live build.
+The old model's *model-agnostic* maths survived the split and is live under
+[`Clap/Util/`](../Clap/Util/): `BitVec.lean` (reached from `Clap/Model/CircuitEvalSt.lean`,
+because the `num2bits` gate's semantics `stepNum2bits` is specified against `num2bitsLsbPureV`),
+`Wheels.lean` and `Primes.lean` beneath it. Editing those changes the live build.
 
-**The `Clap/Lang.lean` trap.** The *file* `Clap/Lang.lean` (~1100 lines) is the OLD gadget
-library. The *directory* `Clap/Lang/` is the new one. They share a name and nothing else. If
-you find yourself reading `abbrev F p := ZMod p`, you are in the old file.
-
-Several old files are themselves 85–90% line-commented already — `Clap/JWT.lean` (1100 of 1245
-lines), `Clap/FString.lean`, `Clap/Keyless.lean`, `Clap/HashToField.lean`,
-`Clap/Sha2/Keyless.lean`, `Clap/Poseidon/Poseidon.lean`. They are reference source, not working
-code.
+Several files in `old/` are themselves 85–90% line-commented already — `old/Clap/JWT.lean`
+(1100 of 1245 lines), `old/Clap/FString.lean`, `old/Clap/Keyless.lean`,
+`old/Clap/HashToField.lean`, `old/Clap/Sha2/Keyless.lean`, `old/Clap/Poseidon/Poseidon.lean`.
+They are reference source, not working code.
 
 ## The two shifts that cause every other difference
 
@@ -62,7 +58,7 @@ Consequences you will hit immediately:
   operations, now three binds.
 - **Literals need allocation.** `F.assert_eq s 1` becomes `assert_eq s (←mkF 1)`. `RSA.lean`
   has ~10 hard-coded 64-bit constants; Poseidon has ~20 000. Plan a bulk allocation helper
-  (`Clap/Poseidon/NewPoseidon.lean`'s `allocateVector` is the seed) and rely on hash-consing to
+  (`Clap/Poseidon/Poseidon.lean`'s `allocateVector` is the seed) and rely on hash-consing to
   de-duplicate repeats.
 - **`Coe` instances cannot survive.** Old `Coe Char (F p)`, `Coe UInt8 (F p)`,
   `Coe UInt32 (F32 p)`, `OfNat (F32 p) n`, `Inhabited (F p) := 42` all target a pure type. A
@@ -110,14 +106,14 @@ the fifth slot of `ConvertsM`. Therefore:
 | `assert! w ≤ minBits p` | an explicit hypothesis `(h_w : …)` on `convertsM` |
 | `v[i]!` with `Inhabited (F p) := 42` | `v[i]` with a `Fin` index or a proof obligation |
 | `partial def` | structural recursion, or `Fin.foldl` |
-| `[Fact (Primes.fits p 8)]` | `[p.AtLeastTwo]` plus explicit bounds like `(h_len : len < p)`; use `[Fact (Nat.Prime p)]` only where the maths genuinely needs a field — see [FB/assertBool.lean](../Clap/Lang/FB/assertBool.lean), whose soundness is `mul_eq_zero` |
+| `[Fact (Primes.fits p 8)]` | `[p.AtLeastTwo]` plus explicit bounds like `(h_len : len < p)`; use `[Fact (Nat.Prime p)]` only where the maths genuinely needs a field — see [FB/assertBool.lean](../Clap/Lang/Core/FB/assertBool.lean), whose soundness is `mul_eq_zero` |
 | `example : g … = some v := by native_decide` | the content of slots 4 and 5 of `lemma convertsM` |
 | doc comment "only satisfiable when `0 ≤ idx < len`" | slot 5: `idx_val.val < len` |
 
 ## Worked example: `singleOneArray`
 
 The one gadget that exists in both models. Old,
-[Clap/Array.lean:11-19](../Clap/Array.lean#L11-L19):
+[old/Clap/Array.lean:11-19](../old/Clap/Array.lean#L11-L19):
 
 ```lean
 private def oneHotRaw (len : ℕ) (idx : F p) : Option (Vector (FB p) len) :=
@@ -140,7 +136,7 @@ example : FArray.singleOneArray (p := p) 4 3 = some #v[0,0,0,1] := by native_dec
 example : FArray.singleOneArray (p := p) 4 4 = none := by native_decide
 ```
 
-New, [Clap/Lang/FArray/singleOneArray.lean](../Clap/Lang/FArray/singleOneArray.lean):
+New, [Clap/Lang/Data/FArray/singleOneArray.lean](../Clap/Lang/Data/FArray/singleOneArray.lean):
 
 ```lean
 def singleOneArray [p.AtLeastTwo] (len : ℕ) (idx : F p) : ClapM p (FArray p len) := do
@@ -181,17 +177,19 @@ four `get*` transfer lemmas. Budget for that on any iterating gadget.
 5. Split any `mapM`/`foldlM` into an `_aux` definition and prove its `_zero`/`_succ` equations
    before touching the spec.
 6. State `convertsM`, then prove it. See [proving-circuits.md](proving-circuits.md).
-7. Register the file in `Clap/Lang/All.lean` and `Clap.lean`.
+7. Register the file in `Clap/Lang/All.lean` — the only index; `Clap.lean` imports that. Put it
+   in the right layer: `Gate/` for a gate wrapper, `Core/` for scalars/booleans/assertions,
+   `Data/` for containers.
 8. Re-run the old test vectors. They *are* executable now — see §Smoke tests below. Carry over
    as comments only the ones you genuinely cannot run, and say why.
 
 ## Blockers — do not start these yet
 
 **Missing primitives.** All five gates now have a lowering *and* a witness generator, under
-`eDSLState/ConstraintSystem/` and `eDSLState/WitnessGenerator/`. What a gate can still be
+`Model/ConstraintSystem/` and `Model/WitnessGenerator/`. What a gate can still be
 missing is a `Clap/Lang/` wrapper with a `convertsM`:
 
-- **`num2bits`** — **done.** [FArray/num2bits.lean](../Clap/Lang/FArray/num2bits.lean), and with
+- **`num2bits`** — **done.** [FArray/num2bits.lean](../Clap/Lang/Gate/num2bits.lean), and with
   it `F.lessThan` and the rest of the comparison family. This was the blocker that gated most
   of the backlog; it no longer is.
 - **`share`** — still unwrapped. Needed for degree reduction (`Sha2.Circuit.maj`/`xor3`,
@@ -199,40 +197,39 @@ missing is a `Clap/Lang/` wrapper with a `convertsM`:
 - **`fpmul`** — still unwrapped, and the deepest of the three. RSA is blocked on it.
 
 Note what "unwrapped" means here: both `share` and `fpmul` are *implemented* gates. They sit in
-[eDSL.lean](../Clap/eDSLState/eDSL.lean) (lines 16 and 31) with the full `wellFormed_*` /
+[eDSL.lean](../Clap/Model/eDSL.lean) (lines 16 and 31) with the full `wellFormed_*` /
 `eval_edsl_*` / `getResult_*` / `getVarStore_*` / `getCircuit_*` lemma family, and each has both
 a `ConstraintSystem/` lowering and a `WitnessGenerator/` module. What is missing is only a
 `Clap/Lang/` wrapper carrying a `convertsM` — grep finds neither name anywhere under
 `Clap/Lang/`. So the work is writing that wrapper, not implementing a gate.
 
 **The back end works.** `Circuit.toCs` lives in
-[ConstraintSystem/toCs.lean](../Clap/eDSLState/ConstraintSystem/toCs.lean) as
+[ConstraintSystem/toCs.lean](../Clap/Model/ConstraintSystem/toCs.lean) as
 `_root_.Clap.Circuit.toCs (circuit) (σ) (numInputs)`, with real branches for all five gates and
 a genuine `num_constraints` per gate. `Circuit.toWg` is its counterpart in
-[WitnessGenerator/toWg.lean](../Clap/eDSLState/WitnessGenerator/toWg.lean).
-[Test.lean](../Clap/eDSLState/Test.lean) runs both end to end and `#eval`s
+[WitnessGenerator/toWg.lean](../Clap/Model/WitnessGenerator/toWg.lean).
+[Test/Backend.lean](../Clap/Test/Backend.lean) runs both end to end and `#eval`s
 `wellbehaved`/`complete`/`sound`. So a `native_decide` smoke test is available, and
-[NewPoseidon.lean](../Clap/Poseidon/NewPoseidon.lean) uses one to pin two circomlib hash
+[Poseidon.lean](../Clap/Poseidon/Poseidon.lean) uses one to pin two circomlib hash
 vectors.
 
-Two caveats. The *legacy* single-file `Clap/eDSLState/ConstraintSystem.lean` is still on disk
-with `.fpmul => sorry` at line 137; it is not the live path and `Clap.lean` does not import it —
-do not read it for current behaviour. And R1CS serialisation (`Clap/Quadratic.lean` +
-`R1Serialize/`) still has no new-model counterpart.
+One caveat: R1CS serialisation still has no new-model counterpart. `R1Serialize/R1CS.lean` (the
+snarkjs `.r1cs`/`.wtns` writer) is model-agnostic and still a live Lake target, but its only
+consumers — `old/Clap/Quadratic.lean` and `old/Clap/Milestone.lean` — are in `old/`.
 
 **Public inputs are solved.** See [public-inputs.md](public-inputs.md): `AllocatedProgram`, the
 `mkInput*` allocator family in
-[PublicInput.lean](../Clap/eDSLState/PublicInput.lean), and a worked end-to-end theorem. This is
+[PublicInput.lean](../Clap/Model/PublicInput.lean), and a worked end-to-end theorem. This is
 what the old `#compile` reifier used to give you for free.
 
-**Iteration combinators — partly solved.** [Clap/Lang/Combinators/](../Clap/Lang/Combinators/)
+**Iteration combinators — partly solved.** [Clap/Lang/Core/Combinators/](../Clap/Lang/Core/Combinators/)
 now has `convertsM_foldlM`, `convertsM_foldlM_constraints` and `convertsM_ofFnM`, all generic in
 the element conversion. Use them instead of copying `OneHotRaw.lean`'s ~120 lines. There is
 still no `forIn` combinator, and old code uses `for … in … do` inside `Option` freely.
 
 **Conversions.** The original five (`F`/`FB`/`FUnit`/`FArray`/`FList`) are all fixed-length and
 element-wise. Four more now exist, three in
-[Convert/Specialised.lean](../Clap/eDSLState/Convert/Specialised.lean) and one in
+[Convert/Specialised.lean](../Clap/Model/Convert/Specialised.lean) and one in
 `FString/Basic.lean`:
 
 - `F8.conversion` — `IdealT := UInt8`, a byte held in one field element, with
@@ -245,7 +242,7 @@ element-wise. Four more now exist, three in
   mean is only ever the conversion you cite, so cite it deliberately.
 - `FPair.conversion` — `F p × F p`. Gives a fold over `a.zip b` an element conversion, which is
   what every two-vector gadget (`dotProduct`, `FArray.eq`, `FArray.assert_eq`) needs.
-- `FString.conversion` in [FString/Basic.lean](../Clap/Lang/FString/Basic.lean) — the
+- `FString.conversion` in [FString/Basic.lean](../Clap/Model/Convert/PaddedVector.lean) — the
   variable-length one, `IdealT := String`: one field element per character, zero-padded to `w`,
   then the length. The old `Spec.FString.valid` is not a separate predicate any more; it *is*
   the statement that `Converts FString.conversion` holds. It is injective only for strings
@@ -265,13 +262,13 @@ express. Design it deliberately before porting anything that needs it.
 **Now** (all dependencies present in `Clap/Lang/`):
 
 The whole old `FB` namespace is **done** — `or`, `xor`, `ofBool`, `assertBool`, `assert_eq`,
-`conditionallyAssert` and the Bool-typed `eq` now live in `Clap/Lang/FB/` alongside the
+`conditionallyAssert` and the Bool-typed `eq` now live in `Clap/Lang/Core/FB/` alongside the
 original `and`, `assert`, `eq`, `isZero`, `not`. `FB.true` / `FB.false` were deliberately not
 ported (they would shadow the `Bool` literals; use `ofBool`), and the `Spec.FB` layer is
 superseded by `FB.conversion`. Use those files as the worked reference for this table's
 remaining rows.
 
-The rest of the old `Clap/Lang.lean` is **done** too: `dotProduct`, `conditionalSwap`,
+The rest of the old `old/Clap/Lang.lean` is **done** too: `dotProduct`, `conditionalSwap`,
 `guardedEq0`, `guardedAssertEq`, `ofUInt8`, `ofChar`,
 `FArray.{default, ofBitVec, zeroExtend, bits2num, assert_eq, eq}` (the old `FBitVec.*`),
 `FVec.eq`, the `F32`/`FBV8`/`F64` wrappers in `FArray/Widths.lean`, and
@@ -285,21 +282,21 @@ was first written: `num2bits`, `lessThan` / `lessEqThan` / `greaterThan` /
 `F8.isWhitespace`, `arraySelector`, `singleEndArray`, `FArray.xor`, `FArray.xorScan`, and
 `FBitVec.eq` / `assert_eq`.
 
-**`Clap/Lang.lean` is now fully accounted for.** The last round added `assert_range`,
+**`old/Clap/Lang.lean` is now fully accounted for.** The last round added `assert_range`,
 `FBitVec.binSum`, `F32.add` and the `FBV8`/`F32`/`F64` `ofF` wrappers, and gave the comparison
 family and the `F8` specialisations the `convertsM` lemmas they had been missing. Three things
 were deliberately *not* ported, and should not be added back:
 
 - **`FBitVec.ofF`** — was `num2bits w e` with the same argument order, so it is a pure alias.
   Use `num2bits`. Only the width-specialised `FBV8.ofF` / `F32.ofF` / `F64.ofF` exist.
-- **`FByteArray`** (`Clap/Lang.lean:1050`) — its namespace is empty, and the type itself is
+- **`FByteArray`** (`old/Clap/Lang.lean:1050`) — its namespace is empty, and the type itself is
   `Vector (FBV8 p) w`, i.e. `Vector (Vector (FB p) 8) w`. That is the *nested* conversion
   `FArray.conversion` cannot express (see Conversions above). Design the conversion first.
 - **The `Spec.*` decode layer** — `toBV`, `toUInt8`, `toUInt32`, `toChar`, `toString`, `valid`
   and the `left_inv` / `right_inv` round-trips. Superseded by the conversions, as everywhere
   else. Note the *arithmetic* underneath them is not lost: `Clap.bits2num_bound`,
   `Clap.num2bitsLsbPure_of_bits2num_eq` and `Clap.bits2num_of_num2bitsLsbPure_eq` are live in
-  `Clap/BitVec.lean` and should be reused rather than re-derived.
+  `Clap/Util/BitVec.lean` and should be reused rather than re-derived.
 
 One warning carried over from that round: **`num2bits` asserts nothing in the `ConvertsM`
 semantics, but does range-check in the compiled circuit.** See the ⚠ section in
@@ -313,43 +310,44 @@ a gadget that already exists under another of these three names — check all th
 
 | Gadget | Old location | Note |
 |---|---|---|
-| `selectArrayValue` | `Clap/Array.lean` | `dotProduct` of `singleOneArray` with the array |
-| `leftArraySelector`, `rightArraySelector` | `Clap/Array.lean` | need `Vector.scanl`/`scanr` analogues; `FArray/xorScan.lean` is the closest existing pattern |
-| `arraySelectorComplex` | `Clap/Array.lean` | after the two selectors |
-| all of `Clap/Packing.lean` | | on `num2bits` |
-| all of `Clap/Base64Len.lean` | | on `num2bits`, and `share` for the degree reduction |
+| `selectArrayValue` | `old/Clap/Array.lean` | `dotProduct` of `singleOneArray` with the array |
+| `leftArraySelector`, `rightArraySelector` | `old/Clap/Array.lean` | need `Vector.scanl`/`scanr` analogues; `FArray/xorScan.lean` is the closest existing pattern |
+| `arraySelectorComplex` | `old/Clap/Array.lean` | after the two selectors |
+| all of `old/Clap/Packing.lean` | | on `num2bits` |
+| all of `old/Clap/Base64Len.lean` | | on `num2bits`, and `share` for the degree reduction |
 
-**After `share` is wrapped**: the degree-reducing parts of `Clap/Base64Len.lean`, and
+**After `share` is wrapped**: the degree-reducing parts of `old/Clap/Base64Len.lean`, and
 `Sha2.Circuit.maj` / `xor3`.
 
-**After `fpmul` lands**: `Clap/RSA.lean`.
+**After `fpmul` lands**: `old/Clap/RSA.lean`.
 
-**After the nested conversion is designed**: `Clap/Sha2/*` (note `Sha2/Basic.lean` is already
+**After the nested conversion is designed**: `old/Clap/Sha2/*` (note `Sha2/Basic.lean` is already
 monad-polymorphic over `[Monad m]` and typeclass-parameterised over the word representation — it
 is the most portable old code in the repo).
 
-**Unblocked by `FString.conversion`, not yet done**: the separate, larger `Clap/FString.lean`
-(only `Clap/Lang.lean`'s `FString` has been ported), `Clap/HashToField.lean`, `Clap/JWT.lean`,
-`Clap/Keyless.lean`.
+**Unblocked by `FString.conversion`, not yet done**: the separate, larger `old/Clap/FString.lean`
+(only `old/Clap/Lang.lean`'s `FString` has been ported), `old/Clap/HashToField.lean`, `old/Clap/JWT.lean`,
+`old/Clap/Keyless.lean`.
 
-**Retired, do not port**: `Clap/Circuit.lean` (PHOAS syntax), `Clap/Simulation.lean`,
-`Clap/Compilation.lean`, `Clap/Compiler/*` (the `#compile` reifier), `Clap/Milestone.lean`.
+**Retired, do not port**: `old/Clap/Circuit.lean` (PHOAS syntax), `old/Clap/Simulation.lean`,
+`old/Clap/Compilation.lean`, `old/Clap/Compiler/*` (the `#compile` reifier), `old/Clap/Milestone.lean`.
 `ClapM` builds the circuit by execution, so none of the reification machinery is needed. Note
 that `Cfold` and `Dedup` are subsumed by hash-consing at construction time — but this is a
 decision worth confirming with a maintainer rather than assuming, and `Dedup.dedup_sem_pre` was
 `sorry` in the old model anyway.
 
-**Already live, do not re-port**: `Clap/BitVec.lean` (`num2bitsLsbPure(V)`, `bits2num(V)` and
-their lemmas), `Clap/Primes.lean`, and `Clap/Wheels.lean` (`Vector.scanl`/`scanr`, `minBits`,
-`limbsToNat`, `natToLimbs(V)`, `toChunks`, `ZMod.val_sum`). These are model-agnostic
+**Already live, do not re-port**: everything in [`Clap/Util/`](../Clap/Util/) —
+`BitVec.lean` (`num2bitsLsbPure(V)`, `bits2num(V)` and their lemmas), `Primes.lean`, and
+`Wheels.lean` (`Vector.scanl`/`scanr`, `minBits`, `limbsToNat`, `natToLimbs(V)`, `toChunks`,
+`ZMod.val_sum`). These are model-agnostic
 mathematics and they are in the live import closure already, via `CircuitEvalSt.lean` — import
 and use them directly. This is the one place where rule 1 of the agent guide does not apply.
 
-`Clap/Lang/Wheels.lean` holds the new model's own small additions, including `minBits'`, a
+`Clap/Util/Lemmas.lean` holds the new model's own small additions, including `minBits'`, a
 cleaner restatement of `Clap.minBits` that `arraySelector` uses.
 
 Note `Fact (Nat.Prime goldilocks)` and `Fact (Nat.Prime bn254)` are `sorry`'d in
-`Clap/Primes.lean`; anything requiring primality inherits that.
+`Clap/Util/Primes.lean`; anything requiring primality inherits that.
 
 ## Traps
 
@@ -383,7 +381,7 @@ Note `Fact (Nat.Prime goldilocks)` and `Fact (Nat.Prime bn254)` are `sorry`'d in
 
 ## Checklist
 
-- [ ] You rewrote into `Clap/Lang/`; you did not edit an old file.
+- [ ] You rewrote into `Clap/Lang/`; you did not edit a file in `old/`.
 - [ ] You read the old `native_decide` tests and used them to derive slots 4 and 5.
 - [ ] Every doc-comment precondition and every `assert!` is now either slot 5 or an explicit
       hypothesis — none was dropped.

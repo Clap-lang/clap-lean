@@ -1,25 +1,27 @@
 ---
 name: clap-agent-guide
-description: Index and universal rules for working on CLAP circuits in the eDSLState model. Read this first, then the task-specific file it routes you to.
+description: Index and universal rules for working on CLAP circuits in the new model. Read this first, then the task-specific file it routes you to.
 when-to-use: Any task that adds, changes, specifies, proves, or ports a CLAP circuit gadget.
 ---
 
 # CLAP agent guide
 
 You are working in a Lean 4 repository that compiles a subset of Lean to SNARK circuits.
-Circuits are built in the `ClapM p` monad ([Clap/eDSLState/](../Clap/eDSLState/)) and their
+Circuits are built in the `ClapM p` monad ([Clap/Model/](../Clap/Model/)) and their
 correctness is stated as a single `ConvertsM` lemma ([Clap/Lang/](../Clap/Lang/)).
 
-Read this file, then go to the one that matches your task.
+Read this file, then go to the one that matches your task. If you need to know where something
+lives, [repo-layout.md](repo-layout.md) has the tree and the rules that keep its layers apart.
 
 ## Routing
 
 | Your task | Read | Then |
 |---|---|---|
+| "Where does this file go?", "is this file still alive?", "what may import what?" | [repo-layout.md](repo-layout.md) | — |
 | "What is `Converts`?", "how does `ClapM` work?", "where is X defined?" | [clap-model.md](clap-model.md) | — |
 | Write a new gadget, or state what an existing one does | [specifying-circuits.md](specifying-circuits.md) — check §Existing inventory before writing anything, and §Iterating gadgets for the `foldlM`/`ofFnM` combinators | [proving-circuits.md](proving-circuits.md) |
 | Prove a `convertsM` lemma; a proof is stuck; `step` is misbehaving | [proving-circuits.md](proving-circuits.md) | §Failure modes |
-| Move a gadget from `Clap/Array.lean`, `Clap/Lang.lean`, `Sha2`, `JWT`, … into the new model | [porting-guide.md](porting-guide.md) | then the two above |
+| Move a gadget out of `old/` into the new model | [porting-guide.md](porting-guide.md) | then the two above |
 | Give a circuit public inputs; state an end-to-end theorem about a whole program | [public-inputs.md](public-inputs.md) | [clap-model.md](clap-model.md) |
 
 If you are writing a gadget you MUST read both `specifying-circuits.md` and
@@ -31,21 +33,24 @@ a gadget written without the proof in mind is usually unprovable without rewriti
 These hold for every task. Violating them produces code that does not compile, or proofs that
 cannot be closed.
 
-1. **Most of the old tree is dead.** [Clap.lean](../Clap.lean) imports `Clap/eDSLState/*`,
-   `Clap/Lang/*`, `Clap/Keyless/Allocate.lean` and (transitively) `Clap/Poseidon/NewPoseidon.lean`.
-   Everything after the comment block headed *"Goodbye, sweet prince."* is dead —
-   `Clap/Array.lean`, `Clap/Lang.lean`, `Clap/Spec.lean`, `Sha2`, `JWT`, `RSA`, the `Compiler/`
-   metaprogram, all of it. **NEVER** add an import of an old file to make something compile.
+1. **The old model lives in [`old/`](../old/) and is never built.** It is outside every Lake
+   target. **NEVER** add an import of anything under `old/` to make something compile, and never
+   edit a file there into shape — porting means rewriting into `Clap/Lang/`. See
+   [porting-guide.md](porting-guide.md).
 
-   Three old files are the exception, and they are *already* live, reached transitively rather
-   than listed: [Clap/BitVec.lean](../Clap/BitVec.lean) (via `CircuitEvalSt.lean`, because
-   `stepNum2bits` is specified against `num2bitsLsbPureV`), and `Clap/Wheels.lean` and
-   `Clap/Primes.lean` beneath it. Editing those three affects the live build.
+   Its model-agnostic maths did survive, and is live under
+   [`Clap/Util/`](../Clap/Util/): `BitVec.lean` (`num2bitsLsbPure(V)`, `bits2num(V)` —
+   `stepNum2bits` is specified against them), `Wheels.lean`, `Primes.lean`, plus
+   `Containers.lean` and `Lemmas.lean`. Import and use those directly; editing them affects the
+   live build.
 
-2. **`Clap/Lang.lean` is not `Clap/Lang/`.** The *file* `Clap/Lang.lean` (~1100 lines) is the
-   OLD `Option`/`ZMod`-valued model. The *directory* `Clap/Lang/` is the new gadget library.
-   They share a name and nothing else. Never copy style, definitions, or lemma shapes from the
-   file into the directory.
+2. **The tree is layered, and imports only ever point downwards.**
+   `Util` → `Model` → `Lang/Gate` → `Lang/Core` → `Lang/Data`, with `Poseidon`, `Keyless`,
+   `Examples` and `Test` on top. In particular **nothing in `Clap/Model/` may import
+   `Clap/Lang/`** — the model is what the gadget library is built on. The single deliberate
+   exception is `Clap/Model/Convert/Specialised.lean` importing `Clap/Tactic/Step.lean`, because
+   the `step` tactic parses the `Converts` structures defined one file below it.
+   [repo-layout.md](repo-layout.md) has the details.
 
 3. **There is no failure effect.** `ClapM p α` cannot reject. Old circuits returned
    `Option`, where `none` meant "unsatisfiable". A `ClapM` action always produces a result and
@@ -58,38 +63,31 @@ cannot be closed.
    it. The aggregate lemma for a gadget named `foo` is `foo.convertsM`, always.
 
 5. **NEVER `unfold` the five eDSL gates.** `eq0`, `share`, `isZero`, `num2bits`, `fpmul` in
-   [eDSL.lean](../Clap/eDSLState/eDSL.lean) are `@[irreducible]` on purpose. Reach them through
+   [eDSL.lean](../Clap/Model/eDSL.lean) are `@[irreducible]` on purpose. Reach them through
    their `wellFormed_*`, `eval_edsl_*`, `getResult_*`, `getVarStore_*`, `getCircuit_*` lemmas.
    Unfolding them dumps raw monad plumbing into your goal and the proof will not close.
 
-6. **NEVER build on `IsValid` or `VarStoreSize`.** [IsValid.lean](../Clap/eDSLState/IsValid.lean)
-   compiles but is referenced nowhere. It is a superseded design for what `Conversion` /
-   `Converts` now does.
-
-7. **The back end works; use it.** `Circuit.toCs`
-   ([ConstraintSystem/toCs.lean](../Clap/eDSLState/ConstraintSystem/toCs.lean)) and
-   `Circuit.toWg` ([WitnessGenerator/toWg.lean](../Clap/eDSLState/WitnessGenerator/toWg.lean))
+6. **The back end works; use it.** `Circuit.toCs`
+   ([ConstraintSystem/toCs.lean](../Clap/Model/ConstraintSystem/toCs.lean)) and
+   `Circuit.toWg` ([WitnessGenerator/toWg.lean](../Clap/Model/WitnessGenerator/toWg.lean))
    both take a `numInputs` and have real branches for all five gates, with per-gate modules
    under `ConstraintSystem/` and `WitnessGenerator/`.
-   [Test.lean](../Clap/eDSLState/Test.lean) runs a circuit end to end and `#eval`s
+   [Test/Backend.lean](../Clap/Test/Backend.lean) runs a circuit end to end and `#guard`s
    `wellbehaved` / `complete` / `sound`. So a `native_decide` smoke test *is* available — see
-   [NewPoseidon.lean](../Clap/Poseidon/NewPoseidon.lean), which pins two circomlib hash vectors
+   [Poseidon.lean](../Clap/Poseidon/Poseidon.lean), which pins two circomlib hash vectors
    that way. The `ConvertsM` lemma is still the real evidence; a smoke test is a cheap sanity
    check on top, not a substitute.
 
-   Two traps remain. The *legacy* single-file `Clap/eDSLState/ConstraintSystem.lean` still
-   exists and still has `.fpmul => sorry` at line 137 — it is **not** the live path and
-   `Clap.lean` does not import it. And `Plan.lean` is still commented out.
-
-8. **`autoImplicit` is off and the unused-variable linter is on**
+7. **`autoImplicit` is off and the unused-variable linter is on**
    ([lakefile.toml](../lakefile.toml)). Bind every implicit explicitly — hence the ubiquitous
    `variable {p : ℕ}` at the top of every file. Lean is `v4.32.0`; Mathlib and CompPoly are
    both pinned to `v4.32.0`.
 
-9. **Verify with `lake build`.** There is no test suite for the new model. `lake build Clap`
-   builds everything; `lake build Clap.Lang.FArray.singleOneArray` builds one gadget and its
-   dependencies. A gadget is not done until it builds with no `sorry` and no *new* warnings.
-   (The baseline is not warning-free: `Clap/eDSLState/Wheels.lean:15` emits two
+8. **Verify with `lake build`.** `lake build Clap` builds everything;
+   `lake build Clap.Lang.Data.FArray.singleOneArray` builds one gadget and its dependencies.
+   `python3 scripts/check-closure.py` then confirms nothing you added is stranded outside the
+   build. A gadget is not done until it builds with no `sorry` and no *new* warnings.
+   (The baseline is not warning-free: `Clap/Util/Containers.lean:15` emits two
    `linter.dupNamespace` warnings for the `Clap.monads` attribute. Ignore those two; do not add
    more.)
 
@@ -116,14 +114,18 @@ Follow these or your code will read as foreign to the rest of the tree.
 - [ ] `lake build` passes.
 - [ ] No `sorry` and no `admit` in what you added. `lake build Clap` has exactly one expected
       `sorry`, `poseidon.convertsM` in
-      [AllocatedProgram.lean](../Clap/eDSLState/AllocatedProgram.lean) — it is unprovable by
-      design, standing in for the `opaque poseidonSpec` in that example. If you see a second
-      one, it is yours.
+      [Examples/PoseidonProgram.lean](../Clap/Examples/PoseidonProgram.lean) — it is unprovable
+      by design, standing in for the `opaque poseidonSpec` in that example. If you see a second
+      one, it is yours. (`Clap/Util/Primes.lean` has two more, for the primality of
+      `goldilocks` and `bn254`; anything needing primality inherits them.)
 - [ ] `native_decide` is allowed as a smoke test, never as the proof of a `convertsM`.
 - [ ] The gadget has exactly one aggregate lemma, named `convertsM`, in a namespace matching
       the definition's name.
 - [ ] Its constraints slot is `True` only if the gadget genuinely emits no assertion.
-- [ ] The new file is imported from [Clap/Lang/All.lean](../Clap/Lang/All.lean) **and**
-      [Clap.lean](../Clap.lean), in alphabetical position in both (case-insensitive order; the
-      two Lang blocks are identical apart from `Clap.Lang.Wheels`).
-- [ ] You did not touch any file behind the "Goodbye, sweet prince" comment.
+- [ ] The new file is imported from [Clap/Lang/All.lean](../Clap/Lang/All.lean), in
+      alphabetical position (case-insensitive order). That is the only index —
+      [Clap.lean](../Clap.lean) imports `All.lean` and lists no gadgets itself.
+- [ ] It went into the right layer: `Gate/` only for a wrapper around a gate from
+      [Model/eDSL.lean](../Clap/Model/eDSL.lean), `Core/` for scalars, booleans, assertions and
+      combinators, `Data/` for anything container-shaped. `Core/` must not import `Data/`.
+- [ ] You did not touch anything under [`old/`](../old/).

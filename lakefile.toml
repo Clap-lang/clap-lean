@@ -9,11 +9,6 @@ leanOptions = [
   { name = "autoImplicit", value = false },
 ]
 
-[[lean_exe]]
-name = "Poseidon"
-root = "Clap.Poseidon.Run"
-main = "main"
-
 [[lean_lib]]
 name = "R1Serialize"
 leanOptions = [

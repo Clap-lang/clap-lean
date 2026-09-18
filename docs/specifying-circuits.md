@@ -33,10 +33,10 @@ work of A; if you can express your gadget without iteration, do.
 2. **Register it in two places**, both hand-maintained and alphabetised:
    [Clap/Lang/All.lean](../Clap/Lang/All.lean) and [Clap.lean](../Clap.lean). Forgetting either
    means your file is never built.
-3. **`namespace Clap.Lang`**, then `variable {p : ℕ}`. (`Clap/Lang/FB/and.lean` uses
+3. **`namespace Clap.Lang`**, then `variable {p : ℕ}`. (`Clap/Lang/Core/FB/and.lean` uses
    `Clap.Lang.FB`; either is acceptable, match the neighbours.)
 4. **You almost certainly do not need `open HashConsM`.** `mkF`/`mkAdd`/`mkSub`/`mkMul` are
-   `Clap.Lang.*` ([F/mkAdd.lean](../Clap/Lang/F/mkAdd.lean) and siblings) and are already in
+   `Clap.Lang.*` ([F/mkAdd.lean](../Clap/Lang/Core/F/mkAdd.lean) and siblings) and are already in
    scope inside `namespace Clap.Lang`. Only `BoundRef`, `mkConstant`, `mkVar` and the
    *homonymous* `HashConsM.mkAdd`/`mkSub`/`mkMul` need the `open` — and rule 5 says not to write
    those in a gadget anyway.
@@ -49,7 +49,7 @@ work of A; if you can express your gadget without iteration, do.
 7. **Every arithmetic node is a bind, and the operator is the preferred spelling.**
    Write `←(a + b)`, `←(a - b)`, `←(a * b)`, not `←mkAdd a b`. There is no pure arithmetic on
    `F p` — see [porting-guide.md](porting-guide.md) if that surprises you.
-   [F/conditionalSwap.lean:10-13](../Clap/Lang/F/conditionalSwap.lean#L10-L13) is the model:
+   [F/conditionalSwap.lean:10-13](../Clap/Lang/Core/F/conditionalSwap.lean#L10-L13) is the model:
 
    ```lean
    def conditionalSwap (sel : FB p) (a b : F p) : ClapM p (F p) := do
@@ -74,63 +74,63 @@ work of A; if you can express your gadget without iteration, do.
 
 | Gadget | File | Type | Ideal value | Constraints |
 |---|---|---|---|---|
-| `mkF a` | [F/mkF.lean](../Clap/Lang/F/mkF.lean) | `ClapM p (F p)` | `a` | `True` |
-| `mkAdd a b` — write `←(a + b)` | [F/mkAdd.lean](../Clap/Lang/F/mkAdd.lean) | `ClapM p (F p)` | `a_val + b_val` | `True` |
-| `mkSub a b` — write `←(a - b)` | [F/mkSub.lean](../Clap/Lang/F/mkSub.lean) | `ClapM p (F p)` | `a_val - b_val` | `True` |
-| `mkMul a b` — write `←(a * b)` | [F/mkMul.lean](../Clap/Lang/F/mkMul.lean) | `ClapM p (F p)` | `a_val * b_val` | `True` |
-| `ofUInt8 u` | [F/ofUInt8.lean](../Clap/Lang/F/ofUInt8.lean) | `ClapM p (F p)` | `(u.toNat : ZMod p)` | `True` |
-| `ofChar c` | [F/ofChar.lean](../Clap/Lang/F/ofChar.lean) | `ClapM p (F p)` | `(c.toUInt8.toNat : ZMod p)` | `True` |
-| `conditionalSwap sel a b` | [F/conditionalSwap.lean](../Clap/Lang/F/conditionalSwap.lean) | `ClapM p (F p)` | `if sel_val then a_val else b_val` | `True` |
-| `dotProduct a b` | [F/dotProduct.lean](../Clap/Lang/F/dotProduct.lean) | `ClapM p (F p)` | `(a_vals.zip b_vals).foldl (fun acc xy ↦ acc + xy.1 * xy.2) 0` | `True` |
-| `isZero a` | [FB/isZero.lean](../Clap/Lang/FB/isZero.lean) | `ClapM p (FB p)` | `a_val == 0` | `True` |
-| `not a` | [FB/not.lean](../Clap/Lang/FB/not.lean) | `ClapM p (FB p)` | `!a_val` | `True` |
-| `FB.and a b` | [FB/and.lean](../Clap/Lang/FB/and.lean) | `ClapM p (FB p)` | `a_val && b_val` | `True` |
-| `FB.or a b` | [FB/or.lean](../Clap/Lang/FB/or.lean) | `ClapM p (FB p)` | `a_val \|\| b_val` | `True` |
-| `FB.xor a b` | [FB/xor.lean](../Clap/Lang/FB/xor.lean) | `ClapM p (FB p)` | `a_val ^^ b_val` | `True` |
-| `FB.ofBool b` | [FB/ofBool.lean](../Clap/Lang/FB/ofBool.lean) | `ClapM p (FB p)` | `b` | `True` |
-| `eq a b` | [FB/eq.lean](../Clap/Lang/FB/eq.lean) | `ClapM p (FB p)` | `a_val == b_val` | `True` |
-| `FB.eq a b` (Bool-typed) | [FB/eqBool.lean](../Clap/Lang/FB/eqBool.lean) | `ClapM p (FB p)` | `a_val == b_val` | `True` |
-| `eq0 a` | [FUnit/eq0.lean](../Clap/Lang/FUnit/eq0.lean) | `ClapM p Unit` | `()` | `a_val = 0` |
-| `assert_eq a b` | [FUnit/assert_eq.lean](../Clap/Lang/FUnit/assert_eq.lean) | `ClapM p Unit` | `()` | `a_val = b_val` |
-| `FB.assert_eq a b` (Bool-typed) | [FB/assert_eq.lean](../Clap/Lang/FB/assert_eq.lean) | `ClapM p Unit` | `()` | `a_val = b_val` |
-| `assert a` | [FB/assert.lean](../Clap/Lang/FB/assert.lean) | `ClapM p Unit` | `()` | `a_val = true` |
-| `FB.assertBool f` | [FB/assertBool.lean](../Clap/Lang/FB/assertBool.lean) | `ClapM p Unit` | `()` | `f_val = 0 ∨ f_val = 1` |
-| `FB.conditionallyAssert a c` | [FB/conditionallyAssert.lean](../Clap/Lang/FB/conditionallyAssert.lean) | `ClapM p Unit` | `()` | `a_val = true → c_val = true` |
-| `guardedEq0 g c` | [FUnit/guardedEq0.lean](../Clap/Lang/FUnit/guardedEq0.lean) | `ClapM p Unit` | `()` | `g_val = true → c_val = 0` |
-| `guardedAssertEq g a b` | [FUnit/guardedAssertEq.lean](../Clap/Lang/FUnit/guardedAssertEq.lean) | `ClapM p Unit` | `()` | `g_val = true → a_val = b_val` |
-| `FArray.sum vals` | [FArray/sum.lean](../Clap/Lang/FArray/sum.lean) | `ClapM p (F p)` | `(vals.map (if · then 1 else 0)).sum` | `True` |
-| `FArray.sum' init vals` | [FArray/sum.lean](../Clap/Lang/FArray/sum.lean) | `ClapM p (F p)` | as above | `True` |
-| `oneHotRaw len idx` | [FArray/OneHotRaw.lean](../Clap/Lang/FArray/OneHotRaw.lean) | `ClapM p (FArray p len)` | `Vector.ofFn (·.val == idx_val.val)` | `True` |
-| `singleOneArray len idx` | [FArray/singleOneArray.lean](../Clap/Lang/FArray/singleOneArray.lean) | `ClapM p (FArray p len)` | as above | `idx_val.val < len` |
-| `FArray.default w` | [FArray/default.lean](../Clap/Lang/FArray/default.lean) | `ClapM p (FArray p w)` | `Vector.replicate w false` | `True` |
-| `FArray.ofBitVec bv` | [FArray/ofBitVec.lean](../Clap/Lang/FArray/ofBitVec.lean) | `ClapM p (FArray p w)` | `Vector.ofFn (bv[·])` | `True` |
-| `FArray.zeroExtend v w'` | [FArray/zeroExtend.lean](../Clap/Lang/FArray/zeroExtend.lean) | `ClapM p (FArray p (w+w'))` | `vals ++ Vector.replicate w' false` | `True` |
-| `FArray.eq a b` | [FArray/eq.lean](../Clap/Lang/FArray/eq.lean) | `ClapM p (FB p)` | `decide (a_vals = b_vals)` | `True` |
-| `FArray.assert_eq a b` | [FArray/assert_eq.lean](../Clap/Lang/FArray/assert_eq.lean) | `ClapM p Unit` | `()` | `∀ i : Fin w, a_vals[i] = b_vals[i]` |
-| `FArray.bits2num bits` | [FArray/bits2num.lean](../Clap/Lang/FArray/bits2num.lean) | `ClapM p (F p)` | `FArray.toNum bits_val` | `True` |
-| `FBV8.ofUInt8 u` | [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean) | `ClapM p (FBV8 p)` | `Vector.ofFn (u.toBitVec[·])` | `True` |
-| `F32.default` | [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean) | `ClapM p (F32 p)` | `Vector.replicate 32 false` | `True` |
-| `F32.ofUInt32 u` | [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean) | `ClapM p (F32 p)` | `Vector.ofFn (u.toBitVec[·])` | `True` |
-| `F32.ofFBV8 u8` | [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean) | `ClapM p (F32 p)` | `vals ++ Vector.replicate 24 false` | `True` |
-| `F32.assert_eq a b` | [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean) | `ClapM p Unit` | `()` | `∀ i : Fin 32, a_vals[i] = b_vals[i]` |
-| `FVec.eq a b` | [FVec/eq.lean](../Clap/Lang/FVec/eq.lean) | `ClapM p (FB p)` | `decide (a_vals = b_vals)` | `True` |
-| `FString.ofString s` | [FString/ofString.lean](../Clap/Lang/FString/ofString.lean) | `ClapM p (FString p w)` | `s` | `True` |
-| `FString.isPaddedOf a b` | [FString/isPaddedOf.lean](../Clap/Lang/FString/isPaddedOf.lean) | `ClapM p (FB p)` | `decide (encodeV w a_val = encodeV w b) && (a_val.length == b.length)` | `True` |
-| `num2bits w e` | [FArray/num2bits.lean](../Clap/Lang/FArray/num2bits.lean) | `ClapM p (FArray p w)` | `num2bitsLsbPureV w e_val` as bits | `True` — see the warning below |
-| `lessThan w a b` | [F/lessThan.lean](../Clap/Lang/F/lessThan.lean) | `ClapM p (FB p)` | `a_val.val < b_val.val` | `True` |
-| `lessEqThan`, `greaterThan`, `greaterEqThan` | [F/lessThan.lean](../Clap/Lang/F/lessThan.lean) | `ClapM p (FB p)` | the obvious variants | `True` |
-| `assert_range w e` | [FUnit/assert_range.lean](../Clap/Lang/FUnit/assert_range.lean) | `ClapM p Unit` | `()` | `True` — see the warning below |
-| `F8.eq`, `F8.lessThan`, `F8.greaterThan`, `F8.lessEqThan`, `F8.greaterEqThan` | [F8/F8.lean](../Clap/Lang/F8/F8.lean) | `ClapM p (FB p)` | byte-width delegations to the above at `w = 8`, stated over `UInt8` | `True` |
-| `FBitVec.binSum a b` | [FBitVec/binSum.lean](../Clap/Lang/FBitVec/binSum.lean) | `ClapM p (FBitVec p (w+1))` | low `w+1` bits of `toNum a_vals + toNum b_vals` | `True` |
-| `F32.add a b` | [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean) | `ClapM p (F32 p)` | the above, `take 32` — i.e. wrapping 32-bit addition | `True` |
-| `FBV8.ofF`, `F32.ofF`, `F64.ofF` | [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean) | `ClapM p (FArray p w)` | `num2bits` at `w = 8`/`32`/`64` | `True` |
-| `F8.isWhitespace c` | [F8/isWhitespace.lean](../Clap/Lang/F8/isWhitespace.lean) | `ClapM p (FB p)` | `c_val` is space, tab, CR or LF | `True` |
-| `arraySelector len s e` | [FArray/arraySelector.lean](../Clap/Lang/FArray/arraySelector.lean) | `ClapM p (FArray p len)` | 1s on `[startIdx, endIdx)` | index bounds |
-| `singleEndArray len idx` | [FArray/singleEndArray.lean](../Clap/Lang/FArray/singleEndArray.lean) | `ClapM p (FArray p len)` | 1s from `idx` on | `idx_val.val < len` |
-| `FArray.xor a b` | [FArray/xor.lean](../Clap/Lang/FArray/xor.lean) | `ClapM p (FArray p k)` | pointwise `xor` | `True` |
-| `FArray.xorScan a` | [FArray/xorScan.lean](../Clap/Lang/FArray/xorScan.lean) | `ClapM p (FArray p k)` | running `xor` prefix scan | `True` |
-| `FBitVec.eq a b` | [FBitVec/eq.lean](../Clap/Lang/FBitVec/eq.lean) | `ClapM p (FB p)` | `a_val == b_val` | `True` |
-| `FBitVec.assert_eq a b` | [FBitVec/assert_eq.lean](../Clap/Lang/FBitVec/assert_eq.lean) | `ClapM p Unit` | `()` | `a_val = b_val` |
+| `mkF a` | [F/mkF.lean](../Clap/Lang/Core/F/mkF.lean) | `ClapM p (F p)` | `a` | `True` |
+| `mkAdd a b` — write `←(a + b)` | [F/mkAdd.lean](../Clap/Lang/Core/F/mkAdd.lean) | `ClapM p (F p)` | `a_val + b_val` | `True` |
+| `mkSub a b` — write `←(a - b)` | [F/mkSub.lean](../Clap/Lang/Core/F/mkSub.lean) | `ClapM p (F p)` | `a_val - b_val` | `True` |
+| `mkMul a b` — write `←(a * b)` | [F/mkMul.lean](../Clap/Lang/Core/F/mkMul.lean) | `ClapM p (F p)` | `a_val * b_val` | `True` |
+| `ofUInt8 u` | [F/ofUInt8.lean](../Clap/Lang/Core/F/ofUInt8.lean) | `ClapM p (F p)` | `(u.toNat : ZMod p)` | `True` |
+| `ofChar c` | [F/ofChar.lean](../Clap/Lang/Core/F/ofChar.lean) | `ClapM p (F p)` | `(c.toUInt8.toNat : ZMod p)` | `True` |
+| `conditionalSwap sel a b` | [F/conditionalSwap.lean](../Clap/Lang/Core/F/conditionalSwap.lean) | `ClapM p (F p)` | `if sel_val then a_val else b_val` | `True` |
+| `dotProduct a b` | [F/dotProduct.lean](../Clap/Lang/Core/F/dotProduct.lean) | `ClapM p (F p)` | `(a_vals.zip b_vals).foldl (fun acc xy ↦ acc + xy.1 * xy.2) 0` | `True` |
+| `isZero a` | [FB/isZero.lean](../Clap/Lang/Gate/isZero.lean) | `ClapM p (FB p)` | `a_val == 0` | `True` |
+| `not a` | [FB/not.lean](../Clap/Lang/Core/FB/not.lean) | `ClapM p (FB p)` | `!a_val` | `True` |
+| `FB.and a b` | [FB/and.lean](../Clap/Lang/Core/FB/and.lean) | `ClapM p (FB p)` | `a_val && b_val` | `True` |
+| `FB.or a b` | [FB/or.lean](../Clap/Lang/Core/FB/or.lean) | `ClapM p (FB p)` | `a_val \|\| b_val` | `True` |
+| `FB.xor a b` | [FB/xor.lean](../Clap/Lang/Core/FB/xor.lean) | `ClapM p (FB p)` | `a_val ^^ b_val` | `True` |
+| `FB.ofBool b` | [FB/ofBool.lean](../Clap/Lang/Core/FB/ofBool.lean) | `ClapM p (FB p)` | `b` | `True` |
+| `eq a b` | [FB/eq.lean](../Clap/Lang/Core/FB/eq.lean) | `ClapM p (FB p)` | `a_val == b_val` | `True` |
+| `FB.eq a b` (Bool-typed) | [FB/eqBool.lean](../Clap/Lang/Core/FB/eqBool.lean) | `ClapM p (FB p)` | `a_val == b_val` | `True` |
+| `eq0 a` | [FUnit/eq0.lean](../Clap/Lang/Gate/eq0.lean) | `ClapM p Unit` | `()` | `a_val = 0` |
+| `assert_eq a b` | [FUnit/assert_eq.lean](../Clap/Lang/Core/FUnit/assert_eq.lean) | `ClapM p Unit` | `()` | `a_val = b_val` |
+| `FB.assert_eq a b` (Bool-typed) | [FB/assert_eq.lean](../Clap/Lang/Core/FB/assert_eq.lean) | `ClapM p Unit` | `()` | `a_val = b_val` |
+| `assert a` | [FB/assert.lean](../Clap/Lang/Core/FB/assert.lean) | `ClapM p Unit` | `()` | `a_val = true` |
+| `FB.assertBool f` | [FB/assertBool.lean](../Clap/Lang/Core/FB/assertBool.lean) | `ClapM p Unit` | `()` | `f_val = 0 ∨ f_val = 1` |
+| `FB.conditionallyAssert a c` | [FB/conditionallyAssert.lean](../Clap/Lang/Core/FB/conditionallyAssert.lean) | `ClapM p Unit` | `()` | `a_val = true → c_val = true` |
+| `guardedEq0 g c` | [FUnit/guardedEq0.lean](../Clap/Lang/Core/FUnit/guardedEq0.lean) | `ClapM p Unit` | `()` | `g_val = true → c_val = 0` |
+| `guardedAssertEq g a b` | [FUnit/guardedAssertEq.lean](../Clap/Lang/Core/FUnit/guardedAssertEq.lean) | `ClapM p Unit` | `()` | `g_val = true → a_val = b_val` |
+| `FArray.sum vals` | [FArray/sum.lean](../Clap/Lang/Data/FArray/sum.lean) | `ClapM p (F p)` | `(vals.map (if · then 1 else 0)).sum` | `True` |
+| `FArray.sum' init vals` | [FArray/sum.lean](../Clap/Lang/Data/FArray/sum.lean) | `ClapM p (F p)` | as above | `True` |
+| `oneHotRaw len idx` | [FArray/OneHotRaw.lean](../Clap/Lang/Data/FArray/OneHotRaw.lean) | `ClapM p (FArray p len)` | `Vector.ofFn (·.val == idx_val.val)` | `True` |
+| `singleOneArray len idx` | [FArray/singleOneArray.lean](../Clap/Lang/Data/FArray/singleOneArray.lean) | `ClapM p (FArray p len)` | as above | `idx_val.val < len` |
+| `FArray.default w` | [FArray/default.lean](../Clap/Lang/Data/FArray/default.lean) | `ClapM p (FArray p w)` | `Vector.replicate w false` | `True` |
+| `FArray.ofBitVec bv` | [FArray/ofBitVec.lean](../Clap/Lang/Data/FArray/ofBitVec.lean) | `ClapM p (FArray p w)` | `Vector.ofFn (bv[·])` | `True` |
+| `FArray.zeroExtend v w'` | [FArray/zeroExtend.lean](../Clap/Lang/Data/FArray/zeroExtend.lean) | `ClapM p (FArray p (w+w'))` | `vals ++ Vector.replicate w' false` | `True` |
+| `FArray.eq a b` | [FArray/eq.lean](../Clap/Lang/Data/FArray/eq.lean) | `ClapM p (FB p)` | `decide (a_vals = b_vals)` | `True` |
+| `FArray.assert_eq a b` | [FArray/assert_eq.lean](../Clap/Lang/Data/FArray/assert_eq.lean) | `ClapM p Unit` | `()` | `∀ i : Fin w, a_vals[i] = b_vals[i]` |
+| `FArray.bits2num bits` | [FArray/bits2num.lean](../Clap/Lang/Data/FArray/bits2num.lean) | `ClapM p (F p)` | `FArray.toNum bits_val` | `True` |
+| `FBV8.ofUInt8 u` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p (FBV8 p)` | `Vector.ofFn (u.toBitVec[·])` | `True` |
+| `F32.default` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p (F32 p)` | `Vector.replicate 32 false` | `True` |
+| `F32.ofUInt32 u` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p (F32 p)` | `Vector.ofFn (u.toBitVec[·])` | `True` |
+| `F32.ofFBV8 u8` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p (F32 p)` | `vals ++ Vector.replicate 24 false` | `True` |
+| `F32.assert_eq a b` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p Unit` | `()` | `∀ i : Fin 32, a_vals[i] = b_vals[i]` |
+| `FVec.eq a b` | [FVec/eq.lean](../Clap/Lang/Data/FVec/eq.lean) | `ClapM p (FB p)` | `decide (a_vals = b_vals)` | `True` |
+| `FString.ofString s` | [FString/ofString.lean](../Clap/Lang/Data/FString/ofString.lean) | `ClapM p (FString p w)` | `s` | `True` |
+| `FString.isPaddedOf a b` | [FString/isPaddedOf.lean](../Clap/Lang/Data/FString/isPaddedOf.lean) | `ClapM p (FB p)` | `decide (encodeV w a_val = encodeV w b) && (a_val.length == b.length)` | `True` |
+| `num2bits w e` | [FArray/num2bits.lean](../Clap/Lang/Gate/num2bits.lean) | `ClapM p (FArray p w)` | `num2bitsLsbPureV w e_val` as bits | `True` — see the warning below |
+| `lessThan w a b` | [F/lessThan.lean](../Clap/Lang/Core/F/lessThan.lean) | `ClapM p (FB p)` | `a_val.val < b_val.val` | `True` |
+| `lessEqThan`, `greaterThan`, `greaterEqThan` | [F/lessThan.lean](../Clap/Lang/Core/F/lessThan.lean) | `ClapM p (FB p)` | the obvious variants | `True` |
+| `assert_range w e` | [FUnit/assert_range.lean](../Clap/Lang/Core/FUnit/assert_range.lean) | `ClapM p Unit` | `()` | `True` — see the warning below |
+| `F8.eq`, `F8.lessThan`, `F8.greaterThan`, `F8.lessEqThan`, `F8.greaterEqThan` | [F8/F8.lean](../Clap/Lang/Data/F8/F8.lean) | `ClapM p (FB p)` | byte-width delegations to the above at `w = 8`, stated over `UInt8` | `True` |
+| `FBitVec.binSum a b` | [FBitVec/binSum.lean](../Clap/Lang/Data/FBitVec/binSum.lean) | `ClapM p (FBitVec p (w+1))` | low `w+1` bits of `toNum a_vals + toNum b_vals` | `True` |
+| `F32.add a b` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p (F32 p)` | the above, `take 32` — i.e. wrapping 32-bit addition | `True` |
+| `FBV8.ofF`, `F32.ofF`, `F64.ofF` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p (FArray p w)` | `num2bits` at `w = 8`/`32`/`64` | `True` |
+| `F8.isWhitespace c` | [F8/isWhitespace.lean](../Clap/Lang/Data/F8/isWhitespace.lean) | `ClapM p (FB p)` | `c_val` is space, tab, CR or LF | `True` |
+| `arraySelector len s e` | [FArray/arraySelector.lean](../Clap/Lang/Data/FArray/arraySelector.lean) | `ClapM p (FArray p len)` | 1s on `[startIdx, endIdx)` | index bounds |
+| `singleEndArray len idx` | [FArray/singleEndArray.lean](../Clap/Lang/Data/FArray/singleEndArray.lean) | `ClapM p (FArray p len)` | 1s from `idx` on | `idx_val.val < len` |
+| `FArray.xor a b` | [FArray/xor.lean](../Clap/Lang/Data/FArray/xor.lean) | `ClapM p (FArray p k)` | pointwise `xor` | `True` |
+| `FArray.xorScan a` | [FArray/xorScan.lean](../Clap/Lang/Data/FArray/xorScan.lean) | `ClapM p (FArray p k)` | running `xor` prefix scan | `True` |
+| `FBitVec.eq a b` | [FBitVec/eq.lean](../Clap/Lang/Data/FBitVec/eq.lean) | `ClapM p (FB p)` | `a_val == b_val` | `True` |
+| `FBitVec.assert_eq a b` | [FBitVec/assert_eq.lean](../Clap/Lang/Data/FBitVec/assert_eq.lean) | `ClapM p Unit` | `()` | `a_val = b_val` |
 
 Three things the table cannot show:
 
@@ -159,7 +159,7 @@ For iterating gadgets, do not hand-roll the induction — see
 for `convertsM_foldlM`, `convertsM_foldlM_constraints` and `convertsM_ofFnM`.
 
 Not yet wrapped: **`share`** and **`fpmul`**. Both are fully implemented *gates* — they are in
-[eDSL.lean](../Clap/eDSLState/eDSL.lean) with the complete `wellFormed_*` / `eval_edsl_*` /
+[eDSL.lean](../Clap/Model/eDSL.lean) with the complete `wellFormed_*` / `eval_edsl_*` /
 `getResult_*` / `getVarStore_*` / `getCircuit_*` family, and both have `ConstraintSystem/` and
 `WitnessGenerator/` modules. What neither has is a `Clap/Lang/` wrapper carrying a `convertsM`,
 and that is what your gadget needs; write it first. `num2bits` used to be on this list and is
@@ -170,15 +170,15 @@ wrapped, along with the whole comparison family built on it.
 
 `num2bits.convertsM`'s constraints slot is `True`. That is not an oversight in the lemma: the
 evaluation semantics `stepNum2bits`
-([CircuitEvalSt.lean:412](../Clap/eDSLState/CircuitEvalSt.lean#L412)) stores the *truncated*
+([CircuitEvalSt.lean:412](../Clap/Model/CircuitEvalSt.lean#L412)) stores the *truncated*
 low `w` bits of its input and `constraints_stepNum2bits` contributes only allocatedness. So in
 the model `num2bits` is a total, truncating decomposition.
 
 The compiled circuit is stronger. The lowering in
-[ConstraintSystem/num2bits.lean](../Clap/eDSLState/ConstraintSystem/num2bits.lean) emits
+[ConstraintSystem/num2bits.lean](../Clap/Model/ConstraintSystem/num2bits.lean) emits
 `bits2num(bits) - expr` alongside the booleanity constraints, and is unsatisfiable when
 `e ≥ 2^w`. The smoke tests at the bottom of
-[FUnit/assert_range.lean](../Clap/Lang/FUnit/assert_range.lean) demonstrate this: a one-gate
+[FUnit/assert_range.lean](../Clap/Lang/Core/FUnit/assert_range.lean) demonstrate this: a one-gate
 `assert_range 4` accepts `5` and `15` and rejects `16`, `20` and `31`.
 
 Two consequences. `assert_range`'s slot 5 is `True` even though the old model's `num2bits`
@@ -269,7 +269,7 @@ this model and using them signals you have misunderstood `ConvertsM.constraints`
 For a composite gadget, prove it tactically (see [proving-circuits.md](proving-circuits.md)).
 For a primitive that emits a gate, split it into the three field lemmas and assemble with a
 structure instance — this is the pattern in
-[FUnit/eq0.lean](../Clap/Lang/FUnit/eq0.lean) and [FB/isZero.lean](../Clap/Lang/FB/isZero.lean):
+[FUnit/eq0.lean](../Clap/Lang/Gate/eq0.lean) and [FB/isZero.lean](../Clap/Lang/Gate/isZero.lean):
 
 ```lean
 lemma convertsM
@@ -295,7 +295,7 @@ proceed without them.
 1. An `_aux` definition generalised over the starting index, or a `'` variant generalised over
    the accumulator.
 2. `@[simp, grind =]` recursion equations `<name>_zero` and `<name>_succ`. The idiom, from
-   [OneHotRaw.lean:22-46](../Clap/Lang/FArray/OneHotRaw.lean#L22-L46), is `conv_lhs => unfold
+   [OneHotRaw.lean:22-46](../Clap/Lang/Data/FArray/OneHotRaw.lean#L22-L46), is `conv_lhs => unfold
    <name>`, rewrite with the container's `range'_succ` / `mapM_cons` / `mapM_append` lemma,
    then `rw [←<name>.eq_def]`.
 3. If the proof will be easier over lists (it usually is — `List` has far more Mathlib support
@@ -311,7 +311,7 @@ proceed without them.
      rw [←toList_map_oneHotRaw_aux_eq_oneHotRaw'_aux, ClapM.getCircuit_map]
    ```
 
-Some of this scaffolding is now unnecessary. [Clap/Lang/Combinators/](../Clap/Lang/Combinators/)
+Some of this scaffolding is now unnecessary. [Clap/Lang/Core/Combinators/](../Clap/Lang/Core/Combinators/)
 has reusable `ConvertsM` lemmas for the two common iteration shapes, both generic in the
 *element* conversion, so one lemma serves bit vectors (`FB.conversion`), field vectors
 (`F.conversion`) and zipped pairs of vectors (`FPair.conversion`, via `FVec.converts_zip`):
@@ -331,7 +331,7 @@ There is still no `forIn` combinator, and no `mapM` one beyond `ofFnM`.
 
 ### Skeleton A — straight-line, no assertion
 
-Reproduces [FB/not.lean](../Clap/Lang/FB/not.lean) almost exactly.
+Reproduces [FB/not.lean](../Clap/Lang/Core/FB/not.lean) almost exactly.
 
 ```lean
 import Clap.Lang.F.mkF
@@ -371,7 +371,7 @@ end Clap.Lang.<NAME>
 
 ### Skeleton B — asserts something, ends in `return`
 
-Follows [FArray/singleOneArray.lean](../Clap/Lang/FArray/singleOneArray.lean).
+Follows [FArray/singleOneArray.lean](../Clap/Lang/Data/FArray/singleOneArray.lean).
 
 ```lean
 namespace Clap.Lang
@@ -415,10 +415,10 @@ end Clap.Lang
 
 ### Skeleton C — a gate primitive from scratch
 
-Follows [FUnit/eq0.lean](../Clap/Lang/FUnit/eq0.lean).
+Follows [FUnit/eq0.lean](../Clap/Lang/Gate/eq0.lean).
 
 ```lean
-import Clap.eDSLState.Convert.Specialised
+import Clap.Model.Convert.Specialised
 
 namespace Clap.Lang
 
@@ -432,7 +432,7 @@ lemma wellFormed {e! : ExprRef} {state} {value : ZMod p}
 := by
   obtain ⟨h_varSet, h_wellFormed, h_result⟩ := h
   simp at *
-  apply wellFormed_<NAME>        -- from Clap/eDSLState/eDSL.lean
+  apply wellFormed_<NAME>        -- from Clap/Model/eDSL.lean
   . grind
   . have : [state.varStore|⦃e!, state.σ⦄].isSome = true := by grind
     grind

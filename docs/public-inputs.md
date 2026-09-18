@@ -19,7 +19,7 @@ inputs as circuit variables, and a way to relate the resulting refs back to the 
 
 ## `AllocatedProgram`
 
-[AllocatedProgram.lean](../Clap/eDSLState/AllocatedProgram.lean):
+[AllocatedProgram.lean](../Clap/Model/AllocatedProgram.lean):
 
 ```lean
 structure AllocatedProgram (p : ℕ) where
@@ -57,7 +57,7 @@ allocator that allocates out of order silently permutes the public input.
 
 ## The allocators
 
-[PublicInput.lean](../Clap/eDSLState/PublicInput.lean). Each one takes the allocations made so
+[PublicInput.lean](../Clap/Model/PublicInput.lean). Each one takes the allocations made so
 far and returns the representation plus the new count:
 
 | Allocator | Allocates | Width |
@@ -85,7 +85,7 @@ the arithmetic is what makes the eventual width proof unmanageable.
 
 [Clap/Keyless/Allocate.lean](../Clap/Keyless/Allocate.lean) does this at scale for the top-level
 Keyless circuit, over the types in
-[Clap/Lang/Keyless/Input.lean](../Clap/Lang/Keyless/Input.lean). The pattern is uniform —
+[Clap/Keyless/Input.lean](../Clap/Keyless/Input.lean). The pattern is uniform —
 thread `numAlloc` through a `do` block, one field at a time:
 
 ```lean
@@ -108,7 +108,7 @@ where the associativity does not line up; both are cheap, neither needs the allo
 
 ## The end-to-end theorem
 
-The Poseidon example in [AllocatedProgram.lean](../Clap/eDSLState/AllocatedProgram.lean) is the
+The Poseidon example in [AllocatedProgram.lean](../Clap/Model/AllocatedProgram.lean) is the
 template. The program:
 
 ```lean
@@ -136,7 +136,7 @@ because they fail for different reasons:
    the prover's vector, in the varstore `getConstraints` builds. It is proved by unfolding down
    to `Expr.evalRec` and computing, leaning on `deref_poseidon_allocate_1` / `_2` (which say
    allocation `i` dereferences to `CacheExpr.v i`) and the `mkInputF` lemmas in
-   [PublicInput.lean](../Clap/eDSLState/PublicInput.lean).
+   [PublicInput.lean](../Clap/Model/PublicInput.lean).
 
 3. **`odysseus`** — the statement you actually wanted:
 

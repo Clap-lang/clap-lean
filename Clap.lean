@@ -1,134 +1,30 @@
-import Clap.eDSLState.AllocatedProgram
-import Clap.eDSLState.Convert.Base
-import Clap.eDSLState.Convert.Specialised
-import Clap.eDSLState.HashCons.CacheExpr
-import Clap.eDSLState.HashCons.Eval
-import Clap.eDSLState.HashCons.HashConsM
-import Clap.eDSLState.HashCons.HashConsSt
-import Clap.eDSLState.Circuit
-import Clap.eDSLState.CircuitEvalSt
-import Clap.eDSLState.ConstraintSystem.eq0
-import Clap.eDSLState.ConstraintSystem.fpMul
-import Clap.eDSLState.ConstraintSystem.isZero
-import Clap.eDSLState.ConstraintSystem.num2bits
-import Clap.eDSLState.ConstraintSystem.share
-import Clap.eDSLState.ConstraintSystem.toCs
-import Clap.eDSLState.eDSL
-import Clap.eDSLState.Expr
-import Clap.eDSLState.Gate
-import Clap.eDSLState.IsValid
-import Clap.eDSLState.Monad
-import Clap.eDSLState.PublicInput
--- import Clap.eDSLState.Plan -- TODO(probably Discard)
-import Clap.eDSLState.Test
-import Clap.eDSLState.Varstore
-import Clap.eDSLState.Wheels
-import Clap.eDSLState.WitnessGenerator.eq0
-import Clap.eDSLState.WitnessGenerator.fpMul
-import Clap.eDSLState.WitnessGenerator.isZero
-import Clap.eDSLState.WitnessGenerator.num2bits
-import Clap.eDSLState.WitnessGenerator.share
-import Clap.eDSLState.WitnessGenerator.toWg
-
-import Clap.Lang.Combinators.foldlM
-import Clap.Lang.Combinators.ofFnM
-import Clap.Lang.F.conditionalSwap
-import Clap.Lang.F.dotProduct
-import Clap.Lang.F.Extensions
-import Clap.Lang.F.lessThan
-import Clap.Lang.F.mkAdd
-import Clap.Lang.F.mkF
-import Clap.Lang.F.mkMul
-import Clap.Lang.F.mkSub
-import Clap.Lang.F.ofChar
-import Clap.Lang.F.ofUInt8
-import Clap.Lang.F.Tactics
-import Clap.Lang.F8.F8
-import Clap.Lang.F8.isWhitespace
-import Clap.Lang.FArray.arraySelector
-import Clap.Lang.FArray.assert_eq
-import Clap.Lang.FArray.bits2num
-import Clap.Lang.FArray.default
-import Clap.Lang.FArray.eq
-import Clap.Lang.FArray.num2bits
-import Clap.Lang.FArray.ofBitVec
-import Clap.Lang.FArray.OneHotRaw
-import Clap.Lang.FArray.singleEndArray
-import Clap.Lang.FArray.singleOneArray
-import Clap.Lang.FArray.sum
-import Clap.Lang.FArray.Widths
-import Clap.Lang.FArray.xor
-import Clap.Lang.FArray.xorScan
-import Clap.Lang.FArray.zeroExtend
-import Clap.Lang.FB.and
-import Clap.Lang.FB.assert
-import Clap.Lang.FB.assertBool
-import Clap.Lang.FB.assert_eq
-import Clap.Lang.FB.conditionallyAssert
-import Clap.Lang.FB.eq
-import Clap.Lang.FB.eqBool
-import Clap.Lang.FB.isZero
-import Clap.Lang.FB.not
-import Clap.Lang.FB.ofBool
-import Clap.Lang.FB.or
-import Clap.Lang.FB.xor
-import Clap.Lang.FBitVec.assert_eq
-import Clap.Lang.FBitVec.binSum
-import Clap.Lang.FBitVec.eq
-import Clap.Lang.FString.Basic
-import Clap.Lang.FString.isPaddedOf
-import Clap.Lang.FString.ofString
-import Clap.Lang.FUnit.assert_eq
-import Clap.Lang.FUnit.assert_range
-import Clap.Lang.FUnit.eq0
-import Clap.Lang.FUnit.guardedAssertEq
-import Clap.Lang.FUnit.guardedEq0
-import Clap.Lang.FVec.eq
-
-import Clap.Lang.Keyless.Input
-import Clap.Lang.Wheels
-
-import Clap.Keyless.Allocate
-
-/-
-Goodbye, sweet prince.
-
-import Clap.Compiler.Basic
-import R1Serialize.R1CS
-import Clap.Primes
-import Clap.Circuit
-import Clap.Simulation
-import Clap.Compilation
-import Clap.Id
-import Clap.Cfold
-import Clap.Unshare
-import Clap.Dedup
-import Clap.Spec
-import Clap.Lang
+import Clap.Model.All
 import Clap.Lang.All
-import Clap.Wheels
-import Clap.Milestone
-import Clap.FString
-import Clap.HashToField
-import Clap.JWT
-import Clap.Sha2.Basic
-import Clap.Sha2.Cpu
-import Clap.Sha2.Circuit
-import Clap.Sha2.Test
-import Clap.Packing
-import Clap.Base64Len
-import Clap.Array
-import Clap.Keyless
-import Clap.RSA
-import Clap.Compiler.Basic
-import Clap.Compiler.Deep
-import Clap.Quadratic
-import Clap.Test.Wheels
-import Clap.Test.Compiler.Serialise
-import Clap.Test.Compiler.Curry
-import Clap.Test.Compiler.ToDeep
-import Clap.Test.Compiler.ToWg
-import Clap.Test.Compiler.Compile
-import Clap.Test.Integration
+import Clap.Poseidon.Poseidon
+import Clap.Keyless.Allocate
+import Clap.Examples.PoseidonProgram
+import Clap.Test.Backend
 
+/-!
+# CLAP
+
+A compiler from a subset of Lean 4 to circuits for SNARK proof systems, and the proofs that
+it preserves semantics.
+
+The tree is layered; this file imports the top of each layer.
+
+| Directory | What it holds |
+|---|---|
+| `Clap/Util/` | model-agnostic maths and Lean/Std lemmas |
+| `Clap/Tactic/` | proof automation, chiefly the `step` tactic |
+| `Clap/Model/` | the `ClapM` model: expression heap, monad, semantics, refinement, back ends |
+| `Clap/Lang/` | the gadget library — `Gate/`, then `Core/`, then `Data/` |
+| `Clap/Poseidon/` | the Poseidon hash, as a gadget package of its own |
+| `Clap/Keyless/` | the Aptos Keyless application |
+| `Clap/Examples/` | worked end-to-end programs |
+| `Clap/Test/` | executable checks of the back end |
+| `old/` | the previous `Option`/`ZMod` model, kept as reference and never built |
+
+See [docs/repo-layout.md](docs/repo-layout.md) for the rules that keep those layers apart, and
+[docs/clap-agent-guide.md](docs/clap-agent-guide.md) before changing any circuit.
 -/

@@ -11,7 +11,7 @@ Read [clap-agent-guide.md](clap-agent-guide.md) first, and
 
 ## What you actually have to show
 
-`ConvertsM` is a three-field structure ([Convert/Base.lean](../Clap/eDSLState/Convert/Base.lean)):
+`ConvertsM` is a three-field structure ([Convert/Base.lean](../Clap/Model/Convert/Base.lean)):
 
 | Field | Obligation | Usually closed by |
 |---|---|---|
@@ -41,7 +41,7 @@ Can two or more steps each fail (non-`True` constraints)?
 
 ## The `step` tactic
 
-Defined at [Clap/Lang/F/Tactics.lean:199](../Clap/Lang/F/Tactics.lean#L199) (`step`) and [:214](../Clap/Lang/F/Tactics.lean#L214) (`step_state`), over `step_impl` at [:160](../Clap/Lang/F/Tactics.lean#L160). This is
+Defined at [Clap/Tactic/Step.lean:199](../Clap/Tactic/Step.lean#L199) (`step`) and [:214](../Clap/Tactic/Step.lean#L214) (`step_state`), over `step_impl` at [:160](../Clap/Tactic/Step.lean#L160). This is
 the whole proof engine and it is not documented anywhere else.
 
 ```
@@ -77,8 +77,8 @@ Consequences worth internalising:
   [When `step` does not apply](#when-step-does-not-apply--two-or-more-assertions).
 - `step` takes an arbitrary term, not just a library lemma. Feeding it an induction hypothesis
   is idiomatic: `step @h_k fvals_base vals_base this as mapM` in
-  [FArray/sum.lean](../Clap/Lang/FArray/sum.lean), and `step h_len as mapM` in
-  [FArray/OneHotRaw.lean](../Clap/Lang/FArray/OneHotRaw.lean).
+  [FArray/sum.lean](../Clap/Lang/Data/FArray/sum.lean), and `step h_len as mapM` in
+  [FArray/OneHotRaw.lean](../Clap/Lang/Data/FArray/OneHotRaw.lean).
 
 ### `step_state`
 
@@ -101,11 +101,11 @@ hand. No current gadget needs it.
 | The body should be read as its generalised helper | `simp [←<helper>.eq_def]` |
 | The body is a `mapM`/`foldlM` | rewrite with the `_succ` equation first |
 
-`sub_def` in [FB/eq.lean](../Clap/Lang/FB/eq.lean) and `simp [←sum'.eq_def]` in
-[FArray/sum.lean](../Clap/Lang/FArray/sum.lean) are the worked cases.
+`sub_def` in [FB/eq.lean](../Clap/Lang/Core/FB/eq.lean) and `simp [←sum'.eq_def]` in
+[FArray/sum.lean](../Clap/Lang/Data/FArray/sum.lean) are the worked cases.
 
 **Whichever spelling the definition used, the proof names `mk*`.** `Clap.Lang.mkAdd`/`mkSub`/
-`mkMul` are *defined as* `+`/`-`/`*` ([F/mkAdd.lean:9-10](../Clap/Lang/F/mkAdd.lean#L9-L10)), so
+`mkMul` are *defined as* `+`/`-`/`*` ([F/mkAdd.lean:9-10](../Clap/Lang/Core/F/mkAdd.lean#L9-L10)), so
 a body written with operators is stepped with `mkAdd.convertsM` / `mkSub.convertsM` /
 `mkMul.convertsM` exactly as before. There is no `add.convertsM`.
 
@@ -113,10 +113,10 @@ Whether you also need the `*_def` rewrite depends on where the operator sits:
 
 - **No rewrite** when each operator is the action of its own bind, i.e. `let x ← a - b`. `step`'s
   `lemmaOfNextCommand` sees `Bind.bind` as the head and matches directly —
-  [F/conditionalSwap.lean:31-35](../Clap/Lang/F/conditionalSwap.lean#L31-L35) steps three times
+  [F/conditionalSwap.lean:31-35](../Clap/Lang/Core/F/conditionalSwap.lean#L31-L35) steps three times
   with no normalisation at all.
 - **Rewrite first** when the operator is buried in a continuation, as in `isZero (←(a - b))` —
-  [FB/eq.lean:26](../Clap/Lang/FB/eq.lean#L26) needs its `rw [sub_def]`.
+  [FB/eq.lean:26](../Clap/Lang/Core/FB/eq.lean#L26) needs its `rw [sub_def]`.
 
 When in doubt, try `step` first; if it reports no match, add the rewrite.
 
@@ -147,7 +147,7 @@ must be the last one.** Every gadget written before this was documented happens 
 one `assert_eq` — which is why it never surfaced.
 
 As soon as two steps can each fail, drop `step` for that bind and apply
-[`convertsM_bind_and`](../Clap/eDSLState/Convert/Base.lean) by hand:
+[`convertsM_bind_and`](../Clap/Model/Convert/Base.lean) by hand:
 
 ```lean
 lemma convertsM_bind_and
@@ -170,7 +170,7 @@ Two consequences for the hand-rolled version, both easy to trip on:
   bind it with a `have` first.
 
 The worked case is `convertsM_foldlM_constraints` in
-[Combinators/foldlM.lean](../Clap/Lang/Combinators/foldlM.lean) — a fold whose every element
+[Combinators/foldlM.lean](../Clap/Lang/Core/Combinators/foldlM.lean) — a fold whose every element
 asserts, so every iteration is a two-assertion bind:
 
 ```lean
@@ -190,7 +190,7 @@ Its sibling `convertsM_foldlM` (step constraint `True`) could have used `step`; 
 
 `unfold` → one `step` per bind → close the tail call with `convertsM_of_convertsM`.
 
-From [FB/eq.lean](../Clap/Lang/FB/eq.lean), complete:
+From [FB/eq.lean](../Clap/Lang/Core/FB/eq.lean), complete:
 
 ```lean
 lemma convertsM
@@ -208,7 +208,7 @@ lemma convertsM
   . grind      -- constraints1 ↔ constraints2
 ```
 
-[F/conditionalSwap.lean](../Clap/Lang/F/conditionalSwap.lean) is the same skeleton one step
+[F/conditionalSwap.lean](../Clap/Lang/Core/F/conditionalSwap.lean) is the same skeleton one step
 longer, and shows the operator spelling in the definition with no `*_def` rewrite needed:
 
 ```lean
@@ -231,7 +231,7 @@ def conditionalSwap (sel : FB p) (a b : F p) : ClapM p (F p) := do
 the constraints bi-implication. Close them with `rfl`, `grind`, `simp` or `trivial`.
 
 When a step changes the conversion (`F` ↔ `FB`), do the cast with a `have` before applying —
-[FB/not.lean](../Clap/Lang/FB/not.lean):
+[FB/not.lean](../Clap/Lang/Core/FB/not.lean):
 
 ```lean
   unfold not
@@ -247,7 +247,7 @@ When a step changes the conversion (`F` ↔ `FB`), do the cast with a `have` bef
 ## Skeleton 2 — body ends in `return`
 
 Same, but finish with `convertsM_pure`. From
-[FArray/singleOneArray.lean](../Clap/Lang/FArray/singleOneArray.lean):
+[FArray/singleOneArray.lean](../Clap/Lang/Data/FArray/singleOneArray.lean):
 
 ```lean
   unfold singleOneArray
@@ -266,7 +266,7 @@ Same, but finish with `convertsM_pure`. From
 
 `constructor` (or a `where` clause) and discharge the three fields separately.
 
-From [F/mkAdd.lean](../Clap/Lang/F/mkAdd.lean), whose body is now just `def mkAdd (a b : F p) :
+From [F/mkAdd.lean](../Clap/Lang/Core/F/mkAdd.lean), whose body is now just `def mkAdd (a b : F p) :
 ClapM p (F p) := a + b` — so `unfold mkAdd` exposes the operator, which is by `rfl` the
 `liftM (HashConsM.mkAdd a b)` the instance produces, not a `saveExpr` call:
 
@@ -294,7 +294,7 @@ by destructuring both inputs:
 ```
 
 For a gate-emitting primitive, use the `where`-clause form and the `wellFormed_*` lemma from
-`eDSL.lean` — [FUnit/eq0.lean](../Clap/Lang/FUnit/eq0.lean) is the template. The `wellFormed`
+`eDSL.lean` — [FUnit/eq0.lean](../Clap/Lang/Gate/eq0.lean) is the template. The `wellFormed`
 lemma is always the same three bullets:
 
 ```lean
@@ -346,7 +346,7 @@ Two worked strategies, both in the tree.
 
 ### Strategy A — stay in `Vector`, induct on the length
 
-[FArray/sum.lean](../Clap/Lang/FArray/sum.lean). The trick is reassociating the vector so the
+[FArray/sum.lean](../Clap/Lang/Data/FArray/sum.lean). The trick is reassociating the vector so the
 fold exposes its last step:
 
 ```lean
@@ -376,7 +376,7 @@ and the `h_push : v = v.pop.push v[k]` rewrite proved by `ext; rewrite [Vector.g
 
 ### Strategy B — drop to `FList`, induct on a reversed list
 
-[FArray/OneHotRaw.lean](../Clap/Lang/FArray/OneHotRaw.lean). Usually easier: `List` has more
+[FArray/OneHotRaw.lean](../Clap/Lang/Data/FArray/OneHotRaw.lean). Usually easier: `List` has more
 Mathlib support and no length index to fight.
 
 ```lean
@@ -475,7 +475,7 @@ bidirectional, `→` / `←` implication, `.` use-as-fact, `! .` aggressive, `ca
 | The constraints `↔` will not close and looks false | your slot-5 condition is wrong (often spuriously `True`) | fix the specification, not the proof |
 | The constraints `↔` reads `C₂ ↔ (C₁ → … C₁ … ∧ C₂)` and is false when `C₁` fails | you used `step`/`convertsM_bind` across **two** assertions; the shape is unprovable, not merely hard | re-do that bind with `convertsM_bind_and`, then reshape with `convertsM_of_convertsM`. See [When `step` does not apply](#when-step-does-not-apply--two-or-more-assertions) |
 | An extra unexplained goal at the end of a Skeleton-2 proof | the `convertsM_bind` implications for a non-`True` constraint | that is soundness/completeness; prove them |
-| The constraints goal reads `… ↔ (True → True → … → P)` and `constructor`/`intro` then mismatches | each preceding `True`-constraint step contributes one `True →` via `convertsM_bind` | a bare `simp` absorbs them, but a targeted script must strip them first: `simp only [true_implies]`. See [FB/assertBool.lean](../Clap/Lang/FB/assertBool.lean) |
+| The constraints goal reads `… ↔ (True → True → … → P)` and `constructor`/`intro` then mismatches | each preceding `True`-constraint step contributes one `True →` via `convertsM_bind` | a bare `simp` absorbs them, but a targeted script must strip them first: `simp only [true_implies]`. See [FB/assertBool.lean](../Clap/Lang/Core/FB/assertBool.lean) |
 
 ## Verification
 
@@ -489,9 +489,9 @@ Lean `v4.32.0`, Mathlib and CompPoly both pinned to `v4.32.0`, `autoImplicit fal
 acceptance criterion for a `convertsM`.
 
 `lake build Clap` has exactly one expected `sorry`: `poseidon.convertsM` in
-[AllocatedProgram.lean](../Clap/eDSLState/AllocatedProgram.lean), which is unprovable by design
-against the `opaque poseidonSpec` in that example. A second one is yours. The expected warnings
-are exactly three: two `linter.dupNamespace` on `eDSLState/Wheels.lean:15`, and the `sorry`
+[Examples/PoseidonProgram.lean](../Clap/Examples/PoseidonProgram.lean), which is unprovable by
+design against the `opaque poseidonSpec` in that example. A second one is yours. The expected warnings
+are exactly three: two `linter.dupNamespace` on `Util/Containers.lean:15`, and the `sorry`
 warning above. (Earlier revisions of this guide also listed a `Clap.Lang.F8`
 `dupNamespace` warning; there is no such warning — do not treat one as baseline.)
 
@@ -502,7 +502,7 @@ have to establish.
 
 ### Two smoke-test styles, and when each works
 
-**The constant-folding style**, [NewPoseidon.lean](../Clap/Poseidon/NewPoseidon.lean): build the
+**The constant-folding style**, [Poseidon.lean](../Clap/Poseidon/Poseidon.lean): build the
 inputs with `mkConstant`, then evaluate the result ref against the *empty* varStore with
 `return [{}, σ|z]` and `native_decide` on `.getResult 0 (HashConsSt.empty p)`.
 
@@ -511,7 +511,7 @@ used for anything built on `num2bits`**, whose outputs are freshly allocated *va
 have no value in `σ`, so the evaluation yields `none`.
 
 **The lowering style**, for everything else. Take the gadget to a real constraint system and
-run it, exactly as [Test.lean](../Clap/eDSLState/Test.lean) does for a hand-built `Circuit`:
+run it, exactly as [Test/Backend.lean](../Clap/Test/Backend.lean) does for a hand-built `Circuit`:
 
 ```lean
 private abbrev q : ℕ := 47
@@ -532,7 +532,7 @@ example : sat … = true := by native_decide
 values in the `#v[…]`. Four traps:
 
 - **`wg.run` needs `[Fact (Nat.Prime p)]`, and `Primes.goldilocks` / `Primes.bn254` are
-  `sorry`'d** in `Clap/Primes.lean`. `native_decide` refuses anything depending on `sorry`, so
+  `sorry`'d** in `Clap/Util/Primes.lean`. `native_decide` refuses anything depending on `sorry`, so
   pick a concrete prime with a real `by norm_num` proof. `47` and `1031` are cheap; `norm_num`
   also certifies `8589934609` (just over `2^33`, needed for 32-bit `binSum`) quickly.
 - **Name the instance.** A bare `local instance : Fact (Nat.Prime q)` is auto-named from the
@@ -542,14 +542,14 @@ values in the `#v[…]`. Four traps:
 - The gadget file now depends on `ConstraintSystem/toCs` and `WitnessGenerator/toWg`. That is
   acyclic — the back end does not import `Clap/Lang/` — but it does widen the import graph.
 
-Worked examples live at the bottom of [FUnit/assert_range.lean](../Clap/Lang/FUnit/assert_range.lean),
-[FBitVec/binSum.lean](../Clap/Lang/FBitVec/binSum.lean), [F/lessThan.lean](../Clap/Lang/F/lessThan.lean)
-and [FArray/Widths.lean](../Clap/Lang/FArray/Widths.lean).
+Worked examples live at the bottom of [FUnit/assert_range.lean](../Clap/Lang/Core/FUnit/assert_range.lean),
+[FBitVec/binSum.lean](../Clap/Lang/Data/FBitVec/binSum.lean), [F/lessThan.lean](../Clap/Lang/Core/F/lessThan.lean)
+and [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean).
 
 ## Checklist
 
 - [ ] `lake build` passes with no `sorry`, no `admit`, and no warnings beyond the two
-      pre-existing `linter.dupNamespace` ones from `Clap/eDSLState/Wheels.lean:15`.
+      pre-existing `linter.dupNamespace` ones from `Clap/Util/Containers.lean:15`.
 - [ ] The proof uses `step` for each bind rather than manual `convertsM_bind` applications —
       except where two steps can each fail, which `step` cannot express; those use
       `convertsM_bind_and`.
