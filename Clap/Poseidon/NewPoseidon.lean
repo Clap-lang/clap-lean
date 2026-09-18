@@ -7,12 +7,12 @@ import Clap.eDSLState.Convert.Specialised
 namespace Clap
 
 open HashConsM
-#check Lean.Meta.Sym.simp
+
 variable {p : ℕ}
 
 def sigma (x : BoundRef p) : ClapM p ExprRef := do
-  let x2 ← (x * x : ClapM p ExprRef)
-  let x4 ← x2 * x2
+  let x2 : BoundRef p ← share (←x * x)
+  let x4 ← share (←x2 * x2)
   x4 * x
 
 def ark
@@ -143,35 +143,45 @@ def poseidonBN254 {n} (inputs : Vector ExprRef n) : ClapM Primes.bn254 ExprRef :
 
 section examples
 
-private def test₁ : ClapM Primes.bn254 (Option (ZMod Primes.bn254)) := do
+private def testp : ClapM Primes.bn254 (HashConsSt Primes.bn254 × ExprRef) := do
   let x ← liftM (mkConstant (p := Primes.bn254) 1)
   let y ← liftM (mkConstant (p := Primes.bn254) 2)
   let z ← poseidonBN254 #v[x, y]
   let σ ← getThe (HashConsSt Primes.bn254)
-  return [{}, σ|z]
+  return (σ, z)
 
 /--
 circomlib test vector: hash([1, 2]) with t=3
 https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L50
 -/
 example :
-  test₁.getResult 0 (HashConsSt.empty Primes.bn254) =
+  letI Γ := testp.getVarStore {} 0 {}
+  letI σXz := testp.run 0 {}
+  letI := σXz.1
+  letI := this.1
+  letI := this.1
+  [Γ, this.1|this.2] =
   .some 7853200120776062878684798364095072458815029376092732009249414926327459813530 := by
   native_decide
 
-private def test₂ : ClapM Primes.bn254 (Option (ZMod Primes.bn254)) := do
-  let x ← mkConstant (p := Primes.bn254) 3
-  let y ← mkConstant (p := Primes.bn254) 4
+private def testp₁ : ClapM Primes.bn254 (HashConsSt Primes.bn254 × ExprRef) := do
+  let x ← liftM (mkConstant (p := Primes.bn254) 3)
+  let y ← liftM (mkConstant (p := Primes.bn254) 4)
   let z ← poseidonBN254 #v[x, y]
   let σ ← getThe (HashConsSt Primes.bn254)
-  return [{}, σ|z]
+  return (σ, z)
 
 /--
 circomlib test vector: hash([3, 4]) with t=3
 https://github.com/iden3/circomlib/blob/master/test/poseidoncircuit.js#L60
 -/
 example :
-  test₂.getResult 0 (HashConsSt.empty Primes.bn254) =
+  letI Γ := testp₁.getVarStore {} 0 {}
+  letI σXz := testp₁.run 0 {}
+  letI := σXz.1
+  letI := this.1
+  letI := this.1
+  [Γ, this.1|this.2] =
   some 14763215145315200506921711489642608356394854266165572616578112107564877678998 := by
   native_decide
 
