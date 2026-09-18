@@ -259,7 +259,6 @@ theorem poseidon.converts_input_vec
       grind
     . grind
 
-
 -- the requested end-to-end spec
 theorem odysseus
   {k}
