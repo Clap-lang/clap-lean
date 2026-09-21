@@ -33,4 +33,164 @@ Clap programs are sequences of monadic actions within the `ClapM` monad. Put dif
 - `num2bits`
 - `fpmul`
 
-These are the atoms of the eDSL. Everything else is monadic Lean code. `ClapM` actions carry their notion of well-formedness as well. This notion is _not_ invisible when reasoning about `ClapM` circuits, but can be, for most intents and purposes, ignored.
+These are the atoms of the eDSL. Everything else is monadic Lean code. `ClapM` actions carry their notion of well-formedness as well. This notion is _not_ invisible when reasoning about `ClapM` circuits, but can be, for the most part, ignored. There are three parts of an `action : ClapM α` being well-formed with respect to some `ClapMState`:
+- Recall that a `Circuit` is a sequence of gates. The underlying circuit is well-formed when:
+  - No gate contains an expression that is not hash-consed,
+  - all variables are allocated, i.e. exist in `Γ`,
+  - no gate depends on a variable that is allocated by gates that have not been evaluated yet.
+- The underlying `numAlloc` is well-formed when circuit building and evaluation agree on `numAlloc`.
+- The underlying hash-cons state is well-formed when the action only appends to the hash cons state.
+
+With an understanding of what `ClapM` is, let us have a look at the infrastructure for proving specifications of programs written in Clap.
+
+# Clap example and how to prove properties about it
+
+## Declaring datatypes
+
+First, define two simple datatypes at the Clap level.
+```
+abbrev F  (p : ℕ) : Type := HashConsM.BoundRef p
+abbrev FB (p : ℕ) : Type := F p
+```
+
+We do not want to abuse dependent types and leave these as simple references to expressions. The intent here is to build up the semantics with the understaning that `F = ZMod` and `FB = Bool`.
+
+Next, define their respective 'conversion layer' to the 'ideal' Lean types. This is done by declaring an abbreviation of the specialised `Conversion` type, which is defined as follows:
+```
+structure Conversion (p : ℕ) (α : Type) where
+  IdealT : Type                       -- The idealised Lean type for the `Clap` type
+  conversion : IdealT → List (ZMod p) -- How to convert the ideal type into a sequence of `ZMod`s
+  toExprs : α → List ExprRef          -- How to serialise the `Clap` type
+```
+
+Yes, this could be a typeclass. We choose to be explicit here.
+
+Concretely for our types, we thus have:
+```
+abbrev F.conversion : Conversion p (F p) where
+  IdealT       := ZMod p
+  toExprs x    := [x]
+  conversion x := [x]
+
+abbrev FB.conversion : Conversion p (FB p) where
+  IdealT       := Bool
+  toExprs x    := [x]
+  conversion x := [if x then 1 else 0]
+```
+
+## Defining a function over said datatypes
+```
+def eq {p : ℕ} (a b : F p) : ClapM p (FB p) := do
+  isZero (←(a - b))
+```
+In other words, to implement whether `a = b`, we check their difference is zero. Recall that `isZero` is a primitive in the language. As a minor quirk, do note that arithmetic operations over `ExprRef`s (or `BoundRef p`s) are in `ClapM`. In particular, they access the underlying hash-consing state.
+
+## Specifying the function
+
+### The infrastructure
+
+Before we specify a monadic action, let us have a look at how to constrain a non-monadic value instead. We have the following bundle of four `Prop`s:
+```
+structure Converts
+  (conversion : Conversion p α)
+  (state : ClapMState p)
+  (exprs : α)
+  (val : conversion.IdealT)
+: Prop where
+  h_conversion :
+    (conversion.conversion val).length = (conversion.toExprs exprs).length
+  
+  varSet_wf :
+    ∀ (i : Fin (conversion.toExprs exprs).length),
+      ⦃(conversion.toExprs exprs)[i], state.σ⦄.varSet_wellFormed state.numAlloc
+
+  expr_wf :
+    ∀ (i : Fin (conversion.toExprs exprs).length),
+      ⦃(conversion.toExprs exprs)[i], state.σ⦄.wellFormed
+
+  value_eq :
+    ∀ (i : Fin (conversion.toExprs exprs).length),
+      [state.varStore|⦃(conversion.toExprs exprs)[i], state.σ⦄] =
+      .some ((conversion.conversion val)[i])
+```
+In as scary as this looks, we promise that this is actually very straightforward. Furthermore, we normally do not need to interact with the contents of this definition. Normally. For an example as to when it _is_ necessary to do so, please use `Clap/Lang/FArray/zeroExtend.lean:convertsM` as your starting point, up until the application of `FArray.converts_append`.
+
+Anyway, there are essentially four statements this carries:
+- `h_conversion` -- converting and serialising produces the same number of expressions.
+- `varSet_wf` -- serialisation does not produce an expression that would refer to a yet-unallocated variable.
+- `expr_wf` -- serialisation produces only hash-consed expressions.
+- `value_eq` -- serialised expressions evaluate to the converted expressions at every index.
+
+Now that we can relate Clap and 'lean' values, we can define the notion of specifying monadic actions. For this end, we use the `ConvertsM` bundle of three things:
+```
+structure ConvertsM
+  (conversion : Conversion p α)
+  (action : ClapM p α)
+  (state : ClapMState p)
+  (val : conversion.IdealT)
+  (constraints : Prop)
+: Prop where
+  result :
+    Converts
+      conversion
+      (action.getState state)
+      (action.getResult state.numAlloc state.σ)
+      val
+  
+  wellFormed : action.wellFormed state.numAlloc state.varStore state.σ
+  
+  constraints :
+    (action.runAndEval state.numAlloc state.varStore state.σ).2.constraints ↔
+    constraints
+```
+While quite wordy, not particularly complicated.
+- `result` uses the abovedescribed notion of `Converts` to relate the (functor-part) monadic result and the 'given' value `val`.
+- `wellFormed` says that the `action` that goes in is well-formed.
+- `constraints` say that the constraints obtained by running and evaluating the `action` hold if and only if the 'given' `constraints` hold.
+
+### The specification of `eq`
+The name of the function gives away its specification. This better establish the inputs are equal. More formally:
+```
+lemma convertsM
+  {a b : F p}
+  {a_val b_val : ZMod p}
+  (h_a : Converts F.conversion state a a_val)
+  (h_b : Converts F.conversion state b b_val)
+:
+  ConvertsM FB.conversion (eq a b) state (a_val == b_val) (constraints := True)
+```
+In other words, given two inputs in the Clap-world `a b : F p`, we relate them to two Lean-world inputs `a_val b_val : ZMod p` using `h_a / h_b : Converts F.conversion ..`. The conclusion of this lemma poses the desired behaviour of the monadic program `eq a b` to be `a_val == b_val`. There are no constraints we are interested in, which reduces `constraints` of the `ConvertsM` to just 'constraints hold'.
+
+## Proving the function correct with respect to the specification
+All that is left to do is to prove the statement `convertsM` above. We proceed as follows:
+```
+lemma convertsM
+  {a b : F p}
+  {a_val b_val : ZMod p}
+  (h_a : Converts F.conversion state a a_val)
+  (h_b : Converts F.conversion state b b_val)
+:
+  ConvertsM FB.conversion (eq a b) state (a_val == b_val) True
+:= by
+  unfold eq
+  rw [sub_def]
+
+  step mkSub.convertsM h_a h_b as sub
+  apply convertsM_of_convertsM (isZero.convertsM h_sub)
+  . grind
+  . grind
+
+```
+We will focus on infrastructure-specific steps here. Understand that `sub_def` unfolds to the following monadic sequence:
+```
+do
+  let __do_lift ← liftM (HashConsM.mkSub a b)
+  isZero __do_lift
+```
+As we alluded to above, we have infrastructure support for handling sequencing of well formad actions and doing the bookkeeping necessary to advance the proof state.
+
+The first action in the monad is `mkSub`.
+
+
+
+As such, we use the `convertsM` (the spec) of `mkSub`, conventionally called `mkSub.convertsM` and the `step` tactic, i.e. `step mkSub.convertsM h_a h_b as sub`.

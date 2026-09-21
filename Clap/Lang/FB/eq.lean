@@ -7,7 +7,7 @@ variable {p : ℕ}
 
 section eq
 
-def eq {p : ℕ} [p.AtLeastTwo] (a b : F p) : ClapM p (FB p) := do
+def eq {p : ℕ} (a b : F p) : ClapM p (FB p) := do
   isZero (←(a - b))
 
 namespace eq
