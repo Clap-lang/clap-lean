@@ -26,6 +26,11 @@ lemma convertsM
   rw [sub_def]
   
   step mkSub.convertsM h_a h_b as sub
+  change 
+    ConvertsM FB.conversion
+      (isZero sub_result)
+      (sub_state) (a_val == b_val) (True → True)
+  
   
   apply convertsM_of_convertsM (isZero.convertsM h_sub)
   . grind

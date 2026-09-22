@@ -192,12 +192,59 @@ As we alluded to above, we have infrastructure support for handling sequencing o
 - We get `h_wellFormed : sub.wellFormed state`. A majority of infrastructure (lemmas / the `step` tactic) need this notion around, but it just being here is normally the extent to which a user needs to interact with it. 
 - We get `h_constraints : (sub.runAndEval state).2.constraints ↔ True` which imposes constraints introduced by the stepped action.
 - We get `Converts F.conversion sub_state sub_result (a_val - b_val)` which is the effect of running the action, as described by the spec `mkSub.convertsM`.
-- The conclusion changes 
+- The conclusion changes in two ways*:
+  - the state changes to `sub_state`
+  - the action changes to `isZero sub_result`  
 
+There is a minor asterisk here - the implementation of the `step` tactic sometimes mishandles the lift from `HashConsM` to `ClapM` and leaves the goal in a state that is only definitially equal with the pretty state mentioned above. As such, if we so desired, in this proof we could simply write:
+```
+change ConvertsM FB.conversion
+         (isZero sub_result)
+         sub_state
+         (a_val == b_val)
+         (True → True)
+```
+This is an easy fix to the tactic, but timeboxing of the project is a real constraint.
 
+Notably, the action is now `isZero sub_result`, i.e. a singular action with no additional bind sequencing. As such, we can use the spec `isZero.convertsM` to finish the goal. There is a variety of helpers available to align the misaligned bits if need be, please confer the existing examples in `Lang`.
 
-<!-- The first action in the monad is `mkSub`.
+There is also special support for `Functor.map` sequencing, which can be simply viewed as a `bind` with `pure`.
 
+# Handling public inputs
+Public inputs need a little bit of additional care as running circuits from pre-allocated state makes the notion of well-formed slightly tricky. We use the `AllocatedProgram` abstraction to reason about circuits that start from non-default states. It is defined as follows:
+```
+structure AllocatedProgram (p : ℕ) where
+  InputT   : Type
+  program  : InputT → ClapM p Unit
+  numAlloc : ℕ
+  allocate : HashConsM p InputT
+```
+This really just bundles a `program` for any 'pre-allocated' input type `InputT` with its allocator `allocate` that produces `numAlloc` allocations. We then define a couple of helper definitions.
 
+First we have a bit of machinery to obtain the underlying circuit:
+```
+def getCircuit {p} (prog : AllocatedProgram p) : Circuit × HashConsSt p :=
+  let (inputs, σ) := prog.allocate.run (HashConsSt.empty p)
+  (
+    (prog.program inputs).getCircuit prog.numAlloc σ,
+    (prog.program inputs).getHashConsState prog.numAlloc σ
+  )
+```
+Note that both `ClapM.getCircuit` and `ClapM.getHashConsState` used below `run` the `ClapM` monad, starting allocations at some `numAlloc`.
 
-As such, we use the `convertsM` (the spec) of `mkSub`, conventionally called `mkSub.convertsM` and the `step` tactic, i.e. `step mkSub.convertsM h_a h_b as sub`. -->
+1. `getCircuit` starts with an empty `HashConsSt` and fills it in with necessary expressions.
+  introduced by the `allocate` function
+2. We then build the circuit for the `program`, _notably_ starting at _not_ 0, but at `prog.numAlloc`,
+   i.e. we are accounting for the number of allocations introduced by the allocator.
+3. We also return the 'bootstrapped' `HashConsState`.
+
+And now we have a bit of machinery to obtain the underlying constraints:
+```
+def getConstraints {p} (prog : AllocatedProgram p) (inputs : Vector (ZMod p) prog.numAlloc) :=
+  let (circuit, σ) := prog.getCircuit
+  [.ofArray (inputs.toArray.zipIdx.map Prod.swap),
+   σ,
+   prog.numAlloc|circuit]ₑ.constraints
+```
+
+The only 'trick' here is that the varstore `Γ` is constructed by taking the first `prog.numAlloc` allocations. We can now easily refer to constarints of an 'allocated' circuit. For a full example, please confer `Clap/eDSLState/AllocatedProgram.lean`.
