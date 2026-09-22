@@ -174,7 +174,6 @@ lemma convertsM
 := by
   unfold eq
   rw [sub_def]
-
   step mkSub.convertsM h_a h_b as sub
   apply convertsM_of_convertsM (isZero.convertsM h_sub)
   . grind
@@ -187,10 +186,18 @@ do
   let __do_lift ← liftM (HashConsM.mkSub a b)
   isZero __do_lift
 ```
-As we alluded to above, we have infrastructure support for handling sequencing of well formad actions and doing the bookkeeping necessary to advance the proof state.
+As we alluded to above, we have infrastructure support for handling sequencing of well formed actions and doing the bookkeeping necessary to advance the proof state. More specifically, goals of the form `ConvertsM (do a₁; a₂; ...; aₙ)` should be addressed by inspecting the first action of the monad, here `mkSub` and using the `step` tactic. It takes a spec of an action, conventionally called `<action>.convertsM` and a name. Using our example, `step mkSub.convertsM h_a h_b` affects the proof state as follows:
+- We get `sub : ClapM p (F p) := mkSub a b` in our context with the additional effect that all occurrences of `mkSub a b` are substituted by `sub`.
+- We get `sub_result : F p` and `sub_state : ClapMState p` as shorthands for the result/state pair after the action executes within the `ClapM` monad.
+- We get `h_wellFormed : sub.wellFormed state`. A majority of infrastructure (lemmas / the `step` tactic) need this notion around, but it just being here is normally the extent to which a user needs to interact with it. 
+- We get `h_constraints : (sub.runAndEval state).2.constraints ↔ True` which imposes constraints introduced by the stepped action.
+- We get `Converts F.conversion sub_state sub_result (a_val - b_val)` which is the effect of running the action, as described by the spec `mkSub.convertsM`.
+- The conclusion changes 
 
-The first action in the monad is `mkSub`.
+
+
+<!-- The first action in the monad is `mkSub`.
 
 
 
-As such, we use the `convertsM` (the spec) of `mkSub`, conventionally called `mkSub.convertsM` and the `step` tactic, i.e. `step mkSub.convertsM h_a h_b as sub`.
+As such, we use the `convertsM` (the spec) of `mkSub`, conventionally called `mkSub.convertsM` and the `step` tactic, i.e. `step mkSub.convertsM h_a h_b as sub`. -->
