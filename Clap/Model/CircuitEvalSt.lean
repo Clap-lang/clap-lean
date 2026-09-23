@@ -409,8 +409,13 @@ lemma constraints_stepIsZero : (st.stepIsZero σ e!).constraints =
                                (st.constraints ∧ ⟨e!, σ⟩ ∈ st) := by
   simp [stepIsZero]
 
+/--
+Besides allocatedness, asserts `e.val < 2 ^ w`: exactly when the lowering's booleanity and
+recomposition constraints are satisfiable, for every prime (when `2 ^ w > p` it always holds).
+-/
 def stepNum2bits (st : EvalSt p) (σ : HashConsSt p) (w : ℕ) (e : ExprRef) :=
-  (st.assertAllocated #v[⟨e, σ⟩]).alloc (num2bitsLsbPureV w (st[Expr.mk e σ]!))
+  ((st.assertAllocated #v[⟨e, σ⟩]).addConstraint (st[Expr.mk e σ]!.val < 2 ^ w)).alloc
+    (num2bitsLsbPureV w (st[Expr.mk e σ]!))
 
 @[simp, grind =]
 lemma stepNum2bits_mk :
@@ -420,8 +425,8 @@ lemma stepNum2bits_mk :
     varStore := varStore.insertMany
       ((Vector.map (fun x => x + numAlloc) (Vector.range w)).zip
         (num2bitsLsbPureV w ([varStore,σ|e!].getD 0))),
-    constraints := constraints ∧ [varStore,σ|e!].isSome
-  } := by simp [stepNum2bits]
+    constraints := constraints ∧ [varStore,σ|e!].isSome ∧ ([varStore,σ|e!].getD 0).val < 2 ^ w
+  } := by simp [stepNum2bits, and_assoc]
 
 @[simp, grind =]
 lemma numAlloc_stepNum2bits : (st.stepNum2bits σ w e!).numAlloc = st.numAlloc + w := rfl
@@ -436,8 +441,9 @@ lemma varStore_stepNum2bits {w} :
 
 @[simp, grind =]
 lemma constraints_stepNum2bits : (st.stepNum2bits σ w e!).constraints =
-                                 (st.constraints ∧ ⟨e!, σ⟩ ∈ st) := by
-  simp [stepNum2bits]
+                                 (st.constraints ∧ ⟨e!, σ⟩ ∈ st ∧
+                                   (st[Expr.mk e! σ]?.getD 0).val < 2 ^ w) := by
+  simp [stepNum2bits, and_assoc]
 
 def stepFpmul (st : EvalSt p) (σ : HashConsSt p) (w k : ℕ) (a b p' : Vector ExprRef k) :=
   let (aexprs, bexprs, p'exprs) := (a.map (Expr.mk · σ), b.map (Expr.mk · σ), p'.map (Expr.mk · σ))

@@ -116,14 +116,14 @@ work of A; if you can express your gadget without iteration, do.
 | `FVec.eq a b` | [FVec/eq.lean](../Clap/Lang/Data/FVec/eq.lean) | `ClapM p (FB p)` | `decide (a_vals = b_vals)` | `True` |
 | `FString.ofString s` | [FString/ofString.lean](../Clap/Lang/Data/FString/ofString.lean) | `ClapM p (FString p w)` | `s` | `True` |
 | `FString.isPaddedOf a b` | [FString/isPaddedOf.lean](../Clap/Lang/Data/FString/isPaddedOf.lean) | `ClapM p (FB p)` | `decide (encodeV w a_val = encodeV w b) && (a_val.length == b.length)` | `True` |
-| `num2bits w e` | [FArray/num2bits.lean](../Clap/Lang/Gate/num2bits.lean) | `ClapM p (FArray p w)` | `num2bitsLsbPureV w e_val` as bits | `True` — see the warning below |
+| `num2bits w e` | [FArray/num2bits.lean](../Clap/Lang/Gate/num2bits.lean) | `ClapM p (FArray p w)` | `num2bitsLsbPureV w e_val` as bits | `e_val.val < 2 ^ w` — see the note below |
 | `lessThan w a b` | [F/lessThan.lean](../Clap/Lang/Core/F/lessThan.lean) | `ClapM p (FB p)` | `a_val.val < b_val.val` | `True` |
 | `lessEqThan`, `greaterThan`, `greaterEqThan` | [F/lessThan.lean](../Clap/Lang/Core/F/lessThan.lean) | `ClapM p (FB p)` | the obvious variants | `True` |
-| `assert_range w e` | [FUnit/assert_range.lean](../Clap/Lang/Core/FUnit/assert_range.lean) | `ClapM p Unit` | `()` | `True` — see the warning below |
+| `assert_range w e` | [FUnit/assert_range.lean](../Clap/Lang/Core/FUnit/assert_range.lean) | `ClapM p Unit` | `()` | `e_val.val < 2 ^ w` |
 | `F8.eq`, `F8.lessThan`, `F8.greaterThan`, `F8.lessEqThan`, `F8.greaterEqThan` | [F8/F8.lean](../Clap/Lang/Data/F8/F8.lean) | `ClapM p (FB p)` | byte-width delegations to the above at `w = 8`, stated over `UInt8` | `True` |
-| `FBitVec.binSum a b` | [FBitVec/binSum.lean](../Clap/Lang/Data/FBitVec/binSum.lean) | `ClapM p (FBitVec p (w+1))` | low `w+1` bits of `toNum a_vals + toNum b_vals` | `True` |
+| `FBitVec.binSum a b` | [FBitVec/binSum.lean](../Clap/Lang/Data/FBitVec/binSum.lean) | `ClapM p (FBitVec p (w+1))` | `toNum a_vals + toNum b_vals` as `w+1` bits | `True` |
 | `F32.add a b` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p (F32 p)` | the above, `take 32` — i.e. wrapping 32-bit addition | `True` |
-| `FBV8.ofF`, `F32.ofF`, `F64.ofF` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p (FArray p w)` | `num2bits` at `w = 8`/`32`/`64` | `True` |
+| `FBV8.ofF`, `F32.ofF`, `F64.ofF` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p (FArray p w)` | `num2bits` at `w = 8`/`32`/`64` | `x_val.val < 2 ^ w` |
 | `F8.isWhitespace c` | [F8/isWhitespace.lean](../Clap/Lang/Data/F8/isWhitespace.lean) | `ClapM p (FB p)` | `c_val` is space, tab, CR or LF | `True` |
 | `arraySelector len s e` | [FArray/arraySelector.lean](../Clap/Lang/Data/FArray/arraySelector.lean) | `ClapM p (FArray p len)` | 1s on `[startIdx, endIdx)` | index bounds |
 | `singleEndArray len idx` | [FArray/singleEndArray.lean](../Clap/Lang/Data/FArray/singleEndArray.lean) | `ClapM p (FArray p len)` | 1s from `idx` on | `idx_val.val < len` |
@@ -166,29 +166,22 @@ and that is what your gadget needs; write it first. `num2bits` used to be on thi
 the bottleneck for every comparison, range check, packing and hashing gadget; it is now
 wrapped, along with the whole comparison family built on it.
 
-### ⚠ `num2bits` asserts nothing in the model, but range-checks in the circuit
+### `num2bits` range-checks, in the model as in the circuit
 
-`num2bits.convertsM`'s constraints slot is `True`. That is not an oversight in the lemma: the
-evaluation semantics `stepNum2bits`
-([CircuitEvalSt.lean:412](../Clap/Model/CircuitEvalSt.lean#L412)) stores the *truncated*
-low `w` bits of its input and `constraints_stepNum2bits` contributes only allocatedness. So in
-the model `num2bits` is a total, truncating decomposition.
+`num2bits.convertsM`'s constraints slot is `e_val.val < 2 ^ w`. The evaluation semantics
+`stepNum2bits` ([CircuitEvalSt.lean:416](../Clap/Model/CircuitEvalSt.lean#L416)) asserts it
+alongside allocatedness, and it is exactly the condition under which the lowering in
+[ConstraintSystem/num2bits.lean](../Clap/Model/ConstraintSystem/num2bits.lean) — booleanity plus
+`bits2num(bits) - expr` — is satisfiable, for every prime: when `2^w ≤ p` boolean bits recompose
+to `e` only in range, and when `2^w > p` every field element is in range. So there is no
+hypothesis relating `w` and `p`. (Until 2026-09-23 the semantics truncated instead, and this
+slot was `True`.)
 
-The compiled circuit is stronger. The lowering in
-[ConstraintSystem/num2bits.lean](../Clap/Model/ConstraintSystem/num2bits.lean) emits
-`bits2num(bits) - expr` alongside the booleanity constraints, and is unsatisfiable when
-`e ≥ 2^w`. The smoke tests at the bottom of
-[FUnit/assert_range.lean](../Clap/Lang/Core/FUnit/assert_range.lean) demonstrate this: a one-gate
-`assert_range 4` accepts `5` and `15` and rejects `16`, `20` and `31`.
-
-Two consequences. `assert_range`'s slot 5 is `True` even though the old model's `num2bits`
-returned `none` out of range — the condition has nowhere honest to live until the semantics
-change. And `binSum` / `F32.add` get `True` and *wrapping* arithmetic for free, which is what
-the old model's own `(2^32 - 1) + 1 = 0` vector already said.
-
-Closing the gap means strengthening `stepNum2bits` to carry the range condition and reproving
-`num2bits.constraints` as `e_val.val < 2 ^ w`; `lessThan.convertsM` and everything built on it
-would then have to discharge it. That is a change to the core semantics, not to a gadget.
+A gadget that decomposes a value it knows to fit discharges the condition and keeps slot 5
+`True`: `lessThan` from its bounds on `a` and `b`, `binSum` because two `w`-bit values always sum
+below `2^(w+1)`. A range check such as `assert_range` surfaces it as its own slot 5. The smoke
+tests at the bottom of [FUnit/assert_range.lean](../Clap/Lang/Core/FUnit/assert_range.lean)
+cross-check the model against the lowering.
 
 For public inputs — giving a circuit a top-level input rather than taking `Converts`
 hypotheses — see [public-inputs.md](public-inputs.md).

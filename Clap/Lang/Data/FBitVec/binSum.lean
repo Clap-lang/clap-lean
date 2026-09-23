@@ -10,15 +10,7 @@ namespace Clap.Lang.FBitVec
 
 variable {p : ℕ}
 
-/-- Add two `w`-bit vectors, returning `w+1` bits. Old model: `FBitVec.binSum`
-(`old/Clap/Lang.lean:401`), which was `num2bits (w+1) (a.toF + b.toF)`.
-
-The result is the low `w+1` bits of `toNum a + toNum b`, because the `num2bits` gate truncates
-in the `ConvertsM` semantics — see `Clap.Lang.assert_range` for the full story. When
-`2^(w+1) ≤ p` there is nothing to truncate and the result is the exact sum, but that reading
-is not stated separately: `num2bitsLsbPureV` is a concrete pure function, so the spec below
-already pins every output bit as a function of the inputs. The smoke tests at the bottom of
-this file are what guard the bit ordering. -/
+/-- Add two `w`-bit vectors, returning `w+1` bits. -/
 def binSum {w : ℕ} (a b : FBitVec p w) : ClapM p (FBitVec p (w + 1)) := do
   let av ← FArray.bits2num a
   let bv ← FArray.bits2num b
@@ -26,6 +18,31 @@ def binSum {w : ℕ} (a b : FBitVec p w) : ClapM p (FBitVec p (w + 1)) := do
   num2bits (w + 1) s
 
 namespace binSum
+
+/-- `toNum` of `w` bits is the cast of a natural number below `2 ^ w`, so its value is below
+`2 ^ w` too, whatever the modulus. -/
+private lemma toNum_val_lt {w : ℕ} (bits : Vector Bool w) :
+  (FArray.toNum (p := p) bits).val < 2 ^ w
+:= by
+  have key : ∀ l : List Bool, ∃ n : ℕ, n < 2 ^ l.length ∧
+      l.foldr (fun b acc ↦ (if b then (1 : ZMod p) else 0) + 2 * acc) 0 = (n : ZMod p) := by
+    intro l
+    induction l with
+    | nil => exact ⟨0, by simp, by simp⟩
+    | cons b t ih =>
+      obtain ⟨n, hn, h_eq⟩ := ih
+      refine ⟨(if b then 1 else 0) + 2 * n, ?_, ?_⟩
+      · rw [List.length_cons, pow_succ]
+        split <;> omega
+      · rw [List.foldr_cons, h_eq]
+        cases b <;> simp
+  obtain ⟨n, hn, h_eq⟩ := key bits.toList
+  rw [Vector.length_toList] at hn
+  have h_toNum : FArray.toNum (p := p) bits = (n : ZMod p) := by
+    rw [← h_eq]
+    simp [FArray.toNum]
+  rw [h_toNum, ZMod.val_natCast]
+  exact lt_of_le_of_lt (Nat.mod_le _ _) hn
 
 lemma convertsM
   [p.AtLeastTwo]
@@ -47,17 +64,18 @@ lemma convertsM
   step mkAdd.convertsM h_av h_bv as s
   apply convertsM_of_convertsM (num2bits.convertsM h_s)
   · rfl
-  · trivial
+  · refine iff_of_true ?_ (fun _ _ _ ↦ trivial)
+    have := toNum_val_lt (p := p) a_vals
+    have := toNum_val_lt (p := p) b_vals
+    exact lt_of_le_of_lt (ZMod.val_add_le _ _) (by rw [pow_succ]; omega)
 
 section examples
 
-/-! Smoke tests, run end to end through `Circuit.toWg` / `Circuit.toCs`. These are the old
-model's `testBinSum` vectors (`old/Clap/Lang.lean:1088-1092`), which are worth keeping executable
-because an off-by-one in bit order typechecks silently.
+/-! Smoke tests, run end to end through `Circuit.toWg` / `Circuit.toCs`
 
 Bit vectors are LSB-first, so `(1 : BitVec 3)` is the old `#v[1,0,0]` and `(2 : BitVec 4)` is
-the old `#v[0,1,0,0]`. A concrete prime with a real primality proof is required —
-`Primes.goldilocks` and `Primes.bn254` are `sorry`'d and `native_decide` refuses `sorry`. -/
+the old `#v[0,1,0,0]`. A small prime with a real `norm_num` primality proof keeps the test off
+the `sorry`'d primality of `Primes.goldilocks` and `Primes.bn254`. -/
 
 private abbrev q : ℕ := 47
 

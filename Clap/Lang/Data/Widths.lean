@@ -37,8 +37,7 @@ lemma convertsM
 
 end ofUInt8
 
-/-- Decompose a field element into its low 8 bits. Old model: `FBV8.ofF`
-(`old/Clap/Lang.lean:955`). See `Clap.Lang.assert_range` for why the constraints slot is `True`. -/
+/-- Decompose a field element into 8 bits, range-checking it: slot 5 is `x_val.val < 2 ^ 8`. -/
 def ofF (x : F p) : ClapM p (FBV8 p) :=
   num2bits 8 x
 
@@ -51,7 +50,7 @@ lemma convertsM
 :
   Converts F.conversion state x x_val →
   ConvertsM FArray.conversion (ofF x) state
-    (num2bitsLsbPureV 8 x_val |>.map fun y ↦ y == 1) True
+    (num2bitsLsbPureV 8 x_val |>.map fun y ↦ y == 1) (x_val.val < 2 ^ 8)
 := num2bits.convertsM
 
 end ofF
@@ -91,8 +90,7 @@ lemma convertsM
 
 end ofUInt32
 
-/-- Decompose a field element into its low 32 bits. Old model: `F32.ofF`
-(`old/Clap/Lang.lean:994`). See `Clap.Lang.assert_range` for why the constraints slot is `True`. -/
+/-- Decompose a field element into 32 bits, range-checking it: slot 5 is `x_val.val < 2 ^ 32`. -/
 def ofF (x : F p) : ClapM p (F32 p) :=
   num2bits 32 x
 
@@ -105,12 +103,12 @@ lemma convertsM
 :
   Converts F.conversion state x x_val →
   ConvertsM FArray.conversion (ofF x) state
-    (num2bitsLsbPureV 32 x_val |>.map fun y ↦ y == 1) True
+    (num2bitsLsbPureV 32 x_val |>.map fun y ↦ y == 1) (x_val.val < 2 ^ 32)
 := num2bits.convertsM
 
 end ofF
 
-/-- Zero-extend a byte to 32 bits. Old model: `F32.ofFBV8`. -/
+/-- Zero-extend a byte to 32 bits. -/
 def ofFBV8 (u8 : FBV8 p) : ClapM p (F32 p) :=
   FArray.zeroExtend u8 24
 
@@ -129,11 +127,7 @@ lemma convertsM
 
 end ofFBV8
 
-/-- 32-bit wrapping addition. Old model: `F32.add` (`old/Clap/Lang.lean:1000`), which spelled the
-`min 32 (32+1) = 32` reshape as `h ▸ Vector.take (← FBitVec.binSum a b) 32`.
-
-Wrapping is the point: the old model's own test vector was `(2^32 - 1) + 1 = 0`. The 33rd bit
-of the `binSum` is dropped, so the result is the sum modulo `2^32`. -/
+/-- 32-bit wrapping addition. -/
 def add (a b : F32 p) : ClapM p (F32 p) := do
   let s ← FBitVec.binSum a b
   return (s.take 32).cast (by omega)
@@ -186,9 +180,7 @@ end F32
 
 namespace F64
 
-/-- Decompose a field element into its low 64 bits. Old model: `F64.ofF`
-(`old/Clap/Lang.lean:1045`), which carried a `[Fact (Primes.fits p 64)]` the new model does not
-need. See `Clap.Lang.assert_range` for why the constraints slot is `True`. -/
+/-- Decompose a field element into 64 bits, range-checking it: slot 5 is `x_val.val < 2 ^ 64`. -/
 def ofF (x : F p) : ClapM p (F64 p) :=
   num2bits 64 x
 
@@ -201,7 +193,7 @@ lemma convertsM
 :
   Converts F.conversion state x x_val →
   ConvertsM FArray.conversion (ofF x) state
-    (num2bitsLsbPureV 64 x_val |>.map fun y ↦ y == 1) True
+    (num2bitsLsbPureV 64 x_val |>.map fun y ↦ y == 1) (x_val.val < 2 ^ 64)
 := num2bits.convertsM
 
 end ofF
@@ -211,13 +203,11 @@ end F64
 
 section examples
 
-/-! Smoke test for `F32.add`, run end to end through `Circuit.toWg` / `Circuit.toCs`. The
-wraparound vector is the old model's last example (`old/Clap/Lang.lean:1097-1100`),
-`(2^32 - 1) + 1 = 0`, which is what pins the `Vector.take 32` to dropping the *high* bit.
+/-! Smoke test for `F32.add`, run end to end through `Circuit.toWg` / `Circuit.toCs`.
 
-The modulus must exceed `2^33` so the 33-bit `binSum` cannot wrap the field, and it needs a
-real primality proof — `Primes.goldilocks` and `Primes.bn254` are `sorry`'d in
-`Clap/Util/Primes.lean`, and `native_decide` refuses anything depending on `sorry`. -/
+The modulus must exceed `2^33` so the 33-bit `binSum` cannot wrap the field. `8589934609` has a
+cheap `norm_num` primality proof, which keeps the test off the `sorry`'d primality of
+`Primes.goldilocks` and `Primes.bn254` (`Clap/Util/Primes.lean`). -/
 
 private abbrev q : ℕ := 8589934609
 

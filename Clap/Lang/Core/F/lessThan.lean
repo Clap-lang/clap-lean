@@ -12,9 +12,9 @@ namespace Clap.Lang
 
 variable {p : ℕ}
 
-/-- `a < b` for `a, b` known to lie in `[0, 2^w)`. Only satisfiable (constraint-wise it always
-holds, but the *result* is only the correct boolean) when `w + 1 < p`, so that
-`a - b + 2^w` cannot wrap around the field. -/
+/-- `a < b` for `a, b` known to lie in `[0, 2^w)`, with `2^(w+1) < p`. Under those bounds
+`a - b + 2^w` cannot wrap around the field, so it always passes `num2bits`' `(w + 1)`-bit range
+check (hence slot 5 `True`), and its top bit is set exactly when `a ≥ b`. -/
 def lessThan (w : ℕ) (a b : F p) : ClapM p (FB p) := do
   let diff ← a - b
   let pow ← mkF ((2 : ZMod p) ^ w)
@@ -24,11 +24,10 @@ def lessThan (w : ℕ) (a b : F p) : ClapM p (FB p) := do
 
 /-- `a ≤ b`, as `¬(b < a)`.
 
-The old model (`old/Clap/Lang.lean:181`) had this as `lessThan w a (b + 1)`. That spelling does
+The old model had this as `lessThan w a (b + 1)`. That spelling does
 not survive the move to `F p = BoundRef p`: `F p` reduces through `abbrev` to `ℕ`, so `b + 1`
-elaborates as `Nat.succ` on the *heap index* rather than a field addition, and the gadget
-silently compares against whatever node sits at slot `b + 1`. The negation form is equivalent,
-needs no extra bound on the operands, and allocates no constant. -/
+elaborates as `Nat.succ` on the heap index rather than a field addition, and the gadget
+silently compares against whatever node sits at slot `b + 1`. -/
 def lessEqThan (w : ℕ) (a b : F p) : ClapM p (FB p) := do
   let gt ← lessThan w b a
   not gt
@@ -87,13 +86,17 @@ lemma convertsM
   step mkF.convertsM as pow
   rw [add_def]
   step mkAdd.convertsM h_diff h_pow as d
+  -- `num2bits` range-checks `d` to `w + 1` bits; `step` discharges that with this fact.
+  have h_range : (a_val - b_val + (2 : ZMod p) ^ w).val < 2 ^ (w + 1) := by
+    rw [diff_val_eq ha hb hw, pow_succ]
+    omega
   step num2bits.convertsM h_d as bits
   have h_top := FArray.converts_getElem h_bits (show w < w + 1 by omega)
   simp only [Vector.getElem_map] at h_top
   rw [num2bitsLsbPureV_getElem_last w _, diff_val_div_eq ha hb hw] at h_top
   apply convertsM_of_convertsM (not.convertsM h_top)
   · by_cases hab : a_val.val < b_val.val <;> simp [hab]
-  · trivial
+  · simp
 
 end lessThan
 
@@ -166,9 +169,9 @@ These are also the regression test for `lessEqThan` / `greaterEqThan`, whose old
 `lessThan w a (b + 1)` silently did `Nat` arithmetic on the heap index — see the doc comment
 on `lessEqThan`.
 
-`q` must exceed `2^(w+1)`, so `2^9 = 512` for the `w = 8` vectors, and needs a real primality
-proof: `Primes.goldilocks` and `Primes.bn254` are `sorry`'d in `Clap/Util/Primes.lean`, and
-`native_decide` refuses anything depending on `sorry`. -/
+`q` must exceed `2^(w+1)`, so `2^9 = 512` for the `w = 8` vectors. `1031` has a cheap `norm_num`
+primality proof, which keeps the test off the `sorry`'d primality of `Primes.goldilocks` and
+`Primes.bn254` (`Clap/Util/Primes.lean`). -/
 
 private abbrev q : ℕ := 1031
 

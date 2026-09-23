@@ -411,11 +411,12 @@ def stepEq0    (st) (σ) (e) := st.addConstraint (st[Expr.mk e σ]? = .some 0)
 def stepShare  (st) (σ) (e) := (st.assertAllocated #v[⟨e, σ⟩]).alloc #v[st[Expr.mk e σ]!]
 def stepIsZero (st) (σ) (e) :=
   (st.assertAllocated #v[⟨e, σ⟩]).alloc #v[if st[Expr.mk e σ]? = .some 0 then 1 else 0]
-def stepNum2bits (st) (σ) (w) (e) :=
-  (st.assertAllocated #v[⟨e, σ⟩]).alloc (num2bitsLsbPureV w (st[Expr.mk e σ]!))
+def stepNum2bits (st) (σ) (w) (e) :=   -- e.val < 2^w: exactly what the lowering enforces
+  ((st.assertAllocated #v[⟨e, σ⟩]).addConstraint (st[Expr.mk e σ]!.val < 2 ^ w)).alloc
+    (num2bitsLsbPureV w (st[Expr.mk e σ]!))
 def stepFpmul … -- range-checks each limb, asserts the modulus is nonzero, allocs fpMulPureV …
 
-notation "[" res ", " σ "|" cmd "]ₛ" => step res cmd σ     -- CircuitEvalSt.lean:522
+notation "[" res ", " σ "|" cmd "]ₛ" => step res cmd σ     -- CircuitEvalSt.lean:528
 ```
 
 And the circuit-level fold:
@@ -667,7 +668,7 @@ FList.converts_empty / converts_append / converts_of_converts_FB / converts_sing
 | `[Γ, σ\|←x]` | `HashConsM.run (evalM Γ x) σ` | [Eval.lean:596](../Clap/Model/HashCons/Eval.lean#L596) |
 | `[σ\|Γ₁ ⊑ Γ₂]` | `precedes Γ₁ Γ₂ σ` | [Eval.lean:716](../Clap/Model/HashCons/Eval.lean#L716) |
 | `unconstrained[n][Γ]` | `EvalSt.unconstrained n Γ` | [CircuitEvalSt.lean:40](../Clap/Model/CircuitEvalSt.lean#L40) |
-| `[st, σ\|gate]ₛ` | `EvalSt.step st gate σ` | [CircuitEvalSt.lean:522](../Clap/Model/CircuitEvalSt.lean#L522) |
+| `[st, σ\|gate]ₛ` | `EvalSt.step st gate σ` | [CircuitEvalSt.lean:528](../Clap/Model/CircuitEvalSt.lean#L528) |
 | `[Γ, σ, n\|circuit]ₑ` | `Circuit.eval circuit Γ n σ` | [Circuit.lean:98](../Clap/Model/Circuit.lean#L98) |
 | `[Γ, σ, n\|c₁; c₂]ₑ` | `Circuit.seq c₁ c₂ Γ n σ` | [Circuit.lean:566](../Clap/Model/Circuit.lean#L566) |
 

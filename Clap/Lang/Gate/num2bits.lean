@@ -4,6 +4,9 @@ namespace Clap.Lang
 
 variable {p : ℕ}
 
+/-- The `w`-bit decomposition of `e`, least significant bit first. Satisfiable exactly when
+`e_val.val < 2 ^ w`, which is what the lowering enforces, for every prime `p` (when `2 ^ w > p`
+it always holds), so `convertsM` needs no hypothesis relating `w` and `p`. -/
 def num2bits (w : ℕ) (e : F p) : ClapM p (FArray p w) :=
   Clap.num2bits w e
 
@@ -103,6 +106,19 @@ lemma key_getElem_ofFnM_alloc {w : ℕ} :
     · simp only [Fin.val_last, Vector.getElem_push_eq]
       exact Expr.deref_mkVar_eq_some
 
+/-- A converting `e` keeps its value against any extension of its heap. -/
+private lemma eval_frame {state : ClapMState p} {e : F p} {e_val : ZMod p} {σ' : HashConsSt p}
+  (h_e : Converts F.conversion state e e_val) (h_prefix : state.σ.exprs.isPrefixOf σ'.exprs)
+:
+  [state.varStore|⦃e, σ'⦄] = some e_val
+:= by
+  have h_e_eq : [state.varStore|⦃e, state.σ⦄] = some e_val := by
+    have := h_e.value_eq; simpa using this
+  have h_e_wf : (Expr.mk e state.σ).wellFormed := by
+    have := h_e.expr_wf; simpa using this
+  rw [eval_eq_evalRec (Expr.wellFormed_frame (e' := Expr.mk e σ') h_e_wf h_prefix rfl),
+      ←evalRec_of_wellFormed_of_prefix h_prefix h_e_wf, ←eval_eq_evalRec h_e_wf, h_e_eq]
+
 lemma converts
   {state} {w : ℕ} {e : F p} {e_val : ZMod p}
   (h_e : Converts F.conversion state e e_val)
@@ -125,20 +141,10 @@ lemma converts
   have h_numAlloc :
     ((num2bits w e).getState state).numAlloc = state.numAlloc + w
   := by unfold num2bits Clap.num2bits ClapM.getState; simp [Clap.getNumAlloc_Vector_ofFnM_alloc]
-  have h_e_eq : [state.varStore|⦃e, state.σ⦄] = some e_val := by
-    have := h_e.value_eq; simpa using this
-  have h_e_wf : (Expr.mk e state.σ).wellFormed := by
-    have := h_e.expr_wf; simpa using this
   have h_e_prefix :
     state.σ.exprs.isPrefixOf ((Clap.num2bits w e).getHashConsState state.numAlloc state.σ).exprs
   := by unfold Clap.num2bits; simp
-  have h_e_eq' :
-    [state.varStore|⦃e, (Clap.num2bits w e).getHashConsState state.numAlloc state.σ⦄] = some e_val
-  := by
-    rw [eval_eq_evalRec (Expr.wellFormed_frame
-          (e' := Expr.mk e ((Clap.num2bits w e).getHashConsState state.numAlloc state.σ))
-          h_e_wf h_e_prefix rfl),
-        ←evalRec_of_wellFormed_of_prefix h_e_prefix h_e_wf, ←eval_eq_evalRec h_e_wf, h_e_eq]
+  have h_e_eq' := eval_frame h_e h_e_prefix
   have h_varStore :
     ((num2bits w e).getState state).varStore[state.numAlloc + i.val]? =
     some ((num2bitsLsbPureV w e_val)[i])
@@ -185,15 +191,19 @@ lemma converts
     by_cases h : (num2bitsLsbPureV w e_val)[i] = 1 <;> simp_all
 
 lemma constraints
-  {state : ClapMState p} {w : ℕ} {e} {e_val}
+  {state : ClapMState p} {w : ℕ} {e : F p} {e_val : ZMod p}
   (h_e : Converts F.conversion state e e_val)
 :
-  ((num2bits w e).runAndEval state.numAlloc state.varStore state.σ).2.constraints
+  ((num2bits w e).runAndEval state.numAlloc state.varStore state.σ).2.constraints ↔
+  e_val.val < 2 ^ w
 := by
-  unfold num2bits Clap.num2bits
-  simp [ClapM.runAndEval]
-  have : [state.varStore|⦃e, state.σ⦄].isSome := by grind
-  exact isSome_eval_of_prefix (by grind [cases Converts]) this (by rfl) (by grind)
+  have h_e_eq := eval_frame
+    (σ' := (Vector.ofFnM fun (_ : Fin w) ↦ (ClapM.alloc : ClapM p ExprRef)).getHashConsState
+      state.numAlloc state.σ)
+    h_e isPrefixOf_getHashConsState_Vector_ofFnM_alloc
+  unfold num2bits
+  rw [Clap.eval_edsl_num2bits]
+  simp [h_e_eq]
 
 lemma convertsM
   {state}
@@ -206,11 +216,11 @@ lemma convertsM
     (num2bits w e)
     state
     (num2bitsLsbPureV w e_val |>.map fun x ↦ x == 1)
-    True
+    (e_val.val < 2 ^ w)
 where
   result := converts h_e
   wellFormed := wellFormed h_e
-  constraints := iff_true_intro (constraints h_e)
+  constraints := constraints h_e
 
 end num2bits
 

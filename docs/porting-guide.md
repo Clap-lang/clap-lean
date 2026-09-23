@@ -298,10 +298,12 @@ were deliberately *not* ported, and should not be added back:
   `Clap.num2bitsLsbPure_of_bits2num_eq` and `Clap.bits2num_of_num2bitsLsbPure_eq` are live in
   `Clap/Util/BitVec.lean` and should be reused rather than re-derived.
 
-One warning carried over from that round: **`num2bits` asserts nothing in the `ConvertsM`
-semantics, but does range-check in the compiled circuit.** See the ⚠ section in
-[specifying-circuits.md](specifying-circuits.md); it is why `assert_range`'s slot 5 is `True`
-and why `binSum` / `F32.add` are honestly `True`-constrained and wrapping.
+That round also flagged a gap, since closed: `num2bits` asserted nothing in the `ConvertsM`
+semantics although the compiled circuit range-checks. Since 2026-09-23 `stepNum2bits` asserts
+`e.val < 2^w`, exactly what the lowering enforces, so `num2bits.convertsM`'s slot 5 is
+`e_val.val < 2 ^ w` and `assert_range` carries a real range condition. `binSum` / `F32.add` stay
+`True`, because bit-vector inputs always pass the check. See
+[specifying-circuits.md](specifying-circuits.md).
 
 Note `FBitVec p k`, `FArray p k` and `FVec p k` are all `Vector _ k` over the same cell type;
 `FBitVec.eq` and `FBitVec.assert_eq` are thin delegations to the `FArray` ones, differing only
