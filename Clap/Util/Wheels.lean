@@ -2,6 +2,8 @@ import Mathlib.FieldTheory.Finite.Basic -- field operations
 
 import Clap.Util.Primes
 
+#check List.scanrM
+
 private def scanrAux {α β : Type} (f : α → β → β) (init : β) : List α → β × List β
   | []     => (init, [])
   | a :: l => let (acc, rs) := scanrAux f init l; (f a acc, acc :: rs)
@@ -15,6 +17,25 @@ private lemma scanrAux_length {α β : Type} (f : α → β → β) (init : β) 
 def Vector.scanr {α β : Type} {n} (f : α → β → β) (init : β) (v : Vector α n) : Vector β n :=
   ⟨⟨(scanrAux f init v.toList).2⟩, by simp [scanrAux_length]⟩
 
+private def scanrMAux {m} {α β : Type} [Monad m] (f : α → β → m β) (init : β) :
+  (l : List α) → m (β × { rs : List β // rs.length = l.length })
+  | []     => pure (init, ⟨[], rfl⟩)
+  | a :: l => do
+    let (acc, rs) ← scanrMAux f init l
+    pure (← f a acc, ⟨acc :: rs.1, by simp [rs.2]⟩)
+
+-- Unlike `scanrAux_length`, this can't be a lemma proved about an already-produced
+-- `scanrMAux` result after the fact: for a generic `[Monad m]`, the value bound by `←`
+-- in a `do`-block is fully opaque to the elaborator, so nothing is known about it beyond
+-- its type. Instead, the length equation is carried through the recursion as part of
+-- `scanrMAux`'s return type itself (the same trick `Vector.mapM`'s `go` uses).
+def Vector.scanrM {m} {α β : Type} {n} [Monad m] (f : α → β → m β) (init : β)
+  (v : Vector α n) :
+  m (Vector β n)
+:= do
+  let r ← scanrMAux f init v.toList
+  pure ⟨⟨r.2.1⟩, by simp⟩
+
 private def scanlAux {α β : Type} (f : β → α → β) (init : β) : List α → List β
   | []     => []
   | a :: l => init :: scanlAux f (f init a) l
@@ -27,6 +48,19 @@ private lemma scanlAux_length {α β : Type} (f : β → α → β) (init : β) 
 
 def Vector.scanl {α β : Type} {n} (f : β → α → β) (init : β) (v : Vector α n) : Vector β n :=
   ⟨⟨scanlAux f init v.toList⟩, by simp [scanlAux_length]⟩
+
+private def scanlMAux {m} {α β : Type} [Monad m] (f : β → α → m β) (init : β) :
+  (l : List α) → m {rs : List β // rs.length = l.length}
+  | []     => pure ⟨[], rfl⟩
+  | a :: l => do
+    pure ⟨init :: (← scanlMAux f (←f init a) l), by simp⟩
+
+def Vector.scanlM {m} {α β : Type} {n} [Monad m] (f : β → α → m β) (init : β)
+  (v : Vector α n) :
+  m (Vector β n)
+:= do
+  let r ← scanlMAux f init v.toList
+  pure ⟨⟨r.1⟩, by simp⟩
 
 namespace Clap
 
