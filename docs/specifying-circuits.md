@@ -126,7 +126,6 @@ work of A; if you can express your gadget without iteration, do.
 | `FBV8.ofF`, `F32.ofF`, `F64.ofF` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p (FArray p w)` | `num2bits` at `w = 8`/`32`/`64` | `True` |
 | `F8.isWhitespace c` | [F8/isWhitespace.lean](../Clap/Lang/Data/F8/isWhitespace.lean) | `ClapM p (FB p)` | `c_val` is space, tab, CR or LF | `True` |
 | `arraySelector len s e` | [FArray/arraySelector.lean](../Clap/Lang/Data/FArray/arraySelector.lean) | `ClapM p (FArray p len)` | 1s on `[startIdx, endIdx)` | index bounds |
-| `singleEndArray len idx` | [FArray/singleEndArray.lean](../Clap/Lang/Data/FArray/singleEndArray.lean) | `ClapM p (FArray p len)` | 1s from `idx` on | `idx_val.val < len` |
 | `FArray.xor a b` | [FArray/xor.lean](../Clap/Lang/Data/FArray/xor.lean) | `ClapM p (FArray p k)` | pointwise `xor` | `True` |
 | `FArray.xorScan a` | [FArray/xorScan.lean](../Clap/Lang/Data/FArray/xorScan.lean) | `ClapM p (FArray p k)` | running `xor` prefix scan | `True` |
 | `FBitVec.eq a b` | [FBitVec/eq.lean](../Clap/Lang/Data/FBitVec/eq.lean) | `ClapM p (FB p)` | `a_val == b_val` | `True` |

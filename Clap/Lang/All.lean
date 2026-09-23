@@ -1,5 +1,6 @@
 import Clap.Lang.Core.Combinators.foldlM
 import Clap.Lang.Core.Combinators.ofFnM
+import Clap.Lang.Core.Combinators.scanlM
 import Clap.Lang.Core.F.conditionalSwap
 import Clap.Lang.Core.F.dotProduct
 import Clap.Lang.Core.F.lessThan
@@ -33,8 +34,10 @@ import Clap.Lang.Data.FArray.default
 import Clap.Lang.Data.FArray.eq
 import Clap.Lang.Data.FArray.ofBitVec
 import Clap.Lang.Data.FArray.OneHotRaw
-import Clap.Lang.Data.FArray.singleEndArray
 import Clap.Lang.Data.FArray.singleOneArray
+import Clap.Lang.Data.FArray.leftArraySelector
+import Clap.Lang.Data.FArray.rightArraySelector
+import Clap.Lang.Data.FArray.selectArrayValue
 import Clap.Lang.Data.FArray.sum
 import Clap.Lang.Data.FArray.xor
 import Clap.Lang.Data.FArray.xorScan
