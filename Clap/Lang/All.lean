@@ -49,6 +49,8 @@ import Clap.Lang.Data.Widths
 import Clap.Lang.Gate.eq0
 import Clap.Lang.Gate.isZero
 import Clap.Lang.Gate.num2bits
+import Clap.Lang.Gate.share
+
 
 /-!
 # The CLAP gadget library
