@@ -6,7 +6,8 @@ when-to-use: You are moving a gadget out of the old/ tree — old/Clap/Array.lea
 
 # Porting from the old model
 
-Read [clap-agent-guide.md](clap-agent-guide.md), then
+Read [clap-agent-guide.md](clap-agent-guide.md) (and, on first contact,
+[how-to-clap.md](how-to-clap.md)), then
 [specifying-circuits.md](specifying-circuits.md) and [proving-circuits.md](proving-circuits.md).
 This file only covers what is *different* about a port versus writing a gadget fresh.
 

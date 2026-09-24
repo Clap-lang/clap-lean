@@ -332,10 +332,11 @@ lemma convertsM_bind
 Conjunction form of `convertsM_bind`, for a `do` block in which **both** halves assert
 something.
 
-`convertsM_bind` requires the continuation's constraint to be `constraints1 → constraints`,
-which forces every step but the last to have constraint `True`: for two real assertions it
-would demand `C₂ ↔ (C₁ → C₁ ∧ C₂)`, false whenever `C₁` fails. Sequencing two assertions
-therefore needs this lemma rather than that one.
+`convertsM_bind` requires the continuation's constraint to be `constraints1 → constraints`.
+Against the continuation's own constraint `C₂` that is `C₂ ↔ (C₁ → constraints)`, which forces
+`C₂` whenever `C₁` fails: for two real assertions it would demand `C₂ ↔ (C₁ → C₁ ∧ C₂)`, false
+whenever both fail. Sequencing two assertions that can fail together therefore needs this lemma
+rather than that one; `Clap/Examples/StepTwoAssertions.lean` proves the `step` shape unprovable.
 
 To rewrite the continuation's constraint under `constraints1` — say, into what it means once an
 earlier assertion has established a range — use `convertsM_bind_guard`.

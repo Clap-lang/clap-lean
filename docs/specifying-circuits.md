@@ -6,7 +6,8 @@ when-to-use: You are adding a new gadget to Clap/Lang/, or writing down what an 
 
 # Specifying CLAP circuits
 
-Read [clap-agent-guide.md](clap-agent-guide.md) first. Read
+Read [clap-agent-guide.md](clap-agent-guide.md) first, and on first contact
+[how-to-clap.md](how-to-clap.md), which specifies and proves `eq` end to end. Read
 [proving-circuits.md](proving-circuits.md) **before** you write Lean — the definition and the
 proof are designed together, and a gadget written without the proof in mind usually has to be
 rewritten.

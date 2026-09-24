@@ -6,10 +6,12 @@ when-to-use: Look up a definition, a notation, or what a well-formedness conditi
 
 # The CLAP model (`Clap/Model/`)
 
-Reference material. For *how to write* a gadget see [specifying-circuits.md](specifying-circuits.md);
-for *how to prove* one see [proving-circuits.md](proving-circuits.md).
+Reference material. For the guided tour, which is authoritative where this file disagrees, see
+[how-to-clap.md](how-to-clap.md). For *how to write* a gadget see
+[specifying-circuits.md](specifying-circuits.md); for *how to prove* one see
+[proving-circuits.md](proving-circuits.md).
 
-The model is four layers. Read bottom-up the first time; after that jump to the layer you need.
+The model is five layers. Read bottom-up the first time; after that jump to the layer you need.
 
 ```
 1. Expressions   CacheExpr / ExprRef / HashConsSt / HashConsM   -- a hash-consed arithmetic heap
@@ -41,6 +43,11 @@ def CacheExpr.wellFormed {p : ℕ} (e : CacheExpr p) (idx : ExprRef) : Prop :=
     | c _ | v _ => True
     | binary_op lhs rhs _ => lhs < idx ∧ rhs < idx
 ```
+
+**Do not use `CacheExpr` directly.** It is shown here for reference only. There is practically
+never a reason to so much as utter this type outside fundamental changes to the infrastructure;
+if a gadget, spec or proof seems to need it, restructure the approach (rule 9 in
+[clap-agent-guide.md](clap-agent-guide.md)).
 
 `CacheExpr` is flat and non-recursive. Sub-expressions are `ℕ` indices into a heap:
 
@@ -190,6 +197,15 @@ abbrev ClapM (p : ℕ) (α : Type) : Type := CircuitT (HashConsM p) α
 Three effects, and no others: a **writer** of the gate list, a **state** `numAlloc` (the next
 free witness index), and a **state** holding the expression heap. There is no failure effect
 and no varStore inside the monad — the varStore is supplied later, at evaluation time.
+`ClapM` is the circuit **builder, not the evaluator**. The three components have fixed names
+throughout: `numAlloc` for the counter, `σ` for the heap, `circuit` for the gate list. Every
+circuit is a `ClapM p Unit`; intermediate actions have arbitrary result types.
+
+`ClapM` is a **lawful** monad. Mathlib's
+`instance [Monoid ω] [LawfulMonad M] : LawfulMonad (WriterT ω M)` (`Mathlib/Control/Monad/Writer.lean`)
+applies because `Circuit` is made a monoid under `Array.append` at
+[Monad.lean:55-60](../Clap/Model/Monad.lean#L55-L60). So `LawfulMonad`-generic lemmas, such as
+`Vector.mapM_cast` / `mapM_succ` in `Util/Containers.lean`, apply to it.
 
 The file documents the unfolding itself, with `rfl`:
 
@@ -246,9 +262,13 @@ In words:
 
 | conjunct | says |
 |---|---|
-| `circuit_wellFormed` | the emitted gates reference only allocated expressions and already-defined variables |
-| `numAlloc_wellFormed` | the monad's counter agrees with what the semantics says the circuit allocates |
-| `hashConsState_wellFormed` | the heap only grows (`σ.exprs.isPrefixOf …`) |
+| `circuit_wellFormed` | no gate contains an expression that is not hash-consed; every variable is allocated, i.e. exists in `Γ`; no gate depends on a variable allocated by gates not yet evaluated |
+| `numAlloc_wellFormed` | circuit building and evaluation agree on `numAlloc` |
+| `hashConsState_wellFormed` | the action only appends to the hash-cons state (`σ.exprs.isPrefixOf …`) |
+
+These conditions are not invisible when reasoning about `ClapM` circuits, but for the most part
+they can be ignored: `step` and the library lemmas carry them. Skim them, and come back only if
+something unexpected goes wrong.
 
 The compositional workhorse:
 
@@ -317,6 +337,11 @@ Both the `HashConsM` and the `ClapM` layer declare lemmas named `add_def` / `sub
 `namespace Clap.Lang` the bare name resolves to the `ClapM` one.
 
 #### `p` comes from the operands, never from the expected type
+
+If `a b : ExprRef`, then `a + b` / `a - b` / `a * b` fails to infer the `p` of the underlying
+monad. The fix is to annotate `a`/`b` as `BoundRef p` (or `F p` / `FB p`) **at the binder**, in
+the signature or with a typed `let`. The rest of this subsection explains why an inline
+ascription is not enough.
 
 `abbrev BoundRef (_ : ℕ) : Type := ExprRef` and `abbrev ExprRef := ℕ`
 ([CacheExpr.lean:6](../Clap/Model/HashCons/CacheExpr.lean#L6)). Two consequences, and the
@@ -484,6 +509,10 @@ def ClapM.getState (cmd : ClapM p α) (state : ClapMState p) : ClapMState p wher
   numAlloc := cmd.getNumAlloc state.numAlloc state.σ
 ```
 
+`Conversion` could be a typeclass; it is deliberately an explicit argument instead. That is what
+lets `F p` and `FB p`, one carrier, mean different things in different specs (see
+[§The standard conversions](#the-standard-conversions)).
+
 ### `Converts` — a *value* is correct
 
 ```lean
@@ -501,6 +530,14 @@ and evaluate exactly to the field encoding of the ideal value `val`.*
 
 Destructure it as `obtain ⟨h_length, h_varSet, h_wellFormed, h_result⟩ := h_a` — the fields are
 in the order `h_conversion, varSet_wf, expr_wf, value_eq`.
+
+Normally you never open it: `step` and the library lemmas move `Converts` facts around whole.
+Primitives are the exception (Skeleton 3 in [proving-circuits.md](proving-circuits.md)). For a
+worked case of opening one, start from `convertsM` in
+[FArray/zeroExtend.lean](../Clap/Lang/Data/FArray/zeroExtend.lean) and follow it into
+`FArray.converts_append` and `FArray.converts_iff_FB_converts`
+([Specialised.lean:313](../Clap/Model/Convert/Specialised.lean#L313)), which takes it apart field
+by field.
 
 ### `ConvertsM` — an *action* is correct
 
@@ -567,22 +604,25 @@ cannot discharge `lessThan.convertsM`'s `ha`. Use the gadget's `convertsM_unchec
 `convertsM_bind_guard` instead — see
 [proving-circuits.md](proving-circuits.md#using-a-range-established-earlier-in-the-circuit).
 
-**That shape also makes `convertsM_bind` unusable for a `do` block with two real assertions**,
-and `convertsM_bind_and` exists for exactly that case. Because `ConvertsM`'s third field is an
-`↔` with the constraints the action *actually* emits, the continuation's slot 5 is pinned to its
-true constraint `C₂`; `convertsM_bind` then demands `C₂ ↔ (C₁ → constraints)`, and no choice of
-`constraints` satisfies that when `C₁` can fail. Concretely, for `do eq0 a; eq0 b` with the
-intended spec `a_val = 0 ∧ b_val = 0` the obligation reduces to
+**That shape also makes `convertsM_bind` unusable for a `do` block with two assertions that can
+fail together**, and `convertsM_bind_and` exists for exactly that case. Because `ConvertsM`'s
+third field is an `↔` with the constraints the action *actually* emits, the continuation's slot 5
+is pinned to its true constraint `C₂`; `convertsM_bind` then demands `C₂ ↔ (C₁ → constraints)`.
+When `C₁` fails the right side is `True`, so this forces `C₂` whenever `C₁` fails, and no choice
+of `constraints` satisfies it when `C₁` and `C₂` can fail together. Concretely, for
+`do eq0 a; eq0 b` with the intended spec `a_val = 0 ∧ b_val = 0` the obligation reduces to
 
 ```
-b_val = 0  ↔  (a_val = 0 → a_val = 0 ∧ b_val = 0)
+b_val = 0  ↔  (a_val = 0 → a_val = 0 ∧ b_val = 0)      -- i.e. a_val = 0 ∨ b_val = 0
 ```
 
-which is false whenever `a_val ≠ 0` and `b_val ≠ 0`. `convertsM_bind_and` takes each half at its
-own honest constraint and conjoins them, which is what the underlying semantics
-(`Circuit.runAndEval_bind_constraints`) says anyway. Use `convertsM_bind` when everything before
-the last step has constraint `True` — which is every single-assertion gadget, hence most of
-them — and `convertsM_bind_and` as soon as two steps can each fail.
+which is false whenever `a_val ≠ 0` and `b_val ≠ 0`;
+[Examples/StepTwoAssertions.lean](../Clap/Examples/StepTwoAssertions.lean) proves that no spec
+rescues it. `convertsM_bind_and` takes each half at its own honest constraint and conjoins them,
+which is what the underlying semantics (`Circuit.runAndEval_bind_constraints`) says anyway. Use
+`convertsM_bind` when at most one step's constraint can fail under the lemma's hypotheses — which
+is every single-assertion gadget, hence most of them — and `convertsM_bind_and` as soon as two
+can fail together.
 
 ### The standard conversions
 
@@ -615,7 +655,9 @@ abbrev FList   (p : ℕ)   : Type := List (FB p)
 | `C.vector k` | `Vector C.IdealT k` | `(x.toList.map C.toExprs).flatten` | `(x.toList.map C.conversion).flatten` |
 
 `F p`, `FB p`, `F8 p`, `FArray p k`, `FBitVec p k`, `FVec p k` and `FList p` are all *the same
-underlying type* up to `Vector`/`List` wrapping — `ExprRef`. The distinction is entirely in
+underlying type* up to `Vector`/`List` wrapping — `ExprRef`. This is deliberate: the carriers are
+simple references to expressions, with no dependent types, and the semantics is built on the
+understanding that `F = ZMod` and `FB = Bool`. The distinction is entirely in
 which `Conversion` you cite in the spec. Choosing `FB.conversion` is a claim that the value is a
 bit, and `F8.conversion` that it is a byte; `FArray`, `FBitVec` and `FVec` have identical
 carriers and differ only in whether the ideal values are `Bool` or `ZMod p`.

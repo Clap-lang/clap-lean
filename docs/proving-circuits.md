@@ -8,6 +8,8 @@ when-to-use: You are proving a convertsM lemma, or a CLAP proof is stuck.
 
 Read [clap-agent-guide.md](clap-agent-guide.md) first, and
 [specifying-circuits.md](specifying-circuits.md) for the shape of the statement you are proving.
+[how-to-clap.md](how-to-clap.md#clap-example-and-how-to-prove-properties-about-it) proves `eq`
+with `step` line by line; it is the gentle version of Skeleton 1 below.
 
 ## What you actually have to show
 
@@ -35,7 +37,7 @@ Does the gadget body end in `return` / `pure`?
 
 Does the body iterate (mapM / foldlM)?  → additionally the induction recipe below.
 
-Can two or more steps each fail (non-`True` constraints)?
+Can two steps fail together (under the lemma's hypotheses)?
   → `step` will not do it; apply `convertsM_bind_and` by hand. See below.
 
 Does a gadget need a range that an earlier assertion establishes?
@@ -54,8 +56,9 @@ step <ConvertsM term> as <name>
 What it does, in order:
 
 1. Reads the goal, which **must** be `Clap.ConvertsM …`. Looks at the head of the `action`:
-   `Bind.bind` → applies `convertsM_bind`; `Functor.map` → applies `convertsM_map`; anything
-   else → warns *"Conclusion unchanged; spec missing for: …"* and does not restructure.
+   `Bind.bind` → applies `convertsM_bind`; `Functor.map` → applies `convertsM_map` (a `map` is
+   treated as a `bind` with `pure`); anything else → warns *"Conclusion unchanged; spec
+   missing for: …"* and does not restructure.
 2. Applies your supplied `ConvertsM` term to discharge the head subgoal. If it does not unify
    exactly you get *"Failed to unify. Bad."*.
 3. **Reframes every existing `Converts` hypothesis through the new state** using
@@ -65,6 +68,7 @@ What it does, in order:
    step's output), `h_wellFormed`, `h_constraints`.
 5. `set`s three abbreviations: `<name>` for the action, `<name>_result` for
    `<name>.getResult state.numAlloc state.σ`, `<name>_state` for `<name>.getState state`.
+   Because it is `set`, every occurrence of the stepped action is replaced by `<name>`.
 6. Runs `all_goals constraints`, where `constraints` is `first | (intros; trivial) | skip`.
 
 Consequences worth internalising:
@@ -75,14 +79,33 @@ Consequences worth internalising:
   you see nothing. For a real-constraint chain it cannot, and the two implication goals of
   `convertsM_bind` survive to the end of the proof. That is where soundness and completeness
   show up — see below.
-- **`step` goes through `convertsM_bind`, so it cannot sequence two assertions.** At most one
-  step in the chain may have a non-`True` constraint; it may sit anywhere, as long as every
-  other step is `True`. See
-  [When `step` does not apply](#when-step-does-not-apply--two-or-more-assertions).
+- **`step` goes through `convertsM_bind`, so it cannot sequence two assertions that can fail
+  together.** At most one step in the chain may have a constraint that can fail under the
+  lemma's hypotheses; it may sit anywhere. See
+  [When `step` does not apply](#when-step-does-not-apply--two-assertions-that-can-fail-together).
 - `step` takes an arbitrary term, not just a library lemma. Feeding it an induction hypothesis
   is idiomatic: `step @h_k fvals_base vals_base this as mapM` in
   [FArray/sum.lean](../Clap/Lang/Data/FArray/sum.lean), and `step h_len as mapM` in
   [FArray/OneHotRaw.lean](../Clap/Lang/Data/FArray/OneHotRaw.lean).
+
+### When the goal after `step` is only definitionally tidy
+
+After `step … as <name>` the goal should read `ConvertsM <C> <continuation> <name>_state <val>
+(<C₁> → <constraints>)`, with the continuation applied to `<name>_result`. The tactic sometimes
+mishandles the lift from `HashConsM` to `ClapM` (the `liftM` that `add_def` / `sub_def` /
+`mul_def` expose), and leaves a goal that is only *definitionally* equal to that. The proof is
+fine; restate the goal with `change`. In [FB/eq.lean](../Clap/Lang/Core/FB/eq.lean), after
+`step mkSub.convertsM h_a h_b as sub`:
+
+```lean
+change ConvertsM FB.conversion
+         (isZero sub_result)
+         sub_state
+         (a_val == b_val)
+         (True → True)
+```
+
+This is a known and easy fix to the tactic, not yet done.
 
 ### `step_state`
 
@@ -124,7 +147,7 @@ Whether you also need the `*_def` rewrite depends on where the operator sits:
 
 When in doubt, try `step` first; if it reports no match, add the rewrite.
 
-### When `step` does not apply — two or more assertions
+### When `step` does not apply — two assertions that can fail together
 
 `step` applies `convertsM_bind`, whose continuation obligation is
 `ConvertsM … (constraints1 → constraints)`. Because `ConvertsM`'s third field is an `↔` with the
@@ -135,25 +158,44 @@ So `convertsM_bind` demands
 C₂  ↔  (C₁ → constraints)
 ```
 
-and when `C₁` can fail there is no `constraints` that satisfies it. For `do eq0 a; eq0 b` with
-the intended spec `a_val = 0 ∧ b_val = 0` the goal reduces to
+When `C₁` fails the right side is `True`, so `C₂` must hold whenever `C₁` fails, whatever
+`constraints` is. With the honest spec `C₁ ∧ C₂` the obligation is exactly `C₁ ∨ C₂`: **`step`
+can sequence two assertions only if they never fail together.** For `do eq0 a; eq0 b` with the
+intended spec `a_val = 0 ∧ b_val = 0` the goal reduces to
 
 ```
-b_val = 0  ↔  (a_val = 0 → a_val = 0 ∧ b_val = 0)
+b_val = 0  ↔  (a_val = 0 → a_val = 0 ∧ b_val = 0)      -- i.e. a_val = 0 ∨ b_val = 0
 ```
 
-false whenever `a_val ≠ 0` and `b_val ≠ 0`. **This is not a proof you are getting wrong. The
-statement is unprovable in that shape.**
+false at `a_val = b_val = 1`. **This is not a proof you are getting wrong. The statement is
+unprovable in that shape**, and no other spec rescues it:
+[Examples/StepTwoAssertions.lean](../Clap/Examples/StepTwoAssertions.lean) proves
+`twoEq0.step_no_go`, that the goal `step` leaves is false for every spec, even one that depends on
+the inputs. `twoEq0.convertsM_of_eq_zero_or_eq_zero` in the same file walks through the `step`
+attempt, with each failure commented.
 
-So the rule is: in a `step` chain **at most one action may have a non-`True` constraint.** It
-need not be the last. When it comes first and everything after it is `True`, the continuation
-obligation is `True ↔ (C₁ → C₁)`, which holds, and `convertsM_bind`'s `constraints → C₁` side goal
-is closed by `exact id`. [HashToField/hashBytesToField.lean](../Clap/Poseidon/HashToField/hashBytesToField.lean)
-steps `assertIsBytes` first this way. Most gadgets put the assertion last — `assertBool` is three
-`True` steps then one `eq0`, `singleOneArray` is three `True` steps then one `assert_eq` — and
-none has two, which is why the restriction never surfaced.
+`step` itself never reports this. It applies `convertsM_bind` whatever the constraints are, so a
+`step` line that runs cleanly proves nothing yet; the failure surfaces only in the final `↔`.
 
-As soon as two steps can each fail, drop `step` for that bind and apply
+So the rule is: in a `step` chain **at most one action's constraint may be able to fail under the
+lemma's hypotheses.** A `True` constraint cannot fail, and neither can one the hypotheses make
+provable. Two shapes pass:
+
+- **One failing step, anywhere, every other step `True`.** It need not be the last. When it comes
+  first and everything after it is `True`, the continuation obligation is `True ↔ (C₁ → C₁)`,
+  which holds, and `convertsM_bind`'s `constraints → C₁` side goal is closed by `exact id`.
+  [HashToField/hashBytesToField.lean](../Clap/Poseidon/HashToField/hashBytesToField.lean) steps
+  `assertIsBytes` first this way. Most gadgets put the assertion last: `assertBool` is three
+  `True` steps then one `eq0`, and `singleOneArray` is three `True` steps then one `assert_eq`.
+- **An assertion that a hypothesis discharges.** If the lemma assumes what an assertion checks,
+  that assertion cannot fail, and `step` goes through; prove its constraint from the hypothesis
+  inside the final `↔`. `twoEq0.convertsM_of_eq_zero` assumes `a_val = 0`. Such a lemma says
+  nothing about inputs outside its hypothesis, and the assertion's conjunct in slot 5 is vacuous
+  under it. At the top level, where the inputs are arbitrary ([public-inputs.md](public-inputs.md)),
+  prefer the hypothesis-free shape of
+  [Using a range established earlier](#using-a-range-established-earlier-in-the-circuit).
+
+As soon as two steps can fail together, drop `step` for that bind and apply
 [`convertsM_bind_and`](../Clap/Model/Convert/Base.lean) by hand:
 
 ```lean
@@ -325,6 +367,10 @@ def conditionalSwap (sel : FB p) (a b : F p) : ClapM p (F p) := do
 
 `convertsM_of_convertsM h h_val h_constraints` leaves exactly two goals: the value equality and
 the constraints bi-implication. Close them with `rfl`, `grind`, `simp` or `trivial`.
+
+When the pieces do not line up (a value in another form, a conversion to cast), there is a
+variety of helpers for aligning them. The existing proofs under `Clap/Lang/` are the reference,
+and [§Type-changing moves](#type-changing-moves--do-not-re-derive-these) lists the common ones.
 
 When a step changes the conversion (`F` ↔ `FB`), do the cast with a `have` before applying —
 [FB/not.lean](../Clap/Lang/Core/FB/not.lean):
@@ -531,7 +577,7 @@ These are non-obvious and both proofs depend on them:
 | `converts_of_converts` | rewrite the ideal value of a `Converts` |
 | `convertsM_of_convertsM` | rewrite value **and** constraints of a `ConvertsM` |
 | `converts_skip` | carry a `Converts` past an intervening action (what `step` uses) |
-| `convertsM_bind_and` | sequence two actions that **both** assert; `step`/`convertsM_bind` cannot |
+| `convertsM_bind_and` | sequence two actions whose assertions can fail together; `step`/`convertsM_bind` cannot |
 | `convertsM_bind_guard` | the same, rewriting the continuation's constraint under the action's; its value and well-formedness stay unconditional. See [Using a range established earlier](#using-a-range-established-earlier-in-the-circuit) |
 | `FArray.converts_iff_FB_converts` | pointwise view of an `FArray` fact |
 | `FArray.converts_push` / `converts_pop` / `converts_getElem` / `converts_vector_cast` | vector surgery |
@@ -566,11 +612,12 @@ bidirectional, `→` / `←` implication, `.` use-as-fact, `! .` aggressive, `ca
 | *"Conclusion unchanged; spec missing for: …"* | the action's head is not `bind`/`map` | `unfold` first; or `rw [add_def/sub_def/mul_def]` if an operator is buried in a continuation (see [Before you can step](#before-you-can-step)); or use `step_state` |
 | No `.convertsM` lemma seems to exist for the `+`/`-`/`*` in the body | you are looking for the wrong name | the operators *are* `mkAdd`/`mkSub`/`mkMul`; step with `mkAdd.convertsM` etc. |
 | *"Failed to unify. Bad."* | the supplied `ConvertsM` does not match the head of the bind | check the conversion (`F` vs `FB`), and whether you need a cast lemma first |
+| After `step` the goal is not visibly the continuation at `<name>_state` / `<name>_result`, or the next `apply` / `exact` will not unify although it should | `step` mishandled the `HashConsM` → `ClapM` lift; the goal is only defeq to the tidy form | `change` the goal to the tidy form. See [When the goal after `step` is only definitionally tidy](#when-the-goal-after-step-is-only-definitionally-tidy) |
 | *"Assumptions of shape `Converts` refer to multiple states"* | a hypothesis was not carried forward | it should have been reframed by `step`; if you introduced it manually, apply `converts_skip` yourself |
 | *"Expected ConvertsM. Got: …"* | you passed a `Converts`, not a `ConvertsM`, to `step` | use `step` with the `.convertsM` lemma; a bare `Converts` is a `have`, not a step |
 | Goal explodes into raw `WriterT`/`StateT` terms | you unfolded an `@[irreducible]` gate | undo; go through `getResult_*` / `getCircuit_*` / `wellFormed_*` instead |
 | The constraints `↔` will not close and looks false | your slot-5 condition is wrong (often spuriously `True`) | fix the specification, not the proof |
-| The constraints `↔` reads `C₂ ↔ (C₁ → … C₁ … ∧ C₂)` and is false when `C₁` fails | you used `step`/`convertsM_bind` across **two** assertions; the shape is unprovable, not merely hard | re-do that bind with `convertsM_bind_and`, then reshape with `convertsM_of_convertsM`. See [When `step` does not apply](#when-step-does-not-apply--two-or-more-assertions) |
+| The constraints `↔` reads `C₂ ↔ (C₁ → … C₁ … ∧ C₂)` and is false when `C₁` and `C₂` both fail | you used `step`/`convertsM_bind` across **two** assertions that can fail together; the shape is unprovable, not merely hard | re-do that bind with `convertsM_bind_and`, then reshape with `convertsM_of_convertsM`. See [When `step` does not apply](#when-step-does-not-apply--two-assertions-that-can-fail-together) |
 | A gadget's `convertsM` needs a range (`ha : a_val.val < 2^w`, or an `F8.conversion` operand) that only an earlier `assert_range` establishes | `convertsM_bind` / `convertsM_bind_and` need the continuation's spec for *every* input; the range is only in the earlier step's slot 5 | use the gadget's `convertsM_unchecked`, and rewrite its constraint with `convertsM_bind_guard`. See [Using a range established earlier](#using-a-range-established-earlier-in-the-circuit) |
 | `step` right after a manual `convertsM_bind_and` times out in `whnf` | the action's `getResult` / `getState` are left as terms, and `step` unfolds them through a concrete width | `generalize` both `at *` first, as in [F8/isWhitespace.lean](../Clap/Lang/Data/F8/isWhitespace.lean) |
 | An extra unexplained goal at the end of a Skeleton-2 proof | the `convertsM_bind` implications for a non-`True` constraint | that is soundness/completeness; prove them |
@@ -667,7 +714,7 @@ reject.
 - [ ] `lake build` passes with no `sorry`, no `admit`, and no warnings beyond the two
       pre-existing `linter.dupNamespace` ones from `Clap/Util/Containers.lean:15`.
 - [ ] The proof uses `step` for each bind rather than manual `convertsM_bind` applications —
-      except where two steps can each fail, which `step` cannot express; those use
+      except where two steps can fail together, which `step` cannot express; those use
       `convertsM_bind_and`. Where a gadget consumes a range that an earlier assertion
       establishes, use its `convertsM_unchecked` and `convertsM_bind_guard`.
 - [ ] No `@[irreducible]` gate was `unfold`ed.

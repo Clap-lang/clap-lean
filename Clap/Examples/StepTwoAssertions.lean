@@ -17,7 +17,7 @@ natural spec in one line (`twoEq0.convertsM`). A hypothesis that rules out the f
 `a_val = 0 ∨ b_val = 0`, and goes through only with that as a hypothesis.
 
 See [docs/proving-circuits.md](../../docs/proving-circuits.md),
-§When `step` does not apply — two or more assertions.
+§When `step` does not apply — two assertions that can fail together.
 -/
 
 namespace Clap

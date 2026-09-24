@@ -19,6 +19,10 @@ inputs as circuit variables, and a way to relate the resulting refs back to the 
 
 ## `AllocatedProgram`
 
+Public inputs need a little extra care. Running a circuit from a pre-allocated state makes
+well-formedness slightly tricky, so a program with inputs is packaged as an `AllocatedProgram`,
+the abstraction for reasoning about circuits that start from a non-default state
+([how-to-clap.md §Handling public inputs](how-to-clap.md#handling-public-inputs)).
 [AllocatedProgram.lean](../Clap/Model/AllocatedProgram.lean):
 
 ```lean
@@ -41,8 +45,16 @@ structure AllocatedProgram (p : ℕ) where
 Two projections turn that into something you can state a theorem about:
 
 ```lean
-def getCircuit     (prog : AllocatedProgram p) : Circuit × HashConsSt p
-def getConstraints (prog : AllocatedProgram p) (inputs : Vector (ZMod p) prog.numAlloc) : Prop
+def getCircuit {p} (prog : AllocatedProgram p) : Circuit × HashConsSt p :=
+  let (inputs, σ) := prog.allocate.run (HashConsSt.empty p)
+  (
+    (prog.program inputs).getCircuit prog.numAlloc σ,
+    (prog.program inputs).getHashConsState prog.numAlloc σ
+  )
+
+def getConstraints {p} (prog : AllocatedProgram p) (inputs : Vector (ZMod p) prog.numAlloc) :=
+  let (circuit, σ) := prog.getCircuit
+  [.ofArray (inputs.toArray.zipIdx.map Prod.swap), σ, prog.numAlloc|circuit]ₑ.constraints
 ```
 
 `getCircuit` runs `allocate` against an empty `HashConsSt`, then builds the program's circuit
@@ -51,8 +63,9 @@ point, it is what stops the program's own intermediate allocations from collidin
 inputs. It returns the bootstrapped heap alongside the circuit.
 
 `getConstraints` evaluates that circuit in a varstore built by pairing `inputs` with indices
-`0 … numAlloc-1`. That map is the **input-order contract**: input `i` of the prover's vector is
-circuit variable `i`. Nothing enforces it beyond `allocate` handing out indices in order, so an
+`0 … numAlloc-1`. That is the only trick in the definition: `Γ` is exactly the first
+`prog.numAlloc` allocations. That map is the **input-order contract**: input `i` of the
+prover's vector is circuit variable `i`. Nothing enforces it beyond `allocate` handing out indices in order, so an
 allocator that allocates out of order silently permutes the public input.
 
 ## The allocators
@@ -108,8 +121,8 @@ where the associativity does not line up; both are cheap, neither needs the allo
 
 ## The end-to-end theorem
 
-The Poseidon example in [AllocatedProgram.lean](../Clap/Model/AllocatedProgram.lean) is the
-template. The program:
+The Poseidon example in [Examples/PoseidonProgram.lean](../Clap/Examples/PoseidonProgram.lean)
+is the template. The program:
 
 ```lean
 def poseidonProgram (k : ℕ) : AllocatedProgram Primes.bn254 where

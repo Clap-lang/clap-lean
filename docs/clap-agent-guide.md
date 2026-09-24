@@ -10,13 +10,17 @@ You are working in a Lean 4 repository that compiles a subset of Lean to SNARK c
 Circuits are built in the `ClapM p` monad ([Clap/Model/](../Clap/Model/)) and their
 correctness is stated as a single `ConvertsM` lemma ([Clap/Lang/](../Clap/Lang/)).
 
-Read this file, then go to the one that matches your task. If you need to know where something
-lives, [repo-layout.md](repo-layout.md) has the tree and the rules that keep its layers apart.
+Read this file, then go to the one that matches your task. On first contact with CLAP, read
+[how-to-clap.md](how-to-clap.md) once before anything else: it is the guided tour of `ClapM`,
+`Converts`/`ConvertsM` and `step`, and where it and the other files disagree, it is
+authoritative. If you need to know where something lives,
+[repo-layout.md](repo-layout.md) has the tree and the rules that keep its layers apart.
 
 ## Routing
 
 | Your task | Read | Then |
 |---|---|---|
+| New to CLAP, or want the why behind `ClapM` / `Converts` / `step` | [how-to-clap.md](how-to-clap.md) | [clap-model.md](clap-model.md) |
 | "Where does this file go?", "is this file still alive?", "what may import what?" | [repo-layout.md](repo-layout.md) | — |
 | "What is `Converts`?", "how does `ClapM` work?", "where is X defined?" | [clap-model.md](clap-model.md) | — |
 | Write a new gadget, or state what an existing one does | [specifying-circuits.md](specifying-circuits.md) — check §Existing inventory before writing anything, and §Iterating gadgets for the `foldlM`/`ofFnM` combinators | [proving-circuits.md](proving-circuits.md) |
@@ -92,6 +96,13 @@ cannot be closed.
    `linter.dupNamespace` warnings for the `Clap.monads` attribute. Ignore those two; do not add
    more.)
 
+9. **Do not state anything in terms of `CacheExpr`.** It is the heap's internal node type
+   ([HashCons/CacheExpr.lean](../Clap/Model/HashCons/CacheExpr.lean)), and there is
+   practically never a reason to so much as utter it outside fundamental changes to the
+   infrastructure. Gadgets, specs and proofs work with `ExprRef` / `F p` and `Converts`. If a
+   statement seems to need `CacheExpr`, restructure the approach. See
+   [how-to-clap.md §Clapping](how-to-clap.md#clapping).
+
 ## Metavariable conventions
 
 Follow these or your code will read as foreign to the rest of the tree.
@@ -101,7 +112,9 @@ Follow these or your code will read as foreign to the rest of the tree.
 | `p` | the prime / field modulus |
 | `p'` | modulus **limbs** for `fpmul`, never the prime |
 | `Γ`, `varStore` | the variable store, `VarStore p` |
-| `σ` | the hash-cons heap, `HashConsSt p` |
+| `σ` | the hash-cons heap, `HashConsSt p` — the `ClapM` state holding every hash-consed expression |
+| `numAlloc` | the number of allocations so far — the `ClapM` state `StateM ℕ`, and the next free variable index |
+| `circuit` | the accumulated gate sequence, `Circuit` — the `ClapM` writer |
 | `e!` | a raw `ExprRef` |
 | `e` | a bundled `Expr p` (a ref plus the heap it lives in) |
 | `x` | a circuit-level reference |
