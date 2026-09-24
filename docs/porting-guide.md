@@ -209,9 +209,10 @@ a `ConstraintSystem/` lowering and a `WitnessGenerator/` module. What is missing
 a genuine `num_constraints` per gate. `Circuit.toWg` is its counterpart in
 [WitnessGenerator/toWg.lean](../Clap/Model/WitnessGenerator/toWg.lean).
 [Test/Backend.lean](../Clap/Test/Backend.lean) runs both end to end and `#eval`s
-`wellbehaved`/`complete`/`sound`. So a `native_decide` smoke test is available, and
-[Poseidon.lean](../Clap/Poseidon/Poseidon.lean) uses one to pin two circomlib hash
-vectors.
+`wellbehaved`/`complete`/`sound`. So a `native_decide` smoke test is available.
+[Poseidon.lean](../Clap/Poseidon/Poseidon.lean) pins eight circomlib / `poseidon-ark` hash
+vectors, at arities 1, 2, 4, 5 and 6 — by *evaluation*, not through the back end, which cannot
+yet lower `poseidonBN254` (see [proving-circuits.md](proving-circuits.md)).
 
 One caveat: R1CS serialisation still has no new-model counterpart. `R1Serialize/R1CS.lean` (the
 snarkjs `.r1cs`/`.wtns` writer) is model-agnostic and still a live Lake target, but its only
@@ -223,14 +224,19 @@ consumers — `old/Clap/Quadratic.lean` and `old/Clap/Milestone.lean` — are in
 what the old `#compile` reifier used to give you for free.
 
 **Iteration combinators — partly solved.** [Clap/Lang/Core/Combinators/](../Clap/Lang/Core/Combinators/)
-now has `convertsM_foldlM`, `convertsM_foldlM_constraints` and `convertsM_ofFnM`, all generic in
-the element conversion. Use them instead of copying `OneHotRaw.lean`'s ~120 lines. There is
-still no `forIn` combinator, and old code uses `for … in … do` inside `Option` freely.
+now has `convertsM_foldlM`, `convertsM_foldlM_constraints`, `convertsM_ofFnM` and
+`convertsM_mapM`, all generic in the element conversion. Use them instead of copying
+`OneHotRaw.lean`'s ~120 lines. `convertsM_mapM` maps a field-valued gadget over a vector of
+*inputs* (`ofFnM` only fits constants); `Packing.chunksToFieldElems` and
+`Packing.bigEndianBitsToScalars` are built on it. `convertsM_mapM_constraints` is the general
+form: any result conversion, and steps that may assert. Its result is a `Conversion.vector`, and
+`Packing.bytes2BigEndianBits` is built on it. There is still no `forIn` combinator, and old
+code uses `for … in … do` inside `Option` freely.
 
 **Conversions.** The original five (`F`/`FB`/`FUnit`/`FArray`/`FList`) are all fixed-length and
-element-wise. Four more now exist, three in
-[Convert/Specialised.lean](../Clap/Model/Convert/Specialised.lean) and one in
-`FString/Basic.lean`:
+element-wise. Five more now exist: three in
+[Convert/Specialised.lean](../Clap/Model/Convert/Specialised.lean), one in
+`FString/Basic.lean` and one in [Convert/Vector.lean](../Clap/Model/Convert/Vector.lean):
 
 - `F8.conversion` — `IdealT := UInt8`, a byte held in one field element, with
   `F.converts_of_F8_converts` and `F8.converts_of_F_converts` (the latter needs
@@ -248,14 +254,18 @@ element-wise. Four more now exist, three in
   the statement that `Converts FString.conversion` holds. It is injective only for strings
   shorter than `w` with characters under 256, `256 < p` and `w < p`, so gadgets needing
   injectivity take those as explicit hypotheses — see `isPaddedOf.encode_eq_iff`.
+- `Conversion.vector C k` in [Convert/Vector.lean](../Clap/Model/Convert/Vector.lean) — the
+  *nested* one: a `Vector β k` whose elements each convert under `C`, laid out one after another,
+  with `IdealT := Vector C.IdealT k`. `FArray.conversion.vector n` is a vector of bit vectors. It
+  has `converts_empty`, `converts_push` and `FArray.converts_flatten`, which is enough for a
+  `mapM` followed by `flatten`, but no lemma yet projecting out one element.
 
 `PaddedVector` is now polymorphic in its element type — `PaddedVector α p w` is
 `data : Vector α w` plus `len : F p`, and `FString p w = PaddedVector (F p) p w`. The keyless
 inputs also use `PaddedVector (FB p) p w` for per-character flags.
 
-Still missing: `Sha2`'s `Hash = Vector t.U32 8`, where each `U32` is itself `Vector (FB p) 32` —
-a *nested* conversion, which `FArray.conversion : Conversion p (Vector (FB p) k)` cannot
-express. Design it deliberately before porting anything that needs it.
+`Sha2`'s `Hash = Vector t.U32 8`, where each `U32` is itself `Vector (FB p) 32`, is
+`FArray.conversion.vector 8`. Porting it still needs that element-projection lemma.
 
 ## Suggested order
 
@@ -290,8 +300,9 @@ were deliberately *not* ported, and should not be added back:
 - **`FBitVec.ofF`** — was `num2bits w e` with the same argument order, so it is a pure alias.
   Use `num2bits`. Only the width-specialised `FBV8.ofF` / `F32.ofF` / `F64.ofF` exist.
 - **`FByteArray`** (`old/Clap/Lang.lean:1050`) — its namespace is empty, and the type itself is
-  `Vector (FBV8 p) w`, i.e. `Vector (Vector (FB p) 8) w`. That is the *nested* conversion
-  `FArray.conversion` cannot express (see Conversions above). Design the conversion first.
+  `Vector (FBV8 p) w`, i.e. `Vector (Vector (FB p) 8) w`. Its conversion now exists as
+  `FArray.conversion.vector w` (see Conversions above), but with the namespace empty there is
+  still nothing to port except a type alias.
 - **The `Spec.*` decode layer** — `toBV`, `toUInt8`, `toUInt32`, `toChar`, `toString`, `valid`
   and the `left_inv` / `right_inv` round-trips. Superseded by the conversions, as everywhere
   else. Note the *arithmetic* underneath them is not lost: `Clap.bits2num_bound`,
@@ -315,7 +326,6 @@ a gadget that already exists under another of these three names — check all th
 | `selectArrayValue` | `old/Clap/Array.lean` | `dotProduct` of `singleOneArray` with the array |
 | `leftArraySelector`, `rightArraySelector` | `old/Clap/Array.lean` | need `Vector.scanl`/`scanr` analogues; `FArray/xorScan.lean` is the closest existing pattern |
 | `arraySelectorComplex` | `old/Clap/Array.lean` | after the two selectors |
-| all of `old/Clap/Packing.lean` | | on `num2bits` |
 | all of `old/Clap/Base64Len.lean` | | on `num2bits`, and `share` for the degree reduction |
 
 **After `share` is wrapped**: the degree-reducing parts of `old/Clap/Base64Len.lean`, and
@@ -323,13 +333,26 @@ a gadget that already exists under another of these three names — check all th
 
 **After `fpmul` lands**: `old/Clap/RSA.lean`.
 
-**After the nested conversion is designed**: `old/Clap/Sha2/*` (note `Sha2/Basic.lean` is already
+**After `Conversion.vector` gets an element-projection lemma**: `old/Clap/Sha2/*` (note `Sha2/Basic.lean` is already
 monad-polymorphic over `[Monad m]` and typeclass-parameterised over the word representation — it
 is the most portable old code in the repo).
 
+**`old/Clap/Packing.lean` and `old/Clap/HashToField.lean` are done.**
+[Clap/Lang/Data/Packing/](../Clap/Lang/Data/Packing/) has the eight Circom `helpers/packing`
+templates, including `num2BigEndianBits`, which the old model inlined;
+[Clap/Poseidon/HashToField/](../Clap/Poseidon/HashToField/) has `hashElemsToField`,
+`hashBytesToField` and `hash64BitLimbsToField`. HashToField sits above `Clap/Lang/` because
+Poseidon does. Poseidon has no `convertsM`, and no functional spec to prove one against: every
+hashing gadget takes [`Poseidon.Computes H`](../Clap/Poseidon/Computes.lean) — the circuit
+computes *some* hash family `H` — as a hypothesis, and states its ideal value through `H`. No
+`sorry` is involved. The random-oracle idealisation the Fiat–Shamir ports will need is
+[RandomOracle.lean](../Clap/Poseidon/RandomOracle.lean): `H` drawn uniformly from all functions
+on queries of arity at most 16, with Schwartz–Zippel and a union bound ported from the older
+development. It replaces that development's `ROModel`, which its module doc explains is vacuous.
+
 **Unblocked by `FString.conversion`, not yet done**: the separate, larger `old/Clap/FString.lean`
-(only `old/Clap/Lang.lean`'s `FString` has been ported), `old/Clap/HashToField.lean`, `old/Clap/JWT.lean`,
-`old/Clap/Keyless.lean`.
+(only `old/Clap/Lang.lean`'s `FString` has been ported), `old/Clap/JWT.lean`,
+`old/Clap/Keyless.lean`. All three can now hash with `hashBytesToField`.
 
 **Retired, do not port**: `old/Clap/Circuit.lean` (PHOAS syntax), `old/Clap/Simulation.lean`,
 `old/Clap/Compilation.lean`, `old/Clap/Compiler/*` (the `#compile` reifier), `old/Clap/Milestone.lean`.
@@ -358,7 +381,9 @@ Note `Fact (Nat.Prime goldilocks)` and `Fact (Nat.Prime bn254)` are `sorry`'d in
   former, and the old code carried a comment warning that typeclass resolution mixes them up.
   With `F p = BoundRef p` this gets *worse*: `F p`, `FB p`, `F8 p` are now all the same
   underlying type, and the intended invariant lives only in whichever `Conversion` you cite at
-  proof time. Consider real `structure` wrappers before porting `Sha2` or `Packing`.
+  proof time. `Packing` was ported without wrappers — each gadget cites `FVec` for byte and limb
+  vectors and `FArray` for bit vectors, and that choice carries the distinction. Consider real
+  `structure` wrappers before porting `Sha2`.
 - **Dependent casts now sit inside binds.** `F32.add`'s `min 32 (32+1) = 32`,
   `Base64Len`'s `(w*4/3)*6 = w*8`, `Sha2`'s `32 - n + n = 32`. This is less painful than it
   looks, and `F32.add` is the worked case: **put the cast in the spec value, not in the proof**,

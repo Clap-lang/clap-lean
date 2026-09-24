@@ -524,6 +524,22 @@ lemma converts_tail
   . simp; congr 1; omega
   . simp; congr 1; omega
 
+/-- Chunk `i` of a converting bit vector converts to chunk `i` of its bits. -/
+lemma converts_toChunks
+  {w size}
+  {state : ClapMState p}
+  {exprs : FArray p (w * size)}
+  {vals : Vector Bool (w * size)}
+  (h : Converts conversion state exprs vals)
+  (i : Fin w)
+:
+  Converts conversion state (toChunks size exprs)[i] (toChunks size vals)[i]
+:= by
+  rewrite [converts_iff_FB_converts] at ⊢ h
+  intro ⟨j, h_j⟩
+  simp only [Fin.getElem_fin, getElem_toChunks]
+  exact h ⟨i * size + j, toChunks_index_lt i.isLt h_j⟩
+
 end FArray
 
 
@@ -758,8 +774,51 @@ lemma converts_of_FArray_converts
   convert F.converts_of_FB_converts (h ⟨i, h_i⟩) using 1
   simp
 
-end FVec
+lemma converts_replicate
+  {k}
+  {state : ClapMState p}
+  {expr : F p}
+  {val : ZMod p}
+  (h : Converts F.conversion state expr val)
+:
+  Converts conversion state (Vector.replicate k expr) (Vector.replicate k val)
+:= by
+  rewrite [converts_iff_F_converts]
+  intro ⟨i, h_i⟩
+  convert h using 1 <;> simp
 
+lemma converts_extract
+  {k}
+  (s e : ℕ)
+  {state : ClapMState p}
+  {exprs : FVec p k}
+  {vals : Vector (ZMod p) k}
+  (h : Converts conversion state exprs vals)
+:
+  Converts conversion state (exprs.extract s e) (vals.extract s e)
+:= by
+  rewrite [converts_iff_F_converts] at ⊢ h
+  intro ⟨i, h_i⟩
+  have := h ⟨s + i, by omega⟩
+  simpa [Vector.getElem_extract] using this
+
+/-- Chunk `i` of a converting vector converts to chunk `i` of its values. -/
+lemma converts_toChunks
+  {w size}
+  {state : ClapMState p}
+  {exprs : FVec p (w * size)}
+  {vals : Vector (ZMod p) (w * size)}
+  (h : Converts conversion state exprs vals)
+  (i : Fin w)
+:
+  Converts conversion state (toChunks size exprs)[i] (toChunks size vals)[i]
+:= by
+  rewrite [converts_iff_F_converts] at ⊢ h
+  intro ⟨j, h_j⟩
+  simp only [Fin.getElem_fin, getElem_toChunks]
+  exact h ⟨i * size + j, toChunks_index_lt i.isLt h_j⟩
+
+end FVec
 
 namespace FList
 

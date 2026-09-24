@@ -131,6 +131,17 @@ work of A; if you can express your gadget without iteration, do.
 | `FArray.xorScan a` | [FArray/xorScan.lean](../Clap/Lang/Data/FArray/xorScan.lean) | `ClapM p (FArray p k)` | running `xor` prefix scan | `True` |
 | `FBitVec.eq a b` | [FBitVec/eq.lean](../Clap/Lang/Data/FBitVec/eq.lean) | `ClapM p (FB p)` | `a_val == b_val` | `True` |
 | `FBitVec.assert_eq a b` | [FBitVec/assert_eq.lean](../Clap/Lang/Data/FBitVec/assert_eq.lean) | `ClapM p Unit` | `()` | `a_val = b_val` |
+| `Packing.assertIsBytes a` | [Packing/assertIsBytes.lean](../Clap/Lang/Data/Packing/assertIsBytes.lean) | `ClapM p Unit` | `()` | `∀ i, a_vals[i].val < 2 ^ 8` |
+| `Packing.assertIs64BitLimbs a` | [Packing/assertIs64BitLimbs.lean](../Clap/Lang/Data/Packing/assertIs64BitLimbs.lean) | `ClapM p Unit` | `()` | `∀ i, a_vals[i].val < 2 ^ 64` |
+| `Packing.bigEndianBits2Num bits` | [Packing/bigEndianBits2Num.lean](../Clap/Lang/Data/Packing/bigEndianBits2Num.lean) | `ClapM p (F p)` | `FArray.toNum bits_val.reverse` | `True` |
+| `Packing.num2BigEndianBits w e` | [Packing/num2BigEndianBits.lean](../Clap/Lang/Data/Packing/num2BigEndianBits.lean) | `ClapM p (FArray p w)` | `num2bits`, reversed | `e_val.val < 2 ^ w` |
+| `Packing.bytes2BigEndianBits bytes` | [Packing/bytes2BigEndianBits.lean](../Clap/Lang/Data/Packing/bytes2BigEndianBits.lean) | `ClapM p (FArray p (n*8))` | each byte's bits MSB first, flattened | `∀ i, vals[i].val < 2 ^ 8` |
+| `Packing.chunksToFieldElem b chunks` | [Packing/chunksToFieldElem.lean](../Clap/Lang/Data/Packing/chunksToFieldElem.lean) | `ClapM p (F p)` | `Packing.chunksToNum b vals` (little-endian, base `2^b`) | `True` |
+| `Packing.chunksToFieldElems cps b chunks` | [Packing/chunksToFieldElems.lean](../Clap/Lang/Data/Packing/chunksToFieldElems.lean) | `ClapM p (FVec p w)` | `(toChunks cps vals).map (chunksToNum b)` | `True` |
+| `Packing.bigEndianBitsToScalars bps bits` | [Packing/bigEndianBitsToScalars.lean](../Clap/Lang/Data/Packing/bigEndianBitsToScalars.lean) | `ClapM p (FVec p w)` | each `bps`-bit chunk read big-endian | `True` |
+| `HashToField.hashElemsToField input` | [HashToField/hashElemsToField.lean](../Clap/Poseidon/HashToField/hashElemsToField.lean) | `ClapM bn254 (F bn254)` | `hashElemsToFieldSpec H vals` — Poseidon, or a 16-ary tree up to 64 | `True`, given `Poseidon.Computes H`, `0 < n ≤ 64` |
+| `HashToField.hashBytesToField input` | [HashToField/hashBytesToField.lean](../Clap/Poseidon/HashToField/hashBytesToField.lean) | `ClapM bn254 (F bn254)` | `hashBytesToFieldSpec H data_vals len_val` | `∀ i, data_vals[i].val < 2 ^ 8`, given `Poseidon.Computes H`, `numBytes ≤ 1953` |
+| `HashToField.hash64BitLimbsToField input` | [HashToField/hash64BitLimbsToField.lean](../Clap/Poseidon/HashToField/hash64BitLimbsToField.lean) | `ClapM bn254 (F bn254)` | `hash64BitLimbsToFieldSpec H limbs_vals len_val` | `True`, given `Poseidon.Computes H`, `numLimbs ≤ 45` |
 
 Three things the table cannot show:
 
@@ -156,7 +167,8 @@ Three things the table cannot show:
 
 For iterating gadgets, do not hand-roll the induction — see
 [§Iterating gadgets need rewrite lemmas *first*](#iterating-gadgets-need-rewrite-lemmas-first)
-for `convertsM_foldlM`, `convertsM_foldlM_constraints` and `convertsM_ofFnM`.
+for `convertsM_foldlM`, `convertsM_foldlM_constraints`, `convertsM_ofFnM`, `convertsM_mapM` and
+`convertsM_mapM_constraints`.
 
 Not yet wrapped: **`share`** and **`fpmul`**. Both are fully implemented *gates* — they are in
 [eDSL.lean](../Clap/Model/eDSL.lean) with the complete `wellFormed_*` / `eval_edsl_*` /
@@ -313,12 +325,17 @@ has reusable `ConvertsM` lemmas for the two common iteration shapes, both generi
 |---|---|
 | `convertsM_foldlM` | `Vector.foldlM` whose step asserts nothing |
 | `convertsM_foldlM_constraints` | `Vector.foldlM` whose step asserts; the fold's constraint is `∀ i, …` |
-| `convertsM_ofFnM` | `Vector.ofFnM`, building a vector position by position |
+| `convertsM_ofFnM` | `Vector.ofFnM`, building a vector position by position — each position's action must hold in *every* state, so constants only |
+| `convertsM_mapM` | `Vector.mapM` of a field-valued gadget over a vector of inputs; the result is an `FVec` |
+| `convertsM_mapM_constraints` | `Vector.mapM` of a gadget with any result conversion `C_out`, whose step may assert; the result is a `C_out.vector k` and the constraint is `∀ i, …` |
 
 Reach for those before hand-rolling an induction. `dotProduct`, `FArray.bits2num`,
-`FArray.eq`, `FArray.assert_eq`, `FVec.eq` and `FString.ofString` are all built on them.
-`OneHotRaw.lean` predates them and still carries its own ~120 lines; `FArray/sum.lean` likewise.
-There is still no `forIn` combinator, and no `mapM` one beyond `ofFnM`.
+`FArray.eq`, `FArray.assert_eq`, `FVec.eq`, `FString.ofString` and the `Packing` gadgets are
+all built on them. `OneHotRaw.lean` predates them and still carries its own ~120 lines;
+`FArray/sum.lean` likewise. There is still no `forIn` combinator. A `mapM` whose step returns a
+vector goes through `convertsM_mapM_constraints`, whose result conversion is `Conversion.vector`
+([Convert/Vector.lean](../Clap/Model/Convert/Vector.lean)); `FArray.converts_flatten` then turns a
+vector of bit vectors into one. `Packing.bytes2BigEndianBits` is built that way.
 
 ## Templates
 

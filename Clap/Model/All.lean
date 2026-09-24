@@ -10,6 +10,7 @@ import Clap.Model.ConstraintSystem.toCs
 import Clap.Model.Convert.Base
 import Clap.Model.Convert.PaddedVector
 import Clap.Model.Convert.Specialised
+import Clap.Model.Convert.Vector
 import Clap.Model.eDSL
 import Clap.Model.Expr
 import Clap.Model.Gate

@@ -185,6 +185,69 @@ example :
   some 14763215145315200506921711489642608356394854266165572616578112107564877678998 := by
   native_decide
 
+/-! More arities, from the old model's commented-out suite (`old/Clap/Poseidon/Poseidon.lean`).
+`Clap.HashToField` assumes `poseidonBN254` computes *a* function at every arity from 1 to 16
+(`Clap.Poseidon.Computes`); these vectors are the evidence that the circuit really is Poseidon
+at the arities they cover, so that assumption is not vacuous there. -/
+
+/-- `poseidonBN254` of constant inputs, evaluated in the varStore its own circuit produces. -/
+private def hashOf {n : ℕ} (xs : Vector (ZMod Primes.bn254) n) : Option (ZMod Primes.bn254) :=
+  let cmd : ClapM Primes.bn254 (HashConsSt Primes.bn254 × ExprRef) := do
+    let refs ← xs.mapM (fun x ↦ liftM (mkConstant (p := Primes.bn254) x))
+    let z ← poseidonBN254 refs
+    let σ ← getThe (HashConsSt Primes.bn254)
+    return (σ, z)
+  let Γ := cmd.getVarStore {} 0 {}
+  let r := (cmd.run 0 {}).1.1.1
+  [Γ, r.1|r.2]
+
+/-- arity 1 (arnaucube's `poseidon-ark` suite, which `aptos_crypto::poseidon_bn254` is tested against) -/
+example : hashOf #v[1] =
+  some 18586133768512220936620570745912940619677854269274689475585506675881198879027 := by
+  native_decide
+
+/-- arity 4, the identity commitment's arity; also circomlibjs's `poseidonperm_x5_254_5` -/
+example : hashOf #v[1, 2, 3, 4] =
+  some 18821383157269793795438455681495246036402687001665670618754263018637548127333 := by
+  native_decide
+
+/-- arity 5, circomlib `test/poseidoncircuit.js#L29` -/
+example : hashOf #v[1, 2, 0, 0, 0] =
+  some 1018317224307729531995786483840663576608797660851238720571059489595066344487 := by
+  native_decide
+
+/-- arity 5, circomlib `test/poseidoncircuit.js#L39` -/
+example : hashOf #v[3, 4, 5, 10, 23] =
+  some 13034429309846638789535561449942021891039729847501137143363028890275222221409 := by
+  native_decide
+
+/-- arity 6, the nonce commitment's arity (`poseidon-ark`) -/
+example : hashOf #v[1, 2, 0, 0, 0, 0] =
+  some 15336558801450556532856248569924170992202208561737609669134139141992924267169 := by
+  native_decide
+
+/-- arity 6 (`poseidon-ark`) -/
+example : hashOf #v[1, 2, 3, 4, 5, 6] =
+  some 20400040500897583745843009878988256314335038853985262692600694741116813247201 := by
+  native_decide
+
+/-
+Arities 14 (the public-inputs hash) and 16 (the widest, and `HashElemsToField`'s leaves) are
+left as comments: at ~45 s each they would dominate the build. `[1..16]` was checked by hand
+on 2026-09-23 with `#eval! hashOf …` and matches; the other three have not been run.
+
+-- arity 14 (`poseidon-ark`)
+example : hashOf #v[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14] =
+  some 8354478399926161176778659061636406690034081872658507739535256090879947077494
+example : hashOf #v[1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0] =
+  some 5540388656744764564518487011617040650780060800286365721923524861648744699539
+-- arity 16 (`poseidon-ark`)
+example : hashOf #v[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] =
+  some 9989051620750914585850546081941653841776809718687451684622678807385399211877
+example : hashOf #v[1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0, 0] =
+  some 11882816200654282475720830292386643970958445617880627439994635298904836126497
+-/
+
 end examples
 
 end Clap

@@ -1,4 +1,5 @@
 import Clap.Lang.Core.Combinators.foldlM
+import Clap.Lang.Core.Combinators.mapM
 import Clap.Lang.Core.Combinators.ofFnM
 import Clap.Lang.Core.F.conditionalSwap
 import Clap.Lang.Core.F.dotProduct
@@ -45,6 +46,14 @@ import Clap.Lang.Data.FBitVec.eq
 import Clap.Lang.Data.FString.isPaddedOf
 import Clap.Lang.Data.FString.ofString
 import Clap.Lang.Data.FVec.eq
+import Clap.Lang.Data.Packing.assertIs64BitLimbs
+import Clap.Lang.Data.Packing.assertIsBytes
+import Clap.Lang.Data.Packing.bigEndianBits2Num
+import Clap.Lang.Data.Packing.bigEndianBitsToScalars
+import Clap.Lang.Data.Packing.bytes2BigEndianBits
+import Clap.Lang.Data.Packing.chunksToFieldElem
+import Clap.Lang.Data.Packing.chunksToFieldElems
+import Clap.Lang.Data.Packing.num2BigEndianBits
 import Clap.Lang.Data.Widths
 import Clap.Lang.Gate.eq0
 import Clap.Lang.Gate.isZero

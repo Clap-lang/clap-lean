@@ -575,7 +575,8 @@ them — and `convertsM_bind_and` as soon as two steps can each fail.
 
 Eight of them in
 [Convert/Specialised.lean:54-134](../Clap/Model/Convert/Specialised.lean#L54-L134), plus
-`FString.conversion` in [FString/Basic.lean](../Clap/Model/Convert/PaddedVector.lean):
+`FString.conversion` in [FString/Basic.lean](../Clap/Model/Convert/PaddedVector.lean) and the
+generic `Conversion.vector` in [Convert/Vector.lean](../Clap/Model/Convert/Vector.lean):
 
 ```lean
 abbrev F       (p : ℕ)   : Type := HashConsM.BoundRef p   -- a field element
@@ -598,6 +599,7 @@ abbrev FList   (p : ℕ)   : Type := List (FB p)
 | `FList.conversion` | `List Bool` | `x` | `x.map (if · then 1 else 0)` |
 | `FPair.conversion` | `ZMod p × ZMod p` | `[x.1, x.2]` | `[x.1, x.2]` |
 | `FString.conversion` | `String` | `x.data.toList ++ [x.len]` | `(encodeV w s).toList ++ [s.length]` |
+| `C.vector k` | `Vector C.IdealT k` | `(x.toList.map C.toExprs).flatten` | `(x.toList.map C.conversion).flatten` |
 
 `F p`, `FB p`, `F8 p`, `FArray p k`, `FBitVec p k`, `FVec p k` and `FList p` are all *the same
 underlying type* up to `Vector`/`List` wrapping — `ExprRef`. The distinction is entirely in
@@ -614,6 +616,11 @@ explicit hypotheses rather than folding them into `Converts`.
 
 `FPair.conversion` exists so that a fold over `a.zip b` has an element conversion to name — see
 [Combinators/foldlM.lean](../Clap/Lang/Core/Combinators/foldlM.lean) and any two-vector gadget.
+
+`Conversion.vector C k` is the nested one: a vector whose elements each convert under `C`, laid
+out one after another, so `FArray.conversion.vector n` is a vector of bit vectors.
+`convertsM_mapM_constraints` produces it, and `FArray.converts_flatten` turns a vector of bit
+vectors back into one.
 
 `FString.conversion` is the odd one out, living in
 [FString/Basic.lean](../Clap/Model/Convert/PaddedVector.lean) rather than `Specialised.lean`:

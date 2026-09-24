@@ -186,6 +186,12 @@ asserts, so every iteration is a two-assertion bind:
 Its sibling `convertsM_foldlM` (step constraint `True`) could have used `step`; it uses
 `convertsM_bind_and` too, purely so the two proofs stay the same shape.
 
+`convertsM_mapM_constraints` in [Combinators/mapM.lean](../Clap/Lang/Core/Combinators/mapM.lean)
+is the same pattern for `Vector.mapM`. Every element's gadget asserts, so each step is a
+two-assertion bind, closed with `convertsM_bind_and` and `convertsM_map`.
+[Packing/bytes2BigEndianBits.lean](../Clap/Lang/Data/Packing/bytes2BigEndianBits.lean) is built on
+it, with `FArray.converts_flatten` for the final `flatten`.
+
 ## Skeleton 1 — straight-line composition
 
 `unfold` → one `step` per bind → close the tail call with `convertsM_of_convertsM`.
@@ -502,13 +508,18 @@ have to establish.
 
 ### Two smoke-test styles, and when each works
 
-**The constant-folding style**, [Poseidon.lean](../Clap/Poseidon/Poseidon.lean): build the
-inputs with `mkConstant`, then evaluate the result ref against the *empty* varStore with
-`return [{}, σ|z]` and `native_decide` on `.getResult 0 (HashConsSt.empty p)`.
+**The evaluation style**, [Poseidon.lean](../Clap/Poseidon/Poseidon.lean): build the inputs with
+`mkConstant`, then evaluate the result ref in the varStore the circuit's *own semantics* produces,
+`cmd.getVarStore {} 0 {}`, against the final heap. Because that varStore is the result of
+`Circuit.eval`, it holds the values of every allocated variable — `share` outputs,
+`num2bits` bits — so this works for gadgets built on them;
+[HashToField/hashBytesToField.lean](../Clap/Poseidon/HashToField/hashBytesToField.lean) runs
+through `num2bits` gates this way. Evaluating against the *empty* varStore instead only works
+when no gate allocates.
 
-This only works when every value is constant-folded through the hash-cons heap. **It cannot be
-used for anything built on `num2bits`**, whose outputs are freshly allocated *variables* — they
-have no value in `σ`, so the evaluation yields `none`.
+It checks the *value* a gadget computes, not whether its constraints are satisfiable — the model's
+`constraints` is a `Prop`, not something to evaluate. It is the only style available for anything
+containing `poseidonBN254`, which the lowering style below cannot handle.
 
 **The lowering style**, for everything else. Take the gadget to a real constraint system and
 run it, exactly as [Test/Backend.lean](../Clap/Test/Backend.lean) does for a hand-built `Circuit`:
@@ -529,12 +540,21 @@ example : sat … = true := by native_decide
 
 `getCircuit` / `getHashConsState` are what bridge `ClapM` to `Circuit`. Feed constants via
 `FArray.ofBitVec` / `mkF` and use `0` public inputs, or allocate with `HashConsM.mkVar` and pass
-values in the `#v[…]`. Four traps:
+values in the `#v[…]`. Five traps:
 
-- **`wg.run` needs `[Fact (Nat.Prime p)]`, and `Primes.goldilocks` / `Primes.bn254` are
-  `sorry`'d** in `Clap/Util/Primes.lean`. `native_decide` refuses anything depending on `sorry`, so
-  pick a concrete prime with a real `by norm_num` proof. `47` and `1031` are cheap; `norm_num`
-  also certifies `8589934609` (just over `2^33`, needed for 32-bit `binSum`) quickly.
+- **`wg.run` needs `[Fact (Nat.Prime p)]`.** Prefer a small concrete prime with a real
+  `by norm_num` proof: `47` and `1031` are cheap, and `norm_num` also certifies `8589934609` (just
+  over `2^33`, needed for 32-bit `binSum`) quickly. A test that needs a bigger modulus than
+  `norm_num` can certify — the `2^64` vectors of
+  [Packing/assertIs64BitLimbs.lean](../Clap/Lang/Data/Packing/assertIs64BitLimbs.lean) — can run
+  at `Primes.bn254`. Its primality instance is `sorry`'d in `Clap/Util/Primes.lean`, but
+  `native_decide` accepts `sorry`-dependent terms (it is `#eval` that refuses them), and the
+  computation never inspects the proof. (Earlier revisions of this guide said `native_decide`
+  refuses `sorry`; it does not.)
+- **Nothing containing `poseidonBN254` lowers.** `toCs`/`toWg` on `poseidonBN254 #v[1, 2]` returns
+  `false` even for the correct hash, with hundreds of `Option.get!` panics, while a lone `share`
+  gate lowers fine — a back-end bug, not yet diagnosed. Use the evaluation style for anything that
+  hashes.
 - **Name the instance.** A bare `local instance : Fact (Nat.Prime q)` is auto-named from the
   type, so two files in the same namespace collide at import time with *"environment already
   contains"*. Give each an explicit distinct name.

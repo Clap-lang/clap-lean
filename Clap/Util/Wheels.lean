@@ -182,3 +182,45 @@ where
         h ▸ bits.extract (cnt*size) ((cnt+1)*size)
       let res := res.push word
       step (cnt+1) (by omega) res
+
+/-- The index `toChunks` reads for element `j` of chunk `i` is in range. -/
+theorem toChunks_index_lt {w size i j : ℕ} (hi : i < w) (hj : j < size) :
+    i * size + j < w * size := by
+  have : i * size + j < (i + 1) * size := by rw [Nat.succ_mul]; omega
+  have : (i + 1) * size ≤ w * size := Nat.mul_le_mul_right _ (by omega)
+  omega
+
+private theorem Vector.getElem_eqRec_size {α} {n m : ℕ} (h : n = m) (v : Vector α n) (j : ℕ)
+    (hj : j < m) : (h ▸ v)[j] = v[j]'(h ▸ hj) := by
+  subst h; rfl
+
+/-- The invariant of `toChunks.step`: the chunks already accumulated stay put, and every chunk it
+appends is the matching `extract` of `bits`. -/
+theorem toChunks_step_getElem {α} {w size} (bits : Vector α (w * size))
+    (cnt : ℕ) (h : cnt ≤ w) (res : Vector (Vector α size) cnt)
+    (hres : ∀ (i : ℕ) (hi : i < cnt) (j : ℕ) (hj : j < size),
+      res[i][j] = bits[i * size + j]'(toChunks_index_lt (by omega) hj))
+    (i : ℕ) (hi : i < w) (j : ℕ) (hj : j < size) :
+    (toChunks.step size bits cnt h res)[i][j] = bits[i * size + j]'(toChunks_index_lt hi hj) := by
+  induction cnt, h, res using toChunks.step.induct (size := size) (bits := bits) with
+  | case1 h res =>
+    rw [toChunks.step]; simp
+    exact hres i hi j hj
+  | case2 cnt h res hcnt word res' ih =>
+    rw [toChunks.step]; simp [hcnt]
+    apply ih
+    intro i' hi' j' hj'
+    simp only [res', Vector.getElem_push]
+    split
+    · exact hres i' (by omega) j' hj'
+    · have : i' = cnt := by omega
+      subst this
+      simp only [word]
+      rw [Vector.getElem_eqRec_size, Vector.getElem_extract]
+
+/-- Element `j` of chunk `i` is element `i * size + j` of the input. -/
+@[simp]
+theorem getElem_toChunks {α} {w size} (bits : Vector α (w * size)) (i : ℕ) (hi : i < w)
+    (j : ℕ) (hj : j < size) :
+    (toChunks size bits)[i][j] = bits[i * size + j]'(toChunks_index_lt hi hj) :=
+  toChunks_step_getElem bits 0 (by omega) #v[] (fun _ h => absurd h (by omega)) i hi j hj
