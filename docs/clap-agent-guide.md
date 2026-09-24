@@ -74,9 +74,10 @@ cannot be closed.
    under `ConstraintSystem/` and `WitnessGenerator/`.
    [Test/Backend.lean](../Clap/Test/Backend.lean) runs a circuit end to end and `#guard`s
    `wellbehaved` / `complete` / `sound`. So a `native_decide` smoke test *is* available — see
-   [Poseidon.lean](../Clap/Poseidon/Poseidon.lean), which pins two circomlib hash vectors
-   that way. The `ConvertsM` lemma is still the real evidence; a smoke test is a cheap sanity
-   check on top, not a substitute.
+   [Poseidon.lean](../Clap/Poseidon/Poseidon.lean), which pins circomlib and `poseidon-ark`
+   hash vectors at arities 1–6 that way (by evaluation; Poseidon does not lower yet). The
+   `ConvertsM` lemma is still the real evidence; a smoke test is a cheap sanity check on top,
+   not a substitute.
 
 7. **`autoImplicit` is off and the unused-variable linter is on**
    ([lakefile.toml](../lakefile.toml)). Bind every implicit explicitly — hence the ubiquitous
@@ -120,7 +121,9 @@ Follow these or your code will read as foreign to the rest of the tree.
       `goldilocks` and `bn254`; anything needing primality inherits them.)
 - [ ] `native_decide` is allowed as a smoke test, never as the proof of a `convertsM`.
 - [ ] The gadget has exactly one aggregate lemma, named `convertsM`, in a namespace matching
-      the definition's name.
+      the definition's name. A gadget that needs an input in range but does not range-check it
+      also gets `convertsM_unchecked`, with no value-range hypotheses — see
+      [specifying-circuits.md](specifying-circuits.md).
 - [ ] Its constraints slot is `True` only if the gadget genuinely emits no assertion.
 - [ ] The new file is imported from [Clap/Lang/All.lean](../Clap/Lang/All.lean), in
       alphabetical position (case-insensitive order). That is the only index —

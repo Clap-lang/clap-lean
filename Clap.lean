@@ -8,6 +8,7 @@ import Clap.Poseidon.Poseidon
 import Clap.Poseidon.RandomOracle
 import Clap.Keyless.Allocate
 import Clap.Examples.PoseidonProgram
+import Clap.Examples.RangeCheckedLessThan
 import Clap.Test.Backend
 
 /-!

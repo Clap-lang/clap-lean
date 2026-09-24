@@ -76,6 +76,71 @@ lemma convertsM
 
 end chunksToFieldElem
 
+/-- `chunksToNum` over `ℕ`: the base-`2 ^ b` numeral of the chunks' values. -/
+private def chunksToNat (b : ℕ) (l : List (ZMod p)) : ℕ :=
+  l.foldr (fun x acc ↦ x.val + 2 ^ b * acc) 0
+
+private lemma chunksToNat_lt {b : ℕ} {l : List (ZMod p)} (h : ∀ x ∈ l, x.val < 2 ^ b) :
+    chunksToNat b l < 2 ^ (b * l.length) := by
+  induction l with
+  | nil => simp [chunksToNat]
+  | cons x l ih =>
+    simp only [chunksToNat, List.foldr_cons, List.length_cons] at ih ⊢
+    have hx := h x (by simp)
+    have hl := ih (fun y hy ↦ h y (by simp [hy]))
+    calc x.val + 2 ^ b * l.foldr (fun x acc ↦ x.val + 2 ^ b * acc) 0
+        < 2 ^ b + 2 ^ b * l.foldr (fun x acc ↦ x.val + 2 ^ b * acc) 0 := by omega
+      _ = 2 ^ b * (l.foldr (fun x acc ↦ x.val + 2 ^ b * acc) 0 + 1) := by ring
+      _ ≤ 2 ^ b * 2 ^ (b * l.length) := Nat.mul_le_mul_left _ hl
+      _ = 2 ^ (b * (l.length + 1)) := by rw [← pow_add]; ring_nf
+
+private lemma chunksToNat_cast [NeZero p] (b : ℕ) (l : List (ZMod p)) :
+    (chunksToNat b l : ZMod p) = l.foldr (fun x acc ↦ x + 2 ^ b * acc) 0 := by
+  induction l with
+  | nil => simp [chunksToNat]
+  | cons x l ih => simp only [chunksToNat, List.foldr_cons] at ih ⊢; push_cast [ih]; simp
+
+private lemma chunksToNat_inj [NeZero p] {b : ℕ} :
+    ∀ {l₁ l₂ : List (ZMod p)}, l₁.length = l₂.length →
+      (∀ x ∈ l₁, x.val < 2 ^ b) → (∀ x ∈ l₂, x.val < 2 ^ b) →
+      chunksToNat b l₁ = chunksToNat b l₂ → l₁ = l₂
+  | [], [], _, _, _, _ => rfl
+  | x₁ :: l₁, x₂ :: l₂, h_len, h₁, h₂, h => by
+    simp only [chunksToNat, List.foldr_cons] at h
+    have hx₁ := h₁ x₁ (by simp)
+    have hx₂ := h₂ x₂ (by simp)
+    have h_pos : 0 < 2 ^ b := Nat.two_pow_pos b
+    have h_mod := congrArg (· % 2 ^ b) h
+    have h_div := congrArg (· / 2 ^ b) h
+    simp only [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hx₁, Nat.mod_eq_of_lt hx₂] at h_mod
+    simp only [Nat.add_mul_div_left _ _ h_pos, Nat.div_eq_of_lt hx₁, Nat.div_eq_of_lt hx₂,
+      zero_add] at h_div
+    rw [ZMod.val_injective p h_mod,
+      chunksToNat_inj (by simpa using h_len) (fun y hy ↦ h₁ y (by simp [hy]))
+        (fun y hy ↦ h₂ y (by simp [hy])) h_div]
+
+/-- Chunks below `2 ^ b` are determined by what they pack to, as long as all `w * b` bits fit
+below `p`, so the packing never wraps. -/
+lemma chunksToNum_injective {w b : ℕ} (h_fit : 2 ^ (w * b) ≤ p) {v₁ v₂ : Vector (ZMod p) w}
+    (h₁ : ∀ i : Fin w, v₁[i].val < 2 ^ b) (h₂ : ∀ i : Fin w, v₂[i].val < 2 ^ b)
+    (h : chunksToNum b v₁ = chunksToNum b v₂) : v₁ = v₂ := by
+  haveI : NeZero p := ⟨by have := Nat.two_pow_pos (w * b); omega⟩
+  have h_mem : ∀ {v : Vector (ZMod p) w}, (∀ i : Fin w, v[i].val < 2 ^ b) →
+      ∀ x ∈ v.toList, x.val < 2 ^ b := by
+    intro v hv x hx
+    obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hx
+    simpa using hv ⟨i, by simpa using hi⟩
+  have h_lt : ∀ {v : Vector (ZMod p) w}, (∀ i : Fin w, v[i].val < 2 ^ b) →
+      chunksToNat b v.toList < p := fun hv ↦
+    lt_of_lt_of_le (by simpa [Nat.mul_comm] using chunksToNat_lt (h_mem hv)) h_fit
+  have h_eq : ∀ v : Vector (ZMod p) w, chunksToNum b v = (chunksToNat b v.toList : ZMod p) := by
+    intro v
+    rw [chunksToNat_cast, chunksToNum, ← Vector.foldl_toList, Vector.toList_reverse,
+      List.foldl_reverse]
+  rw [h_eq, h_eq, ZMod.natCast_eq_natCast_iff', Nat.mod_eq_of_lt (h_lt h₁),
+    Nat.mod_eq_of_lt (h_lt h₂)] at h
+  exact Vector.toList_inj.mp (chunksToNat_inj (by simp) (h_mem h₁) (h_mem h₂) h)
+
 end chunksToFieldElem
 
 section examples

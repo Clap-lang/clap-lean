@@ -16,6 +16,48 @@ def isWhitespace [p.AtLeastTwo] (c : F8 p) : ClapM p (FB p) := do
 
 namespace isWhitespace
 
+/-- `isWhitespace` on an arbitrary field element, for a character that is range-checked in the
+circuit rather than typed: the value and slot 5 are both comparisons' raw bits and offset checks,
+at `w = 8`. -/
+lemma convertsM_unchecked [p.AtLeastTwo] {state}
+  {e : F p}
+  {e_val : ZMod p}
+  (h_e : Converts F.conversion state e e_val)
+  :
+  ConvertsM FB.conversion
+    (isWhitespace e)
+    state
+    ((Clap.Lang.lessThan.lessThanRaw 8 8 e_val && Clap.Lang.lessThan.lessThanRaw 8 e_val 14)
+      || e_val == 32)
+    (Clap.Lang.lessThan.lessThanOk 8 8 e_val ∧ Clap.Lang.lessThan.lessThanOk 8 e_val 14)
+  := by
+  unfold isWhitespace greaterThan lessThan eq Clap.Lang.greaterThan
+  step mkF.convertsM as eight
+  step mkF.convertsM as fourteen
+  step mkF.convertsM as thirtytwo
+  -- Both comparisons assert, so the first is sequenced with `convertsM_bind_and`, reframing by
+  -- hand what `step` would have reframed.
+  simp only [true_implies]
+  have h_gt8 := Clap.Lang.lessThan.convertsM_unchecked (w := 8) h_eight h_e
+  have h_e' := converts_skip h_gt8 h_e
+  have h_fourteen' := converts_skip h_gt8 h_fourteen
+  have h_thirtytwo' := converts_skip h_gt8 h_thirtytwo
+  have h_gt8r := h_gt8.result
+  clear h_e h_eight h_fourteen h_thirtytwo
+  apply convertsM_bind_and h_gt8
+  clear h_gt8
+  -- Make the comparison's result and post-state opaque. Left as terms, the `step`s below unfold
+  -- them through the concrete width and time out in `whnf`.
+  generalize (Clap.Lang.lessThan 8 eight_result e).getResult thirtytwo_state.numAlloc
+    thirtytwo_state.σ = gt8_result at *
+  generalize (Clap.Lang.lessThan 8 eight_result e).getState thirtytwo_state = gt8_state at *
+  step Clap.Lang.lessThan.convertsM_unchecked h_e' h_fourteen' as lt14
+  step FB.and.convertsM h_gt8r h_lt14 as isLineBreak
+  step Clap.Lang.eq.convertsM h_e' h_thirtytwo' as isSpace
+  apply convertsM_of_convertsM (FB.or.convertsM h_isLineBreak h_isSpace)
+  · rfl
+  · exact iff_of_true trivial (fun _ _ h => h)
+
 lemma convertsM [p.AtLeastTwo] {state}
   {e : F8 p}
   {e_val : UInt8}
@@ -39,16 +81,12 @@ lemma convertsM [p.AtLeastTwo] {state}
   have hv8 : (8 : ZMod p).val = 8 := ZMod.val_ofNat_of_lt h8p
   have hv14 : (14 : ZMod p).val = 14 := ZMod.val_ofNat_of_lt h14p
   have hv32 : (32 : ZMod p).val = 32 := ZMod.val_ofNat_of_lt h32p
-  unfold isWhitespace greaterThan lessThan eq Clap.Lang.greaterThan
-  step mkF.convertsM as eight
-  step mkF.convertsM as fourteen
-  step mkF.convertsM as thirtytwo
-  step Clap.Lang.lessThan.convertsM h_eight h_e_f (by rw [hv8]; omega) (by rw [hve]; omega) hp as gt8
-  step Clap.Lang.lessThan.convertsM h_e_f h_fourteen (by rw [hve]; omega) (by rw [hv14]; omega) hp as lt14
-  step FB.and.convertsM h_gt8 h_lt14 as isLineBreak
-  step Clap.Lang.eq.convertsM h_e_f h_thirtytwo as isSpace
-  apply convertsM_of_convertsM (FB.or.convertsM h_isLineBreak h_isSpace)
-  · rw [Bool.eq_iff_iff]
+  have h8 : (8 : ZMod p).val < 2 ^ 8 := by rw [hv8]; norm_num
+  have h14 : (14 : ZMod p).val < 2 ^ 8 := by rw [hv14]; norm_num
+  have he : (e_val.toNat : ZMod p).val < 2 ^ 8 := by rw [hve]; omega
+  apply convertsM_of_convertsM (convertsM_unchecked h_e_f)
+  · rw [Clap.Lang.lessThan.lessThanRaw_eq h8 he hp, Clap.Lang.lessThan.lessThanRaw_eq he h14 hp,
+      Bool.eq_iff_iff]
     simp only [Bool.and_eq_true, Bool.or_eq_true, decide_eq_true_eq, beq_iff_eq]
     rw [hv8, hve, hv14,
         show ((e_val.toNat : ZMod p) = (32 : ZMod p)) ↔ e_val.toNat = 32 from by
@@ -57,7 +95,8 @@ lemma convertsM [p.AtLeastTwo] {state}
         show (e_val < (14 : UInt8)) ↔ e_val.toNat < (14 : ℕ) from Iff.rfl,
         show (e_val = (32 : UInt8)) ↔ e_val.toNat = (32 : ℕ) from by
           rw [← UInt8.toNat_inj]; rfl]
-  · trivial
+  · exact iff_true_intro ⟨Clap.Lang.lessThan.lessThanOk_of h8 he hp,
+      Clap.Lang.lessThan.lessThanOk_of he h14 hp⟩
 
 /-- The range-check characterisation of whitespace agrees with the explicit character-set one. -/
 lemma isWhitespace_eq_isWhitespace_high (e_val : UInt8) :

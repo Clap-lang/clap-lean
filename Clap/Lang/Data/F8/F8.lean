@@ -14,7 +14,14 @@ def lessEqThan (a b : F p) : ClapM p (FB p) := Clap.Lang.lessEqThan 8 a b
 
 def greaterEqThan (a b : F p) : ClapM p (FB p) := Clap.Lang.greaterEqThan 8 a b
 
-/-! ## Specifications -/
+/-! ## Specifications
+
+Each comparison has two. `convertsM` takes typed bytes — `F8.conversion` operands — and states
+the comparison on `UInt8`. `convertsM_unchecked` takes `F.conversion` operands at arbitrary values,
+as a character read from a top-level input is, and states what the circuit computes for them:
+`lessThan.lessThanRaw` / `lessThan.lessThanOk` at `w = 8`. Use it for characters that are
+range-checked in the circuit rather than typed, and rewrite its constraint under that range check
+with `convertsM_bind_guard`. -/
 
 /-- A byte's field value is its `toNat`, when the field is big enough to hold a byte. -/
 lemma val_eq {e_val : UInt8} (hp : 2 ^ (8 + 1) < p) :
@@ -32,6 +39,18 @@ lemma val_lt {e_val : UInt8} (hp : 2 ^ (8 + 1) < p) :
   omega
 
 namespace lessThan
+
+lemma convertsM_unchecked
+  [p.AtLeastTwo]
+  {state : ClapMState p}
+  {a b : F p}
+  {a_val b_val : ZMod p}
+  (h_a : Converts F.conversion state a a_val)
+  (h_b : Converts F.conversion state b b_val)
+:
+  ConvertsM FB.conversion (F8.lessThan a b) state
+    (Clap.Lang.lessThan.lessThanRaw 8 a_val b_val) (Clap.Lang.lessThan.lessThanOk 8 a_val b_val)
+:= Clap.Lang.lessThan.convertsM_unchecked (w := 8) h_a h_b
 
 lemma convertsM
   [p.AtLeastTwo]
@@ -56,6 +75,18 @@ end lessThan
 
 namespace greaterThan
 
+lemma convertsM_unchecked
+  [p.AtLeastTwo]
+  {state : ClapMState p}
+  {a b : F p}
+  {a_val b_val : ZMod p}
+  (h_a : Converts F.conversion state a a_val)
+  (h_b : Converts F.conversion state b b_val)
+:
+  ConvertsM FB.conversion (F8.greaterThan a b) state
+    (Clap.Lang.lessThan.lessThanRaw 8 b_val a_val) (Clap.Lang.lessThan.lessThanOk 8 b_val a_val)
+:= Clap.Lang.greaterThan.convertsM_unchecked (w := 8) h_a h_b
+
 lemma convertsM
   [p.AtLeastTwo]
   {state : ClapMState p}
@@ -79,6 +110,18 @@ end greaterThan
 
 namespace lessEqThan
 
+lemma convertsM_unchecked
+  [p.AtLeastTwo]
+  {state : ClapMState p}
+  {a b : F p}
+  {a_val b_val : ZMod p}
+  (h_a : Converts F.conversion state a a_val)
+  (h_b : Converts F.conversion state b b_val)
+:
+  ConvertsM FB.conversion (F8.lessEqThan a b) state
+    (!Clap.Lang.lessThan.lessThanRaw 8 b_val a_val) (Clap.Lang.lessThan.lessThanOk 8 b_val a_val)
+:= Clap.Lang.lessEqThan.convertsM_unchecked (w := 8) h_a h_b
+
 lemma convertsM
   [p.AtLeastTwo]
   {state : ClapMState p}
@@ -101,6 +144,18 @@ lemma convertsM
 end lessEqThan
 
 namespace greaterEqThan
+
+lemma convertsM_unchecked
+  [p.AtLeastTwo]
+  {state : ClapMState p}
+  {a b : F p}
+  {a_val b_val : ZMod p}
+  (h_a : Converts F.conversion state a a_val)
+  (h_b : Converts F.conversion state b b_val)
+:
+  ConvertsM FB.conversion (F8.greaterEqThan a b) state
+    (!Clap.Lang.lessThan.lessThanRaw 8 a_val b_val) (Clap.Lang.lessThan.lessThanOk 8 a_val b_val)
+:= Clap.Lang.greaterEqThan.convertsM_unchecked (w := 8) h_a h_b
 
 lemma convertsM
   [p.AtLeastTwo]

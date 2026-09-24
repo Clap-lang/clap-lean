@@ -14,9 +14,14 @@ attribute [local irreducible] Clap.poseidonBN254
 element (zero-padding the last), appends `input.len`, and hashes with a single `Poseidon`.
 
 Nothing is range-checked: Circom relies on the `{maxbits}` tag of its input, and Keyless calls
-`AssertIs64BitLimbs` on the modulus separately. `len` is hashed as
+`AssertIs64BitLimbs` on the modulus separately. Only for limbs below `2 ^ 64` do the hashed
+elements determine the limbs (`hash64BitLimbsToFieldElems_injective`). `len` is hashed as
 given. Keyless passes the byte count `256` for the RSA modulus, while the Rust test vectors below
-(`pad_and_hash_limbs_with_len`) use the limb count. -/
+(`pad_and_hash_limbs_with_len`) use the limb count.
+
+Nothing separates sizes either: every `numLimbs` with the same `(numLimbs + 2) / 3` hashes at the
+same arity, so limbs and their zero-extension collide under the same `len`. Circom asserts
+`numLimbs ≠ 0`; here `numLimbs = 0` is allowed and hashes `len` alone. -/
 def hash64BitLimbsToField {numLimbs : ℕ} (input : PaddedVector (F bn254) bn254 numLimbs) :
     ClapM bn254 (F bn254) := do
   let pad ← mkF 0
@@ -24,13 +29,51 @@ def hash64BitLimbsToField {numLimbs : ℕ} (input : PaddedVector (F bn254) bn254
   let elems ← Packing.chunksToFieldElems 3 64 padded
   poseidonBN254 (elems.push input.len)
 
-/-- The ideal value of `hash64BitLimbsToField` -/
-def hash64BitLimbsToFieldSpec (H : HashFn) {numLimbs : ℕ} (limbs : Vector (ZMod bn254) numLimbs)
-    (len : ZMod bn254) : ZMod bn254 :=
+/-- The field elements `hash64BitLimbsToField` hashes: the limbs zero-padded to a multiple of 3
+and packed 3 per element, then `len`. -/
+def hash64BitLimbsToFieldElems {numLimbs : ℕ} (limbs : Vector (ZMod bn254) numLimbs)
+    (len : ZMod bn254) : Vector (ZMod bn254) ((numLimbs + 2) / 3 + 1) :=
   let padded : Vector (ZMod bn254) ((numLimbs + 2) / 3 * 3) :=
     (limbs ++ Vector.replicate ((numLimbs + 2) / 3 * 3 - numLimbs) (0 : ZMod bn254)).cast
       (by omega)
-  H (((toChunks 3 padded).map (Packing.chunksToNum 64)).push len)
+  ((toChunks 3 padded).map (Packing.chunksToNum 64)).push len
+
+/-- The ideal value of `hash64BitLimbsToField` -/
+def hash64BitLimbsToFieldSpec (H : HashFn) {numLimbs : ℕ} (limbs : Vector (ZMod bn254) numLimbs)
+    (len : ZMod bn254) : ZMod bn254 :=
+  H (hash64BitLimbsToFieldElems limbs len)
+
+/-- Limbs below `2 ^ 64` and the length are determined by the elements hashed from them: 3 limbs
+are 192 bits, below `bn254`, so packing never wraps. The range is the caller's to establish, as
+Keyless does with `AssertIs64BitLimbs`. -/
+lemma hash64BitLimbsToFieldElems_injective
+  {numLimbs : ℕ}
+  {limbs₁ limbs₂ : Vector (ZMod bn254) numLimbs}
+  {len₁ len₂ : ZMod bn254}
+  (h₁ : ∀ i : Fin numLimbs, limbs₁[i].val < 2 ^ 64)
+  (h₂ : ∀ i : Fin numLimbs, limbs₂[i].val < 2 ^ 64)
+  (h : hash64BitLimbsToFieldElems limbs₁ len₁ = hash64BitLimbsToFieldElems limbs₂ len₂)
+:
+  limbs₁ = limbs₂ ∧ len₁ = len₂
+:= by
+  simp only [hash64BitLimbsToFieldElems, Vector.push_eq_push] at h
+  obtain ⟨h_len, h_elems⟩ := h
+  have h_cast : numLimbs + ((numLimbs + 2) / 3 * 3 - numLimbs) = (numLimbs + 2) / 3 * 3 := by
+    omega
+  have h_padded : ∀ {l : Vector (ZMod bn254) numLimbs}, (∀ i : Fin numLimbs, l[i].val < 2 ^ 64) →
+      ∀ i : Fin ((numLimbs + 2) / 3 * 3),
+        ((l ++ Vector.replicate ((numLimbs + 2) / 3 * 3 - numLimbs) (0 : ZMod bn254)).cast
+          h_cast)[i].val < 2 ^ 64 := by
+    intro l hl i
+    simp only [Fin.getElem_fin, Vector.getElem_cast, Vector.getElem_append, Vector.getElem_replicate]
+    split
+    . exact hl ⟨i, ‹_›⟩
+    . simp
+  have h_eq := Packing.toChunks_map_chunksToNum_injective (by decide) (h_padded h₁) (h_padded h₂)
+    h_elems
+  refine ⟨?_, h_len⟩
+  ext i hi
+  simpa [Vector.getElem_append_left hi] using congrArg (·[i]'(by omega)) h_eq
 
 namespace hash64BitLimbsToField
 

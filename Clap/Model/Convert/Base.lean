@@ -336,6 +336,9 @@ something.
 which forces every step but the last to have constraint `True`: for two real assertions it
 would demand `C₂ ↔ (C₁ → C₁ ∧ C₂)`, false whenever `C₁` fails. Sequencing two assertions
 therefore needs this lemma rather than that one.
+
+To rewrite the continuation's constraint under `constraints1` — say, into what it means once an
+earlier assertion has established a range — use `convertsM_bind_guard`.
 -/
 lemma convertsM_bind_and
   {p α β}
@@ -426,5 +429,37 @@ lemma convertsM_of_convertsM
   . exact converts_of_converts h.result h_val
   . exact h.wellFormed
   . rw [h.constraints, h_constraints]
+
+/--
+Sequence an action with a continuation whose constraint only means what we want under the
+action's constraint. Only the constraint is rewritten, under the guard: the continuation's
+value and well-formedness come from an unconditional `ConvertsM`, which is why range-consuming
+gadgets have `convertsM_unchecked` specs.
+
+Sound because when `constraints1` fails, both `constraints1 ∧ constraints2` and
+`constraints1 ∧ constraints2'` are false.
+-/
+lemma convertsM_bind_guard
+  {p α β}
+  {conversion1 : Conversion p α}
+  {conversion2 : Conversion p β}
+  {action : ClapM p α}
+  {function : α → ClapM p β}
+  {state}
+  {action_val}
+  {function_val}
+  {constraints1 constraints2 constraints2' : Prop}
+  (h_action : ConvertsM conversion1 action state action_val constraints1)
+  (h_function : ConvertsM
+    conversion2
+    (function (action.getResult state.numAlloc state.σ))
+    (action.getState state)
+    function_val
+    constraints2
+  )
+  (h_guard : constraints1 → (constraints2 ↔ constraints2'))
+:
+  ConvertsM conversion2 (action >>= function) state function_val (constraints1 ∧ constraints2')
+:= convertsM_of_convertsM (convertsM_bind_and h_action h_function) rfl (and_congr_right h_guard)
 
 end Clap

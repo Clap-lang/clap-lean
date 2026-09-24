@@ -32,7 +32,13 @@ def hashElemsToField {n : ℕ} (input : FVec bn254 n) : ClapM bn254 (F bn254) :=
     eq0 (← mkF 1)
     mkF 0
 
-/-- The ideal value of `hashElemsToField` over a hash family `H`. -/
+/-- The ideal value of `hashElemsToField` over a hash family `H`.
+
+Meaningful for `0 < n ≤ 64`, the range `convertsM` covers. Past 64 the circuit is unsatisfiable
+(`convertsM_of_gt`), and the last branch here only reads the first 64 elements.
+
+Not domain-separated by `n`: the root of the tree is a plain `H` of arity 2–4, so a 2–4 element
+input whose entries are the leaf hashes of a 17–64 element one has the same value. -/
 def hashElemsToFieldSpec (H : HashFn) {n : ℕ} (v : Vector (ZMod bn254) n) : ZMod bn254 :=
   if n ≤ 16 then H v
   else if n ≤ 32 then H #v[H (v.extract 0 16), H (v.extract 16 32)]
@@ -90,6 +96,24 @@ lemma convertsM
     apply convertsM_of_convertsM (h_H (by decide) (by decide) h_leaves)
     . rfl
     . simp
+
+/-- Past 64 elements the circuit is Circom's `1 === 0`: never satisfiable. -/
+lemma convertsM_of_gt
+  {n : ℕ}
+  {state : ClapMState bn254}
+  {input : FVec bn254 n}
+  (h_n : 64 < n)
+:
+  ConvertsM F.conversion (hashElemsToField input) state 0 False
+:= by
+  haveI : bn254.AtLeastTwo := ⟨by decide⟩
+  unfold hashElemsToField
+  rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega)]
+  step mkF.convertsM as one
+  step eq0.convertsM h_one as eq0
+  apply convertsM_of_convertsM mkF.convertsM
+  . rfl
+  . simp
 
 end hashElemsToField
 

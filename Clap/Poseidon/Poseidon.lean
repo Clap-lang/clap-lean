@@ -188,7 +188,8 @@ example :
 /-! More arities, from the old model's commented-out suite (`old/Clap/Poseidon/Poseidon.lean`).
 `Clap.HashToField` assumes `poseidonBN254` computes *a* function at every arity from 1 to 16
 (`Clap.Poseidon.Computes`); these vectors are the evidence that the circuit really is Poseidon
-at the arities they cover, so that assumption is not vacuous there. -/
+at the arities they cover. `Computes.evalConst_eq` carries them over to `H`: restated for
+`evalConst`, each one is a value of every `H` with `Computes H`. -/
 
 /-- `poseidonBN254` of constant inputs, evaluated in the varStore its own circuit produces. -/
 private def hashOf {n : ℕ} (xs : Vector (ZMod Primes.bn254) n) : Option (ZMod Primes.bn254) :=
@@ -232,10 +233,31 @@ example : hashOf #v[1, 2, 3, 4, 5, 6] =
   native_decide
 
 /-
-Arities 14 (the public-inputs hash) and 16 (the widest, and `HashElemsToField`'s leaves) are
-left as comments: at ~45 s each they would dominate the build. `[1..16]` was checked by hand
-on 2026-09-23 with `#eval! hashOf …` and matches; the other three have not been run.
+Arities 7 to 16 are left as comments: the widest take ~45 s each, 7 to 15 together over 10
+minutes, and they would dominate the build. Keyless hashes at 12 (the RSA modulus, the `uid`
+value), 13 (the extra field) and 14 (the public inputs), and 16 is `HashElemsToField`'s leaf.
+`[1..n]` for `n` from 7 to 16 was checked with `native_decide` on 2026-09-24 against circomlibjs
+0.1.7 (`buildPoseidon`), which also reproduces every vector above; `[1..16]` was first checked
+by hand on 2026-09-23 with `#eval! hashOf …`. The two zero-padded vectors match circomlibjs but
+have not been run through the circuit.
 
+-- arities 7 to 13 and 15 (circomlibjs)
+example : hashOf #v[1, 2, 3, 4, 5, 6, 7] =
+  some 12748163991115452309045839028154629052133952896122405799815156419278439301912
+example : hashOf #v[1, 2, 3, 4, 5, 6, 7, 8] =
+  some 18604317144381847857886385684060986177838410221561136253933256952257712543953
+example : hashOf #v[1, 2, 3, 4, 5, 6, 7, 8, 9] =
+  some 13589767895268936107593642967621470491511464502761040466226072462545218539640
+example : hashOf #v[1, 2, 3, 4, 5, 6, 7, 8, 9, 10] =
+  some 3657500514307717306974218405144578736633140001277925127187636780142269815841
+example : hashOf #v[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] =
+  some 3572015662710076994097916907865950486270383304442561406230608893458731714472
+example : hashOf #v[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] =
+  some 2501997477381648492950318384533644783248002172679259592360114615426357826485
+example : hashOf #v[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] =
+  some 7041832639553862712666971417715061873827921493498355005117622707743491651590
+example : hashOf #v[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] =
+  some 4203130618016961831408770638653325366880478848856764494148034853759773445968
 -- arity 14 (`poseidon-ark`)
 example : hashOf #v[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14] =
   some 8354478399926161176778659061636406690034081872658507739535256090879947077494

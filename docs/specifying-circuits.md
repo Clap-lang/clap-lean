@@ -117,15 +117,15 @@ work of A; if you can express your gadget without iteration, do.
 | `FString.ofString s` | [FString/ofString.lean](../Clap/Lang/Data/FString/ofString.lean) | `ClapM p (FString p w)` | `s` | `True` |
 | `FString.isPaddedOf a b` | [FString/isPaddedOf.lean](../Clap/Lang/Data/FString/isPaddedOf.lean) | `ClapM p (FB p)` | `decide (encodeV w a_val = encodeV w b) && (a_val.length == b.length)` | `True` |
 | `num2bits w e` | [FArray/num2bits.lean](../Clap/Lang/Gate/num2bits.lean) | `ClapM p (FArray p w)` | `num2bitsLsbPureV w e_val` as bits | `e_val.val < 2 ^ w` — see the note below |
-| `lessThan w a b` | [F/lessThan.lean](../Clap/Lang/Core/F/lessThan.lean) | `ClapM p (FB p)` | `a_val.val < b_val.val` | `True` |
-| `lessEqThan`, `greaterThan`, `greaterEqThan` | [F/lessThan.lean](../Clap/Lang/Core/F/lessThan.lean) | `ClapM p (FB p)` | the obvious variants | `True` |
+| `lessThan w a b` | [F/lessThan.lean](../Clap/Lang/Core/F/lessThan.lean) | `ClapM p (FB p)` | `a_val.val < b_val.val`, given `a_val.val, b_val.val < 2 ^ w` and `2 ^ (w+1) < p`; `convertsM_unchecked`, for any inputs: `lessThan.lessThanRaw w a_val b_val` | `True`; `convertsM_unchecked`: `lessThan.lessThanOk w a_val b_val` |
+| `lessEqThan`, `greaterThan`, `greaterEqThan` | [F/lessThan.lean](../Clap/Lang/Core/F/lessThan.lean) | `ClapM p (FB p)` | the obvious variants; each has a `convertsM_unchecked` through `lessThanRaw` | `True`; unchecked: the `lessThanOk` |
 | `assert_range w e` | [FUnit/assert_range.lean](../Clap/Lang/Core/FUnit/assert_range.lean) | `ClapM p Unit` | `()` | `e_val.val < 2 ^ w` |
-| `F8.eq`, `F8.lessThan`, `F8.greaterThan`, `F8.lessEqThan`, `F8.greaterEqThan` | [F8/F8.lean](../Clap/Lang/Data/F8/F8.lean) | `ClapM p (FB p)` | byte-width delegations to the above at `w = 8`, stated over `UInt8` | `True` |
+| `F8.eq`, `F8.lessThan`, `F8.greaterThan`, `F8.lessEqThan`, `F8.greaterEqThan` | [F8/F8.lean](../Clap/Lang/Data/F8/F8.lean) | `ClapM p (FB p)` | byte-width delegations to the above at `w = 8`, stated over `UInt8`; the four comparisons also have `convertsM_unchecked`, over `F.conversion` operands | `True`; unchecked: the `lessThanOk` |
 | `FBitVec.binSum a b` | [FBitVec/binSum.lean](../Clap/Lang/Data/FBitVec/binSum.lean) | `ClapM p (FBitVec p (w+1))` | `toNum a_vals + toNum b_vals` as `w+1` bits | `True` |
 | `F32.add a b` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p (F32 p)` | the above, `take 32` — i.e. wrapping 32-bit addition | `True` |
 | `FBV8.ofF`, `F32.ofF`, `F64.ofF` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p (FArray p w)` | `num2bits` at `w = 8`/`32`/`64` | `x_val.val < 2 ^ w` |
-| `F8.isWhitespace c` | [F8/isWhitespace.lean](../Clap/Lang/Data/F8/isWhitespace.lean) | `ClapM p (FB p)` | `c_val` is space, tab, CR or LF | `True` |
-| `arraySelector len s e` | [FArray/arraySelector.lean](../Clap/Lang/Data/FArray/arraySelector.lean) | `ClapM p (FArray p len)` | 1s on `[startIdx, endIdx)` | index bounds |
+| `F8.isWhitespace c` | [F8/isWhitespace.lean](../Clap/Lang/Data/F8/isWhitespace.lean) | `ClapM p (FB p)` | `c_val` is ASCII whitespace (9–13 or 32); `convertsM_unchecked`, over `F.conversion`: the two comparisons' `lessThanRaw`s | `True`; unchecked: their two `lessThanOk`s |
+| `arraySelector len s e` | [FArray/arraySelector.lean](../Clap/Lang/Data/FArray/arraySelector.lean) | `ClapM p (FArray p len)` | 1s on `[startIdx, endIdx)` | `startIdx_val.val < len ∧ startIdx_val.val < endIdx_val.val`, given both indices `< 2 ^ minBits' len`; `convertsM_unchecked`: both `lessThanOk`s and the asserted `lessThanRaw`s |
 | `singleEndArray len idx` | [FArray/singleEndArray.lean](../Clap/Lang/Data/FArray/singleEndArray.lean) | `ClapM p (FArray p len)` | 1s from `idx` on | `idx_val.val < len` |
 | `FArray.xor a b` | [FArray/xor.lean](../Clap/Lang/Data/FArray/xor.lean) | `ClapM p (FArray p k)` | pointwise `xor` | `True` |
 | `FArray.xorScan a` | [FArray/xorScan.lean](../Clap/Lang/Data/FArray/xorScan.lean) | `ClapM p (FArray p k)` | running `xor` prefix scan | `True` |
@@ -164,6 +164,9 @@ Three things the table cannot show:
 - **`isPaddedOf` has a second spec**, `isPaddedOf.convertsM_string`, whose ideal value is the
   cleaner `decide (a_val = b)`. It costs the explicit injectivity hypotheses `256 < p`,
   `w < p`, `s.length < w`, because injectivity of the encoding is not part of `Converts`.
+- **The range consumers have a second spec too**, `convertsM_unchecked`, for operands at
+  arbitrary values — see
+  [§A gadget that consumes a range it does not check](#a-gadget-that-consumes-a-range-it-does-not-check-needs-convertsm_unchecked).
 
 For iterating gadgets, do not hand-roll the induction — see
 [§Iterating gadgets need rewrite lemmas *first*](#iterating-gadgets-need-rewrite-lemmas-first)
@@ -190,8 +193,9 @@ hypothesis relating `w` and `p`. (Until 2026-09-23 the semantics truncated inste
 slot was `True`.)
 
 A gadget that decomposes a value it knows to fit discharges the condition and keeps slot 5
-`True`: `lessThan` from its bounds on `a` and `b`, `binSum` because two `w`-bit values always sum
-below `2^(w+1)`. A range check such as `assert_range` surfaces it as its own slot 5. The smoke
+`True`: `lessThan.convertsM` from its hypotheses on `a` and `b`, `binSum` because two `w`-bit
+values always sum below `2^(w+1)`. `lessThan.convertsM_unchecked`, which has no such hypotheses,
+keeps the condition instead, as `lessThan.lessThanOk`. A range check such as `assert_range` surfaces it as its own slot 5. The smoke
 tests at the bottom of [FUnit/assert_range.lean](../Clap/Lang/Core/FUnit/assert_range.lean)
 cross-check the model against the lowering.
 
@@ -200,8 +204,11 @@ hypotheses — see [public-inputs.md](public-inputs.md).
 
 ## The specification
 
-Every gadget gets **exactly one** aggregate lemma. It is named `convertsM`, it lives in a
-namespace matching the definition's name, and it has this shape:
+Every gadget gets **exactly one** aggregate lemma named `convertsM`. A second spec needs a
+stated reason and its own name: `isPaddedOf.convertsM_string` trades hypotheses for a cleaner
+value, and a gadget that consumes a range it does not check must also have `convertsM_unchecked`
+([below](#a-gadget-that-consumes-a-range-it-does-not-check-needs-convertsm_unchecked)).
+`convertsM` lives in a namespace matching the definition's name, and it has this shape:
 
 ```lean
 namespace <name>
@@ -252,11 +259,43 @@ Bounds that are facts about the *parameters* rather than the values go in as ord
 hypotheses, not into slot 5. `oneHotRaw` and `singleOneArray` both take `(h_len : len < p)`.
 Anything the old model wrote as `assert!` becomes a hypothesis of this kind.
 
+### A gadget that consumes a range it does not check needs `convertsM_unchecked`
+
+**Rule: a gadget that does not range-check an input it needs in range must also provide
+`convertsM_unchecked`, with no value-range hypotheses.** Its `convertsM` takes the range as a
+hypothesis (`ha : a_val.val < 2 ^ w`), and a caller can discharge that only from a hypothesis of
+its own. At the top level there is none: the inputs are arbitrary field elements
+([public-inputs.md](public-inputs.md)). A range established by an earlier `assert_range` sits in
+that assertion's slot 5, and `convertsM_bind` / `convertsM_bind_and` cannot pass it on.
+`convertsM_bind_guard` consumes `convertsM_unchecked` instead — see
+[proving-circuits.md §Using a range established earlier in the circuit](proving-circuits.md#using-a-range-established-earlier-in-the-circuit).
+
+Its two slots:
+
+- **Slot 4 is what the circuit computes for arbitrary inputs.** When that has no clean closed
+  form, name it in the gadget's namespace: `lessThan.lessThanRaw w a b` is the negated top bit of
+  the `(w+1)`-bit decomposition of `a - b + 2^w`.
+- **Slot 5 is the constraint the circuit really emits**, named the same way:
+  `lessThan.lessThanOk w a b` is `num2bits`' range check on that offset.
+
+Prove bridge lemmas for what the named value and constraint mean in range
+(`lessThan.lessThanRaw_eq`, `lessThan.lessThanOk_of`). Keep `convertsM` with its statement
+unchanged, re-derived from `convertsM_unchecked` with `convertsM_of_convertsM` and the bridge
+lemmas rather than proved twice. Keep a parameter hypothesis such as `h_len : len < p` if the
+proof needs it; drop only the value-range ones.
+
+`F8.conversion` is a range hypothesis in disguise, since `Converts F8.conversion state e u` says
+that `e` holds a byte. So the `F8` comparisons and `F8.isWhitespace` state their
+`convertsM_unchecked` over `F.conversion` operands. The gadgets that have one are `lessThan`,
+`lessEqThan`, `greaterThan`, `greaterEqThan`, `arraySelector`, `F8.lessThan`, `F8.greaterThan`,
+`F8.lessEqThan`, `F8.greaterEqThan` and `F8.isWhitespace`.
+
 ## Naming rules
 
 | Thing | Name |
 |---|---|
 | The aggregate lemma | `convertsM` — always, no exceptions |
+| The spec at arbitrary values of a gadget that consumes a range it does not check | `convertsM_unchecked` |
 | Input hypotheses | `h_<argname>` |
 | The three `ConvertsM` field lemmas | `wellFormed`, `converts`, `constraints` |
 | A raw-`HashConsM` fact under a `ClapM` wrapper | `hashConsM_converts` / `hashConsM_convertsM` |
@@ -473,7 +512,9 @@ end Clap.Lang
 - [ ] Signature uses `F p` / `FB p` / `FArray p k` / `FList p`, not `ExprRef`.
 - [ ] Every constant goes through `mkF`; every arithmetic node is a bind, spelled `←(a + b)`,
       `←(a - b)`, `←(a * b)`.
-- [ ] Exactly one lemma named `convertsM`, in `namespace <name>`.
+- [ ] Exactly one lemma named `convertsM`, in `namespace <name>`. If the gadget needs an input
+      in range that it does not range-check, also `convertsM_unchecked`, with no value-range
+      hypotheses.
 - [ ] One `h_<arg> : Converts …` hypothesis per circuit-valued input.
 - [ ] Slot 5 is `True` **only** if the gadget cannot fail to be satisfied.
 - [ ] Parameter bounds are hypotheses, not `assert!` and not part of slot 5.

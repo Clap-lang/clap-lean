@@ -37,6 +37,9 @@ Does the body iterate (mapM / foldlM)?  → additionally the induction recipe be
 
 Can two or more steps each fail (non-`True` constraints)?
   → `step` will not do it; apply `convertsM_bind_and` by hand. See below.
+
+Does a gadget need a range that an earlier assertion establishes?
+  → its `convertsM_unchecked`, plus `convertsM_bind_guard`. See below.
 ```
 
 ## The `step` tactic
@@ -73,7 +76,8 @@ Consequences worth internalising:
   `convertsM_bind` survive to the end of the proof. That is where soundness and completeness
   show up — see below.
 - **`step` goes through `convertsM_bind`, so it cannot sequence two assertions.** At most one
-  step in the chain may have a non-`True` constraint, and it must be the last. See
+  step in the chain may have a non-`True` constraint; it may sit anywhere, as long as every
+  other step is `True`. See
   [When `step` does not apply](#when-step-does-not-apply--two-or-more-assertions).
 - `step` takes an arbitrary term, not just a library lemma. Feeding it an induction hypothesis
   is idiomatic: `step @h_k fvals_base vals_base this as mapM` in
@@ -141,10 +145,13 @@ b_val = 0  ↔  (a_val = 0 → a_val = 0 ∧ b_val = 0)
 false whenever `a_val ≠ 0` and `b_val ≠ 0`. **This is not a proof you are getting wrong. The
 statement is unprovable in that shape.**
 
-So the rule is: in a `step` chain **at most one action may have a non-`True` constraint, and it
-must be the last one.** Every gadget written before this was documented happens to satisfy that
-— `assertBool` is three `True` steps then one `eq0`, `singleOneArray` is three `True` steps then
-one `assert_eq` — which is why it never surfaced.
+So the rule is: in a `step` chain **at most one action may have a non-`True` constraint.** It
+need not be the last. When it comes first and everything after it is `True`, the continuation
+obligation is `True ↔ (C₁ → C₁)`, which holds, and `convertsM_bind`'s `constraints → C₁` side goal
+is closed by `exact id`. [HashToField/hashBytesToField.lean](../Clap/Poseidon/HashToField/hashBytesToField.lean)
+steps `assertIsBytes` first this way. Most gadgets put the assertion last — `assertBool` is three
+`True` steps then one `eq0`, `singleOneArray` is three `True` steps then one `assert_eq` — and
+none has two, which is why the restriction never surfaced.
 
 As soon as two steps can each fail, drop `step` for that bind and apply
 [`convertsM_bind_and`](../Clap/Model/Convert/Base.lean) by hand:
@@ -191,6 +198,89 @@ is the same pattern for `Vector.mapM`. Every element's gadget asserts, so each s
 two-assertion bind, closed with `convertsM_bind_and` and `convertsM_map`.
 [Packing/bytes2BigEndianBits.lean](../Clap/Lang/Data/Packing/bytes2BigEndianBits.lean) is built on
 it, with `FArray.converts_flatten` for the final `flatten`.
+
+### Using a range established earlier in the circuit
+
+`lessThan`, its three variants, `arraySelector`, the `F8` comparisons and `F8.isWhitespace` never
+range-check the operands they need in range. Like circomlib's `LessThan`, `lessThan w a b`
+range-checks only its offset `a - b + 2^w`. So their `convertsM` takes the bounds as hypotheses:
+`ha : a_val.val < 2^w`, or, for `F8`, `Converts F8.conversion`, which is the same thing in
+disguise. In a program such as
+
+```lean
+do
+  assert_range w a
+  assert_range w b
+  let lt ← lessThan w a b
+  assert lt
+```
+
+the bounds sit in the two assertions' slot 5. Neither `convertsM_bind` nor `convertsM_bind_and`
+can move them into `lessThan.convertsM`'s hypotheses: both take the continuation's `ConvertsM` as
+a plain hypothesis, whose `result` and `wellFormed` fields are unconditional. Only its constraint
+slot is ever read in the context of the earlier constraint. So the continuation must be specified
+for **every** input — and at the top level ([public-inputs.md](public-inputs.md)) the inputs are
+arbitrary field elements.
+
+Two pieces solve it:
+
+1. **`convertsM_unchecked`.** Each of those gadgets also has a spec with no value-range
+   hypotheses, which holds for arbitrary inputs. Its value is what the circuit computes for them,
+   and its slot 5 is the constraint the circuit really emits. For `lessThan` both are named in its
+   namespace, `lessThan.lessThanRaw w a_val b_val` and `lessThan.lessThanOk w a_val b_val`. Two
+   bridge lemmas say what they mean in range: `lessThanRaw_eq` (it is
+   `decide (a_val.val < b_val.val)`) and `lessThanOk_of` (it holds).
+2. **`convertsM_bind_guard`** ([Convert/Base.lean](../Clap/Model/Convert/Base.lean)).
+   This is `convertsM_bind_and` plus a rewrite of the continuation's constraint under the
+   action's:
+
+   ```lean
+   lemma convertsM_bind_guard
+     (h_action   : ConvertsM conversion1 action state action_val constraints1)
+     (h_function : ConvertsM conversion2 (function (action.getResult state.numAlloc state.σ))
+                             (action.getState state) function_val constraints2)
+     (h_guard : constraints1 → (constraints2 ↔ constraints2'))
+     : ConvertsM conversion2 (action >>= function) state function_val (constraints1 ∧ constraints2')
+   ```
+
+   It is sound because when `constraints1` fails, both conjunctions are false.
+
+The guard rewrites a **constraint**, never a value: the continuation's value stays raw
+(`lessThanRaw`). That is enough when the raw value is only asserted, as here. A raw value that
+flows on into later computation stays raw in the spec, and becomes readable only inside a
+constraint that a guard rewrites.
+
+[Examples/RangeCheckedLessThan.lean](../Clap/Examples/RangeCheckedLessThan.lean) is the worked
+case. Its spec has no hypothesis on `a_val` or `b_val` at all:
+
+```lean
+  unfold rangeCheckedLessThan
+  rw [← bind_assoc]                  -- group the two range checks into one action
+  have hA  := assert_range.convertsM (w := w) h_a
+  have hAB := convertsM_bind_and (function := fun _ => assert_range w b) hA
+                (assert_range.convertsM (w := w) (converts_skip hA h_b))
+  have hLt := lessThan.convertsM_unchecked (w := w) (converts_skip hAB h_a) (converts_skip hAB h_b)
+  have hT  := convertsM_bind_and (function := assert) hLt (assert.convertsM hLt.result)
+  refine convertsM_of_convertsM (convertsM_bind_guard hAB hT ?_) rfl and_assoc
+  rintro ⟨ha, hb⟩                    -- the guard: both ranges hold
+  rw [lessThan.lessThanRaw_eq ha hb hw]
+  simp [lessThan.lessThanOk_of ha hb hw]
+```
+
+Two notes for longer programs:
+
+- **A `do` block nests to the right.** `do A; B; T` is `A >>= fun _ => (B >>= fun _ => T)`, so a
+  guard at `A` cannot see `B`'s range. When the range checks are consecutive `Unit` steps, group
+  them with `rw [← bind_assoc]` as above. Otherwise apply the guard at the first check, and
+  thread the later ones inside it with `and_congr_right`:
+  `h_guard : C_a → (C_b ∧ C_rest ↔ C_b ∧ C_rest')`.
+- **After a manual `convertsM_bind_and`, `generalize` the action's result and post-state before
+  stepping again.** [F8/isWhitespace.lean](../Clap/Lang/Data/F8/isWhitespace.lean)'s
+  `convertsM_unchecked` does
+  `generalize (lessThan 8 eight_result e).getState thirtytwo_state = gt8_state at *`, and the
+  same for `getResult`. `step` would have `set` them. Left as terms, the next `step`'s defeq
+  checks unfold them through the concrete width `8` and time out in `whnf`.
+  `arraySelector.convertsM_unchecked`, at the symbolic width `minBits' len`, does not need it.
 
 ## Skeleton 1 — straight-line composition
 
@@ -442,6 +532,7 @@ These are non-obvious and both proofs depend on them:
 | `convertsM_of_convertsM` | rewrite value **and** constraints of a `ConvertsM` |
 | `converts_skip` | carry a `Converts` past an intervening action (what `step` uses) |
 | `convertsM_bind_and` | sequence two actions that **both** assert; `step`/`convertsM_bind` cannot |
+| `convertsM_bind_guard` | the same, rewriting the continuation's constraint under the action's; its value and well-formedness stay unconditional. See [Using a range established earlier](#using-a-range-established-earlier-in-the-circuit) |
 | `FArray.converts_iff_FB_converts` | pointwise view of an `FArray` fact |
 | `FArray.converts_push` / `converts_pop` / `converts_getElem` / `converts_vector_cast` | vector surgery |
 | `FArray.convertsM_of_convertsM_toList` | turn an `FArray` goal into an `FList` goal |
@@ -480,6 +571,8 @@ bidirectional, `→` / `←` implication, `.` use-as-fact, `! .` aggressive, `ca
 | Goal explodes into raw `WriterT`/`StateT` terms | you unfolded an `@[irreducible]` gate | undo; go through `getResult_*` / `getCircuit_*` / `wellFormed_*` instead |
 | The constraints `↔` will not close and looks false | your slot-5 condition is wrong (often spuriously `True`) | fix the specification, not the proof |
 | The constraints `↔` reads `C₂ ↔ (C₁ → … C₁ … ∧ C₂)` and is false when `C₁` fails | you used `step`/`convertsM_bind` across **two** assertions; the shape is unprovable, not merely hard | re-do that bind with `convertsM_bind_and`, then reshape with `convertsM_of_convertsM`. See [When `step` does not apply](#when-step-does-not-apply--two-or-more-assertions) |
+| A gadget's `convertsM` needs a range (`ha : a_val.val < 2^w`, or an `F8.conversion` operand) that only an earlier `assert_range` establishes | `convertsM_bind` / `convertsM_bind_and` need the continuation's spec for *every* input; the range is only in the earlier step's slot 5 | use the gadget's `convertsM_unchecked`, and rewrite its constraint with `convertsM_bind_guard`. See [Using a range established earlier](#using-a-range-established-earlier-in-the-circuit) |
+| `step` right after a manual `convertsM_bind_and` times out in `whnf` | the action's `getResult` / `getState` are left as terms, and `step` unfolds them through a concrete width | `generalize` both `at *` first, as in [F8/isWhitespace.lean](../Clap/Lang/Data/F8/isWhitespace.lean) |
 | An extra unexplained goal at the end of a Skeleton-2 proof | the `convertsM_bind` implications for a non-`True` constraint | that is soundness/completeness; prove them |
 | The constraints goal reads `… ↔ (True → True → … → P)` and `constructor`/`intro` then mismatches | each preceding `True`-constraint step contributes one `True →` via `convertsM_bind` | a bare `simp` absorbs them, but a targeted script must strip them first: `simp only [true_implies]`. See [FB/assertBool.lean](../Clap/Lang/Core/FB/assertBool.lean) |
 
@@ -565,6 +658,9 @@ values in the `#v[…]`. Five traps:
 Worked examples live at the bottom of [FUnit/assert_range.lean](../Clap/Lang/Core/FUnit/assert_range.lean),
 [FBitVec/binSum.lean](../Clap/Lang/Data/FBitVec/binSum.lean), [F/lessThan.lean](../Clap/Lang/Core/F/lessThan.lean)
 and [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean).
+[Examples/RangeCheckedLessThan.lean](../Clap/Examples/RangeCheckedLessThan.lean) runs a program
+with two public inputs, and pins a vector that the bare comparison accepts and only the range checks
+reject.
 
 ## Checklist
 
@@ -572,7 +668,8 @@ and [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean).
       pre-existing `linter.dupNamespace` ones from `Clap/Util/Containers.lean:15`.
 - [ ] The proof uses `step` for each bind rather than manual `convertsM_bind` applications —
       except where two steps can each fail, which `step` cannot express; those use
-      `convertsM_bind_and`.
+      `convertsM_bind_and`. Where a gadget consumes a range that an earlier assertion
+      establishes, use its `convertsM_unchecked` and `convertsM_bind_guard`.
 - [ ] No `@[irreducible]` gate was `unfold`ed.
 - [ ] If the constraints slot is not `True`, both `↔` directions are genuinely proved — not
       papered over by weakening the specification.

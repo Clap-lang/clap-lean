@@ -344,15 +344,23 @@ templates, including `num2BigEndianBits`, which the old model inlined;
 `hashBytesToField` and `hash64BitLimbsToField`. HashToField sits above `Clap/Lang/` because
 Poseidon does. Poseidon has no `convertsM`, and no functional spec to prove one against: every
 hashing gadget takes [`Poseidon.Computes H`](../Clap/Poseidon/Computes.lean) — the circuit
-computes *some* hash family `H` — as a hypothesis, and states its ideal value through `H`. No
-`sorry` is involved. The random-oracle idealisation the Fiat–Shamir ports will need is
+computes *some* hash family `H` — as a hypothesis, and states its ideal value through `H`. The
+proofs have no `sorry` of their own: `#print axioms` lists `sorryAx`, but only through
+`Primes.instFactPrimeBn254`, which `ZMod bn254` numerals pick up. `Computes` itself is not proved
+(that needs a `share` wrapper), but `Computes.evalConst_eq` shows it pins `H` to what the circuit
+evaluates to, so the circomlib vectors are values of `H`. The half of a collision argument that
+does not involve `H` is `hashBytesToFieldElems_injective` / `hash64BitLimbsToFieldElems_injective`:
+at a fixed size the hashed elements determine the bytes (limbs, if range-checked) and `len`.
+The random-oracle idealisation the Fiat–Shamir ports will need is
 [RandomOracle.lean](../Clap/Poseidon/RandomOracle.lean): `H` drawn uniformly from all functions
 on queries of arity at most 16, with Schwartz–Zippel and a union bound ported from the older
 development. It replaces that development's `ROModel`, which its module doc explains is vacuous.
 
 **Unblocked by `FString.conversion`, not yet done**: the separate, larger `old/Clap/FString.lean`
 (only `old/Clap/Lang.lean`'s `FString` has been ported), `old/Clap/JWT.lean`,
-`old/Clap/Keyless.lean`. All three can now hash with `hashBytesToField`.
+`old/Clap/Keyless.lean`. All three can now hash with `hashBytesToField`. JWT and Keyless also feed
+parsed indices into `arraySelector` / `lessThan` and input characters into `F8.*` /
+`isWhitespace`, none of which range-check their operands; see the range-consumer trap below.
 
 **Retired, do not port**: `old/Clap/Circuit.lean` (PHOAS syntax), `old/Clap/Simulation.lean`,
 `old/Clap/Compilation.lean`, `old/Clap/Compiler/*` (the `#compile` reifier), `old/Clap/Milestone.lean`.
@@ -405,6 +413,18 @@ Note `Fact (Nat.Prime goldilocks)` and `Fact (Nat.Prime bn254)` are `sorry`'d in
   [public-inputs.md](public-inputs.md) before writing an allocator by hand. The contract that
   input `i` is circuit variable `i` is maintained by allocating in order and nothing else, so it
   is still yours to keep.
+- **Range consumers do not check their operands, and their `convertsM` cannot be discharged at
+  the top level.** Like circomlib's `LessThan`, `lessThan` and its variants, `arraySelector`, the
+  `F8` comparisons and `F8.isWhitespace` check only an internal offset. So their `convertsM`
+  takes the operands' bounds as hypotheses — for `F8`, through `F8.conversion`. The JWT and
+  Keyless ports feed them parsed indices (`arraySelector`, `lessThan`) and input characters
+  (`F8.*`, `isWhitespace`), which at the top level are arbitrary field elements. Range-check them
+  in the circuit (`assert_range`, `Packing.assertIsBytes`), consume them through the gadget's
+  `convertsM_unchecked`, and rewrite its constraint under the range check with
+  `convertsM_bind_guard`.
+  [proving-circuits.md §Using a range established earlier in the circuit](proving-circuits.md#using-a-range-established-earlier-in-the-circuit)
+  has the pattern, and [Examples/RangeCheckedLessThan.lean](../Clap/Examples/RangeCheckedLessThan.lean)
+  the worked case.
 
 ## Checklist
 

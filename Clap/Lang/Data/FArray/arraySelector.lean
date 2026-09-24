@@ -13,13 +13,15 @@ variable {p : ℕ}
 section arraySelector
 
 /-- Bit array with 1s at `[startIdx, endIdx)`, 0s elsewhere, saturating at `len` when
-`endIdx ≥ len`. Only satisfiable when `startIdx < len ∧ startIdx < endIdx`. Simplified from the
-old OR/AND left-to-right scan (`old/Clap/Array.lean:31-41`) to a difference-array / toggle
-construction: XOR the two one-hot masks, then take the inclusive prefix-XOR scan.
+`endIdx ≥ len`. For indices below `2 ^ minBits' len`, satisfiable exactly when
+`startIdx < len ∧ startIdx < endIdx`. Simplified from the old OR/AND left-to-right scan
+(`old/Clap/Array.lean:31-41`) to a difference-array / toggle construction: XOR the two one-hot
+masks, then take the inclusive prefix-XOR scan.
 
-Both range checks (`startIdx < endIdx` and `startIdx < len`) are folded into a single `assert`
-so the gadget emits exactly one real assertion — chaining two separate asserts through the
-`ConvertsM` bind machinery does not compose the way a single one does. -/
+Both comparisons (`startIdx < endIdx` and `startIdx < len`) are folded into a single `assert`,
+but each `lessThan` also range-checks its own offset, so the gadget emits three constraints.
+Like `lessThan`, it never range-checks the indices themselves: `convertsM` takes their bounds as
+hypotheses, and `convertsM_unchecked` states the three raw constraints for arbitrary indices. -/
 def arraySelector [p.AtLeastTwo] (len : ℕ) (startIdx endIdx : F p) : ClapM p (FArray p len) := do
   let lt1 ← lessThan (minBits' len) startIdx endIdx
   let lenF ← mkF (len : ZMod p)
@@ -66,7 +68,11 @@ private lemma scanAuxPure_getElem
         by_cases hb : b < j <;> by_cases hb2 : b = j <;>
         simp [ha, ha2, hb, hb2] <;> omega
 
-lemma convertsM
+/-- `arraySelector` on arbitrary indices. The value is unchanged — it never depended on the
+bounds — and slot 5 is the three constraints the circuit emits: both comparisons' offset checks,
+then the `assert` on their raw bits. `h_len` stays because `oneHotRaw` and `singleEndArray`
+need it. -/
+lemma convertsM_unchecked
   [p.AtLeastTwo]
   {len : ℕ}
   {startIdx endIdx : F p}
@@ -75,25 +81,37 @@ lemma convertsM
   (h_startIdx : Converts F.conversion state startIdx startIdx_val)
   (h_endIdx : Converts F.conversion state endIdx endIdx_val)
   (h_len : len < p)
-  (ha : startIdx_val.val < 2 ^ minBits' len) (hb : endIdx_val.val < 2 ^ minBits' len)
-  (hw : 2 ^ (minBits' len + 1) < p)
 :
   ConvertsM FArray.conversion (arraySelector len startIdx endIdx) state
     (Vector.ofFn (fun i : Fin len =>
       decide (startIdx_val.val ≤ i.val) ^^ decide (endIdx_val.val ≤ i.val)))
-    (startIdx_val.val < len ∧ startIdx_val.val < endIdx_val.val)
+    (lessThan.lessThanOk (minBits' len) startIdx_val endIdx_val ∧
+     lessThan.lessThanOk (minBits' len) startIdx_val (len : ZMod p) ∧
+     (lessThan.lessThanRaw (minBits' len) startIdx_val endIdx_val &&
+       lessThan.lessThanRaw (minBits' len) startIdx_val (len : ZMod p)) = true)
 := by
   unfold arraySelector
-  step lessThan.convertsM h_startIdx h_endIdx ha hb hw as lt1
+  -- Three steps assert. Each comparison is sequenced with `convertsM_bind_and`, reframing by hand
+  -- what `step` would have reframed; `step` takes the rest, with the `assert` as its only one.
+  have h_lt1 := lessThan.convertsM_unchecked (w := minBits' len) h_startIdx h_endIdx
+  have h_s1 := converts_skip h_lt1 h_startIdx
+  have h_e1 := converts_skip h_lt1 h_endIdx
+  have h_lt1r := h_lt1.result
+  clear h_startIdx h_endIdx
+  apply convertsM_bind_and h_lt1
   step mkF.convertsM as lenF
-  have h_lenF_val : (len : ZMod p).val < 2 ^ minBits' len := by
-    rw [ZMod.val_natCast_of_lt h_len]
-    exact lt_two_pow_minBits' len
-  step lessThan.convertsM h_startIdx h_lenF ha h_lenF_val hw as lt2
-  step FB.and.convertsM h_lt1 h_lt2 as combined
+  simp only [true_implies]
+  have h_lt2 := lessThan.convertsM_unchecked (w := minBits' len) h_s1 h_lenF
+  have h_s2 := converts_skip h_lt2 h_s1
+  have h_e2 := converts_skip h_lt2 h_e1
+  have h_lt1r' := converts_skip h_lt2 h_lt1r
+  have h_lt2r := h_lt2.result
+  clear h_s1 h_e1 h_lt1r h_lenF
+  apply convertsM_bind_and h_lt2
+  step FB.and.convertsM h_lt1r' h_lt2r as combined
   step assert.convertsM h_combined as assertStep
-  step oneHotRaw.convertsM h_startIdx h_len as startMask
-  step singleEndArray.convertsM h_endIdx h_len as endMask
+  step oneHotRaw.convertsM h_s2 h_len as startMask
+  step singleEndArray.convertsM h_e2 h_len as endMask
   step FArray.xor.convertsM h_startMask h_endMask as diffMask
   apply convertsM_of_convertsM (FArray.xorScan.convertsM h_diffMask)
   . have hdiff_eq :
@@ -119,14 +137,36 @@ lemma convertsM
     simp only [Nat.lt_succ_iff] at hi'
     simp only [Vector.getElem_ofFn]
     exact hi'
-  . simp only [true_iff, true_implies]
-    rw [Bool.and_eq_true_iff, decide_eq_true_eq, decide_eq_true_eq, ZMod.val_natCast_of_lt h_len]
-    rintro ⟨h1, h2⟩
-    exact ⟨h2, h1⟩
-  . simp only [true_implies]
-    rw [Bool.and_eq_true_iff, decide_eq_true_eq, decide_eq_true_eq, ZMod.val_natCast_of_lt h_len]
-    rintro ⟨h1, h2⟩
-    exact ⟨h2, h1⟩
+  -- the `assert` is the only asserting `step`, so both constraint goals are that `assert`
+  . simp
+  . simp
+
+lemma convertsM
+  [p.AtLeastTwo]
+  {len : ℕ}
+  {startIdx endIdx : F p}
+  {state : ClapMState p}
+  {startIdx_val endIdx_val : ZMod p}
+  (h_startIdx : Converts F.conversion state startIdx startIdx_val)
+  (h_endIdx : Converts F.conversion state endIdx endIdx_val)
+  (h_len : len < p)
+  (ha : startIdx_val.val < 2 ^ minBits' len) (hb : endIdx_val.val < 2 ^ minBits' len)
+  (hw : 2 ^ (minBits' len + 1) < p)
+:
+  ConvertsM FArray.conversion (arraySelector len startIdx endIdx) state
+    (Vector.ofFn (fun i : Fin len =>
+      decide (startIdx_val.val ≤ i.val) ^^ decide (endIdx_val.val ≤ i.val)))
+    (startIdx_val.val < len ∧ startIdx_val.val < endIdx_val.val)
+:= by
+  have h_lenF_val : (len : ZMod p).val < 2 ^ minBits' len := by
+    rw [ZMod.val_natCast_of_lt h_len]
+    exact lt_two_pow_minBits' len
+  apply convertsM_of_convertsM (convertsM_unchecked h_startIdx h_endIdx h_len) rfl
+  rw [lessThan.lessThanRaw_eq ha hb hw, lessThan.lessThanRaw_eq ha h_lenF_val hw,
+    ZMod.val_natCast_of_lt h_len]
+  simp only [lessThan.lessThanOk_of ha hb hw, lessThan.lessThanOk_of ha h_lenF_val hw,
+    true_and, Bool.and_eq_true, decide_eq_true_eq]
+  exact And.comm
 
 lemma convertsM'
   [p.AtLeastTwo]

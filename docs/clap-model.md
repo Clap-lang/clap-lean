@@ -539,6 +539,13 @@ lemma convertsM_bind_and
                           (action.getState state) function_val constraints2)
   : ConvertsM conversion2 (action >>= function) state function_val (constraints1 ∧ constraints2)
 
+lemma convertsM_bind_guard                          -- `_and`, rewriting constraints2 under constraints1
+  (h_action   : ConvertsM conversion1 action state action_val constraints1)
+  (h_function : ConvertsM conversion2 (function (action.getResult state.numAlloc state.σ))
+                          (action.getState state) function_val constraints2)
+  (h_guard    : constraints1 → (constraints2 ↔ constraints2'))
+  : ConvertsM conversion2 (action >>= function) state function_val (constraints1 ∧ constraints2')
+
 lemma convertsM_map (h_action …) (h_function : Converts …)
                     (h_constraints : constraints ↔ action_constraints)
   : ConvertsM conversion2 (f <$> action) state function_val constraints
@@ -550,9 +557,15 @@ lemma converts_skip (h_action : ConvertsM conversion₁ action state val1 constr
 lemma converts_cast / converts_of_converts / convertsM_of_convertsM  -- rewrite value or constraints
 ```
 
-Note the contravariant shape of `convertsM_bind`: the continuation is proved under the
-implication `constraints1 → constraints`. That is how "constraints established earlier in the
-circuit may be assumed later" is threaded through a `do` block.
+Note the contravariant shape of `convertsM_bind`: the continuation's constraint is stated under
+the implication `constraints1 → constraints`. That is how "constraints established earlier in the
+circuit may be assumed later" is threaded through a `do` block — **but only in the constraint
+slot**. The continuation's `ConvertsM` is still a plain hypothesis, so its `result` and
+`wellFormed` fields must hold unconditionally, and an earlier constraint can never become a
+*hypothesis* of a later gadget's `convertsM`. A range that `assert_range` establishes therefore
+cannot discharge `lessThan.convertsM`'s `ha`. Use the gadget's `convertsM_unchecked` with
+`convertsM_bind_guard` instead — see
+[proving-circuits.md](proving-circuits.md#using-a-range-established-earlier-in-the-circuit).
 
 **That shape also makes `convertsM_bind` unusable for a `do` block with two real assertions**,
 and `convertsM_bind_and` exists for exactly that case. Because `ConvertsM`'s third field is an

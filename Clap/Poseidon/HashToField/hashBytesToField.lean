@@ -16,12 +16,20 @@ result with `hashElemsToField`.
 
 All `numBytes` bytes are hashed, not only the first `len`. Circom's comment that bytes past
 `len` "are ignored" is wrong: `ChunksToFieldElems` packs the whole array. So the ideal value is a
-function of the full padded data and `len`, and binding a string needs its padding to be zero,
-which `FString.conversion` supplies.
+function of the full padded data and `len`. Binding a string needs its padding to be zero, which
+`FString.conversion` supplies, and its characters to be bytes: `FString.encodeV` keeps each
+`Char`'s low byte, not its UTF-8 encoding, so for a non-ASCII string the ideal value is not
+Rust's hash of `s.as_bytes()`.
 
-Collision resistance holds only at a fixed `numBytes`, because `hashElemsToField` is not
-domain-separated by size: with `len` unconstrained, a 31-byte instance can reproduce the hash of a
-466–961-byte one. Callers that range-check `len` are unaffected.
+At a fixed `numBytes` the hashed elements determine the bytes and `len`
+(`hashBytesToFieldElems_injective`), so a collision there is a collision of `H`. Across sizes
+there is no such guarantee, because `hashElemsToField` is not domain-separated by size: with `len`
+unconstrained, a 31-byte instance can reproduce the hash of a 466–961-byte one. Callers that
+range-check `len` are unaffected.
+
+`numBytes ≤ 1953` is the real limit, `(numBytes + 30) / 31 + 1 ≤ 64`. Circom documents
+`64 * 31 = 1984`, which forgets the element `len` takes. Circom also asserts `numBytes > 0`; here
+`numBytes = 0` is allowed and hashes `len` alone.
 
 Slot 5 is the byte range check `∀ i, data_vals[i].val < 2 ^ 8` from `Packing.assertIsBytes`,
 on which the model and the compiled circuit agree. -/
@@ -32,12 +40,50 @@ def hashBytesToField {numBytes : ℕ} (input : FString bn254 numBytes) : ClapM b
   let elems ← Packing.chunksToFieldElems 31 8 padded
   hashElemsToField (elems.push input.len)
 
+/-- The field elements `hashBytesToField` hashes: the bytes zero-padded to a multiple of 31 and
+packed 31 per element, then `len`. -/
+def hashBytesToFieldElems {numBytes : ℕ} (data : Vector (ZMod bn254) numBytes)
+    (len : ZMod bn254) : Vector (ZMod bn254) ((numBytes + 30) / 31 + 1) :=
+  let padded : Vector (ZMod bn254) ((numBytes + 30) / 31 * 31) :=
+    (data ++ Vector.replicate ((numBytes + 30) / 31 * 31 - numBytes) (0 : ZMod bn254)).cast (by omega)
+  ((toChunks 31 padded).map (Packing.chunksToNum 8)).push len
+
 /-- The ideal value of `hashBytesToField` -/
 def hashBytesToFieldSpec (H : HashFn) {numBytes : ℕ} (data : Vector (ZMod bn254) numBytes)
     (len : ZMod bn254) : ZMod bn254 :=
-  let padded : Vector (ZMod bn254) ((numBytes + 30) / 31 * 31) :=
-    (data ++ Vector.replicate ((numBytes + 30) / 31 * 31 - numBytes) (0 : ZMod bn254)).cast (by omega)
-  hashElemsToFieldSpec H (((toChunks 31 padded).map (Packing.chunksToNum 8)).push len)
+  hashElemsToFieldSpec H (hashBytesToFieldElems data len)
+
+/-- Bytes and length are determined by the elements hashed from them: 31 bytes are 248 bits,
+below `bn254`, so packing never wraps. The half of a collision argument that does not involve
+`H`. -/
+lemma hashBytesToFieldElems_injective
+  {numBytes : ℕ}
+  {data₁ data₂ : Vector (ZMod bn254) numBytes}
+  {len₁ len₂ : ZMod bn254}
+  (h₁ : ∀ i : Fin numBytes, data₁[i].val < 2 ^ 8)
+  (h₂ : ∀ i : Fin numBytes, data₂[i].val < 2 ^ 8)
+  (h : hashBytesToFieldElems data₁ len₁ = hashBytesToFieldElems data₂ len₂)
+:
+  data₁ = data₂ ∧ len₁ = len₂
+:= by
+  simp only [hashBytesToFieldElems, Vector.push_eq_push] at h
+  obtain ⟨h_len, h_elems⟩ := h
+  have h_cast : numBytes + ((numBytes + 30) / 31 * 31 - numBytes) = (numBytes + 30) / 31 * 31 := by
+    omega
+  have h_padded : ∀ {d : Vector (ZMod bn254) numBytes}, (∀ i : Fin numBytes, d[i].val < 2 ^ 8) →
+      ∀ i : Fin ((numBytes + 30) / 31 * 31),
+        ((d ++ Vector.replicate ((numBytes + 30) / 31 * 31 - numBytes) (0 : ZMod bn254)).cast
+          h_cast)[i].val < 2 ^ 8 := by
+    intro d hd i
+    simp only [Fin.getElem_fin, Vector.getElem_cast, Vector.getElem_append, Vector.getElem_replicate]
+    split
+    . exact hd ⟨i, ‹_›⟩
+    . simp
+  have h_eq := Packing.toChunks_map_chunksToNum_injective (by decide) (h_padded h₁) (h_padded h₂)
+    h_elems
+  refine ⟨?_, h_len⟩
+  ext i hi
+  simpa [Vector.getElem_append_left hi] using congrArg (·[i]'(by omega)) h_eq
 
 namespace hashBytesToField
 
@@ -128,6 +174,20 @@ private def elemsHash {n : ℕ} (xs : Vector (ZMod bn254) n) : Option (ZMod bn25
 example : elemsHash #v[0, 0, 0] =
   some 5317387130258456662214331362918410991734007599705406860481038345552731150762 := by
   native_decide
+
+/-
+The tree branches, left as comments: at two to three 16-ary Poseidons each they take minutes.
+Both were checked with `native_decide` on 2026-09-24 against circomlibjs 0.1.7, composing its
+`poseidon` by hand. The Rust generator cannot produce them, since `hash_scalars` stops at 16.
+
+-- 37 elements, the Keyless payload's shape: `P3 [P16 [1..16], P16 [17..32], P5 [33..37]]`
+example : elemsHash (Vector.ofFn (n := 37) fun i ↦ ((i.val + 1 : ℕ) : ZMod bn254)) =
+  some 18849011912027261623703612245603831000018785503133209119935144402477581247809
+
+-- 51 ones: `P4 [P16 [1..], P16 [1..], P16 [1..], P3 [1, 1, 1]]` (the old model's vector)
+example : elemsHash (Vector.replicate 51 (1 : ZMod bn254)) =
+  some 11628121580149142260524838530806013087501953643589744849802502906921824536992
+-/
 
 end examples
 

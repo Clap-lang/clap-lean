@@ -32,6 +32,25 @@ lemma convertsM
 
 end chunksToFieldElems
 
+/-- The chunks are determined by the scalars `chunksToFieldElems` packs them into, as long as
+each chunk is below `2 ^ b` and a scalar's `cps * b` bits fit below `p`. -/
+lemma toChunks_map_chunksToNum_injective {w cps b : ℕ} (h_fit : 2 ^ (cps * b) ≤ p)
+    {v₁ v₂ : Vector (ZMod p) (w * cps)}
+    (h₁ : ∀ i : Fin (w * cps), v₁[i].val < 2 ^ b) (h₂ : ∀ i : Fin (w * cps), v₂[i].val < 2 ^ b)
+    (h : (toChunks cps v₁).map (chunksToNum b) = (toChunks cps v₂).map (chunksToNum b)) :
+    v₁ = v₂ := by
+  ext k hk
+  have h_cps : 0 < cps := Nat.pos_of_ne_zero (by rintro rfl; simp at hk)
+  have hi : k / cps < w := (Nat.div_lt_iff_lt_mul h_cps).mpr hk
+  have h_digits : ∀ {v : Vector (ZMod p) (w * cps)}, (∀ i : Fin (w * cps), v[i].val < 2 ^ b) →
+      ∀ j : Fin cps, (toChunks cps v)[k / cps][j].val < 2 ^ b := fun hv j ↦ by
+    simpa using hv ⟨k / cps * cps + j, toChunks_index_lt hi j.isLt⟩
+  have h_chunk := congrArg (·[k / cps]) h
+  simp only [Vector.getElem_map] at h_chunk
+  have h_elem := congrArg (·[k % cps]'(Nat.mod_lt _ h_cps))
+    (chunksToNum_injective h_fit (h_digits h₁) (h_digits h₂) h_chunk)
+  simpa [Nat.div_add_mod'] using h_elem
+
 section examples
 
 private abbrev q : ℕ := 1031

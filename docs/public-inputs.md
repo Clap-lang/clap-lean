@@ -157,6 +157,16 @@ way — it is the placeholder for "Poseidon's circuit matches Poseidon's Lean im
 which cannot be proved against an opaque constant. It is the only expected `sorry` in
 `lake build Clap`. Everything structural around it is proved.
 
+[Examples/RangeCheckedLessThan.lean](../Clap/Examples/RangeCheckedLessThan.lean) has a smaller
+end-to-end theorem with no `sorry` anywhere: `rangeCheckedLessThanProgram.getConstraints_iff`,
+over two scalar inputs allocated with `mkInputF`. The same three steps apply, but the bridge
+`converts_input` is short: from the empty heap the allocations are concrete (refs `0` and `1`,
+heap `#[.v 0, .v 1]`), so `simp` computes them. The theorem also shows what a program has to do
+when a gadget needs its inputs in range. Inputs arrive as arbitrary field elements, so the
+program range-checks them itself, and the proof consumes those checks with
+`convertsM_bind_guard` — see
+[proving-circuits.md](proving-circuits.md#using-a-range-established-earlier-in-the-circuit).
+
 ## Checklist
 
 - [ ] `allocate` hands out indices in increasing order, with no gaps.
