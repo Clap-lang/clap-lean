@@ -279,7 +279,7 @@ deliberately not ported.
 **`num2bits` and everything it gated are also done**, which is the big change since this guide
 was first written: `num2bits`, `lessThan` / `lessEqThan` / `greaterThan` /
 `greaterEqThan`, `F8.eq` / `lessThan` / `greaterThan` / `lessEqThan` / `greaterEqThan`,
-`F8.isWhitespace`, `arraySelector`, `singleEndArray`, `FArray.xor`, `FArray.xorScan`, and
+`F8.isWhitespace`, `arraySelector`, `FArray.xor`, `FArray.xorScan`, and
 `FBitVec.eq` / `assert_eq`.
 
 **`old/Clap/Lang.lean` is now fully accounted for.** The last round added `assert_range`,

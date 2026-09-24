@@ -1,7 +1,6 @@
 import Clap.Lang.Core.F.lessThan
 import Clap.Lang.Core.F.mkF
 import Clap.Lang.Data.FArray.OneHotRaw
-import Clap.Lang.Data.FArray.singleEndArray
 import Clap.Lang.Data.FArray.xor
 import Clap.Lang.Data.FArray.xorScan
 import Clap.Lang.Core.FB.and
@@ -23,13 +22,17 @@ so the gadget emits exactly one real assertion — chaining two separate asserts
 def arraySelector [p.AtLeastTwo] (len : ℕ) (startIdx endIdx : F p) : ClapM p (FArray p len) := do
   let lt1 ← lessThan (minBits' len) startIdx endIdx
   let lenF ← mkF (len : ZMod p)
+  -- Instead of calling, `singleOneArray` as in the original circuit,
+  -- we enforce startIdx < len here and call just `oneHotRaw`. See docs above.
   let lt2 ← lessThan (minBits' len) startIdx lenF
   let combined ← FB.and lt1 lt2
   assert combined
   let startMask ← oneHotRaw len startIdx
-  let endMask ← singleEndArray len endIdx
+  -- No need to use `singleEndArray`. In our case it's functionally the same as `oneHotRaw`
+  let endMask ← oneHotRaw len endIdx
   let diffMask ← FArray.xor startMask endMask
-  diffMask.xorScan
+  let false' ← FB.ofBool false
+  diffMask.xorScan false'
 
 namespace arraySelector
 
@@ -93,9 +96,10 @@ lemma convertsM
   step FB.and.convertsM h_lt1 h_lt2 as combined
   step assert.convertsM h_combined as assertStep
   step oneHotRaw.convertsM h_startIdx h_len as startMask
-  step singleEndArray.convertsM h_endIdx h_len as endMask
+  step oneHotRaw.convertsM h_endIdx h_len as endMask
   step FArray.xor.convertsM h_startMask h_endMask as diffMask
-  apply convertsM_of_convertsM (FArray.xorScan.convertsM h_diffMask)
+  step (FB.ofBool.convertsM (state := diffMask_state) (b := false)) as false'
+  apply convertsM_of_convertsM (FArray.xorScan.convertsM h_false' h_diffMask)
   . have hdiff_eq :
         (Vector.ofFn (fun i : Fin len => (Vector.ofFn (fun x : Fin len => x.val == startIdx_val.val))[i]
           ^^ (Vector.ofFn (fun x : Fin len => x.val == endIdx_val.val))[i]))

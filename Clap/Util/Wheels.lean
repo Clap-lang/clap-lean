@@ -2,6 +2,8 @@ import Mathlib.FieldTheory.Finite.Basic -- field operations
 
 import Clap.Util.Primes
 
+#check List.scanrM
+
 private def scanrAux {α β : Type} (f : α → β → β) (init : β) : List α → β × List β
   | []     => (init, [])
   | a :: l => let (acc, rs) := scanrAux f init l; (f a acc, acc :: rs)
@@ -15,6 +17,31 @@ private lemma scanrAux_length {α β : Type} (f : α → β → β) (init : β) 
 def Vector.scanr {α β : Type} {n} (f : α → β → β) (init : β) (v : Vector α n) : Vector β n :=
   ⟨⟨(scanrAux f init v.toList).2⟩, by simp [scanrAux_length]⟩
 
+private def scanrMAux {m} {α β : Type} [Monad m] (f : α → β → m β) (init : β) :
+  (l : List α) → m (β × { rs : List β // rs.length = l.length })
+  | []     => pure (init, ⟨[], rfl⟩)
+  | a :: l => do
+    let (acc, rs) ← scanrMAux f init l
+    pure (← f a acc, ⟨acc :: rs.1, by simp [rs.2]⟩)
+
+/--
+Unlike `List.scanrM`, `Vector.scanrM` doesn't return the first element in order to
+keep the same length.
+
+#eval List.scanrM (fun x y ↦ some (x + y)) 0 [3,2,1]
+  -> [6, 3, 1, 0]
+
+#eval Vector.scanrM (fun x y ↦ some (x + y)) 0 #v[3,2,1]
+  -> [3, 1, 0]
+
+-/
+def Vector.scanrM {m} {α β : Type} {n} [Monad m] (f : α → β → m β) (init : β)
+  (v : Vector α n) :
+  m (Vector β n)
+:= do
+  let r ← scanrMAux f init v.toList
+  pure ⟨⟨r.2.1⟩, by simp⟩
+
 private def scanlAux {α β : Type} (f : β → α → β) (init : β) : List α → List β
   | []     => []
   | a :: l => init :: scanlAux f (f init a) l
@@ -27,6 +54,71 @@ private lemma scanlAux_length {α β : Type} (f : β → α → β) (init : β) 
 
 def Vector.scanl {α β : Type} {n} (f : β → α → β) (init : β) (v : Vector α n) : Vector β n :=
   ⟨⟨scanlAux f init v.toList⟩, by simp [scanlAux_length]⟩
+
+/-- Every `Vector α (n+1)` is its head consed onto its tail. -/
+lemma Vector.eq_cons {α : Type} {n} (v : Vector α (n + 1)) :
+  v = (⟨⟨v[0] :: (v.tail.cast (by omega) : Vector α n).toList⟩, by simp⟩ : Vector α (n + 1))
+:= by
+  ext i hi
+  rcases i with _ | i
+  · simp
+  · simp
+    congr 1
+    omega
+
+@[simp]
+lemma Vector.scanl_zero {α β : Type} (f : β → α → β) (init : β) :
+  Vector.scanl f init (#v[] : Vector α 0) = #v[]
+:= by
+  unfold Vector.scanl scanlAux
+  simp
+
+lemma Vector.scanl_succ {α β : Type} {n} (f : β → α → β) (init : β) (a : α) (v : Vector α n) :
+  Vector.scanl f init (⟨⟨a :: v.toList⟩, by simp⟩ : Vector α (n + 1)) =
+  (⟨⟨init :: (Vector.scanl f (f init a) v).toList⟩, by simp⟩ : Vector β (n + 1))
+:= by
+  unfold Vector.scanl
+  simp [scanlAux]
+
+private def scanlMAux {m} {α β : Type} [Monad m] (f : β → α → m β) (init : β) :
+  (l : List α) → m {rs : List β // rs.length = l.length}
+  | []     => pure ⟨[], rfl⟩
+  | a :: l => do
+    pure ⟨init :: (← scanlMAux f (←f init a) l), by simp⟩
+
+/--
+Unlike `List.scanlM`, `Vector.scanlM` doesn't return the last element in order to
+keep the same length.
+
+List.scanlM (fun x y ↦ some (x + y)) 0 [1,2,3]
+  -> [0, 1, 3, 6]
+#eval Vector.scanlM (fun x y ↦ some (x + y)) 0 #v[1,2,3]
+  -> #[0, 1, 3]
+
+-/
+def Vector.scanlM {m} {α β : Type} {n} [Monad m] (f : β → α → m β) (init : β)
+  (v : Vector α n) :
+  m (Vector β n)
+:= do
+  let r ← scanlMAux f init v.toList
+  pure ⟨⟨r.1⟩, by simp⟩
+
+@[simp]
+lemma Vector.scanlM_zero {m} {α β : Type} [Monad m] [LawfulMonad m] (f : β → α → m β) (init : β) :
+  Vector.scanlM f init (#v[] : Vector α 0) = pure #v[]
+:= by
+  unfold Vector.scanlM scanlMAux
+  simp
+
+lemma Vector.scanlM_succ {m} {α β : Type} [Monad m] [LawfulMonad m] {n} (f : β → α → m β)
+    (init : β) (a : α) (v : Vector α n) :
+  Vector.scanlM f init (⟨⟨a :: v.toList⟩, by simp⟩ : Vector α (n + 1)) = (do
+    let acc ← f init a
+    let rest ← Vector.scanlM f acc v
+    pure (⟨⟨init :: rest.toList⟩, by simp⟩ : Vector β (n + 1)))
+:= by
+  unfold Vector.scanlM
+  simp [scanlMAux]
 
 namespace Clap
 
