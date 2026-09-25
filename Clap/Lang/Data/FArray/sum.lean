@@ -63,6 +63,7 @@ lemma convertsM
       rewrite [this]
       simp
     . trivial
+    · grind
 
 end FArray.sum'
 
@@ -91,6 +92,7 @@ lemma convertsM
   apply convertsM_of_convertsM (sum'.convertsM h_vals h_zero)
   . rfl
   . trivial
+  · grind
 
 end FArray.sum
 end sum

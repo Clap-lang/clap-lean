@@ -25,9 +25,10 @@ lemma convertsM
 
   step mkSub.convertsM h_a h_b as sub
 
-  apply convertsM_of_convertsM (eq0.convertsM h_sub)
+  apply convertsM_of_convertsM (eq0.convertsM h_sub) (constraints2 := a_val - b_val = 0)
   . rfl
-  . grind
+  · rfl
+  · grind
 
 end assert_eq
 end assert_eq

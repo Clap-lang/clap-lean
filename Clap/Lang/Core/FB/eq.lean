@@ -23,11 +23,11 @@ lemma convertsM
 := by
   unfold eq
   rw [sub_def]
-
   step mkSub.convertsM h_a h_b as sub
-  apply convertsM_of_convertsM (isZero.convertsM h_sub)
-  . grind
-  . grind
+  apply convertsM_of_convertsM (constraints2 := True) (isZero.convertsM h_sub)
+  · grind
+  · grind
+  · grind
 
 end eq
 end eq

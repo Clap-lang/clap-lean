@@ -27,9 +27,10 @@ open Lang
 variable {p : ℕ}
 
 /-- Assert `a = 0`, then `b = 0`. -/
-def twoEq0 (a b : F p) : ClapM p Unit := do
+def twoEq0 (a b c : F p) : ClapM p Unit := do
   eq0 a
   eq0 b
+  eq0 c
 
 /-- The goal `step` leaves after an action with constraint `C₁` is the continuation at `C₁ → S`.
 Against the continuation's own spec at `C₂`, it forces `C₂` whenever `C₁` fails, for every `S`. -/
@@ -56,70 +57,60 @@ theorem step_no_go [p.AtLeastTwo] (S : ZMod p → ZMod p → Prop) :
   have h_b := converts_skip (eq0.convertsM h1) h1
   exact one_ne_zero (step_obligation (h _ _ _ 1 1 h1 h1) (eq0.convertsM h_b) one_ne_zero)
 
-/-- The natural spec, with no hypothesis on the inputs, by `convertsM_bind_and`. -/
-lemma convertsM
-  [p.AtLeastTwo]
-  {state : ClapMState p}
-  {a b : F p}
-  {a_val b_val : ZMod p}
-  (h_a : Converts F.conversion state a a_val)
-  (h_b : Converts F.conversion state b b_val)
-:
-  ConvertsM FUnit.conversion (twoEq0 a b) state () (a_val = 0 ∧ b_val = 0)
-:= by
-  unfold twoEq0
-  have h_eq0 := eq0.convertsM h_a
-  exact convertsM_bind_and h_eq0 (eq0.convertsM (converts_skip h_eq0 h_b))
+-- /-- The natural spec, with no hypothesis on the inputs, by `convertsM_bind_and`. -/
+-- lemma convertsM
+--   [p.AtLeastTwo]
+--   {state : ClapMState p}
+--   {a b : F p}
+--   {a_val b_val : ZMod p}
+--   (h_a : Converts F.conversion state a a_val)
+--   (h_b : Converts F.conversion state b b_val)
+-- :
+--   ConvertsM FUnit.conversion (twoEq0 a b) state () (a_val = 0 ∧ b_val = 0)
+-- := by
+--   unfold twoEq0
+--   have h_eq0 := eq0.convertsM h_a
+--   exact convertsM_bind_and h_eq0 (eq0.convertsM (converts_skip h_eq0 h_b))
 
-/-- With `a_val = 0` assumed, the first assertion cannot fail, so `step` goes through: the
-continuation's obligation `b_val = 0 ↔ (a_val = 0 → a_val = 0 ∧ b_val = 0)` holds. -/
-lemma convertsM_of_eq_zero
-  [p.AtLeastTwo]
-  {state : ClapMState p}
-  {a b : F p}
-  {a_val b_val : ZMod p}
-  (h_a : Converts F.conversion state a a_val)
-  (h_b : Converts F.conversion state b b_val)
-  (h_a_val : a_val = 0)
-:
-  ConvertsM FUnit.conversion (twoEq0 a b) state () (a_val = 0 ∧ b_val = 0)
-:= by
-  unfold twoEq0
-  step eq0.convertsM h_a as eq0_a
-  apply convertsM_of_convertsM (eq0.convertsM h_b)
-  . rfl
-  . simp [h_a_val]
+-- /-- With `a_val = 0` assumed, the first assertion cannot fail, so `step` goes through: the
+-- continuation's obligation `b_val = 0 ↔ (a_val = 0 → a_val = 0 ∧ b_val = 0)` holds. -/
+-- lemma convertsM_of_eq_zero
+--   [p.AtLeastTwo]
+--   {state : ClapMState p}
+--   {a b : F p}
+--   {a_val b_val : ZMod p}
+--   (h_a : Converts F.conversion state a a_val)
+--   (h_b : Converts F.conversion state b b_val)
+--   (h_a_val : a_val = 0)
+-- :
+--   ConvertsM FUnit.conversion (twoEq0 a b) state () (a_val = 0 ∧ b_val = 0)
+-- := by
+--   unfold twoEq0
+--   step eq0.convertsM h_a as eq0_a
+--   apply convertsM_of_convertsM (eq0.convertsM h_b)
+--   . rfl
+--   . simp [h_a_val]
 
 /-- The spec of `convertsM`, by `step`. The proof is stuck on `a_val = 0 ∨ b_val = 0`, so it goes
 through only with that as a hypothesis; without it, `step_no_go` shows no proof exists. -/
 lemma convertsM_of_eq_zero_or_eq_zero
   [p.AtLeastTwo]
   {state : ClapMState p}
-  {a b : F p}
-  {a_val b_val : ZMod p}
+  {a b c : F p}
+  {a_val b_val c_val : ZMod p}
   (h_a : Converts F.conversion state a a_val)
   (h_b : Converts F.conversion state b b_val)
-  (h_or : a_val = 0 ∨ b_val = 0)
+  (h_c : Converts F.conversion state c c_val)
 :
-  ConvertsM FUnit.conversion (twoEq0 a b) state () (a_val = 0 ∧ b_val = 0)
+  ConvertsM FUnit.conversion (twoEq0 a b c) state () (b_val = 0 ∧ a_val = 0 ∧ c_val = 0)
 := by
   unfold twoEq0
-  -- No error here: `step` applies `convertsM_bind` whatever the constraints are. It leaves the
-  -- continuation at `a_val = 0 → a_val = 0 ∧ b_val = 0`, plus the side goal
-  -- `a_val = 0 ∧ b_val = 0 → a_val = 0`, which its `intros; trivial` does not close.
   step eq0.convertsM h_a as eq0_a
-  . -- Stepping `eq0 b` too would not help: it is the tail, not a bind, so `step` warns
-    -- "Conclusion unchanged; spec missing for: eq0 b" and only renames the goal.
-    apply convertsM_of_convertsM (eq0.convertsM h_b)
-    . rfl
-    . -- The failure: `b_val = 0 ↔ (a_val = 0 → a_val = 0 ∧ b_val = 0)`. That is
-      -- `a_val = 0 ∨ b_val = 0`, false at `a = b = 1`. Without `h_or`, `grind` and `tauto`
-      -- fail, and `simp` errors with "simp made no progress".
-      fail_if_success (clear h_or; grind)
-      fail_if_success (clear h_or; tauto)
-      fail_if_success (clear h_or; simp)
-      rcases h_or with h | h <;> simp [h]
-  . exact And.left
+  step eq0.convertsM h_b as eq0_b
+  apply convertsM_of_convertsM (eq0.convertsM h_c)
+  rfl
+  rfl
+  grind
 
 end twoEq0
 

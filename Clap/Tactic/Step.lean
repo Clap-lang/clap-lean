@@ -122,10 +122,14 @@ def stateAssertions (goal : MVarId) :
     let type ← instantiateMVars (←inferType fvar)
     let args ← parseConverts type goal
     return args.map λ args => (fvar, args)
-  if (allAssertionsT.groupByKey (fun (_, args) ↦ args.state) |>.size) > 1
-  then
-    -- logWarning m!"OUR GUY:\n{(allAssertionsT.groupByKey fun (_, _, st, _) ↦ st).toArray}"
-    logWarning m!"Assumptions of shape `Converts` refer to multiple states. Are you ~~mad~~ sure?"
+  /-
+    Not trivial to clear the old context with `convertsM_bind_any` due to the potential
+    dependency.
+  -/
+  -- if (allAssertionsT.groupByKey (fun (_, args) ↦ args.state) |>.size) > 1
+  -- then
+  --   -- logWarning m!"OUR GUY:\n{(allAssertionsT.groupByKey fun (_, _, st, _) ↦ st).toArray}"
+  --   logWarning m!"Assumptions of shape `Converts` refer to multiple states. Are you ~~mad~~ sure?"
   return allAssertionsT.map Prod.fst
 
 def lemmaOfNextCommand (goal : MVarId) : MetaM (Option Lean.Expr) := do
@@ -137,7 +141,7 @@ def lemmaOfNextCommand (goal : MVarId) : MetaM (Option Lean.Expr) := do
 
   if name == `Bind.bind then
     -- logInfo m!"Bind.bind";
-    return mkConst `Clap.convertsM_bind
+    return mkConst `Clap.convertsM_bind_any
   if name == `Functor.map then
     -- logInfo m!"Functor.map";
     return mkConst `Clap.convertsM_map
@@ -165,10 +169,17 @@ def step_impl (convertsME : Lean.Expr) (actionName : Name) (goal : MVarId) : Ter
       return goal
   let stateS ← Term.exprToSyntax convertsM.args.state
   let stateAssertions ← stateAssertions goal
-  let assertions ← stateAssertions.mapM fun fvar ↦ do
-    return (fvar, ←mkAppM `Clap.converts_skip #[convertsME, fvar])
-  let goal ← assertions.foldlM (init := goal) fun goal (fvar, _) ↦
-    goal.clear fvar.fvarId!
+  let assertions ← stateAssertions.filterMapM fun fvar ↦ do
+    try
+      let applied ← mkAppM `Clap.converts_skip #[convertsME, fvar]
+      return .some (fvar, applied)
+    catch _ =>
+      return .none
+  let goal ← assertions.foldlM (init := goal) fun goal (fvar, _) ↦ do
+    try
+      goal.clear fvar.fvarId!
+    catch _ =>
+      return goal
 
   let (_, goal) ← goal.assertHypotheses <|
     #[

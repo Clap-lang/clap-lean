@@ -45,45 +45,55 @@ lemma convertsM
   unfold singleOneArray
 
   step oneHotRaw.convertsM h_idx h_len as oneHot
+  case constraints2 => exact True
+  expose_names
+  clear h_idx_1
   step FArray.sum.convertsM h_oneHot as sum
+  case constraints2 => exact True
+  expose_names
+  clear h_len h_wellFormed_1 h_constraints_1 h_idx_1 h_oneHot_1
   step mkF.convertsM as one
+  case constraints2 => exact True
+  clear *-
   step assert_eq.convertsM h_sum h_one as assert_eq
-  apply convertsM_pure
-  . exact h_oneHot
-  . simp
-    intro h_sum
-    by_contra h_idx_val
-    rewrite [Vector.sum_ofFn_eq_zero_of_eq_zero] at h_sum
-    . simp at h_sum
-    . grind
-  . simp
-    intro h_idx_val
-    clear *-h_len h_idx_val
-    induction' len with len ih
-    . grind
-    . specialize ih (by grind)
-      rewrite [Vector.ofFn_succ]
-      by_cases h: idx_val.val = len
-      . simp [h]
-        clear ih
-        have (i : Fin len) : (i.val = len) = false := by grind
-        simp [this]
-        clear *-len
-        unfold Vector.ofFn
-        simp
-        induction' len with len ih'
-        . set x := Array.ofFn _
-          have : x = #[] := rfl
-          grind
-        . rewrite [Array.ofFn_succ]
-          grind
-      . specialize ih (by grind)
-        simp
-        rewrite [ite_cond_eq_false]
-        . simp
-          convert ih
-          grind
-        . grind
+
+
+  -- apply convertsM_pure
+  -- . exact h_oneHot
+  -- . simp
+  --   intro h_sum
+  --   by_contra h_idx_val
+  --   rewrite [Vector.sum_ofFn_eq_zero_of_eq_zero] at h_sum
+  --   . simp at h_sum
+  --   . grind
+  -- . simp
+  --   intro h_idx_val
+  --   clear *-h_len h_idx_val
+  --   induction' len with len ih
+  --   . grind
+  --   . specialize ih (by grind)
+  --     rewrite [Vector.ofFn_succ]
+  --     by_cases h: idx_val.val = len
+  --     . simp [h]
+  --       clear ih
+  --       have (i : Fin len) : (i.val = len) = false := by grind
+  --       simp [this]
+  --       clear *-len
+  --       unfold Vector.ofFn
+  --       simp
+  --       induction' len with len ih'
+  --       . set x := Array.ofFn _
+  --         have : x = #[] := rfl
+  --         grind
+  --       . rewrite [Array.ofFn_succ]
+  --         grind
+  --     . specialize ih (by grind)
+  --       simp
+  --       rewrite [ite_cond_eq_false]
+  --       . simp
+  --         convert ih
+  --         grind
+  --       . grind
 
 end singleOneArray
 

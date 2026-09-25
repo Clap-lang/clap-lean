@@ -376,6 +376,42 @@ lemma convertsM_bind_and
     rewrite [h_constraints]
     grind
 
+lemma convertsM_bind_any
+  {p α β}
+  {conversion1 : Conversion p α}
+  {conversion2 : Conversion p β}
+  {action : ClapM p α}
+  {function : α → ClapM p β}
+  {state}
+  {action_val}
+  {function_val}
+  {constraints1 constraints2 constraints3}
+  (h_action : ConvertsM conversion1 action state action_val constraints1)
+  (h_function : ConvertsM
+    conversion2
+    (function (action.getResult state.numAlloc state.σ))
+    (action.getState state)
+    function_val
+    constraints2
+  )
+  (h_any : constraints3 ↔ constraints1 ∧ constraints2)
+:
+  ConvertsM conversion2 (action >>= function) state function_val constraints3
+:= by
+  constructor
+  . grind [ConvertsM, Converts, ClapM.getState]
+  . grind [ConvertsM, Converts, ClapM.getState]
+  . obtain ⟨_, _, h_constraints⟩ := h_function
+    rewrite [
+      Circuit.runAndEval_bind_constraints
+        (by grind [ConvertsM, Converts, ClapM.getState])
+        (by grind [ConvertsM, Converts, ClapM.getState])
+    ]
+    rewrite [h_action.constraints]
+    simp [ClapM.getState, ClapM.runAndEval, ClapM.getVarStore] at h_constraints ⊢
+    rewrite [h_constraints]
+    grind
+
 lemma convertsM_map
   {p α β}
   {conversion1 : Conversion p α}
