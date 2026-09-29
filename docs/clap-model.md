@@ -620,9 +620,11 @@ which is false whenever `a_val ≠ 0` and `b_val ≠ 0`;
 [Examples/StepTwoAssertions.lean](../Clap/Examples/StepTwoAssertions.lean) proves that no spec
 rescues it. `convertsM_bind_and` takes each half at its own honest constraint and conjoins them,
 which is what the underlying semantics (`Circuit.runAndEval_bind_constraints`) says anyway. Use
-`convertsM_bind` when at most one step's constraint can fail under the lemma's hypotheses — which
-is every single-assertion gadget, hence most of them — and `convertsM_bind_and` as soon as two
-can fail together.
+`convertsM_bind` (and so `step`) when at most one action in the chain produces a constraint —
+which is every single-assertion gadget, hence most of them — and `convertsM_bind_and` on any bind
+where both sides do. An experimental `step` that handles that case, built on a metavariable for
+"the rest of the constraints", exists on branch `Ferinko/newStepSlow` but is too slow to use; see
+[proving-circuits.md](proving-circuits.md#an-experimental-step-for-this-case--slow-not-merged).
 
 ### The standard conversions
 

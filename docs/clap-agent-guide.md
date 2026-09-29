@@ -103,6 +103,13 @@ cannot be closed.
    statement seems to need `CacheExpr`, restructure the approach. See
    [how-to-clap.md §Clapping](how-to-clap.md#clapping).
 
+10. **Do not use `step` on a bind `a >>= f` where both `a` and `f` produce constraints**, i.e.
+    `a`'s lemma has a non-`True` fifth argument and the continuation also asserts something.
+    `step` does not complain: it runs cleanly and leaves a final `↔` that is unprovable. Use
+    `convertsM_bind_and` for that bind instead. An experimental `step` that handles the case
+    exists on branch `Ferinko/newStepSlow`, but it is too slow to use. See
+    [proving-circuits.md §When `step` does not apply](proving-circuits.md#when-step-does-not-apply--two-assertions-that-can-fail-together).
+
 ## Metavariable conventions
 
 Follow these or your code will read as foreign to the rest of the tree.
