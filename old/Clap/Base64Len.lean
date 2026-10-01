@@ -103,7 +103,9 @@ def base64UrlLookup (i : F p) : Option (F p) := do
 
   pure sum_underscore
 
-def base64UrlDecode₀ {w} (h:3 ∣ w) (input : Vector (F p) (w*4/3)) : Option (Vector (F p) w) := do
+def base64UrlDecode₀ {w} (h:3 ∣ w) (input : Vector (F p) (w*4/3)) :
+  Option (Vector (F p) w)
+:= do
   let tmp : Vector (FBitVec p 6) _ ← input.mapM (num2bits 6)
   let tmp : Vector (FBitVec p 6) _ := tmp.map Vector.reverse
   let tmp : FBitVec p ((w*4/3)*6) := tmp.flatten
@@ -117,7 +119,8 @@ def base64UrlDecode₀ {w} (h:3 ∣ w) (input : Vector (F p) (w*4/3)) : Option (
 
 /-
   This function works a bit backward.
-  If we know the length of the expected decoded output, then we know the length of the encoded input and also its padding.
+  If we know the length of the expected decoded output, then we know the length
+  of the encoded input and also its padding.
   However base64UrlDecodedLength does not support padding base64 `=`
 -/
 def base64UrlDecode {w} (h:3 ∣ w) (input : FString p (w*4/3)) : Option (FString p w) := do

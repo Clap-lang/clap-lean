@@ -42,6 +42,7 @@ import Clap.Lang.Data.FArray.xorScan
 import Clap.Lang.Data.FArray.zeroExtend
 import Clap.Lang.Data.FBitVec.assert_eq
 import Clap.Lang.Data.FBitVec.binSum
+import Clap.Lang.Data.FBitVec.bits2numV
 import Clap.Lang.Data.FBitVec.eq
 import Clap.Lang.Data.FString.isPaddedOf
 import Clap.Lang.Data.FString.ofString
