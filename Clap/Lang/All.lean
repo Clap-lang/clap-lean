@@ -42,10 +42,12 @@ import Clap.Lang.Data.FArray.xorScan
 import Clap.Lang.Data.FArray.zeroExtend
 import Clap.Lang.Data.FBitVec.assert_eq
 import Clap.Lang.Data.FBitVec.binSum
+import Clap.Lang.Data.FBitVec.bits2numV
 import Clap.Lang.Data.FBitVec.eq
 import Clap.Lang.Data.FString.isPaddedOf
 import Clap.Lang.Data.FString.ofString
 import Clap.Lang.Data.FVec.eq
+import Clap.Lang.Data.JWT.bracketsMap
 import Clap.Lang.Data.Packing.assertIs64BitLimbs
 import Clap.Lang.Data.Packing.assertIsBytes
 import Clap.Lang.Data.Packing.bigEndianBits2Num
@@ -53,7 +55,9 @@ import Clap.Lang.Data.Packing.bigEndianBitsToScalars
 import Clap.Lang.Data.Packing.bytes2BigEndianBits
 import Clap.Lang.Data.Packing.chunksToFieldElem
 import Clap.Lang.Data.Packing.chunksToFieldElems
-import Clap.Lang.Data.Packing.num2BigEndianBits
+import Clap.Lang.Data.Base64Len.base64UrlDecode
+import Clap.Lang.Data.Base64Len.base64UrlDecodedLength
+import Clap.Lang.Data.Base64Len.base64UrlLookup
 import Clap.Lang.Data.Widths
 import Clap.Lang.Gate.eq0
 import Clap.Lang.Gate.isZero

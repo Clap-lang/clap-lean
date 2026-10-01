@@ -115,6 +115,61 @@ lemma num2bitsLsbPureV_getElem_last [NeZero p] (n : ℕ) (f : ZMod p) :
   rw [Vector.getElem_reverse (by omega)]
   simpa using num2bitsLsbPureV.aux_getElem_zero n f
 
+/-- `num2bitsLsbPureV`, unfolded one bit at a time: the LSB comes off the front, the rest is the
+decomposition of `f.val / 2`. -/
+lemma num2bitsLsbPureV_succ {n : ℕ} (f : ZMod p) :
+    (num2bitsLsbPureV (n + 1) f).toList =
+      ((f.val % 2 : ℕ) : ZMod p) :: (num2bitsLsbPureV n ((f.val / 2 : ℕ) : ZMod p)).toList := by
+  show (num2bitsLsbPureV.aux (n + 1) f).reverse.toList = _
+  rw [show num2bitsLsbPureV.aux (n + 1) f =
+        (num2bitsLsbPureV.aux n ((f.val / 2 : ℕ) : ZMod p)).push ((f.val % 2 : ℕ) : ZMod p)
+      from rfl]
+  rw [Vector.reverse_push, Vector.toList_cast, Vector.toList_append]
+  rfl
+
+/-- Recomposing the LSB-first bit decomposition of `f` (as `Bool`s via `== 1`) through
+`BitVec.ofBoolListLE` recovers `f.val`, truncated to `n` bits. -/
+lemma ofBoolListLE_num2bitsLsbPureV_toNat [p.AtLeastTwo] (n : ℕ) (f : ZMod p) :
+    (BitVec.ofBoolListLE ((num2bitsLsbPureV n f).map (fun x => x == 1)).toList).toNat
+      = f.val % 2 ^ n
+:= by
+  haveI : Fact (1 < p) := ⟨Nat.AtLeastTwo.one_lt⟩
+  induction n generalizing f with
+  | zero =>
+    simp only [num2bitsLsbPureV, num2bitsLsbPureV.aux, pow_zero, Nat.mod_one]
+    grind
+  | succ n ih =>
+    rw [Vector.toList_map, num2bitsLsbPureV_succ, List.map_cons]
+    rw [show BitVec.ofBoolListLE ((((f.val % 2 : ℕ) : ZMod p) == 1) ::
+          (num2bitsLsbPureV n ((f.val / 2 : ℕ) : ZMod p)).toList.map (fun x => x == 1)) =
+        BitVec.concat
+          (BitVec.ofBoolListLE ((num2bitsLsbPureV n ((f.val / 2 : ℕ) : ZMod p)).toList.map (fun x => x == 1)))
+          (((f.val % 2 : ℕ) : ZMod p) == 1)
+      from rfl]
+    rw [BitVec.toNat_concat, ← Vector.toList_map, ih]
+    have h_rem : ((f.val / 2 : ℕ) : ZMod p).val = f.val / 2 := by
+      rw [ZMod.val_natCast_of_lt]
+      exact lt_of_le_of_lt (Nat.div_le_self _ _) (ZMod.val_lt f)
+    rw [h_rem]
+    have h_pow_succ : (2 : ℕ) ^ (n + 1) = 2 * 2 ^ n := by rw [pow_succ']
+    have h_beq0 : ((0 : ZMod p) == 1) = false := beq_eq_false_iff_ne.mpr zero_ne_one
+    have h_beq1 : ((1 : ZMod p) == 1) = true := beq_self_eq_true' 1
+    rw [h_pow_succ, Nat.mod_mul]
+    rcases Nat.mod_two_eq_zero_or_one f.val with h | h <;>
+      simp only [h, Nat.cast_zero, Nat.cast_one, h_beq0, h_beq1, Bool.toNat_false,
+        Bool.toNat_true] <;>
+      ring
+
+/-- Dropping the low `k` bits of an LSB-first `BitVec.ofBoolListLE` list divides its value by
+`2 ^ k`. -/
+lemma ofBoolListLE_drop_toNat (l : List Bool) (k : ℕ) :
+    (BitVec.ofBoolListLE (l.drop k)).toNat = (BitVec.ofBoolListLE l).toNat / 2 ^ k := by
+  apply Nat.eq_of_testBit_eq
+  intro i
+  rw [Nat.testBit_div_two_pow, BitVec.testBit_toNat, BitVec.testBit_toNat,
+    BitVec.getLsbD_ofBoolListLE, BitVec.getLsbD_ofBoolListLE,
+    List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD, List.getElem?_drop, Nat.add_comm k i]
+
 def num2bitsMsbPure (n : ℕ) (f : ZMod p) : List (ZMod p) :=
   num2bitsLsbPure n f |> List.reverse
 

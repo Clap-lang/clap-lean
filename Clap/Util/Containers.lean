@@ -277,6 +277,28 @@ lemma mapM_succ {m : Type → Type} [Monad m] [LawfulMonad m]
     rw! [this]
     rfl
 
+-- Added by claude; probably needed for base64UrlDecode.convertsM
+-- /-- Mapping a pure function over a `mapM` result fuses into the `mapM`'s own gadget. -/
+-- lemma mapM_bind_map {m : Type → Type} [Monad m] [LawfulMonad m]
+--     {α β γ δ} {k : ℕ}
+--     (v : Vector α k) (f : α → m β) (g : β → γ) (cont : Vector γ k → m δ) :
+--   (v.mapM f >>= fun r => cont (r.map g)) = v.mapM (fun x => g <$> f x) >>= cont
+-- := by
+--   induction' k with k ih
+--   . have hv : v = #v[] := by grind
+--     subst hv
+--     simp
+--   . set vp := Vector.cast (m := k) (by omega) v.pop with hvp_def
+--     have hvp : v.pop = vp := rfl
+--     have e1 : v.mapM f = (vp.mapM f) >>= fun w => (fun x => w.push x) <$> f v[k] := by
+--       rw [← hvp]; exact Vector.mapM_succ f
+--     have e2 : v.mapM (fun x => g <$> f x)
+--         = (vp.mapM (fun x => g <$> f x)) >>= fun w => (fun x => w.push x) <$> (g <$> f v[k]) := by
+--       rw [← hvp]; exact Vector.mapM_succ (fun x => g <$> f x)
+--     rw [e1, e2, bind_assoc, bind_assoc]
+--     simp only [bind_map_left, Vector.map_push]
+--     exact ih vp (fun wg => f v[k] >>= fun x => cont (wg.push (g x)))
+
 end Vector
 
 namespace Clap
@@ -289,7 +311,7 @@ end Clap
 lemma Std.ExtTreeMap.toArray_eq_toArray {α β : Type} [Ord α] [inst : Std.TransCmp (compare (α := α))] [Std.LawfulEqCmp (compare (α := α))] {kvPairs : List (α × β)} :
   Std.ExtTreeMap.ofArray kvPairs.toArray compare = Std.ExtTreeMap.ofList kvPairs compare := by
   ext k v
-  
+
   unfold Std.ExtTreeMap.ofArray
   unfold Std.ExtTreeMap.ofList
   unfold Std.ExtDTreeMap.Const.ofArray
