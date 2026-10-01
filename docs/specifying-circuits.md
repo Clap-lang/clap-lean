@@ -305,7 +305,7 @@ proof needs it; drop only the value-range ones.
 that `e` holds a byte. So the `F8` comparisons and `F8.isWhitespace` state their
 `convertsM_unchecked` over `F.conversion` operands. The gadgets that have one are `lessThan`,
 `lessEqThan`, `greaterThan`, `greaterEqThan`, `arraySelectorCore`, `F8.lessThan`, `F8.greaterThan`,
-`F8.lessEqThan`, `F8.greaterEqThan` and `F8.isWhitespace`.
+`F8.lessEqThan`, `F8.greaterEqThan`, `F8.isWhitespace` and `Base64.base64UrlLookup.rangeFlag`.
 
 ## Naming rules
 

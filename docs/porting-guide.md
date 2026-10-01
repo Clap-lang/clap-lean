@@ -327,7 +327,7 @@ a gadget that already exists under another of these three names — check all th
 
 | Gadget | Old location | Note |
 |---|---|---|
-| all of `old/Clap/Base64Len.lean` | | **in progress** in [Data/Base64Len/](../Clap/Lang/Data/Base64Len/) (Andrei Burdusa's branches): `base64UrlDecodedLength` is proved; `base64UrlLookup.convertsM` and `base64UrlDecode.convertsM` are still `sorry` |
+| all of `old/Clap/Base64Len.lean` | | **in progress** in [Data/Base64Len/](../Clap/Lang/Data/Base64Len/) (Andrei Burdusa's branches): `base64UrlDecodedLength` and `base64UrlLookup` are proved; `base64UrlDecode.convertsM` is still `sorry`. `base64UrlLookup` follows Circom's `Base64UrlLookup` constraint for constraint, each Lean line with its `-- Circom:` line: Circom's comparators (`GreaterThan(8)(in, 65-1)`, `LessThan(8)(in, 90+1)`, …) and a `share` for each nonlinear signal. Its `convertsM` holds for every field element, with only `2 ^ 9 < p` |
 | `Sha2.Circuit.maj` / `xor3` | `old/Clap/Sha2/` | `share` for the degree reduction |
 
 The `old/Clap/Array.lean` selectors are done: `selectArrayValue`, `rightArraySelector`,
