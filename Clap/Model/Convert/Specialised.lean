@@ -508,6 +508,21 @@ lemma converts_take
   . grind
   . grind
 
+lemma converts_drop
+  {k n}
+  {state : ClapMState p}
+  {exprs : FArray p k}
+  {val : Vector Bool k}
+  (h : Converts conversion state exprs val)
+:
+  Converts conversion state (exprs.drop n) (val.drop n)
+:= by
+  rewrite [converts_iff_FB_converts] at ⊢ h
+  intro ⟨i, h_i⟩
+  convert (h ⟨n + i, by grind⟩) using 1
+  . grind
+  . grind
+
 lemma converts_tail
   {k}
   {state : ClapMState p}

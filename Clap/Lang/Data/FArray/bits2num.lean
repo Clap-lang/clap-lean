@@ -17,6 +17,23 @@ top of it (`FBitVec.binSum`, `F32.add`) stay readable.
 def toNum {w : ℕ} (bits : Vector Bool w) : ZMod p :=
   bits.reverse.foldl (fun acc b ↦ (if b then (1 : ZMod p) else 0) + 2 * acc) 0
 
+/-- `toNum` is the LSB-first `BitVec` reading of the bits, cast into `ZMod p`. -/
+lemma toNum_eq_ofBoolListLE {w : ℕ} (bits : Vector Bool w) :
+    toNum (p := p) bits = ((BitVec.ofBoolListLE bits.toList).toNat : ZMod p)
+:= by
+  have h : ∀ l : List Bool, ((BitVec.ofBoolListLE l).toNat : ZMod p) =
+      l.foldr (fun b acc ↦ (if b then (1 : ZMod p) else 0) + 2 * acc) 0 := by
+    intro l
+    induction l with
+    | nil => simp [BitVec.ofBoolListLE]
+    | cons b bs ih =>
+      simp only [BitVec.ofBoolListLE, BitVec.toNat_concat, List.foldr_cons]
+      push_cast
+      rw [← ih]
+      cases b <;> simp [Bool.toNat] <;> ring
+  rw [h, Vector.foldr_toList, Vector.foldr_eq_foldl_reverse]
+  rfl
+
 /--
 The field element a bit vector denotes, LSB first.
 -/

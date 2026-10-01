@@ -108,7 +108,7 @@ work of A; if you can express your gadget without iteration, do.
 | `FArray.zeroExtend v w'` | [FArray/zeroExtend.lean](../Clap/Lang/Data/FArray/zeroExtend.lean) | `ClapM p (FArray p (w+w'))` | `vals ++ Vector.replicate w' false` | `True` |
 | `FArray.eq a b` | [FArray/eq.lean](../Clap/Lang/Data/FArray/eq.lean) | `ClapM p (FB p)` | `decide (a_vals = b_vals)` | `True` |
 | `FArray.assert_eq a b` | [FArray/assert_eq.lean](../Clap/Lang/Data/FArray/assert_eq.lean) | `ClapM p Unit` | `()` | `∀ i : Fin w, a_vals[i] = b_vals[i]` |
-| `FArray.bits2num bits` | [FArray/bits2num.lean](../Clap/Lang/Data/FArray/bits2num.lean) | `ClapM p (F p)` | `FArray.toNum bits_val` | `True` |
+| `FArray.bits2num bits` | [FArray/bits2num.lean](../Clap/Lang/Data/FArray/bits2num.lean) | `ClapM p (F p)` | `FArray.toNum bits_val`; `toNum_eq_ofBoolListLE` restates it as `(BitVec.ofBoolListLE bits_val.toList).toNat` | `True` |
 | `FBV8.ofUInt8 u` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p (FBV8 p)` | `Vector.ofFn (u.toBitVec[·])` | `True` |
 | `F32.default` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p (F32 p)` | `Vector.replicate 32 false` | `True` |
 | `F32.ofUInt32 u` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p (F32 p)` | `Vector.ofFn (u.toBitVec[·])` | `True` |
@@ -154,6 +154,10 @@ work of A; if you can express your gadget without iteration, do.
 | `FString.isSubstring h str strHash substr start` | [FString/isSubstring.lean](../Clap/Lang/Data/FString/isSubstring.lean) | `ClapM bn254 (FB bn254)` | `isSubstring.accepts H …`: `ŝ(α) ≠ 0 ∧ ŝ(α) = α^start · t(α)` at the hashed challenge | `substr` bytes, `start` and `start + len` in `minBits' n` bits, `start < n`, `start < start + len`; given `Lang.Poseidon.Computes H`. Meaning: `accepts_of_substrAt`, `prob_accepts_le`, `prob_rejects_le` |
 | `FString.assertisSubstring …` | [FString/isSubstring.lean](../Clap/Lang/Data/FString/isSubstring.lean) | `ClapM bn254 Unit` | `()` | the above ∧ `accepts … = true` |
 | `FString.assertIsConcatenation hL hR full left right` | [FString/assertIsConcatenation.lean](../Clap/Lang/Data/FString/assertIsConcatenation.lean) | `ClapM bn254 Unit` | `()` | `assertIsConcatenation.checks H …`: bytes, `1 ≤ ℓL ≤ nL`, `left` zero after `ℓL`, `ℓL < nF`, `full(α) = left(α) + α^ℓL · right(α)`. Meaning: `checks_of_isConcat`, `prob_checks_le` |
+| `Base64.base64UrlLookup c` | [Base64Len/base64UrlLookup.lean](../Clap/Lang/Data/Base64Len/base64UrlLookup.lean) | `ClapM p (F p)` | the base64url index of `Char.ofNat c_val.val` (`A`–`Z` ↦ 0–25, `a`–`z` ↦ 26–51, `0`–`9` ↦ 52–61, `-` ↦ 62, `_` ↦ 63, else 0), given `c_val.val < 2 ^ 8` and `2 ^ 9 < p` | `c_val.val` is `0`, `-`, `_`, `=` or alphanumeric. **`convertsM` is `sorry`** (work in progress) |
+| `Base64.base64UrlDecodedLength w m` | [Base64Len/base64UrlDecodedLength.lean](../Clap/Lang/Data/Base64Len/base64UrlDecodedLength.lean) | `ClapM p (F p)` | `3 * m_val.val / 4`, given `m_val.val < 2 ^ w` and `2 ^ (w + 2) ≤ p` | `m_val.val < 2 ^ w ∧ 3 * m_val.val < 2 ^ (w + 2)`, which the hypotheses already imply |
+| `Base64.base64UrlDecode h a` | [Base64Len/base64UrlDecode.lean](../Clap/Lang/Data/Base64Len/base64UrlDecode.lean) | `ClapM p (FString p w)` | `base64UrlDecode.decode a_val` (no `=` padding), given `3 ∣ w`, `a_val.length = w * 4 / 3` and `2 ^ 9 < p` | every character is NUL, `-`, `_`, `=` or alphanumeric. **`convertsM` is `sorry`** (work in progress) |
+| `bracketsMap a` | [JWT/bracketsMap.lean](../Clap/Lang/Data/JWT/bracketsMap.lean) | `ClapM p (FVec p k)` | per element: `1` on `{`, `-1` on `}`, `0` otherwise, given `2 ^ 9 < p` | `True` |
 
 Three things the table cannot show:
 

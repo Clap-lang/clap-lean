@@ -327,7 +327,7 @@ a gadget that already exists under another of these three names — check all th
 
 | Gadget | Old location | Note |
 |---|---|---|
-| all of `old/Clap/Base64Len.lean` | | on `num2bits`, and `share` for the degree reduction |
+| all of `old/Clap/Base64Len.lean` | | **in progress** in [Data/Base64Len/](../Clap/Lang/Data/Base64Len/) (Andrei Burdusa's branches): `base64UrlDecodedLength` is proved; `base64UrlLookup.convertsM` and `base64UrlDecode.convertsM` are still `sorry` |
 | `Sha2.Circuit.maj` / `xor3` | `old/Clap/Sha2/` | `share` for the degree reduction |
 
 The `old/Clap/Array.lean` selectors are done: `selectArrayValue`, `rightArraySelector`,
@@ -417,7 +417,8 @@ For strings encoded by `FString.encodeV`, the specs read as string statements:
 The price is that no character is NUL, where padding could stand in for one. That is what the
 older development's `nonEmpty` hypothesis was for.
 
-**Unblocked, not yet done**: `old/Clap/JWT.lean`, `old/Clap/Keyless.lean`. Both can now hash with
+**Unblocked, not yet done**: `old/Clap/JWT.lean`, `old/Clap/Keyless.lean`. A first JWT gadget,
+`bracketsMap`, is in [JWT/bracketsMap.lean](../Clap/Lang/Data/JWT/bracketsMap.lean). Both can now hash with
 `hashBytesToField` and check substrings and concatenations. They also feed parsed indices into
 `lessThan` and input characters into `F8.*` / `isWhitespace`, which do not range-check their
 operands; see the range-consumer trap below.
@@ -459,8 +460,8 @@ Note `Fact (Nat.Prime goldilocks)` and `Fact (Nat.Prime bn254)` are `sorry`'d in
   `return`, `convertsM_pure` closes the goal at the `Converts` level and no
   `ClapM.getResult`/`getState` commuting lemma is needed at all. `FArray/xorScan.lean` is the
   pattern to copy; `OneHotRaw`'s heavier `Vector.mapM_cast` route is only needed when the cast
-  is inside an *iteration*. `FArray.converts_take` was added for `F32.add` and is the one to
-  extend if you need `drop` or `extract`.
+  is inside an *iteration*. `FArray.converts_take` was added for `F32.add`, and `FArray.converts_drop`
+  for `base64UrlDecodedLength`; extend those if you need `extract`.
 - **The old `Spec` namespace convention is dead.** Old code put spec functions in
   `Clap.Lang.Spec.X` shadowing the gadget namespace `Clap.Lang.X`, forcing `Lang.FB.assert` vs
   `assert` disambiguation inside proofs. The new model puts the spec in `ConvertsM`'s arguments

@@ -26,6 +26,9 @@ import Clap.Lang.Core.FUnit.assert_eq
 import Clap.Lang.Core.FUnit.assert_range
 import Clap.Lang.Core.FUnit.guardedAssertEq
 import Clap.Lang.Core.FUnit.guardedEq0
+import Clap.Lang.Data.Base64Len.base64UrlDecode
+import Clap.Lang.Data.Base64Len.base64UrlDecodedLength
+import Clap.Lang.Data.Base64Len.base64UrlLookup
 import Clap.Lang.Data.F8.F8
 import Clap.Lang.Data.F8.isWhitespace
 import Clap.Lang.Data.FArray.and
@@ -60,6 +63,7 @@ import Clap.Lang.Data.HashToField.hash64BitLimbsToField
 import Clap.Lang.Data.HashToField.hashBytesToField
 import Clap.Lang.Data.HashToField.hashElemsToField
 import Clap.Lang.Data.HashToField.transcript
+import Clap.Lang.Data.JWT.bracketsMap
 import Clap.Lang.Data.Packing.assertIs64BitLimbs
 import Clap.Lang.Data.Packing.assertIsBytes
 import Clap.Lang.Data.Packing.bigEndianBits2Num
