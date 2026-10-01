@@ -4,11 +4,13 @@ import Clap.Model.Convert.Specialised
 # Reusable `ConvertsM` lemmas for `Vector.foldlM`
 
 Every iterating gadget in `Clap/Lang/` previously repeated the induction scaffolding of
-`Clap/Lang/Data/FArray/OneHotRaw.lean` by hand. These two lemmas do it once.
+`Clap/Lang/Data/FArray/OneHotRaw.lean` by hand. These lemmas do it once.
 
 `convertsM_foldlM` covers a fold whose step emits no assertion (slot 5 `True`);
 `convertsM_foldlM_constraints` covers a fold whose step asserts something, accumulating the
-per-element conditions into a `∀ i`.
+per-element conditions into a `∀ i`. `convertsM_foldlM_ctx` is `convertsM_foldlM` for a step
+that also reads a fixed context, such as an input the loop compares against: Circom's
+`for (…) { … (len == i) … }` in `FString.asciiDigitsToScalar`.
 
 Both are generic in the *element* conversion `C_elem`, so the same lemma serves a fold over a
 bit vector (`FB.conversion`), over a vector of field elements (`F.conversion`) and over a
@@ -184,6 +186,83 @@ lemma convertsM_foldlM_constraints
         have h1 := h ⟨i, by grind⟩
         simp only [Fin.getElem_fin] at h1 ⊢
         rwa [← h_eq i h_i] at h1
+
+/-- `convertsM_foldlM` for a step that also reads a fixed context `ctx`, such as an input the loop
+compares against. The step's spec is stated at every intermediate state, where `ctx` still
+converts to `ctx_val`. -/
+lemma convertsM_foldlM_ctx
+  {k} {α γ δ}
+  {C_ctx : Conversion p δ}
+  {C_acc : Conversion p α}
+  {C_elem : Conversion p γ}
+  {f : δ → α → γ → ClapM p α}
+  {f_spec : C_ctx.IdealT → C_acc.IdealT → C_elem.IdealT → C_acc.IdealT}
+  {state : ClapMState p}
+  {ctx : δ}
+  {ctx_val : C_ctx.IdealT}
+  {v : Vector γ k}
+  {vals : Vector C_elem.IdealT k}
+  {init : α}
+  {init_val : C_acc.IdealT}
+  (h_ctx : Converts C_ctx state ctx ctx_val)
+  (h_v : ∀ i : Fin k, Converts C_elem state v[i] vals[i])
+  (h_init : Converts C_acc state init init_val)
+  (h_f : ∀ {state' : ClapMState p} {acc acc_val x x_val},
+          Converts C_ctx state' ctx ctx_val →
+          Converts C_acc state' acc acc_val →
+          Converts C_elem state' x x_val →
+          ConvertsM C_acc (f ctx acc x) state' (f_spec ctx_val acc_val x_val) True)
+:
+  ConvertsM C_acc (v.foldlM (f ctx) init) state (vals.foldl (f_spec ctx_val) init_val) True
+:= by
+  induction' k with k h_k
+  . have h_empty : Vector.foldlM (m := ClapM p) (f ctx) init v = pure init := by
+      convert Vector.foldlM_empty
+      obtain ⟨⟨_⟩, _⟩ := v
+      grind
+    simp [h_empty]
+    apply convertsM_pure <;> [skip; exact True.intro]
+    have : vals = #v[] := by grind
+    simp [this]
+    assumption
+  . set v_base := Vector.cast (m := k) (by trivial) v.pop with h_v_base_def
+    set vals_base := Vector.cast (m := k) (by trivial) vals.pop with h_vals_base_def
+
+    have h_v_base : ∀ i : Fin k, Converts C_elem state v_base[i] vals_base[i] := by
+      intro ⟨i, h_i⟩
+      have h1 : v_base[i]'h_i = v[i]'(by omega) := by simp [v_base]
+      have h2 : vals_base[i]'h_i = vals[i]'(by omega) := by simp [vals_base]
+      simp only [Fin.getElem_fin]
+      rw [h1, h2]
+      exact h_v ⟨i, by omega⟩
+
+    have h_vals : vals = vals_base.push vals[k] := by
+      ext
+      rewrite [Vector.getElem_push]
+      split
+      . simp [vals_base]
+      . grind
+
+    have h_push : v = v_base.push v[k] := by
+      ext
+      rewrite [Vector.getElem_push]
+      split
+      . simp [v_base]
+      . grind
+
+    have h_last := h_v ⟨k, Nat.lt_succ_self k⟩
+    have h_ih := h_k h_v_base
+
+    rewrite [h_push]
+    simp only [Vector.foldlM_push]
+
+    -- As in `convertsM_foldlM`; the context is carried past the prefix like the last element.
+    apply convertsM_of_convertsM
+      (convertsM_bind_and h_ih
+        (h_f (converts_skip h_ih h_ctx) h_ih.result (converts_skip h_ih h_last)))
+    . conv_rhs => rewrite [h_vals]
+      simp
+    . simp
 
 end foldlM
 

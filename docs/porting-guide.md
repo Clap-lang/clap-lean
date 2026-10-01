@@ -226,8 +226,9 @@ consumers — `old/Clap/Quadratic.lean` and `old/Clap/Milestone.lean` — are in
 what the old `#compile` reifier used to give you for free.
 
 **Iteration combinators — partly solved.** [Clap/Lang/Core/Combinators/](../Clap/Lang/Core/Combinators/)
-now has `convertsM_foldlM`, `convertsM_foldlM_constraints`, `convertsM_ofFnM` and
-`convertsM_mapM`, all generic in the element conversion. Use them instead of copying
+now has `convertsM_foldlM`, `convertsM_foldlM_constraints`, `convertsM_foldlM_ctx` (a step that
+also reads a fixed input), `convertsM_ofFnM` and `convertsM_mapM`, all generic in the element
+conversion. Use them instead of copying
 `OneHotRaw.lean`'s ~120 lines. `convertsM_mapM` maps a field-valued gadget over a vector of
 *inputs* (`ofFnM` only fits constants); `Packing.chunksToFieldElems` and
 `Packing.bigEndianBitsToScalars` are built on it. `convertsM_mapM_constraints` is the general
@@ -368,7 +369,7 @@ the old port. Where the two disagree, Circom won:
 |---|---|---|
 | `F8.isWhitespace` | [F8/isWhitespace.lean](../Clap/Lang/Data/F8/isWhitespace.lean) (earlier) | `IsWhitespace` |
 | `FString.assertIsAsciiDigits` | [FString/assertIsAsciiDigits.lean](../Clap/Lang/Data/FString/assertIsAsciiDigits.lean) | `AssertIsAsciiDigits`, constraint for constraint (each Lean line carries its `-- Circom:` line), but at 8 bits instead of 9: a slot in `[256, 512)` is rejected where Circom accepts it. Encoded strings are bytes, so they are unaffected. Fewer bits would reject the padding too (Circom's `TODO(Perf)`), and its conditional fix cannot run through `toWg` |
-| `FString.asciiDigitsToScalar` | [FString/asciiDigitsToScalar.lean](../Clap/Lang/Data/FString/asciiDigitsToScalar.lean) | `AsciiDigitsToScalar`; `index_eq` as `oneHotRaw`'s tail |
+| `FString.asciiDigitsToScalar` | [FString/asciiDigitsToScalar.lean](../Clap/Lang/Data/FString/asciiDigitsToScalar.lean) | `AsciiDigitsToScalar`, one Lean line per Circom line in a single loop. There is no hint gate, so `index_eq[i-1]` is `eq len i` (an `isZero`, whose second constraint is Circom's `index_eq[i-1] * (len-i) === 0`), and `success === 1` is `s = 0`. Like Circom, it rejects `len = MAX_LEN` |
 | `FString.isSubstring`, `assertisSubstring` | [FString/isSubstring.lean](../Clap/Lang/Data/FString/isSubstring.lean) | `IsSubstring`, `AssertIsSubstring` |
 | `FString.assertIsConcatenation` | [FString/assertIsConcatenation.lean](../Clap/Lang/Data/FString/assertIsConcatenation.lean) | `AssertIsConcatenation` |
 
@@ -410,7 +411,8 @@ which import nothing from it:
 For strings encoded by `FString.encodeV`, the specs read as string statements:
 - `substrAt_encodeV_iff`: `T` is a prefix of `S.drop s` and fits.
 - `isConcat_encodeV_iff`: `F = L ++ R`.
-- `asciiDigitsToScalar.value_encodeV`: the number the digits spell, mod `p`.
+- `asciiDigitsToScalar.value_encodeV`, and `convertsM_string` with it: the number the digits
+  spell, mod `p`.
 
 The price is that no character is NUL, where padding could stand in for one. That is what the
 older development's `nonEmpty` hypothesis was for.
