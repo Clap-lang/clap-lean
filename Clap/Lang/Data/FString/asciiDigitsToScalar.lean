@@ -10,6 +10,10 @@ variable {p : ℕ}
 
 section asciiDigitsToScalar
 
+-- TODO asciiDigitsToScalar, asciiDigitsToScalar.step and asciiDigitsToScalar.accumulate are too complex
+-- too different from original CIRCOM
+-- a lot of its part are "useless" as an example oneHotRaw are just zero vector.
+
 /-- The first `len` entries of `vals`, read as ASCII decimal digits, most significant first:
 `Σ (vals[j] - 48) · 10^(len-1-j)`, in `ZMod p`, so it wraps once the number reaches `p`. -/
 def digitsValue {n : ℕ} (vals : Vector (ZMod p) n) (len : ℕ) : ZMod p :=
@@ -49,7 +53,7 @@ def asciiDigitsToScalar.accumulate [p.AtLeastTwo] {w : ℕ} (inp : FString p (w 
 /-- The ASCII digits `inp.data[0, len)` as one field element
 
 Satisfiable exactly when `1 ≤ len ≤ w`, `len = MAX_LEN` is
-rejected, and so is `MAX_LEN = 1`), every position is below `2^9` and the first `len` are
+rejected, and so is `MAX_LEN = 1`), every position is below `2^8` and the first `len` are
 digits. Like Circom, it does not detect a number reaching `p`
 
 Circom's `index_eq[i-1]` is a hint, constrained only by `index_eq[i-1]·(len - i) = 0` and by the
@@ -222,10 +226,10 @@ lemma convertsM
   (h_len : Converts F.conversion state inp.len len_val)
   (h_w : w + 1 < p)
   (hw : 2 ^ (minBits' (w + 1) + 1) < p)
-  (hp : 2 ^ 10 < p)
+  (hp : 2 ^ 9 < p)
 :
   ConvertsM F.conversion (asciiDigitsToScalar inp) state (value data_vals len_val.val)
-    ((∀ i : Fin (w + 1), data_vals[i].val < 2 ^ 9) ∧ 0 < len_val.val ∧ len_val.val ≤ w ∧
+    ((∀ i : Fin (w + 1), data_vals[i].val < 2 ^ 8) ∧ 0 < len_val.val ∧ len_val.val ≤ w ∧
       ∀ i : Fin (w + 1), i.val < len_val.val → 48 ≤ data_vals[i].val ∧ data_vals[i].val ≤ 57)
 := by
   unfold asciiDigitsToScalar
@@ -235,10 +239,10 @@ lemma convertsM
   · rfl
   · have h_pow := lt_two_pow_minBits' (w + 1)
     constructor
-    · rintro ⟨⟨h_bytes, -, -, -, h_digits⟩, h_len0, h_lenw⟩
+    · rintro ⟨⟨h_digits, -, -, -, h_bytes⟩, h_len0, h_lenw⟩
       exact ⟨h_bytes, h_len0, h_lenw, h_digits⟩
     · rintro ⟨h_bytes, h_len0, h_lenw, h_digits⟩
-      exact ⟨⟨h_bytes, by omega, h_len0, by omega, h_digits⟩, h_len0, h_lenw⟩
+      exact ⟨⟨h_digits, h_len0, by omega, by omega, h_bytes⟩, h_len0, h_lenw⟩
 
 /-- The decimal number a list of ASCII digits spells. -/
 def decimalValue (l : List Char) : ℕ := l.foldl (fun n c ↦ 10 * n + (c.toNat - 48)) 0

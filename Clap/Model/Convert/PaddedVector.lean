@@ -32,6 +32,26 @@ def encodeV (w : ℕ) (s : String) : Vector (ZMod p) w :=
   Vector.ofFn (fun i : Fin w ↦
     if h : i.val < s.toList.length then ((s.toList[i.val]'h).toUInt8.toNat : ZMod p) else 0)
 
+/-- A character below 256 is its own low byte. -/
+lemma toUInt8_toNat_of_lt {c : Char} (h : c.toNat < 256) :
+    c.toUInt8.toNat = c.toNat := by
+  show (c.val.toUInt8).toNat = c.val.toNat
+  rw [UInt32.toNat_toUInt8]
+  exact Nat.mod_eq_of_lt h
+
+lemma encodeV_getElem_of_lt
+    {w : ℕ} {s : String} {i : ℕ} (hi : i < w) (h : i < s.toList.length) :
+    (encodeV (p := p) w s)[i]'hi = (((s.toList[i]'h).toUInt8.toNat : ℕ) : ZMod p) := by
+  simp [encodeV, h]
+
+/-- Every entry of the encoding is a byte: a character's low byte, or the padding `0`. -/
+lemma encodeV_val_lt {w : ℕ} {s : String} {i : ℕ} (hi : i < w) :
+    ((encodeV (p := p) w s)[i]'hi).val < 256 := by
+  by_cases h : i < s.toList.length
+  · rw [encodeV_getElem_of_lt hi h, ZMod.val_natCast]
+    exact lt_of_le_of_lt (Nat.mod_le _ _) (UInt8.toNat_lt_size _)
+  · simp [encodeV, h]
+
 abbrev conversion {w} : Conversion p (FString p w) where
   IdealT := String
   toExprs x := x.data.toList ++ [x.len]

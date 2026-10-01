@@ -367,7 +367,7 @@ the old port. Where the two disagree, Circom won:
 | Gadget | File | Circom |
 |---|---|---|
 | `F8.isWhitespace` | [F8/isWhitespace.lean](../Clap/Lang/Data/F8/isWhitespace.lean) (earlier) | `IsWhitespace` |
-| `FString.assertIsAsciiDigits` | [FString/assertIsAsciiDigits.lean](../Clap/Lang/Data/FString/assertIsAsciiDigits.lean) | `AssertIsAsciiDigits`; `Num2Bits(9)` on every slot and 9-bit comparisons, which the old port dropped |
+| `FString.assertIsAsciiDigits` | [FString/assertIsAsciiDigits.lean](../Clap/Lang/Data/FString/assertIsAsciiDigits.lean) | `AssertIsAsciiDigits`, constraint for constraint (each Lean line carries its `-- Circom:` line), but at 8 bits instead of 9: a slot in `[256, 512)` is rejected where Circom accepts it. Encoded strings are bytes, so they are unaffected. Fewer bits would reject the padding too (Circom's `TODO(Perf)`), and its conditional fix cannot run through `toWg` |
 | `FString.asciiDigitsToScalar` | [FString/asciiDigitsToScalar.lean](../Clap/Lang/Data/FString/asciiDigitsToScalar.lean) | `AsciiDigitsToScalar`; `index_eq` as `oneHotRaw`'s tail |
 | `FString.isSubstring`, `assertisSubstring` | [FString/isSubstring.lean](../Clap/Lang/Data/FString/isSubstring.lean) | `IsSubstring`, `AssertIsSubstring` |
 | `FString.assertIsConcatenation` | [FString/assertIsConcatenation.lean](../Clap/Lang/Data/FString/assertIsConcatenation.lean) | `AssertIsConcatenation` |

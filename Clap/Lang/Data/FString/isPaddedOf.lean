@@ -71,19 +71,8 @@ private lemma natCast_inj_of_lt {m n : ℕ} (hm : m < p) (hn : n < p)
   have hv := congrArg ZMod.val h
   rwa [ZMod.val_natCast, ZMod.val_natCast, Nat.mod_eq_of_lt hm, Nat.mod_eq_of_lt hn] at hv
 
-private lemma toUInt8_toNat_of_lt {c : Char} (h : c.toNat < 256) :
-    c.toUInt8.toNat = c.toNat := by
-  show (c.val.toUInt8).toNat = c.val.toNat
-  rw [UInt32.toNat_toUInt8]
-  exact Nat.mod_eq_of_lt h
-
 private lemma char_ext_of_toNat {c d : Char} (h : c.toNat = d.toNat) : c = d :=
   Char.ext (UInt32.toNat.inj h)
-
-private lemma encodeV_getElem_of_lt
-    {w : ℕ} {s : String} {i : ℕ} (hi : i < w) (h : i < s.toList.length) :
-    (encodeV (p := p) w s)[i]'hi = (((s.toList[i]'h).toUInt8.toNat : ℕ) : ZMod p) := by
-  simp [encodeV, h]
 
 /--
 The encoding determines the string, given the side conditions the old model carried in
