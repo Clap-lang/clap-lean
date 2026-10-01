@@ -1,4 +1,5 @@
-import Clap.Poseidon.Poseidon
+import Clap.Lang.Poseidon.Poseidon
+import Clap.RandomOracle.HashFn
 import Clap.Model.Convert.Specialised
 import Clap.Lang.Core.Combinators.ofFnM
 import Clap.Lang.Core.F.mkF
@@ -8,13 +9,9 @@ A hash function has no functional specification a circuit lemma could be proved 
 there is to say is that it is some function of its inputs.
 -/
 
-namespace Clap.Poseidon
+namespace Clap.Lang.Poseidon
 
-open Lang
-
-/-- A hash family. circomlib's `Poseidon(n)` uses different round
-constants at each width, so this is a family of functions -/
-abbrev HashFn := ∀ {n : ℕ}, Vector (ZMod Primes.bn254) n → ZMod Primes.bn254
+open RandomOracle
 
 /--
 poseidonBN254 ──Computes──▶  H : HashFn  ◀──Query.toHashFn── f ← randomOracle
@@ -31,8 +28,8 @@ def Computes (H : HashFn) : Prop :=
 
 section evalConst
 
--- See `HashToField/hashElemsToField.lean`.
-attribute [local irreducible] Clap.poseidonBN254
+-- See `Data/HashToField/hashElemsToField.lean`.
+attribute [local irreducible] Clap.Lang.Poseidon.poseidonBN254
 
 /-- `poseidonBN254` of constant inputs. -/
 def constCmd {n : ℕ} (xs : Vector (ZMod Primes.bn254) n) : ClapM Primes.bn254 (F Primes.bn254) :=
@@ -84,4 +81,4 @@ example {H : HashFn} (h_H : Computes H) :
 
 end evalConst
 
-end Clap.Poseidon
+end Clap.Lang.Poseidon

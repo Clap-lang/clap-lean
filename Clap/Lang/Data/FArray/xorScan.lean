@@ -65,11 +65,10 @@ lemma convertsM
 
 end scanAux
 
-/-- Inclusive prefix-xor scan of `vals`, starting the running xor from `false`, dropping the
-leading (always-`false`-before-anything) element so the output has the same length as `vals`. -/
-def FArray.xorScan {k} (vals : FArray p k) : ClapM p (FArray p k) := do
-  let false' ← FB.ofBool false
-  let full ← scanAux vals false' k (le_refl k)
+/-- Inclusive prefix-xor scan of `vals`, starting the running xor from `init`, dropping the
+leading (always-`init`-before-anything) element so the output has the same length as `vals`. -/
+def FArray.xorScan {k} (init : FB p) (vals : FArray p k) : ClapM p (FArray p k) := do
+  let full ← scanAux vals init k (le_refl k)
   return full.tail
 
 namespace FArray.xorScan
@@ -78,16 +77,18 @@ lemma convertsM
   [p.AtLeastTwo]
   {k}
   {state : ClapMState p}
+  {init : FB p}
   {vals : FArray p k}
   {vals_val : Vector Bool k}
+  {init_val : Bool}
+  (h_init : Converts FB.conversion state init init_val)
   (h_vals : Converts FArray.conversion state vals vals_val)
 :
-  ConvertsM FArray.conversion (vals.xorScan) state
-    (Vector.cast (by omega) (scanAuxPure vals_val false k (le_refl k)).tail) True
+  ConvertsM FArray.conversion (vals.xorScan init) state
+    (Vector.cast (by omega) (scanAuxPure vals_val init_val k (le_refl k)).tail) True
 := by
   unfold FArray.xorScan
-  step (FB.ofBool.convertsM (state := state) (b := false)) as false'
-  step (scanAux.convertsM h_vals h_false' (le_refl k)) as full
+  step (scanAux.convertsM h_vals h_init (le_refl k)) as full
   apply convertsM_pure
   . exact FArray.converts_vector_cast (FArray.converts_tail h_full) (by omega)
   . trivial

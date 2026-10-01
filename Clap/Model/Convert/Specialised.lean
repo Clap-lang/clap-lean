@@ -802,6 +802,22 @@ lemma converts_extract
   have := h ⟨s + i, by omega⟩
   simpa [Vector.getElem_extract] using this
 
+lemma converts_tail
+  {k}
+  {state : ClapMState p}
+  {exprs : FVec p k}
+  {vals : Vector (ZMod p) k}
+  (h : Converts conversion state exprs vals)
+:
+  Converts conversion state exprs.tail vals.tail
+:= by
+  rewrite [converts_iff_F_converts] at ⊢ h
+  intro ⟨i, h_i⟩
+  have h_i' : i + 1 < k := by grind
+  convert (h ⟨i + 1, h_i'⟩) using 1
+  . simp; congr 1; omega
+  . simp; congr 1; omega
+
 /-- Chunk `i` of a converting vector converts to chunk `i` of its values. -/
 lemma converts_toChunks
   {w size}

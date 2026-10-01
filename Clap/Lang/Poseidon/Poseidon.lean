@@ -1,10 +1,10 @@
 import Clap.Model.HashCons.HashConsM
-import Clap.Poseidon.Constants.Tables
+import Clap.Lang.Poseidon.Constants.Tables
 import Clap.Model.HashCons.Eval
 import Clap.Model.Monad
 import Clap.Model.Convert.Specialised
 
-namespace Clap
+namespace Clap.Lang.Poseidon
 
 open HashConsM
 
@@ -135,10 +135,10 @@ def allocateVector {n} (values : Vector (ZMod p) n) : ClapM p (Vector ExprRef n)
 
 def poseidonBN254 {n} (inputs : Vector ExprRef n) : ClapM Primes.bn254 ExprRef := do
   let t := 1 + n -- element 2 is at list index 0 and so on
-  let C ← allocateVector (Clap.Poseidon.Constant.C t)
-  let S ← allocateVector (Clap.Poseidon.Constant.S t)
-  let M ← (Clap.Poseidon.Constant.M t).mapM allocateVector
-  let P ← (Clap.Poseidon.Constant.P t).mapM allocateVector
+  let C ← allocateVector (Constant.C t)
+  let S ← allocateVector (Constant.S t)
+  let M ← (Constant.M t).mapM allocateVector
+  let P ← (Constant.P t).mapM allocateVector
   poseidon inputs C S M P
 
 section examples
@@ -186,8 +186,8 @@ example :
   native_decide
 
 /-! More arities, from the old model's commented-out suite (`old/Clap/Poseidon/Poseidon.lean`).
-`Clap.HashToField` assumes `poseidonBN254` computes *a* function at every arity from 1 to 16
-(`Clap.Poseidon.Computes`); these vectors are the evidence that the circuit really is Poseidon
+`Clap.Lang.HashToField` assumes `poseidonBN254` computes *a* function at every arity from 1 to 16
+(`Clap.Lang.Poseidon.Computes`); these vectors are the evidence that the circuit really is Poseidon
 at the arities they cover. `Computes.evalConst_eq` carries them over to `H`: restated for
 `evalConst`, each one is a value of every `H` with `Computes H`. -/
 
@@ -272,4 +272,4 @@ example : hashOf #v[1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0, 0] =
 
 end examples
 
-end Clap
+end Clap.Lang.Poseidon

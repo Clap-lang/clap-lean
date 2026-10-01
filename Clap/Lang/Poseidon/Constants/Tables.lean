@@ -1,10 +1,10 @@
 import Clap.Util.Primes
-import Clap.Poseidon.Constants.C
-import Clap.Poseidon.Constants.M
-import Clap.Poseidon.Constants.P
-import Clap.Poseidon.Constants.S
+import Clap.Lang.Poseidon.Constants.C
+import Clap.Lang.Poseidon.Constants.M
+import Clap.Lang.Poseidon.Constants.P
+import Clap.Lang.Poseidon.Constants.S
 
-namespace Clap.Poseidon.Constant
+namespace Clap.Lang.Poseidon.Constant
 
 open Primes C M P S
 
@@ -133,4 +133,4 @@ def S (i:ℕ) : Vector (ZMod bn254) (Sl i) :=
   if h17: i=17 then ⟨S17.toArray, by aesop⟩ else
   Vector.mk (n:=Sl i) #[] (by aesop)
 
-end Clap.Poseidon.Constant
+end Clap.Lang.Poseidon.Constant

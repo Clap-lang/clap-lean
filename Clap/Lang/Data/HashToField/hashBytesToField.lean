@@ -1,14 +1,14 @@
-import Clap.Poseidon.HashToField.hashElemsToField
+import Clap.Lang.Data.HashToField.hashElemsToField
 import Clap.Lang.Data.Packing.assertIsBytes
 import Clap.Lang.Data.Packing.chunksToFieldElems
 import Clap.Model.Convert.PaddedVector
 
-namespace Clap.HashToField
+namespace Clap.Lang.HashToField
 
-open Lang Poseidon Primes
+open Poseidon RandomOracle Primes
 
 -- See `hashElemsToField.lean`.
-attribute [local irreducible] Clap.poseidonBN254
+attribute [local irreducible] Clap.Lang.Poseidon.poseidonBN254
 
 /-- Hash `numBytes` bytes and a length to one field element. Range-checks the bytes,
 packs them 31 per field element (zero-padding the last), appends `input.len`, and hashes the
@@ -191,4 +191,4 @@ example : elemsHash (Vector.replicate 51 (1 : ZMod bn254)) =
 
 end examples
 
-end Clap.HashToField
+end Clap.Lang.HashToField

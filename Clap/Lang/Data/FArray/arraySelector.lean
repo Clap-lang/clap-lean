@@ -1,39 +1,55 @@
 import Clap.Lang.Core.F.lessThan
 import Clap.Lang.Core.F.mkF
 import Clap.Lang.Data.FArray.OneHotRaw
-import Clap.Lang.Data.FArray.singleEndArray
 import Clap.Lang.Data.FArray.xor
 import Clap.Lang.Data.FArray.xorScan
 import Clap.Lang.Core.FB.and
 import Clap.Lang.Core.FB.assert
+import Clap.Lang.Core.FUnit.assert_range
+import Clap.Lang.Core.FB.ofBool
+import Clap.Lang.Data.FArray.assert_eq
+import Clap.Model.ConstraintSystem.toCs
+import Clap.Model.WitnessGenerator.toWg
 namespace Clap.Lang
 
 variable {p : ℕ}
 
 section arraySelector
 
-/-- Bit array with 1s at `[startIdx, endIdx)`, 0s elsewhere, saturating at `len` when
-`endIdx ≥ len`. For indices below `2 ^ minBits' len`, satisfiable exactly when
-`startIdx < len ∧ startIdx < endIdx`. Simplified from the old OR/AND left-to-right scan
-(`old/Clap/Array.lean:31-41`) to a difference-array / toggle construction: XOR the two one-hot
-masks, then take the inclusive prefix-XOR scan.
+/-- The body of `arraySelector` without its two index range checks: 1s at `[startIdx, endIdx)`,
+0s elsewhere, saturating at `len`. A difference-array / toggle construction: XOR the two one-hot
+masks, then take the inclusive prefix-XOR scan
 
 Both comparisons (`startIdx < endIdx` and `startIdx < len`) are folded into a single `assert`,
-but each `lessThan` also range-checks its own offset, so the gadget emits three constraints.
-Like `lessThan`, it never range-checks the indices themselves: `convertsM` takes their bounds as
-hypotheses, and `convertsM_unchecked` states the three raw constraints for arbitrary indices. -/
-def arraySelector [p.AtLeastTwo] (len : ℕ) (startIdx endIdx : F p) : ClapM p (FArray p len) := do
+and each `lessThan` range-checks its own offset, so this emits three constraints. It never
+range-checks the indices, so `convertsM_unchecked` states them for arbitrary indices. -/
+def arraySelectorCore [p.AtLeastTwo] (len : ℕ) (startIdx endIdx : F p) : ClapM p (FArray p len) := do
   let lt1 ← lessThan (minBits' len) startIdx endIdx
   let lenF ← mkF (len : ZMod p)
   let lt2 ← lessThan (minBits' len) startIdx lenF
   let combined ← FB.and lt1 lt2
   assert combined
   let startMask ← oneHotRaw len startIdx
-  let endMask ← singleEndArray len endIdx
+  -- No need for `singleEndArray` (Circom's `SingleNegOneArray`): its sum check cannot fail for
+  -- `len < p`, so it is functionally `oneHotRaw` (Andrei Burdusa, PR #74).
+  let endMask ← oneHotRaw len endIdx
   let diffMask ← FArray.xor startMask endMask
-  diffMask.xorScan
+  let false' ← FB.ofBool false
+  diffMask.xorScan false'
 
-namespace arraySelector
+/-- Bit array with 1s at `[startIdx, endIdx)`, 0s elsewhere, saturating at `len` when
+`endIdx ≥ len`. Satisfiable exactly when both indices fit in `minBits' len` bits,
+`startIdx < len` and `startIdx < endIdx`.
+
+Circom's `ArraySelector` range-checks both indices, `Num2Bits(B)` with `B = min_num_bits(LEN)`,
+before comparing them, and so does this. Without those checks the comparisons are meaningless on
+out-of-range indices, so `convertsM` needs no range hypotheses. -/
+def arraySelector [p.AtLeastTwo] (len : ℕ) (startIdx endIdx : F p) : ClapM p (FArray p len) := do
+  assert_range (minBits' len) startIdx
+  assert_range (minBits' len) endIdx
+  arraySelectorCore len startIdx endIdx
+
+namespace arraySelectorCore
 
 private lemma scanAuxPure_getElem
   {len a b : ℕ}
@@ -68,10 +84,7 @@ private lemma scanAuxPure_getElem
         by_cases hb : b < j <;> by_cases hb2 : b = j <;>
         simp [ha, ha2, hb, hb2] <;> omega
 
-/-- `arraySelector` on arbitrary indices. The value is unchanged — it never depended on the
-bounds — and slot 5 is the three constraints the circuit emits: both comparisons' offset checks,
-then the `assert` on their raw bits. `h_len` stays because `oneHotRaw` and `singleEndArray`
-need it. -/
+/-- `arraySelectorCore` on arbitrary indices -/
 lemma convertsM_unchecked
   [p.AtLeastTwo]
   {len : ℕ}
@@ -82,7 +95,7 @@ lemma convertsM_unchecked
   (h_endIdx : Converts F.conversion state endIdx endIdx_val)
   (h_len : len < p)
 :
-  ConvertsM FArray.conversion (arraySelector len startIdx endIdx) state
+  ConvertsM FArray.conversion (arraySelectorCore len startIdx endIdx) state
     (Vector.ofFn (fun i : Fin len =>
       decide (startIdx_val.val ≤ i.val) ^^ decide (endIdx_val.val ≤ i.val)))
     (lessThan.lessThanOk (minBits' len) startIdx_val endIdx_val ∧
@@ -90,7 +103,7 @@ lemma convertsM_unchecked
      (lessThan.lessThanRaw (minBits' len) startIdx_val endIdx_val &&
        lessThan.lessThanRaw (minBits' len) startIdx_val (len : ZMod p)) = true)
 := by
-  unfold arraySelector
+  unfold arraySelectorCore
   -- Three steps assert. Each comparison is sequenced with `convertsM_bind_and`, reframing by hand
   -- what `step` would have reframed; `step` takes the rest, with the `assert` as its only one.
   have h_lt1 := lessThan.convertsM_unchecked (w := minBits' len) h_startIdx h_endIdx
@@ -111,9 +124,10 @@ lemma convertsM_unchecked
   step FB.and.convertsM h_lt1r' h_lt2r as combined
   step assert.convertsM h_combined as assertStep
   step oneHotRaw.convertsM h_s2 h_len as startMask
-  step singleEndArray.convertsM h_e2 h_len as endMask
+  step oneHotRaw.convertsM h_e2 h_len as endMask
   step FArray.xor.convertsM h_startMask h_endMask as diffMask
-  apply convertsM_of_convertsM (FArray.xorScan.convertsM h_diffMask)
+  step (FB.ofBool.convertsM (state := diffMask_state) (b := false)) as false'
+  apply convertsM_of_convertsM (FArray.xorScan.convertsM h_false' h_diffMask)
   . have hdiff_eq :
         (Vector.ofFn (fun i : Fin len => (Vector.ofFn (fun x : Fin len => x.val == startIdx_val.val))[i]
           ^^ (Vector.ofFn (fun x : Fin len => x.val == endIdx_val.val))[i]))
@@ -141,6 +155,12 @@ lemma convertsM_unchecked
   . simp
   . simp
 
+end arraySelectorCore
+
+namespace arraySelector
+
+/-- The value is the XOR form of the two masks, which reads as `[startIdx, endIdx)` once
+`startIdx < endIdx` (see `convertsM'`) -/
 lemma convertsM
   [p.AtLeastTwo]
   {len : ℕ}
@@ -150,24 +170,35 @@ lemma convertsM
   (h_startIdx : Converts F.conversion state startIdx startIdx_val)
   (h_endIdx : Converts F.conversion state endIdx endIdx_val)
   (h_len : len < p)
-  (ha : startIdx_val.val < 2 ^ minBits' len) (hb : endIdx_val.val < 2 ^ minBits' len)
   (hw : 2 ^ (minBits' len + 1) < p)
 :
   ConvertsM FArray.conversion (arraySelector len startIdx endIdx) state
     (Vector.ofFn (fun i : Fin len =>
       decide (startIdx_val.val ≤ i.val) ^^ decide (endIdx_val.val ≤ i.val)))
-    (startIdx_val.val < len ∧ startIdx_val.val < endIdx_val.val)
+    (startIdx_val.val < 2 ^ minBits' len ∧ endIdx_val.val < 2 ^ minBits' len ∧
+      startIdx_val.val < len ∧ startIdx_val.val < endIdx_val.val)
 := by
+  unfold arraySelector
+  -- Group the two range checks, so that one action establishes both bounds.
+  rw [← bind_assoc]
+  have hA := assert_range.convertsM (w := minBits' len) h_startIdx
+  have hAB := convertsM_bind_and (function := fun _ => assert_range (minBits' len) endIdx) hA
+    (assert_range.convertsM (w := minBits' len) (converts_skip hA h_endIdx))
+  have hCore := arraySelectorCore.convertsM_unchecked
+    (converts_skip hAB h_startIdx) (converts_skip hAB h_endIdx) h_len
+  refine convertsM_of_convertsM (convertsM_bind_guard hAB hCore ?_) rfl and_assoc
+  -- Under the range checks, the raw comparisons are the real ones and their offsets fit.
+  rintro ⟨ha, hb⟩
   have h_lenF_val : (len : ZMod p).val < 2 ^ minBits' len := by
     rw [ZMod.val_natCast_of_lt h_len]
     exact lt_two_pow_minBits' len
-  apply convertsM_of_convertsM (convertsM_unchecked h_startIdx h_endIdx h_len) rfl
   rw [lessThan.lessThanRaw_eq ha hb hw, lessThan.lessThanRaw_eq ha h_lenF_val hw,
     ZMod.val_natCast_of_lt h_len]
   simp only [lessThan.lessThanOk_of ha hb hw, lessThan.lessThanOk_of ha h_lenF_val hw,
     true_and, Bool.and_eq_true, decide_eq_true_eq]
   exact And.comm
 
+/-- `convertsM` with the value read as the interval `[startIdx, endIdx)`, for `startIdx < endIdx`. -/
 lemma convertsM'
   [p.AtLeastTwo]
   {len : ℕ}
@@ -177,25 +208,62 @@ lemma convertsM'
   (h_startIdx : Converts F.conversion state startIdx startIdx_val)
   (h_endIdx : Converts F.conversion state endIdx endIdx_val)
   (h_len : len < p)
-  (ha : startIdx_val.val < 2 ^ minBits' len) (hb : endIdx_val.val < 2 ^ minBits' len)
   (hw : 2 ^ (minBits' len + 1) < p)
   (h_idx : startIdx_val.val < endIdx_val.val)
 :
   ConvertsM FArray.conversion (arraySelector len startIdx endIdx) state
     (Vector.ofFn (fun i : Fin len =>
-      (startIdx_val.val ≤ i.val) && (i.val < endIdx_val.val))
-    )
-    (startIdx_val.val < len ∧ startIdx_val.val < endIdx_val.val)
+      (startIdx_val.val ≤ i.val) && (i.val < endIdx_val.val)))
+    (startIdx_val.val < 2 ^ minBits' len ∧ endIdx_val.val < 2 ^ minBits' len ∧
+      startIdx_val.val < len ∧ startIdx_val.val < endIdx_val.val)
 := by
-  apply convertsM_of_convertsM (convertsM h_startIdx h_endIdx h_len ha hb hw)
+  apply convertsM_of_convertsM (convertsM h_startIdx h_endIdx h_len hw)
   . ext i hi
     simp only [Vector.getElem_ofFn]
     by_cases hai : startIdx_val.val ≤ i <;> by_cases hib : i < endIdx_val.val <;>
       simp [hai, hib] <;> omega
   . exact Iff.rfl
-
 end arraySelector
 
 end arraySelector
+
+
+section examples
+
+private abbrev q : ℕ := 47
+
+local instance instFactPrimeArraySelectorQ : Fact (Nat.Prime q) := ⟨by norm_num⟩
+
+private def runSat (c : ClapM q Unit) : Bool :=
+  let circ  := c.getCircuit 0 (HashConsSt.empty q)
+  let cache := c.getHashConsState 0 (HashConsSt.empty q)
+  (circ.toCs cache 0).run ((circ.toWg cache 0).run #v[])
+
+private def checkBits {n} (g : ClapM q (FArray q n)) (e : Vector Bool n) : ClapM q Unit := do
+  let r ← g
+  let e' ← e.mapM FB.ofBool
+  FArray.assert_eq r e'
+
+private def sel (len : ℕ) (s e : ZMod q) (out : Vector Bool len) : Bool :=
+  runSat (checkBits (do arraySelector len (← mkF s) (← mkF e)) out)
+
+private def selCore (len : ℕ) (s e : ZMod q) (out : Vector Bool len) : Bool :=
+  runSat (checkBits (do arraySelectorCore len (← mkF s) (← mkF e)) out)
+
+example : sel 4 0 1 #v[true, false, false, false] = true := by native_decide
+example : sel 4 1 3 #v[false, true, true, false] = true := by native_decide
+example : sel 4 3 4 #v[false, false, false, true] = true := by native_decide
+example : sel 4 0 4 #v[true, true, true, true] = true := by native_decide
+example : sel 4 1 2 #v[false, true, false, false] = true := by native_decide
+-- `endIdx ≥ len` saturates, as long as it fits in `minBits' 4 = 3` bits
+example : sel 4 2 7 #v[false, false, true, true] = true := by native_decide
+example : sel 4 3 3 #v[false, false, false, false] = false := by native_decide
+example : sel 4 0 0 #v[false, false, false, false] = false := by native_decide
+-- the range checks: the core alone accepts an out-of-range start, `arraySelector` does not
+example : selCore 4 (-1) 2 #v[false, false, true, true] = true := by native_decide
+example : sel 4 (-1) 2 #v[false, false, true, true] = false := by native_decide
+example : sel 4 2 8 #v[false, false, true, true] = false := by native_decide
+
+end examples
 
 end Clap.Lang

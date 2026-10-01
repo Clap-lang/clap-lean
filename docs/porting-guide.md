@@ -59,7 +59,7 @@ Consequences you will hit immediately:
   operations, now three binds.
 - **Literals need allocation.** `F.assert_eq s 1` becomes `assert_eq s (←mkF 1)`. `RSA.lean`
   has ~10 hard-coded 64-bit constants; Poseidon has ~20 000. Plan a bulk allocation helper
-  (`Clap/Poseidon/Poseidon.lean`'s `allocateVector` is the seed) and rely on hash-consing to
+  (`Clap/Lang/Poseidon/Poseidon.lean`'s `allocateVector` is the seed) and rely on hash-consing to
   de-duplicate repeats.
 - **`Coe` instances cannot survive.** Old `Coe Char (F p)`, `Coe UInt8 (F p)`,
   `Coe UInt32 (F32 p)`, `OfNat (F32 p) n`, `Inhabited (F p) := 42` all target a pure type. A
@@ -193,16 +193,17 @@ missing is a `Clap/Lang/` wrapper with a `convertsM`:
 - **`num2bits`** — **done.** [FArray/num2bits.lean](../Clap/Lang/Gate/num2bits.lean), and with
   it `F.lessThan` and the rest of the comparison family. This was the blocker that gated most
   of the backlog; it no longer is.
-- **`share`** — still unwrapped. Needed for degree reduction (`Sha2.Circuit.maj`/`xor3`,
-  `Base64Len.base64UrlDecodedLength`).
+- **`share`** — **done.** [Gate/share.lean](../Clap/Lang/Gate/share.lean): value `e_val`, slot 5
+  `True`. It is the degree reduction every Circom signal assignment `x <== a * b` stands for.
+  `FVec.powers` and `FString.asciiDigitsToScalar` share their running products with it.
 - **`fpmul`** — still unwrapped, and the deepest of the three. RSA is blocked on it.
 
-Note what "unwrapped" means here: both `share` and `fpmul` are *implemented* gates. They sit in
-[eDSL.lean](../Clap/Model/eDSL.lean) (lines 16 and 31) with the full `wellFormed_*` /
-`eval_edsl_*` / `getResult_*` / `getVarStore_*` / `getCircuit_*` lemma family, and each has both
-a `ConstraintSystem/` lowering and a `WitnessGenerator/` module. What is missing is only a
-`Clap/Lang/` wrapper carrying a `convertsM` — grep finds neither name anywhere under
-`Clap/Lang/`. So the work is writing that wrapper, not implementing a gate.
+Note what "unwrapped" means here: `fpmul` is an *implemented* gate. It sits in
+[eDSL.lean](../Clap/Model/eDSL.lean) with the full `wellFormed_*` / `eval_edsl_*` /
+`getResult_*` / `getVarStore_*` / `getCircuit_*` lemma family, and has both a
+`ConstraintSystem/` lowering and a `WitnessGenerator/` module. What is missing is only a
+`Clap/Lang/` wrapper carrying a `convertsM`. So the work is writing that wrapper, not
+implementing a gate.
 
 **The back end works.** `Circuit.toCs` lives in
 [ConstraintSystem/toCs.lean](../Clap/Model/ConstraintSystem/toCs.lean) as
@@ -211,7 +212,7 @@ a genuine `num_constraints` per gate. `Circuit.toWg` is its counterpart in
 [WitnessGenerator/toWg.lean](../Clap/Model/WitnessGenerator/toWg.lean).
 [Test/Backend.lean](../Clap/Test/Backend.lean) runs both end to end and `#eval`s
 `wellbehaved`/`complete`/`sound`. So a `native_decide` smoke test is available.
-[Poseidon.lean](../Clap/Poseidon/Poseidon.lean) pins eight circomlib / `poseidon-ark` hash
+[Poseidon.lean](../Clap/Lang/Poseidon/Poseidon.lean) pins eight circomlib / `poseidon-ark` hash
 vectors, at arities 1, 2, 4, 5 and 6 — by *evaluation*, not through the back end, which cannot
 yet lower `poseidonBN254` (see [proving-circuits.md](proving-circuits.md)).
 
@@ -290,8 +291,9 @@ deliberately not ported.
 **`num2bits` and everything it gated are also done**, which is the big change since this guide
 was first written: `num2bits`, `lessThan` / `lessEqThan` / `greaterThan` /
 `greaterEqThan`, `F8.eq` / `lessThan` / `greaterThan` / `lessEqThan` / `greaterEqThan`,
-`F8.isWhitespace`, `arraySelector`, `singleEndArray`, `FArray.xor`, `FArray.xorScan`, and
-`FBitVec.eq` / `assert_eq`.
+`F8.isWhitespace`, `arraySelector`, `FArray.xor`, `FArray.xorScan`, and
+`FBitVec.eq` / `assert_eq`. (`singleEndArray` was ported and then removed: for `len < p` its sum
+check cannot fail, so it is `oneHotRaw`, which `arraySelector` now uses.)
 
 **`old/Clap/Lang.lean` is now fully accounted for.** The last round added `assert_range`,
 `FBitVec.binSum`, `F32.add` and the `FBV8`/`F32`/`F64` `ofF` wrappers, and gave the comparison
@@ -324,13 +326,14 @@ a gadget that already exists under another of these three names — check all th
 
 | Gadget | Old location | Note |
 |---|---|---|
-| `selectArrayValue` | `old/Clap/Array.lean` | `dotProduct` of `singleOneArray` with the array |
-| `leftArraySelector`, `rightArraySelector` | `old/Clap/Array.lean` | need `Vector.scanl`/`scanr` analogues; `FArray/xorScan.lean` is the closest existing pattern |
-| `arraySelectorComplex` | `old/Clap/Array.lean` | after the two selectors |
 | all of `old/Clap/Base64Len.lean` | | on `num2bits`, and `share` for the degree reduction |
+| `Sha2.Circuit.maj` / `xor3` | `old/Clap/Sha2/` | `share` for the degree reduction |
 
-**After `share` is wrapped**: the degree-reducing parts of `old/Clap/Base64Len.lean`, and
-`Sha2.Circuit.maj` / `xor3`.
+The `old/Clap/Array.lean` selectors are done: `selectArrayValue`, `rightArraySelector`,
+`leftArraySelector`, `arraySelectorComplex` and `FArray.and` (after Andrei Burdusa's PR #74).
+`rightArraySelector` is a prefix sum through `Vector.scanlM` and `convertsM_scanlM`
+([Combinators/scanlM.lean](../Clap/Lang/Core/Combinators/scanlM.lean)), which is the combinator for
+any Circom loop of the shape `out[i] <== out[i-1] ∘ in[i-1]`.
 
 **After `fpmul` lands**: `old/Clap/RSA.lean`.
 
@@ -341,27 +344,81 @@ is the most portable old code in the repo).
 **`old/Clap/Packing.lean` and `old/Clap/HashToField.lean` are done.**
 [Clap/Lang/Data/Packing/](../Clap/Lang/Data/Packing/) has the eight Circom `helpers/packing`
 templates, including `num2BigEndianBits`, which the old model inlined;
-[Clap/Poseidon/HashToField/](../Clap/Poseidon/HashToField/) has `hashElemsToField`,
-`hashBytesToField` and `hash64BitLimbsToField`. HashToField sits above `Clap/Lang/` because
-Poseidon does. Poseidon has no `convertsM`, and no functional spec to prove one against: every
-hashing gadget takes [`Poseidon.Computes H`](../Clap/Poseidon/Computes.lean) — the circuit
+[Clap/Lang/Data/HashToField/](../Clap/Lang/Data/HashToField/) has `hashElemsToField`,
+`hashBytesToField` and `hash64BitLimbsToField`, over the Poseidon layer
+[Clap/Lang/Poseidon/](../Clap/Lang/Poseidon/). Poseidon has no `convertsM`, and no functional spec to prove one against: every
+hashing gadget takes [`Lang.Poseidon.Computes H`](../Clap/Lang/Poseidon/Computes.lean) — the circuit
 computes *some* hash family `H` — as a hypothesis, and states its ideal value through `H`. The
 proofs have no `sorry` of their own: `#print axioms` lists `sorryAx`, but only through
 `Primes.instFactPrimeBn254`, which `ZMod bn254` numerals pick up. `Computes` itself is not proved
-(that needs a `share` wrapper), but `Computes.evalConst_eq` shows it pins `H` to what the circuit
+(the `share` wrapper it needs now exists), but `Computes.evalConst_eq` shows it pins `H` to what the circuit
 evaluates to, so the circomlib vectors are values of `H`. The half of a collision argument that
 does not involve `H` is `hashBytesToFieldElems_injective` / `hash64BitLimbsToFieldElems_injective`:
 at a fixed size the hashed elements determine the bytes (limbs, if range-checked) and `len`.
-The random-oracle idealisation the Fiat–Shamir ports will need is
-[RandomOracle.lean](../Clap/Poseidon/RandomOracle.lean): `H` drawn uniformly from all functions
-on queries of arity at most 16, with Schwartz–Zippel and a union bound ported from the older
-development. It replaces that development's `ROModel`, which its module doc explains is vacuous.
+The random-oracle idealisation the Fiat–Shamir ports use is
+[RandomOracle.lean](../Clap/RandomOracle/RandomOracle.lean): `H` drawn uniformly from all functions
+on queries of arity at most 16. It carries Schwartz–Zippel, a union bound, and the fresh-query
+lemma `randomOracle_fresh_le` below. It replaces the older development's `ROModel`, which its
+module doc explains is vacuous.
 
-**Unblocked by `FString.conversion`, not yet done**: the separate, larger `old/Clap/FString.lean`
-(only `old/Clap/Lang.lean`'s `FString` has been ported), `old/Clap/JWT.lean`,
-`old/Clap/Keyless.lean`. All three can now hash with `hashBytesToField`. JWT and Keyless also feed
-parsed indices into `arraySelector` / `lessThan` and input characters into `F8.*` /
-`isWhitespace`, none of which range-check their operands; see the range-consumer trap below.
+**`old/Clap/FString.lean` is done**, against Circom's `helpers/strings` templates rather than
+the old port. Where the two disagree, Circom won:
+
+| Gadget | File | Circom |
+|---|---|---|
+| `F8.isWhitespace` | [F8/isWhitespace.lean](../Clap/Lang/Data/F8/isWhitespace.lean) (earlier) | `IsWhitespace` |
+| `FString.assertIsAsciiDigits` | [FString/assertIsAsciiDigits.lean](../Clap/Lang/Data/FString/assertIsAsciiDigits.lean) | `AssertIsAsciiDigits`; `Num2Bits(9)` on every slot and 9-bit comparisons, which the old port dropped |
+| `FString.asciiDigitsToScalar` | [FString/asciiDigitsToScalar.lean](../Clap/Lang/Data/FString/asciiDigitsToScalar.lean) | `AsciiDigitsToScalar`; `index_eq` as `oneHotRaw`'s tail |
+| `FString.isSubstring`, `assertisSubstring` | [FString/isSubstring.lean](../Clap/Lang/Data/FString/isSubstring.lean) | `IsSubstring`, `AssertIsSubstring` |
+| `FString.assertIsConcatenation` | [FString/assertIsConcatenation.lean](../Clap/Lang/Data/FString/assertIsConcatenation.lean) | `AssertIsConcatenation` |
+
+The old model's direct `O(n·m)` `isSubstring` has no Circom counterpart and was not ported.
+`arraySelector` gained Circom's two index range checks on the way (see the range-consumer trap).
+
+**Fiat–Shamir gadgets have three layers**, and none is a substitute for another.
+
+1. **The circuit's `convertsM`**, under `Computes H`, as for any hashing gadget. Its value is what
+   the circuit computes for *every* input: a named function of `H` such as
+   `isSubstring.accepts H …`, which is a polynomial identity checked at the hashed challenge.
+   Its slot 5 is the deterministic assertions: bytes, index ranges, padding. There is no
+   deterministic `accepts ↔ SubstrAt`, and there cannot be one: a false instance passes whenever
+   `α` is a root.
+2. **The algebra**, generic in `p`
+   ([FiatShamir/Polynomial.lean](../Clap/FiatShamir/Polynomial.lean)). The spec (`SubstrAt`,
+   `IsConcat`) is the identity holding as *polynomials*, coefficient by coefficient. So it includes
+   the padding guarantees nothing else in the circuit enforces. When the spec fails, the difference
+   polynomial is nonzero and of bounded degree.
+3. **The random-oracle bound**, for `H := Query.toHashFn f` with `f ← randomOracle`, and a fixed
+   instance: `Pr[accepts ∧ ¬spec] ≤ (degree + collision) / p`. The challenge query is built from
+   hashes, so it depends on `f`. `randomOracle_fresh_le` makes its answer uniform while the query
+   is fresh.
+   [HashToField/transcript.lean](../Clap/Lang/Data/HashToField/transcript.lean) lists the queries each
+   hash makes and bounds the chance of a collision (`25 / p` per hashed input). The instance is
+   fixed before `f`, so this is not adaptive soundness. Against an adaptive prover, whatever is not
+   hashed into the challenge, such as `isSubstring`'s `str` behind an unchecked `strHash`, must
+   be bound by the caller.
+
+**Where each layer lives.** Layer 1, and the gadget-specific parts of layers 2 and 3, stay with
+the gadget in Lang. That covers the circuit, `convertsM`, `accepts_of_substrAt`,
+`prob_accepts_le` and the hash transcripts. The general theory sits in two folders *below* Lang,
+which import nothing from it:
+- [Clap/RandomOracle/](../Clap/RandomOracle/): `HashFn`, `Query`, `Query.toHashFn` and `hashQ`
+  in `HashFn.lean`; the distribution, Schwartz–Zippel and the fresh-query lemma in
+  `RandomOracle.lean`.
+- [Clap/FiatShamir/](../Clap/FiatShamir/): the polynomial algebra.
+
+For strings encoded by `FString.encodeV`, the specs read as string statements:
+- `substrAt_encodeV_iff`: `T` is a prefix of `S.drop s` and fits.
+- `isConcat_encodeV_iff`: `F = L ++ R`.
+- `asciiDigitsToScalar.value_encodeV`: the number the digits spell, mod `p`.
+
+The price is that no character is NUL, where padding could stand in for one. That is what the
+older development's `nonEmpty` hypothesis was for.
+
+**Unblocked, not yet done**: `old/Clap/JWT.lean`, `old/Clap/Keyless.lean`. Both can now hash with
+`hashBytesToField` and check substrings and concatenations. They also feed parsed indices into
+`lessThan` and input characters into `F8.*` / `isWhitespace`, which do not range-check their
+operands; see the range-consumer trap below.
 
 **Retired, do not port**: `old/Clap/Circuit.lean` (PHOAS syntax), `old/Clap/Simulation.lean`,
 `old/Clap/Compilation.lean`, `old/Clap/Compiler/*` (the `#compile` reifier), `old/Clap/Milestone.lean`.
@@ -415,17 +472,28 @@ Note `Fact (Nat.Prime goldilocks)` and `Fact (Nat.Prime bn254)` are `sorry`'d in
   input `i` is circuit variable `i` is maintained by allocating in order and nothing else, so it
   is still yours to keep.
 - **Range consumers do not check their operands, and their `convertsM` cannot be discharged at
-  the top level.** Like circomlib's `LessThan`, `lessThan` and its variants, `arraySelector`, the
-  `F8` comparisons and `F8.isWhitespace` check only an internal offset. So their `convertsM`
-  takes the operands' bounds as hypotheses — for `F8`, through `F8.conversion`. The JWT and
-  Keyless ports feed them parsed indices (`arraySelector`, `lessThan`) and input characters
-  (`F8.*`, `isWhitespace`), which at the top level are arbitrary field elements. Range-check them
+  the top level.** Like circomlib's `LessThan`, `lessThan` and its variants, the `F8` comparisons
+  and `F8.isWhitespace` check only an internal offset. So their `convertsM` takes the operands'
+  bounds as hypotheses — for `F8`, through `F8.conversion`. The JWT and Keyless ports feed them
+  parsed indices (`lessThan`) and input characters (`F8.*`, `isWhitespace`), which at the top
+  level are arbitrary field elements. `arraySelector` used to be on this list. Circom's
+  `ArraySelector` range-checks both indices itself (`Num2Bits(B)`), and so does the port now;
+  `arraySelectorCore` is the unchecked body. Range-check them
   in the circuit (`assert_range`, `Packing.assertIsBytes`), consume them through the gadget's
   `convertsM_unchecked`, and rewrite its constraint under the range check with
   `convertsM_bind_guard`.
   [proving-circuits.md §Using a range established earlier in the circuit](proving-circuits.md#using-a-range-established-earlier-in-the-circuit)
   has the pattern, and [Examples/RangeCheckedLessThan.lean](../Clap/Examples/RangeCheckedLessThan.lean)
   the worked case.
+
+- **The back end cannot generate a witness for a gate whose input depends on an earlier witness.**
+  `WitnessGenerator.run` ([toWg.lean](../Clap/Model/WitnessGenerator/toWg.lean)) evaluates every
+  expression once, from the public inputs alone. So a `share` / `isZero` / `num2bits` over an
+  earlier `share` or `isZero` output finds no value, and `get!` panics. That is why
+  `poseidonBN254` does not lower: `sigma` shares `x2 * x2` right after sharing `x * x`. For the
+  same reason `FVec.powers` and `FString.asciiDigitsToScalar` are smoke-tested by evaluation,
+  and `assertIsConcatenation` by evaluating its gates in the varStore its semantics produces. The
+  fix belongs in `toWg`, not in the gadgets.
 
 ## Checklist
 

@@ -1,14 +1,14 @@
-import Clap.Poseidon.Computes
+import Clap.Lang.Poseidon.Computes
 import Clap.Lang.Core.F.mkF
 import Clap.Lang.Gate.eq0
 
-namespace Clap.HashToField
+namespace Clap.Lang.HashToField
 
-open Lang Poseidon Primes
+open Poseidon RandomOracle Primes
 
 -- Poseidon is opaque to these proofs, all they know of it is `Computes H`. Left reducible, it
 -- also sends `step`'s defeq checks into the round-constant tables (a `whnf` timeout).
-attribute [local irreducible] Clap.poseidonBN254
+attribute [local irreducible] Clap.Lang.Poseidon.poseidonBN254
 
 /-- (Merkle-)hash a vector of field elements with Poseidon. -/
 def hashElemsToField {n : ℕ} (input : FVec bn254 n) : ClapM bn254 (F bn254) :=
@@ -117,4 +117,4 @@ lemma convertsM_of_gt
 
 end hashElemsToField
 
-end Clap.HashToField
+end Clap.Lang.HashToField

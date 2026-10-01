@@ -8,13 +8,29 @@ variable {p : ℕ}
 
 section dotProduct
 
-/-- `∑ i, a[i] * b[i]`. The old model's `(a.zipWith (· * ·) b).foldl (· + ·) 0` was a pure
-fold; every node now has to be allocated, so it is a `foldlM`. -/
+/-- `∑ i, a[i] * b[i]` -/
 def dotProduct {w} (a b : FVec p w) : ClapM p (F p) := do
   let acc0 ← mkF 0
   (a.zip b).foldlM (fun acc xy ↦ do acc + (← xy.1 * xy.2)) acc0
 
 namespace dotProduct
+
+private lemma foldl_add_eq_add_sum {α R : Type} [AddCommMonoid R] (g : α → R) :
+    ∀ (l : List α) (c : R), l.foldl (fun acc x ↦ acc + g x) c = c + (l.map g).sum
+  | [], c => by simp
+  | x :: l, c => by
+    rw [List.foldl_cons, foldl_add_eq_add_sum g l, List.map_cons, List.sum_cons, add_assoc]
+
+/-- The ideal value of `dotProduct` is the finite sum `∑ i, a[i] * b[i]`. -/
+lemma foldl_eq_sum {w} (a b : Vector (ZMod p) w) (c : ZMod p) :
+    (a.zip b).foldl (fun acc xy ↦ acc + xy.1 * xy.2) c = c + ∑ i : Fin w, a[i] * b[i] := by
+  rw [← Vector.foldl_toList, foldl_add_eq_add_sum (fun xy : ZMod p × ZMod p ↦ xy.1 * xy.2)]
+  congr 1
+  rw [← List.sum_ofFn]
+  congr 1
+  apply List.ext_getElem (by simp)
+  intro i h1 h2
+  simp
 
 private lemma step_convertsM
   {state : ClapMState p}

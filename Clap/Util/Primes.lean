@@ -43,4 +43,10 @@ instance : Fact (fits bn254 16) := by decide
 instance : Fact (fits bn254 32) := by decide
 instance : Fact (fits bn254 64) := by decide
 
+/-- `bn254 ≠ 0`. -/
+instance instNeZeroBn254 : NeZero bn254 := ⟨by decide⟩
+
+/-- `bn254 ≥ 2`, for the boolean gadgets built over it. -/
+instance instAtLeastTwoBn254 : Nat.AtLeastTwo bn254 := ⟨by decide⟩
+
 end Primes

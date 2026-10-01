@@ -1,11 +1,8 @@
 import Clap.Model.All
 import Clap.Lang.All
-import Clap.Poseidon.Computes
-import Clap.Poseidon.HashToField.hash64BitLimbsToField
-import Clap.Poseidon.HashToField.hashBytesToField
-import Clap.Poseidon.HashToField.hashElemsToField
-import Clap.Poseidon.Poseidon
-import Clap.Poseidon.RandomOracle
+import Clap.RandomOracle.HashFn
+import Clap.RandomOracle.RandomOracle
+import Clap.FiatShamir.Polynomial
 import Clap.Keyless.Allocate
 import Clap.Examples.PoseidonProgram
 import Clap.Examples.RangeCheckedLessThan
@@ -19,8 +16,9 @@ import Clap.Test.Backend
 | `Clap/Util/` | model-agnostic maths and Lean/Std lemmas |
 | `Clap/Tactic/` | proof automation, chiefly the `step` tactic |
 | `Clap/Model/` | the `ClapM` model, expression heap, monad, semantics, refinement, back ends |
-| `Clap/Lang/` | the gadget library: `Gate/`, then `Core/`, then `Data/` |
-| `Clap/Poseidon/` | the Poseidon hash, what the library assumes of it (`Computes`), its random-oracle idealisation, and the hash-to-field gadgets built on it |
+| `Clap/RandomOracle/` | hash families (`HashFn`), random-oracle queries, and the random oracle itself: uniformity, Schwartz–Zippel, the fresh-query lemma. Below `Lang/` |
+| `Clap/FiatShamir/` | the polynomial algebra behind the Fiat–Shamir checks: what the substring and concatenation identities mean, and root counting. Below `Lang/` |
+| `Clap/Lang/` | the gadget library: `Gate/`, then `Core/`, then `Poseidon/`, then `Data/` (hash-to-field and the Fiat–Shamir string checks included) |
 | `Clap/Keyless/` | the Aptos Keyless application |
 | `Clap/Examples/` | worked end-to-end programs |
 | `Clap/Test/` | executable checks of the back end |

@@ -49,9 +49,12 @@ cannot be closed.
    live build.
 
 2. **The tree is layered, and imports only ever point downwards.**
-   `Util` → `Model` → `Lang/Gate` → `Lang/Core` → `Lang/Data`, with `Poseidon`, `Keyless`,
-   `Examples` and `Test` on top. In particular **nothing in `Clap/Model/` may import
-   `Clap/Lang/`** — the model is what the gadget library is built on. The single deliberate
+   `Util` → `Model` → {`RandomOracle`, `FiatShamir`} → `Lang/Gate` → `Lang/Core` →
+   `Lang/Poseidon` → `Lang/Data`, with `Keyless`, `Examples` and `Test` on top. In particular
+   **nothing in `Clap/Model/` may import `Clap/Lang/`** — the model is what the gadget library
+   is built on. Nor may `Clap/RandomOracle/` or `Clap/FiatShamir/`: they hold the random-oracle
+   idealisation and the Fiat–Shamir algebra, which the gadgets' completeness and soundness lemmas
+   use. Gadget-specific lemmas, even probabilistic ones, stay with their gadget in Lang. The single deliberate
    exception is `Clap/Model/Convert/Specialised.lean` importing `Clap/Tactic/Step.lean`, because
    the `step` tactic parses the `Converts` structures defined one file below it.
    [repo-layout.md](repo-layout.md) has the details.
@@ -78,7 +81,7 @@ cannot be closed.
    under `ConstraintSystem/` and `WitnessGenerator/`.
    [Test/Backend.lean](../Clap/Test/Backend.lean) runs a circuit end to end and `#guard`s
    `wellbehaved` / `complete` / `sound`. So a `native_decide` smoke test *is* available — see
-   [Poseidon.lean](../Clap/Poseidon/Poseidon.lean), which pins circomlib and `poseidon-ark`
+   [Poseidon.lean](../Clap/Lang/Poseidon/Poseidon.lean), which pins circomlib and `poseidon-ark`
    hash vectors at arities 1–6 that way (by evaluation; Poseidon does not lower yet). The
    `ConvertsM` lemma is still the real evidence; a smoke test is a cheap sanity check on top,
    not a substitute.

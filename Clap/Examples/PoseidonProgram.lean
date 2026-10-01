@@ -4,7 +4,7 @@ import Clap.Model.ConstraintSystem.toCs
 import Clap.Model.PublicInput
 import Clap.Model.WitnessGenerator.toWg
 import Clap.Util.Containers
-import Clap.Poseidon.Poseidon
+import Clap.Lang.Poseidon.Poseidon
 import Clap.Lang.Core.FUnit.assert_eq
 /-!
 # A worked `AllocatedProgram`
@@ -26,7 +26,7 @@ See [docs/public-inputs.md](../../docs/public-inputs.md).
 
 namespace Clap
 
-open Lang
+open Lang Lang.Poseidon
 
 
 /--

@@ -186,7 +186,7 @@ What `step` does handle is a chain in which **at most one action produces a cons
 other step being `True`. That action may sit anywhere. When it comes first and everything after it
 is `True`, the continuation obligation is `True ↔ (C₁ → C₁)`, which holds, and `convertsM_bind`'s
 `constraints → C₁` side goal is closed by `exact id`.
-[HashToField/hashBytesToField.lean](../Clap/Poseidon/HashToField/hashBytesToField.lean) steps
+[HashToField/hashBytesToField.lean](../Clap/Lang/Data/HashToField/hashBytesToField.lean) steps
 `assertIsBytes` first this way. Most gadgets put the assertion last: `assertBool` is three `True`
 steps then one `eq0`, and `singleOneArray` is three `True` steps then one `assert_eq`.
 
@@ -333,8 +333,10 @@ Still open:
 
 ### Using a range established earlier in the circuit
 
-`lessThan`, its three variants, `arraySelector`, the `F8` comparisons and `F8.isWhitespace` never
-range-check the operands they need in range. Like circomlib's `LessThan`, `lessThan w a b`
+`lessThan`, its three variants, the `F8` comparisons and `F8.isWhitespace` never
+range-check the operands they need in range. (`arraySelector` does, as Circom's `ArraySelector`
+does; its unchecked body `arraySelectorCore` does not, and its range-checked `convertsM` is proved
+by this pattern.) Like circomlib's `LessThan`, `lessThan w a b`
 range-checks only its offset `a - b + 2^w`. So their `convertsM` takes the bounds as hypotheses:
 `ha : a_val.val < 2^w`, or, for `F8`, `Converts F8.conversion`, which is the same thing in
 disguise. In a program such as
@@ -412,7 +414,16 @@ Two notes for longer programs:
   `generalize (lessThan 8 eight_result e).getState thirtytwo_state = gt8_state at *`, and the
   same for `getResult`. `step` would have `set` them. Left as terms, the next `step`'s defeq
   checks unfold them through the concrete width `8` and time out in `whnf`.
-  `arraySelector.convertsM_unchecked`, at the symbolic width `minBits' len`, does not need it.
+  `arraySelectorCore.convertsM_unchecked`, at the symbolic width `minBits' len`, does not need it.
+- **Sequence a concrete asserting action with an abstract-action lemma.** Even with
+  `(function := …)` given, `convertsM_bind_and hA hK` can time out in `whnf` when `hA` is about a
+  concrete gadget (`arraySelector …`, a hash) and `hK` mentions its `getResult` / `getState`: the
+  unifier unfolds the gadget. State the bind once over an *abstract* action — a lemma taking
+  `(h_action : ConvertsM C action state v C₁)` and concluding about
+  `action >>= fun x ↦ continuation x` — and instantiate it. Examples:
+  `assertIsAsciiDigits.bind_fold_convertsM`, `isSubstring.bind_check_convertsM`, and
+  `assertIsConcatenation`'s `bind_final_convertsM`. It is the same trick as
+  `Computes.value_eq_of_convertsM`.
 
 ## Skeleton 1 — straight-line composition
 
@@ -710,6 +721,8 @@ bidirectional, `→` / `←` implication, `.` use-as-fact, `! .` aggressive, `ca
 | The constraints `↔` reads `C₂ ↔ (C₁ → … C₁ … ∧ C₂)` and is false when `C₁` and `C₂` both fail | you used `step`/`convertsM_bind` on a bind with constraints on **both** sides; the shape is unprovable, not merely hard | re-do that bind with `convertsM_bind_and`, then reshape with `convertsM_of_convertsM`. See [When `step` does not apply](#when-step-does-not-apply--two-assertions-that-can-fail-together); the [experimental `step`](#an-experimental-step-for-this-case--slow-not-merged) that handles it is too slow to use |
 | A gadget's `convertsM` needs a range (`ha : a_val.val < 2^w`, or an `F8.conversion` operand) that only an earlier `assert_range` establishes | `convertsM_bind` / `convertsM_bind_and` need the continuation's spec for *every* input; the range is only in the earlier step's slot 5 | use the gadget's `convertsM_unchecked`, and rewrite its constraint with `convertsM_bind_guard`. See [Using a range established earlier](#using-a-range-established-earlier-in-the-circuit) |
 | `step` right after a manual `convertsM_bind_and` times out in `whnf` | the action's `getResult` / `getState` are left as terms, and `step` unfolds them through a concrete width | `generalize` both `at *` first, as in [F8/isWhitespace.lean](../Clap/Lang/Data/F8/isWhitespace.lean) |
+| `whnf` timeout building `convertsM_bind_and hA hK` (or `apply`ing it), with `hA` about a concrete gadget | the unifier unfolds that gadget's `getResult` / `getState` | state the bind over an abstract action and instantiate it; see [Using a range established earlier](#using-a-range-established-earlier-in-the-circuit), last note |
+| After `step mkAdd.convertsM …` the goal still shows `(a + b).getResult …` instead of `<name>_result`, and a later `apply` times out | the definition wrote `let x ← a + b`, and `step`'s `set` did not match the operator form against `mkAdd a b` | write `mkAdd a b` in the definition at that bind, as `isSubstring.afterHash` does, or `change` the goal |
 | An extra unexplained goal at the end of a Skeleton-2 proof | the `convertsM_bind` implications for a non-`True` constraint | that is soundness/completeness; prove them |
 | The constraints goal reads `… ↔ (True → True → … → P)` and `constructor`/`intro` then mismatches | each preceding `True`-constraint step contributes one `True →` via `convertsM_bind` | a bare `simp` absorbs them, but a targeted script must strip them first: `simp only [true_implies]`. See [FB/assertBool.lean](../Clap/Lang/Core/FB/assertBool.lean) |
 
@@ -738,12 +751,12 @@ have to establish.
 
 ### Two smoke-test styles, and when each works
 
-**The evaluation style**, [Poseidon.lean](../Clap/Poseidon/Poseidon.lean): build the inputs with
+**The evaluation style**, [Poseidon.lean](../Clap/Lang/Poseidon/Poseidon.lean): build the inputs with
 `mkConstant`, then evaluate the result ref in the varStore the circuit's *own semantics* produces,
 `cmd.getVarStore {} 0 {}`, against the final heap. Because that varStore is the result of
 `Circuit.eval`, it holds the values of every allocated variable — `share` outputs,
 `num2bits` bits — so this works for gadgets built on them;
-[HashToField/hashBytesToField.lean](../Clap/Poseidon/HashToField/hashBytesToField.lean) runs
+[HashToField/hashBytesToField.lean](../Clap/Lang/Data/HashToField/hashBytesToField.lean) runs
 through `num2bits` gates this way. Evaluating against the *empty* varStore instead only works
 when no gate allocates.
 
@@ -781,10 +794,15 @@ values in the `#v[…]`. Five traps:
   `native_decide` accepts `sorry`-dependent terms (it is `#eval` that refuses them), and the
   computation never inspects the proof. (Earlier revisions of this guide said `native_decide`
   refuses `sorry`; it does not.)
-- **Nothing containing `poseidonBN254` lowers.** `toCs`/`toWg` on `poseidonBN254 #v[1, 2]` returns
-  `false` even for the correct hash, with hundreds of `Option.get!` panics, while a lone `share`
-  gate lowers fine — a back-end bug, not yet diagnosed. Use the evaluation style for anything that
-  hashes.
+- **Nothing whose allocating gate reads an earlier witness lowers.** `WitnessGenerator.run`
+  ([toWg.lean](../Clap/Model/WitnessGenerator/toWg.lean)) evaluates every expression once, from the
+  public inputs alone. So a `share` / `isZero` / `num2bits` whose input depends on an earlier
+  `share` or `isZero` output finds no cached value and panics (`Option.get!`), and the check
+  returns `false`. A lone `share`, or one over inputs, lowers fine. This is why `poseidonBN254`
+  does not lower (`sigma` shares `x2 * x2` right after sharing `x * x`), and why `FVec.powers` and
+  `FString.asciiDigitsToScalar` cannot either. Use the evaluation style for those. For a gadget
+  that only asserts, evaluate its `eq0` / `num2bits` gates in `cmd.getVarStore {} 0 {}`, as
+  `assertIsConcatenation`'s examples do.
 - **Name the instance.** A bare `local instance : Fact (Nat.Prime q)` is auto-named from the
   type, so two files in the same namespace collide at import time with *"environment already
   contains"*. Give each an explicit distinct name.

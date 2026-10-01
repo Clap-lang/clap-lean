@@ -115,9 +115,13 @@ work of A; if you can express your gadget without iteration, do.
 | `F32.ofFBV8 u8` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p (F32 p)` | `vals ++ Vector.replicate 24 false` | `True` |
 | `F32.assert_eq a b` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p Unit` | `()` | `∀ i : Fin 32, a_vals[i] = b_vals[i]` |
 | `FVec.eq a b` | [FVec/eq.lean](../Clap/Lang/Data/FVec/eq.lean) | `ClapM p (FB p)` | `decide (a_vals = b_vals)` | `True` |
+| `powers α n` | [FVec/powers.lean](../Clap/Lang/Data/FVec/powers.lean) | `ClapM p (FVec p n)` | `Vector.ofFn (α_val ^ ·)`, each power after the first `share`d | `True` |
 | `FString.ofString s` | [FString/ofString.lean](../Clap/Lang/Data/FString/ofString.lean) | `ClapM p (FString p w)` | `s` | `True` |
 | `FString.isPaddedOf a b` | [FString/isPaddedOf.lean](../Clap/Lang/Data/FString/isPaddedOf.lean) | `ClapM p (FB p)` | `decide (encodeV w a_val = encodeV w b) && (a_val.length == b.length)` | `True` |
+| `FString.assertIsAsciiDigits inp` | [FString/assertIsAsciiDigits.lean](../Clap/Lang/Data/FString/assertIsAsciiDigits.lean) | `ClapM p Unit` | `()` | every position `< 2 ^ 9`, `0 < w`, `0 < len < 2 ^ minBits' w`, and the first `len` in `[48, 57]` |
+| `FString.asciiDigitsToScalar inp` | [FString/asciiDigitsToScalar.lean](../Clap/Lang/Data/FString/asciiDigitsToScalar.lean) | `ClapM p (F p)` | `asciiDigitsToScalar.value data_vals len_val.val`, which is `digitsValue data_vals len` (base 10, mod `p`) when `1 ≤ len ≤ w` | every position `< 2 ^ 9`, `1 ≤ len ≤ w`, the first `len` digits; `inp : FString p (w + 1)` |
 | `num2bits w e` | [FArray/num2bits.lean](../Clap/Lang/Gate/num2bits.lean) | `ClapM p (FArray p w)` | `num2bitsLsbPureV w e_val` as bits | `e_val.val < 2 ^ w` — see the note below |
+| `share e` | [Gate/share.lean](../Clap/Lang/Gate/share.lean) | `ClapM p (F p)` | `e_val` | `True` — the degree reduction a Circom signal stands for |
 | `lessThan w a b` | [F/lessThan.lean](../Clap/Lang/Core/F/lessThan.lean) | `ClapM p (FB p)` | `a_val.val < b_val.val`, given `a_val.val, b_val.val < 2 ^ w` and `2 ^ (w+1) < p`; `convertsM_unchecked`, for any inputs: `lessThan.lessThanRaw w a_val b_val` | `True`; `convertsM_unchecked`: `lessThan.lessThanOk w a_val b_val` |
 | `lessEqThan`, `greaterThan`, `greaterEqThan` | [F/lessThan.lean](../Clap/Lang/Core/F/lessThan.lean) | `ClapM p (FB p)` | the obvious variants; each has a `convertsM_unchecked` through `lessThanRaw` | `True`; unchecked: the `lessThanOk` |
 | `assert_range w e` | [FUnit/assert_range.lean](../Clap/Lang/Core/FUnit/assert_range.lean) | `ClapM p Unit` | `()` | `e_val.val < 2 ^ w` |
@@ -126,10 +130,14 @@ work of A; if you can express your gadget without iteration, do.
 | `F32.add a b` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p (F32 p)` | the above, `take 32` — i.e. wrapping 32-bit addition | `True` |
 | `FBV8.ofF`, `F32.ofF`, `F64.ofF` | [FArray/Widths.lean](../Clap/Lang/Data/Widths.lean) | `ClapM p (FArray p w)` | `num2bits` at `w = 8`/`32`/`64` | `x_val.val < 2 ^ w` |
 | `F8.isWhitespace c` | [F8/isWhitespace.lean](../Clap/Lang/Data/F8/isWhitespace.lean) | `ClapM p (FB p)` | `c_val` is ASCII whitespace (9–13 or 32); `convertsM_unchecked`, over `F.conversion`: the two comparisons' `lessThanRaw`s | `True`; unchecked: their two `lessThanOk`s |
-| `arraySelector len s e` | [FArray/arraySelector.lean](../Clap/Lang/Data/FArray/arraySelector.lean) | `ClapM p (FArray p len)` | 1s on `[startIdx, endIdx)` | `startIdx_val.val < len ∧ startIdx_val.val < endIdx_val.val`, given both indices `< 2 ^ minBits' len`; `convertsM_unchecked`: both `lessThanOk`s and the asserted `lessThanRaw`s |
-| `singleEndArray len idx` | [FArray/singleEndArray.lean](../Clap/Lang/Data/FArray/singleEndArray.lean) | `ClapM p (FArray p len)` | 1s from `idx` on | `idx_val.val < len` |
+| `arraySelector len s e` | [FArray/arraySelector.lean](../Clap/Lang/Data/FArray/arraySelector.lean) | `ClapM p (FArray p len)` | 1s on `[startIdx, endIdx)` (the XOR of the two masks; `convertsM'` reads it as the interval) | `startIdx_val.val < 2 ^ minBits' len ∧ endIdx_val.val < 2 ^ minBits' len ∧ startIdx_val.val < len ∧ startIdx_val.val < endIdx_val.val` — it range-checks both indices, as Circom's `ArraySelector` does; `arraySelectorCore` is the unchecked body, with `convertsM_unchecked` |
+| `selectArrayValue len arr idx` | [FArray/selectArrayValue.lean](../Clap/Lang/Data/FArray/selectArrayValue.lean) | `ClapM p (F p)` | `arr_vals.getD idx_val.val 0` | `idx_val.val < len` |
+| `rightArraySelector len idx` | [FArray/rightArraySelector.lean](../Clap/Lang/Data/FArray/rightArraySelector.lean) | `ClapM p (FArray p len)` | `Vector.ofFn (decide (idx_val.val < ·))` | `idx_val.val < len` |
+| `leftArraySelector len idx` | [FArray/leftArraySelector.lean](../Clap/Lang/Data/FArray/leftArraySelector.lean) | `ClapM p (FArray p len)` | `Vector.ofFn (decide (· < idx_val.val))` | `idx_val.val < len` |
+| `arraySelectorComplex len s e` | [FArray/arraySelectorComplex.lean](../Clap/Lang/Data/FArray/arraySelectorComplex.lean) | `ClapM p (FArray p len)` | `Vector.ofFn fun i ↦ decide (0 < s_val.val ∧ s_val.val ≤ i) && decide (i < e_val.val)`, for every input (all `false` at `s = 0`) | `0 < s_val.val ∧ s_val.val ≤ len ∧ e_val.val < len` |
+| `FArray.and a b` | [FArray/and.lean](../Clap/Lang/Data/FArray/and.lean) | `ClapM p (FArray p k)` | pointwise `&&` | `True` |
 | `FArray.xor a b` | [FArray/xor.lean](../Clap/Lang/Data/FArray/xor.lean) | `ClapM p (FArray p k)` | pointwise `xor` | `True` |
-| `FArray.xorScan a` | [FArray/xorScan.lean](../Clap/Lang/Data/FArray/xorScan.lean) | `ClapM p (FArray p k)` | running `xor` prefix scan | `True` |
+| `FArray.xorScan init a` | [FArray/xorScan.lean](../Clap/Lang/Data/FArray/xorScan.lean) | `ClapM p (FArray p k)` | running `xor` prefix scan from `init` | `True` |
 | `FBitVec.eq a b` | [FBitVec/eq.lean](../Clap/Lang/Data/FBitVec/eq.lean) | `ClapM p (FB p)` | `a_val == b_val` | `True` |
 | `FBitVec.assert_eq a b` | [FBitVec/assert_eq.lean](../Clap/Lang/Data/FBitVec/assert_eq.lean) | `ClapM p Unit` | `()` | `a_val = b_val` |
 | `Packing.assertIsBytes a` | [Packing/assertIsBytes.lean](../Clap/Lang/Data/Packing/assertIsBytes.lean) | `ClapM p Unit` | `()` | `∀ i, a_vals[i].val < 2 ^ 8` |
@@ -140,9 +148,12 @@ work of A; if you can express your gadget without iteration, do.
 | `Packing.chunksToFieldElem b chunks` | [Packing/chunksToFieldElem.lean](../Clap/Lang/Data/Packing/chunksToFieldElem.lean) | `ClapM p (F p)` | `Packing.chunksToNum b vals` (little-endian, base `2^b`) | `True` |
 | `Packing.chunksToFieldElems cps b chunks` | [Packing/chunksToFieldElems.lean](../Clap/Lang/Data/Packing/chunksToFieldElems.lean) | `ClapM p (FVec p w)` | `(toChunks cps vals).map (chunksToNum b)` | `True` |
 | `Packing.bigEndianBitsToScalars bps bits` | [Packing/bigEndianBitsToScalars.lean](../Clap/Lang/Data/Packing/bigEndianBitsToScalars.lean) | `ClapM p (FVec p w)` | each `bps`-bit chunk read big-endian | `True` |
-| `HashToField.hashElemsToField input` | [HashToField/hashElemsToField.lean](../Clap/Poseidon/HashToField/hashElemsToField.lean) | `ClapM bn254 (F bn254)` | `hashElemsToFieldSpec H vals` — Poseidon, or a 16-ary tree up to 64 | `True`, given `Poseidon.Computes H`, `0 < n ≤ 64` |
-| `HashToField.hashBytesToField input` | [HashToField/hashBytesToField.lean](../Clap/Poseidon/HashToField/hashBytesToField.lean) | `ClapM bn254 (F bn254)` | `hashBytesToFieldSpec H data_vals len_val` | `∀ i, data_vals[i].val < 2 ^ 8`, given `Poseidon.Computes H`, `numBytes ≤ 1953` |
-| `HashToField.hash64BitLimbsToField input` | [HashToField/hash64BitLimbsToField.lean](../Clap/Poseidon/HashToField/hash64BitLimbsToField.lean) | `ClapM bn254 (F bn254)` | `hash64BitLimbsToFieldSpec H limbs_vals len_val` | `True`, given `Poseidon.Computes H`, `numLimbs ≤ 45` |
+| `HashToField.hashElemsToField input` | [HashToField/hashElemsToField.lean](../Clap/Lang/Data/HashToField/hashElemsToField.lean) | `ClapM bn254 (F bn254)` | `hashElemsToFieldSpec H vals` — Poseidon, or a 16-ary tree up to 64 | `True`, given `Lang.Poseidon.Computes H`, `0 < n ≤ 64` |
+| `HashToField.hashBytesToField input` | [HashToField/hashBytesToField.lean](../Clap/Lang/Data/HashToField/hashBytesToField.lean) | `ClapM bn254 (F bn254)` | `hashBytesToFieldSpec H data_vals len_val` | `∀ i, data_vals[i].val < 2 ^ 8`, given `Lang.Poseidon.Computes H`, `numBytes ≤ 1953` |
+| `HashToField.hash64BitLimbsToField input` | [HashToField/hash64BitLimbsToField.lean](../Clap/Lang/Data/HashToField/hash64BitLimbsToField.lean) | `ClapM bn254 (F bn254)` | `hash64BitLimbsToFieldSpec H limbs_vals len_val` | `True`, given `Lang.Poseidon.Computes H`, `numLimbs ≤ 45` |
+| `FString.isSubstring h str strHash substr start` | [FString/isSubstring.lean](../Clap/Lang/Data/FString/isSubstring.lean) | `ClapM bn254 (FB bn254)` | `isSubstring.accepts H …`: `ŝ(α) ≠ 0 ∧ ŝ(α) = α^start · t(α)` at the hashed challenge | `substr` bytes, `start` and `start + len` in `minBits' n` bits, `start < n`, `start < start + len`; given `Lang.Poseidon.Computes H`. Meaning: `accepts_of_substrAt`, `prob_accepts_le`, `prob_rejects_le` |
+| `FString.assertisSubstring …` | [FString/isSubstring.lean](../Clap/Lang/Data/FString/isSubstring.lean) | `ClapM bn254 Unit` | `()` | the above ∧ `accepts … = true` |
+| `FString.assertIsConcatenation hL hR full left right` | [FString/assertIsConcatenation.lean](../Clap/Lang/Data/FString/assertIsConcatenation.lean) | `ClapM bn254 Unit` | `()` | `assertIsConcatenation.checks H …`: bytes, `1 ≤ ℓL ≤ nL`, `left` zero after `ℓL`, `ℓL < nF`, `full(α) = left(α) + α^ℓL · right(α)`. Meaning: `checks_of_isConcat`, `prob_checks_le` |
 
 Three things the table cannot show:
 
@@ -174,11 +185,12 @@ For iterating gadgets, do not hand-roll the induction — see
 for `convertsM_foldlM`, `convertsM_foldlM_constraints`, `convertsM_ofFnM`, `convertsM_mapM` and
 `convertsM_mapM_constraints`.
 
-Not yet wrapped: **`share`** and **`fpmul`**. Both are fully implemented *gates* — they are in
+Not yet wrapped: **`fpmul`**. It is a fully implemented *gate* — it is in
 [eDSL.lean](../Clap/Model/eDSL.lean) with the complete `wellFormed_*` / `eval_edsl_*` /
-`getResult_*` / `getVarStore_*` / `getCircuit_*` family, and both have `ConstraintSystem/` and
-`WitnessGenerator/` modules. What neither has is a `Clap/Lang/` wrapper carrying a `convertsM`,
-and that is what your gadget needs; write it first. `num2bits` used to be on this list and is
+`getResult_*` / `getVarStore_*` / `getCircuit_*` family, and has `ConstraintSystem/` and
+`WitnessGenerator/` modules. What it lacks is a `Clap/Lang/` wrapper carrying a `convertsM`, and
+that is what your gadget needs; write it first. `share` is wrapped
+([Gate/share.lean](../Clap/Lang/Gate/share.lean)). `num2bits` used to be on this list and is
 the bottleneck for every comparison, range check, packing and hashing gadget; it is now
 wrapped, along with the whole comparison family built on it.
 
@@ -288,7 +300,7 @@ proof needs it; drop only the value-range ones.
 `F8.conversion` is a range hypothesis in disguise, since `Converts F8.conversion state e u` says
 that `e` holds a byte. So the `F8` comparisons and `F8.isWhitespace` state their
 `convertsM_unchecked` over `F.conversion` operands. The gadgets that have one are `lessThan`,
-`lessEqThan`, `greaterThan`, `greaterEqThan`, `arraySelector`, `F8.lessThan`, `F8.greaterThan`,
+`lessEqThan`, `greaterThan`, `greaterEqThan`, `arraySelectorCore`, `F8.lessThan`, `F8.greaterThan`,
 `F8.lessEqThan`, `F8.greaterEqThan` and `F8.isWhitespace`.
 
 ## Naming rules
@@ -368,6 +380,7 @@ has reusable `ConvertsM` lemmas for the two common iteration shapes, both generi
 | `convertsM_ofFnM` | `Vector.ofFnM`, building a vector position by position — each position's action must hold in *every* state, so constants only |
 | `convertsM_mapM` | `Vector.mapM` of a field-valued gadget over a vector of inputs; the result is an `FVec` |
 | `convertsM_mapM_constraints` | `Vector.mapM` of a gadget with any result conversion `C_out`, whose step may assert; the result is a `C_out.vector k` and the constraint is `∀ i, …` |
+| `convertsM_scanlM` | `Vector.scanlM` (`Util/Wheels.lean`), the exclusive prefix scan of a field-valued fold (`k` outputs, value `Vector.scanl`, closed form `Vector.getElem_scanl`), elements under any conversion, step asserting nothing — Circom's `out[i] <== out[i-1] ∘ in[i-1]` loops; `powers` and `rightArraySelector` are built on it |
 
 Reach for those before hand-rolling an induction. `dotProduct`, `FArray.bits2num`,
 `FArray.eq`, `FArray.assert_eq`, `FVec.eq`, `FString.ofString` and the `Packing` gadgets are

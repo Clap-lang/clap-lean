@@ -1,14 +1,14 @@
-import Clap.Poseidon.Computes
+import Clap.Lang.Poseidon.Computes
 import Clap.Lang.Core.F.mkF
 import Clap.Lang.Data.Packing.chunksToFieldElems
 import Clap.Model.Convert.PaddedVector
 
-namespace Clap.HashToField
+namespace Clap.Lang.HashToField
 
-open Lang Poseidon Primes
+open Poseidon RandomOracle Primes
 
 -- See `hashElemsToField.lean`.
-attribute [local irreducible] Clap.poseidonBN254
+attribute [local irreducible] Clap.Lang.Poseidon.poseidonBN254
 
 /-- Hash `numLimbs` 64-bit limbs and a length to one field element. Packs the limbs 3 per field
 element (zero-padding the last), appends `input.len`, and hashes with a single `Poseidon`.
@@ -138,4 +138,4 @@ example : limbsHash 6 [1, 2] =
 
 end examples
 
-end Clap.HashToField
+end Clap.Lang.HashToField

@@ -1,6 +1,6 @@
 import Clap.Util.Primes
 
-namespace Clap.Poseidon.Constant.P
+namespace Clap.Lang.Poseidon.Constant.P
 
 open Primes
 
@@ -2156,4 +2156,4 @@ def P17 : Vector (Vector (ZMod bn254) 17) 17 := #v[
   ]
 ]
 
-end Clap.Poseidon.Constant.P
+end Clap.Lang.Poseidon.Constant.P
