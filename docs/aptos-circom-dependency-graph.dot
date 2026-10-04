@@ -1,0 +1,260 @@
+// Generated one-off; see the legend for the pinned versions.
+digraph keyless {
+  graph [rankdir=LR, newrank=true, ranksep=1.2, nodesep=0.25, fontname="Helvetica",
+         labelloc=t, fontsize=20, label=<<B>Aptos Keyless circuit: CLAP port status</B><BR/><FONT POINT-SIZE="11">Circom templates (keyless-zk-proofs @ dc10a06) · edges: template instantiation · CLAP fasapa/new-main @ 94bb46f · 2026-10-01</FONT>>];
+  node [shape=plain, fontname="Helvetica"];
+  edge [color="#000000b0", arrowsize=0.6];
+  subgraph cluster_keyless_circom {
+    label=<<B>keyless.circom</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
+    RSA_2048_e_65537_PKCS1_V1_5_Verify [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>RSA_2048_e_65537_PKCS1_V1_5_Verify</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR></TABLE>>];
+    keyless [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>keyless</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Keyless.lean:389 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>inputs allocated: Clap/Keyless/{Input,Allocate}.lean</I></FONT></TD></TR></TABLE>>];
+  }
+  subgraph cluster_helpers_jwt {
+    label=<<B>helpers/jwt</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
+    BracketsDepthMap [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>BracketsDepthMap</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:110 (c)</FONT></TD></TR></TABLE>>];
+    BracketsMap [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>BracketsMap</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: bracketsMap</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/JWT/bracketsMap.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:68 (c)</FONT></TD></TR></TABLE>>];
+    EmailVerifiedCheck [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>EmailVerifiedCheck</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:143 (c)</FONT></TD></TR></TABLE>>];
+    EnforceNotNested [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>EnforceNotNested</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:129 (c)</FONT></TD></TR></TABLE>>];
+    ParseEmailVerifiedField [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>ParseEmailVerifiedField</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:421 (c)</FONT></TD></TR></TABLE>>];
+    ParseJWTFieldSharedLogic [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>ParseJWTFieldSharedLogic</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:227 (c)</FONT></TD></TR></TABLE>>];
+    ParseJWTFieldWithQuotedValue [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>ParseJWTFieldWithQuotedValue</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:357 (c)</FONT></TD></TR></TABLE>>];
+    ParseJWTFieldWithUnquotedValue [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>ParseJWTFieldWithUnquotedValue</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:296 (c)</FONT></TD></TR></TABLE>>];
+    StringBodies [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>StringBodies</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:33 (c)</FONT></TD></TR></TABLE>>];
+  }
+  subgraph cluster_helpers_sha {
+    label=<<B>helpers/sha</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
+    SHA2_256_PaddingVerify [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>SHA2_256_PaddingVerify</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Sha2/Keyless.lean:95 (c), Sha2/Keyless.lean:134 (c)</FONT></TD></TR></TABLE>>];
+    SHA2_256_Prepadded_Hash [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>SHA2_256_Prepadded_Hash</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Sha2/Keyless.lean:134 (c), Sha2/Basic.lean:225</FONT></TD></TR></TABLE>>];
+  }
+  subgraph cluster_helpers_rsa {
+    label=<<B>helpers/rsa</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
+    FpMul [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#fff1a0"><B>FpMul</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: fpmul gate</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Model/eDSL.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:12</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>gate implemented; no Lang wrapper / convertsM</I></FONT></TD></TR></TABLE>>];
+    FpPow65537Mod [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>FpPow65537Mod</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: RSA.lean:16</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>blocked on fpmul wrapper</I></FONT></TD></TR></TABLE>>];
+    RSA_PKCS1_v1_5_Verify [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>RSA_PKCS1_v1_5_Verify</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: RSA.lean:26</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>old def is named after the keyless.circom wrapper</I></FONT></TD></TR></TABLE>>];
+  }
+  subgraph cluster_helpers_bigint {
+    label=<<B>helpers/bigint</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
+    BigLessThan [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>BigLessThan</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR></TABLE>>];
+    CheckCarryToZero [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#fff1a0"><B>CheckCarryToZero</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: fpmul gate</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Model/ConstraintSystem/fpMul.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:12</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>inside the fpmul gate; no Lang wrapper</I></FONT></TD></TR></TABLE>>];
+  }
+  subgraph cluster_helpers_base64url {
+    label=<<B>helpers/base64url</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
+    Base64UrlDecode [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#ffb870"><B>Base64UrlDecode</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: base64UrlDecode</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/Base64Len/base64UrlDecode.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Base64Len.lean:126</FONT></TD></TR></TABLE>>];
+    Base64UrlDecodedLength [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>Base64UrlDecodedLength</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: base64UrlDecodedLength</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/Base64Len/base64UrlDecodedLength.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Base64Len.lean:50</FONT></TD></TR></TABLE>>];
+    Base64UrlLookup [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#ffb870"><B>Base64UrlLookup</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: base64UrlLookup</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/Base64Len/base64UrlLookup.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Base64Len.lean:65</FONT></TD></TR></TABLE>>];
+  }
+  subgraph cluster_helpers_strings {
+    label=<<B>helpers/strings</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
+    AsciiDigitsToScalar [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>AsciiDigitsToScalar</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: asciiDigitsToScalar</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/FString/asciiDigitsToScalar.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:116 (c)</FONT></TD></TR></TABLE>>];
+    AssertIsAsciiDigits [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>AssertIsAsciiDigits</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: assertIsAsciiDigits</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/FString/assertIsAsciiDigits.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:100 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>8-bit check (Circom: 9)</I></FONT></TD></TR></TABLE>>];
+    AssertIsConcatenation [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>AssertIsConcatenation</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: assertIsConcatenation</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/FString/assertIsConcatenation.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:248 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>+ random-oracle bound (prob_checks_le)</I></FONT></TD></TR></TABLE>>];
+    AssertIsSubstring [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>AssertIsSubstring</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: assertisSubstring</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/FString/isSubstring.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:173 (c), FString.lean:225 (c)</FONT></TD></TR></TABLE>>];
+    IsSubstring [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>IsSubstring</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: isSubstring</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/FString/isSubstring.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:145 (c), FString.lean:192 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>+ random-oracle bound (prob_accepts_le)</I></FONT></TD></TR></TABLE>>];
+    IsWhitespace [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>IsWhitespace</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: F8.isWhitespace</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/F8/isWhitespace.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:14 (c)</FONT></TD></TR></TABLE>>];
+  }
+  subgraph cluster_helpers_hashtofield {
+    label=<<B>helpers/hashtofield</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
+    Hash64BitLimbsToFieldWithLen [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>Hash64BitLimbsToFieldWithLen</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: hash64BitLimbsToField</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/HashToField/hash64BitLimbsToField.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: HashToField.lean:14 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>under Poseidon.Computes H</I></FONT></TD></TR></TABLE>>];
+    HashBytesToFieldWithLen [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>HashBytesToFieldWithLen</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: hashBytesToField</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/HashToField/hashBytesToField.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: HashToField.lean:55 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>under Poseidon.Computes H</I></FONT></TD></TR></TABLE>>];
+    HashElemsToField [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>HashElemsToField</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: hashElemsToField</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/HashToField/hashElemsToField.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: HashToField.lean:30 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>under Poseidon.Computes H</I></FONT></TD></TR></TABLE>>];
+  }
+  subgraph cluster_helpers_arrays {
+    label=<<B>helpers/arrays</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
+    ArraySelector [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>ArraySelector</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: arraySelector</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/FArray/arraySelector.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Array.lean:31</FONT></TD></TR></TABLE>>];
+    ArraySelectorComplex [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>ArraySelectorComplex</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: arraySelectorComplex</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/FArray/arraySelectorComplex.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Array.lean:58</FONT></TD></TR></TABLE>>];
+    LeftArraySelector [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>LeftArraySelector</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: leftArraySelector</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/FArray/leftArraySelector.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Array.lean:48</FONT></TD></TR></TABLE>>];
+    RightArraySelector [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>RightArraySelector</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: rightArraySelector</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/FArray/rightArraySelector.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Array.lean:53</FONT></TD></TR></TABLE>>];
+    SelectArrayValue [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>SelectArrayValue</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: selectArrayValue</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/FArray/selectArrayValue.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Array.lean:43</FONT></TD></TR></TABLE>>];
+    SingleNegOneArray [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>SingleNegOneArray</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: oneHotRaw</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/FArray/OneHotRaw.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Array.lean:23</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>subsumed by oneHotRaw: its sum check cannot fail</I></FONT></TD></TR></TABLE>>];
+    SingleOneArray [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>SingleOneArray</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: singleOneArray</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/FArray/singleOneArray.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Array.lean:15</FONT></TD></TR></TABLE>>];
+  }
+  subgraph cluster_helpers_packing {
+    label=<<B>helpers/packing</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
+    AssertIs64BitLimbs [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>AssertIs64BitLimbs</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: assertIs64BitLimbs</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/Packing/assertIs64BitLimbs.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Packing.lean:9</FONT></TD></TR></TABLE>>];
+    AssertIsBytes [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>AssertIsBytes</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: assertIsBytes</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/Packing/assertIsBytes.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Packing.lean:16</FONT></TD></TR></TABLE>>];
+    BigEndianBits2Num [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>BigEndianBits2Num</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: bigEndianBits2Num</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/Packing/bigEndianBits2Num.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Packing.lean:23</FONT></TD></TR></TABLE>>];
+    BigEndianBitsToScalars [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>BigEndianBitsToScalars</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: bigEndianBitsToScalars</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/Packing/bigEndianBitsToScalars.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Packing.lean:41</FONT></TD></TR></TABLE>>];
+    Bytes2BigEndianBits [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>Bytes2BigEndianBits</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: bytes2BigEndianBits</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/Packing/bytes2BigEndianBits.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Packing.lean:25</FONT></TD></TR></TABLE>>];
+    ChunksToFieldElem [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>ChunksToFieldElem</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: chunksToFieldElem</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/Packing/chunksToFieldElem.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Packing.lean:28</FONT></TD></TR></TABLE>>];
+    ChunksToFieldElems [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>ChunksToFieldElems</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: chunksToFieldElems</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/Packing/chunksToFieldElems.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Packing.lean:47</FONT></TD></TR></TABLE>>];
+    Num2BigEndianBits [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>Num2BigEndianBits</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: num2BigEndianBits</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/Packing/num2BigEndianBits.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>inlined in the old model</I></FONT></TD></TR></TABLE>>];
+  }
+  subgraph cluster_stdlib_circuits {
+    label=<<B>stdlib/circuits</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
+    ConditionallyAssertEqual [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>ConditionallyAssertEqual</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: guardedAssertEq</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Core/FUnit/guardedAssertEq.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:42</FONT></TD></TR></TABLE>>];
+    ElementwiseMul [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>ElementwiseMul</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:116 (c)</FONT></TD></TR></TABLE>>];
+    InvertBinaryArray [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>InvertBinaryArray</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR></TABLE>>];
+    Sum [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>Sum</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: FArray.sum</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/FArray/sum.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>spec over bit inputs only</I></FONT></TD></TR></TABLE>>];
+  }
+  subgraph cluster_circomlib {
+    label=<<B>circomlib (external)</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
+    AND [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>AND</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: FB.and</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Core/FB/and.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:68</FONT></TD></TR></TABLE>>];
+    Bits2Num [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>Bits2Num</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: FArray.bits2num</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Data/FArray/bits2num.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:13</FONT></TD></TR></TABLE>>];
+    EscalarProduct [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>EscalarProduct</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: dotProduct</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Core/F/dotProduct.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:34, JWT.lean:119 (c)</FONT></TD></TR></TABLE>>];
+    GreaterThan [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>GreaterThan</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: greaterThan</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Core/F/lessThan.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:184</FONT></TD></TR></TABLE>>];
+    IsEqual [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>IsEqual</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: eq</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Core/FB/eq.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:31</FONT></TD></TR></TABLE>>];
+    IsZero [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>IsZero</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: isZero</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Gate/isZero.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:10</FONT></TD></TR></TABLE>>];
+    LessThan [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>LessThan</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: lessThan</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Core/F/lessThan.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:176</FONT></TD></TR></TABLE>>];
+    MultiAND [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>MultiAND</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>FArray.and is elementwise, not n-ary</I></FONT></TD></TR></TABLE>>];
+    NOT [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>NOT</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: not</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Core/FB/not.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:78</FONT></TD></TR></TABLE>>];
+    Num2Bits [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>Num2Bits</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: num2bits</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Gate/num2bits.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:11</FONT></TD></TR></TABLE>>];
+    OR [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>OR</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: FB.or</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Core/FB/or.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:73</FONT></TD></TR></TABLE>>];
+    Poseidon [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#fff1a0"><B>Poseidon</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: poseidonBN254</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Poseidon/Poseidon.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Poseidon/Poseidon.lean:166 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>no spec by design: assumed via Computes H</I></FONT></TD></TR></TABLE>>];
+    Sha256compression [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>Sha256compression</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Sha2/Basic.lean:218</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>old word ops: Sha2/Circuit.lean</I></FONT></TD></TR></TABLE>>];
+    XOR [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>XOR</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: FB.xor</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8">     Core/FB/xor.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:80</FONT></TD></TR></TABLE>>];
+  }
+  legend [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="2" CELLPADDING="4" BGCOLOR="white"><TR><TD COLSPAN="3"><B>Legend</B></TD></TR><TR><TD BGCOLOR="#a8dba8" WIDTH="24"> </TD><TD ALIGN="LEFT">proven (convertsM, no sorry)</TD><TD ALIGN="RIGHT">39</TD></TR><TR><TD BGCOLOR="#ffb870" WIDTH="24"> </TD><TD ALIGN="LEFT">ported, spec has sorry</TD><TD ALIGN="RIGHT">2</TD></TR><TR><TD BGCOLOR="#fff1a0" WIDTH="24"> </TD><TD ALIGN="LEFT">ported, no spec</TD><TD ALIGN="RIGHT">3</TD></TR><TR><TD BGCOLOR="#f4a6a6" WIDTH="24"> </TD><TD ALIGN="LEFT">not ported</TD><TD ALIGN="RIGHT">19</TD></TR><TR><TD></TD><TD ALIGN="LEFT"><B>total</B></TD><TD ALIGN="RIGHT"><B>63</B></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">new: Lean gadget, path under Clap/Lang/</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">old: definition under old/Clap/ · (c) = commented out</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">A → B: template A instantiates B (faded when B is circomlib)</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">sorryAx from bn254/goldilocks primality is ignored</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">hashing gadgets are proven under Poseidon.Computes H</FONT></TD></TR></TABLE>>];
+  { rank=same; legend; keyless; }
+  ArraySelector -> LessThan [color="#00000030"];
+  ArraySelector -> Num2Bits [color="#00000030"];
+  ArraySelector -> SingleNegOneArray;
+  ArraySelector -> SingleOneArray;
+  ArraySelectorComplex -> IsZero [color="#00000030"];
+  ArraySelectorComplex -> LeftArraySelector;
+  ArraySelectorComplex -> RightArraySelector;
+  AsciiDigitsToScalar -> AssertIsAsciiDigits;
+  AssertIs64BitLimbs -> Num2Bits [color="#00000030"];
+  AssertIsAsciiDigits -> AND [color="#00000030"];
+  AssertIsAsciiDigits -> ArraySelector;
+  AssertIsAsciiDigits -> GreaterThan [color="#00000030"];
+  AssertIsAsciiDigits -> LessThan [color="#00000030"];
+  AssertIsAsciiDigits -> Num2Bits [color="#00000030"];
+  AssertIsBytes -> Num2Bits [color="#00000030"];
+  AssertIsConcatenation -> HashBytesToFieldWithLen;
+  AssertIsConcatenation -> Poseidon [color="#00000030"];
+  AssertIsConcatenation -> RightArraySelector;
+  AssertIsConcatenation -> SelectArrayValue;
+  AssertIsConcatenation -> Sum;
+  AssertIsSubstring -> IsSubstring;
+  Base64UrlDecode -> Base64UrlLookup;
+  Base64UrlDecode -> Bits2Num [color="#00000030"];
+  Base64UrlDecode -> Num2Bits [color="#00000030"];
+  Base64UrlDecodedLength -> Num2Bits [color="#00000030"];
+  Base64UrlLookup -> GreaterThan [color="#00000030"];
+  Base64UrlLookup -> IsZero [color="#00000030"];
+  Base64UrlLookup -> LessThan [color="#00000030"];
+  BigEndianBitsToScalars -> BigEndianBits2Num;
+  BigLessThan -> AND [color="#00000030"];
+  BigLessThan -> IsEqual [color="#00000030"];
+  BigLessThan -> LessThan [color="#00000030"];
+  BigLessThan -> OR [color="#00000030"];
+  BracketsDepthMap -> IsEqual [color="#00000030"];
+  BracketsDepthMap -> LessThan [color="#00000030"];
+  BracketsMap -> IsEqual [color="#00000030"];
+  Bytes2BigEndianBits -> Num2BigEndianBits;
+  CheckCarryToZero -> Num2Bits [color="#00000030"];
+  ChunksToFieldElems -> ChunksToFieldElem;
+  EmailVerifiedCheck -> AND [color="#00000030"];
+  EmailVerifiedCheck -> ConditionallyAssertEqual;
+  EmailVerifiedCheck -> IsEqual [color="#00000030"];
+  EmailVerifiedCheck -> MultiAND [color="#00000030"];
+  EmailVerifiedCheck -> NOT [color="#00000030"];
+  EmailVerifiedCheck -> OR [color="#00000030"];
+  EnforceNotNested -> ArraySelector;
+  EnforceNotNested -> EscalarProduct [color="#00000030"];
+  FpMul -> CheckCarryToZero;
+  FpMul -> Num2Bits [color="#00000030"];
+  FpPow65537Mod -> FpMul;
+  Hash64BitLimbsToFieldWithLen -> ChunksToFieldElems;
+  Hash64BitLimbsToFieldWithLen -> Poseidon [color="#00000030"];
+  HashBytesToFieldWithLen -> AssertIsBytes;
+  HashBytesToFieldWithLen -> ChunksToFieldElems;
+  HashBytesToFieldWithLen -> HashElemsToField;
+  HashElemsToField -> Poseidon [color="#00000030"];
+  IsSubstring -> AND [color="#00000030"];
+  IsSubstring -> ArraySelector;
+  IsSubstring -> HashBytesToFieldWithLen;
+  IsSubstring -> IsEqual [color="#00000030"];
+  IsSubstring -> IsZero [color="#00000030"];
+  IsSubstring -> NOT [color="#00000030"];
+  IsSubstring -> Poseidon [color="#00000030"];
+  IsSubstring -> SelectArrayValue;
+  IsSubstring -> Sum;
+  IsWhitespace -> AND [color="#00000030"];
+  IsWhitespace -> GreaterThan [color="#00000030"];
+  IsWhitespace -> IsEqual [color="#00000030"];
+  IsWhitespace -> LessThan [color="#00000030"];
+  LeftArraySelector -> SingleOneArray;
+  ParseEmailVerifiedField -> AND [color="#00000030"];
+  ParseEmailVerifiedField -> ArraySelector;
+  ParseEmailVerifiedField -> ArraySelectorComplex;
+  ParseEmailVerifiedField -> IsEqual [color="#00000030"];
+  ParseEmailVerifiedField -> IsWhitespace;
+  ParseEmailVerifiedField -> OR [color="#00000030"];
+  ParseEmailVerifiedField -> ParseJWTFieldSharedLogic;
+  ParseEmailVerifiedField -> SelectArrayValue;
+  ParseJWTFieldSharedLogic -> GreaterThan [color="#00000030"];
+  ParseJWTFieldSharedLogic -> HashBytesToFieldWithLen;
+  ParseJWTFieldSharedLogic -> IsEqual [color="#00000030"];
+  ParseJWTFieldSharedLogic -> IsSubstring;
+  ParseJWTFieldSharedLogic -> LessThan [color="#00000030"];
+  ParseJWTFieldSharedLogic -> MultiAND [color="#00000030"];
+  ParseJWTFieldSharedLogic -> OR [color="#00000030"];
+  ParseJWTFieldSharedLogic -> SelectArrayValue;
+  ParseJWTFieldWithQuotedValue -> ArraySelector;
+  ParseJWTFieldWithQuotedValue -> ArraySelectorComplex;
+  ParseJWTFieldWithQuotedValue -> IsEqual [color="#00000030"];
+  ParseJWTFieldWithQuotedValue -> IsWhitespace;
+  ParseJWTFieldWithQuotedValue -> MultiAND [color="#00000030"];
+  ParseJWTFieldWithQuotedValue -> OR [color="#00000030"];
+  ParseJWTFieldWithQuotedValue -> ParseJWTFieldSharedLogic;
+  ParseJWTFieldWithQuotedValue -> SelectArrayValue;
+  ParseJWTFieldWithUnquotedValue -> AND [color="#00000030"];
+  ParseJWTFieldWithUnquotedValue -> ArraySelector;
+  ParseJWTFieldWithUnquotedValue -> ArraySelectorComplex;
+  ParseJWTFieldWithUnquotedValue -> IsEqual [color="#00000030"];
+  ParseJWTFieldWithUnquotedValue -> IsWhitespace;
+  ParseJWTFieldWithUnquotedValue -> MultiAND [color="#00000030"];
+  ParseJWTFieldWithUnquotedValue -> OR [color="#00000030"];
+  ParseJWTFieldWithUnquotedValue -> ParseJWTFieldSharedLogic;
+  RSA_2048_e_65537_PKCS1_V1_5_Verify -> AssertIs64BitLimbs;
+  RSA_2048_e_65537_PKCS1_V1_5_Verify -> BigEndianBitsToScalars;
+  RSA_2048_e_65537_PKCS1_V1_5_Verify -> BigLessThan;
+  RSA_2048_e_65537_PKCS1_V1_5_Verify -> RSA_PKCS1_v1_5_Verify;
+  RSA_PKCS1_v1_5_Verify -> FpPow65537Mod;
+  RSA_PKCS1_v1_5_Verify -> Num2Bits [color="#00000030"];
+  RightArraySelector -> SingleOneArray;
+  SHA2_256_PaddingVerify -> AssertIsSubstring;
+  SHA2_256_PaddingVerify -> BigEndianBits2Num;
+  SHA2_256_PaddingVerify -> Bytes2BigEndianBits;
+  SHA2_256_PaddingVerify -> HashBytesToFieldWithLen;
+  SHA2_256_PaddingVerify -> Num2Bits [color="#00000030"];
+  SHA2_256_Prepadded_Hash -> Sha256compression [color="#00000030"];
+  SHA2_256_Prepadded_Hash -> SingleOneArray;
+  SHA2_256_Prepadded_Hash -> Sum;
+  SelectArrayValue -> EscalarProduct [color="#00000030"];
+  SelectArrayValue -> SingleOneArray;
+  SingleNegOneArray -> LessThan [color="#00000030"];
+  SingleNegOneArray -> Num2Bits [color="#00000030"];
+  StringBodies -> AND [color="#00000030"];
+  StringBodies -> IsEqual [color="#00000030"];
+  StringBodies -> XOR [color="#00000030"];
+  keyless -> AND [color="#00000030"];
+  keyless -> AsciiDigitsToScalar;
+  keyless -> AssertIs64BitLimbs;
+  keyless -> AssertIsConcatenation;
+  keyless -> AssertIsSubstring;
+  keyless -> Base64UrlDecode;
+  keyless -> Base64UrlDecodedLength;
+  keyless -> BracketsDepthMap;
+  keyless -> BracketsMap;
+  keyless -> Bytes2BigEndianBits;
+  keyless -> ElementwiseMul;
+  keyless -> EmailVerifiedCheck;
+  keyless -> EnforceNotNested;
+  keyless -> Hash64BitLimbsToFieldWithLen;
+  keyless -> HashBytesToFieldWithLen;
+  keyless -> InvertBinaryArray;
+  keyless -> IsSubstring;
+  keyless -> LessThan [color="#00000030"];
+  keyless -> NOT [color="#00000030"];
+  keyless -> ParseEmailVerifiedField;
+  keyless -> ParseJWTFieldWithQuotedValue;
+  keyless -> ParseJWTFieldWithUnquotedValue;
+  keyless -> Poseidon [color="#00000030"];
+  keyless -> RSA_2048_e_65537_PKCS1_V1_5_Verify;
+  keyless -> SHA2_256_PaddingVerify;
+  keyless -> SHA2_256_Prepadded_Hash;
+  keyless -> SelectArrayValue;
+  keyless -> StringBodies;
+}
