@@ -27,6 +27,48 @@ Execute `set`s in order, ensuring the local context is updated between every inv
 def Lean.MVarId.setManyInOrder (goal : MVarId) (nameXrhs : List (Name × Term)) : MetaM MVarId :=
   nameXrhs.foldlM (fun acc (name, rhs) ↦ do acc.withContext do acc.set name rhs) goal
 
+/--
+`Lean.MVarId.assertHypotheses`, with the proof `shared` and the hypotheses flagged `true` bound as
+`have`s in the proof term. The new goal's local context is exactly the one `assertHypotheses` gives.
+
+`assertHypotheses` assigns the goal `?new v₁ … vₙ`, and `instantiateMVars` beta-reduces it: each
+`vᵢ` is copied into every use of `hᵢ`, and dropped when `hᵢ` is unused. Here the goal is assigned
+`have h_step := shared; have hᵢ := vᵢ; …; ?new a₁ … aₙ`, where `aᵢ` is `hᵢ` for a flagged
+hypothesis and `vᵢ` otherwise. `instantiateMVars` never substitutes a `have`, so `shared` and the
+flagged values occur once in the proof, however often they are used.
+
+`mkHyps x` builds the hypotheses over `x`, a placeholder for `shared`, in the goal's context.
+`toClear` is cleared only afterwards, so the values may mention it.
+-/
+def Lean.MVarId.assertHypothesesSharing (goal : MVarId) (shared : Expr) (toClear : Array FVarId)
+    (mkHyps : Expr → MetaM (Array (Hypothesis × Bool))) : MetaM (Array FVarId × MVarId) :=
+  goal.withContext do
+    goal.checkNotAssigned `assertHypothesesSharing
+    let sharedType ← inferType shared
+    -- The values, with the placeholder abstracted to `#0`, the variable of `have h_step := shared`.
+    let hs ← withLocalDeclD `h_step sharedType fun x ↦ do
+      (←mkHyps x).mapM fun (h, asHave) ↦ do
+        if h.type.containsFVar x.fvarId! then
+          throwError m!"assertHypothesesSharing: the type of {h.userName} mentions the shared proof"
+        return ({ h with value := h.value.abstract #[x] }, asHave)
+    let goal ← toClear.foldlM (init := goal) fun goal fvarId ↦ goal.clear fvarId
+    goal.withContext do
+      let target ← goal.getType
+      let targetNew := hs.foldr (init := target) fun (h, _) target ↦
+        .forallE h.userName h.type target h.binderInfo
+      let mvarNew ← mkFreshExprSyntheticOpaqueMVar targetNew (←goal.getTag)
+      let haves := hs.filterMap fun (h, asHave) ↦ if asHave then some h else none
+      -- Under `h_step` and every `have`: a flagged hypothesis is its bound variable, any other is
+      -- its value.
+      let (args, _) := hs.foldl (init := (#[], 0)) fun (args, j) (h, asHave) ↦
+        if asHave then (args.push (mkBVar (haves.size - 1 - j)), j + 1)
+        else (args.push (h.value.liftLooseBVars 0 haves.size), j)
+      -- Wrapped innermost first; a value with `n - 1` `have`s outside sees `h_step` as `#(n - 1)`.
+      let (_, val) := haves.foldr (init := (haves.size, mkAppN mvarNew args)) fun h (n, body) ↦
+        (n - 1, mkHave h.userName h.type (h.value.liftLooseBVars 0 (n - 1)) body)
+      goal.assign (mkHave `h_step sharedType shared val)
+      mvarNew.mvarId!.introNP hs.size
+
 end Helpers
 
 
@@ -160,26 +202,27 @@ elab "constraints" : tactic => do
 def step_impl (convertsME : Lean.Expr) (actionName : Name) (goal : MVarId) : TermElabM MVarId := goal.withContext do
   let convertsMType ← inferType convertsME
   let .some convertsM ←
-    parseConvertsM convertsME convertsMType goal
+    parseConvertsMArgs convertsMType goal
     | logError m!"Expected ConvertsM. Got:\n{convertsMType}"
       return goal
-  let stateS ← Term.exprToSyntax convertsM.args.state
+  let stateS ← Term.exprToSyntax convertsM.state
   let stateAssertions ← stateAssertions goal
-  let assertions ← stateAssertions.mapM fun fvar ↦ do
-    return (fvar, ←mkAppM `Clap.converts_skip #[convertsME, fvar])
-  let goal ← assertions.foldlM (init := goal) fun goal (fvar, _) ↦
-    goal.clear fvar.fvarId!
 
-  let (_, goal) ← goal.assertHypotheses <|
-    #[
-      ←Hypothesis.ofNameValue (actionName.appendBefore "h_") convertsM.result,
-      ←Hypothesis.ofNameValue `h_wellFormed convertsM.wellFormed,
-      ←Hypothesis.ofNameValue `h_constraints convertsM.constraints,
+  -- The step's proof is bound once, and so is the reframed copy of each hypothesis it consumed.
+  -- Substituted, each copy would carry the step's proof, which carries the previous copies, so a
+  -- chain of steps would grow the proof term exponentially. See docs/proving-circuits.md.
+  let consumed := (collectFVars {} convertsME).fvarSet
+  let (_, goal) ← goal.assertHypothesesSharing convertsME (stateAssertions.map (·.fvarId!)) fun e ↦ do
+    return #[
+      (←Hypothesis.ofNameValue (actionName.appendBefore "h_") (←mkAppM ``Clap.ConvertsM.result #[e]), false),
+      (←Hypothesis.ofNameValue `h_wellFormed (←mkAppM ``Clap.ConvertsM.wellFormed #[e]), false),
+      (←Hypothesis.ofNameValue `h_constraints (←mkAppM ``Clap.ConvertsM.constraints #[e]), false),
     ]
     ++ (
-      ←assertions.mapM fun (fvar, expr) ↦ do
+      ←stateAssertions.mapM fun fvar ↦ do
         let name := ((←getLCtx).get! fvar.fvarId!).userName
-        Hypothesis.ofNameValue name expr
+        return (←Hypothesis.ofNameValue name (←mkAppM `Clap.converts_skip #[e, fvar]),
+          consumed.contains fvar.fvarId!)
     )
 
   let env ← getEnv
@@ -189,7 +232,7 @@ def step_impl (convertsME : Lean.Expr) (actionName : Name) (goal : MVarId) : Ter
 
   goal.setManyInOrder [
     -- `set action := <action_from_monad>`
-    (actionName, ←Term.exprToSyntax convertsM.args.action),
+    (actionName, ←Term.exprToSyntax convertsM.action),
     -- `set <action>_result := <action>.getResult <state>.numAlloc <state>.σ`
     (actionName.appendAfter "_result", ←`($(actionIdent).getResult $(stateS).numAlloc $(stateS).σ)),
     -- `set <state> := <action>.getState <state>`

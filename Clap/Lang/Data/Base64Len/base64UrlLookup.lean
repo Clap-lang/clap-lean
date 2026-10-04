@@ -355,16 +355,7 @@ lemma convertsM
   step mkAdd.convertsM h_sum_az' h_p_09 as t_09
   step share.convertsM h_t_09 as sum_09
   clear h_c4 h_d_09 h_p_09 h_t_09 h_sum_az'
-  -- From here on `step` alone reframes the live facts, rebuilding each one through
-  -- `converts_skip` with the step that consumed it inside. `instantiateMVars` substitutes those
-  -- rebuilt proofs, so the proof term doubles per consuming step as a tree (its DAG stays
-  -- linear). On e93a313's unsealed chain the tree reached 6·10⁸ nodes after `['0', '9']`, and
-  -- the proof did not finish in 13 minutes. `replace h := h` binds each proof once, as a `have`.
-  replace h_m3 := h_m3
-  replace h_range_AZ'' := h_range_AZ''
-  replace h_range_az' := h_range_az'
-  replace h_range_09 := h_range_09
-  replace h_sum_09 := h_sum_09
+  -- From here `step` alone reframes the live facts; it binds each consumed one once, so no seals.
   -- `'-'`
   step mkF.convertsM as c45
   step eq.convertsM h_m3 h_c45 as equal_minus
@@ -372,12 +363,6 @@ lemma convertsM
   step mkMul.convertsM (F.converts_of_FB_converts h_equal_minus) h_c62 as p_minus
   step mkAdd.convertsM h_sum_09 h_p_minus as sum_minus
   clear h_c45 h_c62 h_p_minus h_sum_09
-  replace h_m3 := h_m3
-  replace h_range_AZ'' := h_range_AZ''
-  replace h_range_az' := h_range_az'
-  replace h_range_09 := h_range_09
-  replace h_equal_minus := h_equal_minus
-  replace h_sum_minus := h_sum_minus
   -- `'_'`
   step mkF.convertsM as c95
   step eq.convertsM h_m3 h_c95 as equal_underscore
@@ -385,26 +370,11 @@ lemma convertsM
   step mkMul.convertsM (F.converts_of_FB_converts h_equal_underscore) h_c63 as p_us
   step mkAdd.convertsM h_sum_minus h_p_us as sum_underscore
   clear h_c95 h_c63 h_p_us h_sum_minus
-  replace h_m3 := h_m3
-  replace h_range_AZ'' := h_range_AZ''
-  replace h_range_az' := h_range_az'
-  replace h_range_09 := h_range_09
-  replace h_equal_minus := h_equal_minus
-  replace h_equal_underscore := h_equal_underscore
-  replace h_sum_underscore := h_sum_underscore
   -- `'='` and the zero padding
   step mkF.convertsM as c61
   step eq.convertsM h_m3 h_c61 as equal_eqsign
   step isZero.convertsM h_m3 as zero_padding
   clear h_c61 h_m3
-  replace h_range_AZ'' := h_range_AZ''
-  replace h_range_az' := h_range_az'
-  replace h_range_09 := h_range_09
-  replace h_equal_minus := h_equal_minus
-  replace h_equal_underscore := h_equal_underscore
-  replace h_equal_eqsign := h_equal_eqsign
-  replace h_zero_padding := h_zero_padding
-  replace h_sum_underscore := h_sum_underscore
   -- `result`, then `1 === result`
   step mkAdd.convertsM (F.converts_of_FB_converts h_range_AZ'')
     (F.converts_of_FB_converts h_range_az') as r1
