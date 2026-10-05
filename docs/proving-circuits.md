@@ -743,11 +743,11 @@ Lean `v4.32.0`, Mathlib and CompPoly both pinned to `v4.32.0`, `autoImplicit fal
 `linter.unusedVariables true`. There is no test suite, so a clean build with no `sorry` is the
 acceptance criterion for a `convertsM`.
 
-`lake build Clap` has exactly two expected `sorry`s. `poseidon.convertsM` in
+`lake build Clap` has exactly one expected `sorry`. `poseidon.convertsM` in
 [Examples/PoseidonProgram.lean](../Clap/Examples/PoseidonProgram.lean) is unprovable by design,
-against the `opaque poseidonSpec` in that example. `Base64.base64UrlDecode.convertsM` is work in
-progress. A third one is yours. The expected warnings are exactly four: two
-`linter.dupNamespace` on `Util/Containers.lean:15`, and the two `sorry` warnings above. (Earlier revisions of this guide also listed a `Clap.Lang.F8`
+against the `opaque poseidonSpec` in that example. A second one is yours. The expected warnings are
+exactly three: two `linter.dupNamespace` on `Util/Containers.lean:15`, and the one `sorry` warning
+above. (Earlier revisions of this guide also listed a `Clap.Lang.F8`
 `dupNamespace` warning; there is no such warning — do not treat one as baseline.)
 
 There *is* now an executable path, which there was not when this guide was written:
