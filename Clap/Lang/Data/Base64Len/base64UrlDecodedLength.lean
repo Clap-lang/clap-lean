@@ -15,7 +15,7 @@ length = floor{3 * encoded length / 4}
 -/
 def base64UrlDecodedLength (w : ℕ) (m : F p) : ClapM p (F p) := do
   let _ ← num2bits w m -- range-check m < 2^w
-  let twice ← share (← m + m)
+  let twice ← m + m
   let threeTimes : F p ← share (←(twice + m))
   let bits ← num2bits (w + 2) threeTimes -- decompose 3m, proves < 2^(w+2)
   FArray.bits2num (bits.drop 2) -- drop 2 LSBs = floor(3m/4)
@@ -47,8 +47,7 @@ lemma convertsM {w}
   unfold base64UrlDecodedLength
   step num2bits.convertsM h_m (w := w) as ignored
   step mkAdd.convertsM h_m h_m as sum1
-  step share.convertsM h_sum1 as twice
-  step mkAdd.convertsM h_twice h_m as sum2
+  step mkAdd.convertsM h_sum1 h_m as sum2
   step share.convertsM h_sum2 as threeTimes
   step num2bits.convertsM h_threeTimes (w := w + 2) as bits
   · have h_bits_drop := FArray.converts_drop h_bits (n := 2)
@@ -57,7 +56,7 @@ lemma convertsM {w}
         ← Vector.toList_map, ofBoolListLE_num2bitsLsbPureV_toNat, h_val3,
         Nat.mod_eq_of_lt h_3m_lt_pow]
       exact Eq.symm (Semiring.toGrindSemiring_ofNat (ZMod p) _)
-    · exact iff_of_true trivial (fun _ _ _ _ _ h_r => ⟨h_r, h_3m_lt_pow⟩)
+    · exact iff_of_true trivial (fun _ _ _ _ h_r => ⟨h_r, h_3m_lt_pow⟩)
   · intro _; rw [h_val3]; exact h_3m_lt_pow
 
 end base64UrlDecodedLength
