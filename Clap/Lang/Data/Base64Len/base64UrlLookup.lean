@@ -454,6 +454,21 @@ lemma accepts_iff_char {n : ℕ} (h : n < 2 ^ 8) :
   unfold accepts
   omega
 
+lemma convertsM_byte
+  [p.AtLeastTwo]
+  {state : ClapMState p}
+  {m : F p}
+  {m_val : ZMod p}
+  (h_m : Converts F.conversion state m m_val)
+  (h_p : 2 ^ 9 < p)
+  (hv : m_val.val < 2 ^ 8)
+:
+  ConvertsM F.conversion (base64UrlLookup m) state (index m_val.val) (accepts m_val.val)
+:= by
+  apply convertsM_of_convertsM (convertsM h_m h_p)
+  · exact value_of_lt h_p hv
+  · exact Iff.rfl
+
 /-- `convertsM` on a byte, read through `Char` -/
 lemma convertsM_char
   [p.AtLeastTwo]
