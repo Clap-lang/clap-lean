@@ -10,6 +10,160 @@ open Poseidon RandomOracle Primes FiatShamir
 
 variable {p : ℕ}
 
+/-!
+
+Circom's `AssertIsConcatenation` reads each byte array as the coefficients of a polynomial,
+evaluates them at one challenge `α`, and checks `full(α) = left(α) + α^ℓ · right(α)`. Vectors are
+compared through `ext v i`, their zero extension, so no index bounds appear. -/
+
+section identity
+
+open Polynomial hiding ext
+
+namespace assertIsConcatenation
+
+variable {nF nL nR : ℕ}
+
+/-- `full` is `left` (zero-padded after `ℓ`) followed by `right`.
+`left` is `0` from `ℓ` on, and every position of `full`, zero-extended, is `left`'s plus
+`right`'s shifted to start at `ℓ`.
+
+`right` is compared in full, including padding. The identity pins every entry of `right` that
+lands inside `full`, and makes those past the end of `full` zero. Its length enters only the
+hashes -/
+def IsConcat (full : Vector (ZMod p) nF) (left : Vector (ZMod p) nL) (right : Vector (ZMod p) nR)
+    (ℓ : ℕ) : Prop :=
+  (∀ i, ℓ ≤ i → ext left i = 0) ∧
+  ∀ i, ext full i = ext left i + (if ℓ ≤ i then ext right (i - ℓ) else 0)
+
+/-- The polynomial the concatenation check tests at `α`. -/
+noncomputable def concatDiff (full : Vector (ZMod p) nF) (left : Vector (ZMod p) nL)
+    (right : Vector (ZMod p) nR) (ℓ : ℕ) : (ZMod p)[X] :=
+  vecPoly full - (vecPoly left + X ^ ℓ * vecPoly right)
+
+lemma concatDiff_eq_zero_iff (full : Vector (ZMod p) nF) (left : Vector (ZMod p) nL)
+    (right : Vector (ZMod p) nR) {ℓ : ℕ} (h_pad : ∀ i, ℓ ≤ i → ext left i = 0) :
+    concatDiff full left right ℓ = 0 ↔ IsConcat full left right ℓ := by
+  rw [concatDiff, sub_eq_zero, Polynomial.ext_iff]
+  simp only [coeff_add, coeff_vecPoly, coeff_X_pow_mul_vecPoly]
+  exact ⟨fun h ↦ ⟨h_pad, h⟩, fun h ↦ h.2⟩
+
+lemma eval_concatDiff (full : Vector (ZMod p) nF) (left : Vector (ZMod p) nL)
+    (right : Vector (ZMod p) nR) (ℓ : ℕ) (α : ZMod p) :
+    (concatDiff full left right ℓ).eval α =
+      evalAt full α - (evalAt left α + α ^ ℓ * evalAt right α) := by
+  simp [concatDiff, eval_vecPoly]
+
+lemma natDegree_concatDiff_le (full : Vector (ZMod p) nF) (left : Vector (ZMod p) nL)
+    (right : Vector (ZMod p) nR) {ℓ : ℕ} (hL : nL ≤ nF) (hℓ : ℓ < nF) :
+    (concatDiff full left right ℓ).natDegree ≤ (nF - 1) + (nR - 1) := by
+  unfold concatDiff
+  apply (natDegree_sub_le _ _).trans
+  apply max_le
+  · exact (natDegree_vecPoly_le _).trans (by omega)
+  · apply (natDegree_add_le _ _).trans
+    apply max_le
+    · exact (natDegree_vecPoly_le _).trans (by omega)
+    · exact (natDegree_X_pow_mul_vecPoly_le _ _).trans (by omega)
+
+/-- (Completeness of the identity) a real concatenation passes at every `α`. -/
+lemma evalAt_of_isConcat {full : Vector (ZMod p) nF} {left : Vector (ZMod p) nL}
+    {right : Vector (ZMod p) nR} {ℓ : ℕ} (h : IsConcat full left right ℓ) (α : ZMod p) :
+    evalAt full α = evalAt left α + α ^ ℓ * evalAt right α := by
+  have h0 := (concatDiff_eq_zero_iff full left right h.1).mpr h
+  have := congrArg (Polynomial.eval α) h0
+  rw [eval_concatDiff] at this
+  simpa [sub_eq_zero] using this
+
+end assertIsConcatenation
+
+end identity
+
+/-! ## On strings
+
+For strings encoded by `FString.encodeV`, `IsConcat` is string concatenation; see
+`isSubstring.lean`'s section of the same name for the shared helpers. -/
+
+section strings
+
+namespace assertIsConcatenation
+
+/-- A list of characters, one byte each, zero-extended. -/
+def zext (l : List Char) (i : ℕ) : ZMod p :=
+  if h : i < l.length then (((l[i]'h).toUInt8.toNat : ℕ) : ZMod p) else 0
+
+lemma ext_encodeV_eq_zext {w : ℕ} {S : String} (hS : S.length ≤ w) (i : ℕ) :
+    ext (encodeV (p := p) w S) i = zext S.toList i := by
+  rw [ext_encodeV hS, zext]
+
+lemma zext_append (L R : List Char) (i : ℕ) :
+    zext (p := p) (L ++ R) i = zext L i + (if L.length ≤ i then zext R (i - L.length) else 0) := by
+  unfold zext
+  by_cases h1 : i < L.length
+  · simp [h1, List.getElem_append_left h1, show ¬ L.length ≤ i by omega,
+      show i < L.length + R.length by omega]
+  · by_cases h2 : i < L.length + R.length
+    · simp [h1, h2, List.getElem_append_right (show L.length ≤ i by omega),
+        show i - L.length < R.length by omega, show L.length ≤ i by omega]
+    · simp [h1, show ¬ i < L.length + R.length by omega, show ¬ i - L.length < R.length by omega]
+
+/-- NUL-free byte strings are determined by their zero extensions. -/
+lemma zext_inj {l₁ l₂ : List Char} (hp : 256 < p)
+    (h₁ : ∀ c ∈ l₁, 0 < c.toNat ∧ c.toNat < 256) (h₂ : ∀ c ∈ l₂, 0 < c.toNat ∧ c.toNat < 256) :
+    (∀ i, zext (p := p) l₁ i = zext l₂ i) ↔ l₁ = l₂ := by
+  refine ⟨fun h ↦ ?_, fun h _ ↦ by rw [h]⟩
+  -- a position inside one list and outside the other would equate a nonzero byte with `0`
+  have h_nz : ∀ {l : List Char}, (∀ c ∈ l, 0 < c.toNat ∧ c.toNat < 256) → ∀ i (hi : i < l.length),
+      zext (p := p) l i ≠ 0 := by
+    intro l hl i hi h0
+    rw [zext, dif_pos hi, toUInt8_toNat_of_lt (hl _ (List.getElem_mem hi)).2] at h0
+    have := natCast_inj (p := p) (a := (l[i]).toNat) (b := 0) (by have := (hl _ (List.getElem_mem hi)).2; omega)
+      (by omega) (by rw [Nat.cast_zero]; exact h0)
+    have := (hl _ (List.getElem_mem hi)).1
+    omega
+  have h_len : l₁.length = l₂.length := by
+    by_contra hne
+    rcases Nat.lt_or_gt_of_ne hne with hlt | hlt
+    · exact h_nz h₂ l₁.length hlt (by rw [← h l₁.length, zext, dif_neg (by omega)])
+    · exact h_nz h₁ l₂.length hlt (by rw [h l₂.length, zext, dif_neg (by omega)])
+  apply List.ext_getElem h_len
+  intro i hi₁ hi₂
+  have := h i
+  rw [zext, zext, dif_pos hi₁, dif_pos hi₂, toUInt8_toNat_of_lt (h₁ _ (List.getElem_mem hi₁)).2,
+    toUInt8_toNat_of_lt (h₂ _ (List.getElem_mem hi₂)).2] at this
+  exact Char.ext (UInt32.toNat.inj (natCast_inj (a := (l₁[i]).toNat) (b := (l₂[i]).toNat)
+    (by have := (h₁ _ (List.getElem_mem hi₁)).2; omega)
+    (by have := (h₂ _ (List.getElem_mem hi₂)).2; omega) this))
+
+/-- For strings encoded by `FString.encodeV`, `IsConcat` at `ℓ = left.length` is string
+concatenation. The characters are bytes with no NUL, so that zero padding cannot stand in for one.
+`left`'s padding holds automatically. -/
+theorem isConcat_encodeV_iff {nF nL nR : ℕ} {F L R : String} (hp : 256 < p)
+    (hF : F.length ≤ nF) (hL : L.length ≤ nL) (hR : R.length ≤ nR)
+    (hFc : ∀ c ∈ F.toList, 0 < c.toNat ∧ c.toNat < 256)
+    (hLc : ∀ c ∈ L.toList, 0 < c.toNat ∧ c.toNat < 256)
+    (hRc : ∀ c ∈ R.toList, 0 < c.toNat ∧ c.toNat < 256) :
+    IsConcat (encodeV (p := p) nF F) (encodeV (p := p) nL L)
+      (encodeV (p := p) nR R) L.length ↔ F = L ++ R := by
+  unfold IsConcat
+  have h_pad : ∀ i, L.length ≤ i → ext (encodeV (p := p) nL L) i = 0 := by
+    intro i hi
+    rw [ext_encodeV_eq_zext hL, zext, dif_neg (by rw [String.length_toList]; omega)]
+  simp only [ext_encodeV_eq_zext hF, ext_encodeV_eq_zext hL, ext_encodeV_eq_zext hR]
+  rw [← String.toList_inj, String.toList_append]
+  rw [← zext_inj (p := p) hp hFc (by
+    intro c hc
+    rw [List.mem_append] at hc
+    exact hc.elim (hLc c) (hRc c))]
+  simp only [zext_append, String.length_toList]
+  constructor
+  · exact fun h ↦ h.2
+  · exact fun h ↦ ⟨by simpa [ext_encodeV_eq_zext hL] using h_pad, h⟩
+
+end assertIsConcatenation
+
+end strings
+
 section check
 
 /-- `left` is zero after `left.len`. Circom enforces this explicitly because otherwise the start
