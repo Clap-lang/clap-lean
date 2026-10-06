@@ -384,11 +384,12 @@ The old model's direct `O(n·m)` `isSubstring` has no Circom counterpart and was
    Its slot 5 is the deterministic assertions: bytes, index ranges, padding. There is no
    deterministic `accepts ↔ SubstrAt`, and there cannot be one: a false instance passes whenever
    `α` is a root.
-2. **The algebra**, generic in `p`
-   ([FiatShamir/Polynomial.lean](../Clap/FiatShamir/Polynomial.lean)). The spec (`SubstrAt`,
-   `IsConcat`) is the identity holding as *polynomials*, coefficient by coefficient. So it includes
-   the padding guarantees nothing else in the circuit enforces. When the spec fails, the difference
-   polynomial is nonzero and of bounded degree.
+2. **The algebra**, generic in `p`. The spec (`isSubstring.SubstrAt`,
+   `assertIsConcatenation.IsConcat`, each in its gadget's file) is the identity holding as
+   *polynomials*, coefficient by coefficient. So it includes the padding guarantees nothing else in
+   the circuit enforces. When the spec fails, the difference polynomial is nonzero and of bounded
+   degree. The vector-to-polynomial machinery and root counting are shared, in
+   [FiatShamir/Polynomial.lean](../Clap/FiatShamir/Polynomial.lean).
 3. **The random-oracle bound**, for `H := Query.toHashFn f` with `f ← randomOracle`, and a fixed
    instance: `Pr[accepts ∧ ¬spec] ≤ (degree + collision) / p`. The challenge query is built from
    hashes, so it depends on `f`. `randomOracle_fresh_le` makes its answer uniform while the query
@@ -400,17 +401,17 @@ The old model's direct `O(n·m)` `isSubstring` has no Circom counterpart and was
    be bound by the caller.
 
 **Where each layer lives.** Layer 1, and the gadget-specific parts of layers 2 and 3, stay with
-the gadget in Lang. That covers the circuit, `convertsM`, `accepts_of_substrAt`,
-`prob_accepts_le` and the hash transcripts. The general theory sits in two folders *below* Lang,
+the gadget in Lang. That covers the circuit, `convertsM`, the specs and their difference
+polynomials, `accepts_of_substrAt`, `prob_accepts_le` and the hash transcripts. The general theory sits in two folders *below* Lang,
 which import nothing from it:
 - [Clap/RandomOracle/](../Clap/RandomOracle/): `HashFn`, `Query`, `Query.toHashFn` and `hashQ`
   in `HashFn.lean`; the distribution, Schwartz–Zippel and the fresh-query lemma in
   `RandomOracle.lean`.
-- [Clap/FiatShamir/](../Clap/FiatShamir/): the polynomial algebra.
+- [Clap/FiatShamir/](../Clap/FiatShamir/): vectors as polynomials, and root counting.
 
 For strings encoded by `FString.encodeV`, the specs read as string statements:
-- `substrAt_encodeV_iff`: `T` is a prefix of `S.drop s` and fits.
-- `isConcat_encodeV_iff`: `F = L ++ R`.
+- `isSubstring.substrAt_encodeV_iff`: `T` is a prefix of `S.drop s` and fits.
+- `assertIsConcatenation.isConcat_encodeV_iff`: `F = L ++ R`.
 - `asciiDigitsToScalar.value_encodeV`, and `convertsM_string` with it: the number the digits
   spell, mod `p`.
 

@@ -16,6 +16,196 @@ open Poseidon RandomOracle Primes FiatShamir
 
 variable {p : ℕ}
 
+/-! Circom's `IsSubstring` reads each byte array as the coefficients of a polynomial, evaluates them
+at one challenge `α`, and checks `ŝ(α) = α^s · t(α)`, with `ŝ` the window `[s, e)` of `str` and
+`t` the substring. Vectors are compared through `ext v i`, their zero extension, so no index
+bounds appear. -/
+
+section identity
+
+open Polynomial hiding ext
+
+namespace isSubstring
+
+variable {n m : ℕ}
+
+/-- The window `[s, e)` of `str`, as the circuit selects it: `ArraySelector`'s bit at `i` is
+`(s ≤ i) xor (e ≤ i)`, which is the interval once `s ≤ e`, and the selected string is that bit
+times `str[i]`. -/
+def window (str : Vector (ZMod p) n) (s e : ℕ) : Vector (ZMod p) n :=
+  Vector.ofFn fun i ↦ if (decide (s ≤ i.val) ^^ decide (e ≤ i.val)) then str[i] else 0
+
+lemma ext_window (str : Vector (ZMod p) n) {s e : ℕ} (h : s ≤ e) (i : ℕ) :
+    ext (window str s e) i = if s ≤ i ∧ i < e then ext str i else 0 := by
+  by_cases hi : i < n
+  · rw [ext_of_lt _ hi, ext_of_lt _ hi]
+    simp only [window, Vector.getElem_ofFn]
+    by_cases h1 : s ≤ i <;> by_cases h2 : e ≤ i <;> simp [h1, h2]; omega
+  · rw [ext_of_le _ (by omega), ext_of_le _ (by omega)]
+    simp
+
+/-- `substr` occurs in `str` at `s`, for length `ℓ`. The window
+`[s, s + ℓ)` of `str` (zero past its end), shifted to `0`, is `substr` zero-extended.
+
+Unfolded, this says `substr[j] = str[s + j]` for `j < ℓ` with `s + j` inside `str`, that
+`substr` is `0` after `ℓ`, and wherever the window runs past the end of `str`, and that `str` is
+`0` wherever the window runs past the end of `substr`. -/
+def SubstrAt (str : Vector (ZMod p) n) (substr : Vector (ZMod p) m) (s ℓ : ℕ) : Prop :=
+  ∀ i : ℕ, (if s ≤ i ∧ i < s + ℓ then ext str i else 0) =
+    (if s ≤ i then ext substr (i - s) else 0)
+
+/-- The polynomial the substring check tests at `α`: window minus shifted substring. -/
+noncomputable def substrDiff (str : Vector (ZMod p) n) (substr : Vector (ZMod p) m) (s e : ℕ) :
+    (ZMod p)[X] :=
+  vecPoly (window str s e) - X ^ s * vecPoly substr
+
+lemma substrDiff_eq_zero_iff (str : Vector (ZMod p) n) (substr : Vector (ZMod p) m)
+    {s ℓ : ℕ} :
+    substrDiff str substr s (s + ℓ) = 0 ↔ SubstrAt str substr s ℓ := by
+  rw [substrDiff, sub_eq_zero, Polynomial.ext_iff]
+  simp only [coeff_vecPoly, coeff_X_pow_mul_vecPoly, ext_window str (show s ≤ s + ℓ by omega)]
+  rfl
+
+lemma eval_substrDiff (str : Vector (ZMod p) n) (substr : Vector (ZMod p) m) (s e : ℕ)
+    (α : ZMod p) :
+    (substrDiff str substr s e).eval α =
+      evalAt (window str s e) α - α ^ s * evalAt substr α := by
+  simp [substrDiff, eval_vecPoly]
+
+lemma natDegree_substrDiff_le (str : Vector (ZMod p) n) (substr : Vector (ZMod p) m)
+    {s e : ℕ} (hs : s < n) :
+    (substrDiff str substr s e).natDegree ≤ (n - 1) + (m - 1) := by
+  unfold substrDiff
+  apply (natDegree_sub_le _ _).trans
+  apply max_le
+  · exact (natDegree_vecPoly_le _).trans (by omega)
+  · exact (natDegree_X_pow_mul_vecPoly_le _ _).trans (by omega)
+
+/-- (Completeness of the identity) when `substr` occurs at `s`, the check's two sides agree at
+every `α`. -/
+lemma evalAt_window_of_substrAt {str : Vector (ZMod p) n} {substr : Vector (ZMod p) m}
+    {s ℓ : ℕ} (h : SubstrAt str substr s ℓ) (α : ZMod p) :
+    evalAt (window str s (s + ℓ)) α = α ^ s * evalAt substr α := by
+  have h0 := (substrDiff_eq_zero_iff str substr).mpr h
+  have := congrArg (Polynomial.eval α) h0
+  rw [eval_substrDiff] at this
+  simpa [sub_eq_zero] using this
+
+end isSubstring
+
+end identity
+
+/-! ## On strings
+
+`SubstrAt`, and `assertIsConcatenation.IsConcat`, are about zero-extended vectors. For strings
+encoded by `FString.encodeV`, one byte per character, they are the string statements, provided
+no character is NUL: otherwise zero padding could stand in for one. -/
+
+section strings
+
+lemma natCast_inj {a b : ℕ} (ha : a < p) (hb : b < p) (h : (a : ZMod p) = (b : ZMod p)) :
+    a = b := by
+  haveI : NeZero p := ⟨by omega⟩
+  have := congrArg ZMod.val h
+  rwa [ZMod.val_natCast, ZMod.val_natCast, Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hb] at this
+
+lemma ext_encodeV {w : ℕ} {S : String} (hS : S.length ≤ w) (i : ℕ) :
+    ext (encodeV (p := p) w S) i =
+      if h : i < S.toList.length then (((S.toList[i]'h).toUInt8.toNat : ℕ) : ZMod p) else 0 := by
+  by_cases hi : i < w
+  · rw [ext_of_lt _ hi]
+    simp [encodeV]
+  · rw [ext_of_le _ (by omega)]
+    have : ¬ i < S.toList.length := by rw [String.length_toList]; omega
+    simp [this]
+
+namespace isSubstring
+
+/-- A window of `L` read as a list: `M` sits in `L` at `s`, position by position. -/
+private lemma list_window_iff {α : Type} (L M : List α) (s : ℕ) (hM : 0 < M.length) :
+    (∀ j (hj : j < M.length), ∃ h : s + j < L.length, L[s + j] = M[j]) ↔
+      s + M.length ≤ L.length ∧ M = (L.drop s).take M.length := by
+  constructor
+  · intro h
+    have h_len : s + M.length ≤ L.length := by
+      obtain ⟨hlt, -⟩ := h (M.length - 1) (by omega)
+      omega
+    refine ⟨h_len, ?_⟩
+    apply List.ext_getElem
+    · simp only [List.length_take, List.length_drop]; omega
+    · intro j h1 h2
+      obtain ⟨hlt, heq⟩ := h j h1
+      rw [List.getElem_take, List.getElem_drop, heq]
+  · rintro ⟨h_len, h_eq⟩ j hj
+    refine ⟨by omega, ?_⟩
+    have h1 : j < ((L.drop s).take M.length).length := by
+      simp only [List.length_take, List.length_drop]; omega
+    have := List.getElem_of_eq h_eq hj
+    rw [this, List.getElem_take, List.getElem_drop]
+
+/-- For strings encoded by `FString.encodeV`, `SubstrAt` is the statement: `T` fits in
+`S` at `s` and is a prefix of what follows. `T` has no NUL character, so that `S`'s zero padding
+cannot stand in for it. -/
+theorem substrAt_encodeV_iff {n m s : ℕ} {S T : String} (hp : 256 < p)
+    (hS : S.length ≤ n) (hT : T.length ≤ m) (hT0 : 0 < T.length)
+    (hSc : ∀ c ∈ S.toList, c.toNat < 256) (hTc : ∀ c ∈ T.toList, 0 < c.toNat ∧ c.toNat < 256) :
+    SubstrAt (encodeV (p := p) n S) (encodeV (p := p) m T) s T.length ↔
+      s + T.length ≤ S.length ∧ T.toList <+: S.toList.drop s := by
+  -- 1. the identity is pointwise on the window
+  have step1 : SubstrAt (encodeV (p := p) n S) (encodeV (p := p) m T) s T.length ↔
+      ∀ j < T.length, ext (encodeV (p := p) n S) (s + j) =
+        ext (encodeV (p := p) m T) j := by
+    constructor
+    · intro h j hj
+      have := h (s + j)
+      simp only [show s ≤ s + j by omega, show s + j < s + T.length by omega, and_self, if_true,
+        Nat.add_sub_cancel_left] at this
+      exact this
+    · intro h i
+      by_cases hsi : s ≤ i
+      · obtain ⟨j, rfl⟩ : ∃ j, i = s + j := ⟨i - s, by omega⟩
+        simp only [hsi, true_and, if_true, Nat.add_sub_cancel_left]
+        by_cases hj : j < T.length
+        · rw [if_pos (by omega), h j hj]
+        · rw [if_neg (by omega), ext_encodeV hT, dif_neg (by rw [String.length_toList]; omega)]
+      · simp [hsi]
+  -- 2. each position: the substring's byte is nonzero, so `S` must have the same character there
+  have step2 : ∀ j (hj : j < T.length), (ext (encodeV (p := p) n S) (s + j) =
+      ext (encodeV (p := p) m T) j ↔
+      ∃ h : s + j < S.toList.length,
+        S.toList[s + j] = T.toList[j]'(by rw [String.length_toList]; exact hj)) := by
+    intro j hj
+    have hjT : j < T.toList.length := by rw [String.length_toList]; exact hj
+    have hTj := hTc _ (List.getElem_mem hjT)
+    rw [ext_encodeV hS, ext_encodeV hT, dif_pos hjT, toUInt8_toNat_of_lt hTj.2]
+    by_cases hsj : s + j < S.toList.length
+    · have hSj := hSc _ (List.getElem_mem hsj)
+      rw [dif_pos hsj, toUInt8_toNat_of_lt hSj]
+      constructor
+      · intro heq
+        refine ⟨hsj, Char.ext (UInt32.toNat.inj ?_)⟩
+        exact natCast_inj (a := (S.toList[s + j]).toNat) (b := (T.toList[j]).toNat)
+          (by omega) (by omega) heq
+      · rintro ⟨_, heq⟩
+        rw [heq]
+    · rw [dif_neg hsj]
+      simp only [hsj, IsEmpty.exists_iff, iff_false]
+      intro h0
+      have := natCast_inj (p := p) (a := 0) (b := (T.toList[j]).toNat) (by omega) (by omega)
+        (by rw [Nat.cast_zero]; exact h0)
+      omega
+  -- 3. the pointwise statement is the prefix statement
+  rw [step1]
+  have step12 := (show (∀ j < T.length, ext (encodeV (p := p) n S) (s + j) =
+        ext (encodeV (p := p) m T) j) ↔ _ from
+      ⟨fun h j hj ↦ (step2 j hj).mp (h j hj), fun h j hj ↦ (step2 j hj).mpr (h j hj)⟩)
+  rw [step12, List.prefix_iff_eq_take]
+  exact list_window_iff S.toList T.toList s hT0
+
+end isSubstring
+
+end strings
+
 section check
 
 /-- The body of Circom's `IsSubstring` once the challenge powers and the selector are known.
