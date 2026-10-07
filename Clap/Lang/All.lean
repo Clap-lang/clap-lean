@@ -65,6 +65,9 @@ import Clap.Lang.Data.HashToField.hashElemsToField
 import Clap.Lang.Data.HashToField.transcript
 import Clap.Lang.Data.JWT.bracketsDepthMap
 import Clap.Lang.Data.JWT.bracketsMap
+import Clap.Lang.Data.JWT.emailVerifiedCheck
+import Clap.Lang.Data.JWT.enforceNotNested
+import Clap.Lang.Data.JWT.stringBodies
 import Clap.Lang.Data.Packing.assertIs64BitLimbs
 import Clap.Lang.Data.Packing.assertIsBytes
 import Clap.Lang.Data.Packing.bigEndianBits2Num
