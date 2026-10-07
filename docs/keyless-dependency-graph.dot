@@ -64,7 +64,7 @@ digraph clap {
     "asciiDigitsToScalar" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>asciiDigitsToScalar</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FString/asciiDigitsToScalar.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:116 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: AsciiDigitsToScalar</I></FONT></TD></TR></TABLE>>];
     "assertIsAsciiDigits" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>assertIsAsciiDigits</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FString/assertIsAsciiDigits.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:100 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: AssertIsAsciiDigits</I></FONT></TD></TR></TABLE>>];
     "assertIsConcatenation" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>assertIsConcatenation</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FString/assertIsConcatenation.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:248 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: AssertIsConcatenation</I></FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>+ random-oracle bound</I></FONT></TD></TR></TABLE>>];
-    "assertisSubstring" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>assertisSubstring</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FString/isSubstring.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:225 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: AssertIsSubstring</I></FONT></TD></TR></TABLE>>];
+    "assertIsSubstring" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>assertIsSubstring</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FString/isSubstring.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:225 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: AssertIsSubstring</I></FONT></TD></TR></TABLE>>];
     "isPaddedOf" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>isPaddedOf</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FString/isPaddedOf.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:597</FONT></TD></TR></TABLE>>];
     "isSubstring" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>isSubstring</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FString/isSubstring.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:192 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: IsSubstring</I></FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>+ random-oracle bound</I></FONT></TD></TR></TABLE>>];
   }
@@ -279,8 +279,8 @@ digraph clap {
   "assertIsConcatenation" -> "selectArrayValue";
   "assert_eq" -> "eq0" [color="#00000030"];
   "assert_range" -> "num2bits" [color="#00000030"];
-  "assertisSubstring" -> "assert";
-  "assertisSubstring" -> "isSubstring";
+  "assertIsSubstring" -> "assert";
+  "assertIsSubstring" -> "isSubstring";
   "base64UrlDecode" -> "FArray.bits2num";
   "base64UrlDecode" -> "base64UrlDecodedLength";
   "base64UrlDecode" -> "base64UrlLookup";
@@ -415,7 +415,7 @@ digraph clap {
   "sha256VerifiedDigest" -> "FBV8.ofF";
   "sha256VerifiedDigest" -> "Sha2.compress";
   "sha256VerifiedDigest" -> "assert_eq";
-  "sha256VerifiedDigest" -> "assertisSubstring";
+  "sha256VerifiedDigest" -> "assertIsSubstring";
   "sha256VerifiedDigest" -> "bigEndianBits2Num";
   "sha256VerifiedDigest" -> "bytes2BigEndianBits";
   "sha256VerifiedDigest" -> "hashBytesToField";
@@ -451,7 +451,7 @@ digraph clap {
   "verifyJWTStructure" -> "RSA_2048_e_65537_PKCS1_V1_5_Verify";
   "verifyJWTStructure" -> "assertIsConcatenation";
   "verifyJWTStructure" -> "assert_eq";
-  "verifyJWTStructure" -> "assertisSubstring";
+  "verifyJWTStructure" -> "assertIsSubstring";
   "verifyJWTStructure" -> "base64UrlDecode";
   "verifyJWTStructure" -> "hashBytesToField";
   "verifyJWTStructure" -> "ofChar";
@@ -464,13 +464,13 @@ digraph clap {
   "verifyPublicInputsHash" -> "hash64BitLimbsToField";
   "verifyPublicInputsHash" -> "hashBytesToField";
   "verifyPublicInputsHash" -> "poseidonBN254";
-  "verifyQuotedField" -> "assertisSubstring";
+  "verifyQuotedField" -> "assertIsSubstring";
   "verifyQuotedField" -> "enforceNotNested";
   "verifyQuotedField" -> "parseJWTFieldWithQuotedValue";
   "verifyTimestamp" -> "asciiDigitsToScalar";
   "verifyTimestamp" -> "assert";
   "verifyTimestamp" -> "lessThan";
-  "verifyUnquotedField" -> "assertisSubstring";
+  "verifyUnquotedField" -> "assertIsSubstring";
   "verifyUnquotedField" -> "enforceNotNested";
   "verifyUnquotedField" -> "eq0" [color="#00000030"];
   "verifyUnquotedField" -> "parseJWTFieldWithUnquotedValue";

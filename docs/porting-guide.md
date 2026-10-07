@@ -370,8 +370,8 @@ the old port. Where the two disagree, Circom won:
 | `F8.isWhitespace` | [F8/isWhitespace.lean](../Clap/Lang/Data/F8/isWhitespace.lean) (earlier) | `IsWhitespace` |
 | `FString.assertIsAsciiDigits` | [FString/assertIsAsciiDigits.lean](../Clap/Lang/Data/FString/assertIsAsciiDigits.lean) | `AssertIsAsciiDigits`, constraint for constraint (each Lean line carries its `-- Circom:` line), but at 8 bits instead of 9: a slot in `[256, 512)` is rejected where Circom accepts it. Encoded strings are bytes, so they are unaffected. Fewer bits would reject the padding too (Circom's `TODO(Perf)`), and its conditional fix cannot run through `toWg` |
 | `FString.asciiDigitsToScalar` | [FString/asciiDigitsToScalar.lean](../Clap/Lang/Data/FString/asciiDigitsToScalar.lean) | `AsciiDigitsToScalar`, one Lean line per Circom line in a single loop. There is no hint gate, so `index_eq[i-1]` is `eq len i` (an `isZero`, whose second constraint is Circom's `index_eq[i-1] * (len-i) === 0`), and `success === 1` is `s = 0`. Like Circom, it rejects `len = MAX_LEN` |
-| `FString.isSubstring`, `assertisSubstring` | [FString/isSubstring.lean](../Clap/Lang/Data/FString/isSubstring.lean) | `IsSubstring`, `AssertIsSubstring` |
-| `FString.assertIsConcatenation` | [FString/assertIsConcatenation.lean](../Clap/Lang/Data/FString/assertIsConcatenation.lean) | `AssertIsConcatenation` |
+| `FString.isSubstring`, `assertIsSubstring` | [FString/isSubstring.lean](../Clap/Lang/Data/FString/isSubstring.lean) | `IsSubstring`, `AssertIsSubstring`, constraint for constraint (each Lean line carries its `-- Circom:` line), split into `isSubstring`, `afterHash` and `check` so each proof sees as little Poseidon as possible. Circom's product signals (`selected_str[i]`, `str_poly[i]`, …) stay expressions inside `dotProduct`: only the power chain is shared. `m = 0` is allowed, where Circom's `HashBytesToFieldWithLen` asserts `NUM_BYTES > 0` |
+| `FString.assertIsConcatenation` | [FString/assertIsConcatenation.lean](../Clap/Lang/Data/FString/assertIsConcatenation.lean) | `AssertIsConcatenation`, the same way, in Circom's order, with the products likewise kept as expressions. Like Circom, it rejects `ℓL = nL = nF` (`SelectArrayValue`'s `left_len < MAX_FULL_STR_LEN`) |
 
 The old model's direct `O(n·m)` `isSubstring` has no Circom counterpart and was not ported.
 `arraySelector` gained Circom's two index range checks on the way (see the range-consumer trap).
@@ -412,6 +412,9 @@ which import nothing from it:
 For strings encoded by `FString.encodeV`, the specs read as string statements:
 - `isSubstring.substrAt_encodeV_iff`: `T` is a prefix of `S.drop s` and fits.
 - `assertIsConcatenation.isConcat_encodeV_iff`: `F = L ++ R`.
+- Through these, the random-oracle bounds become the gadgets' specs on strings:
+  `isSubstring.sound` / `isSubstring.complete` and `assertIsConcatenation.sound` /
+  `assertIsConcatenation.complete`.
 - `asciiDigitsToScalar.value_encodeV`, and `convertsM_string` with it: the number the digits
   spell, mod `p`.
 
