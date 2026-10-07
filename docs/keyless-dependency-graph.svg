@@ -812,12 +812,12 @@
 <path fill="none" stroke="#000000" stroke-opacity="0.627451" d="M581.27,-4435.64C593.5,-4440.89 605,-4448.26 613.25,-4458.58 689.34,-4553.83 657.93,-4883.54 684.25,-5002.58 711.77,-5127.09 761.03,-5268.75 788.4,-5343.31"/>
 <polygon fill="#000000" fill-opacity="0.627451" stroke="#000000" stroke-opacity="0.627451" points="786.42,-5343.98 790.46,-5348.89 790.36,-5342.53 786.42,-5343.98"/>
 </g>
-<!-- assertisSubstring -->
+<!-- assertIsSubstring -->
 <g id="node44" class="node">
-<title>assertisSubstring</title>
+<title>assertIsSubstring</title>
 <polygon fill="#a8dba8" stroke="none" points="734.62,-5737.96 734.62,-5760.96 883.62,-5760.96 883.62,-5737.96 734.62,-5737.96"/>
 <polygon fill="none" stroke="black" points="734.62,-5737.96 734.62,-5760.96 883.62,-5760.96 883.62,-5737.96 734.62,-5737.96"/>
-<text xml:space="preserve" text-anchor="start" x="751.75" y="-5744.66" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">assertisSubstring</text>
+<text xml:space="preserve" text-anchor="start" x="751.75" y="-5744.66" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">assertIsSubstring</text>
 <polygon fill="none" stroke="black" points="734.62,-5720.21 734.62,-5737.96 883.62,-5737.96 883.62,-5720.21 734.62,-5720.21"/>
 <text xml:space="preserve" text-anchor="start" x="738.62" y="-5727.21" font-family="Helvetica,sans-Serif" font-size="9.00">new: Data/FString/isSubstring.lean</text>
 <polygon fill="none" stroke="black" points="734.62,-5702.46 734.62,-5720.21 883.62,-5720.21 883.62,-5702.46 734.62,-5702.46"/>
@@ -825,9 +825,9 @@
 <polygon fill="none" stroke="black" points="734.62,-5686.21 734.62,-5702.46 883.62,-5702.46 883.62,-5686.21 734.62,-5686.21"/>
 <text xml:space="preserve" text-anchor="start" x="738.62" y="-5691.86" font-family="Helvetica,sans-Serif" font-style="italic" font-size="8.00" fill="#555555">Aptos: AssertIsSubstring</text>
 </g>
-<!-- verifyJWTStructure&#45;&gt;assertisSubstring -->
+<!-- verifyJWTStructure&#45;&gt;assertIsSubstring -->
 <g id="edge270" class="edge">
-<title>verifyJWTStructure&#45;&gt;assertisSubstring</title>
+<title>verifyJWTStructure&#45;&gt;assertIsSubstring</title>
 <path fill="none" stroke="#000000" stroke-opacity="0.627451" d="M581.34,-4434.98C593.72,-4440.27 605.27,-4447.82 613.25,-4458.58 775.17,-4676.88 521.11,-5462.2 684.25,-5679.58 695.07,-5694.01 711.02,-5703.72 727.89,-5710.25"/>
 <polygon fill="#000000" fill-opacity="0.627451" stroke="#000000" stroke-opacity="0.627451" points="726.86,-5712.11 733.22,-5712.18 728.29,-5708.16 726.86,-5712.11"/>
 </g>
@@ -959,9 +959,9 @@
 <path fill="none" stroke="#000000" stroke-opacity="0.627451" d="M576.37,-4627.99C590.53,-4622.65 604.12,-4614.63 613.25,-4602.58 734.94,-4441.97 561.67,-3858.52 684.25,-3698.58 687.17,-3694.78 690.44,-3691.3 693.98,-3688.13"/>
 <polygon fill="#000000" fill-opacity="0.627451" stroke="#000000" stroke-opacity="0.627451" points="695.3,-3689.77 698.61,-3684.34 692.63,-3686.52 695.3,-3689.77"/>
 </g>
-<!-- verifyQuotedField&#45;&gt;assertisSubstring -->
+<!-- verifyQuotedField&#45;&gt;assertIsSubstring -->
 <g id="edge283" class="edge">
-<title>verifyQuotedField&#45;&gt;assertisSubstring</title>
+<title>verifyQuotedField&#45;&gt;assertIsSubstring</title>
 <path fill="none" stroke="#000000" stroke-opacity="0.627451" d="M576.43,-4649.13C590.6,-4654.47 604.17,-4662.5 613.25,-4674.58 747.75,-4853.57 548.75,-5501.35 684.25,-5679.58 695.16,-5693.94 711.14,-5703.62 728.02,-5710.15"/>
 <polygon fill="#000000" fill-opacity="0.627451" stroke="#000000" stroke-opacity="0.627451" points="726.99,-5712.02 733.35,-5712.08 728.42,-5708.07 726.99,-5712.02"/>
 </g>
@@ -1032,9 +1032,9 @@
 <path fill="none" stroke="#000000" stroke-opacity="0.627451" d="M583.96,-4480.57C595.23,-4475.39 605.68,-4468.3 613.25,-4458.58 797.81,-4221.66 498.37,-4022.47 684.25,-3786.58 685.28,-3785.27 686.36,-3784 687.47,-3782.77"/>
 <polygon fill="#000000" fill-opacity="0.627451" stroke="#000000" stroke-opacity="0.627451" points="688.8,-3784.41 691.53,-3778.67 685.81,-3781.46 688.8,-3784.41"/>
 </g>
-<!-- verifyUnquotedField&#45;&gt;assertisSubstring -->
+<!-- verifyUnquotedField&#45;&gt;assertIsSubstring -->
 <g id="edge289" class="edge">
-<title>verifyUnquotedField&#45;&gt;assertisSubstring</title>
+<title>verifyUnquotedField&#45;&gt;assertIsSubstring</title>
 <path fill="none" stroke="#000000" stroke-opacity="0.627451" d="M583.81,-4508.11C595.24,-4513.33 605.79,-4520.56 613.25,-4530.58 766.03,-4735.77 530.33,-5475.25 684.25,-5679.58 695.1,-5693.99 711.05,-5703.69 727.92,-5710.22"/>
 <polygon fill="#000000" fill-opacity="0.627451" stroke="#000000" stroke-opacity="0.627451" points="726.9,-5712.09 733.26,-5712.15 728.33,-5708.14 726.9,-5712.09"/>
 </g>
@@ -1805,9 +1805,9 @@
 <path fill="none" stroke="#000000" stroke-opacity="0.627451" d="M287.17,-943.21C304.07,-937.96 320.98,-931.78 336.5,-924.58 387.63,-900.86 439.7,-862.25 473.97,-834.41"/>
 <polygon fill="#000000" fill-opacity="0.627451" stroke="#000000" stroke-opacity="0.627451" points="475.25,-836.08 478.56,-830.65 472.59,-832.83 475.25,-836.08"/>
 </g>
-<!-- sha256VerifiedDigest&#45;&gt;assertisSubstring -->
+<!-- sha256VerifiedDigest&#45;&gt;assertIsSubstring -->
 <g id="edge234" class="edge">
-<title>sha256VerifiedDigest&#45;&gt;assertisSubstring</title>
+<title>sha256VerifiedDigest&#45;&gt;assertIsSubstring</title>
 <path fill="none" stroke="#000000" stroke-opacity="0.627451" d="M171.18,-1005.77C191.69,-1399.77 369.47,-4796.17 415.5,-5002.58 485.97,-5318.55 451.19,-5454.9 684.25,-5679.58 696.47,-5691.36 712.05,-5700.01 728,-5706.36"/>
 <polygon fill="#000000" fill-opacity="0.627451" stroke="#000000" stroke-opacity="0.627451" points="727.07,-5708.25 733.43,-5708.4 728.55,-5704.32 727.07,-5708.25"/>
 </g>
@@ -2254,15 +2254,15 @@
 <path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M827.66,-5350.18C854.63,-5277.9 905.31,-5131.64 926,-5002.58 947.22,-4870.21 927.11,-2702.37 1001.12,-2590.58 1083.71,-2465.85 1166.21,-2500.82 1306.75,-2449.58 1435.27,-2402.73 1835.85,-2300.37 1984.96,-2262.79"/>
 <polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1985.09,-2264.92 1990.4,-2261.42 1984.07,-2260.85 1985.09,-2264.92"/>
 </g>
-<!-- assertisSubstring&#45;&gt;isSubstring -->
+<!-- assertIsSubstring&#45;&gt;isSubstring -->
 <g id="edge99" class="edge">
-<title>assertisSubstring&#45;&gt;isSubstring</title>
+<title>assertIsSubstring&#45;&gt;isSubstring</title>
 <path fill="none" stroke="#000000" stroke-opacity="0.627451" d="M883.5,-5706.98C899.15,-5700.58 914.43,-5691.74 926,-5679.58 1000.71,-5601.06 928.46,-5528 1001.12,-5447.58 1011.62,-5435.97 1025.19,-5426.82 1039.37,-5419.66"/>
 <polygon fill="#000000" fill-opacity="0.627451" stroke="#000000" stroke-opacity="0.627451" points="1040.06,-5421.66 1044.55,-5417.16 1038.23,-5417.87 1040.06,-5421.66"/>
 </g>
-<!-- assertisSubstring&#45;&gt;assert -->
+<!-- assertIsSubstring&#45;&gt;assert -->
 <g id="edge98" class="edge">
-<title>assertisSubstring&#45;&gt;assert</title>
+<title>assertIsSubstring&#45;&gt;assert</title>
 <path fill="none" stroke="#000000" stroke-opacity="0.627451" d="M883.41,-5709.9C899.85,-5703.38 915.51,-5693.77 926,-5679.58 1076.98,-5475.47 824.8,-4722.24 1001.12,-4539.58 1091.64,-4445.82 1457.4,-4492.69 1586.75,-4508.58 1624.19,-4513.18 1665.2,-4523.2 1697.82,-4532.41"/>
 <polygon fill="#000000" fill-opacity="0.627451" stroke="#000000" stroke-opacity="0.627451" points="1696.85,-4534.32 1703.2,-4533.95 1698,-4530.28 1696.85,-4534.32"/>
 </g>

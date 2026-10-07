@@ -10,11 +10,9 @@ open Poseidon RandomOracle Primes FiatShamir
 
 variable {p : ℕ}
 
-/-!
-
-Circom's `AssertIsConcatenation` reads each byte array as the coefficients of a polynomial,
-evaluates them at one challenge `α`, and checks `full(α) = left(α) + α^ℓ · right(α)`. Vectors are
-compared through `ext v i`, their zero extension, so no index bounds appear. -/
+/-! Circom's `AssertIsConcatenation` reads each byte array as the coefficients of a polynomial, evaluates them at one challenge `α`, and
+checks `full(α) = left(α) + α^ℓ · right(α)`. Vectors are compared through `ext v i`, their zero
+extension, so no index bounds appear. -/
 
 section identity
 
@@ -31,15 +29,11 @@ variable {nF nL nR : ℕ}
 `right` is compared in full, including padding. The identity pins every entry of `right` that
 lands inside `full`, and makes those past the end of `full` zero. Its length enters only the
 hashes -/
-def IsConcat (full : Vector (ZMod p) nF) (left : Vector (ZMod p) nL) (right : Vector (ZMod p) nR)
-    (ℓ : ℕ) : Prop :=
-  (∀ i, ℓ ≤ i → ext left i = 0) ∧
-  ∀ i, ext full i = ext left i + (if ℓ ≤ i then ext right (i - ℓ) else 0)
+def IsConcat (full : Vector (ZMod p) nF) (left : Vector (ZMod p) nL) (right : Vector (ZMod p) nR) (ℓ : ℕ) : Prop :=
+  (∀ i, ℓ ≤ i → ext left i = 0) ∧ ∀ i, ext full i = ext left i + (if ℓ ≤ i then ext right (i - ℓ) else 0)
 
-/-- The polynomial the concatenation check tests at `α`. -/
 noncomputable def concatDiff (full : Vector (ZMod p) nF) (left : Vector (ZMod p) nL)
-    (right : Vector (ZMod p) nR) (ℓ : ℕ) : (ZMod p)[X] :=
-  vecPoly full - (vecPoly left + X ^ ℓ * vecPoly right)
+    (right : Vector (ZMod p) nR) (ℓ : ℕ) : (ZMod p)[X] := vecPoly full - (vecPoly left + X ^ ℓ * vecPoly right)
 
 lemma concatDiff_eq_zero_iff (full : Vector (ZMod p) nF) (left : Vector (ZMod p) nL)
     (right : Vector (ZMod p) nR) {ℓ : ℕ} (h_pad : ∀ i, ℓ ≤ i → ext left i = 0) :
@@ -79,9 +73,7 @@ end assertIsConcatenation
 
 end identity
 
-/-! ## On strings
-
-For strings encoded by `FString.encodeV`, `IsConcat` is string concatenation; see
+/-! For strings encoded by `FString.encodeV`, `IsConcat` is string concatenation. see
 `isSubstring.lean`'s section of the same name for the shared helpers. -/
 
 section strings
@@ -89,8 +81,7 @@ section strings
 namespace assertIsConcatenation
 
 /-- A list of characters, one byte each, zero-extended. -/
-def zext (l : List Char) (i : ℕ) : ZMod p :=
-  if h : i < l.length then (((l[i]'h).toUInt8.toNat : ℕ) : ZMod p) else 0
+def zext (l : List Char) (i : ℕ) : ZMod p := if h : i < l.length then (((l[i]'h).toUInt8.toNat : ℕ) : ZMod p) else 0
 
 lemma ext_encodeV_eq_zext {w : ℕ} {S : String} (hS : S.length ≤ w) (i : ℕ) :
     ext (encodeV (p := p) w S) i = zext S.toList i := by
@@ -117,8 +108,9 @@ lemma zext_inj {l₁ l₂ : List Char} (hp : 256 < p)
       zext (p := p) l i ≠ 0 := by
     intro l hl i hi h0
     rw [zext, dif_pos hi, toUInt8_toNat_of_lt (hl _ (List.getElem_mem hi)).2] at h0
-    have := natCast_inj (p := p) (a := (l[i]).toNat) (b := 0) (by have := (hl _ (List.getElem_mem hi)).2; omega)
-      (by omega) (by rw [Nat.cast_zero]; exact h0)
+    have := natCast_inj (p := p) (a := (l[i]).toNat) (b := 0)
+      (by have := (hl _ (List.getElem_mem hi)).2; omega) (by omega)
+      (by rw [Nat.cast_zero]; exact h0)
     have := (hl _ (List.getElem_mem hi)).1
     omega
   have h_len : l₁.length = l₂.length := by
@@ -136,15 +128,13 @@ lemma zext_inj {l₁ l₂ : List Char} (hp : 256 < p)
     (by have := (h₂ _ (List.getElem_mem hi₂)).2; omega) this))
 
 /-- For strings encoded by `FString.encodeV`, `IsConcat` at `ℓ = left.length` is string
-concatenation. The characters are bytes with no NUL, so that zero padding cannot stand in for one.
-`left`'s padding holds automatically. -/
+concatenation. The characters are bytes with no NUL -/
 theorem isConcat_encodeV_iff {nF nL nR : ℕ} {F L R : String} (hp : 256 < p)
     (hF : F.length ≤ nF) (hL : L.length ≤ nL) (hR : R.length ≤ nR)
     (hFc : ∀ c ∈ F.toList, 0 < c.toNat ∧ c.toNat < 256)
     (hLc : ∀ c ∈ L.toList, 0 < c.toNat ∧ c.toNat < 256)
     (hRc : ∀ c ∈ R.toList, 0 < c.toNat ∧ c.toNat < 256) :
-    IsConcat (encodeV (p := p) nF F) (encodeV (p := p) nL L)
-      (encodeV (p := p) nR R) L.length ↔ F = L ++ R := by
+    IsConcat (encodeV (p := p) nF F) (encodeV (p := p) nL L) (encodeV (p := p) nR R) L.length ↔ F = L ++ R := by
   unfold IsConcat
   have h_pad : ∀ i, L.length ≤ i → ext (encodeV (p := p) nL L) i = 0 := by
     intro i hi
@@ -166,41 +156,42 @@ end strings
 
 section check
 
-/-- `left` is zero after `left.len`. Circom enforces this explicitly because otherwise the start
-of `right` could sit at the end of `left` and still pass the polynomial check. -/
-def assertIsConcatenation.padding [p.AtLeastTwo] {nL : ℕ} (left : FString p nL) :
-    ClapM p Unit := do
-  let one ← mkF 1
-  let lm1 ← left.len - one
+/-- Circom's lines 33–36: `left` is zero from `left.len` on. Circom enforces this explicitly
+because otherwise the start of `right` could sit at the end of `left` and still pass the
+polynomial check. `RightArraySelector(left_len-1)` is satisfiable only when `1 ≤ left.len ≤ nL`. -/
+def assertIsConcatenation.padding [p.AtLeastTwo] {nL : ℕ} (left : FString p nL) : ClapM p Unit := do
+  -- Circom: `left_len-1`
+  let lm1 ← left.len - (← mkF 1)
+  -- Circom: `signal left_selector[MAX_LEFT_STR_LEN] <== RightArraySelector(MAX_LEFT_STR_LEN)(left_len-1);`
   let sel ← rightArraySelector nL lm1
+  -- Circom: `left_selector[i] * left[i] === 0;`, for each `i < MAX_LEFT_STR_LEN`
   (sel.zip left.data).foldlM (fun _ sx ↦ do
     let prod ← sx.1 * sx.2
     eq0 prod) ()
 
-/-- `full(α) = left(α) + α^left_len · right(α)`, given the challenge powers. `SelectArrayValue` gives `α^left_len`, and asserts `left_len < nF`. -/
+/-- Circom's `AssertIsConcatenation` from `left_poly` on (lines 45–66), given the challenge powers
+`pows`: `full(α) = left(α) + α^left_len · right(α)`. `selectArrayValue` gives `α^left_len`, and
+asserts `left_len < nF`. `hL` and `hR` are Circom's implicit array bounds: `left_poly` and
+`right_poly` read `challenge_powers[i]` for `i` up to `MAX_LEFT_STR_LEN` and `MAX_RIGHT_STR_LEN`.
+
+Circom makes every product a signal: `left_poly[i]`, `right_poly[i]` and `full_poly[i]`. Here
+they stay expressions inside `dotProduct`. -/
 def assertIsConcatenation.identity [p.AtLeastTwo] {nF nL nR : ℕ} (hL : nL ≤ nF) (hR : nR ≤ nF)
-    (full : FVec p nF) (left : FString p nL) (right : FVec p nR) (pows : FVec p nF) :
-    ClapM p Unit := do
+    (full : FVec p nF) (left : FString p nL) (right : FVec p nR) (pows : FVec p nF) : ClapM p Unit := do
+  -- Circom: `left_poly[i] <== left[i] * challenge_powers[i];` and `signal left_poly_eval <== Sum(MAX_LEFT_STR_LEN)(left_poly);`, as one dot product
   let leftEval ← dotProduct left.data ((pows.extract 0 nL).cast (by omega))
+  -- Circom: `right_poly[i] <== right[i] * challenge_powers[i];` and `signal right_poly_eval <== Sum(MAX_RIGHT_STR_LEN)(right_poly);`
   let rightEval ← dotProduct right ((pows.extract 0 nR).cast (by omega))
+  -- Circom: `full_poly[i] <== full_string[i] * challenge_powers[i];` and `signal full_poly_eval <== Sum(MAX_FULL_STR_LEN)(full_poly);`
   let fullEval ← dotProduct full pows
+  -- Circom: `var distinguishing_value = SelectArrayValue(MAX_FULL_STR_LEN)(challenge_powers, left_len);`
   let dv ← selectArrayValue nF pows left.len
+  -- Circom: `full_poly_eval === left_poly_eval + distinguishing_value * right_poly_eval;`
   let prod ← dv * rightEval
   let rhs ← leftEval + prod
   assert_eq fullEval rhs
 
 namespace assertIsConcatenation
-
-private lemma dot_prefix_eq_evalAt {k nF : ℕ} (h : k ≤ nF) (a : Vector (ZMod p) k) (α : ZMod p) :
-    (a.zip (Vector.cast (show min k nF - 0 = k by omega)
-      ((Vector.ofFn fun i : Fin nF ↦ α ^ i.val).extract 0 k))).foldl
-        (fun acc xy ↦ acc + xy.1 * xy.2) 0 = evalAt a α := by
-  rw [dotProduct.foldl_eq_sum, zero_add, evalAt]
-  apply Finset.sum_congr rfl
-  intro i _
-  simp only [Fin.getElem_fin, Vector.getElem_cast]
-  rw [Vector.getElem_extract]
-  simp
 
 private lemma padding_step_convertsM
   [p.AtLeastTwo]
@@ -296,14 +287,12 @@ lemma padding_convertsM
       simp only [hp1, ZMod.val_zero, lt_self_iff_false, false_and, iff_false, not_and]
       intro h _
       omega
-    · have h_val : (len_val - 1).val = len_val.val - 1 := by
+    · have hpos : 0 < len_val.val := by
+        rw [Nat.pos_iff_ne_zero, Ne, ZMod.val_eq_zero]; exact h0
+      have h_val : (len_val - 1).val = len_val.val - 1 := by
         haveI : Fact (1 < p) := ⟨Nat.AtLeastTwo.one_lt⟩
         have h1 : (1 : ZMod p).val = 1 := ZMod.val_one p
-        have hpos : 0 < len_val.val := by
-          rw [Nat.pos_iff_ne_zero, Ne, ZMod.val_eq_zero]; exact h0
         rw [ZMod.val_sub (by rw [h1]; omega), h1]
-      have hpos : 0 < len_val.val := by
-        rw [Nat.pos_iff_ne_zero, Ne, ZMod.val_eq_zero]; exact h0
       rw [h_val]
       constructor
       · rintro ⟨h_lt, h_pad⟩
@@ -376,7 +365,8 @@ lemma identity_convertsM
   (h_nF : nF < p)
 :
   ConvertsM FUnit.conversion (identity hL hR full left right pows) state ()
-    (len_val.val < nF ∧ evalAt full_vals α = evalAt left_vals α + α ^ len_val.val * evalAt right_vals α)
+    (len_val.val < nF ∧
+      evalAt full_vals α = evalAt left_vals α + α ^ len_val.val * evalAt right_vals α)
 := by
   unfold identity
   step dotProduct.convertsM h_data (FVec.converts_vector_cast
@@ -387,20 +377,39 @@ lemma identity_convertsM
   apply convertsM_of_convertsM (bind_final_convertsM
     (selectArrayValue.convertsM h_len h_pows h_nF) h_fullEval h_leftEval h_rightEval)
   · rfl
-  · rw [dot_prefix_eq_evalAt hL, dot_prefix_eq_evalAt hR]
-    have h_full_eval : (full_vals.zip (Vector.ofFn fun i : Fin nF ↦ α ^ i.val)).foldl
-        (fun acc xy ↦ acc + xy.1 * xy.2) 0 = evalAt full_vals α := by
-      rw [dotProduct.foldl_eq_sum, zero_add, evalAt]
-      simp
-    rw [h_full_eval]
+  · rw [dotProduct_powers_prefix_eq_evalAt hL, dotProduct_powers_prefix_eq_evalAt hR,
+      dotProduct_powers_eq_evalAt]
     simp only [true_implies]
-    constructor
-    · rintro ⟨h_lt, h_eq⟩
-      refine ⟨h_lt, ?_⟩
-      simpa [h_lt, Vector.getD] using h_eq
-    · rintro ⟨h_lt, h_eq⟩
-      refine ⟨h_lt, ?_⟩
-      simpa [h_lt, Vector.getD] using h_eq
+    exact and_congr_right fun h_lt ↦ by simp [h_lt, Vector.getD]
+
+/-- The powers, then the identity. Stated at an abstract state, so that `afterHashes_convertsM`
+does not elaborate it against `padding`'s concrete post-state. -/
+private lemma powers_identity_convertsM
+  [p.AtLeastTwo]
+  {nF nL nR : ℕ}
+  (hL : nL ≤ nF) (hR : nR ≤ nF)
+  {state : ClapMState p}
+  {α : F p} {full : FVec p nF} {left : FString p nL} {right : FVec p nR}
+  {α_val : ZMod p} {full_vals : Vector (ZMod p) nF} {left_vals : Vector (ZMod p) nL}
+  {right_vals : Vector (ZMod p) nR} {len_val : ZMod p}
+  (h_α : Converts F.conversion state α α_val)
+  (h_full : Converts FVec.conversion state full full_vals)
+  (h_data : Converts FVec.conversion state left.data left_vals)
+  (h_len : Converts F.conversion state left.len len_val)
+  (h_right : Converts FVec.conversion state right right_vals)
+  (h_nF : nF < p)
+:
+  ConvertsM FUnit.conversion (do
+      let pows ← powers α nF
+      identity hL hR full left right pows) state ()
+    (len_val.val < nF ∧ evalAt full_vals α_val =
+      evalAt left_vals α_val + α_val ^ len_val.val * evalAt right_vals α_val)
+:= by
+  step powers.convertsM h_α as pows
+  apply convertsM_of_convertsM
+    (identity_convertsM hL hR h_full h_data h_len h_right h_pows h_nF)
+  · rfl
+  · simp
 
 end assertIsConcatenation
 
@@ -408,39 +417,50 @@ end check
 
 section assertIsConcatenation
 
--- Poseidon is opaque to these proofs; see `Data/HashToField/hashElemsToField.lean`.
+-- Poseidon is opaque to these proofs (see `Data/HashToField/hashElemsToField.lean`.)
 attribute [local irreducible] Clap.Lang.Poseidon.poseidonBN254
 
-/-- After the three hashes the challenge, its powers, the padding check and the identity. -/
+/-- Circom's `AssertIsConcatenation` after the three hashes (lines 30–66): the challenge, the
+padding check, the powers, then `identity`. -/
 def assertIsConcatenation.afterHashes {nF nL nR : ℕ} (hL : nL ≤ nF) (hR : nR ≤ nF)
     (full : FVec bn254 nF) (left : FString bn254 nL) (right : FString bn254 nR)
     (leftHash rightHash fullHash : F bn254) : ClapM bn254 Unit := do
+  -- Circom: `signal random_challenge <== Poseidon(4)([left_hash, right_hash, full_hash, left_len]);`
   let α ← poseidonBN254 #v[leftHash, rightHash, fullHash, left.len]
-  let pows ← powers α nF
+  -- Circom: lines 33–36, `left` is zero from `left_len` on
   assertIsConcatenation.padding left
+  -- Circom: `challenge_powers[0] <== 1;`, `challenge_powers[1] <== random_challenge;` and `challenge_powers[i] <== challenge_powers[i-1] * random_challenge;`
+  let pows ← powers α nF
+  -- Circom: lines 45–66, the identity
   assertIsConcatenation.identity hL hR full left right.data pows
 
-/-- After hashing `left`. -/
+/-- Circom's `AssertIsConcatenation` after `left_hash` (lines 28–29): the other two hashes, then `afterHashes`. -/
 def assertIsConcatenation.afterLeft {nF nL nR : ℕ} (hL : nL ≤ nF) (hR : nR ≤ nF)
     (full : FVec bn254 nF) (left : FString bn254 nL) (right : FString bn254 nR)
     (leftHash : F bn254) : ClapM bn254 Unit := do
+  -- Circom: `signal right_hash <== HashBytesToFieldWithLen(MAX_RIGHT_STR_LEN)(right, right_len);`
   let rightHash ← HashToField.hashBytesToField right
+  -- Circom: `left_len+right_len`, the length `full_string` is hashed with
   let fullLen ← mkAdd left.len right.len
+  -- Circom: `signal full_hash <== HashBytesToFieldWithLen(MAX_FULL_STR_LEN)(full_string, left_len+right_len);`
   let fullHash ← HashToField.hashBytesToField (⟨full, fullLen⟩ : FString bn254 nF)
   assertIsConcatenation.afterHashes hL hR full left right leftHash rightHash fullHash
 
-/-- `full = left ++ right`, by one polynomial identity at a Fiat–Shamir challenge.
+/-- `full = left ++ right`. ℓL/ℓR is left.len/right.len
 
 - The challenge is `H(H(left, ℓL), H(right, ℓR), H(full, ℓL + ℓR), ℓL)`.
-- It asserts that `left` is zero from `ℓL = left.len` on, with `1 ≤ ℓL ≤ nL` and `ℓL < nF`.
+- It asserts that the three strings are bytes (hashing them range-checks them).
+- It asserts that `left` is zero from `ℓL = left.len` on, with `1 ≤ ℓL ≤ nL`.
+- It asserts `ℓL < nF` (`SelectArrayValue`). So, like Circom, it rejects `left` filling all of `full`, `ℓL = nL = nF`.
 - It asserts the identity `full(α) = left(α) + α^ℓL · right(α)`.
 
 `right`'s length enters only the hashes, and its padding is not checked. As in Circom, the
 caller is assumed to have validated `right_len`: at the Keyless call site `right` carries SHA-2
-padding past it. `IsConcat` accordingly compares `right` in full. -/
+padding past it. The identity compares `right` in full, padding included, and `IsConcat` does
+too. -/
 def assertIsConcatenation {nF nL nR : ℕ} (hL : nL ≤ nF) (hR : nR ≤ nF)
-    (full : FVec bn254 nF) (left : FString bn254 nL) (right : FString bn254 nR) :
-    ClapM bn254 Unit := do
+    (full : FVec bn254 nF) (left : FString bn254 nL) (right : FString bn254 nR) : ClapM bn254 Unit := do
+  -- Circom: `signal left_hash <== HashBytesToFieldWithLen(MAX_LEFT_STR_LEN)(left, left_len);`
   let leftHash ← HashToField.hashBytesToField left
   assertIsConcatenation.afterLeft hL hR full left right leftHash
 
@@ -497,12 +517,14 @@ lemma afterHashes_convertsM
   have h_inputs := FVec.converts_push (FVec.converts_push (FVec.converts_push
     (FVec.converts_push FVec.converts_empty h_leftHash) h_rightHash) h_fullHash) h_lenL
   step (h_H (by decide) (by decide) h_inputs) as α
-  step powers.convertsM h_α as pows
+  -- `padding` and `identity` both assert, so they are sequenced with `convertsM_bind_and`.
   have hP := padding_convertsM h_left h_lenL (by omega)
   apply convertsM_of_convertsM (convertsM_bind_and
-    (function := fun _ ↦ identity hL hR full left right.data pows_result) hP
-    (identity_convertsM hL hR (converts_skip hP h_full) (converts_skip hP h_left)
-      (converts_skip hP h_lenL) (converts_skip hP h_right) (converts_skip hP h_pows) h_nF))
+    (function := fun _ ↦ do
+      let pows ← powers α_result nF
+      identity hL hR full left right.data pows) hP
+    (powers_identity_convertsM hL hR (converts_skip hP h_α) (converts_skip hP h_full)
+      (converts_skip hP h_left) (converts_skip hP h_lenL) (converts_skip hP h_right) h_nF))
   · rfl
   · simp
 
@@ -590,9 +612,9 @@ lemma convertsM
   · rfl
   · simp only [checks, challenge]
 
-/-! ### What `checks` means -/
+/-! What is checks -/
 
-lemma ext_pad_of {nL : ℕ} {left_vals : Vector (ZMod bn254) nL} {ℓ : ℕ}
+private lemma ext_pad_of {nL : ℕ} {left_vals : Vector (ZMod bn254) nL} {ℓ : ℕ}
     (h : ∀ i : Fin nL, ℓ ≤ i.val → left_vals[i] = 0) : ∀ i, ℓ ≤ i → ext left_vals i = 0 := by
   intro i hi
   by_cases h_i : i < nL
@@ -600,11 +622,13 @@ lemma ext_pad_of {nL : ℕ} {left_vals : Vector (ZMod bn254) nL} {ℓ : ℕ}
     exact h ⟨i, h_i⟩ hi
   · exact ext_of_le _ (by omega)
 
-/-- (Completeness) A real concatenation, with its lengths in range and its bytes bytes, passes every check, whatever `H` is. -/
+/-- (Completeness) A real concatenation, with its lengths in range and its entries bytes, passes
+every check, whatever `H` is. -/
 lemma checks_of_isConcat {H : HashFn} {nF nL nR : ℕ} {full_vals : Vector (ZMod bn254) nF}
     {left_vals : Vector (ZMod bn254) nL} {right_vals : Vector (ZMod bn254) nR}
     {lenL lenR : ZMod bn254}
-    (h_bL : ∀ i : Fin nL, left_vals[i].val < 2 ^ 8) (h_bR : ∀ i : Fin nR, right_vals[i].val < 2 ^ 8)
+    (h_bL : ∀ i : Fin nL, left_vals[i].val < 2 ^ 8)
+    (h_bR : ∀ i : Fin nR, right_vals[i].val < 2 ^ 8)
     (h_bF : ∀ i : Fin nF, full_vals[i].val < 2 ^ 8)
     (h_pos : 0 < lenL.val) (h_le : lenL.val ≤ nL) (h_lt : lenL.val < nF)
     (h_cat : IsConcat full_vals left_vals right_vals lenL.val) :
@@ -621,15 +645,15 @@ def challengeQuery (f : Query → ZMod bn254) {nF nL nR : ℕ} (full_vals : Vect
     HashToField.hashBytesToFieldSpec (Query.toHashFn f) right_vals lenR,
     HashToField.hashBytesToFieldSpec (Query.toHashFn f) full_vals (lenL + lenR), lenL]
 
-/-- (Soundness under the random oracle) For a fixed instance that is not a concatenation, the
-checks all pass with probability at most `((nF - 1) + (nR - 1) + 75) / p` over `H ← randomOracle`.
+-- TODO: we could have a crude prob with just d / p
+/-- (The challenge under the random oracle) For a fixed instance and a fixed nonzero polynomial
+`P` of degree at most `d`, the challenge is a root of `P` with probability at most `(d + 75) / p`
+over `H ← randomOracle`.
 
-The first term is Schwartz–Zippel for the difference polynomial, while the challenge query is
-fresh. The `75 / p` covers its colliding with one of the queries that hashing the three strings
-makes:
+The `d / p` is Schwartz–Zippel, valid while the challenge query is fresh. The `75 / p` covers its
+colliding with one of the queries that hashing the three strings makes:
 
-- `75 = 3 · 25`: one `HashToField.challenge_mem_transcript_le` per hashed string (`left`,
-  `right`, `full`), union-bounded.
+- `75 = 3 · 25`: one `HashToField.challenge_mem_transcript_le` per hashed string (`left`, `right`, `full`), union-bounded.
 - `25 = 5 · 5`: hashing a string's field elements makes at most 5 Poseidon calls, up to 4 chunk
   calls on 16 elements each and the final call on their digests `#v[d₀, …, dₖ₋₁]`. Input `j` of
   the challenge query is the string's hash, so equaling one of these calls `t` forces
@@ -638,30 +662,14 @@ makes:
   the chunk calls, and `1 / p` for each of the 4 chunk calls it could equal, since that forces
   the first digest `d₀` to equal the chunk's first element.
 
-A crude bound -/
-theorem prob_checks_le {nF nL nR : ℕ} (hL : nL ≤ nF) (full_vals : Vector (ZMod bn254) nF)
+The bound is crude, but it only has to be negligible. -/
+theorem prob_challenge_root_le {nF nL nR : ℕ} (full_vals : Vector (ZMod bn254) nF)
     (left_vals : Vector (ZMod bn254) nL) (right_vals : Vector (ZMod bn254) nR)
-    (lenL lenR : ZMod bn254)
-    (h_bad : ¬ IsConcat full_vals left_vals right_vals lenL.val) :
+    (lenL lenR : ZMod bn254) {P : Polynomial (ZMod bn254)} (hP : P ≠ 0) {d : ℕ}
+    (hd : P.natDegree ≤ d) :
     randomOracle.toOuterMeasure
-        {f | checks (Query.toHashFn f) full_vals left_vals right_vals lenL lenR}
-      ≤ (((nF - 1) + (nR - 1) + 75 : ℕ) : ENNReal) / bn254 := by
+      {f | P.eval (challenge (Query.toHashFn f) full_vals left_vals right_vals lenL lenR) = 0} ≤ ((d + 75 : ℕ) : ENNReal) / bn254 := by
   classical
-  -- Without the padding or with `lenL ≥ nF` nothing passes; otherwise the identity is nontrivial.
-  by_cases h_pre : (∀ i : Fin nL, lenL.val ≤ i.val → left_vals[i] = 0) ∧ lenL.val < nF
-  swap
-  · have h_empty : {f | checks (Query.toHashFn f) full_vals left_vals right_vals lenL lenR} = ∅ := by
-      ext f
-      simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
-      intro hf
-      exact h_pre ⟨hf.2.2.2.1.2.2, hf.2.2.2.2.1⟩
-    rw [h_empty]
-    simp
-  obtain ⟨h_pad, h_lt⟩ := h_pre
-  set D := concatDiff full_vals left_vals right_vals lenL.val with hD
-  have h_D : D ≠ 0 := by
-    rw [hD, Ne, concatDiff_eq_zero_iff _ _ _ (ext_pad_of h_pad)]
-    exact h_bad
   set vL := HashToField.hashBytesToFieldElems left_vals lenL
   set vR := HashToField.hashBytesToFieldElems right_vals lenR
   set vF := HashToField.hashBytesToFieldElems full_vals (lenL + lenR)
@@ -670,13 +678,13 @@ theorem prob_checks_le {nF nL nR : ℕ} (hL : nL ≤ nF) (full_vals : Vector (ZM
     HashToField.transcript f vF
   have h_ch : ∀ f, challenge (Query.toHashFn f) full_vals left_vals right_vals lenL lenR =
       f (c f) := fun f ↦ RandomOracle.toHashFn_apply f _ (by decide)
-  have h_sub : {f | checks (Query.toHashFn f) full_vals left_vals right_vals lenL lenR} ⊆
-      (({f | c f ∈ HashToField.transcript f vL} ∪ {f | c f ∈ HashToField.transcript f vR}) ∪
-        {f | c f ∈ HashToField.transcript f vF}) ∪
-      {f | c f ∉ (T f : Set Query) ∧ D.eval (f (c f)) = 0} := by
+  have h_sub :
+      {f | P.eval (challenge (Query.toHashFn f) full_vals left_vals right_vals lenL lenR) = 0} ⊆
+        (({f | c f ∈ HashToField.transcript f vL} ∪ {f | c f ∈ HashToField.transcript f vR}) ∪
+          {f | c f ∈ HashToField.transcript f vF}) ∪
+        {f | c f ∉ (T f : Set Query) ∧ P.eval (f (c f)) = 0} := by
     intro f hf
-    have h_root : D.eval (f (c f)) = 0 := by
-      rw [hD, eval_concatDiff, ← h_ch f, hf.2.2.2.2.2, sub_self]
+    rw [Set.mem_setOf_eq, h_ch f] at hf
     by_cases h : c f ∈ T f
     · simp only [T, Finset.mem_union] at h
       left
@@ -684,7 +692,7 @@ theorem prob_checks_le {nF nL nR : ℕ} (hL : nL ≤ nF) (full_vals : Vector (ZM
       · exact Or.inl (Or.inl h)
       · exact Or.inl (Or.inr h)
       · exact Or.inr h
-    · exact Or.inr ⟨by simpa using h, h_root⟩
+    · exact Or.inr ⟨by simpa using h, hf⟩
   have h_coord : ∀ (j : ℕ) (hj : j < 3) f,
       (c f).coord j = (#v[HashToField.hashBytesToFieldSpec (Query.toHashFn f) left_vals lenL,
         HashToField.hashBytesToFieldSpec (Query.toHashFn f) right_vals lenR,
@@ -696,8 +704,7 @@ theorem prob_checks_le {nF nL nR : ℕ} (hL : nL ≤ nF) (full_vals : Vector (ZM
   have hcL := HashToField.challenge_mem_transcript_le vL 0 c (fun f ↦ h_coord 0 (by decide) f)
   have hcR := HashToField.challenge_mem_transcript_le vR 1 c (fun f ↦ h_coord 1 (by decide) f)
   have hcF := HashToField.challenge_mem_transcript_le vF 2 c (fun f ↦ h_coord 2 (by decide) f)
-  have h_fresh := randomOracle_fresh_le c (fun f ↦ ↑(T f)) (fun _ y ↦ D.eval y = 0)
-    ((nF - 1) + (nR - 1))
+  have h_fresh := randomOracle_fresh_le c (fun f ↦ ↑(T f)) (fun _ y ↦ P.eval y = 0) d
     (fun f f' h ↦ by
       have h' : ∀ q ∈ T f, f q = f' q := by simpa using h
       have eL := HashToField.congr vL (fun q hq ↦ h' q (by simp [T, hq]))
@@ -711,23 +718,95 @@ theorem prob_checks_le {nF nL nR : ℕ} (hL : nL ≤ nF) (full_vals : Vector (ZM
           HashToField.hashBytesToFieldSpec (Query.toHashFn f') full_vals (lenL + lenR) := eF.1
       refine ⟨?_, by simp [T, eL.2, eR.2, eF.2], rfl⟩
       simp only [c, challengeQuery, hL', hR', hF'])
-    (fun _ ↦ card_roots_le h_D (natDegree_concatDiff_le _ _ _ hL h_lt))
+    (fun _ ↦ card_roots_le hP hd)
   calc randomOracle.toOuterMeasure
-          {f | checks (Query.toHashFn f) full_vals left_vals right_vals lenL lenR}
+          {f | P.eval (challenge (Query.toHashFn f) full_vals left_vals right_vals lenL lenR) = 0}
       ≤ ((randomOracle.toOuterMeasure {f | c f ∈ HashToField.transcript f vL} +
             randomOracle.toOuterMeasure {f | c f ∈ HashToField.transcript f vR}) +
             randomOracle.toOuterMeasure {f | c f ∈ HashToField.transcript f vF}) +
-          randomOracle.toOuterMeasure {f | c f ∉ (T f : Set Query) ∧ D.eval (f (c f)) = 0} := by
+          randomOracle.toOuterMeasure {f | c f ∉ (T f : Set Query) ∧ P.eval (f (c f)) = 0} := by
         refine (MeasureTheory.measure_mono h_sub).trans ?_
         refine (MeasureTheory.measure_union_le _ _).trans (add_le_add ?_ le_rfl)
         refine (MeasureTheory.measure_union_le _ _).trans (add_le_add ?_ le_rfl)
         exact MeasureTheory.measure_union_le _ _
-    _ ≤ ((25 / bn254 + 25 / bn254) + 25 / bn254) + (((nF - 1) + (nR - 1) : ℕ) : ENNReal) / bn254 :=
+    _ ≤ ((25 / bn254 + 25 / bn254) + 25 / bn254) + (d : ENNReal) / bn254 :=
         add_le_add (add_le_add (add_le_add hcL hcR) hcF) h_fresh
-    _ = (((nF - 1) + (nR - 1) + 75 : ℕ) : ENNReal) / bn254 := by
+    _ = ((d + 75 : ℕ) : ENNReal) / bn254 := by
         simp only [ENNReal.div_add_div_same]
         push_cast
         ring_nf
+
+/-- (Soundness under the random oracle) For a fixed instance that is not a concatenation, the
+checks all pass with probability at most `((nF - 1) + (nR - 1) + 75) / p` over
+`H ← randomOracle`. Without the padding, or with `ℓL ≥ nF`, nothing passes. Otherwise passing
+makes the challenge a root of `concatDiff`, which is nonzero and of degree at most
+`(nF - 1) + (nR - 1)`: `prob_challenge_root_le`. -/
+theorem prob_checks_le {nF nL nR : ℕ} (hL : nL ≤ nF) (full_vals : Vector (ZMod bn254) nF)
+    (left_vals : Vector (ZMod bn254) nL) (right_vals : Vector (ZMod bn254) nR)
+    (lenL lenR : ZMod bn254)
+    (h_bad : ¬ IsConcat full_vals left_vals right_vals lenL.val) :
+    randomOracle.toOuterMeasure
+      {f | checks (Query.toHashFn f) full_vals left_vals right_vals lenL lenR} ≤ (((nF - 1) + (nR - 1) + 75 : ℕ) : ENNReal) / bn254 := by
+  classical
+  by_cases h_pre : (∀ i : Fin nL, lenL.val ≤ i.val → left_vals[i] = 0) ∧ lenL.val < nF
+  swap
+  · have h_empty :
+        {f | checks (Query.toHashFn f) full_vals left_vals right_vals lenL lenR} = ∅ := by
+      ext f
+      simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+      intro hf
+      exact h_pre ⟨hf.2.2.2.1.2.2, hf.2.2.2.2.1⟩
+    rw [h_empty]
+    simp
+  obtain ⟨h_pad, h_lt⟩ := h_pre
+  have h_D : concatDiff full_vals left_vals right_vals lenL.val ≠ 0 := by
+    rw [Ne, concatDiff_eq_zero_iff _ _ _ (ext_pad_of h_pad)]
+    exact h_bad
+  refine le_trans (MeasureTheory.measure_mono fun f hf ↦ ?_)
+    (prob_challenge_root_le full_vals left_vals right_vals lenL lenR h_D
+      (natDegree_concatDiff_le _ _ _ hL h_lt))
+  rw [Set.mem_setOf_eq, eval_concatDiff, hf.2.2.2.2.2, sub_self]
+
+/-!
+
+`assertIsConcatenation`'s specification: `sound` and `complete`, on strings encoded by
+`FString.encodeV`. `convertsM` says the circuit's constraints are `checks H …` for the hash `H` it
+computes. These here say what `checks` means for a fixed instance when `H ← randomOracle` (`sound`),
+and for every `H` (`complete`). -/
+
+/-- (soundness of `assertIsConcatenation`) When `F ≠ L ++ R`, the checks all pass with
+probability at most `((nF - 1) + (nR - 1) + 75) / p`. -/
+theorem sound {nF nL nR : ℕ} (hL : nL ≤ nF) {F L R : String}
+    (lenR : ZMod bn254)
+    (hF : F.length ≤ nF) (hL' : L.length ≤ nL) (hR : R.length ≤ nR) (h_nF : nF < bn254)
+    (hFc : ∀ c ∈ F.toList, 0 < c.toNat ∧ c.toNat < 256)
+    (hLc : ∀ c ∈ L.toList, 0 < c.toNat ∧ c.toNat < 256)
+    (hRc : ∀ c ∈ R.toList, 0 < c.toNat ∧ c.toNat < 256)
+    (h_bad : F ≠ L ++ R) :
+    randomOracle.toOuterMeasure
+      {f | checks (Query.toHashFn f) (encodeV nF F) (encodeV nL L) (encodeV nR R) L.length lenR} ≤ (((nF - 1) + (nR - 1) + 75 : ℕ) : ENNReal) / bn254 := by
+  refine prob_checks_le hL _ _ _ _ _ ?_
+  rwa [ZMod.val_natCast_of_lt (by omega), isConcat_encodeV_iff (by decide) hF hL' hR hFc hLc hRc]
+
+/-- (completeness of `assertIsConcatenation`) When `F = L ++ R`, with `L` not empty and shorter than `nF`, every check passes, whatever `H` is. -/
+theorem complete {H : HashFn} {nF nL nR : ℕ} {F L R : String} (lenR : ZMod bn254)
+    (hF : F.length ≤ nF) (hL' : L.length ≤ nL) (hR : R.length ≤ nR) (h_nF : nF < bn254)
+    (hLc : ∀ c ∈ L.toList, 0 < c.toNat ∧ c.toNat < 256)
+    (hRc : ∀ c ∈ R.toList, 0 < c.toNat ∧ c.toNat < 256)
+    (h_pos : 0 < L.length) (h_lt : L.length < nF) (h_cat : F = L ++ R) :
+    checks H (encodeV nF F) (encodeV nL L) (encodeV nR R) L.length lenR := by
+  have h_l : (L.length : ZMod bn254).val = L.length := ZMod.val_natCast_of_lt (by omega)
+  have hFc : ∀ c ∈ F.toList, 0 < c.toNat ∧ c.toNat < 256 := by
+    intro c hc
+    rw [h_cat, String.toList_append, List.mem_append] at hc
+    exact hc.elim (hLc c) (hRc c)
+  have h_bytes : ∀ {w : ℕ} {S : String} (i : Fin w),
+      ((encodeV (p := bn254) w S)[i]).val < 2 ^ 8 :=
+    fun i ↦ lt_of_lt_of_le (encodeV_val_lt i.isLt) (by norm_num)
+  refine checks_of_isConcat h_bytes h_bytes h_bytes (by rwa [h_l]) (by rwa [h_l]) (by rwa [h_l])
+    ?_
+  rw [h_l, isConcat_encodeV_iff (by decide) hF hL' hR hFc hLc hRc]
+  exact h_cat
 
 end assertIsConcatenation
 
@@ -770,23 +849,6 @@ example : concat (by decide) (by decide) #v[97, 98, 99] #v[97, 98, 99] 2 #v[99] 
 -- `right`'s padding is not checked, but the identity compares it in full
 example : concat (by decide) (by decide) #v[97, 98, 99] #v[97, 98] 2 #v[99, 100] 1 = false := by
   native_decide
-
-/-
-The rest of the old vectors, left as comments: each takes about 20 s. All were checked with
-`native_decide` on 2026-09-29.
-
--- "hello" = "h" ++ "ello"
-example : concat (by decide) (by decide) #v[104, 101, 108, 108, 111] #v[104] 1
-    #v[101, 108, 108, 111] 4 = true
--- "abc" = "ab" ++ "c"
-example : concat (by decide) (by decide) #v[97, 98, 99] #v[97, 98] 2 #v[99] 1 = true
--- "abc" ≠ "ac" ++ "c"
-example : concat (by decide) (by decide) #v[97, 98, 99] #v[97, 99] 2 #v[99] 1 = false
--- `left` zero past its length
-example : concat (by decide) (by decide) #v[97, 98, 99] #v[97, 98, 0] 2 #v[99] 1 = true
--- `right` zero past its length
-example : concat (by decide) (by decide) #v[97, 98, 99] #v[97, 98] 2 #v[99, 0] 1 = true
--/
 
 end examples
 

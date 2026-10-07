@@ -16,9 +16,10 @@ open Poseidon RandomOracle Primes FiatShamir
 
 variable {p : ℕ}
 
-/-! Circom's `IsSubstring` reads each byte array as the coefficients of a polynomial, evaluates them
-at one challenge `α`, and checks `ŝ(α) = α^s · t(α)`, with `ŝ` the window `[s, e)` of `str` and
-`t` the substring. Vectors are compared through `ext v i`, their zero extension, so no index
+/-! Circom's `IsSubstring` (`circuit/templates/helpers/strings/IsSubstring.circom` in
+aptos-labs/keyless-zk-proofs) reads each byte array as the coefficients of a polynomial, evaluates
+them at one challenge `α`, and checks `ŝ(α) = α^s · t(α)`, with `ŝ` the window `[s, e)` of `str`
+and `t` the substring. Vectors are compared through `ext v i`, their zero extension, so no index
 bounds appear. -/
 
 section identity
@@ -29,7 +30,7 @@ namespace isSubstring
 
 variable {n m : ℕ}
 
-/-- The window `[s, e)` of `str`, as the circuit selects it: `ArraySelector`'s bit at `i` is
+/-- The window `[s, e)` of `str`. `ArraySelector`'s bit at `i` is
 `(s ≤ i) xor (e ≤ i)`, which is the interval once `s ≤ e`, and the selected string is that bit
 times `str[i]`. -/
 def window (str : Vector (ZMod p) n) (s e : ℕ) : Vector (ZMod p) n :=
@@ -44,19 +45,14 @@ lemma ext_window (str : Vector (ZMod p) n) {s e : ℕ} (h : s ≤ e) (i : ℕ) :
   · rw [ext_of_le _ (by omega), ext_of_le _ (by omega)]
     simp
 
-/-- `substr` occurs in `str` at `s`, for length `ℓ`. The window
-`[s, s + ℓ)` of `str` (zero past its end), shifted to `0`, is `substr` zero-extended.
-
-Unfolded, this says `substr[j] = str[s + j]` for `j < ℓ` with `s + j` inside `str`, that
+/-- `substr` occurs in `str` at `s`, for length `ℓ`. The window `[s, s + ℓ)` of `str` (zero past
+its end), shifted to `0`, is `substr` zero-extended. this says `substr[j] = str[s + j]` for `j < ℓ` with `s + j` inside `str`, that
 `substr` is `0` after `ℓ`, and wherever the window runs past the end of `str`, and that `str` is
 `0` wherever the window runs past the end of `substr`. -/
 def SubstrAt (str : Vector (ZMod p) n) (substr : Vector (ZMod p) m) (s ℓ : ℕ) : Prop :=
-  ∀ i : ℕ, (if s ≤ i ∧ i < s + ℓ then ext str i else 0) =
-    (if s ≤ i then ext substr (i - s) else 0)
+  ∀ i : ℕ, (if s ≤ i ∧ i < s + ℓ then ext str i else 0) = (if s ≤ i then ext substr (i - s) else 0)
 
-/-- The polynomial the substring check tests at `α`: window minus shifted substring. -/
-noncomputable def substrDiff (str : Vector (ZMod p) n) (substr : Vector (ZMod p) m) (s e : ℕ) :
-    (ZMod p)[X] :=
+noncomputable def substrDiff (str : Vector (ZMod p) n) (substr : Vector (ZMod p) m) (s e : ℕ) : (ZMod p)[X] :=
   vecPoly (window str s e) - X ^ s * vecPoly substr
 
 lemma substrDiff_eq_zero_iff (str : Vector (ZMod p) n) (substr : Vector (ZMod p) m)
@@ -81,8 +77,7 @@ lemma natDegree_substrDiff_le (str : Vector (ZMod p) n) (substr : Vector (ZMod p
   · exact (natDegree_vecPoly_le _).trans (by omega)
   · exact (natDegree_X_pow_mul_vecPoly_le _ _).trans (by omega)
 
-/-- (Completeness of the identity) when `substr` occurs at `s`, the check's two sides agree at
-every `α`. -/
+/-- (Completeness of the identity) when `substr` occurs at `s`, the check's two sides agree at every `α`. -/
 lemma evalAt_window_of_substrAt {str : Vector (ZMod p) n} {substr : Vector (ZMod p) m}
     {s ℓ : ℕ} (h : SubstrAt str substr s ℓ) (α : ZMod p) :
     evalAt (window str s (s + ℓ)) α = α ^ s * evalAt substr α := by
@@ -94,12 +89,6 @@ lemma evalAt_window_of_substrAt {str : Vector (ZMod p) n} {substr : Vector (ZMod
 end isSubstring
 
 end identity
-
-/-! ## On strings
-
-`SubstrAt`, and `assertIsConcatenation.IsConcat`, are about zero-extended vectors. For strings
-encoded by `FString.encodeV`, one byte per character, they are the string statements, provided
-no character is NUL: otherwise zero padding could stand in for one. -/
 
 section strings
 
@@ -143,14 +132,11 @@ private lemma list_window_iff {α : Type} (L M : List α) (s : ℕ) (hM : 0 < M.
     have := List.getElem_of_eq h_eq hj
     rw [this, List.getElem_take, List.getElem_drop]
 
-/-- For strings encoded by `FString.encodeV`, `SubstrAt` is the statement: `T` fits in
-`S` at `s` and is a prefix of what follows. `T` has no NUL character, so that `S`'s zero padding
-cannot stand in for it. -/
+/-- For strings encoded by `FString.encodeV`, `SubstrAt` means `T` fits in `S` at `s` and is a prefix. -/
 theorem substrAt_encodeV_iff {n m s : ℕ} {S T : String} (hp : 256 < p)
     (hS : S.length ≤ n) (hT : T.length ≤ m) (hT0 : 0 < T.length)
     (hSc : ∀ c ∈ S.toList, c.toNat < 256) (hTc : ∀ c ∈ T.toList, 0 < c.toNat ∧ c.toNat < 256) :
-    SubstrAt (encodeV (p := p) n S) (encodeV (p := p) m T) s T.length ↔
-      s + T.length ≤ S.length ∧ T.toList <+: S.toList.drop s := by
+    SubstrAt (encodeV (p := p) n S) (encodeV (p := p) m T) s T.length ↔ s + T.length ≤ S.length ∧ T.toList <+: S.toList.drop s := by
   -- 1. the identity is pointwise on the window
   have step1 : SubstrAt (encodeV (p := p) n S) (encodeV (p := p) m T) s T.length ↔
       ∀ j < T.length, ext (encodeV (p := p) n S) (s + j) =
@@ -195,11 +181,8 @@ theorem substrAt_encodeV_iff {n m s : ℕ} {S T : String} (hp : 256 < p)
         (by rw [Nat.cast_zero]; exact h0)
       omega
   -- 3. the pointwise statement is the prefix statement
-  rw [step1]
-  have step12 := (show (∀ j < T.length, ext (encodeV (p := p) n S) (s + j) =
-        ext (encodeV (p := p) m T) j) ↔ _ from
-      ⟨fun h j hj ↦ (step2 j hj).mp (h j hj), fun h j hj ↦ (step2 j hj).mpr (h j hj)⟩)
-  rw [step12, List.prefix_iff_eq_take]
+  refine step1.trans ((forall₂_congr step2).trans ?_)
+  rw [List.prefix_iff_eq_take]
   exact list_window_iff S.toList T.toList s hT0
 
 end isSubstring
@@ -208,21 +191,47 @@ end strings
 
 section check
 
-/-- The body of Circom's `IsSubstring` once the challenge powers and the selector are known.
-select the window of `str`, evaluate it and `substr` at the challenge, and compare
-`ŝ(α) ≠ 0 ∧ ŝ(α) = α^start · t(α)`. `selectArrayValue` gives `α^start`, and is the only
-assertion is `start < n`. -/
+/-- `dotProduct a (powers α n)` is `evalAt a α`. -/
+lemma dotProduct_powers_eq_evalAt {n : ℕ} (a : Vector (ZMod p) n) (α : ZMod p) :
+    (a.zip (Vector.ofFn fun i : Fin n ↦ α ^ i.val)).foldl (fun acc xy ↦ acc + xy.1 * xy.2) 0 =
+      evalAt a α := by
+  rw [dotProduct.foldl_eq_sum, zero_add, evalAt]
+  simp
+
+/-- `dotProduct a` against the first `k ≤ n` of the powers, `(powers α n).extract 0 k`, is
+`evalAt a α`. -/
+lemma dotProduct_powers_prefix_eq_evalAt {k n : ℕ} (h : k ≤ n) (a : Vector (ZMod p) k)
+    (α : ZMod p) :
+    (a.zip (Vector.cast (show min k n - 0 = k by omega)
+      ((Vector.ofFn fun i : Fin n ↦ α ^ i.val).extract 0 k))).foldl
+        (fun acc xy ↦ acc + xy.1 * xy.2) 0 = evalAt a α := by
+  rw [dotProduct.foldl_eq_sum, zero_add, evalAt]
+  apply Finset.sum_congr rfl
+  intro i _
+  simp only [Fin.getElem_fin, Vector.getElem_cast]
+  rw [Vector.getElem_extract]
+  simp
+
 def isSubstring.check [p.AtLeastTwo] {n m : ℕ} (h : m ≤ n) (str : FVec p n)
     (substrData : FVec p m) (startIndex : F p) (pows : FVec p n) (sel : FArray p n) :
     ClapM p (FB p) := do
+  -- Circom: `selected_str[i] <== selector_bits[i] * str[i];`
   let selected ← (sel.zip str).mapM (fun bs ↦ bs.1 * bs.2)
+  -- Circom: `str_poly[i] <== selected_str[i] * challenge_powers[i];` and
+  -- `signal str_poly_eval <== Sum(MAX_STR_LEN)(str_poly);`, as one dot product
   let strEval ← dotProduct selected pows
+  -- Circom: `substr_poly[i] <== substr[i] * challenge_powers[i];` and
+  -- `signal substr_poly_eval <== Sum(MAX_SUBSTR_LEN)(substr_poly);`, on the first `m` powers
   let substrEval ← dotProduct substrData ((pows.extract 0 m).cast (by omega))
+  -- Circom: `signal distinguishing_value <== SelectArrayValue(MAX_STR_LEN)(challenge_powers, start_index);`
   let dv ← selectArrayValue n pows startIndex
+  -- Circom: `NOT()(IsZero()(str_poly_eval))`
   let isZ ← isZero strEval
   let nz ← not isZ
+  -- Circom: `IsEqual()([str_poly_eval, distinguishing_value * substr_poly_eval])`
   let rhs ← dv * substrEval
   let same ← eq strEval rhs
+  -- Circom: `success <== AND()(…, …);`
   FB.and nz same
 
 namespace isSubstring
@@ -233,17 +242,10 @@ def selectVec {n : ℕ} (sel : Vector Bool n) (str : Vector (ZMod p) n) : Vector
 
 /-- What `check` computes, at challenge `α`: `ŝ(α) ≠ 0 ∧ ŝ(α) = dv · t(α)`, where `dv` is
 `α^start` when `start < n` (and `0` otherwise, where `check` is unsatisfiable anyway). -/
-def checkPure {n m : ℕ} (α : ZMod p) (sel : Vector Bool n) (str : Vector (ZMod p) n)
-    (substr : Vector (ZMod p) m) (start : ℕ) : Bool :=
+def checkPure {n m : ℕ} (α : ZMod p) (sel : Vector Bool n) (str : Vector (ZMod p) n) (substr : Vector (ZMod p) m) (start : ℕ) : Bool :=
   let s := evalAt (selectVec sel str) α
   let dv := if start < n then α ^ start else 0
   (!(s == 0)) && (s == dv * evalAt substr α)
-
-private lemma dot_eq_evalAt {n : ℕ} (a : Vector (ZMod p) n) (α : ZMod p) :
-    (a.zip (Vector.ofFn fun i : Fin n ↦ α ^ i.val)).foldl (fun acc xy ↦ acc + xy.1 * xy.2) 0 =
-      evalAt a α := by
-  rw [dotProduct.foldl_eq_sum, zero_add, evalAt]
-  simp
 
 lemma check_convertsM
   [p.AtLeastTwo]
@@ -284,25 +286,16 @@ lemma check_convertsM
         ((Vector.map (fun b ↦ if b = true then (1 : ZMod p) else 0) sel_vals).zip str_vals)).zip
           (Vector.ofFn fun i : Fin n ↦ α ^ i.val)).foldl (fun acc xy ↦ acc + xy.1 * xy.2) 0 =
         evalAt (selectVec sel_vals str_vals) α := by
-      rw [dot_eq_evalAt]
+      rw [dotProduct_powers_eq_evalAt]
       unfold evalAt selectVec
       apply Finset.sum_congr rfl
       intro i _
       simp only [Fin.getElem_fin, Vector.getElem_map, Vector.getElem_zip, Vector.getElem_ofFn]
       split <;> simp
-    have h_t : (substr_vals.zip (Vector.cast (show min m n - 0 = m by omega)
-          ((Vector.ofFn fun i : Fin n ↦ α ^ i.val).extract 0 m))).foldl
-          (fun acc xy ↦ acc + xy.1 * xy.2) 0 = evalAt substr_vals α := by
-      rw [dotProduct.foldl_eq_sum, zero_add, evalAt]
-      apply Finset.sum_congr rfl
-      intro i _
-      simp only [Fin.getElem_fin, Vector.getElem_cast]
-      rw [Vector.getElem_extract]
-      simp
     have h_dv : (Vector.ofFn fun i : Fin n ↦ α ^ i.val).getD start_val.val 0 =
         if start_val.val < n then α ^ start_val.val else 0 := by
       split <;> simp_all [Vector.getD]
-    simp only [checkPure, h_s, h_t, h_dv]
+    simp only [checkPure, h_s, dotProduct_powers_prefix_eq_evalAt h, h_dv]
   · simp
   -- `step`'s side goal for `selectArrayValue`, the one assertion
   · exact fun h ↦ h trivial trivial trivial
@@ -335,59 +328,62 @@ end check
 
 section isSubstring
 
--- Poseidon is opaque to these proofs; see `Data/HashToField/hashElemsToField.lean`.
+-- Poseidon is opaque to these proofs (see `Data/HashToField/hashElemsToField.lean`).
 attribute [local irreducible] Clap.Lang.Poseidon.poseidonBN254
 
-/-- Everything after hashing `substr`: the challenge, its powers, the selector, and `check`. -/
+/-- Circom's `IsSubstring` after `substr_hash`. the challenge, its powers and the
+selector, then `check` for the rest. -/
 def isSubstring.afterHash {n m : ℕ} (h : m ≤ n) (str : FVec bn254 n) (strHash : F bn254)
     (substr : FString bn254 m) (startIndex : F bn254) (substrHash : F bn254) :
     ClapM bn254 (FB bn254) := do
+  -- Circom: `signal random_challenge <== Poseidon(4)([str_hash, substr_hash, substr_len, start_index]);`.
   let α ← poseidonBN254 #v[strHash, substrHash, substr.len, startIndex]
+  -- Circom: `challenge_powers[0] <== 1;`, `challenge_powers[1] <== random_challenge;` and
+  -- `challenge_powers[i] <== challenge_powers[i-1] * random_challenge;`
   let pows ← powers α n
+  -- Circom: `start_index+substr_len`, `ArraySelector`'s second input. `mkAdd`, not `+`, so that
+  -- `step` names it
   let endIdx ← mkAdd startIndex substr.len
+  -- Circom: `signal selector_bits[MAX_STR_LEN] <== ArraySelector(MAX_STR_LEN)(start_index, start_index+substr_len);`
   let sel ← arraySelector n startIndex endIdx
   isSubstring.check h str substr.data startIndex pows sel
 
-/-- Whether `substr` occurs in `str` at `startIndex`, by one polynomial identity at a Fiat–Shamir
-challenge. Circom's `IsSubstring`.
+/-- Whether `substr` occurs in `str` at `startIndex`, by one polynomial identity at a Fiat–Shamir challenge.
 
 - The challenge is `H(strHash, H(substr, len), len, start)`.
-- With `ŝ` the window `[start, start + len)` of `str` and `t` the substring, the output is
-  `ŝ(α) ≠ 0 ∧ ŝ(α) = α^start · t(α)`. `isSubstring.convertsM` states it as `accepts`.
-- It never fails on a false instance, it outputs `0`. What it does assert is the index range:
-  `start` and `start + len` fit in `minBits' n` bits, and `start < n`, `start < start + len`.
-  These stay hard even when the output bit is only used softly, as in Keyless's extra-field
-  check.
+- With `ŝ` the window `[start, start + len)` of `str` and `t` the substring, the output is `ŝ(α) ≠ 0 ∧ ŝ(α) = α^start · t(α)`. `isSubstring.convertsM` states it as `accepts`.
+- What the circuit does assert is that `substr` is bytes (hashing it range-checks them), that `start` and
+  `start + len` fit in `minBits' n` bits, and that `start < n` and `start < start + len`.
+- `t` is all of `substr`, padding included, so the identity also asks `substr` to be zero from `len` on (`SubstrAt`). Circom only assumes it.
 
-**`strHash` is not checked.** Circom assumes it is `HashBytesToFieldWithLen(str, str_len)` and
+`strHash` is not checked since Circom assumes it is `HashBytesToFieldWithLen(str, str_len)` and
 does not hash `str`. So `str` is neither hashed nor byte-checked here, and a prover who could
 choose `str` after seeing the challenge could solve for it. The soundness bound
-`isSubstring.sound` is for a fixed instance, and holds for every fixed `strHash`; binding `str`
+`isSubstring.sound` is for a fixed instance, and holds for every fixed `strHash`. Binding `str`
 is the caller's job (Keyless passes `jwt_payload_hash`, and for `string_bodies` relies on it being
-a function of `jwt_payload`).
+a function of `jwt_payload`). -/
 
-An all-zero window always outputs `0`, and a real occurrence can output `0` when `ŝ(α) = 0`,
-which is Circom's `NOT(IsZero(ŝ(α)))`. See `isSubstring.complete`. -/
 def isSubstring {n m : ℕ} (h : m ≤ n) (str : FVec bn254 n) (strHash : F bn254)
     (substr : FString bn254 m) (startIndex : F bn254) : ClapM bn254 (FB bn254) := do
+  -- Circom: `signal substr_hash <== HashBytesToFieldWithLen(MAX_SUBSTR_LEN)(substr, substr_len);`
   let substrHash ← HashToField.hashBytesToField substr
   isSubstring.afterHash h str strHash substr startIndex substrHash
 
 /-- `isSubstring`, asserted. Circom's `AssertIsSubstring`. -/
-def assertisSubstring {n m : ℕ} (h : m ≤ n) (str : FVec bn254 n) (strHash : F bn254)
+def assertIsSubstring {n m : ℕ} (h : m ≤ n) (str : FVec bn254 n) (strHash : F bn254)
     (substr : FString bn254 m) (startIndex : F bn254) : ClapM bn254 Unit := do
+  -- Circom: `signal success <== IsSubstring(MAX_STR_LEN, MAX_SUBSTR_LEN)(str, str_hash, substr, substr_len, start_index);`
   let success ← isSubstring h str strHash substr startIndex
+  -- Circom: `success === 1;`
   assert success
 
 namespace isSubstring
 
 /-- The Fiat–Shamir challenge `H(strHash, H(substr, len), len, start)`. -/
-def challenge (H : HashFn) {m : ℕ} (strHash : ZMod bn254) (substr_vals : Vector (ZMod bn254) m)
-    (len start : ZMod bn254) : ZMod bn254 :=
+def challenge (H : HashFn) {m : ℕ} (strHash : ZMod bn254) (substr_vals : Vector (ZMod bn254) m) (len start : ZMod bn254) : ZMod bn254 :=
   H #v[strHash, HashToField.hashBytesToFieldSpec H substr_vals len, len, start]
 
-/-- What `isSubstring` computes, for every input: `checkPure` at the challenge, on the selector
-`arraySelector` produces. -/
+/-- What `isSubstring` computes `checkPure` at the challenge, on the selector `arraySelector` -/
 def accepts (H : HashFn) {n m : ℕ} (str_vals : Vector (ZMod bn254) n) (strHash : ZMod bn254)
     (substr_vals : Vector (ZMod bn254) m) (len start : ZMod bn254) : Bool :=
   checkPure (challenge H strHash substr_vals len start)
@@ -414,8 +410,7 @@ lemma afterHash_convertsM
 :
   ConvertsM FB.conversion (afterHash h str strHash substr startIndex substrHash) state
     (checkPure (H #v[strHash_val, substrHash_val, len_val, start_val])
-      (Vector.ofFn fun i : Fin n ↦
-        decide (start_val.val ≤ i.val) ^^ decide ((start_val + len_val).val ≤ i.val))
+      (Vector.ofFn fun i : Fin n ↦ decide (start_val.val ≤ i.val) ^^ decide ((start_val + len_val).val ≤ i.val))
       str_vals substr_vals start_val.val)
     ((start_val.val < 2 ^ minBits' n ∧ (start_val + len_val).val < 2 ^ minBits' n ∧
       start_val.val < n ∧ start_val.val < (start_val + len_val).val) ∧ start_val.val < n)
@@ -431,6 +426,9 @@ lemma afterHash_convertsM
   · rfl
   · simp
 
+/-! `accepts` is a polynomial identity at a hashed challenge. So it is not equivalent to `SubstrAt`:
+a real occurrence can fail (when `ŝ(α) = 0`), and a false one can pass (when `α` is a root of the
+difference polynomial). Both are bounded under the random oracle below, for a fixed instance. -/
 lemma convertsM
   {H : HashFn}
   (h_H : Computes H)
@@ -467,12 +465,6 @@ lemma convertsM
     · rintro ⟨h_bytes, h_s, h_e, h_sn, h_se⟩
       exact ⟨h_bytes, ⟨h_s, h_e, h_sn, h_se⟩, h_sn⟩
 
-/-! ### What `accepts` means
-
-`accepts` is a polynomial identity at a hashed challenge. So it is not equivalent to `SubstrAt`:
-a real occurrence can fail (when `ŝ(α) = 0`), and a false one can pass (when `α` is a root of the
-difference polynomial). Both are bounded under the random oracle below, for a fixed instance. -/
-
 /-- Slot 5's `start < start + len` rules out wrapping, so the window length is `len`. -/
 lemma val_add_of_lt_val {a b : ZMod bn254} (h : a.val < (a + b).val) :
     (a + b).val = a.val + b.val := by
@@ -491,13 +483,11 @@ lemma selectVec_arraySelector {n : ℕ} (str_vals : Vector (ZMod bn254) n) (s e 
 /-- The challenge is the random function's answer at `challengeQuery`. -/
 def challengeQuery (f : Query → ZMod bn254) {m : ℕ} (strHash : ZMod bn254)
     (substr_vals : Vector (ZMod bn254) m) (len start : ZMod bn254) : Query :=
-  RandomOracle.hashQ #v[strHash,
-    HashToField.hashBytesToFieldSpec (Query.toHashFn f) substr_vals len, len, start]
+  RandomOracle.hashQ #v[strHash, HashToField.hashBytesToFieldSpec (Query.toHashFn f) substr_vals len, len, start]
 
 lemma challenge_toHashFn (f : Query → ZMod bn254) {m : ℕ} (strHash : ZMod bn254)
     (substr_vals : Vector (ZMod bn254) m) (len start : ZMod bn254) :
-    challenge (Query.toHashFn f) strHash substr_vals len start =
-      f (challengeQuery f strHash substr_vals len start) :=
+    challenge (Query.toHashFn f) strHash substr_vals len start = f (challengeQuery f strHash substr_vals len start) :=
   RandomOracle.toHashFn_apply f _ (by decide)
 
 /-- An accepted instance makes the challenge a root of the difference polynomial. -/
@@ -517,7 +507,7 @@ lemma accepts_of_substrAt {H : HashFn} {n m : ℕ} {str_vals : Vector (ZMod bn25
     (h_sn : start.val < n) (h_se : start.val < (start + len).val)
     (h_sub : SubstrAt str_vals substr_vals start.val len.val)
     (h_nz : evalAt (window str_vals start.val (start + len).val)
-      (challenge H strHash substr_vals len start) ≠ 0) :
+    (challenge H strHash substr_vals len start) ≠ 0) :
     accepts H str_vals strHash substr_vals len start = true := by
   have h_id := evalAt_window_of_substrAt h_sub (challenge H strHash substr_vals len start)
   rw [← val_add_of_lt_val h_se] at h_id
@@ -525,118 +515,146 @@ lemma accepts_of_substrAt {H : HashFn} {n m : ℕ} {str_vals : Vector (ZMod bn25
     Bool.not_eq_true', beq_eq_false_iff_ne, beq_iff_eq]
   exact ⟨h_nz, h_id⟩
 
-/-- (Soundness under the random oracle) For a fixed instance in which `substr` does not occur
-at `start`, the circuit accepts with probability at most `((n - 1) + (m - 1) + 25) / p` over
-`H ← randomOracle`.
-
-The first term is Schwartz–Zippel for the difference polynomial, valid while the challenge query
-is fresh. The `25 / p` is the chance that it is not, i.e. that it coincides with one of the at
-most five queries hashing `substr` makes (`HashToField.challenge_mem_transcript_le`). See `prob_checks_le` in assertIsConcatenation
-The instance, `strHash` included, is fixed before `H` is drawn; see `isSubstring` on why an
-adaptive prover also needs `strHash` to bind `str`. -/
-theorem prob_accepts_le {n m : ℕ} (str_vals : Vector (ZMod bn254) n) (strHash : ZMod bn254)
+-- TODO we can simplify the probability (crude) here to just d / p
+/-- (The challenge under the random oracle) For a fixed instance and a fixed nonzero polynomial
+`P` of degree at most `d`, the challenge is a root of `P` with probability at most `(d + 25) / p`
+over `H ← randomOracle`. The `25 / p` is the chance that it is one of the at most five queries hashing `substr` makes
+(`HashToField.challenge_mem_transcript_le`, whose docstring explains the `25`). -/
+theorem prob_challenge_root_le {m : ℕ} (strHash : ZMod bn254)
     (substr_vals : Vector (ZMod bn254) m) (len start : ZMod bn254)
-    (h_sn : start.val < n) (h_se : start.val < (start + len).val)
-    (h_bad : ¬ SubstrAt str_vals substr_vals start.val len.val) :
-    randomOracle.toOuterMeasure
-        {f | accepts (Query.toHashFn f) str_vals strHash substr_vals len start = true}
-      ≤ (((n - 1) + (m - 1) + 25 : ℕ) : ENNReal) / bn254 := by
+    {P : Polynomial (ZMod bn254)} (hP : P ≠ 0) {d : ℕ} (hd : P.natDegree ≤ d) :
+    randomOracle.toOuterMeasure {f | P.eval (challenge (Query.toHashFn f) strHash substr_vals len start) = 0} ≤ ((d + 25 : ℕ) : ENNReal) / bn254 := by
   classical
-  set D := substrDiff str_vals substr_vals start.val (start + len).val with hD
-  have h_D : D ≠ 0 := by
-    rw [hD, val_add_of_lt_val h_se, Ne, substrDiff_eq_zero_iff]
-    exact h_bad
   set v := HashToField.hashBytesToFieldElems substr_vals len
   set c := fun f ↦ challengeQuery f strHash substr_vals len start
   set T := fun f ↦ HashToField.transcript f v
-  have h_sub : {f | accepts (Query.toHashFn f) str_vals strHash substr_vals len start = true} ⊆
-      {f | c f ∈ T f} ∪ {f | c f ∉ (T f : Set Query) ∧ D.eval (f (c f)) = 0} := by
+  have h_sub : {f | P.eval (challenge (Query.toHashFn f) strHash substr_vals len start) = 0} ⊆
+      {f | c f ∈ T f} ∪ {f | c f ∉ (T f : Set Query) ∧ P.eval (f (c f)) = 0} := by
     intro f hf
-    have h_root := eval_substrDiff_of_accepts h_sn hf
-    rw [challenge_toHashFn] at h_root
+    rw [Set.mem_setOf_eq, challenge_toHashFn] at hf
     by_cases h : c f ∈ T f
     · exact Or.inl h
-    · exact Or.inr ⟨by simpa using h, h_root⟩
+    · exact Or.inr ⟨by simpa using h, hf⟩
   have h_coll : randomOracle.toOuterMeasure {f | c f ∈ T f} ≤ 25 / bn254 :=
     HashToField.challenge_mem_transcript_le v 1 c (fun f ↦ by
       simp only [c, challengeQuery]
       rw [RandomOracle.coord_hashQ _ (by decide)]
       rfl)
-  have h_fresh := randomOracle_fresh_le c (fun f ↦ ↑(T f)) (fun _ y ↦ D.eval y = 0)
-    ((n - 1) + (m - 1))
+  have h_fresh := randomOracle_fresh_le c (fun f ↦ ↑(T f)) (fun _ y ↦ P.eval y = 0) d
     (fun f f' h ↦ by
       have h' := HashToField.congr v (by simpa using h)
       have h_hash : HashToField.hashBytesToFieldSpec (Query.toHashFn f) substr_vals len =
           HashToField.hashBytesToFieldSpec (Query.toHashFn f') substr_vals len := h'.1
       refine ⟨?_, by simp [T, h'.2], rfl⟩
       simp only [c, challengeQuery, h_hash])
-    (fun _ ↦ card_roots_le h_D (natDegree_substrDiff_le _ _ h_sn))
+    (fun _ ↦ card_roots_le hP hd)
   calc randomOracle.toOuterMeasure
-          {f | accepts (Query.toHashFn f) str_vals strHash substr_vals len start = true}
+          {f | P.eval (challenge (Query.toHashFn f) strHash substr_vals len start) = 0}
       ≤ randomOracle.toOuterMeasure {f | c f ∈ T f} +
-          randomOracle.toOuterMeasure {f | c f ∉ (T f : Set Query) ∧ D.eval (f (c f)) = 0} :=
+          randomOracle.toOuterMeasure {f | c f ∉ (T f : Set Query) ∧ P.eval (f (c f)) = 0} :=
         (MeasureTheory.measure_mono h_sub).trans (MeasureTheory.measure_union_le _ _)
-    _ ≤ 25 / bn254 + (((n - 1) + (m - 1) : ℕ) : ENNReal) / bn254 := add_le_add h_coll h_fresh
-    _ = (((n - 1) + (m - 1) + 25 : ℕ) : ENNReal) / bn254 := by
+    _ ≤ 25 / bn254 + (d : ENNReal) / bn254 := add_le_add h_coll h_fresh
+    _ = ((d + 25 : ℕ) : ENNReal) / bn254 := by
         rw [ENNReal.div_add_div_same]
         push_cast
         ring_nf
 
+-- TODO: same here
+/-- (Soundness under the random oracle) For a fixed instance in which `substr` does not occur
+at `start`, the circuit accepts with probability at most `((n - 1) + (m - 1) + 25) / p` over
+`H ← randomOracle`. An accepted instance makes the challenge a root of `substrDiff`, which is
+nonzero and of degree at most `(n - 1) + (m - 1)`: `prob_challenge_root_le`. -/
+theorem prob_accepts_le {n m : ℕ} (str_vals : Vector (ZMod bn254) n) (strHash : ZMod bn254)
+    (substr_vals : Vector (ZMod bn254) m) (len start : ZMod bn254)
+    (h_sn : start.val < n) (h_se : start.val < (start + len).val)
+    (h_bad : ¬ SubstrAt str_vals substr_vals start.val len.val) :
+    randomOracle.toOuterMeasure
+      {f | accepts (Query.toHashFn f) str_vals strHash substr_vals len start = true} ≤ (((n - 1) + (m - 1) + 25 : ℕ) : ENNReal) / bn254 := by
+  have h_D : substrDiff str_vals substr_vals start.val (start + len).val ≠ 0 := by
+    rw [val_add_of_lt_val h_se, Ne, substrDiff_eq_zero_iff]
+    exact h_bad
+  refine le_trans (MeasureTheory.measure_mono fun f hf ↦ ?_)
+    (prob_challenge_root_le strHash substr_vals len start h_D (natDegree_substrDiff_le _ _ h_sn))
+  exact eval_substrDiff_of_accepts h_sn hf
+
 /-- (Completeness under the random oracle) For a fixed instance in which `substr` occurs at
 `start` and the window is not all zero, the circuit rejects with probability at most
-`((n - 1) + 25) / p`: only when the window evaluates to `0` at the challenge (Circom's
-`NOT(IsZero(ŝ(α)))`):  When substr really occurs at start, it holds at every α. The first conjunct, NOT(IsZero(ŝ(α))), can still fail on a true instance, namely when α is a root of the window polynomial W.. -/
+`((n - 1) + 25) / p`. The identity holds at every `α` (`evalAt_window_of_substrAt`), so only the
+first conjunct, Circom's `NOT(IsZero(ŝ(α)))`, can fail: when the challenge is a root of the
+window's polynomial, of degree at most `n - 1` (`prob_challenge_root_le`). -/
 theorem prob_rejects_le {n m : ℕ} (str_vals : Vector (ZMod bn254) n) (strHash : ZMod bn254)
     (substr_vals : Vector (ZMod bn254) m) (len start : ZMod bn254)
     (h_sn : start.val < n) (h_se : start.val < (start + len).val)
     (h_sub : SubstrAt str_vals substr_vals start.val len.val)
     (h_nz : vecPoly (window str_vals start.val (start + len).val) ≠ 0) :
     randomOracle.toOuterMeasure
-        {f | accepts (Query.toHashFn f) str_vals strHash substr_vals len start = false}
-      ≤ (((n - 1) + 25 : ℕ) : ENNReal) / bn254 := by
-  classical
-  set W := vecPoly (window str_vals start.val (start + len).val)
-  set v := HashToField.hashBytesToFieldElems substr_vals len
-  set c := fun f ↦ challengeQuery f strHash substr_vals len start
-  set T := fun f ↦ HashToField.transcript f v
-  have h_sub' : {f | accepts (Query.toHashFn f) str_vals strHash substr_vals len start = false} ⊆
-      {f | c f ∈ T f} ∪ {f | c f ∉ (T f : Set Query) ∧ W.eval (f (c f)) = 0} := by
-    intro f hf
-    have h_zero : W.eval (f (c f)) = 0 := by
-      by_contra h0
-      have := accepts_of_substrAt (H := Query.toHashFn f) (strHash := strHash) h_sn h_se h_sub
-        (by rw [challenge_toHashFn, ← eval_vecPoly]; exact h0)
-      simp_all
-    by_cases h : c f ∈ T f
-    · exact Or.inl h
-    · exact Or.inr ⟨by simpa using h, h_zero⟩
-  have h_coll : randomOracle.toOuterMeasure {f | c f ∈ T f} ≤ 25 / bn254 :=
-    HashToField.challenge_mem_transcript_le v 1 c (fun f ↦ by
-      simp only [c, challengeQuery]
-      rw [RandomOracle.coord_hashQ _ (by decide)]
-      rfl)
-  have h_fresh := randomOracle_fresh_le c (fun f ↦ ↑(T f)) (fun _ y ↦ W.eval y = 0) (n - 1)
-    (fun f f' h ↦ by
-      have h' := HashToField.congr v (by simpa using h)
-      have h_hash : HashToField.hashBytesToFieldSpec (Query.toHashFn f) substr_vals len =
-          HashToField.hashBytesToFieldSpec (Query.toHashFn f') substr_vals len := h'.1
-      refine ⟨?_, by simp [T, h'.2], rfl⟩
-      simp only [c, challengeQuery, h_hash])
-    (fun _ ↦ card_roots_le h_nz (natDegree_vecPoly_le _))
-  calc randomOracle.toOuterMeasure
-          {f | accepts (Query.toHashFn f) str_vals strHash substr_vals len start = false}
-      ≤ randomOracle.toOuterMeasure {f | c f ∈ T f} +
-          randomOracle.toOuterMeasure {f | c f ∉ (T f : Set Query) ∧ W.eval (f (c f)) = 0} :=
-        (MeasureTheory.measure_mono h_sub').trans (MeasureTheory.measure_union_le _ _)
-    _ ≤ 25 / bn254 + ((n - 1 : ℕ) : ENNReal) / bn254 := add_le_add h_coll h_fresh
-    _ = (((n - 1) + 25 : ℕ) : ENNReal) / bn254 := by
-        rw [ENNReal.div_add_div_same]
-        push_cast
-        ring_nf
+      {f | accepts (Query.toHashFn f) str_vals strHash substr_vals len start = false} ≤ (((n - 1) + 25 : ℕ) : ENNReal) / bn254 := by
+  refine le_trans (MeasureTheory.measure_mono fun f hf ↦ ?_)
+    (prob_challenge_root_le strHash substr_vals len start h_nz (natDegree_vecPoly_le _))
+  rw [Set.mem_setOf_eq, eval_vecPoly]
+  by_contra h0
+  have := accepts_of_substrAt (H := Query.toHashFn f) (strHash := strHash) h_sn h_se h_sub h0
+  exact Bool.false_ne_true (hf.symm.trans this)
+
+/-! `isSubstring`'s specification: `sound` and `complete`, on strings encoded by `FString.encodeV`.
+`convertsM` says the circuit outputs `accepts H …` for the hash `H` it
+computes. These say what `accepts` means for a fixed instance when `H ← randomOracle`. They are
+`prob_accepts_le` and `prob_rejects_le` read through `substrAt_encodeV_iff`. The substring has no
+NUL character, so that `S`'s zero padding cannot stand in for one. -/
+
+/-- (soundness of `isSubstring`) When `T` does not occur in `S` at `s`, the circuit outputs `1`
+with probability at most `((n - 1) + (m - 1) + 25) / p`. -/
+theorem sound {n m s : ℕ} {S T : String} (strHash : ZMod bn254)
+    (hS : S.length ≤ n) (hT : T.length ≤ m) (hT0 : 0 < T.length) (h_sn : s < n)
+    (h_nm : n + m < bn254)
+    (hSc : ∀ c ∈ S.toList, c.toNat < 256) (hTc : ∀ c ∈ T.toList, 0 < c.toNat ∧ c.toNat < 256)
+    (h_bad : ¬ (s + T.length ≤ S.length ∧ T.toList <+: S.toList.drop s)) :
+    randomOracle.toOuterMeasure
+      {f | accepts (Query.toHashFn f) (encodeV n S) strHash (encodeV m T) T.length s = true} ≤ (((n - 1) + (m - 1) + 25 : ℕ) : ENNReal) / bn254 := by
+  have h_s : (s : ZMod bn254).val = s := ZMod.val_natCast_of_lt (by omega)
+  have h_l : (T.length : ZMod bn254).val = T.length := ZMod.val_natCast_of_lt (by omega)
+  have h_e : ((s : ZMod bn254) + (T.length : ZMod bn254)).val = s + T.length := by
+    rw [← Nat.cast_add, ZMod.val_natCast_of_lt (by omega)]
+  refine prob_accepts_le _ _ _ _ _ (by rwa [h_s]) (by rw [h_s, h_e]; omega) ?_
+  rwa [h_s, h_l, substrAt_encodeV_iff (by decide) hS hT hT0 hSc hTc]
+
+/-- (completeness of `isSubstring`) When `T` occurs in `S` at `s`, the circuit outputs `0` with
+probability at most `((n - 1) + 25) / p`. -/
+theorem complete {n m s : ℕ} {S T : String} (strHash : ZMod bn254)
+    (hS : S.length ≤ n) (hT : T.length ≤ m) (hT0 : 0 < T.length) (h_nm : n + m < bn254)
+    (hSc : ∀ c ∈ S.toList, c.toNat < 256) (hTc : ∀ c ∈ T.toList, 0 < c.toNat ∧ c.toNat < 256)
+    (h_fit : s + T.length ≤ S.length) (h_pre : T.toList <+: S.toList.drop s) :
+    randomOracle.toOuterMeasure
+      {f | accepts (Query.toHashFn f) (encodeV n S) strHash (encodeV m T) T.length s = false} ≤ (((n - 1) + 25 : ℕ) : ENNReal) / bn254 := by
+  have h256 : 256 < bn254 := by decide
+  have h_s : (s : ZMod bn254).val = s := ZMod.val_natCast_of_lt (by omega)
+  have h_l : (T.length : ZMod bn254).val = T.length := ZMod.val_natCast_of_lt (by omega)
+  have h_e : ((s : ZMod bn254) + (T.length : ZMod bn254)).val = s + T.length := by
+    rw [← Nat.cast_add, ZMod.val_natCast_of_lt (by omega)]
+  have h_sub := (substrAt_encodeV_iff (p := bn254) (n := n) (m := m) (s := s) h256 hS hT hT0
+    hSc hTc).mpr ⟨h_fit, h_pre⟩
+  refine prob_rejects_le _ _ _ _ _ (by rw [h_s]; omega) (by rw [h_s, h_e]; omega)
+    (by rwa [h_s, h_l]) ?_
+  -- The window's coefficient at `s` is `T`'s first character.
+  rw [h_s, h_e]
+  intro h0
+  have h_coeff := congrArg (fun P ↦ Polynomial.coeff P s) h0
+  simp only [coeff_vecPoly, Polynomial.coeff_zero,
+    ext_window _ (show s ≤ s + T.length by omega)] at h_coeff
+  rw [if_pos (⟨le_refl s, by omega⟩ : s ≤ s ∧ s < s + T.length)] at h_coeff
+  have h_at := h_sub s
+  rw [if_pos (⟨le_refl s, by omega⟩ : s ≤ s ∧ s < s + T.length), if_pos (le_refl s),
+    Nat.sub_self] at h_at
+  have hT0' : 0 < T.toList.length := by rw [String.length_toList]; exact hT0
+  obtain ⟨hc0, hc1⟩ := hTc _ (List.getElem_mem hT0')
+  rw [h_at, ext_encodeV hT, dif_pos hT0', toUInt8_toNat_of_lt hc1] at h_coeff
+  have := natCast_inj (p := bn254) (a := (T.toList[0]'hT0').toNat) (b := 0) (by omega)
+    (by omega) (by rw [Nat.cast_zero]; exact h_coeff)
+  omega
 
 end isSubstring
 
-namespace assertisSubstring
+namespace assertIsSubstring
 
 lemma convertsM
   {H : HashFn}
@@ -654,28 +672,24 @@ lemma convertsM
   (h_start : Converts F.conversion state startIndex start_val)
   (h_m : m ≤ 1953) (h_n : n < bn254) (hw : 2 ^ (minBits' n + 1) < bn254)
 :
-  ConvertsM FUnit.conversion (assertisSubstring h str strHash substr startIndex) state ()
+  ConvertsM FUnit.conversion (assertIsSubstring h str strHash substr startIndex) state ()
     (((∀ i : Fin m, substr_vals[i].val < 2 ^ 8) ∧
       start_val.val < 2 ^ minBits' n ∧ (start_val + len_val).val < 2 ^ minBits' n ∧
       start_val.val < n ∧ start_val.val < (start_val + len_val).val) ∧
       isSubstring.accepts H str_vals strHash_val substr_vals len_val start_val = true)
 := by
-  unfold assertisSubstring
+  unfold assertIsSubstring
   have hS := isSubstring.convertsM h_H h h_str h_strHash h_data h_len h_start h_m h_n hw
   exact convertsM_bind_and (function := assert) hS (assert.convertsM hS.result)
 
-end assertisSubstring
+end assertIsSubstring
 
 end isSubstring
 
 
 section examples
 
-/-! The old model's vectors (`old/Clap/FString.lean`), by evaluation, since nothing containing
-Poseidon lowers yet. `strHash` is computed in the circuit, as Keyless does. The output is the bit
-`isSubstring` computes; a `1` on a false instance would need the challenge to be a root of the
-difference polynomial. ASCII: `'h' = 104`, `'e' = 101`, `'l' = 108`, `'o' = 111`, `'a' = 97`,
-`'b' = 98`, `'c' = 99`, `'x' = 120`, `'y' = 121`, `'z' = 122`. -/
+/-! ASCII: `'h' = 104`, `'e' = 101`, `'l' = 108`, `'o' = 111`, `'a' = 97`, `'b' = 98`, `'c' = 99`, `'x' = 120`, `'y' = 121`, `'z' = 122`. -/
 
 private def fsBit {n m : ℕ} (h : m ≤ n) (str : Vector (ZMod bn254) n) (strLen : ZMod bn254)
     (sub : Vector (ZMod bn254) m) (subLen start : ZMod bn254) : Option (ZMod bn254) :=

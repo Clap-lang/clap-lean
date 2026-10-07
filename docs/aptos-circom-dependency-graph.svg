@@ -432,7 +432,7 @@
 <polygon fill="none" stroke="black" points="701,-3127.38 701,-3150.38 889.75,-3150.38 889.75,-3127.38 701,-3127.38"/>
 <text xml:space="preserve" text-anchor="start" x="736.88" y="-3134.07" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">AssertIsSubstring</text>
 <polygon fill="none" stroke="black" points="701,-3109.62 701,-3127.38 889.75,-3127.38 889.75,-3109.62 701,-3109.62"/>
-<text xml:space="preserve" text-anchor="start" x="705" y="-3116.62" font-family="Helvetica,sans-Serif" font-size="9.00">new: assertisSubstring</text>
+<text xml:space="preserve" text-anchor="start" x="705" y="-3116.62" font-family="Helvetica,sans-Serif" font-size="9.00">new: assertIsSubstring</text>
 <polygon fill="none" stroke="black" points="701,-3093.38 701,-3109.62 889.75,-3109.62 889.75,-3093.38 701,-3093.38"/>
 <text xml:space="preserve" text-anchor="start" x="705" y="-3099.62" font-family="Helvetica,sans-Serif" font-size="8.00"> &#160;&#160;&#160;&#160;Data/FString/isSubstring.lean</text>
 <polygon fill="none" stroke="black" points="701,-3075.62 701,-3093.38 889.75,-3093.38 889.75,-3075.62 701,-3075.62"/>
