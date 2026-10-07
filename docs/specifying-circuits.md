@@ -154,9 +154,10 @@ work of A; if you can express your gadget without iteration, do.
 | `FString.isSubstring h str strHash substr start` | [FString/isSubstring.lean](../Clap/Lang/Data/FString/isSubstring.lean) | `ClapM bn254 (FB bn254)` | `isSubstring.accepts H …`: `ŝ(α) ≠ 0 ∧ ŝ(α) = α^start · t(α)` at the hashed challenge | `substr` bytes, `start` and `start + len` in `minBits' n` bits, `start < n`, `start < start + len`; given `Lang.Poseidon.Computes H`. Meaning: `accepts_of_substrAt`, `prob_accepts_le`, `prob_rejects_le` |
 | `FString.assertisSubstring …` | [FString/isSubstring.lean](../Clap/Lang/Data/FString/isSubstring.lean) | `ClapM bn254 Unit` | `()` | the above ∧ `accepts … = true` |
 | `FString.assertIsConcatenation hL hR full left right` | [FString/assertIsConcatenation.lean](../Clap/Lang/Data/FString/assertIsConcatenation.lean) | `ClapM bn254 Unit` | `()` | `assertIsConcatenation.checks H …`: bytes, `1 ≤ ℓL ≤ nL`, `left` zero after `ℓL`, `ℓL < nF`, `full(α) = left(α) + α^ℓL · right(α)`. Meaning: `checks_of_isConcat`, `prob_checks_le` |
-| `Base64.base64UrlLookup c` | [Base64Len/base64UrlLookup.lean](../Clap/Lang/Data/Base64Len/base64UrlLookup.lean) | `ClapM p (F p)` | the base64url index of `Char.ofNat c_val.val` (`A`–`Z` ↦ 0–25, `a`–`z` ↦ 26–51, `0`–`9` ↦ 52–61, `-` ↦ 62, `_` ↦ 63, else 0), given `c_val.val < 2 ^ 8` and `2 ^ 9 < p` | `c_val.val` is `0`, `-`, `_`, `=` or alphanumeric. **`convertsM` is `sorry`** (work in progress) |
+| `Base64.base64UrlLookup c` | [Base64Len/base64UrlLookup.lean](../Clap/Lang/Data/Base64Len/base64UrlLookup.lean) | `ClapM p (F p)` | `base64UrlLookup.value c_val`, Circom's `out` for any input, given only `2 ^ 9 < p`; `value_of_lt`: on a byte it is `index c_val.val` (`A`–`Z` ↦ 0–25, `a`–`z` ↦ 26–51, `0`–`9` ↦ 52–61, `-` ↦ 62, `_` ↦ 63, else 0). `convertsM_char`, given `c_val.val < 2 ^ 8`: the same through `Char.isUpper` / `isLower` / `isDigit` | `accepts c_val.val`: `c_val.val` is `0`, `-`, `_`, `=` or alphanumeric, for every field element (`accepts_iff_char` reads it over `Char`) |
+| `Base64.base64UrlLookup.rangeFlag a b c` | [Base64Len/base64UrlLookup.lean](../Clap/Lang/Data/Base64Len/base64UrlLookup.lean) | `ClapM p (FB p)` | `decide (a < c_val.val ∧ c_val.val < b)` (Circom's `GreaterThan(8)(in, a) * LessThan(8)(in, b)`, shared), given `c_val.val, a, b < 2 ^ 8`, `2 ^ 9 < p`; `convertsM_unchecked`: `flagRaw a b c_val`, which `flagRaw_eq` shows is still the exact test whenever its checks pass, for `a < b < 2 ^ 8` | `True`; unchecked: `flagOk a b c_val`, the two `lessThanOk`s |
 | `Base64.base64UrlDecodedLength w m` | [Base64Len/base64UrlDecodedLength.lean](../Clap/Lang/Data/Base64Len/base64UrlDecodedLength.lean) | `ClapM p (F p)` | `3 * m_val.val / 4`, given `m_val.val < 2 ^ w` and `2 ^ (w + 2) ≤ p` | `m_val.val < 2 ^ w ∧ 3 * m_val.val < 2 ^ (w + 2)`, which the hypotheses already imply |
-| `Base64.base64UrlDecode h a` | [Base64Len/base64UrlDecode.lean](../Clap/Lang/Data/Base64Len/base64UrlDecode.lean) | `ClapM p (FString p w)` | `base64UrlDecode.decode a_val` (no `=` padding), given `3 ∣ w`, `a_val.length = w * 4 / 3` and `2 ^ 9 < p` | every character is NUL, `-`, `_`, `=` or alphanumeric. **`convertsM` is `sorry`** (work in progress) |
+| `Base64.base64UrlDecode h a` | [Base64Len/base64UrlDecode.lean](../Clap/Lang/Data/Base64Len/base64UrlDecode.lean) | `ClapM p (FString p w)` | `base64UrlDecode.decode a_val` (no `=` padding), given `3 ∣ w`, `a_val.length = w * 4 / 3`, `2 ^ 9 < p`, `2 ^ (w + 2) ≤ p` and every character `< 256` | every character is NUL, `-`, `_`, `=` or alphanumeric |
 | `bracketsMap a` | [JWT/bracketsMap.lean](../Clap/Lang/Data/JWT/bracketsMap.lean) | `ClapM p (FVec p k)` | per element: `1` on `{`, `-1` on `}`, `0` otherwise, given `2 ^ 9 < p` | `True` |
 
 Three things the table cannot show:
@@ -305,7 +306,7 @@ proof needs it; drop only the value-range ones.
 that `e` holds a byte. So the `F8` comparisons and `F8.isWhitespace` state their
 `convertsM_unchecked` over `F.conversion` operands. The gadgets that have one are `lessThan`,
 `lessEqThan`, `greaterThan`, `greaterEqThan`, `arraySelectorCore`, `F8.lessThan`, `F8.greaterThan`,
-`F8.lessEqThan`, `F8.greaterEqThan` and `F8.isWhitespace`.
+`F8.lessEqThan`, `F8.greaterEqThan`, `F8.isWhitespace` and `Base64.base64UrlLookup.rangeFlag`.
 
 ## Naming rules
 
