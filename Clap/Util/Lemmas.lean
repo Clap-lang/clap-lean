@@ -26,6 +26,14 @@ verbatim from the old model's `Clap/Util/Wheels.lean`. -/
 def minBits' (x : ℕ) : ℕ :=
   if x = 0 then 1 else Nat.log2 x + 1
 
+lemma minBits_lt {a b} : a < b → a < 2 ^ minBits' b := by
+  intro lt
+  unfold minBits'
+  split
+  · grind
+  · rename_i hb
+    exact lt.trans ((Nat.log2_lt hb).mp (Nat.lt_succ_self _))
+
 lemma lt_two_pow_minBits' (x : ℕ) : x < 2 ^ minBits' x := by
   by_cases hx : x = 0
   · simp [minBits', hx]
