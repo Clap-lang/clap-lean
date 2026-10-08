@@ -1,201 +1,210 @@
-// Generated one-off; see the legend for the pinned versions.
+// Regenerate the .svg and .png: scripts/render-graphs.py
+// status = proven | sorry | nospec | todo | gate (colors and legend text: scripts/render-graphs.py)
 digraph clap {
   graph [rankdir=LR, ranksep=1.1, nodesep=0.18, fontname="Helvetica", labelloc=t, fontsize=22,
-         label=<<B>CLAP gadget dependency graph: port and proof status</B><BR/><FONT POINT-SIZE="12">CLAP fasapa/rsa · 2026-10-06 · edges: A calls B (new body if ported, old body otherwise)</FONT>>];
+         label=<<B>CLAP gadget dependency graph: port and proof status</B><BR/><FONT POINT-SIZE="12">CLAP fasapa/rsa + PRs #76, #77, #79 · 2026-10-08 · edges: A calls B (new body if ported, old body otherwise)</FONT>>];
   node [shape=plain, fontname="Helvetica"];
   edge [color="#000000a0", arrowsize=0.6];
   subgraph cluster_Keyless {
     label=<<B>Keyless — old/Clap/Keyless.lean</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "assertFieldName" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>assertFieldName</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Keyless.lean:165 (c)</FONT></TD></TR></TABLE>>];
-    "computeIdentityCommitment" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>computeIdentityCommitment</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Keyless.lean:340 (c)</FONT></TD></TR></TABLE>>];
-    "computeJSONStructure" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>computeJSONStructure</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Keyless.lean:205 (c)</FONT></TD></TR></TABLE>>];
-    "keyless" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>keyless</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Keyless.lean:389 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: keyless</I></FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>Clap/Keyless/ has the input allocation</I></FONT></TD></TR></TABLE>>];
-    "muxFString" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>muxFString</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Keyless.lean:154 (c)</FONT></TD></TR></TABLE>>];
-    "verifyAudField" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>verifyAudField</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Keyless.lean:248 (c)</FONT></TD></TR></TABLE>>];
-    "verifyEvField" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>verifyEvField</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Keyless.lean:282 (c)</FONT></TD></TR></TABLE>>];
-    "verifyExtraField" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>verifyExtraField</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Keyless.lean:301 (c)</FONT></TD></TR></TABLE>>];
-    "verifyJWTStructure" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>verifyJWTStructure</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Keyless.lean:172 (c)</FONT></TD></TR></TABLE>>];
-    "verifyNonce" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>verifyNonce</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Keyless.lean:315 (c)</FONT></TD></TR></TABLE>>];
-    "verifyPublicInputsHash" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>verifyPublicInputsHash</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Keyless.lean:352 (c)</FONT></TD></TR></TABLE>>];
-    "verifyQuotedField" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>verifyQuotedField</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Keyless.lean:217 (c)</FONT></TD></TR></TABLE>>];
-    "verifyTimestamp" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>verifyTimestamp</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Keyless.lean:332 (c)</FONT></TD></TR></TABLE>>];
-    "verifyUnquotedField" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>verifyUnquotedField</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Keyless.lean:235 (c)</FONT></TD></TR></TABLE>>];
+    "assertFieldName" [status=todo, old="Keyless.lean:165 (c)"];
+    "computeIdentityCommitment" [status=todo, old="Keyless.lean:340 (c)"];
+    "computeJSONStructure" [status=todo, old="Keyless.lean:205 (c)"];
+    "keyless" [status=todo, old="Keyless.lean:389 (c)", aptos="keyless", note="Clap/Keyless/ has the input allocation"];
+    "muxFString" [status=todo, old="Keyless.lean:154 (c)"];
+    "verifyAudField" [status=todo, old="Keyless.lean:248 (c)"];
+    "verifyEvField" [status=todo, old="Keyless.lean:282 (c)"];
+    "verifyExtraField" [status=todo, old="Keyless.lean:301 (c)"];
+    "verifyJWTStructure" [status=todo, old="Keyless.lean:172 (c)"];
+    "verifyNonce" [status=todo, old="Keyless.lean:315 (c)"];
+    "verifyPublicInputsHash" [status=todo, old="Keyless.lean:352 (c)"];
+    "verifyQuotedField" [status=todo, old="Keyless.lean:217 (c)"];
+    "verifyTimestamp" [status=todo, old="Keyless.lean:332 (c)"];
+    "verifyUnquotedField" [status=todo, old="Keyless.lean:235 (c)"];
   }
   subgraph cluster_JWT {
     label=<<B>JWT — Data/JWT + old/Clap/JWT.lean</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "bracketsDepthMap" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>bracketsDepthMap</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:110 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: BracketsDepthMap</I></FONT></TD></TR></TABLE>>];
-    "bracketsMap" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>bracketsMap</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/JWT/bracketsMap.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:68 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: BracketsMap</I></FONT></TD></TR></TABLE>>];
-    "emailVerifiedCheck" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>emailVerifiedCheck</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:143 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: EmailVerifiedCheck</I></FONT></TD></TR></TABLE>>];
-    "enforceNotNested" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>enforceNotNested</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:129 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: EnforceNotNested</I></FONT></TD></TR></TABLE>>];
-    "parseEmailVerifiedField" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>parseEmailVerifiedField</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:421 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: ParseEmailVerifiedField</I></FONT></TD></TR></TABLE>>];
-    "parseJWTFieldSharedLogic" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>parseJWTFieldSharedLogic</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:227 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: ParseJWTFieldSharedLogic</I></FONT></TD></TR></TABLE>>];
-    "parseJWTFieldWithQuotedValue" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>parseJWTFieldWithQuotedValue</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:357 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: ParseJWTFieldWithQuotedValue</I></FONT></TD></TR></TABLE>>];
-    "parseJWTFieldWithUnquotedValue" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>parseJWTFieldWithUnquotedValue</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:296 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: ParseJWTFieldWithUnquotedValue</I></FONT></TD></TR></TABLE>>];
-    "stringBodies" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>stringBodies</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: JWT.lean:33 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: StringBodies</I></FONT></TD></TR></TABLE>>];
+    "bracketsDepthMap" [status=proven, new="Data/JWT/bracketsDepthMap.lean", old="JWT.lean:110 (c)", aptos="BracketsDepthMap"];
+    "bracketsMap" [status=proven, new="Data/JWT/bracketsMap.lean", old="JWT.lean:68 (c)", aptos="BracketsMap"];
+    "emailVerifiedCheck" [status=proven, new="Data/JWT/emailVerifiedCheck.lean", old="JWT.lean:143 (c)", aptos="EmailVerifiedCheck"];
+    "enforceNotNested" [status=proven, new="Data/JWT/enforceNotNested.lean", old="JWT.lean:129 (c)", aptos="EnforceNotNested"];
+    "parseEmailVerifiedField" [status=todo, old="JWT.lean:421 (c)", aptos="ParseEmailVerifiedField"];
+    "parseJWTFieldSharedLogic" [status=todo, old="JWT.lean:227 (c)", aptos="ParseJWTFieldSharedLogic"];
+    "parseJWTFieldWithQuotedValue" [status=todo, old="JWT.lean:357 (c)", aptos="ParseJWTFieldWithQuotedValue"];
+    "parseJWTFieldWithUnquotedValue" [status=todo, old="JWT.lean:296 (c)", aptos="ParseJWTFieldWithUnquotedValue"];
+    "stringBodies" [status=proven, new="Data/JWT/stringBodies.lean", old="JWT.lean:33 (c)", aptos="StringBodies"];
   }
   subgraph cluster_Sha2 {
     label=<<B>Sha2 — old/Clap/Sha2/</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "Sha2.ch" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>Sha2.ch</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Sha2/Circuit.lean:32</FONT></TD></TR></TABLE>>];
-    "Sha2.compress" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>Sha2.compress</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Sha2/Basic.lean:218</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: Sha256compression</I></FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>model-agnostic</I></FONT></TD></TR></TABLE>>];
-    "Sha2.digest" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>Sha2.digest</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Sha2/Basic.lean:225</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>model-agnostic</I></FONT></TD></TR></TABLE>>];
-    "Sha2.maj" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>Sha2.maj</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Sha2/Circuit.lean:45</FONT></TD></TR></TABLE>>];
-    "Sha2.schedule" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>Sha2.schedule</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Sha2/Basic.lean:171</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>model-agnostic</I></FONT></TD></TR></TABLE>>];
-    "Sha2.shuffle" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>Sha2.shuffle</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Sha2/Basic.lean:215</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>model-agnostic</I></FONT></TD></TR></TABLE>>];
-    "Sha2.sigma" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>Sha2.sigma</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Sha2/Basic.lean:65</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>σ0/σ1 · rotR, shiftRight</I></FONT></TD></TR></TABLE>>];
-    "Sha2.sum" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>Sha2.sum</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Sha2/Basic.lean:89</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>Σ0/Σ1 · rotR</I></FONT></TD></TR></TABLE>>];
-    "Sha2.xor3" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>Sha2.xor3</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Sha2/Circuit.lean:60</FONT></TD></TR></TABLE>>];
-    "kPlus1Div8" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>kPlus1Div8</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Sha2/Keyless.lean:95 (c)</FONT></TD></TR></TABLE>>];
-    "sha256VerifiedDigest" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>sha256VerifiedDigest</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Sha2/Keyless.lean:134 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: SHA2_256_PaddingVerify + SHA2_256_Prepadded_Hash</I></FONT></TD></TR></TABLE>>];
+    "Sha2.ch" [status=todo, old="Sha2/Circuit.lean:32"];
+    "Sha2.compress" [status=todo, old="Sha2/Basic.lean:218", aptos="Sha256compression", note="model-agnostic"];
+    "Sha2.digest" [status=todo, old="Sha2/Basic.lean:225", note="model-agnostic"];
+    "Sha2.maj" [status=todo, old="Sha2/Circuit.lean:45"];
+    "Sha2.schedule" [status=todo, old="Sha2/Basic.lean:171", note="model-agnostic"];
+    "Sha2.shuffle" [status=todo, old="Sha2/Basic.lean:215", note="model-agnostic"];
+    "Sha2.sigma" [status=todo, old="Sha2/Basic.lean:65", note="σ0/σ1 · rotR, shiftRight"];
+    "Sha2.sum" [status=todo, old="Sha2/Basic.lean:89", note="Σ0/Σ1 · rotR"];
+    "Sha2.xor3" [status=todo, old="Sha2/Circuit.lean:60"];
+    "kPlus1Div8" [status=todo, old="Sha2/Keyless.lean:95 (c)"];
+    "sha256VerifiedDigest" [status=todo, old="Sha2/Keyless.lean:134 (c)", aptos="SHA2_256_PaddingVerify + SHA2_256_Prepadded_Hash"];
   }
   subgraph cluster_RSA {
     label=<<B>Data/RSA — old/Clap/RSA.lean</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "rsa2048e65537Pkcs1v15Verify" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>rsa2048e65537Pkcs1v15Verify</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/RSA/rsa2048e65537Pkcs1v15Verify.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: RSA_2048_e_65537_PKCS1_V1_5_Verify (keyless.circom)</I></FONT></TD></TR></TABLE>>];
-    "rsaPkcs1v15Verify" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>rsaPkcs1v15Verify</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/RSA/rsaPkcs1v15Verify.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: RSA.lean:26 (RSA_2048_e_65537_PKCS1_V1_5_Verify)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: RSA_PKCS1_v1_5_Verify</I></FONT></TD></TR></TABLE>>];
-    "fpPow65537Mod" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>fpPow65537Mod</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/RSA/fpPow65537Mod.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: RSA.lean:16</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: FpPow65537Mod</I></FONT></TD></TR></TABLE>>];
-    "fpSquareN" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>fpSquareN</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/RSA/fpSquareN.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: FpPow65537Mod&#39;s doublers</I></FONT></TD></TR></TABLE>>];
+    "rsa2048e65537Pkcs1v15Verify" [status=proven, new="Data/RSA/rsa2048e65537Pkcs1v15Verify.lean", aptos="RSA_2048_e_65537_PKCS1_V1_5_Verify (keyless.circom)"];
+    "rsaPkcs1v15Verify" [status=proven, new="Data/RSA/rsaPkcs1v15Verify.lean", old="RSA.lean:26 (RSA_2048_e_65537_PKCS1_V1_5_Verify)", aptos="RSA_PKCS1_v1_5_Verify"];
+    "fpPow65537Mod" [status=proven, new="Data/RSA/fpPow65537Mod.lean", old="RSA.lean:16", aptos="FpPow65537Mod"];
+    "fpSquareN" [status=proven, new="Data/RSA/fpSquareN.lean", aptos="FpPow65537Mod's doublers"];
   }
   subgraph cluster_Data_BigInt {
     label=<<B>Data/BigInt</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "bigLessThan" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>bigLessThan</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/BigInt/bigLessThan.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: BigLessThan</I></FONT></TD></TR></TABLE>>];
+    "bigLessThan" [status=proven, new="Data/BigInt/bigLessThan.lean", aptos="BigLessThan"];
   }
   subgraph cluster_Data_Base64Len {
     label=<<B>Data/Base64Len</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "base64UrlDecode" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#ffb870"><B>base64UrlDecode</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Base64Len/base64UrlDecode.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Base64Len.lean:126</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: Base64UrlDecode</I></FONT></TD></TR></TABLE>>];
-    "base64UrlDecodedLength" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>base64UrlDecodedLength</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Base64Len/base64UrlDecodedLength.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Base64Len.lean:50</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: Base64UrlDecodedLength</I></FONT></TD></TR></TABLE>>];
-    "base64UrlLookup" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#ffb870"><B>base64UrlLookup</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Base64Len/base64UrlLookup.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Base64Len.lean:65</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: Base64UrlLookup</I></FONT></TD></TR></TABLE>>];
+    "base64UrlDecode" [status=proven, new="Data/Base64Len/base64UrlDecode.lean", old="Base64Len.lean:126", aptos="Base64UrlDecode"];
+    "base64UrlDecodedLength" [status=proven, new="Data/Base64Len/base64UrlDecodedLength.lean", old="Base64Len.lean:50", aptos="Base64UrlDecodedLength"];
+    "base64UrlLookup" [status=proven, new="Data/Base64Len/base64UrlLookup.lean", old="Base64Len.lean:65", aptos="Base64UrlLookup"];
   }
   subgraph cluster_Data_FString {
     label=<<B>Data/FString</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "FString.ofString" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FString.ofString</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FString/ofString.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:584</FONT></TD></TR></TABLE>>];
-    "asciiDigitsToScalar" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>asciiDigitsToScalar</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FString/asciiDigitsToScalar.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:116 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: AsciiDigitsToScalar</I></FONT></TD></TR></TABLE>>];
-    "assertIsAsciiDigits" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>assertIsAsciiDigits</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FString/assertIsAsciiDigits.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:100 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: AssertIsAsciiDigits</I></FONT></TD></TR></TABLE>>];
-    "assertIsConcatenation" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>assertIsConcatenation</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FString/assertIsConcatenation.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:248 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: AssertIsConcatenation</I></FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>+ random-oracle bound</I></FONT></TD></TR></TABLE>>];
-    "assertisSubstring" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>assertisSubstring</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FString/isSubstring.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:225 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: AssertIsSubstring</I></FONT></TD></TR></TABLE>>];
-    "isPaddedOf" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>isPaddedOf</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FString/isPaddedOf.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:597</FONT></TD></TR></TABLE>>];
-    "isSubstring" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>isSubstring</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FString/isSubstring.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:192 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: IsSubstring</I></FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>+ random-oracle bound</I></FONT></TD></TR></TABLE>>];
+    "FString.ofString" [status=proven, new="Data/FString/ofString.lean", old="Lang.lean:584"];
+    "asciiDigitsToScalar" [status=proven, new="Data/FString/asciiDigitsToScalar.lean", old="FString.lean:116 (c)", aptos="AsciiDigitsToScalar"];
+    "assertIsAsciiDigits" [status=proven, new="Data/FString/assertIsAsciiDigits.lean", old="FString.lean:100 (c)", aptos="AssertIsAsciiDigits"];
+    "assertIsConcatenation" [status=proven, new="Data/FString/assertIsConcatenation.lean", old="FString.lean:248 (c)", aptos="AssertIsConcatenation", note="+ random-oracle bound"];
+    "assertisSubstring" [status=proven, new="Data/FString/isSubstring.lean", old="FString.lean:225 (c)", aptos="AssertIsSubstring"];
+    "isPaddedOf" [status=proven, new="Data/FString/isPaddedOf.lean", old="Lang.lean:597"];
+    "isSubstring" [status=proven, new="Data/FString/isSubstring.lean", old="FString.lean:192 (c)", aptos="IsSubstring", note="+ random-oracle bound"];
   }
   subgraph cluster_Data_HashToField {
     label=<<B>Data/HashToField</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "hash64BitLimbsToField" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>hash64BitLimbsToField</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/HashToField/hash64BitLimbsToField.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: HashToField.lean:14 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: Hash64BitLimbsToFieldWithLen</I></FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>under Computes H</I></FONT></TD></TR></TABLE>>];
-    "hashBytesToField" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>hashBytesToField</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/HashToField/hashBytesToField.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: HashToField.lean:55 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: HashBytesToFieldWithLen</I></FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>under Computes H</I></FONT></TD></TR></TABLE>>];
-    "hashElemsToField" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>hashElemsToField</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/HashToField/hashElemsToField.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: HashToField.lean:30 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: HashElemsToField</I></FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>under Computes H</I></FONT></TD></TR></TABLE>>];
+    "hash64BitLimbsToField" [status=proven, new="Data/HashToField/hash64BitLimbsToField.lean", old="HashToField.lean:14 (c)", aptos="Hash64BitLimbsToFieldWithLen", note="under Computes H"];
+    "hashBytesToField" [status=proven, new="Data/HashToField/hashBytesToField.lean", old="HashToField.lean:55 (c)", aptos="HashBytesToFieldWithLen", note="under Computes H"];
+    "hashElemsToField" [status=proven, new="Data/HashToField/hashElemsToField.lean", old="HashToField.lean:30 (c)", aptos="HashElemsToField", note="under Computes H"];
   }
   subgraph cluster_Poseidon {
     label=<<B>Poseidon</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "poseidonBN254" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#fff1a0"><B>poseidonBN254</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Poseidon/Poseidon.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Poseidon/Poseidon.lean:166 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: Poseidon</I></FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>no spec by design: users assume Computes H</I></FONT></TD></TR></TABLE>>];
+    "poseidonBN254" [status=nospec, new="Poseidon/Poseidon.lean", old="Poseidon/Poseidon.lean:166 (c)", aptos="Poseidon", note="no spec by design: users assume Computes H"];
   }
   subgraph cluster_Data_Packing {
     label=<<B>Data/Packing</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "assertIs64BitLimbs" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>assertIs64BitLimbs</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Packing/assertIs64BitLimbs.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Packing.lean:9</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: AssertIs64BitLimbs</I></FONT></TD></TR></TABLE>>];
-    "assertIsBytes" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>assertIsBytes</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Packing/assertIsBytes.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Packing.lean:16</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: AssertIsBytes</I></FONT></TD></TR></TABLE>>];
-    "bigEndianBits2Num" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>bigEndianBits2Num</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Packing/bigEndianBits2Num.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Packing.lean:23</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: BigEndianBits2Num</I></FONT></TD></TR></TABLE>>];
-    "bigEndianBitsToScalars" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>bigEndianBitsToScalars</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Packing/bigEndianBitsToScalars.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Packing.lean:41</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: BigEndianBitsToScalars</I></FONT></TD></TR></TABLE>>];
-    "bytes2BigEndianBits" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>bytes2BigEndianBits</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Packing/bytes2BigEndianBits.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Packing.lean:25</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: Bytes2BigEndianBits</I></FONT></TD></TR></TABLE>>];
-    "chunksToFieldElem" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>chunksToFieldElem</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Packing/chunksToFieldElem.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Packing.lean:28</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: ChunksToFieldElem</I></FONT></TD></TR></TABLE>>];
-    "chunksToFieldElems" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>chunksToFieldElems</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Packing/chunksToFieldElems.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Packing.lean:47</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: ChunksToFieldElems</I></FONT></TD></TR></TABLE>>];
-    "num2BigEndianBits" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>num2BigEndianBits</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Packing/num2BigEndianBits.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: Num2BigEndianBits</I></FONT></TD></TR></TABLE>>];
+    "assertIs64BitLimbs" [status=proven, new="Data/Packing/assertIs64BitLimbs.lean", old="Packing.lean:9", aptos="AssertIs64BitLimbs"];
+    "assertIsBytes" [status=proven, new="Data/Packing/assertIsBytes.lean", old="Packing.lean:16", aptos="AssertIsBytes"];
+    "bigEndianBits2Num" [status=proven, new="Data/Packing/bigEndianBits2Num.lean", old="Packing.lean:23", aptos="BigEndianBits2Num"];
+    "bigEndianBitsToScalars" [status=proven, new="Data/Packing/bigEndianBitsToScalars.lean", old="Packing.lean:41", aptos="BigEndianBitsToScalars"];
+    "bytes2BigEndianBits" [status=proven, new="Data/Packing/bytes2BigEndianBits.lean", old="Packing.lean:25", aptos="Bytes2BigEndianBits"];
+    "chunksToFieldElem" [status=proven, new="Data/Packing/chunksToFieldElem.lean", old="Packing.lean:28", aptos="ChunksToFieldElem"];
+    "chunksToFieldElems" [status=proven, new="Data/Packing/chunksToFieldElems.lean", old="Packing.lean:47", aptos="ChunksToFieldElems"];
+    "num2BigEndianBits" [status=proven, new="Data/Packing/num2BigEndianBits.lean", aptos="Num2BigEndianBits"];
   }
   subgraph cluster_Data_FArray {
     label=<<B>Data/FArray</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "FArray.and" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FArray.and</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FArray/and.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR></TABLE>>];
-    "FArray.assert_eq" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FArray.assert_eq</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FArray/assert_eq.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:405</FONT></TD></TR></TABLE>>];
-    "FArray.bits2num" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FArray.bits2num</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FArray/bits2num.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:13</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: Bits2Num</I></FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8"><I>old: a primitive</I></FONT></TD></TR></TABLE>>];
-    "FArray.default" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FArray.default</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FArray/default.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:391</FONT></TD></TR></TABLE>>];
-    "FArray.eq" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FArray.eq</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FArray/eq.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:408</FONT></TD></TR></TABLE>>];
-    "FArray.ofBitVec" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FArray.ofBitVec</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FArray/ofBitVec.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:393</FONT></TD></TR></TABLE>>];
-    "FArray.sum" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FArray.sum</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FArray/sum.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: Sum</I></FONT></TD></TR></TABLE>>];
-    "FArray.xor" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FArray.xor</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FArray/xor.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR></TABLE>>];
-    "FArray.xorScan" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FArray.xorScan</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FArray/xorScan.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR></TABLE>>];
-    "FArray.zeroExtend" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FArray.zeroExtend</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FArray/zeroExtend.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR></TABLE>>];
-    "arraySelector" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>arraySelector</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FArray/arraySelector.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Array.lean:31</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: ArraySelector</I></FONT></TD></TR></TABLE>>];
-    "arraySelectorComplex" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>arraySelectorComplex</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FArray/arraySelectorComplex.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Array.lean:58</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: ArraySelectorComplex</I></FONT></TD></TR></TABLE>>];
-    "leftArraySelector" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>leftArraySelector</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FArray/leftArraySelector.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Array.lean:48</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: LeftArraySelector</I></FONT></TD></TR></TABLE>>];
-    "oneHotRaw" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>oneHotRaw</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FArray/OneHotRaw.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Array.lean:11</FONT></TD></TR></TABLE>>];
-    "rightArraySelector" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>rightArraySelector</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FArray/rightArraySelector.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Array.lean:53</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: RightArraySelector</I></FONT></TD></TR></TABLE>>];
-    "selectArrayValue" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>selectArrayValue</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FArray/selectArrayValue.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Array.lean:43</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: SelectArrayValue</I></FONT></TD></TR></TABLE>>];
-    "singleOneArray" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>singleOneArray</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FArray/singleOneArray.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Array.lean:15</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: SingleOneArray</I></FONT></TD></TR></TABLE>>];
+    "FArray.and" [status=proven, new="Data/FArray/and.lean"];
+    "FArray.assert_eq" [status=proven, new="Data/FArray/assert_eq.lean", old="Lang.lean:405"];
+    "FArray.bits2num" [status=proven, new="Data/FArray/bits2num.lean", old="Lang.lean:13", aptos="Bits2Num", note="old: a primitive"];
+    "FArray.default" [status=proven, new="Data/FArray/default.lean", old="Lang.lean:391"];
+    "FArray.eq" [status=proven, new="Data/FArray/eq.lean", old="Lang.lean:408"];
+    "FArray.ofBitVec" [status=proven, new="Data/FArray/ofBitVec.lean", old="Lang.lean:393"];
+    "FArray.sum" [status=proven, new="Data/FArray/sum.lean", aptos="Sum"];
+    "FArray.xor" [status=proven, new="Data/FArray/xor.lean"];
+    "FArray.xorScan" [status=proven, new="Data/FArray/xorScan.lean"];
+    "FArray.zeroExtend" [status=proven, new="Data/FArray/zeroExtend.lean"];
+    "arraySelector" [status=proven, new="Data/FArray/arraySelector.lean", old="Array.lean:31", aptos="ArraySelector"];
+    "arraySelectorComplex" [status=proven, new="Data/FArray/arraySelectorComplex.lean", old="Array.lean:58", aptos="ArraySelectorComplex"];
+    "leftArraySelector" [status=proven, new="Data/FArray/leftArraySelector.lean", old="Array.lean:48", aptos="LeftArraySelector"];
+    "oneHotRaw" [status=proven, new="Data/FArray/OneHotRaw.lean", old="Array.lean:11"];
+    "rightArraySelector" [status=proven, new="Data/FArray/rightArraySelector.lean", old="Array.lean:53", aptos="RightArraySelector"];
+    "selectArrayValue" [status=proven, new="Data/FArray/selectArrayValue.lean", old="Array.lean:43", aptos="SelectArrayValue"];
+    "singleOneArray" [status=proven, new="Data/FArray/singleOneArray.lean", old="Array.lean:15", aptos="SingleOneArray"];
   }
   subgraph cluster_Data_FBitVec {
     label=<<B>Data/FBitVec</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "FBitVec.assert_eq" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FBitVec.assert_eq</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FBitVec/assert_eq.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:405</FONT></TD></TR></TABLE>>];
-    "FBitVec.binSum" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FBitVec.binSum</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FBitVec/binSum.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:401</FONT></TD></TR></TABLE>>];
-    "FBitVec.eq" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FBitVec.eq</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FBitVec/eq.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:408</FONT></TD></TR></TABLE>>];
+    "FBitVec.assert_eq" [status=proven, new="Data/FBitVec/assert_eq.lean", old="Lang.lean:405"];
+    "FBitVec.binSum" [status=proven, new="Data/FBitVec/binSum.lean", old="Lang.lean:401"];
+    "FBitVec.eq" [status=proven, new="Data/FBitVec/eq.lean", old="Lang.lean:408"];
   }
   subgraph cluster_Data_FVec {
     label=<<B>Data/FVec</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "FVec.eq" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FVec.eq</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FVec/eq.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR></TABLE>>];
-    "FVec.assert_eq" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FVec.assert_eq</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FVec/assert_eq.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR></TABLE>>];
-    "powers" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>powers</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FVec/powers.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:176 (c)</FONT></TD></TR></TABLE>>];
+    "FVec.eq" [status=proven, new="Data/FVec/eq.lean"];
+    "FVec.assert_eq" [status=proven, new="Data/FVec/assert_eq.lean"];
+    "powers" [status=proven, new="Data/FVec/powers.lean", old="FString.lean:176 (c)"];
   }
   subgraph cluster_Data_F8 {
     label=<<B>Data/F8</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "F8.eq" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>F8.eq</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/F8/F8.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:309</FONT></TD></TR></TABLE>>];
-    "F8.greaterEqThan" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>F8.greaterEqThan</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/F8/F8.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR></TABLE>>];
-    "F8.greaterThan" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>F8.greaterThan</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/F8/F8.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:314</FONT></TD></TR></TABLE>>];
-    "F8.isWhitespace" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>F8.isWhitespace</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/F8/isWhitespace.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:14 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: IsWhitespace</I></FONT></TD></TR></TABLE>>];
-    "F8.lessEqThan" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>F8.lessEqThan</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/F8/F8.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR></TABLE>>];
-    "F8.lessThan" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>F8.lessThan</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/F8/F8.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:311</FONT></TD></TR></TABLE>>];
+    "F8.eq" [status=proven, new="Data/F8/F8.lean", old="Lang.lean:309"];
+    "F8.greaterEqThan" [status=proven, new="Data/F8/F8.lean"];
+    "F8.greaterThan" [status=proven, new="Data/F8/F8.lean", old="Lang.lean:314"];
+    "F8.isWhitespace" [status=proven, new="Data/F8/isWhitespace.lean", old="FString.lean:14 (c)", aptos="IsWhitespace"];
+    "F8.lessEqThan" [status=proven, new="Data/F8/F8.lean"];
+    "F8.lessThan" [status=proven, new="Data/F8/F8.lean", old="Lang.lean:311"];
   }
   subgraph cluster_Data_Widths {
     label=<<B>Data/Widths — FBV8 / F32 / F64</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "F32.add" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>F32.add</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Widths.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:1000</FONT></TD></TR></TABLE>>];
-    "F32.assert_eq" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>F32.assert_eq</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Widths.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:1004</FONT></TD></TR></TABLE>>];
-    "F32.default" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>F32.default</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Widths.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:986</FONT></TD></TR></TABLE>>];
-    "F32.ofF" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>F32.ofF</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Widths.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:994</FONT></TD></TR></TABLE>>];
-    "F32.ofFBV8" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>F32.ofFBV8</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Widths.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:997</FONT></TD></TR></TABLE>>];
-    "F32.ofUInt32" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>F32.ofUInt32</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Widths.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:991</FONT></TD></TR></TABLE>>];
-    "F64.ofF" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>F64.ofF</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Widths.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:1045</FONT></TD></TR></TABLE>>];
-    "FBV8.ofF" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FBV8.ofF</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Widths.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:955</FONT></TD></TR></TABLE>>];
-    "FBV8.ofUInt8" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FBV8.ofUInt8</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/Widths.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:952</FONT></TD></TR></TABLE>>];
+    "F32.add" [status=proven, new="Data/Widths.lean", old="Lang.lean:1000"];
+    "F32.assert_eq" [status=proven, new="Data/Widths.lean", old="Lang.lean:1004"];
+    "F32.default" [status=proven, new="Data/Widths.lean", old="Lang.lean:986"];
+    "F32.ofF" [status=proven, new="Data/Widths.lean", old="Lang.lean:994"];
+    "F32.ofFBV8" [status=proven, new="Data/Widths.lean", old="Lang.lean:997"];
+    "F32.ofUInt32" [status=proven, new="Data/Widths.lean", old="Lang.lean:991"];
+    "F64.ofF" [status=proven, new="Data/Widths.lean", old="Lang.lean:1045"];
+    "FBV8.ofF" [status=proven, new="Data/Widths.lean", old="Lang.lean:955"];
+    "FBV8.ofUInt8" [status=proven, new="Data/Widths.lean", old="Lang.lean:952"];
   }
   subgraph cluster_Core_FUnit {
     label=<<B>Core/FUnit</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "assert_eq" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>assert_eq</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/FUnit/assert_eq.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:28</FONT></TD></TR></TABLE>>];
-    "assert_range" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>assert_range</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/FUnit/assert_range.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:25</FONT></TD></TR></TABLE>>];
-    "guardedAssertEq" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>guardedAssertEq</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/FUnit/guardedAssertEq.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:42</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: ConditionallyAssertEqual</I></FONT></TD></TR></TABLE>>];
-    "guardedEq0" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>guardedEq0</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/FUnit/guardedEq0.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:38</FONT></TD></TR></TABLE>>];
+    "assert_eq" [status=proven, new="Core/FUnit/assert_eq.lean", old="Lang.lean:28"];
+    "assert_range" [status=proven, new="Core/FUnit/assert_range.lean", old="Lang.lean:25"];
+    "guardedAssertEq" [status=proven, new="Core/FUnit/guardedAssertEq.lean", old="Lang.lean:42", aptos="ConditionallyAssertEqual"];
+    "guardedEq0" [status=proven, new="Core/FUnit/guardedEq0.lean", old="Lang.lean:38"];
   }
   subgraph cluster_Core_FB {
     label=<<B>Core/FB</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "FB.and" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FB.and</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/FB/and.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:68</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: AND</I></FONT></TD></TR></TABLE>>];
-    "FB.assertBool" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FB.assertBool</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/FB/assertBool.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:65</FONT></TD></TR></TABLE>>];
-    "FB.assert_eq" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FB.assert_eq</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/FB/assert_eq.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:88</FONT></TD></TR></TABLE>>];
-    "FB.conditionallyAssert" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FB.conditionallyAssert</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/FB/conditionallyAssert.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:91</FONT></TD></TR></TABLE>>];
-    "FB.eq" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FB.eq</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/FB/eqBool.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:62</FONT></TD></TR></TABLE>>];
-    "FB.ofBool" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FB.ofBool</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/FB/ofBool.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:56</FONT></TD></TR></TABLE>>];
-    "FB.or" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FB.or</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/FB/or.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:73</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: OR</I></FONT></TD></TR></TABLE>>];
-    "FB.xor" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FB.xor</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/FB/xor.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:80</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: XOR</I></FONT></TD></TR></TABLE>>];
-    "assert" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>assert</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/FB/assert.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:85</FONT></TD></TR></TABLE>>];
-    "eq" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>eq</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/FB/eq.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:31</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: IsEqual</I></FONT></TD></TR></TABLE>>];
-    "not" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>not</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/FB/not.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:78</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: NOT</I></FONT></TD></TR></TABLE>>];
+    "FB.and" [status=proven, new="Core/FB/and.lean", old="Lang.lean:68", aptos="AND"];
+    "FB.assertBool" [status=proven, new="Core/FB/assertBool.lean", old="Lang.lean:65"];
+    "FB.assert_eq" [status=proven, new="Core/FB/assert_eq.lean", old="Lang.lean:88"];
+    "FB.conditionallyAssert" [status=proven, new="Core/FB/conditionallyAssert.lean", old="Lang.lean:91"];
+    "FB.eq" [status=proven, new="Core/FB/eqBool.lean", old="Lang.lean:62"];
+    "FB.ofBool" [status=proven, new="Core/FB/ofBool.lean", old="Lang.lean:56"];
+    "FB.or" [status=proven, new="Core/FB/or.lean", old="Lang.lean:73", aptos="OR"];
+    "FB.xor" [status=proven, new="Core/FB/xor.lean", old="Lang.lean:80", aptos="XOR"];
+    "assert" [status=proven, new="Core/FB/assert.lean", old="Lang.lean:85"];
+    "eq" [status=proven, new="Core/FB/eq.lean", old="Lang.lean:31", aptos="IsEqual"];
+    "not" [status=proven, new="Core/FB/not.lean", old="Lang.lean:78", aptos="NOT"];
   }
   subgraph cluster_Core_F {
     label=<<B>Core/F</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "conditionalSwap" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>conditionalSwap</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/F/conditionalSwap.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:45</FONT></TD></TR></TABLE>>];
-    "dotProduct" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>dotProduct</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/F/dotProduct.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:34, JWT.lean:119 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: EscalarProduct</I></FONT></TD></TR></TABLE>>];
-    "greaterEqThan" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>greaterEqThan</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/F/lessThan.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:187</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: GreaterEqThan</I></FONT></TD></TR></TABLE>>];
-    "greaterThan" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>greaterThan</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/F/lessThan.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:184</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: GreaterThan</I></FONT></TD></TR></TABLE>>];
-    "lessEqThan" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>lessEqThan</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/F/lessThan.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:181</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: LessEqThan</I></FONT></TD></TR></TABLE>>];
-    "lessThan" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>lessThan</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/F/lessThan.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:176</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: LessThan</I></FONT></TD></TR></TABLE>>];
-    "ofChar" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>ofChar</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/F/ofChar.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:307</FONT></TD></TR></TABLE>>];
-    "ofUInt8" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>ofUInt8</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Core/F/ofUInt8.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:305</FONT></TD></TR></TABLE>>];
+    "conditionalSwap" [status=proven, new="Core/F/conditionalSwap.lean", old="Lang.lean:45"];
+    "dotProduct" [status=proven, new="Core/F/dotProduct.lean", old="Lang.lean:34, JWT.lean:119 (c)", aptos="EscalarProduct"];
+    "greaterEqThan" [status=proven, new="Core/F/lessThan.lean", old="Lang.lean:187", aptos="GreaterEqThan"];
+    "greaterThan" [status=proven, new="Core/F/lessThan.lean", old="Lang.lean:184", aptos="GreaterThan"];
+    "lessEqThan" [status=proven, new="Core/F/lessThan.lean", old="Lang.lean:181", aptos="LessEqThan"];
+    "lessThan" [status=proven, new="Core/F/lessThan.lean", old="Lang.lean:176", aptos="LessThan"];
+    "ofChar" [status=proven, new="Core/F/ofChar.lean", old="Lang.lean:307"];
+    "ofUInt8" [status=proven, new="Core/F/ofUInt8.lean", old="Lang.lean:305"];
   }
   subgraph cluster_gates {
-    label=<<B>CLAP gates — Model/eDSL.lean</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "eq0" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#b4d4f0"><B>eq0</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">gate: Model/eDSL.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:8</FONT></TD></TR></TABLE>>];
-    "fpmul" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#b4d4f0"><B>fpmul</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">gate: Model/eDSL.lean · wrapper: Gate/fpmul.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:12</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: FpMul</I></FONT></TD></TR></TABLE>>];
-    "isZero" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#b4d4f0"><B>isZero</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">gate: Model/eDSL.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:10</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: IsZero</I></FONT></TD></TR></TABLE>>];
-    "num2bits" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#b4d4f0"><B>num2bits</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">gate: Model/eDSL.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:11</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: Num2Bits</I></FONT></TD></TR></TABLE>>];
-    "share" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#b4d4f0"><B>share</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">gate: Model/eDSL.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:9</FONT></TD></TR></TABLE>>];
+    label=<<B>CLAP gates — Model/eDSL.lean</B>>; fontsize=13; style="rounded,dashed"; color="#888888"; fade=true;
+    "eq0" [status=gate, gate="Model/eDSL.lean", old="Lang.lean:8"];
+    "fpmul" [status=gate, gate="Model/eDSL.lean · wrapper: Gate/fpmul.lean", old="Lang.lean:12", aptos="FpMul"];
+    "isZero" [status=gate, gate="Model/eDSL.lean", old="Lang.lean:10", aptos="IsZero"];
+    "num2bits" [status=gate, gate="Model/eDSL.lean", old="Lang.lean:11", aptos="Num2Bits"];
+    "share" [status=gate, gate="Model/eDSL.lean", old="Lang.lean:9"];
   }
-  legend [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="2" CELLPADDING="4" BGCOLOR="white"><TR><TD COLSPAN="3"><B>Legend</B></TD></TR><TR><TD BGCOLOR="#a8dba8" WIDTH="24"> </TD><TD ALIGN="LEFT">proven (convertsM, no sorry)</TD><TD ALIGN="RIGHT">86</TD></TR><TR><TD BGCOLOR="#ffb870" WIDTH="24"> </TD><TD ALIGN="LEFT">ported, spec has sorry</TD><TD ALIGN="RIGHT">2</TD></TR><TR><TD BGCOLOR="#fff1a0" WIDTH="24"> </TD><TD ALIGN="LEFT">ported, no spec</TD><TD ALIGN="RIGHT">1</TD></TR><TR><TD BGCOLOR="#f4a6a6" WIDTH="24"> </TD><TD ALIGN="LEFT">not ported (old model only)</TD><TD ALIGN="RIGHT">33</TD></TR><TR><TD BGCOLOR="#b4d4f0" WIDTH="24"> </TD><TD ALIGN="LEFT">CLAP gate (eDSL primitive)</TD><TD ALIGN="RIGHT">5</TD></TR><TR><TD></TD><TD ALIGN="LEFT"><B>total</B></TD><TD ALIGN="RIGHT"><B>127</B></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">new: file under Clap/Lang/ · old: definition under old/Clap/, (c) = commented out</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">Aptos: the Circom template it corresponds to, for reference only</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">edges into gates are faded</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">omitted: mkF/mkAdd/mkSub/mkMul, iteration combinators, test helpers;</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">internal steps (e.g. isSubstring.check) are folded into their gadget</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">sorryAx from bn254/goldilocks primality is ignored</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">Aptos reference: keyless-zk-proofs @ dc10a06</FONT></TD></TR></TABLE>>];
+  legend [
+    note="new: file under Clap/Lang/ · old: definition under old/Clap/, (c) = commented out",
+    note="Aptos: the Circom template it corresponds to, for reference only",
+    note="edges into gates are faded",
+    note="omitted: mkF/mkAdd/mkSub/mkMul, iteration combinators, test helpers;",
+    note="internal steps (e.g. isSubstring.check) are folded into their gadget",
+    note="sorryAx from bn254/goldilocks primality is ignored",
+    note="Aptos reference: keyless-zk-proofs @ dc10a06"
+  ];
   "F32.add" -> "FBitVec.binSum";
   "F32.assert_eq" -> "FArray.assert_eq";
   "F32.default" -> "FArray.default";
-  "F32.ofF" -> "num2bits" [color="#00000030"];
+  "F32.ofF" -> "num2bits";
   "F32.ofFBV8" -> "FArray.zeroExtend";
   "F32.ofUInt32" -> "FArray.ofBitVec";
-  "F64.ofF" -> "num2bits" [color="#00000030"];
+  "F64.ofF" -> "num2bits";
   "F8.eq" -> "eq";
   "F8.greaterEqThan" -> "greaterEqThan";
   "F8.greaterThan" -> "greaterThan";
@@ -213,17 +222,17 @@ digraph clap {
   "FArray.eq" -> "eq";
   "FArray.xor" -> "FB.xor";
   "FArray.xorScan" -> "FB.xor";
-  "FB.assertBool" -> "eq0" [color="#00000030"];
+  "FB.assertBool" -> "eq0";
   "FB.assert_eq" -> "assert_eq";
   "FB.conditionallyAssert" -> "FB.and";
-  "FB.conditionallyAssert" -> "eq0" [color="#00000030"];
+  "FB.conditionallyAssert" -> "eq0";
   "FB.conditionallyAssert" -> "not";
   "FB.eq" -> "eq";
-  "FBV8.ofF" -> "num2bits" [color="#00000030"];
+  "FBV8.ofF" -> "num2bits";
   "FBV8.ofUInt8" -> "FArray.ofBitVec";
   "FBitVec.assert_eq" -> "FArray.assert_eq";
   "FBitVec.binSum" -> "FArray.bits2num";
-  "FBitVec.binSum" -> "num2bits" [color="#00000030"];
+  "FBitVec.binSum" -> "num2bits";
   "FBitVec.eq" -> "FArray.eq";
   "FString.ofString" -> "ofChar";
   "FVec.eq" -> "FB.and";
@@ -236,7 +245,7 @@ digraph clap {
   "rsa2048e65537Pkcs1v15Verify" -> "rsaPkcs1v15Verify";
   "rsaPkcs1v15Verify" -> "FVec.assert_eq";
   "rsaPkcs1v15Verify" -> "fpPow65537Mod";
-  "fpSquareN" -> "fpmul" [color="#00000030"];
+  "fpSquareN" -> "fpmul";
   "bigLessThan" -> "FB.and";
   "bigLessThan" -> "FB.or";
   "bigLessThan" -> "eq";
@@ -246,7 +255,7 @@ digraph clap {
   "Sha2.compress" -> "Sha2.schedule";
   "Sha2.compress" -> "Sha2.shuffle";
   "Sha2.digest" -> "Sha2.compress";
-  "Sha2.maj" -> "share" [color="#00000030"];
+  "Sha2.maj" -> "share";
   "Sha2.schedule" -> "F32.add";
   "Sha2.schedule" -> "Sha2.sigma";
   "Sha2.shuffle" -> "F32.add";
@@ -255,7 +264,7 @@ digraph clap {
   "Sha2.shuffle" -> "Sha2.sum";
   "Sha2.sigma" -> "Sha2.xor3";
   "Sha2.sum" -> "Sha2.xor3";
-  "Sha2.xor3" -> "share" [color="#00000030"];
+  "Sha2.xor3" -> "share";
   "arraySelector" -> "FArray.xor";
   "arraySelector" -> "FArray.xorScan";
   "arraySelector" -> "FB.and";
@@ -266,15 +275,15 @@ digraph clap {
   "arraySelector" -> "oneHotRaw";
   "arraySelectorComplex" -> "FArray.and";
   "arraySelectorComplex" -> "assert";
-  "arraySelectorComplex" -> "isZero" [color="#00000030"];
+  "arraySelectorComplex" -> "isZero";
   "arraySelectorComplex" -> "leftArraySelector";
   "arraySelectorComplex" -> "not";
   "arraySelectorComplex" -> "rightArraySelector";
   "asciiDigitsToScalar" -> "assertIsAsciiDigits";
   "asciiDigitsToScalar" -> "eq";
-  "asciiDigitsToScalar" -> "eq0" [color="#00000030"];
-  "asciiDigitsToScalar" -> "share" [color="#00000030"];
-  "assert" -> "eq0" [color="#00000030"];
+  "asciiDigitsToScalar" -> "eq0";
+  "asciiDigitsToScalar" -> "share";
+  "assert" -> "eq0";
   "assert" -> "not";
   "assertFieldName" -> "FB.conditionallyAssert";
   "assertFieldName" -> "isPaddedOf";
@@ -282,40 +291,42 @@ digraph clap {
   "assertIsAsciiDigits" -> "FB.and";
   "assertIsAsciiDigits" -> "arraySelector";
   "assertIsAsciiDigits" -> "assert_range";
-  "assertIsAsciiDigits" -> "eq0" [color="#00000030"];
+  "assertIsAsciiDigits" -> "eq0";
   "assertIsAsciiDigits" -> "greaterThan";
   "assertIsAsciiDigits" -> "lessThan";
   "assertIsAsciiDigits" -> "not";
   "assertIsBytes" -> "assert_range";
   "assertIsConcatenation" -> "assert_eq";
   "assertIsConcatenation" -> "dotProduct";
-  "assertIsConcatenation" -> "eq0" [color="#00000030"];
+  "assertIsConcatenation" -> "eq0";
   "assertIsConcatenation" -> "hashBytesToField";
   "assertIsConcatenation" -> "poseidonBN254";
   "assertIsConcatenation" -> "powers";
   "assertIsConcatenation" -> "rightArraySelector";
   "assertIsConcatenation" -> "selectArrayValue";
-  "assert_eq" -> "eq0" [color="#00000030"];
-  "assert_range" -> "num2bits" [color="#00000030"];
+  "assert_eq" -> "eq0";
+  "assert_range" -> "num2bits";
   "assertisSubstring" -> "assert";
   "assertisSubstring" -> "isSubstring";
   "base64UrlDecode" -> "FArray.bits2num";
   "base64UrlDecode" -> "base64UrlDecodedLength";
   "base64UrlDecode" -> "base64UrlLookup";
-  "base64UrlDecode" -> "num2bits" [color="#00000030"];
+  "base64UrlDecode" -> "num2bits";
   "base64UrlDecodedLength" -> "FArray.bits2num";
-  "base64UrlDecodedLength" -> "num2bits" [color="#00000030"];
-  "base64UrlDecodedLength" -> "share" [color="#00000030"];
+  "base64UrlDecodedLength" -> "num2bits";
+  "base64UrlDecodedLength" -> "share";
   "base64UrlLookup" -> "FB.and";
   "base64UrlLookup" -> "eq";
-  "base64UrlLookup" -> "eq0" [color="#00000030"];
-  "base64UrlLookup" -> "greaterEqThan";
-  "base64UrlLookup" -> "isZero" [color="#00000030"];
-  "base64UrlLookup" -> "lessEqThan";
+  "base64UrlLookup" -> "eq0";
+  "base64UrlLookup" -> "greaterThan";
+  "base64UrlLookup" -> "isZero";
+  "base64UrlLookup" -> "lessThan";
+  "base64UrlLookup" -> "share";
   "bigEndianBits2Num" -> "FArray.bits2num";
   "bigEndianBitsToScalars" -> "bigEndianBits2Num";
+  "bracketsDepthMap" -> "conditionalSwap";
   "bracketsDepthMap" -> "eq";
-  "bracketsDepthMap" -> "isZero" [color="#00000030"];
+  "bracketsDepthMap" -> "isZero";
   "bracketsMap" -> "eq";
   "bytes2BigEndianBits" -> "num2BigEndianBits";
   "chunksToFieldElems" -> "chunksToFieldElem";
@@ -331,21 +342,21 @@ digraph clap {
   "emailVerifiedCheck" -> "isPaddedOf";
   "enforceNotNested" -> "arraySelector";
   "enforceNotNested" -> "dotProduct";
-  "enforceNotNested" -> "eq0" [color="#00000030"];
-  "eq" -> "isZero" [color="#00000030"];
+  "enforceNotNested" -> "eq0";
+  "eq" -> "isZero";
   "fpPow65537Mod" -> "fpSquareN";
-  "fpPow65537Mod" -> "fpmul" [color="#00000030"];
+  "fpPow65537Mod" -> "fpmul";
   "greaterEqThan" -> "lessThan";
   "greaterEqThan" -> "not";
   "greaterThan" -> "lessThan";
   "guardedAssertEq" -> "guardedEq0";
-  "guardedEq0" -> "eq0" [color="#00000030"];
+  "guardedEq0" -> "eq0";
   "hash64BitLimbsToField" -> "chunksToFieldElems";
   "hash64BitLimbsToField" -> "poseidonBN254";
   "hashBytesToField" -> "assertIsBytes";
   "hashBytesToField" -> "chunksToFieldElems";
   "hashBytesToField" -> "hashElemsToField";
-  "hashElemsToField" -> "eq0" [color="#00000030"];
+  "hashElemsToField" -> "eq0";
   "hashElemsToField" -> "poseidonBN254";
   "isPaddedOf" -> "FB.and";
   "isPaddedOf" -> "FVec.eq";
@@ -356,14 +367,14 @@ digraph clap {
   "isSubstring" -> "dotProduct";
   "isSubstring" -> "eq";
   "isSubstring" -> "hashBytesToField";
-  "isSubstring" -> "isZero" [color="#00000030"];
+  "isSubstring" -> "isZero";
   "isSubstring" -> "not";
   "isSubstring" -> "poseidonBN254";
   "isSubstring" -> "powers";
   "isSubstring" -> "selectArrayValue";
   "kPlus1Div8" -> "FArray.bits2num";
   "kPlus1Div8" -> "assert_eq";
-  "kPlus1Div8" -> "num2bits" [color="#00000030"];
+  "kPlus1Div8" -> "num2bits";
   "keyless" -> "assertFieldName";
   "keyless" -> "computeIdentityCommitment";
   "keyless" -> "computeJSONStructure";
@@ -383,9 +394,9 @@ digraph clap {
   "lessEqThan" -> "lessThan";
   "lessEqThan" -> "not";
   "lessThan" -> "not";
-  "lessThan" -> "num2bits" [color="#00000030"];
+  "lessThan" -> "num2bits";
   "muxFString" -> "conditionalSwap";
-  "num2BigEndianBits" -> "num2bits" [color="#00000030"];
+  "num2BigEndianBits" -> "num2bits";
   "ofChar" -> "ofUInt8";
   "oneHotRaw" -> "eq";
   "parseEmailVerifiedField" -> "F8.isWhitespace";
@@ -393,7 +404,7 @@ digraph clap {
   "parseEmailVerifiedField" -> "FB.or";
   "parseEmailVerifiedField" -> "arraySelectorComplex";
   "parseEmailVerifiedField" -> "eq";
-  "parseEmailVerifiedField" -> "eq0" [color="#00000030"];
+  "parseEmailVerifiedField" -> "eq0";
   "parseEmailVerifiedField" -> "not";
   "parseEmailVerifiedField" -> "parseJWTFieldSharedLogic";
   "parseEmailVerifiedField" -> "selectArrayValue";
@@ -425,8 +436,8 @@ digraph clap {
   "parseJWTFieldWithUnquotedValue" -> "guardedEq0";
   "parseJWTFieldWithUnquotedValue" -> "not";
   "parseJWTFieldWithUnquotedValue" -> "parseJWTFieldSharedLogic";
-  "poseidonBN254" -> "share" [color="#00000030"];
-  "powers" -> "share" [color="#00000030"];
+  "poseidonBN254" -> "share";
+  "powers" -> "share";
   "rightArraySelector" -> "singleOneArray";
   "selectArrayValue" -> "dotProduct";
   "selectArrayValue" -> "singleOneArray";
@@ -443,15 +454,15 @@ digraph clap {
   "singleOneArray" -> "FArray.sum";
   "singleOneArray" -> "assert_eq";
   "singleOneArray" -> "oneHotRaw";
-  "stringBodies" -> "FB.and";
-  "stringBodies" -> "FB.xor";
+  "stringBodies" -> "FArray.xorScan";
+  "stringBodies" -> "FB.ofBool";
   "stringBodies" -> "eq";
-  "stringBodies" -> "not";
+  "stringBodies" -> "oneHotRaw";
   "verifyAudField" -> "FB.assertBool";
   "verifyAudField" -> "FB.conditionallyAssert";
   "verifyAudField" -> "assertFieldName";
   "verifyAudField" -> "enforceNotNested";
-  "verifyAudField" -> "eq0" [color="#00000030"];
+  "verifyAudField" -> "eq0";
   "verifyAudField" -> "isSubstring";
   "verifyAudField" -> "muxFString";
   "verifyAudField" -> "not";
@@ -464,7 +475,7 @@ digraph clap {
   "verifyExtraField" -> "FB.assertBool";
   "verifyExtraField" -> "FB.conditionallyAssert";
   "verifyExtraField" -> "enforceNotNested";
-  "verifyExtraField" -> "eq0" [color="#00000030"];
+  "verifyExtraField" -> "eq0";
   "verifyExtraField" -> "isSubstring";
   "verifyExtraField" -> "selectArrayValue";
   "verifyJWTStructure" -> "rsa2048e65537Pkcs1v15Verify";
@@ -491,7 +502,7 @@ digraph clap {
   "verifyTimestamp" -> "lessThan";
   "verifyUnquotedField" -> "assertisSubstring";
   "verifyUnquotedField" -> "enforceNotNested";
-  "verifyUnquotedField" -> "eq0" [color="#00000030"];
+  "verifyUnquotedField" -> "eq0";
   "verifyUnquotedField" -> "parseJWTFieldWithUnquotedValue";
   "verifyUnquotedField" -> "selectArrayValue";
 }

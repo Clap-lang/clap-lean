@@ -10,7 +10,7 @@
 <title>keyless</title>
 <polygon fill="white" stroke="none" points="-4,4 -4,-3578.27 2085.25,-3578.27 2085.25,4 -4,4"/>
 <text xml:space="preserve" text-anchor="start" x="852.38" y="-3552.27" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="20.00">Aptos Keyless circuit: CLAP port status</text>
-<text xml:space="preserve" text-anchor="start" x="772.12" y="-3540.82" font-family="Helvetica,sans-Serif" font-size="11.00">Circom templates (keyless&#45;zk&#45;proofs @ dc10a06) · edges: template instantiation · CLAP fasapa/rsa · 2026&#45;10&#45;06</text>
+<text xml:space="preserve" text-anchor="start" x="721.12" y="-3540.82" font-family="Helvetica,sans-Serif" font-size="11.00">Circom templates (keyless&#45;zk&#45;proofs @ dc10a06) · edges: template instantiation · CLAP fasapa/rsa + PRs #76, #77, #79 · 2026&#45;10&#45;08</text>
 <g id="clust1" class="cluster">
 <title>cluster_keyless_circom</title>
 <path fill="none" stroke="#888888" stroke-dasharray="5,2" d="M39.25,-751C39.25,-751 611,-751 611,-751 617,-751 623,-757 623,-763 623,-763 623,-868 623,-868 623,-874 617,-880 611,-880 611,-880 39.25,-880 39.25,-880 33.25,-880 27.25,-874 27.25,-868 27.25,-868 27.25,-763 27.25,-763 27.25,-757 33.25,-751 39.25,-751"/>
@@ -18,13 +18,13 @@
 </g>
 <g id="clust2" class="cluster">
 <title>cluster_helpers_jwt</title>
-<path fill="none" stroke="#888888" stroke-dasharray="5,2" d="M365.75,-2110C365.75,-2110 1148.88,-2110 1148.88,-2110 1154.88,-2110 1160.88,-2116 1160.88,-2122 1160.88,-2122 1160.88,-2441 1160.88,-2441 1160.88,-2447 1154.88,-2453 1148.88,-2453 1148.88,-2453 365.75,-2453 365.75,-2453 359.75,-2453 353.75,-2447 353.75,-2441 353.75,-2441 353.75,-2122 353.75,-2122 353.75,-2116 359.75,-2110 365.75,-2110"/>
-<text xml:space="preserve" text-anchor="start" x="722.06" y="-2437.65" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="13.00">helpers/jwt</text>
+<path fill="none" stroke="#888888" stroke-dasharray="5,2" d="M365.75,-2110C365.75,-2110 1154.12,-2110 1154.12,-2110 1160.12,-2110 1166.12,-2116 1166.12,-2122 1166.12,-2122 1166.12,-2441 1166.12,-2441 1166.12,-2447 1160.12,-2453 1154.12,-2453 1154.12,-2453 365.75,-2453 365.75,-2453 359.75,-2453 353.75,-2447 353.75,-2441 353.75,-2441 353.75,-2122 353.75,-2122 353.75,-2116 359.75,-2110 365.75,-2110"/>
+<text xml:space="preserve" text-anchor="start" x="724.69" y="-2437.65" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="13.00">helpers/jwt</text>
 </g>
 <g id="clust3" class="cluster">
 <title>cluster_helpers_sha</title>
-<path fill="none" stroke="#888888" stroke-dasharray="5,2" d="M363.5,-1252C363.5,-1252 1194.25,-1252 1194.25,-1252 1200.25,-1252 1206.25,-1258 1206.25,-1264 1206.25,-1264 1206.25,-1336 1206.25,-1336 1206.25,-1342 1200.25,-1348 1194.25,-1348 1194.25,-1348 363.5,-1348 363.5,-1348 357.5,-1348 351.5,-1342 351.5,-1336 351.5,-1336 351.5,-1264 351.5,-1264 351.5,-1258 357.5,-1252 363.5,-1252"/>
-<text xml:space="preserve" text-anchor="start" x="741.38" y="-1332.65" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="13.00">helpers/sha</text>
+<path fill="none" stroke="#888888" stroke-dasharray="5,2" d="M363.5,-1244C363.5,-1244 1194.25,-1244 1194.25,-1244 1200.25,-1244 1206.25,-1250 1206.25,-1256 1206.25,-1256 1206.25,-1328 1206.25,-1328 1206.25,-1334 1200.25,-1340 1194.25,-1340 1194.25,-1340 363.5,-1340 363.5,-1340 357.5,-1340 351.5,-1334 351.5,-1328 351.5,-1328 351.5,-1256 351.5,-1256 351.5,-1250 357.5,-1244 363.5,-1244"/>
+<text xml:space="preserve" text-anchor="start" x="741.38" y="-1324.65" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="13.00">helpers/sha</text>
 </g>
 <g id="clust4" class="cluster">
 <title>cluster_helpers_rsa</title>
@@ -186,19 +186,21 @@
 <!-- BracketsDepthMap -->
 <g id="node3" class="node">
 <title>BracketsDepthMap</title>
-<polygon fill="#f4a6a6" stroke="none" points="1021.12,-2323.25 1021.12,-2346.25 1152.88,-2346.25 1152.88,-2323.25 1021.12,-2323.25"/>
-<polygon fill="none" stroke="black" points="1021.12,-2323.25 1021.12,-2346.25 1152.88,-2346.25 1152.88,-2323.25 1021.12,-2323.25"/>
-<text xml:space="preserve" text-anchor="start" x="1025.12" y="-2329.95" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">BracketsDepthMap</text>
-<polygon fill="none" stroke="black" points="1021.12,-2305.5 1021.12,-2323.25 1152.88,-2323.25 1152.88,-2305.5 1021.12,-2305.5"/>
-<text xml:space="preserve" text-anchor="start" x="1025.12" y="-2312.5" font-family="Helvetica,sans-Serif" font-size="9.00">new: —</text>
-<polygon fill="none" stroke="black" points="1021.12,-2287.75 1021.12,-2305.5 1152.88,-2305.5 1152.88,-2287.75 1021.12,-2287.75"/>
-<text xml:space="preserve" text-anchor="start" x="1025.12" y="-2294.75" font-family="Helvetica,sans-Serif" font-size="9.00">old: JWT.lean:110 (c)</text>
+<polygon fill="#a8dba8" stroke="none" points="1015.88,-2307.38 1015.88,-2330.38 1158.12,-2330.38 1158.12,-2307.38 1015.88,-2307.38"/>
+<polygon fill="none" stroke="black" points="1015.88,-2307.38 1015.88,-2330.38 1158.12,-2330.38 1158.12,-2307.38 1015.88,-2307.38"/>
+<text xml:space="preserve" text-anchor="start" x="1025.12" y="-2314.07" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">BracketsDepthMap</text>
+<polygon fill="none" stroke="black" points="1015.88,-2289.62 1015.88,-2307.38 1158.12,-2307.38 1158.12,-2289.62 1015.88,-2289.62"/>
+<text xml:space="preserve" text-anchor="start" x="1019.88" y="-2296.62" font-family="Helvetica,sans-Serif" font-size="9.00">new: bracketsDepthMap</text>
+<polygon fill="none" stroke="black" points="1015.88,-2273.38 1015.88,-2289.62 1158.12,-2289.62 1158.12,-2273.38 1015.88,-2273.38"/>
+<text xml:space="preserve" text-anchor="start" x="1019.88" y="-2279.62" font-family="Helvetica,sans-Serif" font-size="8.00"> &#160;&#160;&#160;&#160;Data/JWT/bracketsDepthMap.lean</text>
+<polygon fill="none" stroke="black" points="1015.88,-2255.62 1015.88,-2273.38 1158.12,-2273.38 1158.12,-2255.62 1015.88,-2255.62"/>
+<text xml:space="preserve" text-anchor="start" x="1019.88" y="-2262.62" font-family="Helvetica,sans-Serif" font-size="9.00">old: JWT.lean:110 (c)</text>
 </g>
 <!-- keyless&#45;&gt;BracketsDepthMap -->
 <g id="edge132" class="edge">
 <title>keyless&#45;&gt;BracketsDepthMap</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M221.51,-845.47C235.46,-854.27 248.14,-865.29 257,-879 352.32,-1026.47 215.5,-2336.26 343,-2457 439.41,-2548.3 847.51,-2407.85 1014.41,-2344.93"/>
-<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1014.93,-2346.98 1019.8,-2342.89 1013.44,-2343.05 1014.93,-2346.98"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M221.51,-845.47C235.46,-854.27 248.14,-865.29 257,-879 352.32,-1026.47 215.5,-2336.26 343,-2457 432.07,-2541.35 774.5,-2423.01 889.75,-2381 930.04,-2366.31 973.68,-2347.09 1009.55,-2330.36"/>
+<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1010.25,-2332.36 1014.79,-2327.91 1008.47,-2328.55 1010.25,-2332.36"/>
 </g>
 <!-- BracketsMap -->
 <g id="node4" class="node">
@@ -216,42 +218,46 @@
 <!-- keyless&#45;&gt;BracketsMap -->
 <g id="edge133" class="edge">
 <title>keyless&#45;&gt;BracketsMap</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M221.44,-845.93C235.31,-854.67 247.97,-865.55 257,-879 376.5,-1057.02 290.56,-1632.1 343,-1840 368.62,-1941.59 422.87,-2052.45 454.24,-2111.77"/>
-<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="452.19,-2112.4 456.86,-2116.71 455.9,-2110.43 452.19,-2112.4"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M221.73,-846.15C235.48,-854.85 248.03,-865.66 257,-879 373.85,-1052.67 294.12,-1613.47 343,-1817 369.34,-1926.67 424.58,-2047.73 455.61,-2110.97"/>
+<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="453.7,-2111.84 458.24,-2116.3 457.47,-2109.99 453.7,-2111.84"/>
 </g>
 <!-- EmailVerifiedCheck -->
 <g id="node5" class="node">
 <title>EmailVerifiedCheck</title>
-<polygon fill="#f4a6a6" stroke="none" points="728,-2153.25 728,-2176.25 862.75,-2176.25 862.75,-2153.25 728,-2153.25"/>
-<polygon fill="none" stroke="black" points="728,-2153.25 728,-2176.25 862.75,-2176.25 862.75,-2153.25 728,-2153.25"/>
-<text xml:space="preserve" text-anchor="start" x="732" y="-2159.95" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">EmailVerifiedCheck</text>
-<polygon fill="none" stroke="black" points="728,-2135.5 728,-2153.25 862.75,-2153.25 862.75,-2135.5 728,-2135.5"/>
-<text xml:space="preserve" text-anchor="start" x="732" y="-2142.5" font-family="Helvetica,sans-Serif" font-size="9.00">new: —</text>
-<polygon fill="none" stroke="black" points="728,-2117.75 728,-2135.5 862.75,-2135.5 862.75,-2117.75 728,-2117.75"/>
-<text xml:space="preserve" text-anchor="start" x="732" y="-2124.75" font-family="Helvetica,sans-Serif" font-size="9.00">old: JWT.lean:143 (c)</text>
+<polygon fill="#a8dba8" stroke="none" points="723.88,-2169.38 723.88,-2192.38 866.88,-2192.38 866.88,-2169.38 723.88,-2169.38"/>
+<polygon fill="none" stroke="black" points="723.88,-2169.38 723.88,-2192.38 866.88,-2192.38 866.88,-2169.38 723.88,-2169.38"/>
+<text xml:space="preserve" text-anchor="start" x="732" y="-2176.07" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">EmailVerifiedCheck</text>
+<polygon fill="none" stroke="black" points="723.88,-2151.62 723.88,-2169.38 866.88,-2169.38 866.88,-2151.62 723.88,-2151.62"/>
+<text xml:space="preserve" text-anchor="start" x="727.88" y="-2158.62" font-family="Helvetica,sans-Serif" font-size="9.00">new: emailVerifiedCheck</text>
+<polygon fill="none" stroke="black" points="723.88,-2135.38 723.88,-2151.62 866.88,-2151.62 866.88,-2135.38 723.88,-2135.38"/>
+<text xml:space="preserve" text-anchor="start" x="727.88" y="-2141.62" font-family="Helvetica,sans-Serif" font-size="8.00"> &#160;&#160;&#160;&#160;Data/JWT/emailVerifiedCheck.lean</text>
+<polygon fill="none" stroke="black" points="723.88,-2117.62 723.88,-2135.38 866.88,-2135.38 866.88,-2117.62 723.88,-2117.62"/>
+<text xml:space="preserve" text-anchor="start" x="727.88" y="-2124.62" font-family="Helvetica,sans-Serif" font-size="9.00">old: JWT.lean:143 (c)</text>
 </g>
 <!-- keyless&#45;&gt;EmailVerifiedCheck -->
 <g id="edge136" class="edge">
 <title>keyless&#45;&gt;EmailVerifiedCheck</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M221.57,-846.69C235.24,-855.32 247.81,-865.96 257,-879 420.6,-1111.05 249.47,-1243.93 343,-1512 445.54,-1805.89 460.2,-1916.62 700.88,-2114 707.22,-2119.2 714.44,-2123.61 721.99,-2127.34"/>
-<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="720.71,-2129.06 727.03,-2129.68 722.47,-2125.25 720.71,-2129.06"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M221.51,-846.73C235.19,-855.35 247.78,-865.99 257,-879 415.32,-1102.37 254.27,-1229.98 343,-1489 446.74,-1791.82 462.78,-1900.06 700.88,-2114 706.02,-2118.62 711.76,-2122.78 717.81,-2126.52"/>
+<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="716.4,-2128.13 722.64,-2129.36 718.52,-2124.51 716.4,-2128.13"/>
 </g>
 <!-- EnforceNotNested -->
 <g id="node6" class="node">
 <title>EnforceNotNested</title>
-<polygon fill="#f4a6a6" stroke="none" points="1023,-2400.25 1023,-2423.25 1151,-2423.25 1151,-2400.25 1023,-2400.25"/>
-<polygon fill="none" stroke="black" points="1023,-2400.25 1023,-2423.25 1151,-2423.25 1151,-2400.25 1023,-2400.25"/>
-<text xml:space="preserve" text-anchor="start" x="1027" y="-2406.95" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">EnforceNotNested</text>
-<polygon fill="none" stroke="black" points="1023,-2382.5 1023,-2400.25 1151,-2400.25 1151,-2382.5 1023,-2382.5"/>
-<text xml:space="preserve" text-anchor="start" x="1027" y="-2389.5" font-family="Helvetica,sans-Serif" font-size="9.00">new: —</text>
-<polygon fill="none" stroke="black" points="1023,-2364.75 1023,-2382.5 1151,-2382.5 1151,-2364.75 1023,-2364.75"/>
-<text xml:space="preserve" text-anchor="start" x="1027" y="-2371.75" font-family="Helvetica,sans-Serif" font-size="9.00">old: JWT.lean:129 (c)</text>
+<polygon fill="#a8dba8" stroke="none" points="1017,-2400.38 1017,-2423.38 1157,-2423.38 1157,-2400.38 1017,-2400.38"/>
+<polygon fill="none" stroke="black" points="1017,-2400.38 1017,-2423.38 1157,-2423.38 1157,-2400.38 1017,-2400.38"/>
+<text xml:space="preserve" text-anchor="start" x="1027" y="-2407.07" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">EnforceNotNested</text>
+<polygon fill="none" stroke="black" points="1017,-2382.62 1017,-2400.38 1157,-2400.38 1157,-2382.62 1017,-2382.62"/>
+<text xml:space="preserve" text-anchor="start" x="1021" y="-2389.62" font-family="Helvetica,sans-Serif" font-size="9.00">new: enforceNotNested</text>
+<polygon fill="none" stroke="black" points="1017,-2366.38 1017,-2382.62 1157,-2382.62 1157,-2366.38 1017,-2366.38"/>
+<text xml:space="preserve" text-anchor="start" x="1021" y="-2372.62" font-family="Helvetica,sans-Serif" font-size="8.00"> &#160;&#160;&#160;&#160;Data/JWT/enforceNotNested.lean</text>
+<polygon fill="none" stroke="black" points="1017,-2348.62 1017,-2366.38 1157,-2366.38 1157,-2348.62 1017,-2348.62"/>
+<text xml:space="preserve" text-anchor="start" x="1021" y="-2355.62" font-family="Helvetica,sans-Serif" font-size="9.00">old: JWT.lean:129 (c)</text>
 </g>
 <!-- keyless&#45;&gt;EnforceNotNested -->
 <g id="edge137" class="edge">
 <title>keyless&#45;&gt;EnforceNotNested</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M221.52,-845.46C235.47,-854.27 248.14,-865.28 257,-879 353.99,-1029.22 213.23,-2362.99 343,-2486 438.83,-2576.84 850.59,-2465.53 1016.41,-2415.73"/>
-<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1016.57,-2417.88 1021.71,-2414.13 1015.36,-2413.85 1016.57,-2417.88"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M221.52,-845.46C235.47,-854.27 248.14,-865.28 257,-879 353.99,-1029.22 213.23,-2362.99 343,-2486 437.75,-2575.82 840.3,-2463.45 1010.03,-2410.63"/>
+<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1010.65,-2412.63 1015.75,-2408.84 1009.4,-2408.62 1010.65,-2412.63"/>
 </g>
 <!-- ParseEmailVerifiedField -->
 <g id="node7" class="node">
@@ -307,58 +313,60 @@
 <!-- StringBodies -->
 <g id="node11" class="node">
 <title>StringBodies</title>
-<polygon fill="#f4a6a6" stroke="none" points="1041,-2246.25 1041,-2269.25 1133,-2269.25 1133,-2246.25 1041,-2246.25"/>
-<polygon fill="none" stroke="black" points="1041,-2246.25 1041,-2269.25 1133,-2269.25 1133,-2246.25 1041,-2246.25"/>
-<text xml:space="preserve" text-anchor="start" x="1045" y="-2252.95" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">StringBodies</text>
-<polygon fill="none" stroke="black" points="1041,-2228.5 1041,-2246.25 1133,-2246.25 1133,-2228.5 1041,-2228.5"/>
-<text xml:space="preserve" text-anchor="start" x="1045" y="-2235.5" font-family="Helvetica,sans-Serif" font-size="9.00">new: —</text>
-<polygon fill="none" stroke="black" points="1041,-2210.75 1041,-2228.5 1133,-2228.5 1133,-2210.75 1041,-2210.75"/>
-<text xml:space="preserve" text-anchor="start" x="1045" y="-2217.75" font-family="Helvetica,sans-Serif" font-size="9.00">old: JWT.lean:33 (c)</text>
+<polygon fill="#a8dba8" stroke="none" points="1027.88,-2214.38 1027.88,-2237.38 1146.12,-2237.38 1146.12,-2214.38 1027.88,-2214.38"/>
+<polygon fill="none" stroke="black" points="1027.88,-2214.38 1027.88,-2237.38 1146.12,-2237.38 1146.12,-2214.38 1027.88,-2214.38"/>
+<text xml:space="preserve" text-anchor="start" x="1045" y="-2221.07" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">StringBodies</text>
+<polygon fill="none" stroke="black" points="1027.88,-2196.62 1027.88,-2214.38 1146.12,-2214.38 1146.12,-2196.62 1027.88,-2196.62"/>
+<text xml:space="preserve" text-anchor="start" x="1031.88" y="-2203.62" font-family="Helvetica,sans-Serif" font-size="9.00">new: stringBodies</text>
+<polygon fill="none" stroke="black" points="1027.88,-2180.38 1027.88,-2196.62 1146.12,-2196.62 1146.12,-2180.38 1027.88,-2180.38"/>
+<text xml:space="preserve" text-anchor="start" x="1031.88" y="-2186.62" font-family="Helvetica,sans-Serif" font-size="8.00"> &#160;&#160;&#160;&#160;Data/JWT/stringBodies.lean</text>
+<polygon fill="none" stroke="black" points="1027.88,-2162.62 1027.88,-2180.38 1146.12,-2180.38 1146.12,-2162.62 1027.88,-2162.62"/>
+<text xml:space="preserve" text-anchor="start" x="1031.88" y="-2169.62" font-family="Helvetica,sans-Serif" font-size="9.00">old: JWT.lean:33 (c)</text>
 </g>
 <!-- keyless&#45;&gt;StringBodies -->
 <g id="edge152" class="edge">
 <title>keyless&#45;&gt;StringBodies</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M221.5,-845.48C235.46,-854.28 248.13,-865.29 257,-879 350.87,-1024.1 217.46,-2313.22 343,-2432 388.2,-2474.76 561.98,-2444.15 623,-2432 780.46,-2400.65 951.45,-2314.76 1034.68,-2269.23"/>
-<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1035.67,-2271.08 1039.92,-2266.35 1033.65,-2267.4 1035.67,-2271.08"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M221.5,-845.48C235.46,-854.28 248.13,-865.29 257,-879 350.87,-1024.1 217.46,-2313.22 343,-2432 388.2,-2474.76 562.31,-2445.71 623,-2432 751.08,-2403.07 772.55,-2364.21 889.75,-2305 934.09,-2282.6 983.39,-2256.22 1021.49,-2235.5"/>
+<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1022.39,-2237.4 1026.65,-2232.69 1020.38,-2233.71 1022.39,-2237.4"/>
 </g>
 <!-- SHA2_256_PaddingVerify -->
 <g id="node12" class="node">
 <title>SHA2_256_PaddingVerify</title>
-<polygon fill="#f4a6a6" stroke="none" points="359.5,-1295.25 359.5,-1318.25 598.5,-1318.25 598.5,-1295.25 359.5,-1295.25"/>
-<polygon fill="none" stroke="black" points="359.5,-1295.25 359.5,-1318.25 598.5,-1318.25 598.5,-1295.25 359.5,-1295.25"/>
-<text xml:space="preserve" text-anchor="start" x="396.5" y="-1301.95" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">SHA2_256_PaddingVerify</text>
-<polygon fill="none" stroke="black" points="359.5,-1277.5 359.5,-1295.25 598.5,-1295.25 598.5,-1277.5 359.5,-1277.5"/>
-<text xml:space="preserve" text-anchor="start" x="363.5" y="-1284.5" font-family="Helvetica,sans-Serif" font-size="9.00">new: —</text>
-<polygon fill="none" stroke="black" points="359.5,-1259.75 359.5,-1277.5 598.5,-1277.5 598.5,-1259.75 359.5,-1259.75"/>
-<text xml:space="preserve" text-anchor="start" x="363.5" y="-1266.75" font-family="Helvetica,sans-Serif" font-size="9.00">old: Sha2/Keyless.lean:95 (c), Sha2/Keyless.lean:134 (c)</text>
+<polygon fill="#f4a6a6" stroke="none" points="359.5,-1287.25 359.5,-1310.25 598.5,-1310.25 598.5,-1287.25 359.5,-1287.25"/>
+<polygon fill="none" stroke="black" points="359.5,-1287.25 359.5,-1310.25 598.5,-1310.25 598.5,-1287.25 359.5,-1287.25"/>
+<text xml:space="preserve" text-anchor="start" x="396.5" y="-1293.95" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">SHA2_256_PaddingVerify</text>
+<polygon fill="none" stroke="black" points="359.5,-1269.5 359.5,-1287.25 598.5,-1287.25 598.5,-1269.5 359.5,-1269.5"/>
+<text xml:space="preserve" text-anchor="start" x="363.5" y="-1276.5" font-family="Helvetica,sans-Serif" font-size="9.00">new: —</text>
+<polygon fill="none" stroke="black" points="359.5,-1251.75 359.5,-1269.5 598.5,-1269.5 598.5,-1251.75 359.5,-1251.75"/>
+<text xml:space="preserve" text-anchor="start" x="363.5" y="-1258.75" font-family="Helvetica,sans-Serif" font-size="9.00">old: Sha2/Keyless.lean:95 (c), Sha2/Keyless.lean:134 (c)</text>
 </g>
 <!-- keyless&#45;&gt;SHA2_256_PaddingVerify -->
 <g id="edge149" class="edge">
 <title>keyless&#45;&gt;SHA2_256_PaddingVerify</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M221.64,-848.41C234.96,-856.78 247.39,-866.89 257,-879 353.62,-1000.76 246.77,-1095.93 343,-1218 355.34,-1233.65 372.09,-1246.24 389.59,-1256.21"/>
-<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="388.47,-1257.99 394.74,-1259.03 390.49,-1254.3 388.47,-1257.99"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M221.64,-848.41C234.96,-856.78 247.39,-866.89 257,-879 353.62,-1000.76 243.9,-1098.25 343,-1218 353.08,-1230.18 366.05,-1240.14 379.94,-1248.24"/>
+<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="378.8,-1250.01 385.07,-1251.09 380.85,-1246.34 378.8,-1250.01"/>
 </g>
 <!-- SHA2_256_Prepadded_Hash -->
 <g id="node13" class="node">
 <title>SHA2_256_Prepadded_Hash</title>
-<polygon fill="#f4a6a6" stroke="none" points="975.75,-1295.25 975.75,-1318.25 1198.25,-1318.25 1198.25,-1295.25 975.75,-1295.25"/>
-<polygon fill="none" stroke="black" points="975.75,-1295.25 975.75,-1318.25 1198.25,-1318.25 1198.25,-1295.25 975.75,-1295.25"/>
-<text xml:space="preserve" text-anchor="start" x="994.75" y="-1301.95" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">SHA2_256_Prepadded_Hash</text>
-<polygon fill="none" stroke="black" points="975.75,-1277.5 975.75,-1295.25 1198.25,-1295.25 1198.25,-1277.5 975.75,-1277.5"/>
-<text xml:space="preserve" text-anchor="start" x="979.75" y="-1284.5" font-family="Helvetica,sans-Serif" font-size="9.00">new: —</text>
-<polygon fill="none" stroke="black" points="975.75,-1259.75 975.75,-1277.5 1198.25,-1277.5 1198.25,-1259.75 975.75,-1259.75"/>
-<text xml:space="preserve" text-anchor="start" x="979.75" y="-1266.75" font-family="Helvetica,sans-Serif" font-size="9.00">old: Sha2/Keyless.lean:134 (c), Sha2/Basic.lean:225</text>
+<polygon fill="#f4a6a6" stroke="none" points="975.75,-1287.25 975.75,-1310.25 1198.25,-1310.25 1198.25,-1287.25 975.75,-1287.25"/>
+<polygon fill="none" stroke="black" points="975.75,-1287.25 975.75,-1310.25 1198.25,-1310.25 1198.25,-1287.25 975.75,-1287.25"/>
+<text xml:space="preserve" text-anchor="start" x="994.75" y="-1293.95" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">SHA2_256_Prepadded_Hash</text>
+<polygon fill="none" stroke="black" points="975.75,-1269.5 975.75,-1287.25 1198.25,-1287.25 1198.25,-1269.5 975.75,-1269.5"/>
+<text xml:space="preserve" text-anchor="start" x="979.75" y="-1276.5" font-family="Helvetica,sans-Serif" font-size="9.00">new: —</text>
+<polygon fill="none" stroke="black" points="975.75,-1251.75 975.75,-1269.5 1198.25,-1269.5 1198.25,-1251.75 975.75,-1251.75"/>
+<text xml:space="preserve" text-anchor="start" x="979.75" y="-1258.75" font-family="Helvetica,sans-Serif" font-size="9.00">old: Sha2/Keyless.lean:134 (c), Sha2/Basic.lean:225</text>
 </g>
 <!-- keyless&#45;&gt;SHA2_256_Prepadded_Hash -->
 <g id="edge150" class="edge">
 <title>keyless&#45;&gt;SHA2_256_Prepadded_Hash</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M221.65,-848.86C234.89,-857.16 247.29,-867.14 257,-879 345.1,-986.68 238.32,-1088.36 343,-1180 389.3,-1220.53 771.4,-1260.56 968.83,-1278.79"/>
-<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="968.39,-1280.86 974.56,-1279.31 968.78,-1276.67 968.39,-1280.86"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M221.65,-848.86C234.89,-857.16 247.29,-867.14 257,-879 345.1,-986.68 237.83,-1088.91 343,-1180 389.44,-1220.23 771.47,-1256.05 968.86,-1272.09"/>
+<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="968.44,-1274.16 974.59,-1272.55 968.78,-1269.98 968.44,-1274.16"/>
 </g>
 <!-- Base64UrlDecode -->
 <g id="node19" class="node">
 <title>Base64UrlDecode</title>
-<polygon fill="#ffb870" stroke="none" points="713.75,-772.38 713.75,-795.38 877,-795.38 877,-772.38 713.75,-772.38"/>
+<polygon fill="#a8dba8" stroke="none" points="713.75,-772.38 713.75,-795.38 877,-795.38 877,-772.38 713.75,-772.38"/>
 <polygon fill="none" stroke="black" points="713.75,-772.38 713.75,-795.38 877,-795.38 877,-772.38 713.75,-772.38"/>
 <text xml:space="preserve" text-anchor="start" x="737.62" y="-779.08" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">Base64UrlDecode</text>
 <polygon fill="none" stroke="black" points="713.75,-754.62 713.75,-772.38 877,-772.38 877,-754.62 713.75,-754.62"/>
@@ -512,8 +520,8 @@
 <!-- keyless&#45;&gt;HashBytesToFieldWithLen -->
 <g id="edge139" class="edge">
 <title>keyless&#45;&gt;HashBytesToFieldWithLen</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M221.59,-849.38C234.76,-857.61 247.15,-867.42 257,-879 336.66,-972.7 248.03,-1063.86 343,-1142 352.33,-1149.67 1194.29,-1246.29 1206.25,-1248 1240.79,-1252.95 1278.56,-1258.97 1311.96,-1264.52"/>
-<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1311.27,-1266.53 1317.53,-1265.44 1311.96,-1262.39 1311.27,-1266.53"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M221.59,-849.38C234.76,-857.61 247.15,-867.42 257,-879 336.66,-972.7 247.68,-1064.3 343,-1142 361.71,-1157.25 1182.41,-1236.23 1206.25,-1240 1240.96,-1245.49 1278.77,-1252.83 1312.16,-1259.77"/>
+<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1311.43,-1261.77 1317.73,-1260.94 1312.29,-1257.66 1311.43,-1261.77"/>
 </g>
 <!-- SelectArrayValue -->
 <g id="node35" class="node">
@@ -609,8 +617,8 @@
 <!-- keyless&#45;&gt;AND -->
 <g id="edge125" class="edge">
 <title>keyless&#45;&gt;AND</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M221.72,-847.44C235.21,-855.96 247.67,-866.37 257,-879 384,-1050.83 205.57,-1188.39 343,-1352 597.17,-1654.59 841.51,-1412.93 1206.25,-1565 1245.88,-1581.52 1246.09,-1602.33 1284.25,-1622 1308.34,-1634.42 1336.98,-1644.21 1360.59,-1651.1"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1359.95,-1653.1 1366.29,-1652.73 1361.1,-1649.06 1359.95,-1653.1"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M221.69,-847.47C235.18,-855.98 247.65,-866.39 257,-879 382.18,-1047.83 204.6,-1185.83 343,-1344 601.7,-1639.64 860.46,-1347.55 1206.25,-1534 1252.25,-1558.8 1240.63,-1593.22 1284.25,-1622 1307.31,-1637.22 1336.53,-1647.26 1360.74,-1653.59"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1359.96,-1655.56 1366.29,-1654.99 1360.98,-1651.48 1359.96,-1655.56"/>
 </g>
 <!-- LessThan -->
 <g id="node56" class="node">
@@ -687,20 +695,20 @@
 <!-- BracketsDepthMap&#45;&gt;IsEqual -->
 <g id="edge34" class="edge">
 <title>BracketsDepthMap&#45;&gt;IsEqual</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M1152.82,-2311.94C1172.42,-2307.29 1192.4,-2298.91 1206.25,-2284 1325.96,-2155.12 1235.63,-2065.04 1284.25,-1896 1314.03,-1792.47 1362.05,-1675.29 1388.54,-1613.51"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1390.31,-1614.71 1390.75,-1608.37 1386.45,-1613.05 1390.31,-1614.71"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M1157.84,-2281.57C1175.81,-2275.5 1193.62,-2266.21 1206.25,-2252 1313.83,-2130.91 1238.13,-2051.27 1284.25,-1896 1314.86,-1792.94 1362.4,-1675.93 1388.63,-1613.95"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1390.57,-1614.78 1390.98,-1608.43 1386.7,-1613.13 1390.57,-1614.78"/>
 </g>
 <!-- BracketsDepthMap&#45;&gt;LessThan -->
 <g id="edge35" class="edge">
 <title>BracketsDepthMap&#45;&gt;LessThan</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M1152.71,-2317.29C1242.53,-2315.76 1408.84,-2305.92 1541,-2258 1678.88,-2208.01 1712.76,-2181.58 1819.5,-2081 1862.59,-2040.39 1853.4,-2012.51 1897.5,-1973 1906.56,-1964.88 1917.26,-1957.55 1927.9,-1951.22"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M1157.76,-2293.41C1248.34,-2292.02 1410.3,-2282.97 1541,-2240 1676.4,-2195.49 1713.48,-2176.26 1819.5,-2081 1863.54,-2041.43 1853.4,-2012.51 1897.5,-1973 1906.56,-1964.88 1917.26,-1957.55 1927.9,-1951.22"/>
 <polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1928.7,-1953.18 1932.84,-1948.36 1926.6,-1949.55 1928.7,-1953.18"/>
 </g>
 <!-- BracketsMap&#45;&gt;IsEqual -->
 <g id="edge36" class="edge">
 <title>BracketsMap&#45;&gt;IsEqual</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M493.3,-2117.76C538.22,-1998.93 697.29,-1630.75 975.75,-1532 1110.2,-1484.32 1282.29,-1528.07 1362.59,-1554"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1361.81,-1555.96 1368.17,-1555.83 1363.12,-1551.96 1361.81,-1555.96"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M491.85,-2117.9C533.57,-1994.98 686.93,-1603.07 975.75,-1501 1072.34,-1466.87 1105.32,-1483.43 1206.25,-1501 1242.54,-1507.32 1249.44,-1516.97 1284.25,-1529 1310.06,-1537.92 1339.03,-1547.57 1362.41,-1555.26"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1361.68,-1557.23 1368.04,-1557.11 1362.99,-1553.24 1361.68,-1557.23"/>
 </g>
 <!-- ConditionallyAssertEqual -->
 <g id="node46" class="node">
@@ -718,64 +726,64 @@
 <!-- EmailVerifiedCheck&#45;&gt;ConditionallyAssertEqual -->
 <g id="edge41" class="edge">
 <title>EmailVerifiedCheck&#45;&gt;ConditionallyAssertEqual</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M862.29,-2134.42C872.86,-2129.65 882.64,-2123.06 889.75,-2114 1009.09,-1961.82 919.3,-1432.97 975.75,-1248 993.89,-1188.57 1030.02,-1126.57 1055.98,-1086.53"/>
-<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1057.7,-1087.73 1059.22,-1081.56 1054.18,-1085.43 1057.7,-1087.73"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M866.72,-2134.28C875.63,-2128.96 883.72,-2122.31 889.75,-2114 1004.34,-1956.03 917.3,-1426.2 975.75,-1240 993.58,-1183.21 1029.06,-1124.46 1054.97,-1086.07"/>
+<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1056.55,-1087.48 1058.19,-1081.34 1053.08,-1085.12 1056.55,-1087.48"/>
 </g>
 <!-- EmailVerifiedCheck&#45;&gt;AND -->
 <g id="edge40" class="edge">
 <title>EmailVerifiedCheck&#45;&gt;AND</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M862.4,-2139.06C964.15,-2125.7 1153.11,-2096.11 1206.25,-2055 1322.41,-1965.13 1377.59,-1789.63 1397.93,-1707.45"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1399.94,-1708.07 1399.32,-1701.74 1395.86,-1707.07 1399.94,-1708.07"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M866.65,-2124.39C907.4,-2106.81 954.72,-2086.72 975.75,-2079 1076.5,-2042.02 1122.26,-2073.81 1206.25,-2007 1307.51,-1926.45 1368.27,-1780.07 1393.68,-1706.98"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1395.58,-1707.93 1395.54,-1701.57 1391.6,-1706.56 1395.58,-1707.93"/>
 </g>
 <!-- EmailVerifiedCheck&#45;&gt;IsEqual -->
 <g id="edge42" class="edge">
 <title>EmailVerifiedCheck&#45;&gt;IsEqual</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M862.74,-2126.71C977.06,-2091.65 1199.63,-2022.89 1206.25,-2017 1270.36,-1959.94 1358.42,-1715.4 1392.92,-1614.16"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1394.88,-1614.91 1394.83,-1608.55 1390.91,-1613.56 1394.88,-1614.91"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M866.74,-2126.51C874.66,-2122.6 882.48,-2118.41 889.75,-2114 931.66,-2088.6 932.68,-2068.38 975.75,-2045 1070.55,-1993.54 1124.51,-2039.39 1206.25,-1969 1318.97,-1871.93 1375.8,-1696.48 1397.23,-1614.48"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1399.24,-1615.12 1398.7,-1608.78 1395.17,-1614.07 1399.24,-1615.12"/>
 </g>
 <!-- MultiAND -->
 <g id="node57" class="node">
 <title>MultiAND</title>
-<polygon fill="#f4a6a6" stroke="none" points="1018.88,-1811.38 1018.88,-1834.38 1155.12,-1834.38 1155.12,-1811.38 1018.88,-1811.38"/>
-<polygon fill="none" stroke="black" points="1018.88,-1811.38 1018.88,-1834.38 1155.12,-1834.38 1155.12,-1811.38 1018.88,-1811.38"/>
-<text xml:space="preserve" text-anchor="start" x="1056.25" y="-1818.08" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">MultiAND</text>
-<polygon fill="none" stroke="black" points="1018.88,-1793.62 1018.88,-1811.38 1155.12,-1811.38 1155.12,-1793.62 1018.88,-1793.62"/>
-<text xml:space="preserve" text-anchor="start" x="1022.88" y="-1800.62" font-family="Helvetica,sans-Serif" font-size="9.00">new: —</text>
-<polygon fill="none" stroke="black" points="1018.88,-1775.88 1018.88,-1793.62 1155.12,-1793.62 1155.12,-1775.88 1018.88,-1775.88"/>
-<text xml:space="preserve" text-anchor="start" x="1022.88" y="-1782.88" font-family="Helvetica,sans-Serif" font-size="9.00">old: —</text>
-<polygon fill="none" stroke="black" points="1018.88,-1759.62 1018.88,-1775.88 1155.12,-1775.88 1155.12,-1759.62 1018.88,-1759.62"/>
-<text xml:space="preserve" text-anchor="start" x="1022.88" y="-1765.28" font-family="Helvetica,sans-Serif" font-style="italic" font-size="8.00">FArray.and is elementwise, not n&#45;ary</text>
+<polygon fill="#f4a6a6" stroke="none" points="1018.88,-1780.38 1018.88,-1803.38 1155.12,-1803.38 1155.12,-1780.38 1018.88,-1780.38"/>
+<polygon fill="none" stroke="black" points="1018.88,-1780.38 1018.88,-1803.38 1155.12,-1803.38 1155.12,-1780.38 1018.88,-1780.38"/>
+<text xml:space="preserve" text-anchor="start" x="1056.25" y="-1787.08" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">MultiAND</text>
+<polygon fill="none" stroke="black" points="1018.88,-1762.62 1018.88,-1780.38 1155.12,-1780.38 1155.12,-1762.62 1018.88,-1762.62"/>
+<text xml:space="preserve" text-anchor="start" x="1022.88" y="-1769.62" font-family="Helvetica,sans-Serif" font-size="9.00">new: —</text>
+<polygon fill="none" stroke="black" points="1018.88,-1744.88 1018.88,-1762.62 1155.12,-1762.62 1155.12,-1744.88 1018.88,-1744.88"/>
+<text xml:space="preserve" text-anchor="start" x="1022.88" y="-1751.88" font-family="Helvetica,sans-Serif" font-size="9.00">old: —</text>
+<polygon fill="none" stroke="black" points="1018.88,-1728.62 1018.88,-1744.88 1155.12,-1744.88 1155.12,-1728.62 1018.88,-1728.62"/>
+<text xml:space="preserve" text-anchor="start" x="1022.88" y="-1734.28" font-family="Helvetica,sans-Serif" font-style="italic" font-size="8.00">FArray.and is elementwise, not n&#45;ary</text>
 </g>
 <!-- EmailVerifiedCheck&#45;&gt;MultiAND -->
 <g id="edge43" class="edge">
 <title>EmailVerifiedCheck&#45;&gt;MultiAND</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M862.64,-2129.97C872.32,-2125.72 881.72,-2120.47 889.75,-2114 937.86,-2075.25 1023.34,-1918.04 1063.71,-1840.57"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1065.4,-1841.87 1066.3,-1835.58 1061.67,-1839.93 1065.4,-1841.87"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M866.75,-2130.16C875.02,-2125.54 882.92,-2120.18 889.75,-2114 902.49,-2102.47 1013.19,-1900.11 1062.48,-1809.39"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1064.18,-1810.66 1065.2,-1804.38 1060.49,-1808.65 1064.18,-1810.66"/>
 </g>
 <!-- EmailVerifiedCheck&#45;&gt;NOT -->
 <g id="edge44" class="edge">
 <title>EmailVerifiedCheck&#45;&gt;NOT</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M862.4,-2161.3C947.47,-2176.13 1097.36,-2189.76 1206.25,-2131 1302.54,-2079.04 1363.65,-1958.58 1390.97,-1893.17"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1392.9,-1893.99 1393.25,-1887.64 1389.02,-1892.39 1392.9,-1893.99"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M866.78,-2156.65C952.48,-2155.65 1099.01,-2143.98 1206.25,-2083 1286.84,-2037.17 1350.46,-1946.45 1383.25,-1892.42"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1385.02,-1893.54 1386.31,-1887.31 1381.42,-1891.38 1385.02,-1893.54"/>
 </g>
 <!-- OR -->
 <g id="node60" class="node">
 <title>OR</title>
-<polygon fill="#a8dba8" stroke="none" points="1047.75,-1718.38 1047.75,-1741.38 1126.25,-1741.38 1126.25,-1718.38 1047.75,-1718.38"/>
-<polygon fill="none" stroke="black" points="1047.75,-1718.38 1047.75,-1741.38 1126.25,-1741.38 1126.25,-1718.38 1047.75,-1718.38"/>
-<text xml:space="preserve" text-anchor="start" x="1076.5" y="-1725.08" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">OR</text>
-<polygon fill="none" stroke="black" points="1047.75,-1700.62 1047.75,-1718.38 1126.25,-1718.38 1126.25,-1700.62 1047.75,-1700.62"/>
-<text xml:space="preserve" text-anchor="start" x="1051.75" y="-1707.62" font-family="Helvetica,sans-Serif" font-size="9.00">new: FB.or</text>
-<polygon fill="none" stroke="black" points="1047.75,-1684.38 1047.75,-1700.62 1126.25,-1700.62 1126.25,-1684.38 1047.75,-1684.38"/>
-<text xml:space="preserve" text-anchor="start" x="1051.75" y="-1690.62" font-family="Helvetica,sans-Serif" font-size="8.00"> &#160;&#160;&#160;&#160;Core/FB/or.lean</text>
-<polygon fill="none" stroke="black" points="1047.75,-1666.62 1047.75,-1684.38 1126.25,-1684.38 1126.25,-1666.62 1047.75,-1666.62"/>
-<text xml:space="preserve" text-anchor="start" x="1051.75" y="-1673.62" font-family="Helvetica,sans-Serif" font-size="9.00">old: Lang.lean:73</text>
+<polygon fill="#a8dba8" stroke="none" points="1047.75,-1687.38 1047.75,-1710.38 1126.25,-1710.38 1126.25,-1687.38 1047.75,-1687.38"/>
+<polygon fill="none" stroke="black" points="1047.75,-1687.38 1047.75,-1710.38 1126.25,-1710.38 1126.25,-1687.38 1047.75,-1687.38"/>
+<text xml:space="preserve" text-anchor="start" x="1076.5" y="-1694.08" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">OR</text>
+<polygon fill="none" stroke="black" points="1047.75,-1669.62 1047.75,-1687.38 1126.25,-1687.38 1126.25,-1669.62 1047.75,-1669.62"/>
+<text xml:space="preserve" text-anchor="start" x="1051.75" y="-1676.62" font-family="Helvetica,sans-Serif" font-size="9.00">new: FB.or</text>
+<polygon fill="none" stroke="black" points="1047.75,-1653.38 1047.75,-1669.62 1126.25,-1669.62 1126.25,-1653.38 1047.75,-1653.38"/>
+<text xml:space="preserve" text-anchor="start" x="1051.75" y="-1659.62" font-family="Helvetica,sans-Serif" font-size="8.00"> &#160;&#160;&#160;&#160;Core/FB/or.lean</text>
+<polygon fill="none" stroke="black" points="1047.75,-1635.62 1047.75,-1653.38 1126.25,-1653.38 1126.25,-1635.62 1047.75,-1635.62"/>
+<text xml:space="preserve" text-anchor="start" x="1051.75" y="-1642.62" font-family="Helvetica,sans-Serif" font-size="9.00">old: Lang.lean:73</text>
 </g>
 <!-- EmailVerifiedCheck&#45;&gt;OR -->
 <g id="edge45" class="edge">
 <title>EmailVerifiedCheck&#45;&gt;OR</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M862.31,-2131.14C872.26,-2126.73 881.82,-2121.13 889.75,-2114 1002.71,-2012.5 1056.74,-1831.91 1076.6,-1748.5"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1078.64,-1749.01 1077.97,-1742.69 1074.55,-1748.05 1078.64,-1749.01"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M866.85,-2131.03C875.2,-2126.25 883.1,-2120.62 889.75,-2114 949.43,-2054.62 1036.32,-1816.78 1070.95,-1717.2"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1072.87,-1718.06 1072.85,-1711.71 1068.9,-1716.69 1072.87,-1718.06"/>
 </g>
 <!-- ArraySelector -->
 <g id="node31" class="node">
@@ -793,7 +801,7 @@
 <!-- EnforceNotNested&#45;&gt;ArraySelector -->
 <g id="edge46" class="edge">
 <title>EnforceNotNested&#45;&gt;ArraySelector</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M1139.81,-2423.08C1163.23,-2438.65 1189.38,-2459.82 1206.25,-2485 1279.81,-2594.83 1193.41,-2675.98 1284.25,-2772 1298.2,-2786.75 1317.58,-2796.2 1336.85,-2802.24"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M1146.15,-2423.29C1167.82,-2439.82 1190.87,-2460.99 1206.25,-2485 1277.53,-2596.32 1193.41,-2675.98 1284.25,-2772 1298.2,-2786.75 1317.58,-2796.2 1336.85,-2802.24"/>
 <polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1336.14,-2804.22 1342.49,-2803.9 1337.32,-2800.19 1336.14,-2804.22"/>
 </g>
 <!-- EscalarProduct -->
@@ -812,25 +820,25 @@
 <!-- EnforceNotNested&#45;&gt;EscalarProduct -->
 <g id="edge47" class="edge">
 <title>EnforceNotNested&#45;&gt;EscalarProduct</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M1150.91,-2379.39C1169.06,-2374.39 1188.7,-2368.21 1206.25,-2361 1363.69,-2296.35 1399.9,-2270.17 1541,-2175 1585.73,-2144.83 1633.17,-2105.95 1667.08,-2076.83"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1668.08,-2078.74 1671.26,-2073.23 1665.34,-2075.55 1668.08,-2078.74"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M1156.9,-2364.25C1173.28,-2358.49 1190.55,-2351.93 1206.25,-2345 1361.16,-2276.59 1398.17,-2253.98 1541,-2163 1583.04,-2136.22 1628.27,-2102.63 1661.97,-2076.58"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1663.05,-2078.4 1666.5,-2073.06 1660.48,-2075.08 1663.05,-2078.4"/>
 </g>
 <!-- ParseJWTFieldSharedLogic -->
 <g id="node8" class="node">
 <title>ParseJWTFieldSharedLogic</title>
-<polygon fill="#f4a6a6" stroke="none" points="701.38,-2230.25 701.38,-2253.25 889.38,-2253.25 889.38,-2230.25 701.38,-2230.25"/>
-<polygon fill="none" stroke="black" points="701.38,-2230.25 701.38,-2253.25 889.38,-2253.25 889.38,-2230.25 701.38,-2230.25"/>
-<text xml:space="preserve" text-anchor="start" x="705.38" y="-2236.95" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">ParseJWTFieldSharedLogic</text>
-<polygon fill="none" stroke="black" points="701.38,-2212.5 701.38,-2230.25 889.38,-2230.25 889.38,-2212.5 701.38,-2212.5"/>
-<text xml:space="preserve" text-anchor="start" x="705.38" y="-2219.5" font-family="Helvetica,sans-Serif" font-size="9.00">new: —</text>
-<polygon fill="none" stroke="black" points="701.38,-2194.75 701.38,-2212.5 889.38,-2212.5 889.38,-2194.75 701.38,-2194.75"/>
-<text xml:space="preserve" text-anchor="start" x="705.38" y="-2201.75" font-family="Helvetica,sans-Serif" font-size="9.00">old: JWT.lean:227 (c)</text>
+<polygon fill="#f4a6a6" stroke="none" points="701.38,-2246.25 701.38,-2269.25 889.38,-2269.25 889.38,-2246.25 701.38,-2246.25"/>
+<polygon fill="none" stroke="black" points="701.38,-2246.25 701.38,-2269.25 889.38,-2269.25 889.38,-2246.25 701.38,-2246.25"/>
+<text xml:space="preserve" text-anchor="start" x="705.38" y="-2252.95" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">ParseJWTFieldSharedLogic</text>
+<polygon fill="none" stroke="black" points="701.38,-2228.5 701.38,-2246.25 889.38,-2246.25 889.38,-2228.5 701.38,-2228.5"/>
+<text xml:space="preserve" text-anchor="start" x="705.38" y="-2235.5" font-family="Helvetica,sans-Serif" font-size="9.00">new: —</text>
+<polygon fill="none" stroke="black" points="701.38,-2210.75 701.38,-2228.5 889.38,-2228.5 889.38,-2210.75 701.38,-2210.75"/>
+<text xml:space="preserve" text-anchor="start" x="705.38" y="-2217.75" font-family="Helvetica,sans-Serif" font-size="9.00">old: JWT.lean:227 (c)</text>
 </g>
 <!-- ParseEmailVerifiedField&#45;&gt;ParseJWTFieldSharedLogic -->
 <g id="edge77" class="edge">
 <title>ParseEmailVerifiedField&#45;&gt;ParseJWTFieldSharedLogic</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M559.95,-2295.79C580.54,-2290.16 602.63,-2283.98 623,-2278 646.97,-2270.96 672.72,-2263.04 696.78,-2255.47"/>
-<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="697.32,-2257.51 702.41,-2253.7 696.06,-2253.5 697.32,-2257.51"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M560.14,-2297.37C600.98,-2287.37 651.04,-2275.11 694.39,-2264.49"/>
+<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="694.76,-2266.56 700.09,-2263.09 693.76,-2262.48 694.76,-2266.56"/>
 </g>
 <!-- IsWhitespace -->
 <g id="node27" class="node">
@@ -885,38 +893,38 @@
 <!-- ParseEmailVerifiedField&#45;&gt;AND -->
 <g id="edge71" class="edge">
 <title>ParseEmailVerifiedField&#45;&gt;AND</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M560.06,-2310.81C583.15,-2305.25 606.52,-2295.36 623,-2278 735.1,-2159.9 621.13,-2061.97 700.88,-1920 783.53,-1772.85 819.06,-1720.71 975.75,-1658 1106.85,-1605.53 1278.77,-1632.96 1360.51,-1651.13"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1359.87,-1653.14 1366.19,-1652.42 1360.8,-1649.04 1359.87,-1653.14"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M560.23,-2310.98C583.33,-2305.42 606.67,-2295.49 623,-2278 743.32,-2149.12 615.81,-2043.44 700.88,-1889 782.3,-1741.17 819.06,-1689.71 975.75,-1627 1107.56,-1574.25 1279.7,-1618.82 1361.1,-1645.9"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1359.95,-1647.73 1366.31,-1647.66 1361.3,-1643.75 1359.95,-1647.73"/>
 </g>
 <!-- ParseEmailVerifiedField&#45;&gt;IsEqual -->
 <g id="edge74" class="edge">
 <title>ParseEmailVerifiedField&#45;&gt;IsEqual</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M560.11,-2307.95C582.4,-2302.23 605.33,-2292.97 623,-2278 686.11,-2224.56 639.66,-2164.61 700.88,-2109 796.65,-2021.98 852.89,-2053.63 975.75,-2013 1077.65,-1979.3 1123.35,-2009.16 1206.25,-1941 1313.68,-1852.67 1372.49,-1691.43 1395.74,-1613.91"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1397.63,-1614.92 1397.31,-1608.57 1393.6,-1613.73 1397.63,-1614.92"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M560.11,-2307.95C582.4,-2302.23 605.33,-2292.97 623,-2278 686.11,-2224.56 643.9,-2168.94 700.88,-2109 795.89,-2009.04 848.33,-2017.77 975.75,-1965 1074.91,-1923.93 1121.33,-1958.64 1206.25,-1893 1302.67,-1818.47 1364.67,-1683.7 1391.81,-1614.16"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1393.74,-1615 1393.94,-1608.64 1389.82,-1613.48 1393.74,-1615"/>
 </g>
 <!-- ParseEmailVerifiedField&#45;&gt;OR -->
 <g id="edge76" class="edge">
 <title>ParseEmailVerifiedField&#45;&gt;OR</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M560.19,-2309.56C582.88,-2303.92 606,-2294.29 623,-2278 705.19,-2199.24 629.64,-2122.79 700.88,-2034 761.67,-1958.23 814.51,-1985.45 889.75,-1924 955.33,-1870.44 1018.1,-1794.24 1054.31,-1747.02"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1055.92,-1748.37 1057.89,-1742.33 1052.58,-1745.82 1055.92,-1748.37"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M560.16,-2310C582.98,-2304.38 606.18,-2294.66 623,-2278 713.26,-2188.61 623.02,-2103.38 700.88,-2003 760.41,-1926.24 814.51,-1954.45 889.75,-1893 955.33,-1839.44 1018.1,-1763.24 1054.31,-1716.02"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1055.92,-1717.37 1057.89,-1711.33 1052.58,-1714.82 1055.92,-1717.37"/>
 </g>
 <!-- ParseJWTFieldSharedLogic&#45;&gt;IsSubstring -->
 <g id="edge82" class="edge">
 <title>ParseJWTFieldSharedLogic&#45;&gt;IsSubstring</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M808.76,-2253.21C828.53,-2300.91 867.29,-2398.85 889.75,-2485 947.95,-2708.28 834.37,-2814.64 975.75,-2997 979.06,-3001.27 982.82,-3005.17 986.91,-3008.75"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M809.66,-2269.17C829.79,-2314.45 867.97,-2404.83 889.75,-2485 950.24,-2707.67 834.37,-2814.64 975.75,-2997 979.06,-3001.27 982.82,-3005.17 986.91,-3008.75"/>
 <polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="985.51,-3010.32 991.5,-3012.46 988.15,-3007.05 985.51,-3010.32"/>
 </g>
 <!-- ParseJWTFieldSharedLogic&#45;&gt;HashBytesToFieldWithLen -->
 <g id="edge80" class="edge">
 <title>ParseJWTFieldSharedLogic&#45;&gt;HashBytesToFieldWithLen</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M886.37,-2194.88C887.55,-2193.64 888.68,-2192.35 889.75,-2191 1102.11,-1923.87 740.69,-1675.4 975.75,-1428 1047.27,-1352.73 1108.02,-1423.62 1206.25,-1390 1249.63,-1375.15 1294.79,-1351.56 1331.33,-1330.12"/>
-<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1332.18,-1332.05 1336.28,-1327.19 1330.04,-1328.44 1332.18,-1332.05"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M886.37,-2210.88C887.55,-2209.64 888.68,-2208.35 889.75,-2207 1106.2,-1934.09 740.39,-1684.78 975.75,-1428 1046.33,-1350.99 1107.45,-1415.94 1206.25,-1382 1245.95,-1368.36 1287.75,-1348.41 1322.92,-1329.83"/>
+<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1323.76,-1331.76 1328.07,-1327.09 1321.79,-1328.05 1323.76,-1331.76"/>
 </g>
 <!-- ParseJWTFieldSharedLogic&#45;&gt;SelectArrayValue -->
 <g id="edge86" class="edge">
 <title>ParseJWTFieldSharedLogic&#45;&gt;SelectArrayValue</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M807.59,-2252.89C830.55,-2308.28 888.27,-2429.68 975.75,-2495 1082.64,-2574.81 1238.21,-2606.84 1330.54,-2619.35"/>
-<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1330.18,-2621.42 1336.4,-2620.12 1330.73,-2617.25 1330.18,-2621.42"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M809.01,-2269.24C833.39,-2322.24 892.04,-2434.33 975.75,-2495 1083.76,-2573.29 1238.96,-2605.82 1330.92,-2618.83"/>
+<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1330.52,-2620.9 1336.75,-2619.64 1331.1,-2616.74 1330.52,-2620.9"/>
 </g>
 <!-- GreaterThan -->
 <g id="node53" class="node">
@@ -934,38 +942,38 @@
 <!-- ParseJWTFieldSharedLogic&#45;&gt;GreaterThan -->
 <g id="edge79" class="edge">
 <title>ParseJWTFieldSharedLogic&#45;&gt;GreaterThan</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M889.21,-2223.38C974.23,-2220.08 1102.28,-2208.17 1206.25,-2169 1263.18,-2147.55 1320.17,-2107.47 1358.92,-2076.7"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1359.94,-2078.57 1363.32,-2073.18 1357.32,-2075.29 1359.94,-2078.57"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M889.37,-2216.45C973.11,-2194.42 1099.14,-2159.26 1206.25,-2121 1257.52,-2102.69 1314.45,-2077.95 1354.66,-2059.7"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1355.5,-2061.63 1360.09,-2057.23 1353.76,-2057.81 1355.5,-2061.63"/>
 </g>
 <!-- ParseJWTFieldSharedLogic&#45;&gt;IsEqual -->
 <g id="edge81" class="edge">
 <title>ParseJWTFieldSharedLogic&#45;&gt;IsEqual</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M884.33,-2194.78C913.41,-2185.2 945.94,-2174.56 975.75,-2165 1077.95,-2132.23 1127.94,-2166.39 1206.25,-2093 1210.91,-2088.63 1343.47,-1739.4 1390.93,-1614.12"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1392.83,-1615.02 1392.99,-1608.67 1388.9,-1613.54 1392.83,-1615.02"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M883.52,-2210.79C885.65,-2209.57 887.73,-2208.31 889.75,-2207 936.21,-2176.96 928.74,-2146.17 975.75,-2117 1066.94,-2060.41 1126.73,-2117.07 1206.25,-2045 1240.42,-2014.03 1349.93,-1725.5 1391.45,-1613.84"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1393.32,-1614.83 1393.44,-1608.48 1389.39,-1613.37 1393.32,-1614.83"/>
 </g>
 <!-- ParseJWTFieldSharedLogic&#45;&gt;LessThan -->
 <g id="edge83" class="edge">
 <title>ParseJWTFieldSharedLogic&#45;&gt;LessThan</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M886.32,-2194.84C887.52,-2193.61 888.66,-2192.33 889.75,-2191 1067.17,-1973.3 764.09,-1749.57 975.75,-1565 1278.07,-1301.37 1787.28,-1741.54 1937.46,-1883.9"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1935.76,-1885.18 1941.56,-1887.8 1938.66,-1882.14 1935.76,-1885.18"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M886.34,-2210.85C887.53,-2209.62 888.67,-2208.34 889.75,-2207 1079.15,-1972.36 749.42,-1733.25 975.75,-1534 1281.28,-1265.03 1792.49,-1735.69 1939.62,-1883.65"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1937.92,-1884.92 1943.64,-1887.7 1940.91,-1881.96 1937.92,-1884.92"/>
 </g>
 <!-- ParseJWTFieldSharedLogic&#45;&gt;MultiAND -->
 <g id="edge84" class="edge">
 <title>ParseJWTFieldSharedLogic&#45;&gt;MultiAND</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M884.94,-2194.94C886.6,-2193.68 888.2,-2192.37 889.75,-2191 999.21,-2094.18 1054.64,-1922.16 1075.69,-1841.31"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1077.67,-1842.04 1077.13,-1835.71 1073.6,-1841 1077.67,-1842.04"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M885.02,-2211.03C886.66,-2209.74 888.23,-2208.4 889.75,-2207 921.11,-2178.03 1026.89,-1915.75 1068.75,-1809.95"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1070.6,-1810.97 1070.85,-1804.62 1066.69,-1809.43 1070.6,-1810.97"/>
 </g>
 <!-- ParseJWTFieldSharedLogic&#45;&gt;OR -->
 <g id="edge85" class="edge">
 <title>ParseJWTFieldSharedLogic&#45;&gt;OR</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M885.49,-2194.77C886.96,-2193.56 888.38,-2192.31 889.75,-2191 1020.04,-2066.24 1066.17,-1843.36 1080.39,-1748.6"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1082.47,-1748.93 1081.26,-1742.69 1078.31,-1748.32 1082.47,-1748.93"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M885.55,-2210.83C887,-2209.6 888.4,-2208.33 889.75,-2207 962.28,-2135.36 1045.45,-1832.04 1074.93,-1717.26"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1076.89,-1718.1 1076.34,-1711.77 1072.82,-1717.06 1076.89,-1718.1"/>
 </g>
 <!-- ParseJWTFieldWithQuotedValue&#45;&gt;ParseJWTFieldSharedLogic -->
 <g id="edge93" class="edge">
 <title>ParseJWTFieldWithQuotedValue&#45;&gt;ParseJWTFieldSharedLogic</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M588.63,-2369.19C600.48,-2365.07 612.16,-2360.36 623,-2355 674.4,-2329.57 725.63,-2287.68 758.5,-2258.13"/>
-<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="759.86,-2259.74 762.9,-2254.15 757.04,-2256.62 759.86,-2259.74"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M588.69,-2368.39C600.47,-2364.43 612.12,-2359.97 623,-2355 670.6,-2333.25 719.66,-2298.89 753.03,-2273.38"/>
+<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="753.99,-2275.29 757.46,-2269.97 751.43,-2271.97 753.99,-2275.29"/>
 </g>
 <!-- ParseJWTFieldWithQuotedValue&#45;&gt;IsWhitespace -->
 <g id="edge90" class="edge">
@@ -994,26 +1002,26 @@
 <!-- ParseJWTFieldWithQuotedValue&#45;&gt;IsEqual -->
 <g id="edge89" class="edge">
 <title>ParseJWTFieldWithQuotedValue&#45;&gt;IsEqual</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M588.58,-2369.95C600.5,-2365.69 612.21,-2360.74 623,-2355 714.37,-2306.41 885.29,-2101.25 975.75,-2051 1069.57,-1998.88 1124.72,-2048.8 1206.25,-1979 1322.22,-1879.72 1377.75,-1697.87 1398.08,-1614.23"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1400.07,-1614.96 1399.42,-1608.64 1395.98,-1613.99 1400.07,-1614.96"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M588.64,-2370.87C600.61,-2366.44 612.31,-2361.19 623,-2355 814.62,-2243.93 786.19,-2117.54 975.75,-2003 1067.61,-1947.49 1122.96,-1998.68 1206.25,-1931 1311.19,-1845.73 1370.75,-1690.41 1394.87,-1614.36"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1396.86,-1615.05 1396.65,-1608.7 1392.85,-1613.8 1396.86,-1615.05"/>
 </g>
 <!-- ParseJWTFieldWithQuotedValue&#45;&gt;MultiAND -->
 <g id="edge91" class="edge">
 <title>ParseJWTFieldWithQuotedValue&#45;&gt;MultiAND</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M588.61,-2375.49C601.05,-2370.26 612.89,-2363.56 623,-2355 686.11,-2301.56 649.59,-2250.88 700.88,-2186 767.01,-2102.34 813.64,-2112.7 889.75,-2038 954.51,-1974.44 1018.87,-1890.39 1055.42,-1840.2"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1057.02,-1841.56 1058.84,-1835.47 1053.62,-1839.1 1057.02,-1841.56"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M588.65,-2374.96C601.02,-2369.82 612.82,-2363.28 623,-2355 682.18,-2306.84 656.53,-2264.09 700.88,-2202 770.99,-2103.81 809.61,-2097.2 889.75,-2007 949.5,-1939.75 1014.66,-1857.88 1052.84,-1808.95"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1054.4,-1810.37 1056.43,-1804.34 1051.09,-1807.79 1054.4,-1810.37"/>
 </g>
 <!-- ParseJWTFieldWithQuotedValue&#45;&gt;OR -->
 <g id="edge92" class="edge">
 <title>ParseJWTFieldWithQuotedValue&#45;&gt;OR</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M588.55,-2377.62C601.31,-2372.06 613.24,-2364.71 623,-2355 714.3,-2264.24 622.97,-2178.49 700.88,-2076 760.21,-1997.94 816.8,-2027.52 889.75,-1962 962.12,-1897.01 1026.22,-1802.17 1060.24,-1747.41"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1061.87,-1748.76 1063.24,-1742.55 1058.3,-1746.55 1061.87,-1748.76"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M588.43,-2378.01C601.29,-2372.4 613.27,-2364.92 623,-2355 722.43,-2253.54 616.39,-2159.2 700.88,-2045 759.19,-1966.18 816.8,-1996.52 889.75,-1931 962.12,-1866.01 1026.22,-1771.17 1060.24,-1716.41"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1061.87,-1717.76 1063.24,-1711.55 1058.3,-1715.55 1061.87,-1717.76"/>
 </g>
 <!-- ParseJWTFieldWithUnquotedValue&#45;&gt;ParseJWTFieldSharedLogic -->
 <g id="edge102" class="edge">
 <title>ParseJWTFieldWithUnquotedValue&#45;&gt;ParseJWTFieldSharedLogic</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M596.17,-2234.09C628.39,-2232.45 663.09,-2230.68 694.31,-2229.09"/>
-<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="694.35,-2231.19 700.23,-2228.79 694.13,-2227 694.35,-2231.19"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M596.17,-2240C628.39,-2240 663.09,-2240 694.31,-2240"/>
+<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="694.23,-2242.1 700.23,-2240 694.23,-2237.9 694.23,-2242.1"/>
 </g>
 <!-- ParseJWTFieldWithUnquotedValue&#45;&gt;IsWhitespace -->
 <g id="edge99" class="edge">
@@ -1036,38 +1044,38 @@
 <!-- ParseJWTFieldWithUnquotedValue&#45;&gt;AND -->
 <g id="edge95" class="edge">
 <title>ParseJWTFieldWithUnquotedValue&#45;&gt;AND</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M596.18,-2214.91C605.57,-2210.93 614.64,-2206.32 623,-2201 668.18,-2172.21 657.97,-2141.08 700.88,-2109 897.51,-1962 1007.29,-2029.83 1206.25,-1886 1277.14,-1834.75 1341.56,-1754.97 1377.57,-1706.01"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1379.08,-1707.5 1380.93,-1701.42 1375.69,-1705.03 1379.08,-1707.5"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M596.18,-2214.91C605.57,-2210.93 614.64,-2206.32 623,-2201 668.18,-2172.21 658.79,-2142.14 700.88,-2109 898.38,-1953.48 1000.73,-1999.76 1206.25,-1855 1269.18,-1810.68 1331.79,-1747.14 1370.1,-1705.49"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1371.58,-1706.97 1374.08,-1701.13 1368.48,-1704.14 1371.58,-1706.97"/>
 </g>
 <!-- ParseJWTFieldWithUnquotedValue&#45;&gt;IsEqual -->
 <g id="edge98" class="edge">
 <title>ParseJWTFieldWithUnquotedValue&#45;&gt;IsEqual</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M596.24,-2218.8C605.95,-2214.01 615.07,-2208.15 623,-2201 694.15,-2136.85 630.56,-2065.07 700.88,-2000 873.03,-1840.69 1015.09,-1983.91 1206.25,-1848 1293.18,-1786.2 1356.99,-1674.93 1387.52,-1613.57"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1389.28,-1614.73 1390.05,-1608.42 1385.52,-1612.88 1389.28,-1614.73"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M596.24,-2219.36C606.01,-2214.45 615.14,-2208.42 623,-2201 702.09,-2126.34 622.76,-2044.68 700.88,-1969 869.33,-1805.8 1011.29,-1947.39 1206.25,-1817 1286.18,-1763.54 1350.4,-1668.82 1383.4,-1613.51"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1385.05,-1614.83 1386.3,-1608.6 1381.44,-1612.69 1385.05,-1614.83"/>
 </g>
 <!-- ParseJWTFieldWithUnquotedValue&#45;&gt;MultiAND -->
 <g id="edge100" class="edge">
 <title>ParseJWTFieldWithUnquotedValue&#45;&gt;MultiAND</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M596.24,-2218.8C605.95,-2214.01 615.07,-2208.15 623,-2201 694.15,-2136.85 637.15,-2071.54 700.88,-2000 785.71,-1904.76 926.05,-1846.87 1011.86,-1818.48"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1012.48,-1820.48 1017.52,-1816.62 1011.17,-1816.49 1012.48,-1820.48"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M596.24,-2219.36C606.01,-2214.45 615.14,-2208.42 623,-2201 702.09,-2126.34 630.41,-2051.85 700.88,-1969 783.75,-1871.56 925.37,-1814.23 1011.84,-1786.57"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1012.47,-1788.57 1017.55,-1784.76 1011.2,-1784.57 1012.47,-1788.57"/>
 </g>
 <!-- ParseJWTFieldWithUnquotedValue&#45;&gt;OR -->
 <g id="edge101" class="edge">
 <title>ParseJWTFieldWithUnquotedValue&#45;&gt;OR</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M596.2,-2220.37C606.1,-2215.28 615.27,-2208.92 623,-2201 723.75,-2097.81 609.54,-1997.61 700.88,-1886 790.1,-1776.98 959.79,-1729.43 1040.79,-1712.23"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1040.95,-1714.35 1046.39,-1711.07 1040.09,-1710.24 1040.95,-1714.35"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M596.03,-2220.72C606.03,-2215.56 615.26,-2209.09 623,-2201 731.93,-2087.07 602.33,-1978.02 700.88,-1855 789.06,-1744.91 959.64,-1697.83 1040.87,-1680.99"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1041.04,-1683.1 1046.5,-1679.85 1040.2,-1678.98 1041.04,-1683.1"/>
 </g>
 <!-- StringBodies&#45;&gt;AND -->
 <g id="edge122" class="edge">
 <title>StringBodies&#45;&gt;AND</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M1132.73,-2237.36C1157.18,-2233.71 1186.44,-2225.44 1206.25,-2207 1281.57,-2136.88 1248.7,-2085.57 1284.25,-1989 1321.49,-1887.84 1366.64,-1769.61 1390.66,-1707.06"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1392.61,-1707.84 1392.8,-1701.49 1388.69,-1706.34 1392.61,-1707.84"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M1145.92,-2190.34C1167.06,-2184.34 1189.78,-2174.63 1206.25,-2159 1223.78,-2142.35 1345.88,-1825 1390.96,-1706.84"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1392.84,-1707.79 1393.02,-1701.43 1388.92,-1706.29 1392.84,-1707.79"/>
 </g>
 <!-- StringBodies&#45;&gt;IsEqual -->
 <g id="edge123" class="edge">
 <title>StringBodies&#45;&gt;IsEqual</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M1132.85,-2238.16C1157.65,-2234.79 1187.22,-2226.54 1206.25,-2207 1305.68,-2104.91 1241.63,-2031.98 1284.25,-1896 1316.41,-1793.42 1363.35,-1676.22 1389.07,-1614.09"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1391,-1614.9 1391.36,-1608.55 1387.12,-1613.29 1391,-1614.9"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M1145.83,-2191.42C1167.33,-2185.54 1190.34,-2175.65 1206.25,-2159 1290.48,-2070.85 1245.31,-2011.54 1284.25,-1896 1318.58,-1794.12 1364.68,-1676.65 1389.68,-1614.29"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1391.62,-1615.08 1391.91,-1608.73 1387.72,-1613.52 1391.62,-1615.08"/>
 </g>
 <!-- XOR -->
 <g id="node63" class="node">
@@ -1085,20 +1093,20 @@
 <!-- StringBodies&#45;&gt;XOR -->
 <g id="edge124" class="edge">
 <title>StringBodies&#45;&gt;XOR</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M1132.78,-2236.68C1156.95,-2232.8 1185.91,-2224.54 1206.25,-2207 1333.54,-2097.26 1383.96,-1891.21 1400.6,-1800.64"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1402.66,-1801.04 1401.66,-1794.77 1398.53,-1800.3 1402.66,-1801.04"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M1145.9,-2189.48C1166.79,-2183.38 1189.35,-2173.84 1206.25,-2159 1319.07,-2059.94 1375.92,-1882.85 1397.3,-1800.45"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1399.32,-1801.05 1398.77,-1794.72 1395.25,-1800.01 1399.32,-1801.05"/>
 </g>
 <!-- SHA2_256_PaddingVerify&#45;&gt;AssertIsSubstring -->
 <g id="edge110" class="edge">
 <title>SHA2_256_PaddingVerify&#45;&gt;AssertIsSubstring</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M486.12,-1318.16C508.04,-1423.67 583.45,-1795.68 623,-2106 649.98,-2317.67 577.34,-2885.28 699.56,-3071.58"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M486.04,-1310.08C507.83,-1416.14 583.28,-1792.34 623,-2106 649.81,-2317.69 577.33,-2885.28 699.56,-3071.58"/>
 <polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="697.82,-3072.76 702.94,-3076.53 701.29,-3070.39 697.82,-3072.76"/>
 </g>
 <!-- SHA2_256_PaddingVerify&#45;&gt;HashBytesToFieldWithLen -->
 <g id="edge113" class="edge">
 <title>SHA2_256_PaddingVerify&#45;&gt;HashBytesToFieldWithLen</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M598.43,-1287.98C784.2,-1286.38 1140.52,-1283.3 1311.48,-1281.83"/>
-<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1311.48,-1283.93 1317.47,-1281.78 1311.45,-1279.73 1311.48,-1283.93"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M598.43,-1281C784.2,-1281 1140.52,-1281 1311.48,-1281"/>
+<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1311.47,-1283.1 1317.47,-1281 1311.47,-1278.9 1311.47,-1283.1"/>
 </g>
 <!-- BigEndianBits2Num -->
 <g id="node40" class="node">
@@ -1116,13 +1124,13 @@
 <!-- SHA2_256_PaddingVerify&#45;&gt;BigEndianBits2Num -->
 <g id="edge111" class="edge">
 <title>SHA2_256_PaddingVerify&#45;&gt;BigEndianBits2Num</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M513.24,-1259.9C547.3,-1227.9 598.6,-1173.12 623,-1114 690.64,-950.12 580.98,-450.6 700.88,-320 758.61,-257.11 806.19,-302.52 889.75,-285 926.68,-277.25 967.32,-267.87 1001.99,-259.61"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M515.14,-1251.86C549.18,-1221.37 599.05,-1170.18 623,-1114 692.52,-950.91 580.98,-450.6 700.88,-320 758.61,-257.11 806.19,-302.52 889.75,-285 926.68,-277.25 967.32,-267.87 1001.99,-259.61"/>
 <polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1002.47,-261.65 1007.82,-258.21 1001.5,-257.57 1002.47,-261.65"/>
 </g>
 <!-- SHA2_256_PaddingVerify&#45;&gt;Bytes2BigEndianBits -->
 <g id="edge112" class="edge">
 <title>SHA2_256_PaddingVerify&#45;&gt;Bytes2BigEndianBits</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M513.4,-1259.96C547.59,-1228.02 599,-1173.28 623,-1114 700.09,-923.62 585.8,-363.14 700.88,-193 703.81,-188.65 707.28,-184.69 711.12,-181.08"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M515.3,-1251.93C549.46,-1221.49 599.43,-1170.34 623,-1114 702.27,-924.52 585.8,-363.14 700.88,-193 703.81,-188.65 707.28,-184.69 711.12,-181.08"/>
 <polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="712.25,-182.87 715.42,-177.36 709.5,-179.7 712.25,-182.87"/>
 </g>
 <!-- Num2Bits -->
@@ -1141,7 +1149,7 @@
 <!-- SHA2_256_PaddingVerify&#45;&gt;Num2Bits -->
 <g id="edge114" class="edge">
 <title>SHA2_256_PaddingVerify&#45;&gt;Num2Bits</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M598.12,-1303.13C688.48,-1307.17 810.63,-1297.04 889.75,-1228 992.65,-1138.21 866.5,-1014.95 975.75,-933 1057.7,-871.53 1104.86,-918.35 1206.25,-933 1487.51,-973.64 1605.91,-926.55 1819.5,-1114 1917.25,-1199.78 1958.3,-1356.28 1973.13,-1432.67"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M598.34,-1297.8C688.52,-1303.73 810.32,-1295.98 889.75,-1228 993.51,-1139.2 866.5,-1014.95 975.75,-933 1057.7,-871.53 1104.86,-918.35 1206.25,-933 1487.51,-973.64 1605.91,-926.55 1819.5,-1114 1917.25,-1199.78 1958.3,-1356.28 1973.13,-1432.67"/>
 <polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1971.02,-1432.82 1974.2,-1438.32 1975.14,-1432.04 1971.02,-1432.82"/>
 </g>
 <!-- SingleOneArray -->
@@ -1160,7 +1168,7 @@
 <!-- SHA2_256_Prepadded_Hash&#45;&gt;SingleOneArray -->
 <g id="edge116" class="edge">
 <title>SHA2_256_Prepadded_Hash&#45;&gt;SingleOneArray</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M1129.06,-1318.11C1167.32,-1343.66 1226.94,-1379.54 1284.25,-1398 1338.93,-1415.61 1500.42,-1387.35 1541,-1428 1648.14,-1535.34 1594.97,-1956.26 1619,-2106 1643.74,-2260.11 1684.58,-2440.86 1703.73,-2522.72"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M1125.81,-1310.2C1163.67,-1337.77 1224.71,-1377.81 1284.25,-1398 1338.65,-1416.45 1500.42,-1387.35 1541,-1428 1648.14,-1535.34 1594.97,-1956.26 1619,-2106 1643.74,-2260.11 1684.58,-2440.86 1703.73,-2522.72"/>
 <polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1701.64,-2523.03 1705.05,-2528.39 1705.73,-2522.07 1701.64,-2523.03"/>
 </g>
 <!-- Sum -->
@@ -1181,8 +1189,8 @@
 <!-- SHA2_256_Prepadded_Hash&#45;&gt;Sum -->
 <g id="edge117" class="edge">
 <title>SHA2_256_Prepadded_Hash&#45;&gt;Sum</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M1198.13,-1260.63C1200.91,-1259.16 1203.62,-1257.62 1206.25,-1256 1277.18,-1212.32 1338.31,-1136.56 1374.06,-1086.1"/>
-<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1375.69,-1087.43 1377.42,-1081.32 1372.26,-1085.02 1375.69,-1087.43"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.690196" d="M1198.09,-1252.57C1200.88,-1251.12 1203.6,-1249.6 1206.25,-1248 1275.34,-1206.32 1336.1,-1134.56 1372.34,-1085.97"/>
+<polygon fill="#000000" fill-opacity="0.690196" stroke="#000000" stroke-opacity="0.690196" points="1373.85,-1087.46 1375.73,-1081.38 1370.48,-1084.96 1373.85,-1087.46"/>
 </g>
 <!-- Sha256compression -->
 <g id="node62" class="node">
@@ -1200,8 +1208,8 @@
 <!-- SHA2_256_Prepadded_Hash&#45;&gt;Sha256compression -->
 <g id="edge115" class="edge">
 <title>SHA2_256_Prepadded_Hash&#45;&gt;Sha256compression</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M1119.82,-1318C1156.93,-1350.54 1221.25,-1403.05 1284.25,-1436 1299.04,-1443.73 1315.58,-1450.42 1331.62,-1456.02"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1330.67,-1457.91 1337.02,-1457.86 1332.02,-1453.94 1330.67,-1457.91"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M1117.89,-1310.16C1154.45,-1344.44 1219.48,-1401.06 1284.25,-1436 1298.94,-1443.92 1315.43,-1450.69 1331.47,-1456.31"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1330.51,-1458.2 1336.87,-1458.15 1331.87,-1454.23 1330.51,-1458.2"/>
 </g>
 <!-- FpMul -->
 <g id="node14" class="node">
@@ -1281,8 +1289,8 @@
 <!-- BigLessThan&#45;&gt;AND -->
 <g id="edge30" class="edge">
 <title>BigLessThan&#45;&gt;AND</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M817.02,-569.24C836.49,-604.78 866.13,-660.03 889.75,-709 931.08,-794.68 929.93,-821.64 975.75,-905 1064.22,-1065.96 1134.95,-1078.73 1206.25,-1248 1272.16,-1404.48 1171.3,-1495.22 1284.25,-1622 1303.46,-1643.57 1334.3,-1653.82 1360.33,-1658.68"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1359.77,-1660.71 1366.04,-1659.65 1360.48,-1656.57 1359.77,-1660.71"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M817.02,-569.24C836.49,-604.78 866.13,-660.03 889.75,-709 931.08,-794.68 929.47,-821.89 975.75,-905 1063.67,-1062.9 1135.53,-1073.68 1206.25,-1240 1274.05,-1399.46 1169.25,-1492.38 1284.25,-1622 1303.42,-1643.61 1334.25,-1653.86 1360.3,-1658.71"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1359.74,-1660.74 1366.01,-1659.68 1360.45,-1656.6 1359.74,-1660.74"/>
 </g>
 <!-- BigLessThan&#45;&gt;IsEqual -->
 <g id="edge31" class="edge">
@@ -1299,8 +1307,8 @@
 <!-- BigLessThan&#45;&gt;OR -->
 <g id="edge33" class="edge">
 <title>BigLessThan&#45;&gt;OR</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M821.59,-569.14C843.66,-603.72 874.52,-657.53 889.75,-709 950.14,-913.11 846.54,-1493.85 975.75,-1663 991.2,-1683.22 1017.73,-1693.47 1040.89,-1698.67"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1040.17,-1700.66 1046.48,-1699.82 1041.02,-1696.55 1040.17,-1700.66"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M821.55,-569.15C843.6,-603.73 874.44,-657.55 889.75,-709 948.49,-906.45 850.45,-1468.49 975.75,-1632 991.23,-1652.2 1017.76,-1662.45 1040.92,-1667.65"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1040.2,-1669.64 1046.5,-1668.8 1041.04,-1665.53 1040.2,-1669.64"/>
 </g>
 <!-- CheckCarryToZero&#45;&gt;Num2Bits -->
 <g id="edge38" class="edge">
@@ -1311,7 +1319,7 @@
 <!-- Base64UrlLookup -->
 <g id="node21" class="node">
 <title>Base64UrlLookup</title>
-<polygon fill="#ffb870" stroke="none" points="1006.12,-772.38 1006.12,-795.38 1167.88,-795.38 1167.88,-772.38 1006.12,-772.38"/>
+<polygon fill="#a8dba8" stroke="none" points="1006.12,-772.38 1006.12,-795.38 1167.88,-795.38 1167.88,-772.38 1006.12,-772.38"/>
 <polygon fill="none" stroke="black" points="1006.12,-772.38 1006.12,-795.38 1167.88,-795.38 1167.88,-772.38 1006.12,-772.38"/>
 <text xml:space="preserve" text-anchor="start" x="1029.62" y="-779.08" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">Base64UrlLookup</text>
 <polygon fill="none" stroke="black" points="1006.12,-754.62 1006.12,-772.38 1167.88,-772.38 1167.88,-754.62 1006.12,-754.62"/>
@@ -1330,21 +1338,21 @@
 <!-- Bits2Num -->
 <g id="node51" class="node">
 <title>Bits2Num</title>
-<polygon fill="#a8dba8" stroke="none" points="1029.75,-1625.38 1029.75,-1648.38 1144.25,-1648.38 1144.25,-1625.38 1029.75,-1625.38"/>
-<polygon fill="none" stroke="black" points="1029.75,-1625.38 1029.75,-1648.38 1144.25,-1648.38 1144.25,-1625.38 1029.75,-1625.38"/>
-<text xml:space="preserve" text-anchor="start" x="1054.75" y="-1632.08" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">Bits2Num</text>
-<polygon fill="none" stroke="black" points="1029.75,-1607.62 1029.75,-1625.38 1144.25,-1625.38 1144.25,-1607.62 1029.75,-1607.62"/>
-<text xml:space="preserve" text-anchor="start" x="1033.75" y="-1614.62" font-family="Helvetica,sans-Serif" font-size="9.00">new: FArray.bits2num</text>
-<polygon fill="none" stroke="black" points="1029.75,-1591.38 1029.75,-1607.62 1144.25,-1607.62 1144.25,-1591.38 1029.75,-1591.38"/>
-<text xml:space="preserve" text-anchor="start" x="1033.75" y="-1597.62" font-family="Helvetica,sans-Serif" font-size="8.00"> &#160;&#160;&#160;&#160;Data/FArray/bits2num.lean</text>
-<polygon fill="none" stroke="black" points="1029.75,-1573.62 1029.75,-1591.38 1144.25,-1591.38 1144.25,-1573.62 1029.75,-1573.62"/>
-<text xml:space="preserve" text-anchor="start" x="1033.75" y="-1580.62" font-family="Helvetica,sans-Serif" font-size="9.00">old: Lang.lean:13</text>
+<polygon fill="#a8dba8" stroke="none" points="1029.75,-1594.38 1029.75,-1617.38 1144.25,-1617.38 1144.25,-1594.38 1029.75,-1594.38"/>
+<polygon fill="none" stroke="black" points="1029.75,-1594.38 1029.75,-1617.38 1144.25,-1617.38 1144.25,-1594.38 1029.75,-1594.38"/>
+<text xml:space="preserve" text-anchor="start" x="1054.75" y="-1601.08" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">Bits2Num</text>
+<polygon fill="none" stroke="black" points="1029.75,-1576.62 1029.75,-1594.38 1144.25,-1594.38 1144.25,-1576.62 1029.75,-1576.62"/>
+<text xml:space="preserve" text-anchor="start" x="1033.75" y="-1583.62" font-family="Helvetica,sans-Serif" font-size="9.00">new: FArray.bits2num</text>
+<polygon fill="none" stroke="black" points="1029.75,-1560.38 1029.75,-1576.62 1144.25,-1576.62 1144.25,-1560.38 1029.75,-1560.38"/>
+<text xml:space="preserve" text-anchor="start" x="1033.75" y="-1566.62" font-family="Helvetica,sans-Serif" font-size="8.00"> &#160;&#160;&#160;&#160;Data/FArray/bits2num.lean</text>
+<polygon fill="none" stroke="black" points="1029.75,-1542.62 1029.75,-1560.38 1144.25,-1560.38 1144.25,-1542.62 1029.75,-1542.62"/>
+<text xml:space="preserve" text-anchor="start" x="1033.75" y="-1549.62" font-family="Helvetica,sans-Serif" font-size="9.00">old: Lang.lean:13</text>
 </g>
 <!-- Base64UrlDecode&#45;&gt;Bits2Num -->
 <g id="edge23" class="edge">
 <title>Base64UrlDecode&#45;&gt;Bits2Num</title>
-<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M799.88,-795.04C814.09,-937.79 871.62,-1450.33 975.75,-1570 988,-1584.08 1005.55,-1593.33 1023.06,-1599.4"/>
-<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1022.22,-1601.34 1028.57,-1601.19 1023.51,-1597.35 1022.22,-1601.34"/>
+<path fill="none" stroke="#000000" stroke-opacity="0.188235" d="M800.24,-795.05C815.43,-934.35 875.27,-1424.5 975.75,-1539 988,-1552.96 1005.45,-1562.17 1022.87,-1568.25"/>
+<polygon fill="#000000" fill-opacity="0.188235" stroke="#000000" stroke-opacity="0.188235" points="1022,-1570.18 1028.36,-1570.04 1023.31,-1566.18 1022,-1570.18"/>
 </g>
 <!-- Base64UrlDecode&#45;&gt;Num2Bits -->
 <g id="edge24" class="edge">
@@ -1811,32 +1819,28 @@
 <!-- legend -->
 <g id="node64" class="node">
 <title>legend</title>
-<polygon fill="white" stroke="none" points="0,-887.62 0,-1140.38 257,-1140.38 257,-887.62 0,-887.62"/>
-<text xml:space="preserve" text-anchor="start" x="104.5" y="-1121.08" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">Legend</text>
-<polygon fill="#a8dba8" stroke="none" points="3,-1089.38 3,-1112.38 32.75,-1112.38 32.75,-1089.38 3,-1089.38"/>
-<text xml:space="preserve" text-anchor="start" x="16" y="-1097.88" font-family="Helvetica,sans-Serif" font-size="14.00"> </text>
-<text xml:space="preserve" text-anchor="start" x="38.75" y="-1097.88" font-family="Helvetica,sans-Serif" font-size="14.00">proven (convertsM, no sorry)</text>
-<text xml:space="preserve" text-anchor="start" x="235" y="-1097.88" font-family="Helvetica,sans-Serif" font-size="14.00">44</text>
-<polygon fill="#ffb870" stroke="none" points="3,-1064.38 3,-1087.38 32.75,-1087.38 32.75,-1064.38 3,-1064.38"/>
-<text xml:space="preserve" text-anchor="start" x="16" y="-1072.88" font-family="Helvetica,sans-Serif" font-size="14.00"> </text>
-<text xml:space="preserve" text-anchor="start" x="38.75" y="-1072.88" font-family="Helvetica,sans-Serif" font-size="14.00">ported, spec has sorry</text>
-<text xml:space="preserve" text-anchor="start" x="242.5" y="-1072.88" font-family="Helvetica,sans-Serif" font-size="14.00">2</text>
-<polygon fill="#fff1a0" stroke="none" points="3,-1039.38 3,-1062.38 32.75,-1062.38 32.75,-1039.38 3,-1039.38"/>
-<text xml:space="preserve" text-anchor="start" x="16" y="-1047.88" font-family="Helvetica,sans-Serif" font-size="14.00"> </text>
-<text xml:space="preserve" text-anchor="start" x="38.75" y="-1047.88" font-family="Helvetica,sans-Serif" font-size="14.00">ported, no spec</text>
-<text xml:space="preserve" text-anchor="start" x="242.5" y="-1047.88" font-family="Helvetica,sans-Serif" font-size="14.00">2</text>
-<polygon fill="#f4a6a6" stroke="none" points="3,-1014.38 3,-1037.38 32.75,-1037.38 32.75,-1014.38 3,-1014.38"/>
-<text xml:space="preserve" text-anchor="start" x="16" y="-1022.88" font-family="Helvetica,sans-Serif" font-size="14.00"> </text>
-<text xml:space="preserve" text-anchor="start" x="38.75" y="-1022.88" font-family="Helvetica,sans-Serif" font-size="14.00">not ported</text>
-<text xml:space="preserve" text-anchor="start" x="235" y="-1022.88" font-family="Helvetica,sans-Serif" font-size="14.00">15</text>
-<text xml:space="preserve" text-anchor="start" x="38.75" y="-996.08" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">total</text>
-<text xml:space="preserve" text-anchor="start" x="235" y="-996.08" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">63</text>
-<text xml:space="preserve" text-anchor="start" x="7" y="-976.62" font-family="Helvetica,sans-Serif" font-size="9.00">new: Lean gadget, path under Clap/Lang/</text>
-<text xml:space="preserve" text-anchor="start" x="7" y="-956.88" font-family="Helvetica,sans-Serif" font-size="9.00">old: definition under old/Clap/ · (c) = commented out</text>
-<text xml:space="preserve" text-anchor="start" x="7" y="-937.12" font-family="Helvetica,sans-Serif" font-size="9.00">A → B: template A instantiates B (faded when B is circomlib)</text>
-<text xml:space="preserve" text-anchor="start" x="7" y="-917.38" font-family="Helvetica,sans-Serif" font-size="9.00">sorryAx from bn254/goldilocks primality is ignored</text>
-<text xml:space="preserve" text-anchor="start" x="7" y="-897.62" font-family="Helvetica,sans-Serif" font-size="9.00">hashing gadgets are proven under Poseidon.Computes H</text>
-<polygon fill="none" stroke="black" points="0,-887.62 0,-1140.38 257,-1140.38 257,-887.62 0,-887.62"/>
+<polygon fill="white" stroke="none" points="0,-888.12 0,-1115.88 257,-1115.88 257,-888.12 0,-888.12"/>
+<text xml:space="preserve" text-anchor="start" x="104.5" y="-1096.58" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">Legend</text>
+<polygon fill="#a8dba8" stroke="none" points="3,-1064.88 3,-1087.88 32.75,-1087.88 32.75,-1064.88 3,-1064.88"/>
+<text xml:space="preserve" text-anchor="start" x="16" y="-1073.38" font-family="Helvetica,sans-Serif" font-size="14.00"> </text>
+<text xml:space="preserve" text-anchor="start" x="38.75" y="-1073.38" font-family="Helvetica,sans-Serif" font-size="14.00">proven (convertsM, no sorry)</text>
+<text xml:space="preserve" text-anchor="start" x="235" y="-1073.38" font-family="Helvetica,sans-Serif" font-size="14.00">50</text>
+<polygon fill="#fff1a0" stroke="none" points="3,-1039.88 3,-1062.88 32.75,-1062.88 32.75,-1039.88 3,-1039.88"/>
+<text xml:space="preserve" text-anchor="start" x="16" y="-1048.38" font-family="Helvetica,sans-Serif" font-size="14.00"> </text>
+<text xml:space="preserve" text-anchor="start" x="38.75" y="-1048.38" font-family="Helvetica,sans-Serif" font-size="14.00">ported, no spec</text>
+<text xml:space="preserve" text-anchor="start" x="242.5" y="-1048.38" font-family="Helvetica,sans-Serif" font-size="14.00">2</text>
+<polygon fill="#f4a6a6" stroke="none" points="3,-1014.88 3,-1037.88 32.75,-1037.88 32.75,-1014.88 3,-1014.88"/>
+<text xml:space="preserve" text-anchor="start" x="16" y="-1023.38" font-family="Helvetica,sans-Serif" font-size="14.00"> </text>
+<text xml:space="preserve" text-anchor="start" x="38.75" y="-1023.38" font-family="Helvetica,sans-Serif" font-size="14.00">not ported</text>
+<text xml:space="preserve" text-anchor="start" x="235" y="-1023.38" font-family="Helvetica,sans-Serif" font-size="14.00">11</text>
+<text xml:space="preserve" text-anchor="start" x="38.75" y="-996.58" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">total</text>
+<text xml:space="preserve" text-anchor="start" x="235" y="-996.58" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="14.00">63</text>
+<text xml:space="preserve" text-anchor="start" x="7" y="-977.12" font-family="Helvetica,sans-Serif" font-size="9.00">new: Lean gadget, path under Clap/Lang/</text>
+<text xml:space="preserve" text-anchor="start" x="7" y="-957.38" font-family="Helvetica,sans-Serif" font-size="9.00">old: definition under old/Clap/ · (c) = commented out</text>
+<text xml:space="preserve" text-anchor="start" x="7" y="-937.62" font-family="Helvetica,sans-Serif" font-size="9.00">A → B: template A instantiates B (faded when B is circomlib)</text>
+<text xml:space="preserve" text-anchor="start" x="7" y="-917.88" font-family="Helvetica,sans-Serif" font-size="9.00">sorryAx from bn254/goldilocks primality is ignored</text>
+<text xml:space="preserve" text-anchor="start" x="7" y="-898.12" font-family="Helvetica,sans-Serif" font-size="9.00">hashing gadgets are proven under Poseidon.Computes H</text>
+<polygon fill="none" stroke="black" points="0,-888.12 0,-1115.88 257,-1115.88 257,-888.12 0,-888.12"/>
 </g>
 </g>
 </svg>

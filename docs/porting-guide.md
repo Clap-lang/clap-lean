@@ -517,3 +517,6 @@ Note `Fact (Nat.Prime goldilocks)` and `Fact (Nat.Prime bn254)` are `sorry`'d in
 - [ ] The gadget passes the [specifying-circuits.md](specifying-circuits.md) and
       [proving-circuits.md](proving-circuits.md) checklists too.
 - [ ] You did not depend on `num2bits`, `share` or `fpmul` without first porting the wrapper.
+- [ ] The gadget's node in [keyless-dependency-graph.dot](keyless-dependency-graph.dot) and
+      [aptos-circom-dependency-graph.dot](aptos-circom-dependency-graph.dot) has its new
+      `status=` and `new=`, and you reran `scripts/render-graphs.py`.
