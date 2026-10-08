@@ -1,7 +1,7 @@
 // Generated one-off; see the legend for the pinned versions.
 digraph clap {
   graph [rankdir=LR, ranksep=1.1, nodesep=0.18, fontname="Helvetica", labelloc=t, fontsize=22,
-         label=<<B>CLAP gadget dependency graph: port and proof status</B><BR/><FONT POINT-SIZE="12">CLAP fasapa/new-main @ 94bb46f · 2026-10-01 · edges: A calls B (new body if ported, old body otherwise)</FONT>>];
+         label=<<B>CLAP gadget dependency graph: port and proof status</B><BR/><FONT POINT-SIZE="12">CLAP fasapa/rsa · 2026-10-06 · edges: A calls B (new body if ported, old body otherwise)</FONT>>];
   node [shape=plain, fontname="Helvetica"];
   edge [color="#000000a0", arrowsize=0.6];
   subgraph cluster_Keyless {
@@ -48,9 +48,15 @@ digraph clap {
     "sha256VerifiedDigest" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>sha256VerifiedDigest</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Sha2/Keyless.lean:134 (c)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: SHA2_256_PaddingVerify + SHA2_256_Prepadded_Hash</I></FONT></TD></TR></TABLE>>];
   }
   subgraph cluster_RSA {
-    label=<<B>RSA — old/Clap/RSA.lean</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
-    "RSA_2048_e_65537_PKCS1_V1_5_Verify" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>RSA_2048_e_65537_PKCS1_V1_5_Verify</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: RSA.lean:26</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: RSA_PKCS1_v1_5_Verify</I></FONT></TD></TR></TABLE>>];
-    "fpPow65537Mod" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#f4a6a6"><B>fpPow65537Mod</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: RSA.lean:16</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: FpPow65537Mod</I></FONT></TD></TR></TABLE>>];
+    label=<<B>Data/RSA — old/Clap/RSA.lean</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
+    "rsa2048e65537Pkcs1v15Verify" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>rsa2048e65537Pkcs1v15Verify</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/RSA/rsa2048e65537Pkcs1v15Verify.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: RSA_2048_e_65537_PKCS1_V1_5_Verify (keyless.circom)</I></FONT></TD></TR></TABLE>>];
+    "rsaPkcs1v15Verify" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>rsaPkcs1v15Verify</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/RSA/rsaPkcs1v15Verify.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: RSA.lean:26 (RSA_2048_e_65537_PKCS1_V1_5_Verify)</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: RSA_PKCS1_v1_5_Verify</I></FONT></TD></TR></TABLE>>];
+    "fpPow65537Mod" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>fpPow65537Mod</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/RSA/fpPow65537Mod.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: RSA.lean:16</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: FpPow65537Mod</I></FONT></TD></TR></TABLE>>];
+    "fpSquareN" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>fpSquareN</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/RSA/fpSquareN.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: FpPow65537Mod&#39;s doublers</I></FONT></TD></TR></TABLE>>];
+  }
+  subgraph cluster_Data_BigInt {
+    label=<<B>Data/BigInt</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
+    "bigLessThan" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>bigLessThan</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/BigInt/bigLessThan.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: BigLessThan</I></FONT></TD></TR></TABLE>>];
   }
   subgraph cluster_Data_Base64Len {
     label=<<B>Data/Base64Len</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
@@ -118,6 +124,7 @@ digraph clap {
   subgraph cluster_Data_FVec {
     label=<<B>Data/FVec</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
     "FVec.eq" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FVec.eq</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FVec/eq.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR></TABLE>>];
+    "FVec.assert_eq" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>FVec.assert_eq</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FVec/assert_eq.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: —</FONT></TD></TR></TABLE>>];
     "powers" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#a8dba8"><B>powers</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">new: Data/FVec/powers.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: FString.lean:176 (c)</FONT></TD></TR></TABLE>>];
   }
   subgraph cluster_Data_F8 {
@@ -176,12 +183,12 @@ digraph clap {
   subgraph cluster_gates {
     label=<<B>CLAP gates — Model/eDSL.lean</B>>; fontsize=13; style="rounded,dashed"; color="#888888";
     "eq0" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#b4d4f0"><B>eq0</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">gate: Model/eDSL.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:8</FONT></TD></TR></TABLE>>];
-    "fpmul" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#b4d4f0"><B>fpmul</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">gate: Model/eDSL.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:12</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: FpMul</I></FONT></TD></TR></TABLE>>];
+    "fpmul" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#b4d4f0"><B>fpmul</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">gate: Model/eDSL.lean · wrapper: Gate/fpmul.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:12</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: FpMul</I></FONT></TD></TR></TABLE>>];
     "isZero" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#b4d4f0"><B>isZero</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">gate: Model/eDSL.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:10</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: IsZero</I></FONT></TD></TR></TABLE>>];
     "num2bits" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#b4d4f0"><B>num2bits</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">gate: Model/eDSL.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:11</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="8" COLOR="#555555"><I>Aptos: Num2Bits</I></FONT></TD></TR></TABLE>>];
     "share" [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3"><TR><TD BGCOLOR="#b4d4f0"><B>share</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">gate: Model/eDSL.lean</FONT></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT"><FONT POINT-SIZE="9">old: Lang.lean:9</FONT></TD></TR></TABLE>>];
   }
-  legend [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="2" CELLPADDING="4" BGCOLOR="white"><TR><TD COLSPAN="3"><B>Legend</B></TD></TR><TR><TD BGCOLOR="#a8dba8" WIDTH="24"> </TD><TD ALIGN="LEFT">proven (convertsM, no sorry)</TD><TD ALIGN="RIGHT">80</TD></TR><TR><TD BGCOLOR="#ffb870" WIDTH="24"> </TD><TD ALIGN="LEFT">ported, spec has sorry</TD><TD ALIGN="RIGHT">2</TD></TR><TR><TD BGCOLOR="#fff1a0" WIDTH="24"> </TD><TD ALIGN="LEFT">ported, no spec</TD><TD ALIGN="RIGHT">1</TD></TR><TR><TD BGCOLOR="#f4a6a6" WIDTH="24"> </TD><TD ALIGN="LEFT">not ported (old model only)</TD><TD ALIGN="RIGHT">35</TD></TR><TR><TD BGCOLOR="#b4d4f0" WIDTH="24"> </TD><TD ALIGN="LEFT">CLAP gate (eDSL primitive)</TD><TD ALIGN="RIGHT">5</TD></TR><TR><TD></TD><TD ALIGN="LEFT"><B>total</B></TD><TD ALIGN="RIGHT"><B>123</B></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">new: file under Clap/Lang/ · old: definition under old/Clap/, (c) = commented out</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">Aptos: the Circom template it corresponds to, for reference only</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">edges into gates are faded</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">omitted: mkF/mkAdd/mkSub/mkMul, iteration combinators, test helpers;</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">internal steps (e.g. isSubstring.check) are folded into their gadget</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">sorryAx from bn254/goldilocks primality is ignored</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">Aptos reference: keyless-zk-proofs @ dc10a06</FONT></TD></TR></TABLE>>];
+  legend [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="2" CELLPADDING="4" BGCOLOR="white"><TR><TD COLSPAN="3"><B>Legend</B></TD></TR><TR><TD BGCOLOR="#a8dba8" WIDTH="24"> </TD><TD ALIGN="LEFT">proven (convertsM, no sorry)</TD><TD ALIGN="RIGHT">86</TD></TR><TR><TD BGCOLOR="#ffb870" WIDTH="24"> </TD><TD ALIGN="LEFT">ported, spec has sorry</TD><TD ALIGN="RIGHT">2</TD></TR><TR><TD BGCOLOR="#fff1a0" WIDTH="24"> </TD><TD ALIGN="LEFT">ported, no spec</TD><TD ALIGN="RIGHT">1</TD></TR><TR><TD BGCOLOR="#f4a6a6" WIDTH="24"> </TD><TD ALIGN="LEFT">not ported (old model only)</TD><TD ALIGN="RIGHT">33</TD></TR><TR><TD BGCOLOR="#b4d4f0" WIDTH="24"> </TD><TD ALIGN="LEFT">CLAP gate (eDSL primitive)</TD><TD ALIGN="RIGHT">5</TD></TR><TR><TD></TD><TD ALIGN="LEFT"><B>total</B></TD><TD ALIGN="RIGHT"><B>127</B></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">new: file under Clap/Lang/ · old: definition under old/Clap/, (c) = commented out</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">Aptos: the Circom template it corresponds to, for reference only</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">edges into gates are faded</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">omitted: mkF/mkAdd/mkSub/mkMul, iteration combinators, test helpers;</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">internal steps (e.g. isSubstring.check) are folded into their gadget</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">sorryAx from bn254/goldilocks primality is ignored</FONT></TD></TR><TR><TD COLSPAN="3" ALIGN="LEFT"><FONT POINT-SIZE="9">Aptos reference: keyless-zk-proofs @ dc10a06</FONT></TD></TR></TABLE>>];
   "F32.add" -> "FBitVec.binSum";
   "F32.assert_eq" -> "FArray.assert_eq";
   "F32.default" -> "FArray.default";
@@ -222,8 +229,19 @@ digraph clap {
   "FVec.eq" -> "FB.and";
   "FVec.eq" -> "FB.ofBool";
   "FVec.eq" -> "eq";
-  "RSA_2048_e_65537_PKCS1_V1_5_Verify" -> "assert_eq";
-  "RSA_2048_e_65537_PKCS1_V1_5_Verify" -> "fpPow65537Mod";
+  "rsa2048e65537Pkcs1v15Verify" -> "assert";
+  "rsa2048e65537Pkcs1v15Verify" -> "assertIs64BitLimbs";
+  "rsa2048e65537Pkcs1v15Verify" -> "bigEndianBitsToScalars";
+  "rsa2048e65537Pkcs1v15Verify" -> "bigLessThan";
+  "rsa2048e65537Pkcs1v15Verify" -> "rsaPkcs1v15Verify";
+  "rsaPkcs1v15Verify" -> "FVec.assert_eq";
+  "rsaPkcs1v15Verify" -> "fpPow65537Mod";
+  "fpSquareN" -> "fpmul" [color="#00000030"];
+  "bigLessThan" -> "FB.and";
+  "bigLessThan" -> "FB.or";
+  "bigLessThan" -> "eq";
+  "bigLessThan" -> "lessThan";
+  "FVec.assert_eq" -> "assert_eq";
   "Sha2.compress" -> "F32.add";
   "Sha2.compress" -> "Sha2.schedule";
   "Sha2.compress" -> "Sha2.shuffle";
@@ -315,6 +333,7 @@ digraph clap {
   "enforceNotNested" -> "dotProduct";
   "enforceNotNested" -> "eq0" [color="#00000030"];
   "eq" -> "isZero" [color="#00000030"];
+  "fpPow65537Mod" -> "fpSquareN";
   "fpPow65537Mod" -> "fpmul" [color="#00000030"];
   "greaterEqThan" -> "lessThan";
   "greaterEqThan" -> "not";
@@ -448,7 +467,7 @@ digraph clap {
   "verifyExtraField" -> "eq0" [color="#00000030"];
   "verifyExtraField" -> "isSubstring";
   "verifyExtraField" -> "selectArrayValue";
-  "verifyJWTStructure" -> "RSA_2048_e_65537_PKCS1_V1_5_Verify";
+  "verifyJWTStructure" -> "rsa2048e65537Pkcs1v15Verify";
   "verifyJWTStructure" -> "assertIsConcatenation";
   "verifyJWTStructure" -> "assert_eq";
   "verifyJWTStructure" -> "assertisSubstring";

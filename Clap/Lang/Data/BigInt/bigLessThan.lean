@@ -6,10 +6,7 @@ import Clap.Lang.Core.FB.eq
 import Clap.Lang.Core.FB.or
 import Clap.Util.Limbs
 
-/-!
-# comparing two bignums
-
-Circom: `BigLessThan(n, k)`.-/
+/-! Circom: `BigLessThan(n, k)`.-/
 
 namespace Clap.Lang.BigInt
 
@@ -57,7 +54,7 @@ def ltEqRaw (n : ℕ) (xy : ZMod p × ZMod p) : Vector Bool 2 :=
   #v[lessThan.lessThanRaw n xy.1 xy.2, xy.1 == xy.2]
 
 /-- What `bigLessThan n` computes for any inputs. -/
-def raw (n : ℕ) {k : ℕ} (a_vals b_vals : Vector (ZMod p) (k + 1)) : Bool :=
+def value (n : ℕ) {k : ℕ} (a_vals b_vals : Vector (ZMod p) (k + 1)) : Bool :=
   let ltEq := (a_vals.zip b_vals).map (ltEqRaw n)
   (ltEq.pop.reverse.foldl stepSpec ltEq[k])[0]
 
@@ -137,7 +134,7 @@ lemma convertsM_unchecked [p.AtLeastTwo] {n k : ℕ}
   (h_a : Converts FVec.conversion state a a_vals)
   (h_b : Converts FVec.conversion state b b_vals)
 :
-  ConvertsM FB.conversion (bigLessThan n a b) state (raw n a_vals b_vals)
+  ConvertsM FB.conversion (bigLessThan n a b) state (value n a_vals b_vals)
     (∀ i : Fin (k + 1), lessThan.lessThanOk n a_vals[i] b_vals[i])
 := by
   unfold bigLessThan
@@ -167,8 +164,6 @@ lemma convertsM_unchecked [p.AtLeastTwo] {n k : ℕ}
     apply convertsM_pure
     · exact FArray.converts_getElem h_acc (show 0 < 2 by omega)
     · trivial
-
-/-! ## From the raw chain to `<` on numbers -/
 
 /-- The per-limb bits once both limbs are in range. -/
 private def ltEqSpec (xy : ZMod p × ZMod p) : Vector Bool 2 :=
@@ -211,7 +206,7 @@ private lemma foldr_chain {w : ℕ} :
 lemma raw_eq {n w k : ℕ} {a_vals b_vals : Vector (ZMod p) (k + 1)}
   (h_a : ∀ i : Fin (k + 1), a_vals[i].val < 2 ^ w) (h_b : ∀ i : Fin (k + 1), b_vals[i].val < 2 ^ w)
   (h_wn : w ≤ n) (hn : 2 ^ (n + 1) < p) :
-  raw n a_vals b_vals = decide (limbsToNat w a_vals.toList < limbsToNat w b_vals.toList)
+  value n a_vals b_vals = decide (limbsToNat w a_vals.toList < limbsToNat w b_vals.toList)
 := by
   have : NeZero p := ⟨by have := Nat.one_le_two_pow (n := n + 1); omega⟩
   have h_mem : ∀ {v : Vector (ZMod p) (k + 1)}, (∀ i : Fin (k + 1), v[i].val < 2 ^ w) →
@@ -228,7 +223,7 @@ lemma raw_eq {n w k : ℕ} {a_vals b_vals : Vector (ZMod p) (k + 1)}
     simp only [Vector.getElem_map, Vector.getElem_zip, ltEqRaw, ltEqSpec,
       lessThan.lessThanRaw_eq h₁ h₂ hn, (ZMod.val_injective p).eq_iff]
     rfl
-  rw [raw, h_spec, foldl_pop_reverse, Vector.toList_map, Vector.toList_zip,
+  rw [value, h_spec, foldl_pop_reverse, Vector.toList_map, Vector.toList_zip,
     foldr_chain _ _ (by simp) (h_mem h_a) (h_mem h_b)]
   rfl
 

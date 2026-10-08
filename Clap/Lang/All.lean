@@ -29,6 +29,7 @@ import Clap.Lang.Core.FUnit.guardedEq0
 import Clap.Lang.Data.Base64Len.base64UrlDecode
 import Clap.Lang.Data.Base64Len.base64UrlDecodedLength
 import Clap.Lang.Data.Base64Len.base64UrlLookup
+import Clap.Lang.Data.BigInt.bigLessThan
 import Clap.Lang.Data.F8.F8
 import Clap.Lang.Data.F8.isWhitespace
 import Clap.Lang.Data.FArray.and
@@ -57,6 +58,7 @@ import Clap.Lang.Data.FString.assertIsConcatenation
 import Clap.Lang.Data.FString.isPaddedOf
 import Clap.Lang.Data.FString.isSubstring
 import Clap.Lang.Data.FString.ofString
+import Clap.Lang.Data.FVec.assert_eq
 import Clap.Lang.Data.FVec.eq
 import Clap.Lang.Data.FVec.powers
 import Clap.Lang.Data.HashToField.hash64BitLimbsToField
@@ -72,8 +74,13 @@ import Clap.Lang.Data.Packing.bytes2BigEndianBits
 import Clap.Lang.Data.Packing.chunksToFieldElem
 import Clap.Lang.Data.Packing.chunksToFieldElems
 import Clap.Lang.Data.Packing.num2BigEndianBits
+import Clap.Lang.Data.RSA.fpPow65537Mod
+import Clap.Lang.Data.RSA.fpSquareN
+import Clap.Lang.Data.RSA.rsa2048e65537Pkcs1v15Verify
+import Clap.Lang.Data.RSA.rsaPkcs1v15Verify
 import Clap.Lang.Data.Widths
 import Clap.Lang.Gate.eq0
+import Clap.Lang.Gate.fpmul
 import Clap.Lang.Gate.isZero
 import Clap.Lang.Gate.num2bits
 import Clap.Lang.Gate.share
@@ -89,16 +96,18 @@ it constrains. Four layers, and every import crosses them downwards only:
 
 - `Gate/` — the eDSL gate wrappers. A thin `def` over a gate from
   [Clap/Model/eDSL.lean](../Model/eDSL.lean), plus its
-  `wellFormed` / `converts` / `constraints` / `convertsM` family. `fpmul` is an
-  implemented gate still waiting for a wrapper here.
+  `wellFormed` / `converts` / `constraints` / `convertsM` family, for all five gates (`eq0`,
+  `share`, `isZero`, `num2bits`, `fpmul`). `fpmul.lean` also defines `Limbs.conversion`, the
+  bignum-as-natural-number reading its result and the RSA gadgets are stated in.
 - `Core/` — the language itself: field arithmetic, booleans, assertions, and the iteration
   combinators. Never imports `Poseidon/` or `Data/`.
 - `Poseidon/` — the Poseidon hash over `bn254`, its constants, and `Computes`: all the library
   assumes of it. Never imports `Data/`.
 - `Data/` — containers: bit arrays, bit vectors, field vectors, strings, bytes, the fixed-width
-  `FBV8` / `F32` / `F64` wrappers, hash-to-field (`HashToField/`), and the Fiat–Shamir string
-  checks (`FString/isSubstring`, `FString/assertIsConcatenation`), with their completeness and
-  soundness lemmas.
+  `FBV8` / `F32` / `F64` wrappers, hash-to-field (`HashToField/`), the Fiat–Shamir string
+  checks (`FString/isSubstring`, `FString/assertIsConcatenation`), bignum comparison
+  (`BigInt/`) and RSA signature verification (`RSA/`, with the PKCS#1 v1.5 encoded
+  message in `RSA/PKCS1.lean`), with their completeness and soundness lemmas.
 
 Lang may import `Clap/RandomOracle/` and `Clap/FiatShamir/`, which sit below it: the random
 oracle, and the polynomial algebra of the Fiat–Shamir checks. Neither imports anything from Lang.

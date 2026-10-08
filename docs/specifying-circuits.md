@@ -158,6 +158,13 @@ work of A; if you can express your gadget without iteration, do.
 | `Base64.base64UrlDecodedLength w m` | [Base64Len/base64UrlDecodedLength.lean](../Clap/Lang/Data/Base64Len/base64UrlDecodedLength.lean) | `ClapM p (F p)` | `3 * m_val.val / 4`, given `m_val.val < 2 ^ w` and `2 ^ (w + 2) ≤ p` | `m_val.val < 2 ^ w ∧ 3 * m_val.val < 2 ^ (w + 2)`, which the hypotheses already imply |
 | `Base64.base64UrlDecode h a` | [Base64Len/base64UrlDecode.lean](../Clap/Lang/Data/Base64Len/base64UrlDecode.lean) | `ClapM p (FString p w)` | `base64UrlDecode.decode a_val` (no `=` padding), given `3 ∣ w`, `a_val.length = w * 4 / 3` and `2 ^ 9 < p` | every character is NUL, `-`, `_`, `=` or alphanumeric. **`convertsM` is `sorry`** (work in progress) |
 | `bracketsMap a` | [JWT/bracketsMap.lean](../Clap/Lang/Data/JWT/bracketsMap.lean) | `ClapM p (FVec p k)` | per element: `1` on `{`, `-1` on `}`, `0` otherwise, given `2 ^ 9 < p` | `True` |
+| `fpmul w k a b p'` | [Gate/fpmul.lean](../Clap/Lang/Gate/fpmul.lean) | `ClapM p (FVec p k)`, read in `Limbs.conversion w k` | `A * B % M`, the numbers the limbs encode (`limbsToNat w`) | every limb of `a`, `b`, `p'` `< 2 ^ w`, and `0 < M`; no hypothesis on `p` |
+| `FVec.assert_eq a b` | [FVec/assert_eq.lean](../Clap/Lang/Data/FVec/assert_eq.lean) | `ClapM p Unit` | `()` | `a_vals = b_vals` |
+| `BigInt.bigLessThan n a b` | [BigInt/bigLessThan.lean](../Clap/Lang/Data/BigInt/bigLessThan.lean) | `ClapM p (FB p)` | `decide (limbsToNat w a_vals.toList < limbsToNat w b_vals.toList)`, given limbs `< 2 ^ w`, `w ≤ n`, `2 ^ (n+1) < p`; `convertsM_unchecked`, for any inputs: `bigLessThan.raw n a_vals b_vals` | `True`; unchecked: every limb pair's `lessThanOk` |
+| `RSA.fpSquareN w k n base m` | [RSA/fpSquareN.lean](../Clap/Lang/Data/RSA/fpSquareN.lean) | `ClapM p (FVec p k)`, in `Limbs.conversion w k` | `X ^ 2 ^ n % M`, given modulus limbs `< 2 ^ w` and `2 ^ w ≤ p`; `convertsM_unchecked`: `fpSquareN.raw` | `base` limbs `< 2 ^ w`, `0 < M`; unchecked: also the modulus limbs |
+| `RSA.fpPow65537Mod w k base m` | [RSA/fpPow65537Mod.lean](../Clap/Lang/Data/RSA/fpPow65537Mod.lean) | `ClapM p (FVec p k)`, in `Limbs.conversion w k` | `X ^ 65537 % M`, as above; `convertsM_unchecked`: `fpPow65537Mod.raw`, `raw_eq` for `0 < M` | as `fpSquareN` |
+| `RSA.rsaPkcs1v15Verify sign m hashed` | [RSA/rsaPkcs1v15Verify.lean](../Clap/Lang/Data/RSA/rsaPkcs1v15Verify.lean) | `ClapM p Unit` | `()` | all limbs `< 2 ^ 64`, `0 < M`, `S ^ 65537 % M = PKCS1.em256 H`; given `2 ^ 64 < p`. Does not check `S < M` |
+| `RSA.rsa2048e65537Pkcs1v15Verify sig m bits` | [RSA/rsa2048e65537Pkcs1v15Verify.lean](../Clap/Lang/Data/RSA/rsa2048e65537Pkcs1v15Verify.lean) | `ClapM p Unit` | `()` | signature and modulus limbs `< 2 ^ 64`, `S < M` and `S ^ 65537 % M = PKCS1.em256 h`, `h` the digest bits read most significant first: RSA-2048 / SHA-256 (`RS256`) verification for a 256-octet modulus; given `2 ^ 253 < p` |
 
 Three things the table cannot show:
 
@@ -189,14 +196,12 @@ For iterating gadgets, do not hand-roll the induction — see
 for `convertsM_foldlM`, `convertsM_foldlM_constraints`, `convertsM_ofFnM`, `convertsM_mapM` and
 `convertsM_mapM_constraints`.
 
-Not yet wrapped: **`fpmul`**. It is a fully implemented *gate* — it is in
-[eDSL.lean](../Clap/Model/eDSL.lean) with the complete `wellFormed_*` / `eval_edsl_*` /
-`getResult_*` / `getVarStore_*` / `getCircuit_*` family, and has `ConstraintSystem/` and
-`WitnessGenerator/` modules. What it lacks is a `Clap/Lang/` wrapper carrying a `convertsM`, and
-that is what your gadget needs; write it first. `share` is wrapped
-([Gate/share.lean](../Clap/Lang/Gate/share.lean)). `num2bits` used to be on this list and is
-the bottleneck for every comparison, range check, packing and hashing gadget; it is now
-wrapped, along with the whole comparison family built on it.
+All five gates are wrapped. `fpmul` is [Gate/fpmul.lean](../Clap/Lang/Gate/fpmul.lean), with
+its result in `Limbs.conversion w k`, defined in the same file: a
+bignum read as the natural number its limbs encode, modulo `2^(w*k)` (`Limbs.convertsM_congr`).
+`share` is [Gate/share.lean](../Clap/Lang/Gate/share.lean). `num2bits` is the bottleneck for every
+comparison, range check, packing and hashing gadget, and is wrapped along with the whole
+comparison family built on it.
 
 ### `num2bits` range-checks, in the model as in the circuit
 

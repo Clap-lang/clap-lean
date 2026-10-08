@@ -7,11 +7,7 @@ namespace Clap.Lang.Packing
 
 variable {p : ℕ}
 
-/-- Cut a bit vector into `w` chunks of `bitsPerScalar` bits and read each chunk big-endian.
-
-The bit count is an exact multiple. Circom also allows a shorter last
-scalar, but unlike `chunksToFieldElems` a big-endian chunk cannot be zero-padded without changing
-its value and Keyless never needs it. -/
+/-- Cut a bit vector into `w` chunks of `bitsPerScalar` bits and read each chunk big-endian. -/
 def bigEndianBitsToScalars {w : ℕ} (bitsPerScalar : ℕ) (bits : FArray p (w * bitsPerScalar)) : ClapM p (FVec p w) :=
   (toChunks bitsPerScalar bits).mapM bigEndianBits2Num
 

@@ -196,14 +196,11 @@ missing is a `Clap/Lang/` wrapper with a `convertsM`:
 - **`share`** — **done.** [Gate/share.lean](../Clap/Lang/Gate/share.lean): value `e_val`, slot 5
   `True`. It is the degree reduction every Circom signal assignment `x <== a * b` stands for.
   `FVec.powers` and `FString.asciiDigitsToScalar` share their running products with it.
-- **`fpmul`** — still unwrapped, and the deepest of the three. RSA is blocked on it.
-
-Note what "unwrapped" means here: `fpmul` is an *implemented* gate. It sits in
-[eDSL.lean](../Clap/Model/eDSL.lean) with the full `wellFormed_*` / `eval_edsl_*` /
-`getResult_*` / `getVarStore_*` / `getCircuit_*` lemma family, and has both a
-`ConstraintSystem/` lowering and a `WitnessGenerator/` module. What is missing is only a
-`Clap/Lang/` wrapper carrying a `convertsM`. So the work is writing that wrapper, not
-implementing a gate.
+- **`fpmul`** — **done.** [Gate/fpmul.lean](../Clap/Lang/Gate/fpmul.lean). Its result is read
+  through `Limbs.conversion w k`, defined in the same file, the
+  natural number `k` limbs of `w` bits encode, so the value is `A * B % M` outright; slot 5 is
+  every limb of the three operands below `2^w` and `0 < M`. It needs no hypothesis on `p`. The
+  RSA gadgets in [Data/RSA/](../Clap/Lang/Data/RSA/) are built on it.
 
 **The back end works.** `Circuit.toCs` lives in
 [ConstraintSystem/toCs.lean](../Clap/Model/ConstraintSystem/toCs.lean) as
@@ -336,9 +333,17 @@ The `old/Clap/Array.lean` selectors are done: `selectArrayValue`, `rightArraySel
 ([Combinators/scanlM.lean](../Clap/Lang/Core/Combinators/scanlM.lean)), which is the combinator for
 any Circom loop of the shape `out[i] <== out[i-1] ∘ in[i-1]`.
 
-**After `fpmul` lands**: `old/Clap/RSA.lean`.
+**`old/Clap/RSA.lean` is done**, as [Data/RSA/](../Clap/Lang/Data/RSA/) with
+[BigInt/bigLessThan](../Clap/Lang/Data/BigInt/bigLessThan.lean). Its final theorem is
+`s < n ∧ s ^ 65537 mod n = em256 h`, with `em256` the PKCS#1 v1.5 encoded message built from its
+byte layout in [Data/RSA/PKCS1.lean](../Clap/Lang/Data/RSA/PKCS1.lean). It covers Circom's
+`FpPow65537Mod`, `RSA_PKCS1_v1_5_Verify`, and the keyless wrapper
+`RSA_2048_e_65537_PKCS1_V1_5_Verify` with `BigLessThan`, which the old port never had.
 
-**After `Conversion.vector` gets an element-projection lemma**: `old/Clap/Sha2/*` (note `Sha2/Basic.lean` is already
+**After `Conversion.vector` gets an element-projection lemma**: `old/Clap/Sha2/*`. A private one
+for vectors of bit vectors, `converts_getElem_of_vector`, is in
+[BigInt/bigLessThan.lean](../Clap/Lang/Data/BigInt/bigLessThan.lean), ready to promote to
+`Clap/Model/Convert/Vector.lean` (note `Sha2/Basic.lean` is already
 monad-polymorphic over `[Monad m]` and typeclass-parameterised over the word representation — it
 is the most portable old code in the repo).
 
