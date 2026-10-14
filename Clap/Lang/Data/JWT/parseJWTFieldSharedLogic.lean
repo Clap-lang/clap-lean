@@ -839,4 +839,205 @@ lemma convertsM
       · exact (hParsesT (hp_iff.mp hp)).2.2.2.2.2.2.2.2
 
 
+/-! `isSubstring.sound` takes `strHash` as a value fixed independently of `H` — as its own
+docstring (above `isSubstring`'s definition, in `FString/isSubstring.lean`) says, binding `str`
+this way is the caller's job. `parseJWTFieldSharedLogic` instead hashes `field` itself once and
+passes that hash as `strHash` to both its name- and value-checks, so it cannot cite
+`isSubstring.sound` directly: the challenge then depends on `H` through *two* hashed vectors
+(`field` and the substring), not one, so the collision term doubles, `50 = 2 · 25`, one `25` per
+hashed vector via `HashToField.challenge_mem_transcript_le` (the same accounting
+`assertIsConcatenation.prob_challenge_root_le` already does for its three hashed strings). The
+three lemmas below are the `strHash`-is-itself-hashed analogues of `isSubstring.prob_challenge_root_le`,
+`isSubstring.prob_accepts_le` and `isSubstring.sound`, specific to this gadget since it is
+currently their only caller. -/
+
+/-- `isSubstring.prob_challenge_root_le`, but with `strHash := HashToField.hashBytesToFieldSpec H
+str_vals str_len` substituted — i.e. `str` is hashed by the same `H` the challenge is drawn from,
+instead of `strHash` being free. Two hashed vectors now feed the challenge, so the collision bound
+is `50 = 2 · 25` instead of `25`. -/
+theorem prob_challenge_root_le_hashedStr {n m : ℕ} (str_vals : Vector (ZMod bn254) n)
+    (str_len : ZMod bn254) (substr_vals : Vector (ZMod bn254) m) (len start : ZMod bn254)
+    {P : Polynomial (ZMod bn254)} (hP : P ≠ 0) {d : ℕ} (hd : P.natDegree ≤ d) :
+    randomOracle.toOuterMeasure
+      {f | P.eval (isSubstring.challenge (Query.toHashFn f)
+             (HashToField.hashBytesToFieldSpec (Query.toHashFn f) str_vals str_len)
+             substr_vals len start) = 0} ≤ ((d + 50 : ℕ) : ENNReal) / bn254 := by
+  classical
+  set vS := HashToField.hashBytesToFieldElems str_vals str_len
+  set vT := HashToField.hashBytesToFieldElems substr_vals len
+  set c := fun f ↦ isSubstring.challengeQuery f
+    (HashToField.hashBytesToFieldSpec (Query.toHashFn f) str_vals str_len) substr_vals len start
+  set T := fun f ↦ HashToField.transcript f vS ∪ HashToField.transcript f vT
+  have h_sub : {f | P.eval (isSubstring.challenge (Query.toHashFn f)
+        (HashToField.hashBytesToFieldSpec (Query.toHashFn f) str_vals str_len)
+        substr_vals len start) = 0} ⊆
+      {f | c f ∈ T f} ∪ {f | c f ∉ (T f : Set Query) ∧ P.eval (f (c f)) = 0} := by
+    intro f hf
+    rw [Set.mem_setOf_eq, isSubstring.challenge_toHashFn] at hf
+    by_cases h : c f ∈ T f
+    · exact Or.inl h
+    · exact Or.inr ⟨by simpa using h, hf⟩
+  have h_collS : randomOracle.toOuterMeasure {f | c f ∈ HashToField.transcript f vS} ≤ 25 / bn254 :=
+    HashToField.challenge_mem_transcript_le vS 0 c (fun f ↦ by
+      simp only [c, isSubstring.challengeQuery]
+      rw [RandomOracle.coord_hashQ _ (by decide)]
+      rfl)
+  have h_collT : randomOracle.toOuterMeasure {f | c f ∈ HashToField.transcript f vT} ≤ 25 / bn254 :=
+    HashToField.challenge_mem_transcript_le vT 1 c (fun f ↦ by
+      simp only [c, isSubstring.challengeQuery]
+      rw [RandomOracle.coord_hashQ _ (by decide)]
+      rfl)
+  have h_coll : randomOracle.toOuterMeasure {f | c f ∈ T f} ≤ 50 / bn254 := by
+    have h_eq : {f | c f ∈ T f} = {f | c f ∈ HashToField.transcript f vS} ∪
+        {f | c f ∈ HashToField.transcript f vT} := by
+      ext f; simp [T, Finset.mem_union]
+    rw [h_eq]
+    calc randomOracle.toOuterMeasure
+            ({f | c f ∈ HashToField.transcript f vS} ∪ {f | c f ∈ HashToField.transcript f vT})
+        ≤ randomOracle.toOuterMeasure {f | c f ∈ HashToField.transcript f vS} +
+            randomOracle.toOuterMeasure {f | c f ∈ HashToField.transcript f vT} :=
+          MeasureTheory.measure_union_le _ _
+      _ ≤ 25 / bn254 + 25 / bn254 := add_le_add h_collS h_collT
+      _ = 50 / bn254 := by rw [ENNReal.div_add_div_same]; norm_num
+  have h_fresh := randomOracle_fresh_le c (fun f ↦ ↑(T f)) (fun _ y ↦ P.eval y = 0) d
+    (fun f f' h ↦ by
+      have h' : ∀ q ∈ T f, f q = f' q := by simpa using h
+      have eS := HashToField.congr vS (fun q hq ↦ h' q (by simp [T, hq]))
+      have eT := HashToField.congr vT (fun q hq ↦ h' q (by simp [T, hq]))
+      have hS' : HashToField.hashBytesToFieldSpec (Query.toHashFn f) str_vals str_len =
+          HashToField.hashBytesToFieldSpec (Query.toHashFn f') str_vals str_len := eS.1
+      have hT' : HashToField.hashBytesToFieldSpec (Query.toHashFn f) substr_vals len =
+          HashToField.hashBytesToFieldSpec (Query.toHashFn f') substr_vals len := eT.1
+      refine ⟨?_, by simp [T, eS.2, eT.2], rfl⟩
+      simp only [c, isSubstring.challengeQuery, hS', hT'])
+    (fun _ ↦ card_roots_le hP hd)
+  calc randomOracle.toOuterMeasure
+          {f | P.eval (isSubstring.challenge (Query.toHashFn f)
+            (HashToField.hashBytesToFieldSpec (Query.toHashFn f) str_vals str_len)
+            substr_vals len start) = 0}
+      ≤ randomOracle.toOuterMeasure {f | c f ∈ T f} +
+          randomOracle.toOuterMeasure {f | c f ∉ (T f : Set Query) ∧ P.eval (f (c f)) = 0} :=
+        (MeasureTheory.measure_mono h_sub).trans (MeasureTheory.measure_union_le _ _)
+    _ ≤ 50 / bn254 + (d : ENNReal) / bn254 := add_le_add h_coll h_fresh
+    _ = ((d + 50 : ℕ) : ENNReal) / bn254 := by
+        rw [ENNReal.div_add_div_same]
+        push_cast
+        ring_nf
+
+/-- `isSubstring.prob_accepts_le`, but for `strHash := HashToField.hashBytesToFieldSpec H str_vals
+str_len` (`str` self-hashed, as in `prob_challenge_root_le_hashedStr`). -/
+theorem prob_accepts_le_hashedStr {n m : ℕ} (str_vals : Vector (ZMod bn254) n)
+    (str_len : ZMod bn254) (substr_vals : Vector (ZMod bn254) m) (len start : ZMod bn254)
+    (h_sn : start.val < n) (h_se : start.val < (start + len).val)
+    (h_bad : ¬ isSubstring.SubstrAt str_vals substr_vals start.val len.val) :
+    randomOracle.toOuterMeasure
+      {f | isSubstring.accepts (Query.toHashFn f) str_vals
+             (HashToField.hashBytesToFieldSpec (Query.toHashFn f) str_vals str_len)
+             substr_vals len start = true} ≤
+      (((n - 1) + (m - 1) + 50 : ℕ) : ENNReal) / bn254 := by
+  have h_D : isSubstring.substrDiff str_vals substr_vals start.val (start + len).val ≠ 0 := by
+    rw [isSubstring.val_add_of_lt_val h_se, Ne, isSubstring.substrDiff_eq_zero_iff]
+    exact h_bad
+  refine le_trans (MeasureTheory.measure_mono fun f hf ↦ ?_)
+    (prob_challenge_root_le_hashedStr str_vals str_len substr_vals len start h_D
+      (isSubstring.natDegree_substrDiff_le _ _ h_sn))
+  exact isSubstring.eval_substrDiff_of_accepts h_sn hf
+
+/-- `isSubstring.sound`, but for `strHash := HashToField.hashBytesToFieldSpec H (encodeV n S)
+str_len`: `S` (the "haystack") is self-hashed and that hash passed as `strHash`, instead of
+`strHash` being a free fixed value. This is the shape `sound` below needs, since both its name-
+and value-checks pass `field`'s own hash as `strHash`. The bound is `50`, not `25`, for the reason
+given above `prob_challenge_root_le_hashedStr`. -/
+theorem sound_hashedStr {n m s : ℕ} {S T : String} (str_len : ZMod bn254)
+    (hS : S.length ≤ n) (hT : T.length ≤ m) (hT0 : 0 < T.length) (h_sn : s < n)
+    (h_nm : n + m < bn254)
+    (hSc : ∀ c ∈ S.toList, c.toNat < 256) (hTc : ∀ c ∈ T.toList, 0 < c.toNat ∧ c.toNat < 256)
+    (h_bad : ¬ (s + T.length ≤ S.length ∧ T.toList <+: S.toList.drop s)) :
+    randomOracle.toOuterMeasure
+      {f | isSubstring.accepts (Query.toHashFn f) (encodeV n S)
+             (HashToField.hashBytesToFieldSpec (Query.toHashFn f) (encodeV n S) str_len)
+             (encodeV m T) T.length s = true} ≤
+      (((n - 1) + (m - 1) + 50 : ℕ) : ENNReal) / bn254 := by
+  have h_s : (s : ZMod bn254).val = s := ZMod.val_natCast_of_lt (by omega)
+  have h_l : (T.length : ZMod bn254).val = T.length := ZMod.val_natCast_of_lt (by omega)
+  have h_e : ((s : ZMod bn254) + (T.length : ZMod bn254)).val = s + T.length := by
+    rw [← Nat.cast_add, ZMod.val_natCast_of_lt (by omega)]
+  refine prob_accepts_le_hashedStr _ _ _ _ _ (by rwa [h_s]) (by rw [h_s, h_e]; omega) ?_
+  rwa [h_s, h_l, isSubstring.substrAt_encodeV_iff (by decide) hS hT hT0 hSc hTc]
+
+/--
+Soundness of `parseJWTFieldSharedLogic`. When the name or the value is not really where it is
+claimed to be, `parses` holds with probability at most `(nF - 1) + (max nN nV - 1) + 50` over
+`bn254`: each branch of `h_bad` reduces `parses` to one `isSubstring.accepts` conjunct (both
+share `field`'s hash as their `strHash`, so `sound_hashedStr` above, not `isSubstring.sound`,
+is what applies), costing `50` rather than `25` since the challenge then
+depends on `H` through two hashed vectors (`field` and the substring), not one.
+-/
+theorem sound {nF nN nV} (field name value : String)
+  (colonIndex valueIndex : ZMod bn254)
+  (h_fieldLen : field.length ≤ nF) (h_nameLen : name.length ≤ nN) (h_valueLen : value.length ≤ nV)
+  (h_namePos : 0 < name.length) (h_valuePos : 0 < value.length)
+  (h_nF_name : 1 < nF) (h_valueIndex : valueIndex.val < nF)
+  (h_nm_name : nF + nN < bn254) (h_nm_value : nF + nV < bn254)
+  (h_fieldBytes : ∀ c ∈ field.toList, c.toNat < 256)
+  (h_nameBytes : ∀ c ∈ name.toList, 0 < c.toNat ∧ c.toNat < 256)
+  (h_valueBytes : ∀ c ∈ value.toList, 0 < c.toNat ∧ c.toNat < 256)
+  (h_bad :
+    ¬ (1 + name.length ≤ field.length ∧ name.toList <+: field.toList.drop 1) ∨
+    ¬ (valueIndex.val + value.length ≤ field.length ∧
+        value.toList <+: field.toList.drop valueIndex.val
+      )
+  )
+  :
+  randomOracle.toOuterMeasure
+    {f |
+      parses (skipChecks_val := false) (Query.toHashFn f)
+        (encodeV nF field)
+        field.length
+        (encodeV nN name)
+        name.length
+        (encodeV nV value)
+        value.length
+        colonIndex
+        valueIndex
+        } ≤ (((nF - 1) + (max nN nV - 1) + 50 : ℕ) : ENNReal) / bn254
+:= by
+  rcases h_bad with h_bad | h_bad
+  · -- the name is not really there: reduce `parses` to the name `isSubstring.accepts` conjunct
+    have h_sub : {f |
+          parses (skipChecks_val := false) (Query.toHashFn f) (encodeV nF field) field.length
+            (encodeV nN name) name.length (encodeV nV value) value.length colonIndex
+            valueIndex} ⊆
+        {f | isSubstring.accepts (Query.toHashFn f) (encodeV nF field)
+          (HashToField.hashBytesToFieldSpec (Query.toHashFn f) (encodeV nF field) field.length)
+          (encodeV nN name) name.length 1 = true} := by
+      intro f hf
+      unfold parses at hf
+      obtain ⟨-, -, -, -, h_name, -, -, h_value, -⟩ := hf (by decide)
+      exact h_name
+    refine (MeasureTheory.measure_mono h_sub).trans ?_
+    have h_ns := sound_hashedStr (s := 1) field.length h_fieldLen h_nameLen
+      h_namePos h_nF_name h_nm_name h_fieldBytes h_nameBytes h_bad
+    simp only [Nat.cast_one] at h_ns
+    refine h_ns.trans (ENNReal.div_le_div_right ?_ _)
+    exact_mod_cast (show nF - 1 + (nN - 1) + 50 ≤ nF - 1 + (max nN nV - 1) + 50 by omega)
+  · -- the value is not really there: same, via the value conjunct, with `s := valueIndex.val`
+    have h_sub : {f |
+          parses (skipChecks_val := false) (Query.toHashFn f) (encodeV nF field) field.length
+            (encodeV nN name) name.length (encodeV nV value) value.length colonIndex
+            valueIndex} ⊆
+        {f | isSubstring.accepts (Query.toHashFn f) (encodeV nF field)
+          (HashToField.hashBytesToFieldSpec (Query.toHashFn f) (encodeV nF field) field.length)
+          (encodeV nV value) value.length valueIndex = true} := by
+      intro f hf
+      unfold parses at hf
+      obtain ⟨-, -, -, -, h_name, -, -, h_value, -⟩ := hf (by decide)
+      exact h_value
+    refine (MeasureTheory.measure_mono h_sub).trans ?_
+    have h_vs := sound_hashedStr (s := valueIndex.val) field.length h_fieldLen
+      h_valueLen h_valuePos h_valueIndex h_nm_value h_fieldBytes h_valueBytes h_bad
+    rw [ZMod.natCast_rightInverse valueIndex] at h_vs
+    refine h_vs.trans (ENNReal.div_le_div_right ?_ _)
+    exact_mod_cast (show nF - 1 + (nV - 1) + 50 ≤ nF - 1 + (max nN nV - 1) + 50 by omega)
+
 end parseJWTFieldSharedLogic
