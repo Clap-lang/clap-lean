@@ -15,6 +15,7 @@ import Clap.Lang.Data.HashToField.hashBytesToField
 import Clap.Lang.Data.FString.isSubstring
 import Clap.Lang.Data.FArray.selectArrayValue
 import Clap.Lang.Core.FUnit.guardedAssertEq
+import Mathlib.Data.List.GetD
 
 -- Poseidon is opaque to these proofs, as in HashToField/hashElemsToField.lean and
 -- FString/isSubstring.lean (every gadget here routes through `hashBytesToField`).
@@ -965,6 +966,74 @@ theorem sound_hashedStr {n m s : ℕ} {S T : String} (str_len : ZMod bn254)
   refine prob_accepts_le_hashedStr _ _ _ _ _ (by rwa [h_s]) (by rw [h_s, h_e]; omega) ?_
   rwa [h_s, h_l, isSubstring.substrAt_encodeV_iff (by decide) hS hT hT0 hSc hTc]
 
+/-- `isSubstring.prob_rejects_le`, but with `strHash := HashToField.hashBytesToFieldSpec H str_vals
+str_len` substituted, as in `prob_accepts_le_hashedStr`/`prob_challenge_root_le_hashedStr` above.
+The bound carries no `(m - 1)` term, same as `isSubstring.prob_rejects_le`: only the window
+polynomial (degree at most `n - 1`, independent of `m`) can make the check fail, and
+`prob_challenge_root_le_hashedStr` is what supplies the `50` in place of the usual `25`. -/
+theorem prob_rejects_le_hashedStr {n m : ℕ} (str_vals : Vector (ZMod bn254) n)
+    (str_len : ZMod bn254) (substr_vals : Vector (ZMod bn254) m) (len start : ZMod bn254)
+    (h_sn : start.val < n) (h_se : start.val < (start + len).val)
+    (h_sub : isSubstring.SubstrAt str_vals substr_vals start.val len.val)
+    (h_nz : vecPoly (isSubstring.window str_vals start.val (start + len).val) ≠ 0) :
+    randomOracle.toOuterMeasure
+      {f | isSubstring.accepts (Query.toHashFn f) str_vals
+             (HashToField.hashBytesToFieldSpec (Query.toHashFn f) str_vals str_len)
+             substr_vals len start = false} ≤
+      (((n - 1) + 50 : ℕ) : ENNReal) / bn254 := by
+  refine le_trans (MeasureTheory.measure_mono fun f hf ↦ ?_)
+    (prob_challenge_root_le_hashedStr str_vals str_len substr_vals len start h_nz
+      (natDegree_vecPoly_le _))
+  rw [Set.mem_setOf_eq, eval_vecPoly]
+  by_contra h0
+  have := isSubstring.accepts_of_substrAt (H := Query.toHashFn f)
+    (strHash := HashToField.hashBytesToFieldSpec (Query.toHashFn f) str_vals str_len)
+    h_sn h_se h_sub h0
+  exact Bool.false_ne_true (hf.symm.trans this)
+
+/-- `isSubstring.complete`, but for `strHash := HashToField.hashBytesToFieldSpec H (encodeV n S)
+str_len`: `S` (the "haystack") is self-hashed and that hash passed as `strHash`, instead of
+`strHash` being a free fixed value. This is the shape `complete` below needs, since both its
+name- and value-checks pass `field`'s own hash as `strHash`. The bound is `50`, not `25`, for the
+reason given above `prob_challenge_root_le_hashedStr`. -/
+theorem complete_hashedStr {n m s : ℕ} {S T : String} (str_len : ZMod bn254)
+    (hS : S.length ≤ n) (hT : T.length ≤ m) (hT0 : 0 < T.length)
+    (h_nm : n + m < bn254)
+    (hSc : ∀ c ∈ S.toList, c.toNat < 256)
+    (hTc : ∀ c ∈ T.toList, 0 < c.toNat ∧ c.toNat < 256)
+    (h_fit : s + T.length ≤ S.length)
+    (h_pre : T.toList <+: S.toList.drop s) :
+    randomOracle.toOuterMeasure
+      {f | isSubstring.accepts (Query.toHashFn f) (encodeV n S)
+             (HashToField.hashBytesToFieldSpec (Query.toHashFn f) (encodeV n S) str_len)
+             (encodeV m T) T.length s = false} ≤
+      (((n - 1) + 50 : ℕ) : ENNReal) / bn254 := by
+  have h256 : 256 < bn254 := by decide
+  have h_s : (s : ZMod bn254).val = s := ZMod.val_natCast_of_lt (by omega)
+  have h_l : (T.length : ZMod bn254).val = T.length := ZMod.val_natCast_of_lt (by omega)
+  have h_e : ((s : ZMod bn254) + (T.length : ZMod bn254)).val = s + T.length := by
+    rw [← Nat.cast_add, ZMod.val_natCast_of_lt (by omega)]
+  have h_sub := (isSubstring.substrAt_encodeV_iff (p := bn254) (n := n) (m := m) (s := s) h256 hS
+    hT hT0 hSc hTc).mpr ⟨h_fit, h_pre⟩
+  refine prob_rejects_le_hashedStr _ str_len _ _ _ (by rw [h_s]; omega) (by rw [h_s, h_e]; omega)
+    (by rwa [h_s, h_l]) ?_
+  -- The window's coefficient at `s` is `T`'s first character.
+  rw [h_s, h_e]
+  intro h0
+  have h_coeff := congrArg (fun P ↦ Polynomial.coeff P s) h0
+  simp only [coeff_vecPoly, Polynomial.coeff_zero,
+    isSubstring.ext_window _ (show s ≤ s + T.length by omega)] at h_coeff
+  rw [if_pos (⟨le_refl s, by omega⟩ : s ≤ s ∧ s < s + T.length)] at h_coeff
+  have h_at := h_sub s
+  rw [if_pos (⟨le_refl s, by omega⟩ : s ≤ s ∧ s < s + T.length), if_pos (le_refl s),
+    Nat.sub_self] at h_at
+  have hT0' : 0 < T.toList.length := by rw [String.length_toList]; exact hT0
+  obtain ⟨hc0, hc1⟩ := hTc _ (List.getElem_mem hT0')
+  rw [h_at, ext_encodeV hT, dif_pos hT0', toUInt8_toNat_of_lt hc1] at h_coeff
+  have := natCast_inj (p := bn254) (a := (T.toList[0]'hT0').toNat) (b := 0) (by omega)
+    (by omega) (by rw [Nat.cast_zero]; exact h_coeff)
+  omega
+
 /--
 Soundness of `parseJWTFieldSharedLogic`. When the name or the value is not really where it is
 claimed to be, `parses` holds with probability at most `(nF - 1) + (max nN nV - 1) + 50` over
@@ -1039,5 +1108,197 @@ theorem sound {nF nN nV} (field name value : String)
     rw [ZMod.natCast_rightInverse valueIndex] at h_vs
     refine h_vs.trans (ENNReal.div_le_div_right ?_ _)
     exact_mod_cast (show nF - 1 + (nV - 1) + 50 ≤ nF - 1 + (max nN nV - 1) + 50 by omega)
+
+/-- Reads a character's byte out of `(encodeV w S).getD i 0`, when `i` is in bounds for both `w`
+and `S` — the `getD` counterpart of `encodeV_getElem_of_lt`, needed because `complete` below
+reasons about specific literal offsets in `field` via `Vector.getD`/`List.getD` (no index-bound
+proof terms to carry through the string-append rewriting). -/
+private lemma encodeV_getD_of_lt {w i : ℕ} {S : String} (hw : i < w) (hs : i < S.toList.length) :
+    (encodeV (p := bn254) w S).getD i 0 =
+      (((S.toList.getD i default).toUInt8.toNat : ℕ) : ZMod bn254) := by
+  rw [show (encodeV (p := bn254) w S).getD i 0 = (encodeV (p := bn254) w S)[i]'hw from by
+    simp [Vector.getD, hw]]
+  rw [encodeV_getElem_of_lt hw hs, show S.toList[i]'hs = S.toList.getD i default from by
+    simp [List.getD_eq_getElem?_getD, hs]]
+
+/--
+Completeness of `parseJWTFieldSharedLogic`. When `field` really is `"` + `name` + `"` + ⟨anything⟩
++ `:` (at `colonIndex`) + ⟨anything⟩ + `value` (at `valueIndex`) + ⟨`,` or `}`⟩ — in particular,
+`colonIndex`/`valueIndex` need not be adjacent to the name's closing quote or to each other, so
+arbitrary bytes (e.g. whitespace, as real JSON permits between tokens) may sit in either gap —
+`¬ parses` holds with probability at most `2 * (nF - 1) + 100` over `bn254`. Two differences from
+`sound`'s accounting:
+
+- Both of `parses`'s random-oracle conjuncts here are the *name* and *value* `isSubstring.accepts`
+  checks, each against `field`'s self-hash as `strHash` — same shape as `sound`, so each pays `50`
+  rather than `25` (`sound_hashedStr`'s docstring above explains the doubling). `complete_hashedStr`
+  is the corresponding completeness fact, mirroring `isSubstring.complete` the way `sound_hashedStr`
+  mirrors `isSubstring.sound`, built from `prob_rejects_le_hashedStr` instead of
+  `prob_accepts_le_hashedStr`.
+- `sound` only has to falsify *one* of the two checks (`h_bad` is an `∨`), so it only ever pays
+  that `50` once. `complete` needs *both* checks to succeed, so `¬ parses` is a *union* of two
+  failure events (either check can independently reject), not a choice between them — a
+  `measure_union_le`, not a case split — so the cost is paid twice: `((nF - 1) + 50)` for each of
+  the name and value checks, summing to `2 * (nF - 1) + 100`.
+
+The other seven conjuncts of `parses` (index ordering, and the literal quote/colon/comma/brace
+bytes) don't depend on the random oracle at all, and are made unconditionally true here by the
+hypotheses below — stated as directly as `parses` itself needs them, not derived from assuming
+any particular layout of what sits between the name, the colon, and the value. -/
+theorem complete {nF nN nV} (field name value : String)
+  (colonIndex valueIndex : ZMod bn254)
+  (h_fieldLen : field.length ≤ nF)
+  (h_nameLen : name.length ≤ nN)
+  (h_valueLen : value.length ≤ nV)
+  (h_namePos : 0 < name.length)
+  (h_valuePos : 0 < value.length)
+  (h_nF_name : 1 < nF)
+  (h_nm_name : nF + nN < bn254)
+  (h_nm_value : nF + nV < bn254)
+  (h_fieldBytes : ∀ c ∈ field.toList, c.toNat < 256)
+  (h_nameBytes : ∀ c ∈ name.toList, 0 < c.toNat ∧ c.toNat < 256)
+  (h_valueBytes : ∀ c ∈ value.toList, 0 < c.toNat ∧ c.toNat < 256)
+  (h_fit_name : 1 + name.length ≤ field.length)
+  (h_pre_name : name.toList <+: field.toList.drop 1)
+  (h_fit_val : valueIndex.val + value.length ≤ field.length)
+  (h_pre_val : value.toList <+: field.toList.drop valueIndex.val)
+  -- `colonIndex`/`valueIndex` need only be ordered past the name/colon, and the colon must
+  -- actually be there — nothing pins them to any fixed offset, so whatever (if anything) sits
+  -- between the name's closing quote and the colon, or between the colon and the value, is free.
+  (h_colon_order : name.length < colonIndex.val)
+  (h_value_order : colonIndex.val < valueIndex.val)
+  (h_open_quote : field.toList[0]? = some '\"')
+  (h_close_quote : field.toList[name.length + 1]? = some '\"')
+  (h_colon : field.toList[colonIndex.val]? = some ':')
+  (h_last_char : field.toList[field.length - 1]? = some ',' ∨
+    field.toList[field.length - 1]? = some '}') :
+  randomOracle.toOuterMeasure
+    {f |
+      ¬parses (skipChecks_val := false) (Query.toHashFn f)
+        (encodeV nF field)
+        field.length
+        (encodeV nN name)
+        name.length
+        (encodeV nV value)
+        value.length
+        colonIndex
+        valueIndex
+    }
+      ≤ ((2 * (nF - 1) + 100 : ℕ) : ENNReal) / bn254
+:= by
+  -- bounds, all purely from the ordering/fit hypotheses above
+  have hcolon_fl : colonIndex.val < field.length := by omega
+  have hname1_fl : name.length + 1 < field.length := by omega
+  have hnN_lt : nN < bn254 := by omega
+  have hname_lt : name.length < bn254 := by omega
+  have hvalue_lt : value.length < bn254 := by omega
+  have hfield_lt : field.length < bn254 := by omega
+  have hsum_lt : name.length + value.length < bn254 := by omega
+  have h_name_len_val : (name.length : ZMod bn254).val = name.length :=
+    ZMod.val_natCast_of_lt hname_lt
+  have h_field_len_val : (field.length : ZMod bn254).val = field.length :=
+    ZMod.val_natCast_of_lt hfield_lt
+  have h_sum_val : ((name.length : ZMod bn254) + (value.length : ZMod bn254)).val =
+      name.length + value.length := by
+    rw [← Nat.cast_add]; exact ZMod.val_natCast_of_lt hsum_lt
+  have h_name1_val : ((name.length : ZMod bn254) + 1).val = name.length + 1 := by
+    have heq : ((name.length : ZMod bn254) + 1) = ((name.length + 1 : ℕ) : ZMod bn254) := by
+      push_cast; ring
+    rw [heq]
+    exact ZMod.val_natCast_of_lt (by omega)
+  have h_fieldM1_val : ((field.length : ZMod bn254) - 1).val = field.length - 1 := by
+    have heq : (field.length : ZMod bn254) - 1 = ((field.length - 1 : ℕ) : ZMod bn254) := by
+      rw [Nat.cast_sub (by omega), Nat.cast_one]
+    rw [heq]
+    exact ZMod.val_natCast_of_lt (by omega)
+  -- the seven non-oracle conjuncts of `parses`, all independent of `f`
+  have hord1 : (name.length : ZMod bn254).val < colonIndex.val := by rw [h_name_len_val]; omega
+  have hord2 : colonIndex.val < valueIndex.val := h_value_order
+  have hord3 : (field.length : ZMod bn254).val >
+      ((name.length : ZMod bn254) + (value.length : ZMod bn254)).val := by
+    rw [h_field_len_val, h_sum_val]; omega
+  have hw0 : (0 : ℕ) < nF := by omega
+  have hw1 : (name.length + 1 : ℕ) < nF := by omega
+  have hw2 : colonIndex.val < nF := by omega
+  have hw3 : field.length - 1 < nF := by omega
+  have hs0 : (0 : ℕ) < field.toList.length := by rw [String.length_toList]; omega
+  have hs1 : (name.length + 1 : ℕ) < field.toList.length := by rw [String.length_toList]; omega
+  have hs2 : colonIndex.val < field.toList.length := by rw [String.length_toList]; omega
+  have hs3 : field.length - 1 < field.toList.length := by rw [String.length_toList]; omega
+  have hb0 : (encodeV (p := bn254) nF field).getD 0 0 = 34 := by
+    rw [encodeV_getD_of_lt hw0 hs0, List.getD_eq_getElem?_getD, h_open_quote]; decide
+  have hb1 : (encodeV (p := bn254) nF field).getD (name.length + 1) 0 = 34 := by
+    rw [encodeV_getD_of_lt hw1 hs1, List.getD_eq_getElem?_getD, h_close_quote]; decide
+  have hb2 : (encodeV (p := bn254) nF field).getD colonIndex.val 0 = 58 := by
+    rw [encodeV_getD_of_lt hw2 hs2, List.getD_eq_getElem?_getD, h_colon]; decide
+  have hb3 : (encodeV (p := bn254) nF field).getD (field.length - 1) 0 = 44 ∨
+      (encodeV (p := bn254) nF field).getD (field.length - 1) 0 = 125 := by
+    rcases h_last_char with h | h
+    · left; rw [encodeV_getD_of_lt hw3 hs3, List.getD_eq_getElem?_getD, h]; decide
+    · right; rw [encodeV_getD_of_lt hw3 hs3, List.getD_eq_getElem?_getD, h]; decide
+  have hb1' : (encodeV (p := bn254) nF field).getD ((name.length : ZMod bn254) + 1).val 0 = 34 := by
+    rw [h_name1_val]; exact hb1
+  have hb3' : (encodeV (p := bn254) nF field).getD ((field.length : ZMod bn254) - 1).val 0 = 44 ∨
+      (encodeV (p := bn254) nF field).getD ((field.length : ZMod bn254) - 1).val 0 = 125 := by
+    rw [h_fieldM1_val]; exact hb3
+  -- `parses` reduces to exactly the two `isSubstring.accepts` conjuncts, given the above.
+  -- (`apply hf` / plain `intro`, not `rintro`-style destructuring, so the `let fieldHash := …`
+  -- in `parses`'s body zeta-reduces the same way `sound`'s `hf (by decide)` application does,
+  -- instead of being consumed as an extra binder.)
+  have hsub : {f : Query → ZMod bn254 |
+      ¬parses (skipChecks_val := false) (Query.toHashFn f) (encodeV nF field) field.length
+        (encodeV nN name) name.length (encodeV nV value) value.length colonIndex valueIndex} ⊆
+      {f | isSubstring.accepts (Query.toHashFn f) (encodeV nF field)
+             (HashToField.hashBytesToFieldSpec (Query.toHashFn f) (encodeV nF field) field.length)
+             (encodeV nN name) name.length 1 = false} ∪
+      {f | isSubstring.accepts (Query.toHashFn f) (encodeV nF field)
+             (HashToField.hashBytesToFieldSpec (Query.toHashFn f) (encodeV nF field) field.length)
+             (encodeV nV value) value.length valueIndex = false} := by
+    intro f hf
+    simp only [Set.mem_union, Set.mem_setOf_eq]
+    by_contra hcon
+    push Not at hcon
+    have hA : isSubstring.accepts (Query.toHashFn f) (encodeV nF field)
+        (HashToField.hashBytesToFieldSpec (Query.toHashFn f) (encodeV nF field) field.length)
+        (encodeV nN name) name.length 1 = true := by simpa using hcon.1
+    have hB : isSubstring.accepts (Query.toHashFn f) (encodeV nF field)
+        (HashToField.hashBytesToFieldSpec (Query.toHashFn f) (encodeV nF field) field.length)
+        (encodeV nV value) value.length valueIndex = true := by simpa using hcon.2
+    apply hf
+    intro _
+    exact ⟨hord1, hord2, hord3, hb0, hA, hb1', hb2, hB, hb3'⟩
+  have hname := complete_hashedStr (s := 1) field.length h_fieldLen h_nameLen h_namePos h_nm_name
+    h_fieldBytes h_nameBytes h_fit_name h_pre_name
+  have hvalue := complete_hashedStr (s := valueIndex.val) field.length h_fieldLen h_valueLen
+    h_valuePos h_nm_value h_fieldBytes h_valueBytes h_fit_val h_pre_val
+  simp only [Nat.cast_one] at hname
+  rw [ZMod.natCast_rightInverse valueIndex] at hvalue
+  calc randomOracle.toOuterMeasure
+        {f | ¬parses (skipChecks_val := false) (Query.toHashFn f) (encodeV nF field) field.length
+          (encodeV nN name) name.length (encodeV nV value) value.length colonIndex valueIndex}
+      ≤ randomOracle.toOuterMeasure
+          ({f | isSubstring.accepts (Query.toHashFn f) (encodeV nF field)
+                  (HashToField.hashBytesToFieldSpec (Query.toHashFn f) (encodeV nF field)
+                    field.length) (encodeV nN name) name.length 1 = false} ∪
+            {f | isSubstring.accepts (Query.toHashFn f) (encodeV nF field)
+                  (HashToField.hashBytesToFieldSpec (Query.toHashFn f) (encodeV nF field)
+                    field.length) (encodeV nV value) value.length valueIndex = false}) :=
+        MeasureTheory.measure_mono hsub
+    _ ≤ randomOracle.toOuterMeasure
+          {f | isSubstring.accepts (Query.toHashFn f) (encodeV nF field)
+                  (HashToField.hashBytesToFieldSpec (Query.toHashFn f) (encodeV nF field)
+                    field.length) (encodeV nN name) name.length 1 = false} +
+        randomOracle.toOuterMeasure
+          {f | isSubstring.accepts (Query.toHashFn f) (encodeV nF field)
+                  (HashToField.hashBytesToFieldSpec (Query.toHashFn f) (encodeV nF field)
+                    field.length) (encodeV nV value) value.length valueIndex = false} :=
+        MeasureTheory.measure_union_le _ _
+    _ ≤ (((nF - 1) + 50 : ℕ) : ENNReal) / bn254 + (((nF - 1) + 50 : ℕ) : ENNReal) / bn254 :=
+        add_le_add hname hvalue
+    _ = ((2 * (nF - 1) + 100 : ℕ) : ENNReal) / bn254 := by
+        rw [ENNReal.div_add_div_same]
+        push_cast
+        ring_nf
+
 
 end parseJWTFieldSharedLogic
