@@ -24,16 +24,12 @@ import Clap.Lang.Data.FArray.selectArrayValue
 import Clap.Lang.Data.FArray.arraySelectorComplex
 import Clap.Lang.Core.FUnit.guardedAssertEq
 import Clap.Lang.Data.JWT.parseJWTFieldSharedLogic
+import Clap.Lang.Data.JWT.Basic
 import Mathlib.Data.List.GetD
 
 namespace Clap.Lang
 
 open Primes
-
-/-- ASCII whitespace at the plain-`ℕ` level, matching `F8.isWhitespace`'s circuit notion. Hoisted
-out of `parseEmailVerifiedField.parses`'s old `where` clause so proof lemmas elsewhere in this
-file can state their conclusions against it directly. -/
-private def isWs (c : ℕ) : Bool := c > 8 && c < 14 || c = 32
 
 /-- `field_vals.getD idx 0` is always a byte: in range it is `field_vals[idx]`, out of range it
 is the default `0`. -/
