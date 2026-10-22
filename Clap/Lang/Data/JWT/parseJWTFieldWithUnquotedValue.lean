@@ -528,7 +528,7 @@ private def checkWhitespaceZones {maxKVPairLen : ℕ}
     let ws ← F8.isWhitespace c
     guardedEq0 perform (← z.and (← not ws))
 
-lemma checkWhitespaceZones.convertsM
+private lemma checkWhitespaceZones.convertsM
   {maxKVPairLen : ℕ} {state : ClapMState bn254}
   {field_data : FVec bn254 maxKVPairLen} {perform : FB bn254}
   {nameLen colonIndex valueIndex valueLen fieldLen : F bn254}

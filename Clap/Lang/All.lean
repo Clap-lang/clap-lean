@@ -69,6 +69,8 @@ import Clap.Lang.Data.JWT.bracketsMap
 import Clap.Lang.Data.JWT.emailVerifiedCheck
 import Clap.Lang.Data.JWT.enforceNotNested
 import Clap.Lang.Data.JWT.parseJWTFieldSharedLogic
+import Clap.Lang.Data.JWT.parseEmailVerifiedField
+import Clap.Lang.Data.JWT.parseJWTFieldWithUnquotedValue
 import Clap.Lang.Data.JWT.stringBodies
 import Clap.Lang.Data.Packing.assertIs64BitLimbs
 import Clap.Lang.Data.Packing.assertIsBytes
