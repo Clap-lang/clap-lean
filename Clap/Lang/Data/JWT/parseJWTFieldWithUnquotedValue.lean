@@ -1137,6 +1137,21 @@ lemma convertsM
           rw [hxor]
           simp
 
+/-- A character is none of `,`, `}`, `"` iff its byte is none of their three codes — the `Char`
+bridge `h_no_forbidden` is stated against, needed because `parses`'s own forbidden-check conjunct
+is phrased over bytes (`field_vals[i].val ∉ [44, 125, 34]`, as `isForbidden_eq_false_iff` above
+reads at the `ZMod bn254`-value level for `convertsM`) while `complete`'s hypothesis is phrased
+over the source `Char`s. -/
+private lemma char_not_forbidden_iff (c : Char) :
+    c ∉ ([',', '}', '\"'] : List Char) ↔ c.toNat ∉ ([44, 125, 34] : List ℕ) := by
+  have h1 : c.toNat = 44 ↔ c = ',' := by
+    rw [show (44 : ℕ) = (',' : Char).toNat from by decide]; exact Char.toNat_inj
+  have h2 : c.toNat = 125 ↔ c = '}' := by
+    rw [show (125 : ℕ) = ('}' : Char).toNat from by decide]; exact Char.toNat_inj
+  have h3 : c.toNat = 34 ↔ c = '\"' := by
+    rw [show (34 : ℕ) = ('\"' : Char).toNat from by decide]; exact Char.toNat_inj
+  simp only [List.mem_cons, List.not_mem_nil, or_false, not_or, h1, h2, h3]
+
 theorem sound {nF nN nV} (field name value : String)
   (colonIndex valueIndex : ZMod bn254)
   (h_fieldLen : field.length ≤ nF) (h_nameLen : name.length ≤ nN) (h_valueLen : value.length ≤ nV)
@@ -1180,5 +1195,141 @@ theorem sound {nF nN nV} (field name value : String)
     (parseJWTFieldSharedLogic.sound field name value colonIndex valueIndex h_fieldLen h_nameLen
       h_valueLen h_namePos h_valuePos h_nF_name h_valueIndex h_nm_name h_nm_value h_fieldBytes
       h_nameBytes h_valueBytes h_bad)
+
+theorem complete {nF nN nV} (field name value : String)
+  (colonIndex valueIndex : ZMod bn254)
+  (h_fieldLen : field.length ≤ nF)
+  (h_nameLen : name.length ≤ nN)
+  (h_valueLen : value.length ≤ nV)
+  (h_namePos : 0 < name.length)
+  (h_valuePos : 0 < value.length)
+  (h_nF_name : 1 < nF)
+  (h_nm_name : nF + nN < bn254)
+  (h_nm_value : nF + nV < bn254)
+  (h_fieldBytes : ∀ c ∈ field.toList, c.toNat < 256)
+  (h_nameBytes : ∀ c ∈ name.toList, 0 < c.toNat ∧ c.toNat < 256)
+  (h_valueBytes : ∀ c ∈ value.toList, 0 < c.toNat ∧ c.toNat < 256)
+  (h_fit_name : 1 + name.length ≤ field.length)
+  (h_pre_name : name.toList <+: field.toList.drop 1)
+  (h_fit_val : valueIndex.val + value.length ≤ field.length)
+  (h_pre_val : value.toList <+: field.toList.drop valueIndex.val)
+  (h_colon_order : name.length < colonIndex.val)
+  (h_value_order : colonIndex.val < valueIndex.val)
+  (h_open_quote : field.toList[0]? = some '\"')
+  (h_close_quote : field.toList[name.length + 1]? = some '\"')
+  (h_colon : field.toList[colonIndex.val]? = some ':')
+  (h_last_char : field.toList[field.length - 1]? = some ',' ∨
+    field.toList[field.length - 1]? = some '}')
+  (h_ws_zones : ∀ i,
+    name.length + 2 ≤ i ∧ i < colonIndex.val ∨
+    colonIndex.val + 1 ≤ i ∧ i < valueIndex.val ∨
+    valueIndex.val + value.length ≤ i ∧ i < field.length - 1 →
+    (field.toList[i]?.elim false (isWs ∘ Char.toNat) : Prop)
+  )
+  (h_no_forbidden : ∀ i,
+    valueIndex.val ≤ i ∧ i < valueIndex.val + value.length →
+        field.toList[i]?.elim false (· ∉ [',', '}', '"'])
+  )
+  :
+  randomOracle.toOuterMeasure
+    {f |
+      ¬parses (skipChecks_val := false) (Query.toHashFn f)
+        (encodeV nF field)
+        field.length
+        (encodeV nN name)
+        name.length
+        (encodeV nV value)
+        value.length
+        colonIndex
+        valueIndex
+    }
+      ≤ ((2 * (nF - 1) + 100 : ℕ) : ENNReal) / bn254
+:= by
+  have h1v : (1 : ZMod bn254).val = 1 := by decide
+  have h2v : (2 : ZMod bn254).val = 2 := by decide
+  have h256 : (256 : ℕ) < bn254 := by decide
+  have hUInt8lt : ∀ c : Char, c.toUInt8.toNat < bn254 := fun c =>
+    lt_trans (UInt8.toNat_lt_size c.toUInt8) h256
+  -- `.val`-arithmetic bridges: `parses`'s conjuncts are phrased in `ZMod bn254`-`.val` form,
+  -- the hypotheses above in plain `ℕ`.
+  have h_nl_lt : name.length < bn254 := by omega
+  have h_nl_val : (name.length : ZMod bn254).val = name.length := ZMod.val_natCast_of_lt h_nl_lt
+  have h_nl2_val : ((name.length : ZMod bn254) + 2).val = name.length + 2 := by
+    rw [ZMod.val_add_of_lt (show (name.length : ZMod bn254).val + (2 : ZMod bn254).val < bn254 by
+      rw [h_nl_val, h2v]; omega), h_nl_val, h2v]
+  have h_vl_lt : value.length < bn254 := by omega
+  have h_vl_val : (value.length : ZMod bn254).val = value.length := ZMod.val_natCast_of_lt h_vl_lt
+  have h_vi_vl_val : (valueIndex + (value.length : ZMod bn254)).val
+      = valueIndex.val + value.length := by
+    rw [ZMod.val_add_of_lt (show valueIndex.val + (value.length : ZMod bn254).val < bn254 by
+      rw [h_vl_val]; omega), h_vl_val]
+  have h_fl_lt : field.length < bn254 := by omega
+  have h_fl_val : (field.length : ZMod bn254).val = field.length := ZMod.val_natCast_of_lt h_fl_lt
+  have h_fl1_val : ((field.length : ZMod bn254) - 1).val = field.length - 1 := by
+    rw [ZMod.val_sub (by rw [h_fl_val, h1v]; omega), h_fl_val, h1v]
+  -- `valueIndex.val` is always `< field.length`, independently of any particular zone — chains
+  -- through `h_colon_order`/`h_value_order` to put every zone's own upper bound below
+  -- `field.length` too, so no `List.getElem?`-based detour (as `parseEmailVerifiedField`'s `hP5`
+  -- needs for its `colonIndex` bound) is required here.
+  have hvi_lt_fieldLen : valueIndex.val < field.length := by omega
+  -- The whitespace-zones conjunct, proved unconditionally (independent of the random oracle).
+  have hWS : ∀ i : Fin nF,
+      ((((name.length : ZMod bn254) + 2).val ≤ i.val ∧ i.val < colonIndex.val) ∨
+        (colonIndex.val + 1 ≤ i.val ∧ i.val < valueIndex.val) ∨
+        ((valueIndex + (value.length : ZMod bn254)).val ≤ i.val ∧
+          i.val < ((field.length : ZMod bn254) - 1).val)) →
+      isWs ((encodeV (p := bn254) nF field)[i]).val := by
+    intro i hranges
+    rw [h_nl2_val, h_vi_vl_val, h_fl1_val] at hranges
+    have hi_lt_fieldLen : i.val < field.length := by
+      rcases hranges with ⟨_, h2⟩ | ⟨_, h2⟩ | ⟨_, h2⟩ <;> omega
+    have hi_lt_toList : i.val < field.toList.length := by
+      rw [String.length_toList]; exact hi_lt_fieldLen
+    have hws := h_ws_zones i.val hranges
+    have hgetElem : (encodeV (p := bn254) nF field)[i] =
+        (((field.toList[i.val]'hi_lt_toList).toUInt8.toNat : ℕ) : ZMod bn254) :=
+      encodeV_getElem_of_lt i.isLt hi_lt_toList
+    rw [hgetElem, ZMod.val_natCast_of_lt (hUInt8lt _)]
+    have hsome : field.toList[i.val]? = some (field.toList[i.val]'hi_lt_toList) :=
+      List.getElem?_eq_getElem hi_lt_toList
+    rw [hsome] at hws
+    rw [toUInt8_toNat_of_lt (h_fieldBytes _ (List.getElem_mem hi_lt_toList))]
+    simpa using hws
+  -- The forbidden-character conjunct, proved unconditionally the same way.
+  have hNF : ∀ i : Fin nF,
+      (valueIndex.val ≤ i.val ∧ i.val < (valueIndex + (value.length : ZMod bn254)).val) →
+      ((encodeV (p := bn254) nF field)[i]).val ∉ ([44, 125, 34] : List ℕ) := by
+    intro i hrange
+    rw [h_vi_vl_val] at hrange
+    have hi_lt_fieldLen : i.val < field.length := by omega
+    have hi_lt_toList : i.val < field.toList.length := by
+      rw [String.length_toList]; exact hi_lt_fieldLen
+    have hnf := h_no_forbidden i.val hrange
+    have hgetElem : (encodeV (p := bn254) nF field)[i] =
+        (((field.toList[i.val]'hi_lt_toList).toUInt8.toNat : ℕ) : ZMod bn254) :=
+      encodeV_getElem_of_lt i.isLt hi_lt_toList
+    rw [hgetElem, ZMod.val_natCast_of_lt (hUInt8lt _)]
+    have hsome : field.toList[i.val]? = some (field.toList[i.val]'hi_lt_toList) :=
+      List.getElem?_eq_getElem hi_lt_toList
+    rw [hsome] at hnf
+    rw [toUInt8_toNat_of_lt (h_fieldBytes _ (List.getElem_mem hi_lt_toList))]
+    exact (char_not_forbidden_iff _).mp (by simpa using hnf)
+  -- `parses` reduces to exactly `parseJWTFieldSharedLogic.parses`, given the above: the two extra
+  -- conjuncts hold for every `f`, so `¬parses` is no weaker than `¬parseJWTFieldSharedLogic.parses`.
+  have h_sub : {f : Query → ZMod bn254 |
+      ¬parses (skipChecks_val := false) (Query.toHashFn f) (encodeV nF field) field.length
+        (encodeV nN name) name.length (encodeV nV value) value.length colonIndex valueIndex} ⊆
+      {f | ¬parseJWTFieldSharedLogic.parses (Query.toHashFn f) (encodeV nF field) field.length
+        (encodeV nN name) name.length (encodeV nV value) value.length colonIndex valueIndex
+        false} := by
+    intro f hf hP1
+    apply hf
+    unfold parses
+    exact fun _ => ⟨hP1, hWS, hNF⟩
+  exact (MeasureTheory.measure_mono h_sub).trans
+    (parseJWTFieldSharedLogic.complete field name value colonIndex valueIndex h_fieldLen h_nameLen
+      h_valueLen h_namePos h_valuePos h_nF_name h_nm_name h_nm_value h_fieldBytes h_nameBytes
+      h_valueBytes h_fit_name h_pre_name h_fit_val h_pre_val h_colon_order h_value_order
+      h_open_quote h_close_quote h_colon h_last_char)
 
 end parseJWTFieldWithUnquotedValue
