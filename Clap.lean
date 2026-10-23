@@ -7,6 +7,7 @@ import Clap.Keyless.Allocate
 import Clap.Examples.PoseidonProgram
 import Clap.Examples.RangeCheckedLessThan
 import Clap.Test.Backend
+import Clap.Compiler.toR1CS
 
 /-!
 # CLAP
