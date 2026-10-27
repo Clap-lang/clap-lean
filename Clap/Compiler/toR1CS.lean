@@ -416,6 +416,31 @@ end Test
 /--
 Turns expressions into `A * B - C` format that R1CS expects.
 Here `A, B, C` are all first order.
+
+TODO(note): `numInputs` might not be needed, but we do make a distinction
+between public and private inputs
+
+def Cs.toR1CS (cs : Cs' p) : R1CSv1 :=
+  quadraticToR1CS (Clap.toLevels cs)
+
+In `old/.../Quadratic.lean`.
+
+We need:
+Expression transformations:
+- Exp.nVars₀
+- Exp.nVars 
+- Exp.toCoeff₀ 
+- Exp.toCoeff
+- Exp.normalQuadratic
+Top level guys:
+- quadraticToConstraints
+- r1csNormalizeGetNVars
+- quadraticToR1CS
+
+Optimisations:
+- `old/Clap/Cfold.lean`
+- `old/Clap/Dedup.lean`
+- `old/Clap/Unshare.lean`
 -/
 def toR1CS (cs : ConstraintSystem p) (numInputs : ℕ) : Option R1CSv1 :=
   sorry
