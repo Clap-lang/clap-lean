@@ -143,6 +143,7 @@ def Exp.normalQuadratic₀ : Exp p var → Option (Exp p var ⊕ NormalQuadratic
     | some (.inl e₁), some (.inl e₂) => return .inl (.sub e₁ e₂)
     | some (.inl e), some (.inr ⟨A, B, C⟩) =>
       -- e - (A * B - C) = (- A) * B - (C + e)
+      -- `e - A*B + C     = - A*B -C -e`???????????????????????????????????
       return .inr ⟨.sub 0 A, B, .add C e⟩
     | some (.inr ⟨A, B, C⟩), some (.inl e₁) =>
       -- (A * B - C) - e₁ -> A * B - (C + e₁)
