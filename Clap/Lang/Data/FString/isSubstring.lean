@@ -412,7 +412,7 @@ lemma afterHash_convertsM
     (checkPure (H #v[strHash_val, substrHash_val, len_val, start_val])
       (Vector.ofFn fun i : Fin n ↦ decide (start_val.val ≤ i.val) ^^ decide ((start_val + len_val).val ≤ i.val))
       str_vals substr_vals start_val.val)
-    ((start_val.val < 2 ^ minBits' n ∧ (start_val + len_val).val < 2 ^ minBits' n ∧
+    (((start_val + len_val).val < 2 ^ minBits' n ∧
       start_val.val < n ∧ start_val.val < (start_val + len_val).val) ∧ start_val.val < n)
 := by
   unfold afterHash
@@ -448,7 +448,7 @@ lemma convertsM
   ConvertsM FB.conversion (isSubstring h str strHash substr startIndex) state
     (accepts H str_vals strHash_val substr_vals len_val start_val)
     ((∀ i : Fin m, substr_vals[i].val < 2 ^ 8) ∧
-      start_val.val < 2 ^ minBits' n ∧ (start_val + len_val).val < 2 ^ minBits' n ∧
+      (start_val + len_val).val < 2 ^ minBits' n ∧
       start_val.val < n ∧ start_val.val < (start_val + len_val).val)
 := by
   unfold isSubstring
@@ -460,10 +460,10 @@ lemma convertsM
       hHash.result h_n hw))
   · rfl
   · constructor
-    · rintro ⟨h_bytes, ⟨h_s, h_e, h_sn, h_se⟩, -⟩
-      exact ⟨h_bytes, h_s, h_e, h_sn, h_se⟩
-    · rintro ⟨h_bytes, h_s, h_e, h_sn, h_se⟩
-      exact ⟨h_bytes, ⟨h_s, h_e, h_sn, h_se⟩, h_sn⟩
+    · rintro ⟨h_bytes, ⟨h_e, h_sn, h_se⟩, -⟩
+      exact ⟨h_bytes, h_e, h_sn, h_se⟩
+    · rintro ⟨h_bytes, h_e, h_sn, h_se⟩
+      exact ⟨h_bytes, ⟨h_e, h_sn, h_se⟩, h_sn⟩
 
 /-- Slot 5's `start < start + len` rules out wrapping, so the window length is `len`. -/
 lemma val_add_of_lt_val {a b : ZMod bn254} (h : a.val < (a + b).val) :
@@ -674,7 +674,7 @@ lemma convertsM
 :
   ConvertsM FUnit.conversion (assertIsSubstring h str strHash substr startIndex) state ()
     (((∀ i : Fin m, substr_vals[i].val < 2 ^ 8) ∧
-      start_val.val < 2 ^ minBits' n ∧ (start_val + len_val).val < 2 ^ minBits' n ∧
+      (start_val + len_val).val < 2 ^ minBits' n ∧
       start_val.val < n ∧ start_val.val < (start_val + len_val).val) ∧
       isSubstring.accepts H str_vals strHash_val substr_vals len_val start_val = true)
 := by

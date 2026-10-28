@@ -175,8 +175,10 @@ lemma convertsM
   ConvertsM FArray.conversion (arraySelector len startIdx endIdx) state
     (Vector.ofFn (fun i : Fin len =>
       decide (startIdx_val.val ≤ i.val) ^^ decide (endIdx_val.val ≤ i.val)))
-    (startIdx_val.val < 2 ^ minBits' len ∧ endIdx_val.val < 2 ^ minBits' len ∧
-      startIdx_val.val < len ∧ startIdx_val.val < endIdx_val.val)
+    ( -- redundant: startIdx_val.val < 2 ^ (minBits' len)
+      endIdx_val.val < 2 ^ (minBits' len) ∧
+      startIdx_val.val < len ∧ startIdx_val.val < endIdx_val.val
+    )
 := by
   unfold arraySelector
   -- Group the two range checks, so that one action establishes both bounds.
@@ -186,7 +188,16 @@ lemma convertsM
     (assert_range.convertsM (w := minBits' len) (converts_skip hA h_endIdx))
   have hCore := arraySelectorCore.convertsM_unchecked
     (converts_skip hAB h_startIdx) (converts_skip hAB h_endIdx) h_len
-  refine convertsM_of_convertsM (convertsM_bind_guard hAB hCore ?_) rfl and_assoc
+  -- `startIdx_val.val < 2 ^ (minBits' len)` is redundant given `startIdx_val.val < len`.
+  have h_equiv :
+    startIdx_val.val < 2 ^ (minBits' len) ∧ endIdx_val.val < 2 ^ (minBits' len) ∧
+      startIdx_val.val < len ∧ startIdx_val.val < endIdx_val.val
+    ↔
+    endIdx_val.val < 2 ^ (minBits' len) ∧ startIdx_val.val < len ∧
+      startIdx_val.val < endIdx_val.val
+  := by grind
+  refine convertsM_of_convertsM (convertsM_bind_guard hAB hCore ?_) rfl
+    (and_assoc.trans h_equiv)
   -- Under the range checks, the raw comparisons are the real ones and their offsets fit.
   rintro ⟨ha, hb⟩
   have h_lenF_val : (len : ZMod p).val < 2 ^ minBits' len := by
@@ -214,15 +225,17 @@ lemma convertsM'
   ConvertsM FArray.conversion (arraySelector len startIdx endIdx) state
     (Vector.ofFn (fun i : Fin len =>
       (startIdx_val.val ≤ i.val) && (i.val < endIdx_val.val)))
-    (startIdx_val.val < 2 ^ minBits' len ∧ endIdx_val.val < 2 ^ minBits' len ∧
-      startIdx_val.val < len ∧ startIdx_val.val < endIdx_val.val)
+    ( endIdx_val.val < 2 ^ (minBits' len) ∧
+      startIdx_val.val < len ∧ startIdx_val.val < endIdx_val.val
+    )
 := by
   apply convertsM_of_convertsM (convertsM h_startIdx h_endIdx h_len hw)
   . ext i hi
     simp only [Vector.getElem_ofFn]
     by_cases hai : startIdx_val.val ≤ i <;> by_cases hib : i < endIdx_val.val <;>
       simp [hai, hib] <;> omega
-  . exact Iff.rfl
+  . rfl
+
 end arraySelector
 
 end arraySelector
