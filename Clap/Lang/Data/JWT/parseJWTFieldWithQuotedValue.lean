@@ -25,6 +25,8 @@ import Clap.Lang.Core.FUnit.guardedAssertEq
 import Clap.Lang.Data.JWT.parseJWTFieldSharedLogic
 import Clap.Lang.Data.JWT.Basic
 import Mathlib.Data.List.GetD
+import Clap.Lang.Data.JWT.Scaffold.parseJWTFieldWithUnquotedValue
+import Clap.Lang.Data.JWT.Scaffold.parseJWTFieldWithQuotedValue
 
 namespace Clap.Lang
 
@@ -39,318 +41,6 @@ structure QuotedFieldInput (maxPairLen maxNameLen maxValueLen : ℕ) where
   nameIndex         : F bn254
   colonIndex        : F bn254
   valueIndex        : F bn254
-
-/-! ## Generic logic helpers
-
-Copied verbatim from `parseJWTFieldWithUnquotedValue.lean` (per that file's own convention of
-duplicating small per-file proof infrastructure rather than sharing it across JWT files — see its
-doc comments). -/
-
-private lemma forall_guard_comm {ι : Type} {g : Prop} {B : ι → Prop} :
-    (∀ i, g → B i) ↔ (g → ∀ i, B i) :=
-  ⟨fun h hg i => h i hg, fun h i hg => h hg i⟩
-
-private lemma forall_and_guard_comm {ι : Type} {A : ι → Prop} {g : Prop} {B : ι → Prop} :
-    (∀ i, A i ∧ (g → B i)) ↔ (∀ i, A i) ∧ (g → ∀ i, B i) :=
-  ⟨fun h => ⟨fun i => (h i).1, fun hg i => (h i).2 hg⟩,
-   fun h i => ⟨h.1 i, fun hg => h.2 hg i⟩⟩
-
-private lemma Vector.zipWithM_zero {m} [Monad m] [LawfulMonad m] {α β φ : Type}
-    (f : α → β → m φ) :
-  Vector.zipWithM f (#v[] : Vector α 0) (#v[] : Vector β 0) = pure #v[]
-:= by
-  unfold Vector.zipWithM
-  simp
-
-private lemma Vector.zipWithM_succ {m} [Monad m] {n} {α β φ : Type}
-    (f : α → β → m φ) (a : α) (b : β) (xs : Vector α n) (ys : Vector β n) :
-  Vector.zipWithM f (⟨⟨a :: xs.toList⟩, by simp⟩ : Vector α (n+1))
-                    (⟨⟨b :: ys.toList⟩, by simp⟩ : Vector β (n+1))
-  = (do
-      let z ← f a b
-      let zs ← xs.zipWithM f ys
-      pure (⟨⟨z :: zs.toList⟩, by simp⟩ : Vector φ (n+1)))
-:= by
-  conv_lhs => unfold Vector.zipWithM
-  simp [Vector.head, List.take_of_length_le Vector.length_toList.le, Vector.toArray_toList]
-
-private lemma FArray.converts_cons
-  {p : ℕ} {k} {state : ClapMState p}
-  {expr : FB p} {val : Bool}
-  {exprs : FArray p k} {vals : Vector Bool k}
-  (h_expr : Converts FB.conversion state expr val)
-  (h_exprs : Converts FArray.conversion state exprs vals)
-:
-  Converts FArray.conversion state (⟨⟨expr :: exprs.toList⟩, by simp⟩ : Vector (FB p) (k + 1))
-    (⟨⟨val :: vals.toList⟩, by simp⟩ : Vector Bool (k + 1))
-:= by
-  rewrite [FArray.converts_iff_FB_converts] at h_exprs ⊢
-  intro ⟨i, h_i⟩
-  match i, h_i with
-  | 0, h_i => simpa using h_expr
-  | i + 1, h_i =>
-    have h := h_exprs ⟨i, by omega⟩
-    simpa using h
-
-/-- `Vector.zipWithM FB.or`: a `True`-constraint, pointwise-OR combinator. -/
-private lemma convertsM_zipWithM_or
-  {p : ℕ} [p.AtLeastTwo]
-  {k} {state : ClapMState p}
-  {xs ys : Vector (FB p) k} {xvals yvals : Vector Bool k}
-  (h_x : ∀ i : Fin k, Converts FB.conversion state xs[i] xvals[i])
-  (h_y : ∀ i : Fin k, Converts FB.conversion state ys[i] yvals[i])
-:
-  ConvertsM FArray.conversion (xs.zipWithM FB.or ys) state
-    (Vector.ofFn (fun i : Fin k => xvals[i] || yvals[i])) True
-:= by
-  induction k generalizing state with
-  | zero =>
-    have hxs : xs = #v[] := by grind
-    have hys : ys = #v[] := by grind
-    subst hxs hys
-    rw [Vector.zipWithM_zero]
-    apply convertsM_pure
-    . have h_eq : (Vector.ofFn (fun i : Fin 0 => xvals[i] || yvals[i]) : Vector Bool 0) = #v[] := by
-        ext i hi; omega
-      rw [h_eq]
-      exact FArray.converts_empty
-    . trivial
-  | succ k ih =>
-    have h_head_x : Converts FB.conversion state xs[0] xvals[0] := h_x ⟨0, by omega⟩
-    have h_head_y : Converts FB.conversion state ys[0] yvals[0] := h_y ⟨0, by omega⟩
-    have h_tail_x : ∀ i : Fin k, Converts FB.conversion state
-        (xs.tail.cast (by omega) : Vector (FB p) k)[i] (xvals.tail.cast (by omega) : Vector Bool k)[i] := by
-      intro ⟨i, h_i⟩
-      have h1 : (xs.tail.cast (by omega) : Vector (FB p) k)[i]'(by omega)
-          = xs[i+1]'(by omega) := by simp [Nat.add_comm]
-      have h2 : (xvals.tail.cast (by omega) : Vector Bool k)[i]'(by omega)
-          = xvals[i+1]'(by omega) := by simp [Nat.add_comm]
-      simp only [Fin.getElem_fin]
-      rw [h1, h2]
-      exact h_x ⟨i+1, by omega⟩
-    have h_tail_y : ∀ i : Fin k, Converts FB.conversion state
-        (ys.tail.cast (by omega) : Vector (FB p) k)[i] (yvals.tail.cast (by omega) : Vector Bool k)[i] := by
-      intro ⟨i, h_i⟩
-      have h1 : (ys.tail.cast (by omega) : Vector (FB p) k)[i]'(by omega)
-          = ys[i+1]'(by omega) := by simp [Nat.add_comm]
-      have h2 : (yvals.tail.cast (by omega) : Vector Bool k)[i]'(by omega)
-          = yvals[i+1]'(by omega) := by simp [Nat.add_comm]
-      simp only [Fin.getElem_fin]
-      rw [h1, h2]
-      exact h_y ⟨i+1, by omega⟩
-    rw [Vector.eq_cons xs, Vector.eq_cons ys, Vector.zipWithM_succ]
-    have h_action := FB.or.convertsM h_head_x h_head_y
-    have h_tail_x' := fun i ↦ converts_skip h_action (h_tail_x i)
-    have h_tail_y' := fun i ↦ converts_skip h_action (h_tail_y i)
-    step h_action as z
-    step (ih h_tail_x' h_tail_y') as zs
-    apply convertsM_pure
-    . have h_cons := FArray.converts_cons h_z h_zs
-      have h_vals : Vector.ofFn (fun i : Fin (k+1) => xvals[i] || yvals[i])
-          = (⟨⟨(xvals[0] || yvals[0]) :: (Vector.ofFn (fun i : Fin k =>
-              (xvals.tail.cast (by omega) : Vector Bool k)[i] ||
-              (yvals.tail.cast (by omega) : Vector Bool k)[i])).toList⟩, by simp⟩
-             : Vector Bool (k+1)) := by
-        ext i hi
-        rcases i with _ | i
-        · simp
-        · simp [Nat.add_comm]
-      rw [h_vals]
-      simpa using h_cons
-    . trivial
-
-/-- `convertsM_foldlM_constraints` for a step that also reads a fixed context `ctx` — same merge
-of context-threading and real per-step constraints as `parseJWTFieldWithUnquotedValue.lean`'s copy
-of this lemma. -/
-private lemma convertsM_foldlM_ctx_constraints
-  {p : ℕ} {k} {α γ δ}
-  {C_ctx : Conversion p δ}
-  {C_acc : Conversion p α}
-  {C_elem : Conversion p γ}
-  {f : δ → α → γ → ClapM p α}
-  {f_spec : C_ctx.IdealT → C_acc.IdealT → C_elem.IdealT → C_acc.IdealT}
-  {step_constraints : C_ctx.IdealT → C_elem.IdealT → Prop}
-  {state : ClapMState p}
-  {ctx : δ}
-  {ctx_val : C_ctx.IdealT}
-  {v : Vector γ k}
-  {vals : Vector C_elem.IdealT k}
-  {init : α}
-  {init_val : C_acc.IdealT}
-  (h_ctx : Converts C_ctx state ctx ctx_val)
-  (h_v : ∀ i : Fin k, Converts C_elem state v[i] vals[i])
-  (h_init : Converts C_acc state init init_val)
-  (h_f : ∀ {state' : ClapMState p} {acc acc_val x x_val},
-          Converts C_ctx state' ctx ctx_val →
-          Converts C_acc state' acc acc_val →
-          Converts C_elem state' x x_val →
-          ConvertsM C_acc (f ctx acc x) state' (f_spec ctx_val acc_val x_val)
-            (step_constraints ctx_val x_val))
-:
-  ConvertsM C_acc (v.foldlM (f ctx) init) state (vals.foldl (f_spec ctx_val) init_val)
-    (∀ i : Fin k, step_constraints ctx_val vals[i])
-:= by
-  induction' k with k h_k
-  . have h_empty : Vector.foldlM (m := ClapM p) (f ctx) init v = pure init := by
-      convert Vector.foldlM_empty
-      obtain ⟨⟨_⟩, _⟩ := v
-      grind
-    simp [h_empty]
-    apply convertsM_pure
-    . have : vals = #v[] := by grind
-      simp [this]
-      assumption
-    . trivial
-  . set v_base := Vector.cast (m := k) (by trivial) v.pop with h_v_base_def
-    set vals_base := Vector.cast (m := k) (by trivial) vals.pop with h_vals_base_def
-
-    have h_eq : ∀ (j : ℕ) (hj : j < k), vals_base[j]'hj = vals[j]'(by omega) := by
-      intro j hj
-      simp [vals_base]
-
-    have h_v_base : ∀ i : Fin k, Converts C_elem state v_base[i] vals_base[i] := by
-      intro ⟨i, h_i⟩
-      have h1 : v_base[i]'h_i = v[i]'(by omega) := by simp [v_base]
-      simp only [Fin.getElem_fin]
-      rw [h1, h_eq i h_i]
-      exact h_v ⟨i, by omega⟩
-
-    have h_vals : vals = vals_base.push vals[k] := by
-      ext
-      rewrite [Vector.getElem_push]
-      split
-      . simp [vals_base]
-      . grind
-
-    have h_push : v = v_base.push v[k] := by
-      ext
-      rewrite [Vector.getElem_push]
-      split
-      . simp [v_base]
-      . grind
-
-    have h_last := h_v ⟨k, Nat.lt_succ_self k⟩
-    have h_ih := h_k h_v_base
-
-    rewrite [h_push]
-    simp only [Vector.foldlM_push]
-
-    apply convertsM_of_convertsM
-      (convertsM_bind_and h_ih
-        (h_f (converts_skip h_ih h_ctx) h_ih.result (converts_skip h_ih h_last)))
-    . conv_rhs => rewrite [h_vals]
-      simp
-    . constructor
-      . rintro ⟨h_prefix, h_elem⟩ ⟨i, h_i⟩
-        by_cases h : i = k
-        . subst h
-          exact h_elem
-        . have h_lt : i < k := by grind
-          have h1 := h_prefix ⟨i, h_lt⟩
-          simp only [Fin.getElem_fin] at h1
-          rwa [h_eq i h_lt] at h1
-      . intro h
-        refine ⟨fun ⟨i, h_i⟩ ↦ ?_, h ⟨k, Nat.lt_succ_self k⟩⟩
-        have h1 := h ⟨i, by grind⟩
-        simp only [Fin.getElem_fin] at h1 ⊢
-        rwa [← h_eq i h_i] at h1
-
-private lemma xor_le_iff_interval {a b i : ℕ} (hab : a < b) :
-    (decide (a ≤ i) ^^ decide (b ≤ i)) = true ↔ a ≤ i ∧ i < b := by
-  by_cases hai : a ≤ i <;> by_cases hib : b ≤ i <;> simp [hai, hib] <;> omega
-
-/-- Bridges a `List.getElem?` fact at a string position into a `Vector.getD` fact over `encodeV`.
-Copied from `parseJWTFieldSharedLogic.lean`'s identical private lemma (not visible across files). -/
-private lemma encodeV_getD_of_lt {w i : ℕ} {S : String} (hw : i < w) (hs : i < S.toList.length) :
-    (FString.encodeV (p := bn254) w S).getD i 0 =
-      (((S.toList.getD i default).toUInt8.toNat : ℕ) : ZMod bn254) := by
-  rw [show (FString.encodeV (p := bn254) w S).getD i 0 =
-      (FString.encodeV (p := bn254) w S)[i]'hw from by
-    simp [Vector.getD, hw]]
-  rw [FString.encodeV_getElem_of_lt hw hs, show S.toList[i]'hs = S.toList.getD i default from by
-    simp [List.getD_eq_getElem?_getD, hs]]
-
-/-- `F8.isWhitespace`'s *unchecked* raw value equals the plain-`ℕ` `isWs` predicate, given the byte
-is known `< 2^8`. Copied from `parseJWTFieldWithUnquotedValue.lean`'s identical private lemma. -/
-private lemma lessThanRaw_isWs_eq {c_val : ZMod bn254} (h_c8 : c_val.val < 2 ^ 8) :
-    ((lessThan.lessThanRaw 8 8 c_val && lessThan.lessThanRaw 8 c_val 14) || c_val == 32)
-      = isWs c_val.val := by
-  have hw9 : (2:ℕ) ^ (8 + 1) < bn254 := by decide
-  have h8v : (8 : ZMod bn254).val = 8 := by decide
-  have h14v : (14 : ZMod bn254).val = 14 := by decide
-  have h8lt : (8 : ZMod bn254).val < 2 ^ 8 := by decide
-  have h14lt : (14 : ZMod bn254).val < 2 ^ 8 := by decide
-  have h32eq : (c_val == (32 : ZMod bn254)) = decide (c_val.val = 32) := by
-    have h32v : (32 : ZMod bn254).val = 32 := by decide
-    by_cases h : c_val.val = 32
-    · have hc : c_val = 32 := ZMod.val_injective bn254 (by rw [h32v]; exact h)
-      simp [hc, h32v]
-    · have hne : c_val ≠ 32 := fun hc => h (by rw [hc, h32v])
-      simp [hne, h]
-  rw [lessThan.lessThanRaw_eq h8lt h_c8 hw9, lessThan.lessThanRaw_eq h_c8 h14lt hw9, h32eq, h8v, h14v]
-  simp [isWs]
-
-/-- The `foldlM` step: whitespace-or-not for one position, given its zone-membership bit `z` and
-field character `c` as *general* field elements. Copied from `parseJWTFieldWithUnquotedValue.lean`. -/
-private lemma guardedWhitespaceCheck_convertsM
-  {state : ClapMState bn254} {perform z c : F bn254} {perform_val : Bool} {z_val c_val : ZMod bn254}
-  (h_perform : Converts FB.conversion state perform perform_val)
-  (h_z : Converts F.conversion state z z_val)
-  (h_c : Converts F.conversion state c c_val)
-:
-  ConvertsM FUnit.conversion
-    (F8.isWhitespace c >>= fun ws => not ws >>= fun notws => FB.and z notws >>= fun prod =>
-      guardedEq0 perform prod)
-    state ()
-    ( (lessThan.lessThanOk 8 8 c_val ∧ lessThan.lessThanOk 8 c_val 14) ∧
-      (perform_val = true → z_val * (if ((lessThan.lessThanRaw 8 8 c_val && lessThan.lessThanRaw 8 c_val 14) ||
-        c_val == 32) then (0:ZMod bn254) else 1) = 0) )
-:= by
-  have hWs := F8.isWhitespace.convertsM_unchecked h_c
-  replace h_z := converts_skip hWs h_z
-  replace h_perform := converts_skip hWs h_perform
-  apply convertsM_bind_and hWs
-  refine convertsM_bind (not.convertsM hWs.result) ?_ (fun _ => trivial)
-  have hNot := not.convertsM hWs.result
-  replace h_z := converts_skip hNot h_z
-  replace h_perform := converts_skip hNot h_perform
-  unfold FB.and
-  rw [mul_def]
-  refine convertsM_bind (mkMul.convertsM h_z (F.converts_of_FB_converts hNot.result)) ?_ (fun _ => trivial)
-  have hMul := mkMul.convertsM h_z (F.converts_of_FB_converts hNot.result)
-  replace h_perform := converts_skip hMul h_perform
-  apply convertsM_of_convertsM (guardedEq0.convertsM h_perform hMul.result)
-  · rfl
-  · by_cases h : (lessThan.lessThanRaw 8 8 c_val && lessThan.lessThanRaw 8 c_val 14) || c_val == 32 <;>
-      simp [h]
-
-/-- `mkF lit >>= fun c => guardedAssertEq perform x c`: when `perform`, asserts `x.val = lit`.
-Copied from `parseJWTFieldSharedLogic.lean`'s identical private lemma. -/
-private lemma assertEqLit_convertsM
-  {state : ClapMState bn254} {x perform : F bn254} {lit : ZMod bn254}
-  {x_val : ZMod bn254} {perform_val : Bool}
-  (h_x : Converts F.conversion state x x_val)
-  (h_perform : Converts FB.conversion state perform perform_val)
-:
-  ConvertsM FUnit.conversion
-    (mkF lit >>= fun c => guardedAssertEq perform x c)
-    state () (perform_val = true → x_val = lit)
-:= by
-  step mkF.convertsM as c
-  apply convertsM_of_convertsM (guardedAssertEq.convertsM h_perform h_x h_c)
-  · rfl
-  · simp
-
-/-- `action >>= fun _ => step`, generic in `step`. Copied from `parseJWTFieldSharedLogic.lean`. -/
-private lemma seqUnit_convertsM
-  {β : Type} {conversion2 : Conversion bn254 β}
-  {action : ClapM bn254 Unit} {state : ClapMState bn254} {Cprev : Prop}
-  (h_action : ConvertsM FUnit.conversion action state () Cprev)
-  {step : ClapM bn254 β} {stepVal : conversion2.IdealT} {Cstep : Prop}
-  (h_step : ConvertsM conversion2 step (action.getState state) stepVal Cstep)
-:
-  ConvertsM conversion2 (action >>= fun _ => step) state stepVal (Cprev ∧ Cstep)
-:= convertsM_bind_and h_action h_step
 
 /-! ## Value-quote checks
 
@@ -370,6 +60,118 @@ private def checkValueQuotes {maxKVPairLen : ℕ}
   guardedAssertEq perform valueFirstQuote (← mkF 34)
   let valueSecondQuote ← selectArrayValue maxKVPairLen field_data (← valueIndex + valueLen)
   guardedAssertEq perform valueSecondQuote (← mkF 34)
+
+/-- Whether a position falls in any of the three gaps between the name/colon, colon/value and
+value/terminator — `nameColonGapDef`, `colonValueGapDef` and `valueEndGapDef` below, each wrapped
+as its own opaque `where`-bound def (rather than inlined) so the combined proof in
+`anyGapZone_convertsM` reasons about fixed function applications (trivially equal to themselves)
+rather than inlined nested `do`-blocks (requiring expensive `whnf` unfolding to confirm two
+mentions of "the state after gap X" agree) — the same wall `docs/proving-circuits.md` describes
+for `Base64Len/base64UrlLookup.lean`. Each allocates its own `1`/`2` literal rather than taking one
+as a parameter: hash-consing means a repeated `mkF` costs no new gate or witness allocation, so
+there's no need to thread a shared constant through.
+
+Unlike `parseJWTFieldWithUnquotedValue.lean`'s sibling, there *is* an opening/closing quote around
+the value to skip past, so `colonValueGapDef` ends at `valueIndex - 1` (not `valueIndex`) and
+`valueEndGapDef` starts at `valueIndex + valueLen + 1` (not `valueIndex + valueLen`) — matching
+`parseEmailVerifiedField.lean`'s offsets rather than the unquoted sibling's.
+
+`anyGapZoneDef` itself is wrapped as its own opaque def for a second, separate reason:
+`checkWhitespaceZonesQuoted` calls this (rather than inlining the five steps) so that its own
+`convertsM` proof can combine `anyGapZone_convertsM`'s fact with the `foldlM` part via a single
+top-level bind, matching this symbol syntactically — never needing `bind_assoc` to re-associate a
+right-nested `do`-block, which (confirmed experimentally) `simp` cannot do predictably at this
+depth without producing a differently-shaped term that is no longer `hZones`-shaped. -/
+private def anyGapZoneDef (maxKVPairLen : ℕ)
+  (nameLen colonIndex valueIndex valueLen fieldLen : F bn254) :
+  ClapM bn254 (FArray bn254 maxKVPairLen)
+:= do
+  let zoneA ← nameColonGapDef maxKVPairLen nameLen colonIndex
+  let zoneB ← colonValueGapDef maxKVPairLen colonIndex valueIndex
+  let zoneC ← valueEndGapDef maxKVPairLen valueIndex valueLen fieldLen
+  let inZoneAB ← zoneA.zipWithM FB.or zoneB
+  inZoneAB.zipWithM FB.or zoneC
+where
+  /-- The gap strictly between the name's closing quote and the colon: positions
+  `(nameLen + 2, colonIndex)`. -/
+  nameColonGapDef (maxKVPairLen : ℕ) (nameLen colonIndex : F bn254) :
+    ClapM bn254 (FArray bn254 maxKVPairLen)
+  := do
+    let two ← mkF 2
+    let s ← mkAdd nameLen two
+    arraySelectorComplex maxKVPairLen s colonIndex
+  /-- The gap strictly between the colon and the opening value-quote: positions
+  `(colonIndex + 1, valueIndex - 1)`. -/
+  colonValueGapDef (maxKVPairLen : ℕ) (colonIndex valueIndex : F bn254) :
+    ClapM bn254 (FArray bn254 maxKVPairLen)
+  := do
+    let one ← mkF 1
+    let s ← mkAdd colonIndex one
+    let e ← mkSub valueIndex one
+    arraySelectorComplex maxKVPairLen s e
+  /-- The gap strictly between the closing value-quote and the field's closing delimiter: positions
+  `(valueIndex + valueLen + 1, fieldLen - 1)`. -/
+  valueEndGapDef (maxKVPairLen : ℕ) (valueIndex valueLen fieldLen : F bn254) :
+    ClapM bn254 (FArray bn254 maxKVPairLen)
+  := do
+    let one ← mkF 1
+    let t ← mkAdd valueLen one
+    let s ← mkAdd valueIndex t
+    let e ← mkSub fieldLen one
+    arraySelectorComplex maxKVPairLen s e
+
+/-! ## Whitespace check over the quoted zones -/
+
+private def checkWhitespaceZonesQuoted {maxKVPairLen : ℕ}
+  (field_data : FVec bn254 maxKVPairLen)
+  (perform : FB bn254)
+  (nameLen colonIndex valueIndex valueLen fieldLen : F bn254) :
+  ClapM bn254 Unit
+:= do
+  let inZone ← anyGapZoneDef maxKVPairLen nameLen colonIndex valueIndex valueLen fieldLen
+  (inZone.zip field_data).foldlM (b := ()) fun _ (z, c) ↦ do
+    let ws ← F8.isWhitespace c
+    guardedEq0 perform (← z.and (← not ws))
+
+/-! ## Name/value selector agreement with `fieldStringBodies`
+
+No direct analogue in the unquoted sibling. `nameSel`/`valueSel` (via `arraySelector`, not
+`arraySelectorComplex`) mark the name/value content positions; `fieldStringBodies` must agree with
+their union exactly (an `↔`), expressed as two guarded `and`-of-negation checks per position. -/
+
+private def checkStringBodies {maxKVPairLen : ℕ}
+  (perform : FB bn254)
+  (nameLen valueIndex valueLen : F bn254)
+  (sb_data : FArray bn254 maxKVPairLen) :
+  ClapM bn254 Unit
+:= do
+  let one ← mkF 1
+  let nameSel ← arraySelector maxKVPairLen one (← nameLen + one)
+  let valueSel ← arraySelector maxKVPairLen valueIndex (← valueIndex + valueLen)
+  let nameOrValue ← nameSel.zipWithM FB.or valueSel
+  (nameOrValue.zip sb_data).foldlM (b := ()) fun _ (nv, sb) ↦ do
+    guardedEq0 perform (← nv.and (← not sb))
+    guardedEq0 perform (← (← not nv).and sb)
+
+def parseJWTFieldWithQuotedValue
+  {maxKVPairLen maxNameLen maxValueLen : ℕ}
+  (fi : QuotedFieldInput maxKVPairLen maxNameLen maxValueLen)
+  (h_name  : maxNameLen  ≤ maxKVPairLen)
+  (h_value : maxValueLen ≤ maxKVPairLen)
+  (skipChecks         : FB bn254) :
+  ClapM bn254 Unit
+:= do
+  -- Delegate shared structural checks
+  parseJWTFieldSharedLogic h_name h_value fi.field fi.name fi.value fi.colonIndex fi.valueIndex skipChecks
+  let perform : FB bn254 ← not skipChecks
+  -- Check 0+1: field[value_index - 1] == '"' and field[value_index + value_len] == '"'
+  -- (quotes around the value)
+  checkValueQuotes fi.field.data perform fi.valueIndex fi.value.len
+  -- Check 2: whitespace in the three "gap" zones
+  checkWhitespaceZonesQuoted fi.field.data perform fi.name.len fi.colonIndex fi.valueIndex
+    fi.value.len fi.field.len
+  -- Check 3: name/value content positions agree exactly with fieldStringBodies
+  checkStringBodies perform fi.name.len fi.valueIndex fi.value.len fi.fieldStringBodies.data
 
 private lemma checkValueQuotes.convertsM
   {maxKVPairLen : ℕ} {state : ClapMState bn254}
@@ -397,7 +199,8 @@ private lemma checkValueQuotes.convertsM
   have hSel1 := selectArrayValue.convertsM h_s1 h_field_val h_maxKV
   have hCheck1 := convertsM_bind_and (function := fun delimChar => mkF (34 : ZMod bn254) >>= fun c =>
       guardedAssertEq perform delimChar c)
-    hSel1 (assertEqLit_convertsM (lit := (34 : ZMod bn254)) hSel1.result (converts_skip hSel1 h_perform))
+    hSel1 (parseJWTFieldSharedLogic.assertEqLit_convertsM (lit := (34 : ZMod bn254)) hSel1.result
+      (converts_skip hSel1 h_perform))
   -- Abstract `hCheck1`'s action into an opaque local constant before reframing hypotheses
   -- through it: `converts_skip hCheck1 h` otherwise has to spell out
   -- `(selectArrayValue ... >>= fun delimChar => mkF 34 >>= ...).getState s1_state` afresh at
@@ -416,89 +219,48 @@ private lemma checkValueQuotes.convertsM
   have hSel2 := selectArrayValue.convertsM hS2.result (converts_skip hS2 h_field_val) h_maxKV
   have hCheck2Core := convertsM_bind_and (function := fun delimChar => mkF (34 : ZMod bn254) >>= fun c =>
       guardedAssertEq perform delimChar c)
-    hSel2 (assertEqLit_convertsM (lit := (34 : ZMod bn254)) hSel2.result
+    hSel2 (parseJWTFieldSharedLogic.assertEqLit_convertsM (lit := (34 : ZMod bn254)) hSel2.result
       (converts_skip hSel2 (converts_skip hS2 h_perform)))
   have hCheck2 := convertsM_bind_and (function := fun s2 =>
       selectArrayValue maxKVPairLen field_data s2 >>= fun delimChar =>
         mkF (34 : ZMod bn254) >>= fun c => guardedAssertEq perform delimChar c)
     hS2 hCheck2Core
-  have hcomb := seqUnit_convertsM hCheck1 hCheck2
+  have hcomb := parseJWTFieldSharedLogic.seqUnit_convertsM hCheck1 hCheck2
   rw [← hAct1] at hcomb
   simp only [bind_assoc, true_and] at hcomb
   exact hcomb
 
-/-! ## Zone construction (quoted boundaries)
-
-Three "gap" zones must be whitespace: between the name's closing quote and the colon, between the
-colon and the opening value-quote, and between the closing value-quote and the terminator. Unlike
-`parseJWTFieldWithUnquotedValue.lean`'s sibling, there *is* an opening/closing quote around the
-value to skip past, so zone B ends at `valueIndex - 1` (not `valueIndex`) and zone C starts at
-`valueIndex + valueLen + 1` (not `valueIndex + valueLen`). Zone A's boundary is unaffected, so
-`zoneADef`/`zoneA_convertsM` are copied unchanged. -/
-
-private def zoneADef (maxKVPairLen : ℕ) (nameLen two colonIndex : F bn254) :
-  ClapM bn254 (FArray bn254 maxKVPairLen)
-:= do
-  let s ← mkAdd nameLen two
-  arraySelectorComplex maxKVPairLen s colonIndex
-
-private def zoneBDef' (maxKVPairLen : ℕ) (one colonIndex valueIndex : F bn254) :
-  ClapM bn254 (FArray bn254 maxKVPairLen)
-:= do
-  let s ← mkAdd colonIndex one
-  let e ← mkSub valueIndex one
-  arraySelectorComplex maxKVPairLen s e
-
-private def zoneCDef' (maxKVPairLen : ℕ) (one valueIndex valueLen fieldLen : F bn254) :
-  ClapM bn254 (FArray bn254 maxKVPairLen)
-:= do
-  let t ← mkAdd valueLen one
-  let s ← mkAdd valueIndex t
-  let e ← mkSub fieldLen one
-  arraySelectorComplex maxKVPairLen s e
-
-private def inZoneDef' (maxKVPairLen : ℕ)
-  (nameLen colonIndex valueIndex valueLen fieldLen : F bn254) :
-  ClapM bn254 (FArray bn254 maxKVPairLen)
-:= do
-  let one ← mkF 1
-  let two ← mkF 2
-  let zoneA ← zoneADef maxKVPairLen nameLen two colonIndex
-  let zoneB ← zoneBDef' maxKVPairLen one colonIndex valueIndex
-  let zoneC ← zoneCDef' maxKVPairLen one valueIndex valueLen fieldLen
-  let inZoneAB ← zoneA.zipWithM FB.or zoneB
-  inZoneAB.zipWithM FB.or zoneC
-
-private lemma zoneA_convertsM
+private lemma nameColonGap_convertsM
   {maxKVPairLen : ℕ} {state : ClapMState bn254}
-  {nameLen two colonIndex : F bn254} {name_len colon_index_val : ZMod bn254}
+  {nameLen colonIndex : F bn254} {name_len colon_index_val : ZMod bn254}
   (h_nl : Converts F.conversion state nameLen name_len)
-  (h_two : Converts F.conversion state two (2 : ZMod bn254))
   (h_ci : Converts F.conversion state colonIndex colon_index_val)
   (h_maxKV : maxKVPairLen < bn254)
 :
   ConvertsM FArray.conversion
-    (zoneADef maxKVPairLen nameLen two colonIndex)
+    (anyGapZoneDef.nameColonGapDef maxKVPairLen nameLen colonIndex)
     state
     (Vector.ofFn (fun i : Fin maxKVPairLen =>
       decide (0 < (name_len + 2).val ∧ (name_len + 2).val ≤ i.val) && decide (i.val < colon_index_val.val)))
     (0 < (name_len + 2).val ∧ (name_len + 2).val ≤ maxKVPairLen ∧ colon_index_val.val < maxKVPairLen)
 := by
-  unfold zoneADef
+  unfold anyGapZoneDef.nameColonGapDef
+  step mkF.convertsM as two
   step mkAdd.convertsM h_nl h_two as s
   apply convertsM_of_convertsM (arraySelectorComplex.convertsM h_s h_ci h_maxKV) rfl
   simp only [true_implies]
 
-private lemma zoneB_convertsM'
+/-- `colonValueGapDef`'s construction: `arraySelectorComplex maxKVPairLen (colonIndex+one)
+(valueIndex-one)`. -/
+private lemma colonValueGap_convertsM
   {maxKVPairLen : ℕ} {state : ClapMState bn254}
-  {one colonIndex valueIndex : F bn254} {colon_index_val value_index_val : ZMod bn254}
-  (h_one : Converts F.conversion state one (1 : ZMod bn254))
+  {colonIndex valueIndex : F bn254} {colon_index_val value_index_val : ZMod bn254}
   (h_ci : Converts F.conversion state colonIndex colon_index_val)
   (h_vi : Converts F.conversion state valueIndex value_index_val)
   (h_maxKV : maxKVPairLen < bn254)
 :
   ConvertsM FArray.conversion
-    (zoneBDef' maxKVPairLen one colonIndex valueIndex)
+    (anyGapZoneDef.colonValueGapDef maxKVPairLen colonIndex valueIndex)
     state
     (Vector.ofFn (fun i : Fin maxKVPairLen =>
       decide (0 < (colon_index_val + 1).val ∧ (colon_index_val + 1).val ≤ i.val) &&
@@ -506,24 +268,26 @@ private lemma zoneB_convertsM'
     (0 < (colon_index_val + 1).val ∧ (colon_index_val + 1).val ≤ maxKVPairLen ∧
       (value_index_val - 1).val < maxKVPairLen)
 := by
-  unfold zoneBDef'
+  unfold anyGapZoneDef.colonValueGapDef
+  step mkF.convertsM as one
   step mkAdd.convertsM h_ci h_one as s
   step mkSub.convertsM h_vi h_one as e
   apply convertsM_of_convertsM (arraySelectorComplex.convertsM h_s h_e h_maxKV) rfl
   simp only [true_implies]
 
-private lemma zoneC_convertsM'
+/-- `valueEndGapDef`'s construction: `arraySelectorComplex maxKVPairLen ((valueIndex+valueLen)+one)
+(fieldLen-one)`. -/
+private lemma valueEndGap_convertsM
   {maxKVPairLen : ℕ} {state : ClapMState bn254}
-  {one valueIndex valueLen fieldLen : F bn254}
+  {valueIndex valueLen fieldLen : F bn254}
   {value_index_val value_len field_len : ZMod bn254}
-  (h_one : Converts F.conversion state one (1 : ZMod bn254))
   (h_vi : Converts F.conversion state valueIndex value_index_val)
   (h_vl : Converts F.conversion state valueLen value_len)
   (h_fl : Converts F.conversion state fieldLen field_len)
   (h_maxKV : maxKVPairLen < bn254)
 :
   ConvertsM FArray.conversion
-    (zoneCDef' maxKVPairLen one valueIndex valueLen fieldLen)
+    (anyGapZoneDef.valueEndGapDef maxKVPairLen valueIndex valueLen fieldLen)
     state
     (Vector.ofFn (fun i : Fin maxKVPairLen =>
       decide (0 < (value_index_val + (value_len + 1)).val ∧
@@ -533,29 +297,35 @@ private lemma zoneC_convertsM'
       (value_index_val + (value_len + 1)).val ≤ maxKVPairLen ∧
       (field_len - 1).val < maxKVPairLen)
 := by
-  unfold zoneCDef'
+  unfold anyGapZoneDef.valueEndGapDef
+  step mkF.convertsM as one
   step mkAdd.convertsM h_vl h_one as t
   step mkAdd.convertsM h_vi h_t as s
   step mkSub.convertsM h_fl h_one as e
   apply convertsM_of_convertsM (arraySelectorComplex.convertsM h_s h_e h_maxKV) rfl
   simp only [true_implies]
 
-private lemma zonesTail_convertsM'
+/-- `valueEndGapDef`'s computation plus the two `zipWithM` merges, taking the name-colon and
+colon-value gaps' pointwise facts as given. Proved as its own lemma (not inlined into
+`anyGapZone_convertsM`'s tactic chain) so its target constraint is concrete from the start:
+`step`ing a real-constraint action against a goal whose own constraint slot is still an unresolved
+metavariable (as it would be mid-way through `anyGapZone_convertsM`'s outer `convertsM_bind_and`
+chain) is what caused the `whnf` blowup here. -/
+private lemma anyGapZoneTail_convertsM
   {maxKVPairLen : ℕ} {state : ClapMState bn254}
   {zoneA zoneB : FArray bn254 maxKVPairLen}
   {zoneA_val zoneB_val : Vector Bool maxKVPairLen}
-  {one valueIndex valueLen fieldLen : F bn254}
+  {valueIndex valueLen fieldLen : F bn254}
   {value_index_val value_len field_len : ZMod bn254}
   (h_zoneA_pw : ∀ i : Fin maxKVPairLen, Converts FB.conversion state zoneA[i] zoneA_val[i])
   (h_zoneB_pw : ∀ i : Fin maxKVPairLen, Converts FB.conversion state zoneB[i] zoneB_val[i])
-  (h_one : Converts F.conversion state one (1 : ZMod bn254))
   (h_vi : Converts F.conversion state valueIndex value_index_val)
   (h_vl : Converts F.conversion state valueLen value_len)
   (h_fl : Converts F.conversion state fieldLen field_len)
   (h_maxKV : maxKVPairLen < bn254)
 :
   ConvertsM FArray.conversion
-    (zoneCDef' maxKVPairLen one valueIndex valueLen fieldLen >>= fun zoneC =>
+    (anyGapZoneDef.valueEndGapDef maxKVPairLen valueIndex valueLen fieldLen >>= fun zoneC =>
       zoneA.zipWithM FB.or zoneB >>= fun inZoneAB =>
       inZoneAB.zipWithM FB.or zoneC)
     state
@@ -566,20 +336,21 @@ private lemma zonesTail_convertsM'
         (value_index_val + (value_len + 1)).val ≤ maxKVPairLen ∧
         (field_len - 1).val < maxKVPairLen)
 := by
-  have hC := zoneC_convertsM' h_one h_vi h_vl h_fl h_maxKV
+  have hC := valueEndGap_convertsM h_vi h_vl h_fl h_maxKV
   replace h_zoneA_pw := fun i ↦ converts_skip hC (h_zoneA_pw i)
   replace h_zoneB_pw := fun i ↦ converts_skip hC (h_zoneB_pw i)
   have h_zoneC_pw := FArray.converts_iff_FB_converts.mp hC.result
   step hC as zoneCR
-  step (convertsM_zipWithM_or h_zoneA_pw h_zoneB_pw) as inZoneAB
-  replace h_zoneC_pw := fun i ↦ converts_skip (convertsM_zipWithM_or h_zoneA_pw h_zoneB_pw) (h_zoneC_pw i)
+  step (convertsM_zipWithM_or_quoted h_zoneA_pw h_zoneB_pw) as inZoneAB
+  replace h_zoneC_pw := fun i ↦
+    converts_skip (convertsM_zipWithM_or_quoted h_zoneA_pw h_zoneB_pw) (h_zoneC_pw i)
   have h_inZoneAB_pw := FArray.converts_iff_FB_converts.mp h_inZoneAB
-  apply convertsM_of_convertsM (convertsM_zipWithM_or h_inZoneAB_pw h_zoneC_pw)
+  apply convertsM_of_convertsM (convertsM_zipWithM_or_quoted h_inZoneAB_pw h_zoneC_pw)
   · ext i
     simp [Vector.getElem_ofFn]
   · exact iff_of_true trivial (fun _ h => h)
 
-private lemma zones_convertsM'
+private lemma anyGapZone_convertsM
   {maxKVPairLen : ℕ} {state : ClapMState bn254}
   {nameLen colonIndex valueIndex valueLen fieldLen : F bn254}
   {name_len colon_index_val value_index_val value_len field_len : ZMod bn254}
@@ -591,7 +362,7 @@ private lemma zones_convertsM'
   (h_maxKV : maxKVPairLen < bn254)
 :
   ConvertsM FArray.conversion
-    (inZoneDef' maxKVPairLen nameLen colonIndex valueIndex valueLen fieldLen)
+    (anyGapZoneDef maxKVPairLen nameLen colonIndex valueIndex valueLen fieldLen)
     state
     (Vector.ofFn (fun i : Fin maxKVPairLen =>
       (decide (0 < (name_len + 2).val ∧ (name_len + 2).val ≤ i.val) && decide (i.val < colon_index_val.val)) ||
@@ -606,43 +377,25 @@ private lemma zones_convertsM'
           (value_index_val + (value_len + 1)).val ≤ maxKVPairLen ∧
         (field_len - 1).val < maxKVPairLen) )
 := by
-  unfold inZoneDef'
-  step mkF.convertsM as one
-  step mkF.convertsM as two
-  simp only [true_implies]
-  have hA := zoneA_convertsM h_nl h_two h_ci h_maxKV
+  unfold anyGapZoneDef
+  have hA := nameColonGap_convertsM h_nl h_ci h_maxKV
   have h_zoneA_pw := FArray.converts_iff_FB_converts.mp hA.result
-  replace h_one := converts_skip hA h_one
   replace h_ci := converts_skip hA h_ci
   replace h_vi := converts_skip hA h_vi
   replace h_vl := converts_skip hA h_vl
   replace h_fl := converts_skip hA h_fl
   apply convertsM_bind_and hA
-  have hB := zoneB_convertsM' h_one h_ci h_vi h_maxKV
+  have hB := colonValueGap_convertsM h_ci h_vi h_maxKV
   replace h_zoneA_pw := fun i ↦ converts_skip hB (h_zoneA_pw i)
   have h_zoneB_pw := FArray.converts_iff_FB_converts.mp hB.result
   replace h_vi := converts_skip hB h_vi
   replace h_vl := converts_skip hB h_vl
   replace h_fl := converts_skip hB h_fl
-  replace h_one := converts_skip hB h_one
   apply convertsM_bind_and hB
-  apply convertsM_of_convertsM (zonesTail_convertsM' h_zoneA_pw h_zoneB_pw h_one h_vi h_vl h_fl h_maxKV)
+  apply convertsM_of_convertsM (anyGapZoneTail_convertsM h_zoneA_pw h_zoneB_pw h_vi h_vl h_fl h_maxKV)
   · ext i
     simp [Vector.getElem_ofFn]
   · rfl
-
-/-! ## Whitespace check over the quoted zones -/
-
-private def checkWhitespaceZonesQuoted {maxKVPairLen : ℕ}
-  (field_data : FVec bn254 maxKVPairLen)
-  (perform : FB bn254)
-  (nameLen colonIndex valueIndex valueLen fieldLen : F bn254) :
-  ClapM bn254 Unit
-:= do
-  let inZone ← inZoneDef' maxKVPairLen nameLen colonIndex valueIndex valueLen fieldLen
-  (inZone.zip field_data).foldlM (b := ()) fun _ (z, c) ↦ do
-    let ws ← F8.isWhitespace c
-    guardedEq0 perform (← z.and (← not ws))
 
 private lemma checkWhitespaceZonesQuoted.convertsM
   {maxKVPairLen : ℕ} {state : ClapMState bn254}
@@ -684,7 +437,7 @@ private lemma checkWhitespaceZonesQuoted.convertsM
                 field_vals[i] == 32) then (0 : ZMod bn254) else 1) = 0) )
 := by
   unfold checkWhitespaceZonesQuoted
-  have hZones := zones_convertsM' h_nl h_ci h_vi h_vl h_fl h_maxKV
+  have hZones := anyGapZone_convertsM h_nl h_ci h_vi h_vl h_fl h_maxKV
   have h_field_val' := converts_skip hZones h_field_val
   have h_perform' := converts_skip hZones h_perform
   apply convertsM_bind_and hZones
@@ -712,178 +465,6 @@ private lemma checkWhitespaceZonesQuoted.convertsM
       refine ⟨fun i => ?_, fun hg i => ?_⟩
       · simpa [Vector.getElem_zip, Vector.getElem_ofFn, Vector.getElem_map] using hA i
       · simpa [Vector.getElem_zip, Vector.getElem_ofFn, Vector.getElem_map] using hB hg i
-
-/-! ## Name/value selector agreement with `fieldStringBodies`
-
-No direct analogue in the unquoted sibling. `nameSel`/`valueSel` (via `arraySelector`, not
-`arraySelectorComplex`) mark the name/value content positions; `fieldStringBodies` must agree with
-their union exactly (an `↔`), expressed as two guarded `and`-of-negation checks per position. -/
-
--- A pairing conversion for two bit-valued (`FB`) positions, mirroring `FPair.conversion`
--- (`Clap/Model/Convert/Specialised.lean`) which only pairs `F`-valued (`ZMod`) positions.
-private abbrev FBPair.conversion : Conversion bn254 (FB bn254 × FB bn254) where
-  IdealT := Bool × Bool
-  toExprs xy := [xy.1, xy.2]
-  conversion xy := [if xy.1 then 1 else 0, if xy.2 then 1 else 0]
-
-private lemma FBPair.converts_intro
-  {state : ClapMState bn254} {x y : FB bn254} {xv yv : Bool}
-  (h_x : Converts FB.conversion state x xv)
-  (h_y : Converts FB.conversion state y yv)
-:
-  Converts FBPair.conversion state (x, y) (xv, yv)
-:= by
-  obtain ⟨_, x_varSet, x_wf, x_val⟩ := h_x
-  obtain ⟨_, y_varSet, y_wf, y_val⟩ := h_y
-  simp at x_varSet x_wf x_val y_varSet y_wf y_val
-  refine ⟨by simp, ?_, ?_, ?_⟩ <;>
-  · intro ⟨ib, h_ib⟩
-    simp [FBPair.conversion] at h_ib ⊢
-    interval_cases ib <;> simp [*]
-
-private lemma FBPair.converts_fst
-  {state : ClapMState bn254} {xy : FB bn254 × FB bn254} {xy_val : Bool × Bool}
-  (h : Converts FBPair.conversion state xy xy_val)
-:
-  Converts FB.conversion state xy.1 xy_val.1
-:= by
-  have v0 := h.varSet_wf ⟨0, by simp⟩
-  have w0 := h.expr_wf ⟨0, by simp⟩
-  have a0 := h.value_eq ⟨0, by simp⟩
-  simp [FBPair.conversion] at v0 w0 a0
-  exact ⟨by simp, fun _ ↦ by simpa using v0, fun _ ↦ by simpa using w0,
-         fun _ ↦ by simpa using a0⟩
-
-private lemma FBPair.converts_snd
-  {state : ClapMState bn254} {xy : FB bn254 × FB bn254} {xy_val : Bool × Bool}
-  (h : Converts FBPair.conversion state xy xy_val)
-:
-  Converts FB.conversion state xy.2 xy_val.2
-:= by
-  have v1 := h.varSet_wf ⟨1, by simp⟩
-  have w1 := h.expr_wf ⟨1, by simp⟩
-  have a1 := h.value_eq ⟨1, by simp⟩
-  simp [FBPair.conversion] at v1 w1 a1
-  exact ⟨by simp, fun _ ↦ by simpa using v1, fun _ ↦ by simpa using w1,
-         fun _ ↦ by simpa using a1⟩
-
-private lemma FBPair.converts_zip
-  {k : ℕ} {i : ℕ} {state : ClapMState bn254} {a b : FArray bn254 k} {a_vals b_vals : Vector Bool k}
-  (h_a : Converts FArray.conversion state a a_vals)
-  (h_b : Converts FArray.conversion state b b_vals)
-  (h_i : i < k)
-:
-  Converts FBPair.conversion state (a.zip b)[i] ((a_vals.zip b_vals)[i])
-:= by
-  have h := FBPair.converts_intro
-    (FArray.converts_iff_FB_converts.mp h_a ⟨i, h_i⟩)
-    (FArray.converts_iff_FB_converts.mp h_b ⟨i, h_i⟩)
-  simpa [Vector.getElem_zip] using h
-
-/-- `guardedEq0 perform (← a.and (← not b))`: when `perform`, asserts `a = true → b = true`. -/
-private lemma guardedAndNotEq0_convertsM
-  {state : ClapMState bn254} {perform a b : F bn254}
-  {perform_val : Bool} {a_val : ZMod bn254} {b_val : Bool}
-  (h_perform : Converts FB.conversion state perform perform_val)
-  (h_a : Converts F.conversion state a a_val)
-  (h_b : Converts FB.conversion state b b_val)
-:
-  ConvertsM FUnit.conversion
-    (not b >>= fun nb => FB.and a nb >>= fun prod => guardedEq0 perform prod)
-    state ()
-    (perform_val = true → a_val * (if b_val then (0:ZMod bn254) else 1) = 0)
-:= by
-  step not.convertsM h_b as nb
-  unfold FB.and
-  rw [mul_def]
-  refine convertsM_bind (mkMul.convertsM h_a (F.converts_of_FB_converts h_nb)) ?_ (fun _ => trivial)
-  have hMul := mkMul.convertsM h_a (F.converts_of_FB_converts h_nb)
-  replace h_perform := converts_skip hMul h_perform
-  apply convertsM_of_convertsM (guardedEq0.convertsM h_perform hMul.result) rfl
-    (by cases b_val <;> simp)
-
-/-- `guardedEq0 perform (← (← not a).and b)`: when `perform`, asserts `b = true → a = true`. -/
-private lemma guardedNotAndEq0_convertsM
-  {state : ClapMState bn254} {perform b : F bn254} {a : FB bn254}
-  {perform_val : Bool} {b_val : ZMod bn254} {a_val : Bool}
-  (h_perform : Converts FB.conversion state perform perform_val)
-  (h_a : Converts FB.conversion state a a_val)
-  (h_b : Converts F.conversion state b b_val)
-:
-  ConvertsM FUnit.conversion
-    (not a >>= fun na => FB.and na b >>= fun prod => guardedEq0 perform prod)
-    state ()
-    (perform_val = true → (if a_val then (0:ZMod bn254) else 1) * b_val = 0)
-:= by
-  step not.convertsM h_a as na
-  unfold FB.and
-  rw [mul_def]
-  refine convertsM_bind (mkMul.convertsM (F.converts_of_FB_converts h_na) h_b) ?_ (fun _ => trivial)
-  have hMul := mkMul.convertsM (F.converts_of_FB_converts h_na) h_b
-  replace h_perform := converts_skip hMul h_perform
-  apply convertsM_of_convertsM (guardedEq0.convertsM h_perform hMul.result) rfl
-    (by cases a_val <;> simp)
-
--- The per-position step: `nv = true ↔ sb = true`, asserted as two guarded implications.
-private lemma guardedStringBodyCheck_convertsM
-  {state : ClapMState bn254} {perform nv sb : F bn254} {perform_val : Bool} {nv_val sb_val : Bool}
-  (h_perform : Converts FB.conversion state perform perform_val)
-  (h_nv : Converts FB.conversion state nv nv_val)
-  (h_sb : Converts FB.conversion state sb sb_val)
-:
-  ConvertsM FUnit.conversion
-    (not sb >>= fun x1 => FB.and nv x1 >>= fun y1 => guardedEq0 perform y1 >>= fun _ =>
-      not nv >>= fun x2 => FB.and x2 sb >>= fun y2 => guardedEq0 perform y2)
-    state ()
-    ( (perform_val = true → nv_val = true → sb_val = true) ∧
-      (perform_val = true → sb_val = true → nv_val = true) )
-:= by
-  have h1 := guardedAndNotEq0_convertsM h_perform (F.converts_of_FB_converts h_nv) h_sb
-  -- Abstract `h1`'s action before reframing through it, for the same reason as
-  -- `checkValueQuotes.convertsM`'s `hAct1` — see its comment.
-  generalize hAct1 : (not sb >>= fun nb => FB.and nv nb >>= fun prod => guardedEq0 perform prod) = act1
-    at h1
-  have h_perform' := converts_skip h1 h_perform
-  have h_nv' := converts_skip h1 h_nv
-  have h_sb' := converts_skip h1 h_sb
-  have h2 := guardedNotAndEq0_convertsM h_perform' h_nv' (F.converts_of_FB_converts h_sb')
-  have hcomb := seqUnit_convertsM h1 h2
-  rw [← hAct1] at hcomb
-  simp only [bind_assoc] at hcomb
-  apply convertsM_of_convertsM hcomb rfl
-  constructor
-  · rintro ⟨h1', h2'⟩
-    refine ⟨fun hp hnv => ?_, fun hp hsb => ?_⟩
-    · by_contra hsb
-      simp [hnv, hsb] at h1'
-      simp [hp] at h1'
-    · by_contra hnv
-      simp [hsb, hnv] at h2'
-      simp [hp] at h2'
-  · rintro ⟨hfwd, hbwd⟩
-    constructor
-    · intro hp
-      by_cases hnv : nv_val = true
-      · simp [hnv, hfwd hp hnv]
-      · simp [hnv]
-    · intro hp
-      by_cases hsb : sb_val = true
-      · simp [hsb, hbwd hp hsb]
-      · simp [hsb]
-
-private def checkStringBodies {maxKVPairLen : ℕ}
-  (perform : FB bn254)
-  (nameLen valueIndex valueLen : F bn254)
-  (sb_data : FArray bn254 maxKVPairLen) :
-  ClapM bn254 Unit
-:= do
-  let one ← mkF 1
-  let nameSel ← arraySelector maxKVPairLen one (← nameLen + one)
-  let valueSel ← arraySelector maxKVPairLen valueIndex (← valueIndex + valueLen)
-  let nameOrValue ← nameSel.zipWithM FB.or valueSel
-  (nameOrValue.zip sb_data).foldlM (b := ()) fun _ (nv, sb) ↦ do
-    guardedEq0 perform (← nv.and (← not sb))
-    guardedEq0 perform (← (← not nv).and sb)
 
 private lemma checkStringBodies.convertsM
   {maxKVPairLen : ℕ} {state : ClapMState bn254}
@@ -938,7 +519,7 @@ private lemma checkStringBodies.convertsM
   replace h_sb := converts_skip hValueSel h_sb
   apply convertsM_bind_and hValueSel
   have h_valueSel_pw := FArray.converts_iff_FB_converts.mp hValueSel.result
-  have h_nameOrValue := convertsM_zipWithM_or h_nameSel_pw h_valueSel_pw
+  have h_nameOrValue := convertsM_zipWithM_or_quoted h_nameSel_pw h_valueSel_pw
   replace h_perform := converts_skip h_nameOrValue h_perform
   replace h_sb := converts_skip h_nameOrValue h_sb
   apply convertsM_bind_and h_nameOrValue
@@ -954,26 +535,6 @@ private lemma checkStringBodies.convertsM
         (FBPair.converts_fst h_x) (FBPair.converts_snd h_x)))
   · rfl
   · simp [Vector.getElem_zip, Vector.getElem_ofFn, Fin.getElem_fin]
-
-def parseJWTFieldWithQuotedValue
-  {maxKVPairLen maxNameLen maxValueLen : ℕ}
-  (fi : QuotedFieldInput maxKVPairLen maxNameLen maxValueLen)
-  (h_name  : maxNameLen  ≤ maxKVPairLen)
-  (h_value : maxValueLen ≤ maxKVPairLen)
-  (skipChecks         : FB bn254) :
-  ClapM bn254 Unit
-:= do
-  -- Delegate shared structural checks
-  parseJWTFieldSharedLogic h_name h_value fi.field fi.name fi.value fi.colonIndex fi.valueIndex skipChecks
-  let perform : FB bn254 ← not skipChecks
-  -- Check 0+1: field[value_index - 1] == '"' and field[value_index + value_len] == '"'
-  -- (quotes around the value)
-  checkValueQuotes fi.field.data perform fi.valueIndex fi.value.len
-  -- Check 2: whitespace in the three "gap" zones
-  checkWhitespaceZonesQuoted fi.field.data perform fi.name.len fi.colonIndex fi.valueIndex
-    fi.value.len fi.field.len
-  -- Check 3: name/value content positions agree exactly with fieldStringBodies
-  checkStringBodies perform fi.name.len fi.valueIndex fi.value.len fi.fieldStringBodies.data
 
 namespace parseJWTFieldWithQuotedValue
 
@@ -1262,7 +823,7 @@ lemma convertsM
           by_contra hws
           have hraw : ((lessThan.lessThanRaw 8 8 field_vals[i] && lessThan.lessThanRaw 8 field_vals[i] 14) ||
               field_vals[i] == 32) = false := by
-            rw [lessThanRaw_isWs_eq (hB1 i)]
+            rw [lessThanRaw_isWs_eq_quoted (hB1 i)]
             simpa using hws
           rw [hraw] at hzarith_i
           simp at hzarith_i
@@ -1359,7 +920,7 @@ lemma convertsM
             · exact Or.inr (Or.inl h)
             · exact Or.inr (Or.inr h))
           rw [hzone]
-          rw [lessThanRaw_isWs_eq (hB1 i)]
+          rw [lessThanRaw_isWs_eq_quoted (hB1 i)]
           simpa using hws_i
         · simp only [Bool.not_eq_true] at hzone
           rw [hzone]
@@ -1529,7 +1090,8 @@ theorem complete {nF nN nV} (field name value : String)
   have hs_q1 : (valueIndex - 1).val < field.toList.length := by
     rw [String.length_toList, h_vim1_val]; omega
   have hQ1 : ((encodeV (p := bn254) nF field).getD (valueIndex - 1).val 0).val = 34 := by
-    rw [encodeV_getD_of_lt hw_q1 hs_q1, List.getD_eq_getElem?_getD, h_quoted₁]
+    rw [parseJWTFieldSharedLogic.encodeV_getD_of_lt hw_q1 hs_q1, List.getD_eq_getElem?_getD,
+      h_quoted₁]
     decide
   -- The index at `h_quoted₂` is only ever a successful list lookup when it's in bounds — `h_fit_val`
   -- alone only gives `≤ field.length`, not the strict bound needed here.
@@ -1544,7 +1106,8 @@ theorem complete {nF nN nV} (field name value : String)
     omega
   have hQ2 : ((encodeV (p := bn254) nF field).getD
       (valueIndex + (value.length : ZMod bn254)).val 0).val = 34 := by
-    rw [encodeV_getD_of_lt hw_q2 hs_q2, List.getD_eq_getElem?_getD, h_quoted₂]
+    rw [parseJWTFieldSharedLogic.encodeV_getD_of_lt hw_q2 hs_q2, List.getD_eq_getElem?_getD,
+      h_quoted₂]
     decide
   -- The whitespace-zones conjunct, proved unconditionally.
   have hWS : ∀ i : Fin nF,
