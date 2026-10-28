@@ -277,23 +277,28 @@ value to skip past, so zone B ends at `valueIndex` directly (not `valueIndex - 1
 starts at `valueIndex + valueLen` directly (not `+ 1`). -/
 
 private def zoneADef (maxKVPairLen : ℕ) (nameLen two colonIndex : F bn254) :
-    ClapM bn254 (FArray bn254 maxKVPairLen) := do
+  ClapM bn254 (FArray bn254 maxKVPairLen)
+:= do
   let s ← mkAdd nameLen two
   arraySelectorComplex maxKVPairLen s colonIndex
 
 private def zoneBDef (maxKVPairLen : ℕ) (one colonIndex valueIndex : F bn254) :
-    ClapM bn254 (FArray bn254 maxKVPairLen) := do
+  ClapM bn254 (FArray bn254 maxKVPairLen)
+:= do
   let s ← mkAdd colonIndex one
   arraySelectorComplex maxKVPairLen s valueIndex
 
 private def zoneCDef (maxKVPairLen : ℕ) (one valueIndex valueLen fieldLen : F bn254) :
-    ClapM bn254 (FArray bn254 maxKVPairLen) := do
+  ClapM bn254 (FArray bn254 maxKVPairLen)
+:= do
   let s ← mkAdd valueIndex valueLen
   let e ← mkSub fieldLen one
   arraySelectorComplex maxKVPairLen s e
 
-private def inZoneDef (maxKVPairLen : ℕ) (nameLen colonIndex valueIndex valueLen fieldLen : F bn254) :
-    ClapM bn254 (FArray bn254 maxKVPairLen) := do
+private def inZoneDef (maxKVPairLen : ℕ)
+  (nameLen colonIndex valueIndex valueLen fieldLen : F bn254) :
+  ClapM bn254 (FArray bn254 maxKVPairLen)
+:= do
   let one ← mkF 1
   let two ← mkF 2
   let zoneA ← zoneADef maxKVPairLen nameLen two colonIndex
@@ -521,8 +526,11 @@ private lemma guardedWhitespaceCheck_convertsM
 /-- Every position in the three "gap" zones (between name/colon, colon/value, value/terminator)
 must be whitespace, guarded by `perform` so `skipChecks` can bypass it. -/
 private def checkWhitespaceZones {maxKVPairLen : ℕ}
-    (field_data : FVec bn254 maxKVPairLen) (perform : FB bn254)
-    (nameLen colonIndex valueIndex valueLen fieldLen : F bn254) : ClapM bn254 Unit := do
+  (field_data : FVec bn254 maxKVPairLen)
+  (perform : FB bn254)
+  (nameLen colonIndex valueIndex valueLen fieldLen : F bn254) :
+  ClapM bn254 Unit
+:= do
   let inZone ← inZoneDef maxKVPairLen nameLen colonIndex valueIndex valueLen fieldLen
   (inZone.zip field_data).foldlM (b := ()) fun _ (z, c) ↦ do
     let ws ← F8.isWhitespace c
@@ -699,8 +707,7 @@ private lemma forbiddenCheckFull_convertsM
         sel.and isForbidden >>= fun prod =>
         guardedEq0 perform prod))
     state ()
-    ( ( value_index_val.val < 2 ^ minBits' maxKVPairLen ∧
-        (value_index_val + value_len).val < 2 ^ minBits' maxKVPairLen ∧
+    ( ( (value_index_val + value_len).val < 2 ^ minBits' maxKVPairLen ∧
         value_index_val.val < maxKVPairLen ∧
         value_index_val.val < (value_index_val + value_len).val ) ∧
       (perform_val = true → ∀ i : Fin maxKVPairLen,
@@ -794,8 +801,6 @@ def parses (H : HashFn) {maxKVPairLen maxNameLen maxValueLen : ℕ}
       value_index_val.val ≤ i.val ∧ i.val < (value_index_val + value_len).val →
         field_vals[i].val ∉ [44, 125, 34] -- [',', '}', '"']
 
-set_option maxHeartbeats 1600000 in
-set_option maxRecDepth 4000 in
 lemma convertsM
   {H : HashFn}
   (h_H : Computes H)
@@ -936,8 +941,7 @@ lemma convertsM
                then (1 : ZMod bn254) else 0) *
               (if ((lessThan.lessThanRaw 8 8 field_vals[i] && lessThan.lessThanRaw 8 field_vals[i] 14) ||
                     field_vals[i] == 32) then (0 : ZMod bn254) else 1) = 0) ) ∧
-        ( ( value_index_val.val < 2 ^ minBits' maxKVPairLen ∧
-            (value_index_val + value_len).val < 2 ^ minBits' maxKVPairLen ∧
+        ( ( (value_index_val + value_len).val < 2 ^ minBits' maxKVPairLen ∧
             value_index_val.val < maxKVPairLen ∧
             value_index_val.val < (value_index_val + value_len).val ) ∧
           ((!skipChecks_val) = true → ∀ i : Fin maxKVPairLen,
@@ -982,7 +986,7 @@ lemma convertsM
       cases skipChecks_val <;> simp
     constructor
     · rintro ⟨⟨hB1, hB2, hB3, hW1, hW2, hW3, hP1, hV1, hV2, hV3, hP2, hSLparses⟩,
-        ⟨⟨hZA, hZB, hZC⟩, hZok, hZarith⟩, ⟨⟨hFV1, hFV2, hFV3, hFV4⟩, hFarith⟩⟩
+        ⟨⟨hZA, hZB, hZC⟩, hZok, hZarith⟩, ⟨⟨hFV2, hFV3, hFV4⟩, hFarith⟩⟩
       refine ⟨hB1, hB2, hB3, hW1, hW2, hW3, hP1, hV1, hV2, hV3, hP2, ?_⟩
       intro hneg
       have hskf := hskf_of_neg hneg
@@ -1065,13 +1069,12 @@ lemma convertsM
         omega
       have hZC' : 0 < (value_index_val + value_len).val ∧ (value_index_val + value_len).val ≤ maxKVPairLen ∧
           (field_len - 1).val < maxKVPairLen := ⟨by omega, h_value_window, hW3⟩
-      have hFmb1 : value_index_val.val < 2 ^ minBits' maxKVPairLen := minBits_lt hV2
       have hFmb2 : (value_index_val + value_len).val < 2 ^ minBits' maxKVPairLen := hV1
       refine ⟨⟨hB1, hB2, hB3, hW1, hW2, hW3, hP1, hV1, hV2, hV3, hP2, ?_⟩,
         ⟨⟨hZA', hZB', hZC'⟩, fun i => ⟨lessThan.lessThanOk_of
           (show (8 : ZMod bn254).val < 2 ^ 8 by decide) (hB1 i) (by decide),
           lessThan.lessThanOk_of (hB1 i) (show (14 : ZMod bn254).val < 2 ^ 8 by decide) (by decide)⟩, ?_⟩,
-        ⟨⟨hFmb1, hFmb2, hV2, hV3⟩, ?_⟩⟩
+        ⟨⟨hFmb2, hV2, hV3⟩, ?_⟩⟩
       · intro hneg
         exact (hparses hneg).1 (by decide)
       · intro hguard i

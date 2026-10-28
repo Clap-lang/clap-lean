@@ -147,8 +147,7 @@ lemma convertsM
     (enforceNotNested startIdx fieldLen a)
     state
     ()
-    ( startIdx_val.val < 2 ^ minBits' len ∧
-      (startIdx_val + fieldLen_val).val < 2 ^ minBits' len ∧
+    ( (startIdx_val + fieldLen_val).val < 2 ^ minBits' len ∧
       startIdx_val.val < len ∧
       startIdx_val.val < (startIdx_val + fieldLen_val).val ∧
       (a_vals.extract startIdx_val.val (startIdx_val + fieldLen_val).val).sum = 0
@@ -172,11 +171,7 @@ lemma convertsM
       simp only [Fin.getElem_fin, Vector.getElem_ofFn, Vector.getElem_map]
       exact xor_mask_mul_eq_window_ite h_idx a_vals i
     simp only [true_implies]
-    constructor
-    · rintro ⟨⟨h1, h2, h3, h4⟩, h5⟩
-      exact ⟨h1, h2, h3, h4, h_eq h4.le ▸ h5⟩
-    · rintro ⟨h1, h2, h3, h4, h5⟩
-      exact ⟨⟨h1, h2, h3, h4⟩, (h_eq h4.le).symm ▸ h5⟩
+    grind
 
 end enforceNotNested
 

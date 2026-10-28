@@ -30,8 +30,9 @@ each guarded by `perform`. Factored out so each comparison is a single atomic st
 tree that assembles `parseJWTFieldSharedLogic`'s own `convertsM` — see
 `docs/proving-circuits.md §A long step proof takes minutes` for why that matters here. -/
 private def checkIndexOrdering
-    (name_len colon_index value_index field_len value_len perform : F bn254) :
-    ClapM bn254 Unit := do
+  (name_len colon_index value_index field_len value_len perform : F bn254) :
+  ClapM bn254 Unit
+:= do
   guardedEq0 perform (← not (← lessThan 20 name_len colon_index))
   guardedEq0 perform (← not (← lessThan 20 colon_index value_index))
   guardedEq0 perform (← not (← greaterThan 20 field_len (← name_len + value_len)))
@@ -41,11 +42,17 @@ literal `lit` (guarded), and `substr` is a Fiat-Shamir substring of `field` star
 (also guarded). Instantiated with `(idx, lit, substr, start) := (mkF 0, '"', name, mkF 1)` for
 checks 3+4 and `(colon_index, ':', value, value_index)` for checks 6+7. -/
 private def checkDelimiterThenSubstring
-    {maxKVPairLen maxSubLen : ℕ} (h_len_lt : maxSubLen ≤ maxKVPairLen)
-    (field_data : FVec bn254 maxKVPairLen) (fieldHash : F bn254)
-    (substr : FString bn254 maxSubLen) (idx : F bn254) (lit : ZMod bn254)
-    (start : F bn254) (perform : FB bn254) :
-    ClapM bn254 Unit := do
+  {maxKVPairLen maxSubLen : ℕ}
+  (h_len_lt : maxSubLen ≤ maxKVPairLen)
+  (field_data : FVec bn254 maxKVPairLen)
+  (fieldHash : F bn254)
+  (substr : FString bn254 maxSubLen)
+  (idx : F bn254)
+  (lit : ZMod bn254)
+  (start : F bn254)
+  (perform : FB bn254) :
+  ClapM bn254 Unit
+:= do
   let delimChar ← selectArrayValue maxKVPairLen field_data idx
   guardedAssertEq perform delimChar (← mkF lit)
   let ok ← FString.isSubstring h_len_lt field_data fieldHash substr start
@@ -57,13 +64,19 @@ single bind-head it can match structurally, and a fact whose action still starts
 `mkF 0 >>= fun idx0 => mkF 1 >>= fun one => …` forces the kernel to unfold those hash-consing
 allocations to check the match — the same `whnf` wall as before, just moved one level in. -/
 private def checkNameSubstring
-    {maxKVPairLen maxNameLen : ℕ} (h_name_len_lt : maxNameLen ≤ maxKVPairLen)
-    (field_data : FVec bn254 maxKVPairLen) (fieldHash : F bn254) (name : FString bn254 maxNameLen)
-    (perform : FB bn254) : ClapM bn254 Unit := do
+  {maxKVPairLen maxNameLen : ℕ}
+  (h_name_len_lt : maxNameLen ≤ maxKVPairLen)
+  (field_data : FVec bn254 maxKVPairLen)
+  (fieldHash : F bn254)
+  (name : FString bn254 maxNameLen)
+  (perform : FB bn254) : ClapM bn254 Unit
+:= do
   let idx0 ← mkF 0
   let one ← mkF 1
   checkDelimiterThenSubstring h_name_len_lt field_data fieldHash name idx0
-    ('\"'.toNat : ZMod bn254) one perform
+    ('\"'.toNat : ZMod bn254)
+    one
+    perform
 
 /-- Check 5: `field[name_len + 1] = '"'`. Kept as its own opaque `def` — not for proof-structure
 reasons this time (its proof, `check5_convertsM`, is a single straight-line `step` chain with no
@@ -72,8 +85,12 @@ small enough for the final assembly's `seqUnit_convertsM`/`convertsM_bind_and` c
 against in reasonable time: inlined, checks 3–8 together are ~20 nested binds deep, which is what
 made that assembly time out even after every other fix in this file. -/
 private def checkNameClosingQuote
-    {maxKVPairLen : ℕ} (field_data : FVec bn254 maxKVPairLen) (name_len : F bn254)
-    (perform : FB bn254) : ClapM bn254 Unit := do
+  {maxKVPairLen : ℕ}
+  (field_data : FVec bn254 maxKVPairLen)
+  (name_len : F bn254)
+  (perform : FB bn254) :
+  ClapM bn254 Unit
+:= do
   let s5 ← name_len + (← mkF 1)
   let nameClosingQuote ← selectArrayValue maxKVPairLen field_data s5
   guardedAssertEq perform nameClosingQuote (← mkF (34 : ZMod bn254))
@@ -81,23 +98,28 @@ private def checkNameClosingQuote
 /-- Check 8: `field[field_len - 1] ∈ {',', '}'}`. Opaque for the same reason as
 `checkNameClosingQuote`. -/
 private def checkLastCharDelimiter
-    {maxKVPairLen : ℕ} (field_data : FVec bn254 maxKVPairLen) (field_len : F bn254)
-    (perform : FB bn254) : ClapM bn254 Unit := do
+  {maxKVPairLen : ℕ}
+  (field_data : FVec bn254 maxKVPairLen)
+  (field_len : F bn254)
+  (perform : FB bn254) :
+  ClapM bn254 Unit
+:= do
   let s8 ← field_len - (← mkF 1)
   let lastChar ← selectArrayValue maxKVPairLen field_data s8
-  guardedEq0 perform (← (← lastChar - (← mkF ','.toNat)) * (← lastChar - (← mkF '}'.toNat)))
+  guardedEq0 perform
+    (← (← lastChar - (← mkF ','.toNat)) * (← lastChar - (← mkF '}'.toNat)))
 
 def parseJWTFieldSharedLogic
-    {maxKVPairLen maxNameLen maxValueLen : ℕ}
-    (h_name_len  : maxNameLen  ≤ maxKVPairLen)
-    (h_value_len : maxValueLen ≤ maxKVPairLen)
-    (field       : FString bn254 maxKVPairLen)
-    (name        : FString bn254 maxNameLen)
-    (value       : FString bn254 maxValueLen)
-    (colon_index : F bn254)
-    (value_index : F bn254)
-    (skipChecks  : FB bn254 /- := 0 -/) -- `mkF 0` can't be assigned as a default value
-    : ClapM bn254 Unit
+  {maxKVPairLen maxNameLen maxValueLen : ℕ}
+  (h_name_len  : maxNameLen  ≤ maxKVPairLen)
+  (h_value_len : maxValueLen ≤ maxKVPairLen)
+  (field       : FString bn254 maxKVPairLen)
+  (name        : FString bn254 maxNameLen)
+  (value       : FString bn254 maxValueLen)
+  (colon_index : F bn254)
+  (value_index : F bn254)
+  (skipChecks  : FB bn254 /- := 0 -/) -- `mkF 0` can't be assigned as a default value
+  : ClapM bn254 Unit
 := do
   let perform : FB bn254 ← not skipChecks
   -- Checks 0–2: name_len < colon_index < value_index, field_len > name_len + value_len.
@@ -486,7 +508,6 @@ private lemma checkDelimiterThenSubstring_convertsM
     state ()
     ( (idx_val.val < maxKVPairLen ∧ (perform_val = true → field_vals.getD idx_val.val 0 = lit)) ∧
       ( ( (∀ i : Fin maxSubLen, substr_vals[i].val < 2 ^ 8) ∧
-          start_val.val < 2 ^ minBits' maxKVPairLen ∧
           (start_val + substr_len).val < 2 ^ minBits' maxKVPairLen ∧
           start_val.val < maxKVPairLen ∧
           start_val.val < (start_val + substr_len).val ) ∧
@@ -542,7 +563,6 @@ private lemma checkNameDelimiterThenSubstring_convertsM
     state ()
     ( (0 < maxKVPairLen ∧ (perform_val = true → field_vals.getD 0 0 = ('\"'.toNat : ZMod bn254))) ∧
       ( ( (∀ i : Fin maxNameLen, name_vals[i].val < 2 ^ 8) ∧
-          (1 : ZMod bn254).val < 2 ^ minBits' maxKVPairLen ∧
           ((1 : ZMod bn254) + name_len).val < 2 ^ minBits' maxKVPairLen ∧
           (1 : ZMod bn254).val < maxKVPairLen ∧
           (1 : ZMod bn254).val < ((1 : ZMod bn254) + name_len).val ) ∧
@@ -557,8 +577,6 @@ private lemma checkNameDelimiterThenSubstring_convertsM
   · rfl
   · simp
 
-set_option maxHeartbeats 16000000 in
-set_option maxRecDepth 8000 in
 lemma convertsM
   {H : HashFn}
   (h_H : Computes H)
@@ -629,13 +647,7 @@ lemma convertsM
       -- /- redundant -/ value_index_val.val < 2 ^ minBits' maxKVPairLen ∧
       (value_index_val + value_len).val < 2 ^ minBits' maxKVPairLen ∧
       value_index_val.val < maxKVPairLen ∧
-      -- NOT redundant, unlike the name case: `name_len.val + 1 < maxKVPairLen` above is a bound
-      -- on `name_len.val` itself, so `0 < name_len.val` alone is enough to rebuild this window's
-      -- `1 < (1 + name_len).val` (no wraparound, since `name_len.val` is already known small).
-      -- Here `(value_index_val + value_len).val < 2 ^ minBits' maxKVPairLen` only bounds the
-      -- *wrapped* sum, not `value_len.val` itself, so `0 < value_len.val` is not enough to rule
-      -- out `value_len.val` being adversarially close to `bn254` (wrapping the sum back down);
-      -- keep the window fact itself.
+
       value_index_val.val < (value_index_val + value_len).val ∧
       0 < value_len.val ∧
 
@@ -680,7 +692,6 @@ lemma convertsM
         ( ( (0 < maxKVPairLen ∧
               (Bool.not skipChecks_val = true → field_vals.getD 0 0 = ('\"'.toNat : ZMod bn254))) ∧
             ( ( (∀ i : Fin maxNameLen, name_vals[i].val < 2 ^ 8) ∧
-                (1 : ZMod bn254).val < 2 ^ minBits' maxKVPairLen ∧
                 ((1 : ZMod bn254) + name_len).val < 2 ^ minBits' maxKVPairLen ∧
                 (1 : ZMod bn254).val < maxKVPairLen ∧
                 (1 : ZMod bn254).val < ((1 : ZMod bn254) + name_len).val ) ∧
@@ -693,7 +704,6 @@ lemma convertsM
             ( ( (colon_index_val.val < maxKVPairLen ∧
                   (Bool.not skipChecks_val = true → field_vals.getD colon_index_val.val 0 = 58)) ∧
                 ( ( (∀ i : Fin maxValueLen, value_vals[i].val < 2 ^ 8) ∧
-                    value_index_val.val < 2 ^ minBits' maxKVPairLen ∧
                     (value_index_val + value_len).val < 2 ^ minBits' maxKVPairLen ∧
                     value_index_val.val < maxKVPairLen ∧
                     value_index_val.val < (value_index_val + value_len).val ) ∧
@@ -783,9 +793,9 @@ lemma convertsM
     have hp_iff : ((!skipChecks_val) = true) ↔ ¬skipChecks_val := by cases skipChecks_val <;> simp
     constructor
     · rintro ⟨⟨hoA, hoB, hoC⟩, hChashP,
-        ⟨⟨-, hD⟩, ⟨hByteN, hw1a, hw1b, hw1c, hw1d⟩, hE⟩,
+        ⟨⟨-, hD⟩, ⟨hByteN, hw1b, hw1c, hw1d⟩, hE⟩,
         ⟨hCk5Bound, hF⟩,
-        ⟨⟨hCiBound, hG⟩, ⟨hByteV, hw2a, hw2b, hw2c, hw2d⟩, hIacc⟩,
+        ⟨⟨hCiBound, hG⟩, ⟨hByteV, hw2b, hw2c, hw2d⟩, hIacc⟩,
         ⟨hCk8Bound, hJ⟩⟩
       have heq1 : ((1 : ZMod bn254) + name_len).val = 1 + name_len.val := by
         have h := isSubstring.val_add_of_lt_val (a := (1 : ZMod bn254)) (b := name_len) (by
@@ -813,21 +823,17 @@ lemma convertsM
       have h1ltMaxKV : 1 < maxKVPairLen := by omega
       have heq1 : ((1 : ZMod bn254) + name_len).val = 1 + name_len.val :=
         ZMod.val_add_of_lt (by rw [h1val]; omega)
-      have hw1a : (1 : ZMod bn254).val < 2 ^ minBits' maxKVPairLen := by
-        rw [h1val]; have := lt_two_pow_minBits' maxKVPairLen; omega
       have hw1b : ((1 : ZMod bn254) + name_len).val < 2 ^ minBits' maxKVPairLen := by
         rw [heq1]; have := lt_two_pow_minBits' maxKVPairLen; omega
       have hw1c : (1 : ZMod bn254).val < maxKVPairLen := by rw [h1val]; omega
       have hw1d : (1 : ZMod bn254).val < ((1 : ZMod bn254) + name_len).val := by
         rw [h1val, heq1]; omega
-      have hw2a : value_index_val.val < 2 ^ minBits' maxKVPairLen := by
-        have := lt_two_pow_minBits' maxKVPairLen; omega
       have heqName1 : (name_len + 1 : ZMod bn254).val = name_len.val + 1 := by
         rw [add_comm name_len 1, heq1]; omega
       refine ⟨⟨fun hp => ?_, fun hp => ?_, fun hp => ?_⟩, hChashT,
-        ⟨⟨h0maxKV, fun hp => ?_⟩, ⟨hByteNT, hw1a, hw1b, hw1c, hw1d⟩, fun hp => ?_⟩,
+        ⟨⟨h0maxKV, fun hp => ?_⟩, ⟨hByteNT, hw1b, hw1c, hw1d⟩, fun hp => ?_⟩,
         ⟨by rw [heqName1]; exact hNameBoundT, fun hp => ?_⟩,
-        ⟨⟨hCiBoundT, fun hp => ?_⟩, ⟨hByteVT, hw2a, hw2bT, hw2cT, hw2dT⟩, fun hp => ?_⟩,
+        ⟨⟨hCiBoundT, fun hp => ?_⟩, ⟨hByteVT, hw2bT, hw2cT, hw2dT⟩, fun hp => ?_⟩,
         ⟨hCk8BoundT, fun hp => ?_⟩⟩
       · exact (hParsesT (hp_iff.mp hp)).1
       · exact (hParsesT (hp_iff.mp hp)).2.1
