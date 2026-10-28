@@ -6,8 +6,6 @@ import Clap.Lang.Core.F.conditionalSwap
 import Clap.Lang.Core.FB.eq
 import Clap.Lang.Core.FB.not
 import Clap.Lang.Gate.isZero
-import Clap.Lang.Core.Combinators.scanlM
-import Clap.Lang.Core.Combinators.mapM
 import Clap.Model.Convert.PaddedVector
 import Clap.Lang.Core.FUnit.guardedEq0
 import Clap.Util.Primes

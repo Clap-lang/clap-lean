@@ -1,14 +1,5 @@
-import Clap.Lang.Core.F.mkF
-import Clap.Lang.Core.F.mkSub
-import Clap.Lang.Core.F.mkAdd
-import Clap.Lang.Core.F.mkMul
-import Clap.Lang.Core.FB.eq
-import Clap.Lang.Core.Combinators.scanlM
-import Clap.Lang.Core.Combinators.mapM
 import Clap.Lang.Data.FArray.OneHotRaw
 import Clap.Lang.Data.FArray.xorScan
-import Clap.Lang.Core.FB.ofBool
-import Clap.Model.Convert.PaddedVector
 import Batteries.Data.String.Lemmas
 import Batteries.Data.ByteArray
 

@@ -10,9 +10,6 @@ import Clap.Lang.Core.FB.not
 import Clap.Lang.Core.FB.or
 import Clap.Lang.Data.F8.isWhitespace
 import Clap.Lang.Gate.isZero
-import Clap.Lang.Core.Combinators.scanlM
-import Clap.Lang.Core.Combinators.mapM
-import Clap.Lang.Core.Combinators.foldlM
 import Clap.Model.Convert.PaddedVector
 import Clap.Lang.Core.FUnit.guardedEq0
 import Clap.Util.Primes
