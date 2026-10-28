@@ -25,6 +25,7 @@ import Clap.Lang.Core.FUnit.guardedAssertEq
 import Clap.Lang.Data.JWT.parseJWTFieldSharedLogic
 import Clap.Lang.Data.JWT.Basic
 import Mathlib.Data.List.GetD
+import Clap.Lang.Data.JWT.Scaffold.parseJWTFieldWithUnquotedValue
 
 namespace Clap.Lang
 
@@ -39,21 +40,98 @@ structure UnquotedFieldInput (maxPairLen maxNameLen maxValueLen : ℕ) where
   colonIndex : F bn254
   valueIndex : F bn254
 
-/-! ## Generic logic helpers
+/-- Whether a position falls in any of the three gaps between the name/colon, colon/value and
+value/terminator — `nameColonGapDef`, `colonValueGapDef` and `valueEndGapDef` below, each wrapped
+as its own opaque `where`-bound def (rather than inlined) so the combined proof in
+`anyGapZone_convertsM` reasons about fixed function applications (trivially equal to themselves)
+rather than inlined nested `do`-blocks (requiring expensive `whnf` unfolding to confirm two
+mentions of "the state after gap X" agree) — the same wall `docs/proving-circuits.md` describes
+for `Base64Len/base64UrlLookup.lean`. Each allocates its own `1`/`2` literal rather than taking one
+as a parameter: hash-consing means a repeated `mkF` costs no new gate or witness allocation, so
+there's no need to thread a shared constant through.
 
-A fixed guard (`perform`) commutes with a position-indexed `∀`: the guard does not depend on the
-index, so "for every position, if guarded then P" is the same as "if guarded then for every
-position, P". Used to pull `perform_val = true →` outside the `∀ i` produced by the `foldlM`
-combinators below. -/
+Unlike `parseEmailVerifiedField.lean`'s quoted sibling, there is no opening/closing quote around
+the value to skip past, so `colonValueGapDef` ends at `valueIndex` directly (not `valueIndex - 1`)
+and `valueEndGapDef` starts at `valueIndex + valueLen` directly (not `+ 1`).
 
-private lemma forall_guard_comm {ι : Type} {g : Prop} {B : ι → Prop} :
-    (∀ i, g → B i) ↔ (g → ∀ i, B i) :=
-  ⟨fun h hg i => h i hg, fun h i hg => h hg i⟩
+`anyGapZoneDef` itself is wrapped as its own opaque def for a second, separate reason:
+`checkWhitespaceZones` calls this (rather than inlining the five steps) so that its own `convertsM`
+proof can combine `anyGapZone_convertsM`'s fact with the `foldlM` part via a single top-level bind,
+matching this symbol syntactically — never needing `bind_assoc` to re-associate a right-nested
+`do`-block, which (confirmed experimentally) `simp` cannot do predictably at this depth without
+producing a differently-shaped term that is no longer `hZones`-shaped. -/
+private def anyGapZoneDef (maxKVPairLen : ℕ)
+  (nameLen colonIndex valueIndex valueLen fieldLen : F bn254) :
+  ClapM bn254 (FArray bn254 maxKVPairLen)
+:= do
+  let zoneA ← nameColonGapDef maxKVPairLen nameLen colonIndex
+  let zoneB ← colonValueGapDef maxKVPairLen colonIndex valueIndex
+  let zoneC ← valueEndGapDef maxKVPairLen valueIndex valueLen fieldLen
+  let inZoneAB ← zoneA.zipWithM FB.or zoneB
+  inZoneAB.zipWithM FB.or zoneC
+where
+  /-- The gap strictly between the name's closing quote and the colon: positions
+  `(nameLen + 2, colonIndex)`. -/
+  nameColonGapDef (maxKVPairLen : ℕ) (nameLen colonIndex : F bn254) :
+    ClapM bn254 (FArray bn254 maxKVPairLen)
+  := do
+    let two ← mkF 2
+    let s ← mkAdd nameLen two
+    arraySelectorComplex maxKVPairLen s colonIndex
+  /-- The gap strictly between the colon and the (unquoted) value: positions
+  `(colonIndex + 1, valueIndex)`. -/
+  colonValueGapDef (maxKVPairLen : ℕ) (colonIndex valueIndex : F bn254) :
+    ClapM bn254 (FArray bn254 maxKVPairLen)
+  := do
+    let one ← mkF 1
+    let s ← mkAdd colonIndex one
+    arraySelectorComplex maxKVPairLen s valueIndex
+  /-- The gap strictly between the end of the value and the field's closing delimiter: positions
+  `(valueIndex + valueLen, fieldLen - 1)`. -/
+  valueEndGapDef (maxKVPairLen : ℕ) (valueIndex valueLen fieldLen : F bn254) :
+    ClapM bn254 (FArray bn254 maxKVPairLen)
+  := do
+    let one ← mkF 1
+    let s ← mkAdd valueIndex valueLen
+    let e ← mkSub fieldLen one
+    arraySelectorComplex maxKVPairLen s e
 
-private lemma forall_and_guard_comm {ι : Type} {A : ι → Prop} {g : Prop} {B : ι → Prop} :
-    (∀ i, A i ∧ (g → B i)) ↔ (∀ i, A i) ∧ (g → ∀ i, B i) :=
-  ⟨fun h => ⟨fun i => (h i).1, fun hg i => (h i).2 hg⟩,
-   fun h i => ⟨h.1 i, fun hg => h.2 hg i⟩⟩
+/-- Every position in the three "gap" zones (between name/colon, colon/value, value/terminator)
+must be whitespace, guarded by `perform` so `skipChecks` can bypass it. -/
+private def checkWhitespaceZones {maxKVPairLen : ℕ}
+  (field_data : FVec bn254 maxKVPairLen)
+  (perform : FB bn254)
+  (nameLen colonIndex valueIndex valueLen fieldLen : F bn254) :
+  ClapM bn254 Unit
+:= do
+  let inZone ← anyGapZoneDef maxKVPairLen nameLen colonIndex valueIndex valueLen fieldLen
+  (inZone.zip field_data).foldlM (b := ()) fun _ (z, c) ↦ do
+    let ws ← F8.isWhitespace c
+    guardedEq0 perform (← z.and (← not ws))
+
+def parseJWTFieldWithUnquotedValue
+  {maxKVPairLen maxNameLen maxValueLen : ℕ}
+  (fi : UnquotedFieldInput maxKVPairLen maxNameLen maxValueLen)
+  (h_name  : maxNameLen  ≤ maxKVPairLen)
+  (h_value : maxValueLen ≤ maxKVPairLen)
+  (skipChecks  : FB bn254) :
+  ClapM bn254 Unit
+:= do
+  -- Delegate shared structural checks
+  parseJWTFieldSharedLogic h_name h_value fi.field fi.name fi.value fi.colonIndex fi.valueIndex skipChecks
+  let perform : FB bn254 ← not skipChecks
+  -- Check 1: whitespace in three zones
+  checkWhitespaceZones fi.field.data perform fi.name.len fi.colonIndex fi.valueIndex fi.value.len fi.field.len
+  -- Check 2: value must not contain ',', '}', or '"'
+  -- valueSelector: 1s at [valueIndex, valueIndex + value_len)
+  let valueSel ← arraySelector maxKVPairLen fi.valueIndex (← fi.valueIndex + fi.value.len)
+  (valueSel.zip fi.field.data).foldlM (b := ()) fun _ (sel, c) ↦ do
+    let isForbidden ←
+      FB.or
+        (← FB.or (← eq c (← mkF ','.toNat)) (← eq c (← mkF '}'.toNat)))
+        (← eq c (← mkF '\"'.toNat))
+    -- If in value range, character must not be forbidden
+    guardedEq0 perform (← sel.and isForbidden)
 
 /-! ## `Vector.zipWithM`: a combinator lemma with nowhere layering-safe to live
 
@@ -62,8 +140,13 @@ Same situation, and the same fix, as `parseEmailVerifiedField.lean`'s own copy o
 plumbing that happens to live in a Poseidon file. `Lang/Core/Combinators/` sits *below*
 `Lang/Poseidon` in the import order, so a lemma about it cannot live there without a layering
 violation; `Lang/Data/JWT` sits above `Lang/Poseidon`, so each JWT file that needs it keeps its own
-private copy (per `parseEmailVerifiedField.lean`'s own doc comment, which names this file as its
-second intended user). -/
+private copy. Unlike the rest of this file's generic scaffolding, `convertsM_zipWithM_or` and
+`lessThanRaw_isWs_eq` below stay *here*, private, rather than moving to
+`Scaffold/parseJWTFieldWithUnquotedValue.lean`: `parseEmailVerifiedField.lean`'s own Scaffold file
+already exposes a non-private lemma under each of these exact names (it needs them visible from its
+own main file too), and `Clap/Lang/All.lean` imports every gadget file transitively, so two
+non-private declarations sharing one name collide in the global environment the moment both
+Scaffold files are loaded together. Keeping them `private` here, as before, sidesteps that. -/
 
 private lemma Vector.zipWithM_zero {m} [Monad m] [LawfulMonad m] {α β φ : Type}
     (f : α → β → m φ) :
@@ -170,299 +253,6 @@ private lemma convertsM_zipWithM_or
       simpa using h_cons
     . trivial
 
-/-- `convertsM_foldlM_constraints` (`Clap/Lang/Core/Combinators/foldlM.lean`) for a step that also
-reads a fixed context `ctx` — here, the guard `perform`, allocated once before each loop in this
-file and threaded through every iteration's guarded assertion. No existing combinator covers both
-context-threading (`convertsM_foldlM_ctx`) and a real per-step constraint
-(`convertsM_foldlM_constraints`) at once; this merges the two inductions. -/
-private lemma convertsM_foldlM_ctx_constraints
-  {p : ℕ} {k} {α γ δ}
-  {C_ctx : Conversion p δ}
-  {C_acc : Conversion p α}
-  {C_elem : Conversion p γ}
-  {f : δ → α → γ → ClapM p α}
-  {f_spec : C_ctx.IdealT → C_acc.IdealT → C_elem.IdealT → C_acc.IdealT}
-  {step_constraints : C_ctx.IdealT → C_elem.IdealT → Prop}
-  {state : ClapMState p}
-  {ctx : δ}
-  {ctx_val : C_ctx.IdealT}
-  {v : Vector γ k}
-  {vals : Vector C_elem.IdealT k}
-  {init : α}
-  {init_val : C_acc.IdealT}
-  (h_ctx : Converts C_ctx state ctx ctx_val)
-  (h_v : ∀ i : Fin k, Converts C_elem state v[i] vals[i])
-  (h_init : Converts C_acc state init init_val)
-  (h_f : ∀ {state' : ClapMState p} {acc acc_val x x_val},
-          Converts C_ctx state' ctx ctx_val →
-          Converts C_acc state' acc acc_val →
-          Converts C_elem state' x x_val →
-          ConvertsM C_acc (f ctx acc x) state' (f_spec ctx_val acc_val x_val)
-            (step_constraints ctx_val x_val))
-:
-  ConvertsM C_acc (v.foldlM (f ctx) init) state (vals.foldl (f_spec ctx_val) init_val)
-    (∀ i : Fin k, step_constraints ctx_val vals[i])
-:= by
-  induction' k with k h_k
-  . have h_empty : Vector.foldlM (m := ClapM p) (f ctx) init v = pure init := by
-      convert Vector.foldlM_empty
-      obtain ⟨⟨_⟩, _⟩ := v
-      grind
-    simp [h_empty]
-    apply convertsM_pure
-    . have : vals = #v[] := by grind
-      simp [this]
-      assumption
-    . trivial
-  . set v_base := Vector.cast (m := k) (by trivial) v.pop with h_v_base_def
-    set vals_base := Vector.cast (m := k) (by trivial) vals.pop with h_vals_base_def
-
-    have h_eq : ∀ (j : ℕ) (hj : j < k), vals_base[j]'hj = vals[j]'(by omega) := by
-      intro j hj
-      simp [vals_base]
-
-    have h_v_base : ∀ i : Fin k, Converts C_elem state v_base[i] vals_base[i] := by
-      intro ⟨i, h_i⟩
-      have h1 : v_base[i]'h_i = v[i]'(by omega) := by simp [v_base]
-      simp only [Fin.getElem_fin]
-      rw [h1, h_eq i h_i]
-      exact h_v ⟨i, by omega⟩
-
-    have h_vals : vals = vals_base.push vals[k] := by
-      ext
-      rewrite [Vector.getElem_push]
-      split
-      . simp [vals_base]
-      . grind
-
-    have h_push : v = v_base.push v[k] := by
-      ext
-      rewrite [Vector.getElem_push]
-      split
-      . simp [v_base]
-      . grind
-
-    have h_last := h_v ⟨k, Nat.lt_succ_self k⟩
-    have h_ih := h_k h_v_base
-
-    rewrite [h_push]
-    simp only [Vector.foldlM_push]
-
-    apply convertsM_of_convertsM
-      (convertsM_bind_and h_ih
-        (h_f (converts_skip h_ih h_ctx) h_ih.result (converts_skip h_ih h_last)))
-    . conv_rhs => rewrite [h_vals]
-      simp
-    . constructor
-      . rintro ⟨h_prefix, h_elem⟩ ⟨i, h_i⟩
-        by_cases h : i = k
-        . subst h
-          exact h_elem
-        . have h_lt : i < k := by grind
-          have h1 := h_prefix ⟨i, h_lt⟩
-          simp only [Fin.getElem_fin] at h1
-          rwa [h_eq i h_lt] at h1
-      . intro h
-        refine ⟨fun ⟨i, h_i⟩ ↦ ?_, h ⟨k, Nat.lt_succ_self k⟩⟩
-        have h1 := h ⟨i, by grind⟩
-        simp only [Fin.getElem_fin] at h1 ⊢
-        rwa [← h_eq i h_i] at h1
-
-/-! ## Zone construction
-
-Three "gap" zones must be whitespace: between the name's closing quote and the colon, between the
-colon and the (unquoted) value, and between the value and the terminator. Unlike
-`parseEmailVerifiedField.lean`'s quoted sibling, there is no opening/closing quote around the
-value to skip past, so zone B ends at `valueIndex` directly (not `valueIndex - 1`) and zone C
-starts at `valueIndex + valueLen` directly (not `+ 1`). -/
-
-private def zoneADef (maxKVPairLen : ℕ) (nameLen two colonIndex : F bn254) :
-  ClapM bn254 (FArray bn254 maxKVPairLen)
-:= do
-  let s ← mkAdd nameLen two
-  arraySelectorComplex maxKVPairLen s colonIndex
-
-private def zoneBDef (maxKVPairLen : ℕ) (one colonIndex valueIndex : F bn254) :
-  ClapM bn254 (FArray bn254 maxKVPairLen)
-:= do
-  let s ← mkAdd colonIndex one
-  arraySelectorComplex maxKVPairLen s valueIndex
-
-private def zoneCDef (maxKVPairLen : ℕ) (one valueIndex valueLen fieldLen : F bn254) :
-  ClapM bn254 (FArray bn254 maxKVPairLen)
-:= do
-  let s ← mkAdd valueIndex valueLen
-  let e ← mkSub fieldLen one
-  arraySelectorComplex maxKVPairLen s e
-
-private def inZoneDef (maxKVPairLen : ℕ)
-  (nameLen colonIndex valueIndex valueLen fieldLen : F bn254) :
-  ClapM bn254 (FArray bn254 maxKVPairLen)
-:= do
-  let one ← mkF 1
-  let two ← mkF 2
-  let zoneA ← zoneADef maxKVPairLen nameLen two colonIndex
-  let zoneB ← zoneBDef maxKVPairLen one colonIndex valueIndex
-  let zoneC ← zoneCDef maxKVPairLen one valueIndex valueLen fieldLen
-  let inZoneAB ← zoneA.zipWithM FB.or zoneB
-  inZoneAB.zipWithM FB.or zoneC
-
-private lemma zoneA_convertsM
-  {maxKVPairLen : ℕ} {state : ClapMState bn254}
-  {nameLen two colonIndex : F bn254} {name_len colon_index_val : ZMod bn254}
-  (h_nl : Converts F.conversion state nameLen name_len)
-  (h_two : Converts F.conversion state two (2 : ZMod bn254))
-  (h_ci : Converts F.conversion state colonIndex colon_index_val)
-  (h_maxKV : maxKVPairLen < bn254)
-:
-  ConvertsM FArray.conversion
-    (zoneADef maxKVPairLen nameLen two colonIndex)
-    state
-    (Vector.ofFn (fun i : Fin maxKVPairLen =>
-      decide (0 < (name_len + 2).val ∧ (name_len + 2).val ≤ i.val) && decide (i.val < colon_index_val.val)))
-    (0 < (name_len + 2).val ∧ (name_len + 2).val ≤ maxKVPairLen ∧ colon_index_val.val < maxKVPairLen)
-:= by
-  unfold zoneADef
-  step mkAdd.convertsM h_nl h_two as s
-  apply convertsM_of_convertsM (arraySelectorComplex.convertsM h_s h_ci h_maxKV) rfl
-  simp only [true_implies]
-
-private lemma zoneB_convertsM
-  {maxKVPairLen : ℕ} {state : ClapMState bn254}
-  {one colonIndex valueIndex : F bn254} {colon_index_val value_index_val : ZMod bn254}
-  (h_one : Converts F.conversion state one (1 : ZMod bn254))
-  (h_ci : Converts F.conversion state colonIndex colon_index_val)
-  (h_vi : Converts F.conversion state valueIndex value_index_val)
-  (h_maxKV : maxKVPairLen < bn254)
-:
-  ConvertsM FArray.conversion
-    (zoneBDef maxKVPairLen one colonIndex valueIndex)
-    state
-    (Vector.ofFn (fun i : Fin maxKVPairLen =>
-      decide (0 < (colon_index_val + 1).val ∧ (colon_index_val + 1).val ≤ i.val) &&
-        decide (i.val < value_index_val.val)))
-    (0 < (colon_index_val + 1).val ∧ (colon_index_val + 1).val ≤ maxKVPairLen ∧
-      value_index_val.val < maxKVPairLen)
-:= by
-  unfold zoneBDef
-  step mkAdd.convertsM h_ci h_one as s
-  apply convertsM_of_convertsM (arraySelectorComplex.convertsM h_s h_vi h_maxKV) rfl
-  simp only [true_implies]
-
-private lemma zoneC_convertsM
-  {maxKVPairLen : ℕ} {state : ClapMState bn254}
-  {one valueIndex valueLen fieldLen : F bn254}
-  {value_index_val value_len field_len : ZMod bn254}
-  (h_one : Converts F.conversion state one (1 : ZMod bn254))
-  (h_vi : Converts F.conversion state valueIndex value_index_val)
-  (h_vl : Converts F.conversion state valueLen value_len)
-  (h_fl : Converts F.conversion state fieldLen field_len)
-  (h_maxKV : maxKVPairLen < bn254)
-:
-  ConvertsM FArray.conversion
-    (zoneCDef maxKVPairLen one valueIndex valueLen fieldLen)
-    state
-    (Vector.ofFn (fun i : Fin maxKVPairLen =>
-      decide (0 < (value_index_val + value_len).val ∧ (value_index_val + value_len).val ≤ i.val) &&
-        decide (i.val < (field_len - 1).val)))
-    (0 < (value_index_val + value_len).val ∧ (value_index_val + value_len).val ≤ maxKVPairLen ∧
-      (field_len - 1).val < maxKVPairLen)
-:= by
-  unfold zoneCDef
-  step mkAdd.convertsM h_vi h_vl as s
-  step mkSub.convertsM h_fl h_one as e
-  apply convertsM_of_convertsM (arraySelectorComplex.convertsM h_s h_e h_maxKV) rfl
-  simp only [true_implies]
-
-private lemma zonesTail_convertsM
-  {maxKVPairLen : ℕ} {state : ClapMState bn254}
-  {zoneA zoneB : FArray bn254 maxKVPairLen}
-  {zoneA_val zoneB_val : Vector Bool maxKVPairLen}
-  {one valueIndex valueLen fieldLen : F bn254}
-  {value_index_val value_len field_len : ZMod bn254}
-  (h_zoneA_pw : ∀ i : Fin maxKVPairLen, Converts FB.conversion state zoneA[i] zoneA_val[i])
-  (h_zoneB_pw : ∀ i : Fin maxKVPairLen, Converts FB.conversion state zoneB[i] zoneB_val[i])
-  (h_one : Converts F.conversion state one (1 : ZMod bn254))
-  (h_vi : Converts F.conversion state valueIndex value_index_val)
-  (h_vl : Converts F.conversion state valueLen value_len)
-  (h_fl : Converts F.conversion state fieldLen field_len)
-  (h_maxKV : maxKVPairLen < bn254)
-:
-  ConvertsM FArray.conversion
-    (zoneCDef maxKVPairLen one valueIndex valueLen fieldLen >>= fun zoneC =>
-      zoneA.zipWithM FB.or zoneB >>= fun inZoneAB =>
-      inZoneAB.zipWithM FB.or zoneC)
-    state
-    (Vector.ofFn (fun i : Fin maxKVPairLen => zoneA_val[i] || zoneB_val[i] ||
-      (decide (0 < (value_index_val + value_len).val ∧
-          (value_index_val + value_len).val ≤ i.val) && decide (i.val < (field_len - 1).val))))
-    (0 < (value_index_val + value_len).val ∧ (value_index_val + value_len).val ≤ maxKVPairLen ∧
-        (field_len - 1).val < maxKVPairLen)
-:= by
-  have hC := zoneC_convertsM h_one h_vi h_vl h_fl h_maxKV
-  replace h_zoneA_pw := fun i ↦ converts_skip hC (h_zoneA_pw i)
-  replace h_zoneB_pw := fun i ↦ converts_skip hC (h_zoneB_pw i)
-  have h_zoneC_pw := FArray.converts_iff_FB_converts.mp hC.result
-  step hC as zoneCR
-  step (convertsM_zipWithM_or h_zoneA_pw h_zoneB_pw) as inZoneAB
-  replace h_zoneC_pw := fun i ↦ converts_skip (convertsM_zipWithM_or h_zoneA_pw h_zoneB_pw) (h_zoneC_pw i)
-  have h_inZoneAB_pw := FArray.converts_iff_FB_converts.mp h_inZoneAB
-  apply convertsM_of_convertsM (convertsM_zipWithM_or h_inZoneAB_pw h_zoneC_pw)
-  · ext i
-    simp [Vector.getElem_ofFn]
-  · exact iff_of_true trivial (fun _ h => h)
-
-private lemma zones_convertsM
-  {maxKVPairLen : ℕ} {state : ClapMState bn254}
-  {nameLen colonIndex valueIndex valueLen fieldLen : F bn254}
-  {name_len colon_index_val value_index_val value_len field_len : ZMod bn254}
-  (h_nl : Converts F.conversion state nameLen name_len)
-  (h_ci : Converts F.conversion state colonIndex colon_index_val)
-  (h_vi : Converts F.conversion state valueIndex value_index_val)
-  (h_vl : Converts F.conversion state valueLen value_len)
-  (h_fl : Converts F.conversion state fieldLen field_len)
-  (h_maxKV : maxKVPairLen < bn254)
-:
-  ConvertsM FArray.conversion
-    (inZoneDef maxKVPairLen nameLen colonIndex valueIndex valueLen fieldLen)
-    state
-    (Vector.ofFn (fun i : Fin maxKVPairLen =>
-      (decide (0 < (name_len + 2).val ∧ (name_len + 2).val ≤ i.val) && decide (i.val < colon_index_val.val)) ||
-      (decide (0 < (colon_index_val + 1).val ∧ (colon_index_val + 1).val ≤ i.val) &&
-        decide (i.val < value_index_val.val)) ||
-      (decide (0 < (value_index_val + value_len).val ∧
-          (value_index_val + value_len).val ≤ i.val) && decide (i.val < (field_len - 1).val))))
-    ( (0 < (name_len + 2).val ∧ (name_len + 2).val ≤ maxKVPairLen ∧ colon_index_val.val < maxKVPairLen) ∧
-      (0 < (colon_index_val + 1).val ∧ (colon_index_val + 1).val ≤ maxKVPairLen ∧
-        value_index_val.val < maxKVPairLen) ∧
-      (0 < (value_index_val + value_len).val ∧ (value_index_val + value_len).val ≤ maxKVPairLen ∧
-        (field_len - 1).val < maxKVPairLen) )
-:= by
-  unfold inZoneDef
-  step mkF.convertsM as one
-  step mkF.convertsM as two
-  simp only [true_implies]
-  have hA := zoneA_convertsM h_nl h_two h_ci h_maxKV
-  have h_zoneA_pw := FArray.converts_iff_FB_converts.mp hA.result
-  replace h_one := converts_skip hA h_one
-  replace h_ci := converts_skip hA h_ci
-  replace h_vi := converts_skip hA h_vi
-  replace h_vl := converts_skip hA h_vl
-  replace h_fl := converts_skip hA h_fl
-  apply convertsM_bind_and hA
-  have hB := zoneB_convertsM h_one h_ci h_vi h_maxKV
-  replace h_zoneA_pw := fun i ↦ converts_skip hB (h_zoneA_pw i)
-  have h_zoneB_pw := FArray.converts_iff_FB_converts.mp hB.result
-  replace h_vi := converts_skip hB h_vi
-  replace h_vl := converts_skip hB h_vl
-  replace h_fl := converts_skip hB h_fl
-  replace h_one := converts_skip hB h_one
-  apply convertsM_bind_and hB
-  apply convertsM_of_convertsM (zonesTail_convertsM h_zoneA_pw h_zoneB_pw h_one h_vi h_vl h_fl h_maxKV)
-  · ext i
-    simp [Vector.getElem_ofFn]
-  · rfl
-
 /-- `F8.isWhitespace`'s *unchecked* raw value equals the plain-`ℕ` `isWs` predicate, given the byte
 is known `< 2^8`. Copied from `parseEmailVerifiedField.lean`'s identical private lemma (per this
 file's convention of duplicating small per-file proof infrastructure rather than sharing it across
@@ -485,56 +275,165 @@ private lemma lessThanRaw_isWs_eq {c_val : ZMod bn254} (h_c8 : c_val.val < 2 ^ 8
   rw [lessThan.lessThanRaw_eq h8lt h_c8 hw9, lessThan.lessThanRaw_eq h_c8 h14lt hw9, h32eq, h8v, h14v]
   simp [isWs]
 
-/-- The `foldlM` step: whitespace-or-not for one position, given its zone-membership bit `z` and
-field character `c` as *general* field elements (not necessarily typed bits/bytes) — the
-combinator's per-element hypothesis has no room to carry a per-index byte-range fact, so this uses
-`F8.isWhitespace`'s *unchecked* form and `FB.and`'s underlying `mkMul` directly. Guarded analogue
-of `parseEmailVerifiedField.lean`'s `whitespaceCheck_convertsM`: the assertion only fires when
-`perform` holds. -/
-private lemma guardedWhitespaceCheck_convertsM
-  {state : ClapMState bn254} {perform z c : F bn254} {perform_val : Bool} {z_val c_val : ZMod bn254}
-  (h_perform : Converts FB.conversion state perform perform_val)
-  (h_z : Converts F.conversion state z z_val)
-  (h_c : Converts F.conversion state c c_val)
+private lemma nameColonGap_convertsM
+  {maxKVPairLen : ℕ} {state : ClapMState bn254}
+  {nameLen colonIndex : F bn254} {name_len colon_index_val : ZMod bn254}
+  (h_nl : Converts F.conversion state nameLen name_len)
+  (h_ci : Converts F.conversion state colonIndex colon_index_val)
+  (h_maxKV : maxKVPairLen < bn254)
 :
-  ConvertsM FUnit.conversion
-    (F8.isWhitespace c >>= fun ws => not ws >>= fun notws => FB.and z notws >>= fun prod =>
-      guardedEq0 perform prod)
-    state ()
-    ( (lessThan.lessThanOk 8 8 c_val ∧ lessThan.lessThanOk 8 c_val 14) ∧
-      (perform_val = true → z_val * (if ((lessThan.lessThanRaw 8 8 c_val && lessThan.lessThanRaw 8 c_val 14) ||
-        c_val == 32) then (0:ZMod bn254) else 1) = 0) )
+  ConvertsM FArray.conversion
+    (anyGapZoneDef.nameColonGapDef maxKVPairLen nameLen colonIndex)
+    state
+    (Vector.ofFn (fun i : Fin maxKVPairLen =>
+      decide (0 < (name_len + 2).val ∧ (name_len + 2).val ≤ i.val) && decide (i.val < colon_index_val.val)))
+    (0 < (name_len + 2).val ∧ (name_len + 2).val ≤ maxKVPairLen ∧ colon_index_val.val < maxKVPairLen)
 := by
-  have hWs := F8.isWhitespace.convertsM_unchecked h_c
-  replace h_z := converts_skip hWs h_z
-  replace h_perform := converts_skip hWs h_perform
-  apply convertsM_bind_and hWs
-  refine convertsM_bind (not.convertsM hWs.result) ?_ (fun _ => trivial)
-  have hNot := not.convertsM hWs.result
-  replace h_z := converts_skip hNot h_z
-  replace h_perform := converts_skip hNot h_perform
-  unfold FB.and
-  rw [mul_def]
-  refine convertsM_bind (mkMul.convertsM h_z (F.converts_of_FB_converts hNot.result)) ?_ (fun _ => trivial)
-  have hMul := mkMul.convertsM h_z (F.converts_of_FB_converts hNot.result)
-  replace h_perform := converts_skip hMul h_perform
-  apply convertsM_of_convertsM (guardedEq0.convertsM h_perform hMul.result)
-  · rfl
-  · by_cases h : (lessThan.lessThanRaw 8 8 c_val && lessThan.lessThanRaw 8 c_val 14) || c_val == 32 <;>
-      simp [h]
+  unfold anyGapZoneDef.nameColonGapDef
+  step mkF.convertsM as two
+  step mkAdd.convertsM h_nl h_two as s
+  apply convertsM_of_convertsM (arraySelectorComplex.convertsM h_s h_ci h_maxKV) rfl
+  simp only [true_implies]
 
-/-- Every position in the three "gap" zones (between name/colon, colon/value, value/terminator)
-must be whitespace, guarded by `perform` so `skipChecks` can bypass it. -/
-private def checkWhitespaceZones {maxKVPairLen : ℕ}
-  (field_data : FVec bn254 maxKVPairLen)
-  (perform : FB bn254)
-  (nameLen colonIndex valueIndex valueLen fieldLen : F bn254) :
-  ClapM bn254 Unit
-:= do
-  let inZone ← inZoneDef maxKVPairLen nameLen colonIndex valueIndex valueLen fieldLen
-  (inZone.zip field_data).foldlM (b := ()) fun _ (z, c) ↦ do
-    let ws ← F8.isWhitespace c
-    guardedEq0 perform (← z.and (← not ws))
+/-- `colonValueGapDef`'s construction: `arraySelectorComplex maxKVPairLen (colonIndex+one)
+valueIndex`. -/
+private lemma colonValueGap_convertsM
+  {maxKVPairLen : ℕ} {state : ClapMState bn254}
+  {colonIndex valueIndex : F bn254} {colon_index_val value_index_val : ZMod bn254}
+  (h_ci : Converts F.conversion state colonIndex colon_index_val)
+  (h_vi : Converts F.conversion state valueIndex value_index_val)
+  (h_maxKV : maxKVPairLen < bn254)
+:
+  ConvertsM FArray.conversion
+    (anyGapZoneDef.colonValueGapDef maxKVPairLen colonIndex valueIndex)
+    state
+    (Vector.ofFn (fun i : Fin maxKVPairLen =>
+      decide (0 < (colon_index_val + 1).val ∧ (colon_index_val + 1).val ≤ i.val) &&
+        decide (i.val < value_index_val.val)))
+    (0 < (colon_index_val + 1).val ∧ (colon_index_val + 1).val ≤ maxKVPairLen ∧
+      value_index_val.val < maxKVPairLen)
+:= by
+  unfold anyGapZoneDef.colonValueGapDef
+  step mkF.convertsM as one
+  step mkAdd.convertsM h_ci h_one as s
+  apply convertsM_of_convertsM (arraySelectorComplex.convertsM h_s h_vi h_maxKV) rfl
+  simp only [true_implies]
+
+/-- `valueEndGapDef`'s construction: `arraySelectorComplex maxKVPairLen (valueIndex+valueLen)
+(fieldLen-one)`. -/
+private lemma valueEndGap_convertsM
+  {maxKVPairLen : ℕ} {state : ClapMState bn254}
+  {valueIndex valueLen fieldLen : F bn254}
+  {value_index_val value_len field_len : ZMod bn254}
+  (h_vi : Converts F.conversion state valueIndex value_index_val)
+  (h_vl : Converts F.conversion state valueLen value_len)
+  (h_fl : Converts F.conversion state fieldLen field_len)
+  (h_maxKV : maxKVPairLen < bn254)
+:
+  ConvertsM FArray.conversion
+    (anyGapZoneDef.valueEndGapDef maxKVPairLen valueIndex valueLen fieldLen)
+    state
+    (Vector.ofFn (fun i : Fin maxKVPairLen =>
+      decide (0 < (value_index_val + value_len).val ∧ (value_index_val + value_len).val ≤ i.val) &&
+        decide (i.val < (field_len - 1).val)))
+    (0 < (value_index_val + value_len).val ∧ (value_index_val + value_len).val ≤ maxKVPairLen ∧
+      (field_len - 1).val < maxKVPairLen)
+:= by
+  unfold anyGapZoneDef.valueEndGapDef
+  step mkF.convertsM as one
+  step mkAdd.convertsM h_vi h_vl as s
+  step mkSub.convertsM h_fl h_one as e
+  apply convertsM_of_convertsM (arraySelectorComplex.convertsM h_s h_e h_maxKV) rfl
+  simp only [true_implies]
+
+/-- `valueEndGapDef`'s computation plus the two `zipWithM` merges, taking the name-colon and
+colon-value gaps' pointwise facts as given. Proved as its own lemma (not inlined into
+`anyGapZone_convertsM`'s tactic chain) so its target constraint is concrete from the start:
+`step`ing a real-constraint action against a goal whose own constraint slot is still an unresolved
+metavariable (as it would be mid-way through `anyGapZone_convertsM`'s outer `convertsM_bind_and`
+chain) is what caused the `whnf` blowup here. -/
+private lemma anyGapZoneTail_convertsM
+  {maxKVPairLen : ℕ} {state : ClapMState bn254}
+  {zoneA zoneB : FArray bn254 maxKVPairLen}
+  {zoneA_val zoneB_val : Vector Bool maxKVPairLen}
+  {valueIndex valueLen fieldLen : F bn254}
+  {value_index_val value_len field_len : ZMod bn254}
+  (h_zoneA_pw : ∀ i : Fin maxKVPairLen, Converts FB.conversion state zoneA[i] zoneA_val[i])
+  (h_zoneB_pw : ∀ i : Fin maxKVPairLen, Converts FB.conversion state zoneB[i] zoneB_val[i])
+  (h_vi : Converts F.conversion state valueIndex value_index_val)
+  (h_vl : Converts F.conversion state valueLen value_len)
+  (h_fl : Converts F.conversion state fieldLen field_len)
+  (h_maxKV : maxKVPairLen < bn254)
+:
+  ConvertsM FArray.conversion
+    (anyGapZoneDef.valueEndGapDef maxKVPairLen valueIndex valueLen fieldLen >>= fun zoneC =>
+      zoneA.zipWithM FB.or zoneB >>= fun inZoneAB =>
+      inZoneAB.zipWithM FB.or zoneC)
+    state
+    (Vector.ofFn (fun i : Fin maxKVPairLen => zoneA_val[i] || zoneB_val[i] ||
+      (decide (0 < (value_index_val + value_len).val ∧
+          (value_index_val + value_len).val ≤ i.val) && decide (i.val < (field_len - 1).val))))
+    (0 < (value_index_val + value_len).val ∧ (value_index_val + value_len).val ≤ maxKVPairLen ∧
+        (field_len - 1).val < maxKVPairLen)
+:= by
+  have hC := valueEndGap_convertsM h_vi h_vl h_fl h_maxKV
+  replace h_zoneA_pw := fun i ↦ converts_skip hC (h_zoneA_pw i)
+  replace h_zoneB_pw := fun i ↦ converts_skip hC (h_zoneB_pw i)
+  have h_zoneC_pw := FArray.converts_iff_FB_converts.mp hC.result
+  step hC as zoneCR
+  step (convertsM_zipWithM_or h_zoneA_pw h_zoneB_pw) as inZoneAB
+  replace h_zoneC_pw := fun i ↦ converts_skip (convertsM_zipWithM_or h_zoneA_pw h_zoneB_pw) (h_zoneC_pw i)
+  have h_inZoneAB_pw := FArray.converts_iff_FB_converts.mp h_inZoneAB
+  apply convertsM_of_convertsM (convertsM_zipWithM_or h_inZoneAB_pw h_zoneC_pw)
+  · ext i
+    simp [Vector.getElem_ofFn]
+  · exact iff_of_true trivial (fun _ h => h)
+
+private lemma anyGapZone_convertsM
+  {maxKVPairLen : ℕ} {state : ClapMState bn254}
+  {nameLen colonIndex valueIndex valueLen fieldLen : F bn254}
+  {name_len colon_index_val value_index_val value_len field_len : ZMod bn254}
+  (h_nl : Converts F.conversion state nameLen name_len)
+  (h_ci : Converts F.conversion state colonIndex colon_index_val)
+  (h_vi : Converts F.conversion state valueIndex value_index_val)
+  (h_vl : Converts F.conversion state valueLen value_len)
+  (h_fl : Converts F.conversion state fieldLen field_len)
+  (h_maxKV : maxKVPairLen < bn254)
+:
+  ConvertsM FArray.conversion
+    (anyGapZoneDef maxKVPairLen nameLen colonIndex valueIndex valueLen fieldLen)
+    state
+    (Vector.ofFn (fun i : Fin maxKVPairLen =>
+      (decide (0 < (name_len + 2).val ∧ (name_len + 2).val ≤ i.val) && decide (i.val < colon_index_val.val)) ||
+      (decide (0 < (colon_index_val + 1).val ∧ (colon_index_val + 1).val ≤ i.val) &&
+        decide (i.val < value_index_val.val)) ||
+      (decide (0 < (value_index_val + value_len).val ∧
+          (value_index_val + value_len).val ≤ i.val) && decide (i.val < (field_len - 1).val))))
+    ( (0 < (name_len + 2).val ∧ (name_len + 2).val ≤ maxKVPairLen ∧ colon_index_val.val < maxKVPairLen) ∧
+      (0 < (colon_index_val + 1).val ∧ (colon_index_val + 1).val ≤ maxKVPairLen ∧
+        value_index_val.val < maxKVPairLen) ∧
+      (0 < (value_index_val + value_len).val ∧ (value_index_val + value_len).val ≤ maxKVPairLen ∧
+        (field_len - 1).val < maxKVPairLen) )
+:= by
+  unfold anyGapZoneDef
+  have hA := nameColonGap_convertsM h_nl h_ci h_maxKV
+  have h_zoneA_pw := FArray.converts_iff_FB_converts.mp hA.result
+  replace h_ci := converts_skip hA h_ci
+  replace h_vi := converts_skip hA h_vi
+  replace h_vl := converts_skip hA h_vl
+  replace h_fl := converts_skip hA h_fl
+  apply convertsM_bind_and hA
+  have hB := colonValueGap_convertsM h_ci h_vi h_maxKV
+  replace h_zoneA_pw := fun i ↦ converts_skip hB (h_zoneA_pw i)
+  have h_zoneB_pw := FArray.converts_iff_FB_converts.mp hB.result
+  replace h_vi := converts_skip hB h_vi
+  replace h_vl := converts_skip hB h_vl
+  replace h_fl := converts_skip hB h_fl
+  apply convertsM_bind_and hB
+  apply convertsM_of_convertsM (anyGapZoneTail_convertsM h_zoneA_pw h_zoneB_pw h_vi h_vl h_fl h_maxKV)
+  · ext i
+    simp [Vector.getElem_ofFn]
+  · rfl
 
 private lemma checkWhitespaceZones.convertsM
   {maxKVPairLen : ℕ} {state : ClapMState bn254}
@@ -575,7 +474,7 @@ private lemma checkWhitespaceZones.convertsM
                 field_vals[i] == 32) then (0 : ZMod bn254) else 1) = 0) )
 := by
   unfold checkWhitespaceZones
-  have hZones := zones_convertsM h_nl h_ci h_vi h_vl h_fl h_maxKV
+  have hZones := anyGapZone_convertsM h_nl h_ci h_vi h_vl h_fl h_maxKV
   have h_field_val' := converts_skip hZones h_field_val
   have h_perform' := converts_skip hZones h_perform
   apply convertsM_bind_and hZones
@@ -610,14 +509,6 @@ The value must not contain `,`, `}`, or `"`. Simpler than the whitespace check: 
 field elements directly (`a_val == b_val`), with no `UInt8`/`lessThan` machinery, so there is no
 byte-range side-condition to carry here. -/
 
-private lemma zmod_beq_eq_val_beq (c lit : ZMod bn254) (n : ℕ) (hlit : lit.val = n) :
-    (c == lit) = (c.val == n) := by
-  by_cases h : c.val = n
-  · have hc : c = lit := ZMod.val_injective bn254 (by rw [hlit]; exact h)
-    simp [hc, hlit]
-  · have hne : c ≠ lit := fun hc => h (by rw [hc, hlit])
-    simp [hne, h]
-
 private lemma isForbidden_eq_false_iff {c_val : ZMod bn254} :
     (((c_val == (44:ZMod bn254)) || (c_val == (125:ZMod bn254))) || (c_val == (34:ZMod bn254))) = false
       ↔ c_val.val ∉ [44, 125, 34] := by
@@ -629,10 +520,6 @@ private lemma isForbidden_eq_false_iff {c_val : ZMod bn254} :
   simp only [Bool.or_eq_false_iff, beq_eq_false_iff_ne, ne_eq, List.mem_cons,
     List.not_mem_nil, or_false, not_or]
   tauto
-
-private lemma xor_le_iff_interval {a b i : ℕ} (hab : a < b) :
-    (decide (a ≤ i) ^^ decide (b ≤ i)) = true ↔ a ≤ i ∧ i < b := by
-  by_cases hai : a ≤ i <;> by_cases hib : b ≤ i <;> simp [hai, hib] <;> omega
 
 /-- The per-element guarded check: `sel` (a zone/range-membership bit, as a general field element)
 `and`ed with `isForbidden` (the three-way `eq`/`or` chain), then `guardedEq0`. -/
@@ -741,30 +628,6 @@ private lemma forbiddenCheckFull_convertsM
       simpa [Vector.getElem_zip, Vector.getElem_ofFn, Vector.getElem_map] using h hg i
     · intro h hg i
       simpa [Vector.getElem_zip, Vector.getElem_ofFn, Vector.getElem_map] using h hg i
-
-def parseJWTFieldWithUnquotedValue
-  {maxKVPairLen maxNameLen maxValueLen : ℕ}
-  (fi : UnquotedFieldInput maxKVPairLen maxNameLen maxValueLen)
-  (h_name  : maxNameLen  ≤ maxKVPairLen)
-  (h_value : maxValueLen ≤ maxKVPairLen)
-  (skipChecks  : FB bn254) :
-  ClapM bn254 Unit
-:= do
-  -- Delegate shared structural checks
-  parseJWTFieldSharedLogic h_name h_value fi.field fi.name fi.value fi.colonIndex fi.valueIndex skipChecks
-  let perform : FB bn254 ← not skipChecks
-  -- Check 1: whitespace in three zones
-  checkWhitespaceZones fi.field.data perform fi.name.len fi.colonIndex fi.valueIndex fi.value.len fi.field.len
-  -- Check 2: value must not contain ',', '}', or '"'
-  -- valueSelector: 1s at [valueIndex, valueIndex + value_len)
-  let valueSel ← arraySelector maxKVPairLen fi.valueIndex (← fi.valueIndex + fi.value.len)
-  (valueSel.zip fi.field.data).foldlM (b := ()) fun _ (sel, c) ↦ do
-    let isForbidden ←
-      FB.or
-        (← FB.or (← eq c (← mkF ','.toNat)) (← eq c (← mkF '}'.toNat)))
-        (← eq c (← mkF '\"'.toNat))
-    -- If in value range, character must not be forbidden
-    guardedEq0 perform (← sel.and isForbidden)
 
 namespace parseJWTFieldWithUnquotedValue
 
