@@ -10,7 +10,7 @@ import Clap.Lang.Data.HashToField.hashBytesToField
 import Clap.Keyless.Input
 import Clap.Lang.Poseidon.Poseidon
 
-open Clap Lang FString FArray Primes
+open Clap Lang FString FArray FVec Primes
 
 /-- Verify a quoted JWT field: substring check, not-nested check, field parsing. -/
 def verifyQuotedField {maxPairLen maxNameLen maxValueLen : ℕ}
@@ -38,6 +38,35 @@ def verifyQuotedField {maxPairLen maxNameLen maxValueLen : ℕ}
 namespace verifyQuotedField
 
 open Poseidon RandomOracle Primes FiatShamir
+
+-- Poseidon is opaque to this proof (it sits beneath `assertIsSubstring`/`hashBytesToField`),
+-- as in `Data/HashToField/hashElemsToField.lean` and `Keyless/computeJSONStructure.lean`.
+attribute [local irreducible] Clap.Lang.Poseidon.poseidonBN254
+
+/-- The four-stage `do`-chain behind `verifyQuotedField`, stated over four fully abstract `Unit`
+actions, known only via their `ConvertsM` facts — never through `assertIsSubstring` /
+`enforceNotNested` / the `FB.ofBool`+`parseJWTFieldWithQuotedValue` chain by name. Because
+`action1`–`action4` are free variables here, nothing in this proof is headed by a concrete
+gadget's definition, so chaining `convertsM_bind_and` has nothing to `whnf` through. Instantiating
+this lemma with the concrete gadgets at the call site is a shallow, first-order match against the
+`do` block unfolded there; it never needs to unfold what `action1`–`action4` get assigned to. See
+`computeJSONStructure.bind_convertsM` for the same trick on a 3-stage, non-`Unit` chain. -/
+private lemma bind_convertsM
+  {state : ClapMState bn254}
+  {action1 : ClapM bn254 Unit} {C1 : Prop}
+  (h1 : ConvertsM FUnit.conversion action1 state () C1)
+  {action2 : ClapM bn254 Unit} {C2 : Prop}
+  (h2 : ConvertsM FUnit.conversion action2 (action1.getState state) () C2)
+  {action3 : ClapM bn254 Unit} {C3 : Prop}
+  (h3 : ConvertsM FUnit.conversion action3 (action2.getState (action1.getState state)) () C3)
+  {action4 : ClapM bn254 Unit} {C4 : Prop}
+  (h4 : ConvertsM FUnit.conversion action4
+    (action3.getState (action2.getState (action1.getState state))) () C4)
+:
+  ConvertsM FUnit.conversion
+    (do action1; action2; action3; action4)
+    state () (C1 ∧ C2 ∧ C3 ∧ C4)
+:= convertsM_bind_and h1 (convertsM_bind_and h2 (convertsM_bind_and h3 h4))
 
 lemma convertsM
   {H : HashFn}
@@ -131,6 +160,113 @@ lemma convertsM
           false
       )
     )
-:= sorry
+:= by
+  intro payloadV
+  have h_n_bn254 : MAX_JWT_PAYLOAD_LEN < bn254 := by decide
+  have hw_minBits : 2 ^ (minBits' MAX_JWT_PAYLOAD_LEN + 1) < bn254 := by
+    have h11 : minBits' MAX_JWT_PAYLOAD_LEN ≤ 11 := by
+      unfold minBits'
+      split
+      · omega
+      · rename_i hx
+        have hx11 : MAX_JWT_PAYLOAD_LEN < 2 ^ 11 := by decide
+        have := (Nat.log2_lt hx).mpr hx11
+        omega
+    have h2 : (2:ℕ) ^ (minBits' MAX_JWT_PAYLOAD_LEN + 1) ≤ 2 ^ 12 :=
+      Nat.pow_le_pow_right (by norm_num) (by omega)
+    have h4096 : (2:ℕ) ^ 12 < bn254 := by decide
+    omega
+  have hb8 : ∀ (b : Bool), (if b then (1 : ZMod bn254) else 0).val < 2 ^ 8 := by
+    intro b; cases b <;> decide
+  unfold verifyQuotedField
+  have hFact1 := assertIsSubstring.convertsM h_H h_pair
+    (FString.converts_data h_payload) h_payloadHash h_field_val h_field_len h_ni
+    h_len_bound h_n_bn254 hw_minBits
+  replace h_payloadHash := converts_skip hFact1 h_payloadHash
+  replace h_stringBodies := converts_skip hFact1 h_stringBodies
+  replace h_field_val := converts_skip hFact1 h_field_val
+  replace h_sb_val := converts_skip hFact1 h_sb_val
+  replace h_sb_len := converts_skip hFact1 h_sb_len
+  replace h_ni := converts_skip hFact1 h_ni
+  replace h_field_len := converts_skip hFact1 h_field_len
+  replace h_bracketsDepthMap := converts_skip hFact1 h_bracketsDepthMap
+  replace h_name_val := converts_skip hFact1 h_name_val
+  replace h_name_len := converts_skip hFact1 h_name_len
+  replace h_value_val := converts_skip hFact1 h_value_val
+  replace h_value_len := converts_skip hFact1 h_value_len
+  replace h_ci := converts_skip hFact1 h_ci
+  replace h_vi := converts_skip hFact1 h_vi
+  have hFact2 := assertIsSubstring.convertsM h_H h_pair
+    (FVec.converts_of_FArray_converts h_stringBodies) h_payloadHash
+    (FVec.converts_of_FArray_converts h_sb_val) h_sb_len h_ni
+    h_len_bound h_n_bn254 hw_minBits
+  replace h_ni := converts_skip hFact2 h_ni
+  replace h_field_len := converts_skip hFact2 h_field_len
+  replace h_bracketsDepthMap := converts_skip hFact2 h_bracketsDepthMap
+  replace h_field_val := converts_skip hFact2 h_field_val
+  replace h_sb_val := converts_skip hFact2 h_sb_val
+  replace h_name_val := converts_skip hFact2 h_name_val
+  replace h_name_len := converts_skip hFact2 h_name_len
+  replace h_value_val := converts_skip hFact2 h_value_val
+  replace h_value_len := converts_skip hFact2 h_value_len
+  replace h_ci := converts_skip hFact2 h_ci
+  replace h_vi := converts_skip hFact2 h_vi
+  have hFact3 := enforceNotNested.convertsM h_ni h_field_len h_bracketsDepthMap
+    h_n_bn254 hw_minBits
+  replace h_field_val := converts_skip hFact3 h_field_val
+  replace h_sb_val := converts_skip hFact3 h_sb_val
+  replace h_field_len := converts_skip hFact3 h_field_len
+  replace h_name_val := converts_skip hFact3 h_name_val
+  replace h_name_len := converts_skip hFact3 h_name_len
+  replace h_value_val := converts_skip hFact3 h_value_val
+  replace h_value_len := converts_skip hFact3 h_value_len
+  replace h_ci := converts_skip hFact3 h_ci
+  replace h_vi := converts_skip hFact3 h_vi
+  have hOfBool := FB.ofBool.convertsM (p := bn254) (b := false)
+    (state := (enforceNotNested quoted.nameIndex quoted.field.len json.bracketsDepthMap).getState
+      ((assertIsSubstring h_pair json.stringBodies json.payloadHash quoted.fieldStringBodies
+          quoted.nameIndex).getState
+        ((assertIsSubstring h_pair json.payload.data json.payloadHash quoted.field
+            quoted.nameIndex).getState state)))
+  replace h_field_val := converts_skip hOfBool h_field_val
+  replace h_sb_val := converts_skip hOfBool h_sb_val
+  replace h_field_len := converts_skip hOfBool h_field_len
+  replace h_name_val := converts_skip hOfBool h_name_val
+  replace h_name_len := converts_skip hOfBool h_name_len
+  replace h_value_val := converts_skip hOfBool h_value_val
+  replace h_value_len := converts_skip hOfBool h_value_len
+  replace h_ci := converts_skip hOfBool h_ci
+  replace h_vi := converts_skip hOfBool h_vi
+  have hFact4 := parseJWTFieldWithQuotedValue.convertsM h_H h_name_len_lt h_value_len_lt
+    h_len_bound h_field_val h_sb_val h_field_len h_name_val h_name_len h_value_val h_value_len
+    h_ci h_vi hOfBool.result h_name_len_w h_colon_index_w h_value_index_w h_field_len_w
+    h_sum_len_w
+  have hFact4' := convertsM_of_convertsM hFact4 rfl ⟨fun h _ ↦ h, fun h ↦ h trivial⟩
+  have hStep4 := convertsM_bind hOfBool hFact4' (fun _ ↦ trivial)
+  have hWhole := bind_convertsM hFact1 hFact2 hFact3 hStep4
+  -- `parseJWTFieldWithQuotedValue.convertsM`'s own conclusion states
+  -- `(value_index_val - 1).val < maxKVPairLen` twice (once standalone, once just before the
+  -- `0 < (value_index_val + value_len + 1).val` block); the public-facing goal above drops the
+  -- second occurrence (and the leading field-byte-range conjunct, redundant with `hA1`'s own).
+  refine convertsM_of_convertsM hWhole rfl ?_
+  constructor
+  · rintro ⟨⟨hA1, haccepts1⟩, ⟨⟨-, hA2b1, -, hA2b2⟩, haccepts2⟩,
+      ⟨-, -, -, hsum0⟩,
+      -, h2, h3, h4, h5, h6, h7, h8, h9, h10, -, h12, h13, h14, h15, h16, h17, h18, h19⟩
+    obtain ⟨hAbyte, hA1b1, hA1MAX, hA1b2⟩ := hA1
+    exact ⟨⟨hAbyte, hA1b1, hA1MAX, hA1b2⟩, haccepts1, ⟨hA2b1, hA2b2⟩, haccepts2, hsum0,
+      h2, h3, h4, h5, h6, h7, h8, h9, h10, h12, h13, h14, h15, h16, h17, h18, h19⟩
+  · rintro ⟨hA1, haccepts1, ⟨hA2b1, hA2b2⟩, haccepts2, hsum0,
+      h2, h3, h4, h5, h6, h7, h8, h9, h10, h12, h13, h14, h15, h16, h17, h18, h19⟩
+    obtain ⟨hAbyte, hA1b1, hA1MAX, hA1b2⟩ := hA1
+    have hByteSb : ∀ i : Fin maxKVPairLen,
+        (sb_vals.map fun (b : Bool) ↦ if b then (1 : ZMod bn254) else 0)[i].val < 2 ^ 8 := by
+      intro i
+      simp only [Fin.getElem_fin, Vector.getElem_map]
+      exact hb8 sb_vals[i]
+    exact ⟨⟨⟨hAbyte, hA1b1, hA1MAX, hA1b2⟩, haccepts1⟩,
+      ⟨⟨hByteSb, hA2b1, hA1MAX, hA2b2⟩, haccepts2⟩,
+      ⟨hA1b1, hA1MAX, hA1b2, hsum0⟩,
+      ⟨hAbyte, h2, h3, h4, h5, h6, h7, h8, h9, h10, h4, h12, h13, h14, h15, h16, h17, h18, h19⟩⟩
 
 end verifyQuotedField
