@@ -4,6 +4,13 @@ import Clap.RandomOracle.HashFn
 import Clap.RandomOracle.RandomOracle
 import Clap.FiatShamir.Polynomial
 import Clap.Keyless.Allocate
+import Clap.Keyless.assertFieldName
+import Clap.Keyless.computeIdentityCommitment
+import Clap.Keyless.computeJSONStructure
+import Clap.Keyless.verifyJWTStructure
+import Clap.Keyless.verifyNonce
+import Clap.Keyless.verifyQuotedField
+import Clap.Keyless.verifyTimestamp
 import Clap.Examples.PoseidonProgram
 import Clap.Examples.RangeCheckedLessThan
 import Clap.Test.Backend

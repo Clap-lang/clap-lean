@@ -53,7 +53,7 @@ private def depth {n} (v : Vector (ZMod p) n) (i : Fin n) : ZMod p :=
   if v[i] == -1 then s - 1 else s
 
 /-- Depth at index `i` ignoring outermost brackets . -/
-private def depthIgnoringOutermostBrackets {n}
+def depthIgnoringOutermostBrackets {n}
   (v : Vector (ZMod p) n)
   (i : Fin n) :
   ZMod p
