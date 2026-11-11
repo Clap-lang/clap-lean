@@ -18,6 +18,7 @@ import Clap.Lang.Data.FString.isSubstring
 import Clap.Lang.Data.FArray.selectArrayValue
 import Clap.Lang.Data.FArray.arraySelectorComplex
 import Clap.Lang.Data.FArray.arraySelector
+import Clap.Keyless.Input
 import Clap.Lang.Core.FUnit.guardedAssertEq
 import Clap.Lang.Data.JWT.parseJWTFieldSharedLogic
 import Clap.Lang.Data.JWT.Basic
@@ -28,16 +29,6 @@ import Clap.Lang.Data.JWT.Scaffold.parseJWTFieldWithQuotedValue
 namespace Clap.Lang
 
 open Primes
-
-/-- JWT field with a quoted value (aud, uid, iss, nonce). -/
-structure QuotedFieldInput (maxPairLen maxNameLen maxValueLen : ℕ) where
-  field             : FString bn254 maxPairLen
-  name              : FString bn254 maxNameLen
-  value             : FString bn254 maxValueLen
-  fieldStringBodies : PaddedVector (FB bn254) bn254 maxPairLen
-  nameIndex         : F bn254
-  colonIndex        : F bn254
-  valueIndex        : F bn254
 
 /-! ## Value-quote checks
 
@@ -152,7 +143,7 @@ private def checkStringBodies {maxKVPairLen : ℕ}
 
 def parseJWTFieldWithQuotedValue
   {maxKVPairLen maxNameLen maxValueLen : ℕ}
-  (fi : QuotedFieldInput maxKVPairLen maxNameLen maxValueLen)
+  (fi : JWT.QuotedFieldInput bn254 maxKVPairLen maxNameLen maxValueLen)
   (h_name  : maxNameLen  ≤ maxKVPairLen)
   (h_value : maxValueLen ≤ maxKVPairLen)
   (skipChecks         : FB bn254) :
@@ -582,7 +573,7 @@ lemma convertsM
   {maxKVPairLen maxNameLen maxValueLen : ℕ}
   (h_name_len_lt  : maxNameLen  ≤ maxKVPairLen)
   (h_value_len_lt : maxValueLen ≤ maxKVPairLen)
-  {quoted : QuotedFieldInput maxKVPairLen maxNameLen maxValueLen}
+  {quoted : JWT.QuotedFieldInput bn254 maxKVPairLen maxNameLen maxValueLen}
   {skipChecks  : FB bn254}
   -- Ideal values
   {field_vals : Vector (ZMod bn254) maxKVPairLen}

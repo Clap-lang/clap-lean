@@ -69,6 +69,66 @@ lemma convertsM_mapM
     rw [h_vals]
     exact FVec.converts_push h_base h_last
 
+/-- `convertsM_mapM` for a step that also reads a fixed context `ctx`, such as a value every
+element is combined with. The `mapM` analogue of `convertsM_foldlM_ctx`
+(`Clap/Lang/Core/Combinators/foldlM.lean`). -/
+lemma convertsM_mapM_ctx
+  {k} {γ δ}
+  {C_ctx : Conversion p δ}
+  {C_elem : Conversion p γ}
+  {f : δ → γ → ClapM p (F p)}
+  {f_spec : C_ctx.IdealT → C_elem.IdealT → ZMod p}
+  {state : ClapMState p}
+  {ctx : δ}
+  {ctx_val : C_ctx.IdealT}
+  {v : Vector γ k}
+  {vals : Vector C_elem.IdealT k}
+  (h_ctx : Converts C_ctx state ctx ctx_val)
+  (h_v : ∀ i : Fin k, Converts C_elem state v[i] vals[i])
+  (h_f : ∀ {state' : ClapMState p} {x x_val},
+          Converts C_ctx state' ctx ctx_val →
+          Converts C_elem state' x x_val →
+          ConvertsM F.conversion (f ctx x) state' (f_spec ctx_val x_val) True)
+:
+  ConvertsM FVec.conversion (v.mapM (f ctx)) state (vals.map (f_spec ctx_val)) True
+:= by
+  induction' k with k h_k generalizing state
+  . have hv : v = #v[] := by grind
+    have hvals : vals = #v[] := by grind
+    subst hv hvals
+    simp
+    apply convertsM_pure
+    . exact FVec.converts_empty
+    . trivial
+  . rw [Vector.mapM_succ]
+    set v_base := Vector.cast (m := k) (by trivial) v.pop
+    set vals_base := Vector.cast (m := k) (by trivial) vals.pop
+    have h_vb : ∀ i : Fin k, Converts C_elem state v_base[i] vals_base[i] := by
+      intro ⟨i, h_i⟩
+      have h1 : v_base[i]'h_i = v[i]'(by omega) := by simp [v_base]
+      have h2 : vals_base[i]'h_i = vals[i]'(by omega) := by simp [vals_base]
+      simp only [Fin.getElem_fin]
+      rw [h1, h2]
+      exact h_v ⟨i, by omega⟩
+    have h_ih := h_k h_ctx h_vb
+    have h_pop : v.pop = v_base := rfl
+    rw [h_pop]
+    step h_ih as base
+    -- `step` re-frames every `Converts` in context through the new state, including `h_ctx`.
+    have h_last : Converts C_elem base_state v[k] vals[k] :=
+      converts_skip h_ih (h_v ⟨k, Nat.lt_succ_self k⟩)
+    step (h_f h_ctx h_last) as last
+    have h_vals : vals.map (f_spec ctx_val) =
+        (vals_base.map (f_spec ctx_val)).push (f_spec ctx_val vals[k]) := by
+      ext i hi
+      rw [Vector.getElem_push]
+      split
+      . simp [vals_base]
+      . have : i = k := by omega
+        subst this; simp
+    rw [h_vals]
+    exact FVec.converts_push h_base h_last
+
 /-- `Vector.mapM` of a gadget with any result conversion, where each step asserts
 `step_constraints` about its element. The map's constraint is the conjunction of the
 per-element ones. -/

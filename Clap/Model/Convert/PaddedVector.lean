@@ -107,6 +107,29 @@ lemma converts_data
     rwa [List.getElem_append_left (by omega),
          List.getElem_append_left (by omega)] at this
 
+/-- `converts_data`'s `Bool`-ideal counterpart: the same `.data` field, but viewed as a bit
+array (`FArray.conversion`) rather than a field-element vector (`FVec.conversion`). -/
+lemma converts_data_bits
+  {w}
+  {state : ClapMState p}
+  {padded : PaddedBitVector p w}
+  {arr : Array Bool}
+  (h : Converts conversion state padded arr) :
+  Converts FArray.conversion state padded.data
+    (Vector.ofFn fun i : Fin w ↦ if h : i.val < arr.toList.length then arr[i.val]'h else false)
+:= by
+  have h_fvec := converts_data h
+  refine converts_cast h_fvec rfl ?_
+  apply congrArg Vector.toList
+  apply Vector.ext
+  intro i hi
+  simp only [Vector.getElem_map, Vector.getElem_ofFn, encodeV, Array.length_toList]
+  by_cases hlt : i < arr.size
+  · rw [dif_pos hlt, dif_pos hlt]
+    cases arr[i] <;> simp
+  · rw [dif_neg hlt, dif_neg hlt]
+    simp
+
 lemma converts_len
   {w}
   {state : ClapMState p}
