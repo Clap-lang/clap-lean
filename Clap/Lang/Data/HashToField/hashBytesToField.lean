@@ -40,6 +40,9 @@ def hashBytesToField {numBytes : ℕ} (input : FString bn254 numBytes) : ClapM b
   let elems ← Packing.chunksToFieldElems 31 8 padded
   hashElemsToField (elems.push input.len)
 
+-- Se comment above
+def maxNumBytes := 1953
+
 /-- The field elements `hashBytesToField` hashes: the bytes zero-padded to a multiple of 31 and
 packed 31 per element, then `len`. -/
 def hashBytesToFieldElems {numBytes : ℕ} (data : Vector (ZMod bn254) numBytes)

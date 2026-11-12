@@ -115,6 +115,40 @@ lemma num2bitsLsbPureV_getElem_last [NeZero p] (n : ℕ) (f : ZMod p) :
   rw [Vector.getElem_reverse (by omega)]
   simpa using num2bitsLsbPureV.aux_getElem_zero n f
 
+private lemma num2bitsLsbPureV.aux_getElem [NeZero p] :
+    ∀ (n : ℕ) (f : ZMod p) (j : ℕ) (hj : j < n),
+      (num2bitsLsbPureV.aux n f)[j]'hj = ((f.val / 2^(n-1-j) % 2 : ℕ) : ZMod p) := by
+  intro n
+  induction n with
+  | zero => intro _ j hj; omega
+  | succ n ih =>
+    intro f j hj
+    unfold num2bitsLsbPureV.aux
+    by_cases hjn : j < n
+    · rw [Vector.getElem_push_lt hjn, ih ((f.val/2 : ℕ) : ZMod p) j hjn]
+      have h1 : ((f.val/2 : ℕ) : ZMod p).val = f.val/2 := by
+        rw [ZMod.val_natCast_of_lt]
+        exact lt_of_le_of_lt (Nat.div_le_self _ _) (ZMod.val_lt f)
+      rw [h1, Nat.div_div_eq_div_mul]
+      have hexp : (2:ℕ) * 2 ^ (n-1-j) = 2 ^ (n-j) := by
+        rw [← pow_succ']
+        congr 1
+        omega
+      have hexp' : n - j = n + 1 - 1 - j := by omega
+      rw [hexp, hexp']
+    · have hj' : j = n := by omega
+      subst hj'
+      rw [Vector.getElem_push_eq]
+      simp
+
+/-- The `k`-th bit (from the LSB) of the `n`-bit LSB-first decomposition of `f`. -/
+lemma num2bitsLsbPureV_getElem [NeZero p] (n : ℕ) (f : ZMod p) (k : ℕ) (hk : k < n) :
+    (num2bitsLsbPureV n f)[k]'hk = ((f.val / 2^k % 2 : ℕ) : ZMod p) := by
+  unfold num2bitsLsbPureV
+  rw [Vector.getElem_reverse (by omega), num2bitsLsbPureV.aux_getElem n f (n-1-k) (by omega)]
+  have : n - 1 - (n - 1 - k) = k := by omega
+  rw [this]
+
 /-- `num2bitsLsbPureV`, unfolded one bit at a time: the LSB comes off the front, the rest is the
 decomposition of `f.val / 2`. -/
 lemma num2bitsLsbPureV_succ {n : ℕ} (f : ZMod p) :

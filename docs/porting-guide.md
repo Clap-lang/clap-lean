@@ -22,9 +22,10 @@ The old model's *model-agnostic* maths survived the split and is live under
 because the `num2bits` gate's semantics `stepNum2bits` is specified against `num2bitsLsbPureV`),
 `Wheels.lean` and `Primes.lean` beneath it. Editing those changes the live build.
 
-Several files in `old/` are themselves 85–90% line-commented already — `old/Clap/JWT.lean`
-(1100 of 1245 lines), `old/Clap/FString.lean`, `old/Clap/Keyless.lean`,
-`old/Clap/HashToField.lean`, `old/Clap/Sha2/Keyless.lean`, `old/Clap/Poseidon/Poseidon.lean`.
+Several files in `old/` are themselves 85–90% line-commented already — `old/Clap/FString.lean`,
+`old/Clap/Keyless.lean`, `old/Clap/HashToField.lean`, `old/Clap/Sha2/Keyless.lean`,
+`old/Clap/Poseidon/Poseidon.lean`. `old/Clap/JWT.lean` is 100% comment (1245 of 1245 lines) —
+it is reference source only, and every gadget in it is now ported; see §JWT below.
 They are reference source, not working code.
 
 ## The two shifts that cause every other difference
@@ -327,7 +328,7 @@ a gadget that already exists under another of these three names — check all th
 
 | Gadget | Old location | Note |
 |---|---|---|
-| all of `old/Clap/Base64Len.lean` | | **in progress** in [Data/Base64Len/](../Clap/Lang/Data/Base64Len/) (Andrei Burdusa's branches): `base64UrlDecodedLength` is proved; `base64UrlLookup.convertsM` and `base64UrlDecode.convertsM` are still `sorry` |
+| all of `old/Clap/Base64Len.lean` | | **done**, in [Data/Base64Len/](../Clap/Lang/Data/Base64Len/) (Andrei Burdusa's branches): `base64UrlDecodedLength`, `base64UrlLookup` and `base64UrlDecode` are all proved, no `sorry`. `base64UrlLookup` follows Circom's `Base64UrlLookup` constraint for constraint, each Lean line with its `-- Circom:` line: Circom's comparators (`GreaterThan(8)(in, 65-1)`, `LessThan(8)(in, 90+1)`, …) and a `share` for each nonlinear signal. Its `convertsM` holds for every field element, with only `2 ^ 9 < p` |
 | `Sha2.Circuit.maj` / `xor3` | `old/Clap/Sha2/` | `share` for the degree reduction |
 
 The `old/Clap/Array.lean` selectors are done: `selectArrayValue`, `rightArraySelector`,
@@ -421,11 +422,22 @@ For strings encoded by `FString.encodeV`, the specs read as string statements:
 The price is that no character is NUL, where padding could stand in for one. That is what the
 older development's `nonEmpty` hypothesis was for.
 
-**Unblocked, not yet done**: `old/Clap/JWT.lean`, `old/Clap/Keyless.lean`. A first JWT gadget,
-`bracketsMap`, is in [JWT/bracketsMap.lean](../Clap/Lang/Data/JWT/bracketsMap.lean). Both can now hash with
-`hashBytesToField` and check substrings and concatenations. They also feed parsed indices into
-`lessThan` and input characters into `F8.*` / `isWhitespace`, which do not range-check their
-operands; see the range-consumer trap below.
+**`old/Clap/JWT.lean` is done.** All nine gadgets are ported into
+[Clap/Lang/Data/JWT/](../Clap/Lang/Data/JWT/), each with a complete `convertsM` and no `sorry`:
+`stringBodies`, `bracketsMap`, `bracketsDepthMap`, `enforceNotNested`, `emailVerifiedCheck`,
+`parseJWTFieldSharedLogic`, `parseJWTFieldWithUnquotedValue`, `parseJWTFieldWithQuotedValue`,
+`parseEmailVerifiedField` (the old `hadamardProduct` / `escalarProduct` helpers are subsumed into
+`bracketsDepthMap.lean`'s `scanlM`/`mapM`-based reimplementation, not ported standalone). They
+hash with `hashBytesToField` and feed parsed indices into `lessThan` and input characters into
+`F8.*` / `isWhitespace`, which do not range-check their operands; see the range-consumer trap
+below.
+
+**`old/Clap/Keyless.lean` is not yet done.** Only the input-data half exists so far —
+[Clap/Keyless/Input.lean](../Clap/Keyless/Input.lean) and
+[Clap/Keyless/Allocate.lean](../Clap/Keyless/Allocate.lean), the layout and allocators for the
+Keyless public input. The composition that wires the JWT gadgets above into
+`verifyJWTStructure` / `computeJSONStructure` — the rest of the Keyless circuit, including RSA,
+Sha2, nonce and EPK/commitment checks — has not been started.
 
 **Retired, do not port**: `old/Clap/Circuit.lean` (PHOAS syntax), `old/Clap/Simulation.lean`,
 `old/Clap/Compilation.lean`, `old/Clap/Compiler/*` (the `#compile` reifier), `old/Clap/Milestone.lean`.
