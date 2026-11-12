@@ -288,7 +288,7 @@ private lemma checkDelimiterThenSubstring_convertsM
   (h_start : Converts F.conversion state start start_val)
   (h_perform : Converts FB.conversion state perform perform_val)
   (h_maxKV : maxKVPairLen < bn254)
-  (h_m : maxSubLen ≤ 1953) (hw : 2 ^ (minBits' maxKVPairLen + 1) < bn254)
+  (h_m : maxSubLen ≤ HashToField.maxNumBytes) (hw : 2 ^ (minBits' maxKVPairLen + 1) < bn254)
 :
   ConvertsM FUnit.conversion
     (checkDelimiterThenSubstring h_len_lt field_data fieldHash substr idx lit start perform)
@@ -343,7 +343,7 @@ private lemma checkNameDelimiterThenSubstring_convertsM
   (h_name_len : Converts F.conversion state name.len name_len)
   (h_perform : Converts FB.conversion state perform perform_val)
   (h_maxKV : maxKVPairLen < bn254)
-  (h_m : maxNameLen ≤ 1953) (hw : 2 ^ (minBits' maxKVPairLen + 1) < bn254)
+  (h_m : maxNameLen ≤ HashToField.maxNumBytes) (hw : 2 ^ (minBits' maxKVPairLen + 1) < bn254)
 :
   ConvertsM FUnit.conversion
     (checkNameSubstring h_name_len_lt field_data fieldHash name perform)
@@ -372,10 +372,6 @@ lemma convertsM
   {maxKVPairLen maxNameLen maxValueLen : ℕ}
   (h_name_len_lt  : maxNameLen  ≤ maxKVPairLen)
   (h_value_len_lt : maxValueLen ≤ maxKVPairLen)
-  -- Needed by `hashBytesToField.convertsM` (`numBytes ≤ 1953`) and, via `h_name_len_lt` /
-  -- `h_value_len_lt` and `maxKVPairLen ≤ 1953 ≪ bn254`, by `isSubstring.convertsM`'s
-  -- `m ≤ 1953`, `n < bn254` and `2 ^ (minBits' n + 1) < bn254` for both substring checks.
-  (h_len_bound    : maxKVPairLen ≤ 1953)
   {field       : FString bn254 maxKVPairLen}
   {name        : FString bn254 maxNameLen}
   {value       : FString bn254 maxValueLen}
@@ -407,6 +403,8 @@ lemma convertsM
   (h_value_index_w : value_index_val.val < 2 ^ 20)
   (h_field_len_w : field_len.val < 2 ^ 20)
   (h_sum_len_w : (name_len + value_len).val < 2 ^ 20)
+  -- Required by dependencies
+  (h_len_bound : maxKVPairLen ≤ HashToField.maxNumBytes)
   :
   ConvertsM FUnit.conversion
     (parseJWTFieldSharedLogic h_name_len_lt h_value_len_lt field name value
@@ -446,10 +444,10 @@ lemma convertsM
 := by
   have hw20 : (2:ℕ) ^ (20 + 1) < bn254 := by decide
   have h_maxKV_bn254 : maxKVPairLen < bn254 := by
-    have h1953 : (1953:ℕ) < bn254 := by decide
+    have h1953 : (HashToField.maxNumBytes:ℕ) < bn254 := by decide
     omega
-  have h_maxNameLen_1953 : maxNameLen ≤ 1953 := h_name_len_lt.trans h_len_bound
-  have h_maxValueLen_1953 : maxValueLen ≤ 1953 := h_value_len_lt.trans h_len_bound
+  have h_maxNameLen_1953 : maxNameLen ≤ HashToField.maxNumBytes := h_name_len_lt.trans h_len_bound
+  have h_maxValueLen_1953 : maxValueLen ≤ HashToField.maxNumBytes := h_value_len_lt.trans h_len_bound
   have hw_minBits : 2 ^ (minBits' maxKVPairLen + 1) < bn254 := by
     have h11 := minBits'_le_of_le_1953 h_len_bound
     have hp : (2:ℕ) ^ (minBits' maxKVPairLen + 1) ≤ 2 ^ 12 :=
@@ -605,7 +603,7 @@ lemma convertsM
       exact ⟨hoA hp, hoB hp, hoC hp, hD hp, hE hp, hF hp, hG hp, hIacc hp, hJ hp⟩
     · rintro ⟨hChashT, hByteNT, hByteVT, hNameBoundT, hCiBoundT, hCk8BoundT, h0ltNameT, hw2bT,
         hw2cT, hw2dT, h0ltValueT, hParsesT⟩
-      have h1953 : (1953 : ℕ) < bn254 := by decide
+      have h1953 : (HashToField.maxNumBytes : ℕ) < bn254 := by decide
       have h0maxKV : 0 < maxKVPairLen := by omega
       have h1ltMaxKV : 1 < maxKVPairLen := by omega
       have heq1 : ((1 : ZMod bn254) + name_len).val = 1 + name_len.val :=

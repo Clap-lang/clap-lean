@@ -737,10 +737,6 @@ lemma convertsM
   {maxKVPairLen maxNameLen maxValueLen : ℕ}
   (h_name_len_lt  : maxNameLen  ≤ maxKVPairLen)
   (h_value_len_lt : maxValueLen ≤ maxKVPairLen)
-  -- Needed by `hashBytesToField.convertsM` (`numBytes ≤ 1953`) and, via `h_name_len_lt` /
-  -- `h_value_len_lt` and `maxKVPairLen ≤ 1953 ≪ bn254`, by `isSubstring.convertsM`'s
-  -- `m ≤ 1953`, `n < bn254` and `2 ^ (minBits' n + 1) < bn254` for both substring checks.
-  (h_len_bound    : maxKVPairLen ≤ 1953)
   {field       : FString bn254 maxKVPairLen}
   {name        : FString bn254 maxNameLen}
   {value       : FString bn254 maxValueLen}
@@ -769,6 +765,8 @@ lemma convertsM
   (h_value_index_w : value_index_val.val < 2 ^ 20)
   (h_field_len_w : field_len.val < 2 ^ 20)
   (h_sum_len_w : (name_len + value_len).val < 2 ^ 20)
+  -- Required by dependencies
+  (h_len_bound : maxKVPairLen ≤ HashToField.maxNumBytes)
   :
   ConvertsM FUnit.conversion
     (parseEmailVerifiedField h_name_len_lt h_value_len_lt field name value
@@ -804,7 +802,7 @@ lemma convertsM
     )
 := by
   have h_maxKV : maxKVPairLen < bn254 := by
-    have h1953 : (1953:ℕ) < bn254 := by decide
+    have h1953 : (HashToField.maxNumBytes:ℕ) < bn254 := by decide
     omega
   unfold parseEmailVerifiedField
   step (FB.ofBool.convertsM (p := bn254)) as f
@@ -856,9 +854,9 @@ lemma convertsM
             (if ((lessThan.lessThanRaw 8 8 field_vals[i] && lessThan.lessThanRaw 8 field_vals[i] 14) ||
                   field_vals[i] == 32) then (0 : ZMod bn254) else 1) = 0) ) )
     ?_ rfl ?hiff
-  have hSL := parseJWTFieldSharedLogic.convertsM h_H h_name_len_lt h_value_len_lt h_len_bound
+  have hSL := parseJWTFieldSharedLogic.convertsM h_H h_name_len_lt h_value_len_lt
     h_field_val h_field_len h_name_val h_name_len h_value_val h_value_len h_ci h_vi h_f
-    h_name_len_w h_colon_index_w h_value_index_w h_field_len_w h_sum_len_w
+    h_name_len_w h_colon_index_w h_value_index_w h_field_len_w h_sum_len_w h_len_bound
   replace h_field_val := converts_skip hSL h_field_val
   replace h_name_len := converts_skip hSL h_name_len
   replace h_ci := converts_skip hSL h_ci

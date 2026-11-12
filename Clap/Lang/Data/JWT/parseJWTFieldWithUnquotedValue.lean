@@ -668,10 +668,6 @@ lemma convertsM
   {maxKVPairLen maxNameLen maxValueLen : ℕ}
   (h_name_len_lt  : maxNameLen  ≤ maxKVPairLen)
   (h_value_len_lt : maxValueLen ≤ maxKVPairLen)
-  -- Needed by `hashBytesToField.convertsM` (`numBytes ≤ 1953`) and, via `h_name_len_lt` /
-  -- `h_value_len_lt` and `maxKVPairLen ≤ 1953 ≪ bn254`, by `isSubstring.convertsM`'s
-  -- `m ≤ 1953`, `n < bn254` and `2 ^ (minBits' n + 1) < bn254` for both substring checks.
-  (h_len_bound    : maxKVPairLen ≤ 1953)
   {unquoted :     UnquotedFieldInput maxKVPairLen maxNameLen maxValueLen}
   {skipChecks  : FB bn254}
   -- Ideal values
@@ -699,15 +695,8 @@ lemma convertsM
   (h_value_index_w : value_index_val.val < 2 ^ 20)
   (h_field_len_w : field_len.val < 2 ^ 20)
   (h_sum_len_w : (name_len + value_len).val < 2 ^ 20)
-  -- `checkWhitespaceZones`'s zone C (`arraySelectorComplex maxKVPairLen (valueIndex+valueLen)
-  -- (fieldLen-1)`) is computed *unconditionally*, regardless of `skipChecks` — unlike
-  -- `parseJWTFieldSharedLogic`'s own checks, it is not itself behind a `guardedEq0`. Its emitted
-  -- constraint needs `(value_index_val+value_len).val ≤ maxKVPairLen`, which — when
-  -- `skipChecks_val = true` — `parseJWTFieldSharedLogic.parses`'s check 2
-  -- (`field_len > name_len + value_len`) is unavailable to supply (it sits behind that same
-  -- `¬skipChecks_val →`). So, unlike the quoted sibling (which hardcodes `skipChecks := false`
-  -- for `parseJWTFieldSharedLogic` and can always reach for check 2), this bound must be taken
-  -- as an explicit hypothesis here.
+  -- Required by dependencies
+  (h_len_bound : maxKVPairLen ≤ HashToField.maxNumBytes)
   (h_value_window : (value_index_val + value_len).val ≤ maxKVPairLen)
   :
   ConvertsM FUnit.conversion
@@ -750,6 +739,7 @@ lemma convertsM
         skipChecks_val
     )
 := by
+  unfold HashToField.maxNumBytes at h_len_bound
   have h_maxKV : maxKVPairLen < bn254 := by
     have h1953 : (1953:ℕ) < bn254 := by decide
     omega
@@ -809,9 +799,9 @@ lemma convertsM
               (if (((field_vals[i] == (44:ZMod bn254)) || (field_vals[i] == (125:ZMod bn254))) ||
                   (field_vals[i] == (34:ZMod bn254))) then (1:ZMod bn254) else 0) = 0) ) ) )
     ?_ rfl ?hiff
-  · have hSL := parseJWTFieldSharedLogic.convertsM h_H h_name_len_lt h_value_len_lt h_len_bound
+  · have hSL := parseJWTFieldSharedLogic.convertsM h_H h_name_len_lt h_value_len_lt
       h_field_val h_field_len h_name_val h_name_len h_value_val h_value_len h_ci h_vi h_sk
-      h_name_len_w h_colon_index_w h_value_index_w h_field_len_w h_sum_len_w
+      h_name_len_w h_colon_index_w h_value_index_w h_field_len_w h_sum_len_w h_len_bound
     replace h_field_val := converts_skip hSL h_field_val
     replace h_name_len := converts_skip hSL h_name_len
     replace h_ci := converts_skip hSL h_ci
