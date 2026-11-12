@@ -27,15 +27,19 @@ lemma convertsM
   [p.AtLeastTwo]
   {MAX_UID_NAME_LEN MAX_EV_NAME_LEN MAX_EV_VALUE_LEN : ℕ}
   {state : ClapMState p}
+  -- Circuit parameters
   {uidName : FString p MAX_UID_NAME_LEN}
   {evName  : FString p MAX_EV_NAME_LEN}
   {evValue : FString p MAX_EV_VALUE_LEN}
+  -- Ideal values
   {uidName_val : String}
   {evName_val  : String}
   {evValue_val : String}
+  -- `Converts` hypotheses
   (h_uidName : Converts FString.conversion state uidName uidName_val)
   (h_evName : Converts FString.conversion state evName evName_val)
   (h_evValue : Converts FString.conversion state evValue evValue_val)
+  -- Required by dependencies
   (h_p : 256 < p)
   (h_uidName_w : MAX_UID_NAME_LEN < p)
   (h_evName_w  : MAX_EV_NAME_LEN  < p)
