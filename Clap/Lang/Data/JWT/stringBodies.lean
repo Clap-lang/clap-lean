@@ -3,6 +3,8 @@ import Clap.Lang.Core.F.mkSub
 import Clap.Lang.Core.F.mkAdd
 import Clap.Lang.Core.F.mkMul
 import Clap.Lang.Core.FB.eq
+import Clap.Lang.Core.FB.and
+import Clap.Lang.Core.FB.not
 import Clap.Lang.Core.Combinators.scanlM
 import Clap.Lang.Core.Combinators.mapM
 import Clap.Lang.Data.FArray.OneHotRaw
@@ -31,48 +33,41 @@ demarquing the spaces in between quotes, so that the indices in between quotes i
 given the value `1` in the output, and are 0 otherwise. Escaped quotes are not considered quotes
 in this subcircuit (ported from `old/Clap/JWT.lean`'s `stringBodies`).
 
-Five stages, each a field-arithmetic scan or pointwise map over 0/1 values
-(`AND a b = a*b`, `NOT a = 1-a`, `XOR a b = a+b-2ab`):
-
-1. `wasEscapedArr` — exclusive-prefix scan: was the *previous* character an active, unescaped
+1. `escapedArr` — exclusive-prefix scan: was the *previous* character an active, unescaped
    backslash (`0` at position `0`, no previous character).
 2. `isQuoteCharArr` — pointwise: is this character a real, unescaped `"`.
-3. `openedBeforeArr` — exclusive-prefix XOR-scan of `isQuoteCharArr`: the quote-parity (are we
+3. `quoteParity` — exclusive-prefix XOR-scan of `isQuoteCharArr`: the quote-parity (are we
    inside a string?) just before this character.
 4. `rawInsideQuotesArr` — pointwise: "inside quotes, and not itself a quote mark" — correct for
    real characters, but may stay `1` through the zero-padded tail if the real content ends with
    an odd number of quotes (an unterminated string).
 5. `lengthMaskArr` + the final multiply — `1` for `i < input.len`, `0` from there on, so the
-   zero-padded tail always reads `0` regardless of what stage 4 computed for it. Built from
-   `oneHotRaw` (not `singleOneArray`/`leftArraySelector`) specifically so this stays satisfiable
-   — with ideal value `1`-everywhere — even when `input.len ≥ w` (no padding at all): `oneHotRaw`
-   doesn't assert its index is in range the way `singleOneArray` does. -/
+   zero-padded tail always reads `0` regardless of what stage 4 computed for it.
+-/
 def stringBodies [p.AtLeastTwo] {w} (input : FString p w) : ClapM p (FArray p w) := do
   let zeroF ← mkF 0
-  -- Stage 1: wasEscapedArr[i] = "was position i-1 an active, unescaped backslash".
-  let wasEscapedArr ← Vector.scanlM (fun wasEscaped char ↦ do
-    let isBackslash ← eq char (← mkF 92)
-    -- NOT wasEscaped: `1 - x` is boolean negation for a 0/1 field value `x`.
-    let notWasEscaped ← mkSub (← mkF 1) wasEscaped
-    mkMul isBackslash notWasEscaped) zeroF input.data
+  -- Stage 1: escapedArr[i] = "was position i-1 an active, unescaped backslash".
+  let escapedArr : Vector (FB p) w ← input.data.scanlM (init := zeroF)
+    fun wasEscaped char ↦ do
+      let isBackslash ← eq char (← mkF 92)
+      let notWasEscaped ← not wasEscaped
+      FB.and isBackslash notWasEscaped
   -- Stage 2: isQuoteCharArr[i] = "character i is an unescaped double-quote".
-  let isQuoteCharArr ← (input.data.zip wasEscapedArr).mapM (fun (char, wasEscaped) ↦ do
-    let isQuoteChar ← eq char (← mkF 34)
-    -- NOT wasEscaped (same 1 - x pattern as stage 1).
-    let notWasEscaped ← mkSub (← mkF 1) wasEscaped
-    mkMul isQuoteChar notWasEscaped)
-  -- Stage 3: openedBeforeArr[i] = quote-parity (inside a string?) just before position i.
-  let openedBeforeArr ← Vector.scanlM (fun openedBefore isQuoteChar ↦ do
-    let product ← mkMul openedBefore isQuoteChar
-    let twiceProduct ← mkAdd product product
-    let sum ← mkAdd openedBefore isQuoteChar
-    mkSub sum twiceProduct) zeroF isQuoteCharArr
+  let isQuoteCharArr : Vector (FB p) w ←
+    (input.data.zip escapedArr).mapM fun (char, wasEscaped) ↦ do
+      let isQuoteChar ← eq char (← mkF 34)
+      let notWasEscaped ← not wasEscaped
+      FB.and isQuoteChar notWasEscaped
+  -- Stage 3: quoteParity[i] = quote-parity (inside a string?) just before position i.
+  let quoteParity : Vector (FB p) w ←
+    isQuoteCharArr.scanlM (init := zeroF) FB.xor
   -- Stage 4: rawInsideQuotesArr[i] = "inside quotes, and not itself a quote mark" (unmasked).
-  let rawInsideQuotesArr ← (openedBeforeArr.zip isQuoteCharArr).mapM
-    (fun (openedBefore, isQuoteChar) ↦ do
-      -- NOT isQuoteChar: again `1 - x` for a 0/1 field value.
-      let notQuoteChar ← mkSub (← mkF 1) isQuoteChar
-      mkMul openedBefore notQuoteChar)
+  let rawInsideQuotesArr : Vector (FB p) w ←
+    (quoteParity.zip isQuoteCharArr).mapM
+      (fun (openedBefore, isQuoteChar) ↦ do
+        let notQuoteChar ← not isQuoteChar
+        FB.and openedBefore notQuoteChar
+      )
   -- Stage 5: truncate to the string's real length, so the padded tail always reads 0.
   let lengthMaskArr ← lengthMask w input.len
   (rawInsideQuotesArr.zip lengthMaskArr).mapM (fun (raw, maskBit) ↦ mkMul raw maskBit)
@@ -183,8 +178,8 @@ private lemma oddNrQuotesUntil_succ (bs : ByteArray) (i' : ℕ) (h : i' + 1 < bs
 
 Each `*StepSpec`/`*Spec` pair below mirrors one stage of `stringBodies` above, one-for-one, but
 in plain `ZMod p` arithmetic with no monad: `escStepSpec`/`escSpec` ↔ stage 1
-(`wasEscapedArr`), `quoteStepSpec`/`quoteSpec` ↔ stage 2 (`isQuoteCharArr`),
-`parityStepSpec`/`openedSpec` ↔ stage 3 (`openedBeforeArr`), `outStepSpec`/`rawOutSpec` ↔ stage 4
+(`escapedArr`), `quoteStepSpec`/`quoteSpec` ↔ stage 2 (`isQuoteCharArr`),
+`parityStepSpec`/`openedSpec` ↔ stage 3 (`quoteParity`), `outStepSpec`/`rawOutSpec` ↔ stage 4
 (`rawInsideQuotesArr`), and `maskSpec`/`finalSpec` ↔ stage 5 (the length mask and final multiply).
 Keeping the shapes identical (`Vector.scanl`/`.zip`/`.map`, matching what `convertsM_scanlM`/
 `convertsM_mapM` actually produce) is what lets the final composition proof's value-equality goal
@@ -272,18 +267,14 @@ private lemma parityStep_convertsM
   (h_acc : Converts F.conversion state acc acc_val)
   (h_q : Converts F.conversion state q q_val)
 :
-  ConvertsM F.conversion
-    (do
-      let aq ← mkMul acc q
-      let aq2 ← mkAdd aq aq
-      let s ← mkAdd acc q
-      mkSub s aq2)
-    state (parityStepSpec acc_val q_val) True
+  ConvertsM F.conversion (FB.xor acc q) state (parityStepSpec acc_val q_val) True
 := by
-  step mkMul.convertsM h_acc h_q as aq
-  step mkAdd.convertsM h_aq h_aq as aq2
-  step mkAdd.convertsM h_acc h_q as s
-  apply convertsM_of_convertsM (mkSub.convertsM h_s h_aq2)
+  unfold FB.xor
+  step mkAdd.convertsM h_acc h_q as sum
+  step mkMul.convertsM h_acc h_q as prod
+  step mkF.convertsM as two
+  step mkMul.convertsM h_two h_prod as twoProd
+  apply convertsM_of_convertsM (mkSub.convertsM h_sum h_twoProd)
   · unfold parityStepSpec; ring
   · trivial
 
@@ -349,7 +340,7 @@ private lemma lengthMask_convertsM
 
 `escBefore`/`openedBefore` give the "state entering position `i`" reading of `isEscape`/
 `oddNrQuotesUntil` that an exclusive-prefix scan naturally produces: `escBefore` is what
-`wasEscapedArr` (stage 1) computes, and `openedBefore` is what `openedBeforeArr` (stage 3)
+`escapedArr` (stage 1) computes, and `openedBefore` is what `quoteParity` (stage 3)
 computes. `main_induction` then shows all four pre-mask stages agree with
 `isEscape`/`isQuotation`/the quote-parity/`isInQuotes` at every real (non-padding) position, by
 induction mirroring `isEscape`/`isQuotation`'s own recursive structure. -/
@@ -519,14 +510,14 @@ lemma convertsM
     unfold stringBodies
     step mkF.convertsM as zeroF
     step (convertsM_scanlM (FVec.converts_iff_F_converts.mp h_data) h_zeroF
-      (fun h_acc h_c ↦ escStep_convertsM h_acc h_c)) as wasEscapedArr
+      (fun h_acc h_c ↦ escStep_convertsM h_acc h_c)) as escapedArr
     step (convertsM_mapM (C_elem := FPair.conversion) (f_spec := quoteStepSpec)
-      (fun i ↦ FVec.converts_zip h_data h_wasEscapedArr i.isLt)
+      (fun i ↦ FVec.converts_zip h_data h_escapedArr i.isLt)
       (fun h_bs ↦ quoteStep_convertsM h_bs)) as isQuoteCharArr
     step (convertsM_scanlM (FVec.converts_iff_F_converts.mp h_isQuoteCharArr) h_zeroF
-      (fun h_acc h_q ↦ parityStep_convertsM h_acc h_q)) as openedBeforeArr
+      (fun h_acc h_q ↦ parityStep_convertsM h_acc h_q)) as quoteParity
     step (convertsM_mapM (C_elem := FPair.conversion) (f_spec := outStepSpec)
-      (fun i ↦ FVec.converts_zip h_openedBeforeArr h_isQuoteCharArr i.isLt)
+      (fun i ↦ FVec.converts_zip h_quoteParity h_isQuoteCharArr i.isLt)
       (fun h_bs ↦ outStep_convertsM h_bs)) as rawInsideQuotesArr
     step (lengthMask_convertsM h_len_fs h_k) as lengthMaskArr
     apply convertsM_of_convertsM
