@@ -82,6 +82,7 @@ import Clap.Lang.Data.Packing.chunksToFieldElem
 import Clap.Lang.Data.Packing.chunksToFieldElems
 import Clap.Lang.Data.Packing.num2BigEndianBits
 import Clap.Lang.Data.Widths
+import Clap.Lang.Gate.asm
 import Clap.Lang.Gate.eq0
 import Clap.Lang.Gate.isZero
 import Clap.Lang.Gate.num2bits

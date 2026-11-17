@@ -502,13 +502,206 @@ lemma constraints_stepFpmul {w k} {a b p'} :
   unfold stepFpmul
   aesop (add safe (by grind))
 
+def stepAsm (st : EvalSt p)
+            (σ : HashConsSt p)
+            (spec : GateSpec p)
+            (inputs : Vector ExprRef spec.numInputs) : EvalSt p :=
+  let exprs := inputs.map (Expr.mk · σ)
+  let vals := exprs.map (st[·]!)
+  ((st.assertAllocated exprs).addConstraint (spec.assertions vals)).alloc (spec.outputs vals)
+
+def stepAsmSilly (st : EvalSt p) (σ : HashConsSt p) {p' : ℕ} (spec : LawfulGateSpec p')
+            (inputs : Vector ExprRef spec.numInputs) : EvalSt p :=
+  if h : p' = p then
+    match p', spec, inputs, h with
+    | _, spec, inputs, rfl => stepAsm st σ spec.toGateSpec inputs
+  else
+    -- Unsatisfiable for a mismatched `p`
+    -- Allocates as many variables as the 'correct' branch for simplicity
+    (st.addConstraint False).alloc (Vector.replicate spec.numPublic 0)
+
+section Asm
+
+variable {spec : GateSpec p} {inputs : Vector ExprRef spec.numInputs}
+
+@[simp, grind =]
+lemma numAlloc_stepAsm : (st.stepAsm σ spec inputs).numAlloc = st.numAlloc + spec.numPublic :=
+  rfl
+
+@[simp, grind =]
+lemma varStore_stepAsm :
+  (st.stepAsm σ spec inputs).varStore =
+  st.varStore.insertMany
+    (((Vector.range spec.numPublic).map (fun x => x + st.numAlloc)).zip
+      (spec.outputs (inputs.map fun e ↦ st[⦃e, σ⦄]?.getD 0))) := by
+  simp [stepAsm, Function.comp_def]
+
+@[simp, grind =]
+lemma constraints_stepAsm :
+  (st.stepAsm σ spec inputs).constraints =
+  (st.constraints ∧ (∀ e ∈ inputs, ⦃e, σ⦄ ∈ st)
+                  ∧ spec.assertions (inputs.map fun e ↦ st[Expr.mk e σ]?.getD 0)) := by
+  simp [stepAsm, Function.comp_def, and_assoc]
+
+variable {spec : LawfulGateSpec p} {inputs : Vector ExprRef spec.numInputs}
+
+/--
+_KEY_ lemma for the current design - once again, the solution is to actually hoist `p` all the way
+into `Gate`, but that's quiiiite the change.
+
+Note this holds here because the primes unify, thus taking 'the sensible' branch in `stepAsmSilly`.
+-/
+@[simp, grind =]
+lemma stepAsmSilly_eq_stepAsm :
+  st.stepAsmSilly σ spec inputs = st.stepAsm σ spec.toGateSpec inputs := by
+  simp [stepAsmSilly]
+
+end Asm
+
+lemma exists_stepAsmSilly_eq_alloc {p' : ℕ} {spec : LawfulGateSpec p'}
+                                   {inputs : Vector ExprRef spec.numInputs} :
+  ∃ (st' : EvalSt p) (vals : Vector (ZMod p) spec.numPublic),
+    st'.numAlloc = st.numAlloc ∧
+    st'.varStore = st.varStore ∧
+    st'.alloc vals = st.stepAsmSilly σ spec inputs := by
+  unfold stepAsmSilly
+  split
+  · rename_i h
+    subst h
+    exact ⟨(st.assertAllocated _).addConstraint _, _, rfl, rfl, rfl⟩
+  · exact ⟨st.addConstraint False, _, rfl, rfl, rfl⟩
+
+@[simp, grind =]
+lemma numAlloc_stepAsmSilly {p' : ℕ} {spec : LawfulGateSpec p'}
+                            {inputs : Vector ExprRef spec.numInputs} :
+  (st.stepAsmSilly σ spec inputs).numAlloc = st.numAlloc + spec.numPublic := by
+  obtain ⟨st', vals, h_numAlloc, -, h_eq⟩ := exists_stepAsmSilly_eq_alloc (st := st) (σ := σ)
+    (spec := spec) (inputs := inputs)
+  simp [← h_eq, h_numAlloc]
+
+section AsmSilly
+
+def asmAssertion {p' : ℕ}
+  (Γ : VarStore p) (σ : HashConsSt p)
+  (spec : LawfulGateSpec p')
+  (inputs : Vector ExprRef spec.numInputs) : Prop :=
+  if h : p' = p then
+    match p', spec, inputs, h with
+    | _, spec, inputs, rfl =>
+      (∀ e ∈ inputs, [Γ, σ|e].isSome) ∧ spec.assertions (inputs.map fun e ↦ [Γ, σ|e].getD 0)
+  else
+    False
+
+def asmOutputs {p' : ℕ}
+  (Γ : VarStore p) (σ : HashConsSt p)
+  (spec : LawfulGateSpec p')
+  (inputs : Vector ExprRef spec.numInputs) : Vector (ZMod p) spec.numPublic :=
+  if h : p' = p then
+    match p', spec, inputs, h with
+    | _, spec, inputs, rfl => spec.outputs (inputs.map fun e ↦ [Γ, σ|e].getD 0)
+  else
+    Vector.replicate spec.numPublic 0
+
+variable {p' : ℕ} {spec : LawfulGateSpec p'} {inputs : Vector ExprRef spec.numInputs}
+         {Γ : VarStore p}
+
+@[simp, grind =]
+lemma stepAsmSilly_eq_mk :
+  st.stepAsmSilly σ spec inputs =
+  ⟨
+    st.numAlloc + spec.numPublic,
+    st.varStore.insertMany
+      (
+        ((Vector.range spec.numPublic).map (· + st.numAlloc)).zip
+        (asmOutputs st.varStore σ spec inputs)
+      ),
+    st.constraints ∧ asmAssertion st.varStore σ spec inputs⟩ := by
+  obtain ⟨numAlloc, Γ, constraints⟩ := st
+  unfold stepAsmSilly asmOutputs asmAssertion
+  by_cases h : p' = p
+  · subst h
+    simp [stepAsm, Function.comp_def, and_assoc]
+  · simp [h, alloc]
+
+@[simp, grind =]
+lemma varStore_stepAsmSilly :
+  (st.stepAsmSilly σ spec inputs).varStore =
+  st.varStore.insertMany
+    (((Vector.range spec.numPublic).map (· + st.numAlloc)).zip
+      (asmOutputs st.varStore σ spec inputs)) := by
+  rw [stepAsmSilly_eq_mk]
+
+@[simp, grind =]
+lemma constraints_stepAsmSilly :
+  (st.stepAsmSilly σ spec inputs).constraints =
+  (st.constraints ∧ asmAssertion st.varStore σ spec inputs) := by
+  rw [stepAsmSilly_eq_mk]
+
+lemma eval_mk_eq_of_isPrefixOf {σ σ' : HashConsSt p} {e : ExprRef}
+  (h_prefix : σ.exprs.isPrefixOf σ'.exprs) (h_lt : e < σ.size) :
+  [Γ, σ'|e] = [Γ, σ|e] := by
+  have h_wf : (Expr.mk e σ).wellFormed := h_lt
+  have h_wf' : (Expr.mk e σ').wellFormed := Expr.wellFormed_frame h_wf h_prefix rfl
+  rw [eval_eq_evalRec h_wf, eval_eq_evalRec h_wf', evalRec_of_wellFormed_of_prefix h_prefix h_wf]
+
+lemma asmAssertion_eq_of_isPrefixOf {σ σ' : HashConsSt p}
+  (h_prefix : σ.exprs.isPrefixOf σ'.exprs) (h_lt : ∀ e ∈ inputs, e < σ.size) :
+  asmAssertion Γ σ' spec inputs = asmAssertion Γ σ spec inputs := by
+  have h_eval e (h : e ∈ inputs) := eval_mk_eq_of_isPrefixOf (Γ := Γ) h_prefix (h_lt e h)
+  unfold asmAssertion
+  by_cases h : p' = p
+  · subst h
+    have h_map : inputs.map (fun e ↦ [Γ, σ'|e].getD 0) = inputs.map (fun e ↦ [Γ, σ|e].getD 0) :=
+      Vector.map_inj_left.mpr fun e h ↦ by rw [h_eval e h]
+    simp only [dite_true, h_map]
+    congr 1
+    exact propext (forall₂_congr fun e h ↦ by rw [h_eval e h])
+  · simp [h]
+
+lemma asmOutputs_eq_of_isPrefixOf {σ σ' : HashConsSt p}
+  (h_prefix : σ.exprs.isPrefixOf σ'.exprs) (h_lt : ∀ e ∈ inputs, e < σ.size) :
+  asmOutputs Γ σ' spec inputs = asmOutputs Γ σ spec inputs := by
+  have h_eval e (h : e ∈ inputs) := eval_mk_eq_of_isPrefixOf (Γ := Γ) h_prefix (h_lt e h)
+  unfold asmOutputs
+  by_cases h : p' = p
+  · subst h
+    have h_map : inputs.map (fun e ↦ [Γ, σ'|e].getD 0) = inputs.map (fun e ↦ [Γ, σ|e].getD 0) :=
+      Vector.map_inj_left.mpr fun e h ↦ by rw [h_eval e h]
+    simp only [dite_true, h_map]
+  · simp [h]
+
+end AsmSilly
+
+lemma keys_varStore_alloc {k : ℕ} {vals : Vector (ZMod p) k} :
+  (st.alloc vals).varStore.keys.toFinset =
+  st.varStore.keys.toFinset ∪ (List.range' st.numAlloc k).toFinset := by
+  ext x
+  simp only [varStore_alloc, List.mem_toFinset, Finset.mem_union, Std.ExtTreeMap.mem_keys,
+    Std.ExtTreeMap.mem_insertMany_vector, Vector.map_fst_zip, Vector.contains_map, List.mem_range'_1]
+  simp only [Vector.any_eq_true, Vector.getElem_range, beq_iff_eq]
+  apply or_congr_right
+  constructor
+  · rintro ⟨a, ha, rfl⟩
+    omega
+  · rintro ⟨h₁, h₂⟩
+    exact ⟨x - st.numAlloc, by omega, by omega⟩
+
+lemma exists_insertMany_alloc {k : ℕ} {vals : Vector (ZMod p) k} :
+  ∃ (vec : Vector (ℕ × (ZMod p)) k),
+    (st.alloc vals).varStore = st.varStore.insertMany vec ∧
+    ∀ key value, ⟨key, value⟩ ∈ vec → key ≥ st.numAlloc := by
+  use (Vector.map (fun x => x + st.numAlloc) (Vector.range k)).zip vals
+  simp
+  aesop (add safe (by grind [=> Vector.of_mem_zip]))
+
 def step (st : EvalSt p) (next : Gate) (σ : HashConsSt p) : EvalSt p :=
   match next with
-  | .eq0      e          => stepEq0 st σ e
-  | .share    e          => stepShare st σ e
-  | .isZero   e          => stepIsZero st σ e
-  | .num2bits w e        => stepNum2bits st σ w e
-  | .fpmul    w k a b p' => stepFpmul st σ w k a b p'
+  | .eq0      e             => stepEq0 st σ e
+  | .share    e             => stepShare st σ e
+  | .isZero   e             => stepIsZero st σ e
+  | .num2bits w e           => stepNum2bits st σ w e
+  | .fpmul    w k a b p'    => stepFpmul st σ w k a b p'
+  | .asm      _ spec inputs => stepAsmSilly st σ spec inputs
 
 @[simp, grind =]
 lemma step_eq0 : st.step (.eq0 e!) σ = stepEq0 st σ e! := rfl
@@ -525,8 +718,11 @@ lemma step_num2bits {w} : st.step (.num2bits w e!) σ = stepNum2bits st σ w e! 
 @[simp, grind =]
 lemma step_fpmul {w k a b p'} : st.step (.fpmul w k a b p') σ = stepFpmul st σ w k a b p' := rfl
 
-notation "[" res ", " σ "|" cmd "]ₛ" => step res cmd σ
+@[simp, grind =]
+lemma step_asm {p'} {spec : LawfulGateSpec p'} {inputs} :
+  st.step (.asm p' spec inputs) σ = stepAsmSilly st σ spec inputs := rfl
 
+notation "[" res ", " σ "|" cmd "]ₛ" => step res cmd σ
 
 @[simp, grind =]
 lemma step_numAlloc
@@ -610,6 +806,7 @@ lemma step_varStore_keys
           . grind
         . grind
       · simp
+  · rw [← varStore_alloc, keys_varStore_alloc]
 
 lemma exists_varStore_step_eq_insertMany
   {st : EvalSt p}
@@ -643,6 +840,11 @@ lemma exists_varStore_step_eq_insertMany
           (EvalSt.fpMulPureV w k (Vector.map (fun e => st[⦃e, σ⦄]?.getD 0) a)
             (Vector.map (fun e => st[⦃e, σ⦄]?.getD 0) b) (Vector.map (fun e => st[⦃e, σ⦄]?.getD 0) p')))
     aesop (add safe (by grind [=> Vector.of_mem_zip]))
+  . expose_names
+    obtain ⟨st', vals, h_numAlloc, h_varStore, h_eq⟩ := exists_stepAsmSilly_eq_alloc (st := st)
+      (σ := σ) (spec := spec) (inputs := inputs)
+    obtain ⟨vec, h_vec, h_keys⟩ := exists_insertMany_alloc (st := st') (vals := vals)
+    exact ⟨_, vec, by rw [step_asm, ← h_eq, h_vec, h_varStore], by simpa [h_numAlloc] using h_keys⟩
 
 end step
 

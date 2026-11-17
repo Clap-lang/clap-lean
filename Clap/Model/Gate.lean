@@ -1,7 +1,32 @@
 import Clap.Model.HashCons.Eval
+import Clap.Model.Asm
 
 namespace Clap
 
+/--
+If the `p` in `asm` looks strange it's because it kind of is.
+
+There were 3 options.
+- [x] Push `p` into `(Lawful)GateSpec` (as such, the type itself is no longer parameterised),
+      and have it quantify on per-statement basis with a field along the lines of
+      `pProp : P p` or some such.
+
+  This is kind of annoying because then `pProp` is randomly in soundness/completeness,
+  and the constants look funny (`p → ZMod p`).
+
+- [x] Hoist `p` all the way into `Gate`, parameterise `(Lawful)GateSpec`, and then redo
+      seven million lines of Clap. We had this design initially, but nothing (before the `asm` gate)
+      needed `p` at this level, so we dropped it, and then we built our castles on pillars
+      of salt, and pillars of sand. Probably the best option tho...
+
+- [✓] Hoist `p` awkwardly into the `asm` constructor :surprised-pikachu:, and reap the benefits
+      of `Gate` being parameterised, without the cost of having to redo seven million lines of Clap.
+
+      The cost is an arm and a leg anyway... we can have a `Circuit p` and a gate `asm p'`,
+      and we have to delightfully `if p = p'`.
+
+I am sad.
+-/
 @[grind cases]
 inductive Gate where
   | eq0 (e : ExprRef)
@@ -9,11 +34,8 @@ inductive Gate where
   | isZero (e : ExprRef)
   | num2bits (w : ℕ) (e : ExprRef)
   | fpmul (w k : ℕ) (a b p' : Vector ExprRef k)
-                    -- TODO(or something)
-                    -- Maybe just `∀ σ γ p ∈ p', [Γ, σ|p'[i]].getD 0 ≠ 0 ?`
-                    -- Or this?
-                    -- ∀ {p} {σ : HashConsSt p} {Γ : VarStore p},
-                    --       ∑ (i : Fin k), ([Γ, σ|p'[i]].getD 0).val * (2^w)^i.val > 0)?
+  | asm (p : ℕ) (spec : LawfulGateSpec p) (inputs : Vector ExprRef spec.numInputs)
+
 deriving Inhabited
 
 namespace Gate
@@ -27,6 +49,7 @@ def exprs (gate : Gate) : Finset ExprRef :=
   match gate with
   | .fpmul _ _ a b p' => a.toList.toFinset ∪ b.toList.toFinset ∪ p'.toList.toFinset
   | .eq0 e | .share e | .isZero e | .num2bits _ e => {e}
+  | .asm _ _ inputs => inputs.toList.toFinset
 
 section
 
@@ -48,6 +71,10 @@ lemma expr_mk_num2bits {w} : (Gate.num2bits w ref).exprs = {ref} := rfl
 lemma expr_mk_fpmul {w k} {a b p'} :
   (Gate.fpmul w k a b p').exprs =
   a.toList.toFinset ∪ b.toList.toFinset ∪ p'.toList.toFinset := rfl
+
+@[simp, grind =]
+lemma expr_mk_asm {p'} {spec : LawfulGateSpec p'} {inputs : Vector ExprRef spec.numInputs} :
+  (Gate.asm p' spec inputs).exprs = inputs.toList.toFinset := rfl
 
 end
 
@@ -117,6 +144,23 @@ lemma isSome_varsAllocated_fpmul_of_mem_p {w k} {a b p'}
 := by
   grind [varsAllocated_fpmul]
 
+@[simp]
+lemma varsAllocated_asm {p'} {spec : LawfulGateSpec p'} {inputs : Vector ExprRef spec.numInputs} :
+  varsAllocated (.asm p' spec inputs) Γ σ ↔
+  (∀ ref ∈ inputs, [Γ, σ|ref].isSome) := by
+  simp [varsAllocated, exprs]
+
+@[simp, grind .]
+lemma isSome_varsAllocated_asm_of_mem
+  {p'} {spec : LawfulGateSpec p'} {inputs : Vector ExprRef spec.numInputs}
+  {ref : ExprRef}
+  (h_mem : ref ∈ inputs)
+  (h_varsAllocated : varsAllocated (.asm p' spec inputs) Γ σ)
+:
+  ([Γ, σ|ref].isSome)
+:= by
+  grind [varsAllocated_asm]
+
 @[simp, grind =]
 lemma wellFormed_iff :
   gate.wellFormed Γ σ ↔ (gate.refsValid σ.size ∧ gate.varsAllocated Γ σ) := by grind
@@ -168,6 +212,11 @@ lemma refsValid_fpmul {w k : ℕ} {a b p'} :
   (∀ ref ∈ a ++ b ++ p', ref < bound) := by
   simp [refsValid, exprs]
 
+@[simp]
+lemma refsValid_asm {p'} {spec : LawfulGateSpec p'} {inputs : Vector ExprRef spec.numInputs} :
+  (Gate.asm p' spec inputs).refsValid bound ↔
+  (∀ ref ∈ inputs, ref < bound) := by
+  simp [refsValid, exprs]
 
 section Precedes
 
@@ -253,6 +302,7 @@ def numAllocStep : Gate → ℕ
   | .isZero _ => 1
   | .num2bits w _ => w
   | .fpmul (k := k) .. => k
+  | .asm _ spec _ => spec.numPublic
 
 @[simp, grind =]
 lemma numAllocStep_eq0 {e : ExprRef}:
@@ -277,6 +327,11 @@ lemma numAllocStep_num2bits {width} {e : ExprRef}:
 @[simp, grind =]
 lemma numAllocStep_fpmul {w} {k} {a b p'} :
   (Gate.fpmul w k a b p').numAllocStep = k
+:= rfl
+
+@[simp, grind =]
+lemma numAllocStep_asm {p'} {spec : LawfulGateSpec p'} {inputs : Vector ExprRef spec.numInputs} :
+  (Gate.asm p' spec inputs).numAllocStep = spec.numPublic
 := rfl
 
 end NumAlloc
