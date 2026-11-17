@@ -44,7 +44,7 @@ in this subcircuit (ported from `old/Clap/JWT.lean`'s `stringBodies`).
 5. `lengthMaskArr` + the final multiply — `1` for `i < input.len`, `0` from there on, so the
    zero-padded tail always reads `0` regardless of what stage 4 computed for it.
 -/
-def stringBodies [p.AtLeastTwo] {w} (input : FString p w) : ClapM p (FArray p w) := do
+def stringBodies [p.AtLeastTwo] {w} (input : FString p w) : ClapM p (PaddedBitVector p w) := do
   let zeroF ← mkF 0
   -- Stage 1: escapedArr[i] = "was position i-1 an active, unescaped backslash".
   let escapedArr : Vector (FB p) w ← input.data.scanlM (init := zeroF)
@@ -70,7 +70,8 @@ def stringBodies [p.AtLeastTwo] {w} (input : FString p w) : ClapM p (FArray p w)
       )
   -- Stage 5: truncate to the string's real length, so the padded tail always reads 0.
   let lengthMaskArr ← lengthMask w input.len
-  (rawInsideQuotesArr.zip lengthMaskArr).mapM (fun (raw, maskBit) ↦ mkMul raw maskBit)
+  let data ← (rawInsideQuotesArr.zip lengthMaskArr).mapM (fun (raw, maskBit) ↦ mkMul raw maskBit)
+  pure ⟨data, input.len⟩
 
 namespace stringBodies
 
@@ -487,14 +488,18 @@ lemma convertsM
   (h_k : k < p)
   (h_len : a_val.length < p)
 :
-  ConvertsM FArray.conversion (stringBodies a) state
-    (Vector.ofFn fun i ↦ isInQuotes' a_val.toAsciiByteArray i)
+  ConvertsM PaddedBitVector.conversion (stringBodies a) state
+    (Vector.ofFn fun i : Fin a_val.length ↦ isInQuotes' a_val.toAsciiByteArray i).toArray
     True
 := by
+  set arr : Array Bool :=
+    (Vector.ofFn fun i : Fin a_val.length ↦ isInQuotes' a_val.toAsciiByteArray i).toArray
+    with harr_def
   have h_data := FString.converts_data h_a
   have h_len_fs := FString.converts_len h_a
   have hval_len : ((a_val.length : ZMod p)).val = a_val.length :=
     ZMod.val_natCast_of_lt h_len
+  have harr_size : arr.size = a_val.length := by simp [harr_def]
   -- The length mask, read off `lengthMask_convertsM`'s Bool-valued ideal, matches `maskSpec`
   -- (the field-arithmetic form `rawOutSpec`/`finalSpec` are built from).
   have h_lengthMask_eq : (Vector.ofFn (fun i : Fin k => decide (i.val < (a_val.length : ZMod p).val))).map
@@ -502,71 +507,81 @@ lemma convertsM
     apply Vector.ext
     intro i hi
     simp only [Vector.getElem_map, Vector.getElem_ofFn, maskSpec, hval_len, decide_eq_true_eq]
-  -- Chain the five circuit stages via `step`, each fed its own per-stage step lemma; every
+  -- The gadget's final ideal value, as an `Array Bool`, matched against `finalSpec`'s plain
+  -- `ZMod p` arithmetic: inside the real string (`i < a_val.length`) via `main_induction`; in
+  -- the zero-padded tail, via the mask (on both sides: `maskSpec`'s `0` and `encodeV`'s padding).
+  have h_value_eq : finalSpec (p := p) (FString.encodeV (p := p) k a_val) a_val.length =
+      PaddedBitVector.encodeV (p := p) k arr := by
+    apply Vector.ext
+    intro i hi
+    unfold finalSpec rawOutSpec maskSpec PaddedBitVector.encodeV
+    simp only [Vector.getElem_map, Vector.getElem_zip, Vector.getElem_ofFn]
+    by_cases h : i < a_val.length
+    · have h_bs : i < a_val.toAsciiByteArray.size := by rwa [toAsciiByteArray_size]
+      have h_arr_mem : i < arr.toList.length := by
+        rw [Array.length_toList, harr_size]; exact h
+      obtain ⟨_, hq, _, hr⟩ := main_induction a_val.toAsciiByteArray (FString.encodeV k a_val) h_p
+        (fun j hj hjk ↦ by
+          rw [FString.encodeV_getElem_of_lt hjk (by rw [← toAsciiByteArray_size]; exact hj),
+            toAsciiByteArray_getElem a_val j hj])
+        i h_bs hi
+      rw [if_pos h, dif_pos h_arr_mem, mul_one]
+      unfold rawOutSpec at hr
+      simp only [Vector.getElem_map, Vector.getElem_zip] at hr
+      rw [hr]
+      have h_elem : arr[i]'h_arr_mem = isInQuotes a_val.toAsciiByteArray ⟨i, h_bs⟩ := by
+        have h_elem' : arr[i]'h_arr_mem = isInQuotes' a_val.toAsciiByteArray i := by
+          simp [harr_def]
+        rw [h_elem']
+        unfold isInQuotes' isInQuotes
+        rw [dif_pos h_bs]
+      rw [h_elem]
+      cases (isInQuotes a_val.toAsciiByteArray ⟨i, h_bs⟩) <;> simp
+    · have h_arr_not_mem : ¬ i < arr.toList.length := by
+        rw [Array.length_toList, harr_size]; exact h
+      rw [if_neg h, dif_neg h_arr_not_mem, mul_zero]
+  -- Chain the six circuit stages via `step`, each fed its own per-stage step lemma; every
   -- stage (including `lengthMask_convertsM`) has constraint `True`, so `step` auto-discharges
-  -- all of them.
-  have h_fvec : ConvertsM FVec.conversion (stringBodies a) state
-      (finalSpec (FString.encodeV k a_val) a_val.length) True := by
-    unfold stringBodies
-    step mkF.convertsM as zeroF
-    step (convertsM_scanlM (FVec.converts_iff_F_converts.mp h_data) h_zeroF
-      (fun h_acc h_c ↦ escStep_convertsM h_acc h_c)) as escapedArr
-    step (convertsM_mapM (C_elem := FPair.conversion) (f_spec := quoteStepSpec)
-      (fun i ↦ FVec.converts_zip h_data h_escapedArr i.isLt)
-      (fun h_bs ↦ quoteStep_convertsM h_bs)) as isQuoteCharArr
-    step (convertsM_scanlM (FVec.converts_iff_F_converts.mp h_isQuoteCharArr) h_zeroF
-      (fun h_acc h_q ↦ parityStep_convertsM h_acc h_q)) as quoteParity
-    step (convertsM_mapM (C_elem := FPair.conversion) (f_spec := outStepSpec)
-      (fun i ↦ FVec.converts_zip h_quoteParity h_isQuoteCharArr i.isLt)
-      (fun h_bs ↦ outStep_convertsM h_bs)) as rawInsideQuotesArr
-    step (lengthMask_convertsM h_len_fs h_k) as lengthMaskArr
-    apply convertsM_of_convertsM
-      (convertsM_mapM (C_elem := FPair.conversion) (f_spec := fun bs => bs.1 * bs.2)
-        (fun i ↦ FVec.converts_zip h_rawInsideQuotesArr
-          (FVec.converts_of_FArray_converts h_lengthMaskArr) i.isLt)
-        (fun h_bs ↦ by
-          have h_x := FPair.converts_fst h_bs
-          have h_y := FPair.converts_snd h_bs
-          exact mkMul.convertsM h_x h_y))
-    -- Value equality: the composed pipeline literally unfolds to `finalSpec`.
-    · show (Vector.map outStepSpec _ |>.zip _ |>.map (fun bs => bs.1 * bs.2))
-          = finalSpec (FString.encodeV k a_val) a_val.length
-      unfold finalSpec rawOutSpec openedSpec quoteSpec escSpec
-      rw [h_lengthMask_eq]
-    -- Every stage's constraint is `True`, so the whole composed constraint is `True`.
-    · trivial
-  refine ⟨?_, h_fvec.wellFormed, h_fvec.constraints⟩
-  refine converts_cast h_fvec.result ?_ ?_
+  -- all of them, leaving only the final `pure ⟨data, len⟩` packaging to close by hand.
+  unfold stringBodies
+  step mkF.convertsM as zeroF
+  step (convertsM_scanlM (FVec.converts_iff_F_converts.mp h_data) h_zeroF
+    (fun h_acc h_c ↦ escStep_convertsM h_acc h_c)) as escapedArr
+  step (convertsM_mapM (C_elem := FPair.conversion) (f_spec := quoteStepSpec)
+    (fun i ↦ FVec.converts_zip h_data h_escapedArr i.isLt)
+    (fun h_bs ↦ quoteStep_convertsM h_bs)) as isQuoteCharArr
+  step (convertsM_scanlM (FVec.converts_iff_F_converts.mp h_isQuoteCharArr) h_zeroF
+    (fun h_acc h_q ↦ parityStep_convertsM h_acc h_q)) as quoteParity
+  step (convertsM_mapM (C_elem := FPair.conversion) (f_spec := outStepSpec)
+    (fun i ↦ FVec.converts_zip h_quoteParity h_isQuoteCharArr i.isLt)
+    (fun h_bs ↦ outStep_convertsM h_bs)) as rawInsideQuotesArr
+  step (lengthMask_convertsM h_len_fs h_k) as lengthMaskArr
+  step (convertsM_mapM (C_elem := FPair.conversion) (f_spec := fun bs => bs.1 * bs.2)
+    (fun i ↦ FVec.converts_zip h_rawInsideQuotesArr
+      (FVec.converts_of_FArray_converts h_lengthMaskArr) i.isLt)
+    (fun h_bs ↦ by
+      have h_x := FPair.converts_fst h_bs
+      have h_y := FPair.converts_snd h_bs
+      exact mkMul.convertsM h_x h_y)) as dataVec
+  have h_data_eq : Converts FVec.conversion dataVec_state
+      (⟨dataVec_result, a.len⟩ : PaddedBitVector p k).data (PaddedBitVector.encodeV k arr) := by
+    show Converts FVec.conversion dataVec_state dataVec_result (PaddedBitVector.encodeV k arr)
+    apply converts_of_converts h_dataVec
+    rw [← h_value_eq]
+    show (Vector.map outStepSpec _ |>.zip _ |>.map (fun bs => bs.1 * bs.2))
+        = finalSpec (FString.encodeV k a_val) a_val.length
+    unfold finalSpec rawOutSpec openedSpec quoteSpec escSpec
+    rw [h_lengthMask_eq]
+  have h_len_eq : Converts F.conversion dataVec_state
+      (⟨dataVec_result, a.len⟩ : PaddedBitVector p k).len ((arr.size : ℕ) : ZMod p) := by
+    show Converts F.conversion dataVec_state a.len ((arr.size : ℕ) : ZMod p)
+    rw [harr_size]
+    exact h_len_fs
+  apply convertsM_of_convertsM
+    (convertsM_pure PaddedBitVector.conversion
+      (PaddedBitVector.converts_intro h_data_eq h_len_eq) trivial)
   · rfl
-  -- Match `finalSpec` against the `isInQuotes'` target, position by position: inside the real
-  -- string (`i < a_val.length`) via `main_induction`; in the zero-padded tail, via the mask.
-  congr 1
-  apply Vector.ext
-  intro i hi
-  unfold finalSpec rawOutSpec maskSpec
-  simp only [Vector.getElem_map, Vector.getElem_zip, Vector.getElem_ofFn]
-  by_cases h : i < a_val.length
-  · -- Real character: the mask bit is 1, so this reduces to `main_induction`'s `isInQuotes` fact.
-    have h_bs : i < a_val.toAsciiByteArray.size := by rwa [toAsciiByteArray_size]
-    obtain ⟨_, hq, _, hr⟩ := main_induction a_val.toAsciiByteArray (FString.encodeV k a_val) h_p
-      (fun j hj hjk ↦ by
-        rw [FString.encodeV_getElem_of_lt hjk (by rw [← toAsciiByteArray_size]; exact hj),
-          toAsciiByteArray_getElem a_val j hj])
-      i h_bs hi
-    simp only [h, if_true]
-    unfold isInQuotes'
-    rw [dif_pos h_bs]
-    unfold rawOutSpec at hr
-    simp only [Vector.getElem_map, Vector.getElem_zip] at hr
-    unfold isInQuotes at hr
-    rw [hr, mul_one]
-  · -- Zero-padded tail: the mask bit is 0, matching `isInQuotes'`'s `false` regardless of the
-    -- raw (possibly nonzero) scan state there.
-    have h_bs : ¬ i < a_val.toAsciiByteArray.size := by rwa [toAsciiByteArray_size]
-    simp only [h, if_false, mul_zero]
-    unfold isInQuotes'
-    rw [dif_neg h_bs]
-    rfl
+  · trivial
 
 end stringBodies
 
