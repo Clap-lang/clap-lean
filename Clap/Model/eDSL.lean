@@ -12,25 +12,34 @@ variable {p : ℕ}
 def eq0 (e : ExprRef) : ClapM p Unit := do
   tell #[.eq0 e]
 
+/-! The gates return `BoundRef p`, not a bare `ExprRef` (a ℕ): `p` then comes from the outputs, so
+`u * u` on two outputs builds a heap node, and `share (u * u)` with a forgotten `←` is a type
+error instead of ℕ arithmetic on heap indices. -/
+
 @[irreducible]
-def share (e : ExprRef) : ClapM p (ExprRef) := do
+def share (e : ExprRef) : ClapM p (BoundRef p) := do
   tell #[.share e]
   ClapM.alloc
 
 @[irreducible]
-def isZero (e : ExprRef) : ClapM p (ExprRef) := do
+def isZero (e : ExprRef) : ClapM p (BoundRef p) := do
   tell #[.isZero e]
   ClapM.alloc
 
 @[irreducible]
-def num2bits (width : ℕ) (e : ExprRef) : ClapM p (Vector (ExprRef) width) := do
+def num2bits (width : ℕ) (e : ExprRef) : ClapM p (Vector (BoundRef p) width) := do
   tell #[.num2bits width e]
   Vector.ofFnM fun (_ : Fin width) ↦ ClapM.alloc
 
 @[irreducible]
-def fpmul (width k : ℕ) (a b p' : Vector ExprRef k) : ClapM p (Vector (ExprRef) k) := do
+def fpmul (width k : ℕ) (a b p' : Vector ExprRef k) : ClapM p (Vector (BoundRef p) k) := do
   tell #[.fpmul width k a b p']
   Vector.ofFnM fun (_ : Fin k) ↦ ClapM.alloc
+
+/-- The gates' bodies are unchanged; their result types are the previous ones, `ExprRef` and
+`Vector ExprRef _`, by definition. -/
+example : ClapM p (BoundRef p) = ClapM p ExprRef := rfl
+example {w : ℕ} : ClapM p (Vector (BoundRef p) w) = ClapM p (Vector ExprRef w) := rfl
 
 section wellFormed
 
