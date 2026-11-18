@@ -83,13 +83,16 @@ def mkOr {p} (a b : BoundRef p) : HashConsM p (BoundRef p) := do
 def mkNot {p} (a : BoundRef p) : HashConsM p (BoundRef p) := do
   (←mkConstant 1) - a
 
+/-- `ConstraintSystem.check_lt_impl`'s trace: per limb its num2bits bits and isZero values, then,
+after the last limb, the shared flags `isLt'` collected in `shares`. -/
 def check_lt_wg' {k : ℕ}
   (cache : ValueCache p) (trace : Array (ZMod p)) (w : ℕ)
   (isLt : HashConsM.BoundRef p)
   (t₀ : Vector (HashConsM.BoundRef p) k) (t₁ : Vector (HashConsM.BoundRef p) k)
+  (shares : Array (ZMod p))
 : HashConsM p (ValueCache p × Array (ZMod p)) :=
   match k with
-  | .zero => return (cache, trace)
+  | .zero => return (cache, trace ++ shares)
   | .succ k => do
     let tδ ← t₀[Fin.last k] - t₁[Fin.last k]
     let x ←(←(←.mkConstant 1) - isLt) * (←(tδ + (←.mkConstant ((2 ^ w : ZMod p) - 1))))
@@ -105,15 +108,16 @@ def check_lt_wg' {k : ℕ}
 
     let varStore := (Std.ExtTreeMap.ofArray (trace.zipIdx.map Prod.swap))
     let cache := Expr.evalWithCache varStore cache ⦃isLt', ←get⦄
+    let shares := shares.push cache[isLt']!.get!
 
-    check_lt_wg' cache trace w isLt' (Vector.ofFn (fun i ↦ t₀[(i.castSucc)])) (Vector.ofFn (fun i ↦ t₁[(i.castSucc)]))
+    check_lt_wg' cache trace w isLt' (Vector.ofFn (fun i ↦ t₀[(i.castSucc)])) (Vector.ofFn (fun i ↦ t₁[(i.castSucc)])) shares
 
 
 def checkLtUnsafe {k : ℕ}
   (cache : ValueCache p) (trace : Array (ZMod p))
   (w : ℕ) (t₀ : Vector (HashConsM.BoundRef p) k) (t₁ : Vector (HashConsM.BoundRef p) k)
 : HashConsM p (ValueCache p × Array (ZMod p)) := do
-  check_lt_wg' cache trace w (←mkConstant 0) t₀ t₁
+  check_lt_wg' cache trace w (←mkConstant 0) t₀ t₁ #[]
 
 instance {p : ℕ} [prime : Fact (Nat.Prime p)] : p.AtLeastTwo := ⟨Nat.Prime.two_le prime.out⟩
 
@@ -185,7 +189,7 @@ def trace_capacity (k width: ℕ) : ℕ :=
   (2 * k - 1) +
   (2 * k - 1 - 1) +
   (2 * k - 1 - 1) * num2bits.trace_capacity (width + Nat.clog 2 (2 * k - 1) + 2) +
-  k * (num2bits.trace_capacity width + isZero.trace_capacity)
+  k * (num2bits.trace_capacity width + isZero.trace_capacity + 1)
 
 @[simp, grind =]
 lemma rangeCheckVec_trace_size
@@ -327,6 +331,29 @@ lemma checkCarryZeroUnsafe_trace_size
     . grind
 
 @[simp, grind =]
+lemma check_lt_wg'_trace_size
+  {p} [Fact p.Prime] {k}
+  {cache : ValueCache p}
+  {trace : Array (ZMod p)}
+  {width}
+  {isLt : HashConsM.BoundRef p}
+  {t1 t2 : Vector ExprRef k}
+  {shares : Array (ZMod p)}
+  {σ}
+:
+  ((check_lt_wg' cache trace width isLt t1 t2 shares).run σ).1.2.size =
+  trace.size + k*(num2bits.trace_capacity width + isZero.trace_capacity) + shares.size + k
+:= by
+  induction' k with k ih generalizing cache trace width isLt σ shares
+  . unfold check_lt_wg'
+    change (trace ++ shares).size = _
+    simp
+  . unfold check_lt_wg'
+    simp
+    rewrite [ih]
+    grind
+
+@[simp, grind =]
 lemma checkLtUnsafe_trace_size
   {p} [Fact p.Prime] {k}
   {cache : ValueCache p}
@@ -336,22 +363,10 @@ lemma checkLtUnsafe_trace_size
   {σ}
 :
   ((checkLtUnsafe cache trace width t1 t2).run σ).1.2.size =
-  trace.size + k*(num2bits.trace_capacity width + isZero.trace_capacity)
+  trace.size + k*(num2bits.trace_capacity width + isZero.trace_capacity + 1)
 := by
-  simp [checkLtUnsafe, ←HashConsM.getResult.eq_def]
-  set x := if CacheExpr.c 0 ∈ σ.exprs then _ else _
-  set isLt := x.1
-  set σ := x.2
-  clear_value x
-  clear_value isLt
-  clear_value σ
-  induction' k with k ih generalizing cache trace width isLt σ
-  . unfold check_lt_wg'
-    grind
-  . unfold check_lt_wg'
-    simp
-    rewrite [ih]
-    grind
+  simp [checkLtUnsafe]
+  ring
 
 @[simp, grind =]
 lemma polyMult_size

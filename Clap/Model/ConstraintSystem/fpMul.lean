@@ -114,15 +114,21 @@ k = 0 : 1 constraints, 0 allocations
 k = n+1 :
   num2bits : width+1 constraints, width allocations
   isZero : 2 constraints, 2 allocations
+  the share of isLt' : 1 constraint, on variable `share` (allocated by `check_lt`)
 
-constraints : 1 + k*(width + 3)
-allocations : k*(width + 2)
+constraints : 1 + k*(width + 4)
+allocations : k*(width + 2), and the k share variables `share, share + 1, …`
+
+The running flag `isLt' = isLt + (1 - isz) - isLt·(1 - isz)` is a variable `v` with the row
+`v - isLt' = 0`: as an expression it is quadratic from the second limb on, and the next limb's
+`(1 - isLt)·(…)` would not be rank-1 (`check_lt_implRef` in Clap/Model/Ref/FpMul.lean).
 -/
 def check_lt_impl
   {p : ℕ}
   {k : ℕ}
   (constraints : Array (BoundRef p)) (numAlloc : ℕ)
   (width : ℕ)
+  (share : ℕ)
   (isLt : (BoundRef p))
   (a b : Vector (BoundRef p) k)
 : HashConsM p (Array (BoundRef p) × ℕ):= do
@@ -144,12 +150,17 @@ def check_lt_impl
     let (isz, constraints, numAlloc) ← isZero constraints numAlloc (←a[Fin.last k] - b[Fin.last k])
 
     let isLt' ← mkOr isLt (←mkNot isz)
+    let v ← mkVar share
+    let constraints := constraints.push (←v - isLt')
 
     let a' := Vector.ofFn (fun (i : Fin k) ↦ a[i.castSucc])
     let b' := Vector.ofFn (fun (i : Fin k) ↦ b[i.castSucc])
 
-    check_lt_impl constraints numAlloc width isLt' a' b'
+    check_lt_impl constraints numAlloc width (share + 1) v a' b'
 
+/-- `a < b` on `k` limbs, from the top limb. The `k` shared flags of `check_lt_impl` take the
+variables right after its num2bits and isZero allocations, so those keep the indices they had
+before the flags were shared (`check_ltRef`). -/
 def check_lt
   {p : ℕ}
   {k}
@@ -157,7 +168,9 @@ def check_lt
   (width : ℕ)
   (a b : Vector (BoundRef p) k)
 : HashConsM p (Array (BoundRef p) × ℕ) := do
-  check_lt_impl constraints numAlloc width (←mkConstant 0) a b
+  let (constraints, numAlloc) ← check_lt_impl constraints numAlloc width
+    (numAlloc + k * (num2bits.numAllocStep width + isZero.numAllocStep)) (←mkConstant 0) a b
+  return (constraints, numAlloc + k)
 
 def inner
   {p}
@@ -220,7 +233,7 @@ def num_constraints (width k: ℕ) : ℕ :=
   else
     (Nat.mul 2 (k-1)) * (Nat.clog 2 (2 * k - 1) : ℕ) +
     (8*k-2) * width +
-    20*k
+    21*k
     - 8
 
 
@@ -229,7 +242,7 @@ else
   (k * 6) * num2bits.numAllocStep width +
   (8 * k - 4) +
   (2 * k - 2) * num2bits.numAllocStep (width + Nat.clog 2 (2 * k - 1) + 2) +
-  k * isZero.numAllocStep
+  k * (isZero.numAllocStep + 1)
 
 @[simp, grind =]
 lemma allocUnchecked_numAllocStep
@@ -351,6 +364,51 @@ lemma check_carry_zero_numAlloc
         grind
 
 @[simp, grind =]
+lemma check_lt_impl_num_constraints
+  {p : ℕ}
+  {k}
+  {constraints : Array (BoundRef p)} {numAlloc : ℕ}
+  {width share : ℕ}
+  {isLt : BoundRef p}
+  {a b : Vector (BoundRef p) k}
+  {σ}
+:
+  ((check_lt_impl constraints numAlloc width share isLt a b).getResult σ).1.size =
+  constraints.size + 1 + k*(width + 4)
+:= by
+  induction' k with k h_k generalizing isLt σ constraints numAlloc width share
+  . simp [check_lt_impl]
+  . unfold check_lt_impl
+    set a' := Vector.ofFn (λ i => a[i.castSucc])
+    set b' := Vector.ofFn (λ i => b[i.castSucc])
+    simp [getResult_bind]
+    rewrite [h_k]
+    simp [num2bits.num_constraints, isZero.num_constraints]
+    grind
+
+@[simp, grind =]
+lemma check_lt_impl_numAlloc
+  {p : ℕ}
+  {k}
+  {constraints : Array (BoundRef p)} {numAlloc : ℕ}
+  {width share : ℕ}
+  {isLt : BoundRef p}
+  {a b : Vector (BoundRef p) k}
+  {σ}
+:
+  ((check_lt_impl constraints numAlloc width share isLt a b).getResult σ).2 =
+  numAlloc + k*(num2bits.numAllocStep width + isZero.numAllocStep)
+:= by
+  induction' k with k h_k generalizing isLt σ constraints numAlloc width share
+  . simp [check_lt_impl]
+  . unfold check_lt_impl
+    set a' := Vector.ofFn (λ i => a[i.castSucc])
+    set b' := Vector.ofFn (λ i => b[i.castSucc])
+    simp [getResult_bind]
+    rewrite [h_k]
+    grind
+
+@[simp, grind =]
 lemma check_lt_num_constraints
   {p : ℕ}
   {k}
@@ -360,20 +418,9 @@ lemma check_lt_num_constraints
   {σ}
 :
   ((check_lt constraints numAlloc width a b).getResult σ).1.size =
-  constraints.size + 1 + k*(width + 3)
+  constraints.size + 1 + k*(width + 4)
 := by
   simp [check_lt]
-  generalize ((mkConstant 0).getResult σ) = isLt
-  generalize ((mkConstant 0).getHashConsState σ) = σ
-  induction' k with k h_k generalizing isLt σ constraints numAlloc width
-  . simp [check_lt_impl]
-  . unfold check_lt_impl
-    set a' := Vector.ofFn (λ i => a[i.castSucc])
-    set b' := Vector.ofFn (λ i => b[i.castSucc])
-    simp [getResult_bind]
-    rewrite [h_k]
-    simp [num2bits.num_constraints, isZero.num_constraints]
-    grind
 
 @[simp, grind =]
 lemma check_lt_numAlloc
@@ -385,19 +432,10 @@ lemma check_lt_numAlloc
   {σ}
 :
   ((check_lt constraints numAlloc width a b).getResult σ).2 =
-  numAlloc + k*(num2bits.numAllocStep width + isZero.numAllocStep)
+  numAlloc + k*(num2bits.numAllocStep width + isZero.numAllocStep + 1)
 := by
   simp [check_lt]
-  generalize ((mkConstant 0).getResult σ) = isLt
-  generalize ((mkConstant 0).getHashConsState σ) = σ
-  induction' k with k h_k generalizing isLt σ constraints numAlloc width
-  . simp [check_lt_impl]
-  . unfold check_lt_impl
-    set a' := Vector.ofFn (λ i => a[i.castSucc])
-    set b' := Vector.ofFn (λ i => b[i.castSucc])
-    simp [getResult_bind]
-    rewrite [h_k]
-    grind
+  ring
 
 @[simp, grind =]
 lemma inner_num_constraints

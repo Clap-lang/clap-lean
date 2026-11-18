@@ -55,7 +55,7 @@ def num_constraints : Gate → ℕ
     -- `check_carry_zero constraints numAlloc width t`
     (if k == 0 then 0 else 1) +
     -- `check_lt constraints numAlloc width r p'`
-    1 + k * (w + 3)
+    1 + k * (w + 4)
 
 def offsetSince (threshold idx offset : ℕ) : ℕ :=
   if idx < threshold then idx else idx + offset
