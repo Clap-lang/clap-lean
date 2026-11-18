@@ -133,10 +133,10 @@ def offsetHashConsState {p : ℕ}
   )
   let wellFormed := by
     intro i h_i
-    obtain ⟨_, h_wellFormed⟩ := σ
+    obtain ⟨_, h_wellFormed, _, _⟩ := σ
     specialize h_wellFormed i (by grind)
     grind
-  ⟨exprs, wellFormed⟩
+  HashConsSt.ofExprs exprs wellFormed
 
 
 def _root_.Clap.Circuit.toCs {p : ℕ} (circuit : Circuit) (σ : HashConsSt p) (numInputs : ℕ)

@@ -3,16 +3,14 @@ import Clap.Model.WitnessGenerator.toWg
 
 namespace Clap.Tests
 
-def testCache : HashConsSt 47 where
-  exprs := #[
+def testCache : HashConsSt 47 := HashConsSt.ofExprs #[
     .v 0, -- 0
     .v 1, -- 1 
     .v 2, -- 2
     .binary_op 0 1 .add, -- 3
     .binary_op 3 2 .sub, -- 4
     .v 3 -- 5
-  ]
-  wellFormed := by decide
+  ] (by decide)
 
 -- NOTE this is a bad example and I'm only doing it like this because the monad doesn't work yet
 def testCircuit : Circuit := #[
