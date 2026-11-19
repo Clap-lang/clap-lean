@@ -224,7 +224,7 @@ lemma convertsM
   replace h_vi := converts_skip hFact3 h_vi
   have hOfBool := FB.ofBool.convertsM (p := bn254) (b := false)
     (state := (enforceNotNested quoted.nameIndex quoted.field.len json.bracketsDepthMap).getState
-      ((assertIsSubstring h_pair json.stringBodies json.payloadHash quoted.fieldStringBodies
+      ((assertIsSubstring h_pair json.stringBodies.data json.payloadHash quoted.fieldStringBodies
           quoted.nameIndex).getState
         ((assertIsSubstring h_pair json.payload.data json.payloadHash quoted.field
             quoted.nameIndex).getState state)))
@@ -238,9 +238,9 @@ lemma convertsM
   replace h_ci := converts_skip hOfBool h_ci
   replace h_vi := converts_skip hOfBool h_vi
   have hFact4 := parseJWTFieldWithQuotedValue.convertsM h_H h_name_len_lt h_value_len_lt
-    h_len_bound h_field_val h_sb_val h_field_len h_name_val h_name_len h_value_val h_value_len
+    h_field_val h_sb_val h_field_len h_name_val h_name_len h_value_val h_value_len
     h_ci h_vi hOfBool.result h_name_len_w h_colon_index_w h_value_index_w h_field_len_w
-    h_sum_len_w
+    h_sum_len_w h_len_bound
   have hFact4' := convertsM_of_convertsM hFact4 rfl ⟨fun h _ ↦ h, fun h ↦ h trivial⟩
   have hStep4 := convertsM_bind hOfBool hFact4' (fun _ ↦ trivial)
   have hWhole := bind_convertsM hFact1 hFact2 hFact3 hStep4
@@ -268,5 +268,68 @@ lemma convertsM
       ⟨⟨hByteSb, hA2b1, hA1MAX, hA2b2⟩, haccepts2⟩,
       ⟨hA1b1, hA1MAX, hA1b2, hsum0⟩,
       ⟨hAbyte, h2, h3, h4, h5, h6, h7, h8, h9, h10, h4, h12, h13, h14, h15, h16, h17, h18, h19⟩⟩
+
+-- theorem sound
+--   {payloadLen fieldLen nameLen valueLen nameIndex : ℕ}
+--   {payload field name value : String}
+--   {stringBodies fieldStringBodies : Array Bool}
+--   {colonIndex valueIndex : ZMod bn254}
+--   {payloadHash : ZMod bn254}
+--   (h_payload_len : payload.length ≤ payloadLen)
+--   (h_field_len : field.length ≤ fieldLen)
+--   (h_name_len : name.length ≤ nameLen)
+--   (h_value_len : value.length ≤ valueLen)
+--   (h_field_nonempty : 0 < field.length)
+--   (h_name_nonempty : 0 < name.length)
+--   (h_value_nonempty : 0 < value.length)
+--   (h_nameIndex : nameIndex < payloadLen)
+--   (h_name_pos : 1 < fieldLen)
+--   (h_value_pos : valueIndex.val < fieldLen)
+--   (h_sum : payloadLen + fieldLen < bn254)
+--   (h_sum_name : fieldLen + nameLen < bn254)
+--   (h_sum_value : fieldLen + valueLen < bn254)
+--   (hc₁ : ∀ c ∈ payload.toList, c.toNat < 256)
+--   (hc₂ : ∀ c ∈ field.toList, 0 < c.toNat ∧ c.toNat < 256)
+--   (hc₃ : ∀ c ∈ name.toList, 0 < c.toNat ∧ c.toNat < 256)
+--   (hc₄ : ∀ c ∈ value.toList, 0 < c.toNat ∧ c.toNat < 256)
+--   (h_bad₁ :
+--     -- For the first `isSubstring.accepts`
+--     ¬ nameIndex + field.length ≤ payload.length ∨
+--     ¬ field.toList <+: payload.toList.drop nameIndex ∨
+--     -- For the second `isSubstring.accepts`
+--     ¬ nameIndex + fieldStringBodies.size ≤ stringBodies.size ∨
+--     ¬ fieldStringBodies.toList <+: stringBodies.toList.drop nameIndex ∨
+--     -- For `parseJWTFieldWithQuotedValue.parses`
+--     ¬ (1 + name.length ≤ field.length ∧ name.toList <+: field.toList.drop 1) ∨
+--     ¬ (valueIndex.val + value.length ≤ field.length ∧
+--         value.toList <+: field.toList.drop valueIndex.val
+--       )
+--   ) :
+--   randomOracle.toOuterMeasure
+--     {f |
+--       isSubstring.accepts (Query.toHashFn f) (encodeV payloadLen payload) payloadHash
+--         (encodeV fieldLen field)
+--         field.length
+--         nameIndex
+--         ∧
+--       isSubstring.accepts (Query.toHashFn f) (PaddedBitVector.encodeV payloadLen stringBodies) payloadHash
+--         (PaddedBitVector.encodeV fieldLen fieldStringBodies)
+--         fieldStringBodies.size
+--         nameIndex
+--         ∧
+--       parseJWTFieldWithQuotedValue.parses (Query.toHashFn f)
+--         (encodeV fieldLen field) field.length
+--         (encodeV nameLen name)
+--         name.length
+--         (encodeV valueLen value)
+--         value.length
+--         (PaddedBitVector.padBoolV fieldLen fieldStringBodies)
+--         colonIndex
+--         valueIndex
+--         false
+--     } ≤
+--       ((sorry : ℕ) : ENNReal) / bn254
+-- := by
+--   sorry
 
 end verifyQuotedField

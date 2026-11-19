@@ -27,9 +27,12 @@ abbrev PaddedBitVector (p w : ℕ) := PaddedVector (FB p) p w
 
 namespace PaddedBitVector
 
+def padBoolV (w : ℕ) (a : Array Bool) : Vector Bool w :=
+  Vector.ofFn fun i : Fin w ↦ if h : i.val < a.size then a[i.val]'h else false
+
 def encodeV (w : ℕ) (a : Array Bool) : Vector (ZMod p) w :=
   Vector.ofFn fun i : Fin w ↦
-    if h : i.val < a.toList.length then ((a[i.val]'h).toNat : ZMod p) else 0
+    if h : i.val < a.size then ((a[i.val]'h).toNat : ZMod p) else 0
 
 abbrev conversion {w} : Conversion p (PaddedBitVector p w) where
   IdealT := Array Bool
@@ -116,14 +119,15 @@ lemma converts_data_bits
   {arr : Array Bool}
   (h : Converts conversion state padded arr) :
   Converts FArray.conversion state padded.data
-    (Vector.ofFn fun i : Fin w ↦ if h : i.val < arr.toList.length then arr[i.val]'h else false)
+    -- (Vector.ofFn fun i : Fin w ↦ if h : i.val < arr.toList.length then arr[i.val]'h else false)
+    (padBoolV w arr)
 := by
   have h_fvec := converts_data h
   refine converts_cast h_fvec rfl ?_
   apply congrArg Vector.toList
   apply Vector.ext
   intro i hi
-  simp only [Vector.getElem_map, Vector.getElem_ofFn, encodeV, Array.length_toList]
+  simp only [Vector.getElem_map, Vector.getElem_ofFn, encodeV, padBoolV]
   by_cases hlt : i < arr.size
   · rw [dif_pos hlt, dif_pos hlt]
     cases arr[i] <;> simp

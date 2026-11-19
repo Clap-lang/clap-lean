@@ -518,8 +518,8 @@ lemma convertsM
     simp only [Vector.getElem_map, Vector.getElem_zip, Vector.getElem_ofFn]
     by_cases h : i < a_val.length
     · have h_bs : i < a_val.toAsciiByteArray.size := by rwa [toAsciiByteArray_size]
-      have h_arr_mem : i < arr.toList.length := by
-        rw [Array.length_toList, harr_size]; exact h
+      have h_arr_mem : i < arr.size := by
+        rw [harr_size]; exact h
       obtain ⟨_, hq, _, hr⟩ := main_induction a_val.toAsciiByteArray (FString.encodeV k a_val) h_p
         (fun j hj hjk ↦ by
           rw [FString.encodeV_getElem_of_lt hjk (by rw [← toAsciiByteArray_size]; exact hj),
@@ -537,8 +537,8 @@ lemma convertsM
         rw [dif_pos h_bs]
       rw [h_elem]
       cases (isInQuotes a_val.toAsciiByteArray ⟨i, h_bs⟩) <;> simp
-    · have h_arr_not_mem : ¬ i < arr.toList.length := by
-        rw [Array.length_toList, harr_size]; exact h
+    · have h_arr_not_mem : ¬ i < arr.size := by
+        rw [harr_size]; exact h
       rw [if_neg h, dif_neg h_arr_not_mem, mul_zero]
   -- Chain the six circuit stages via `step`, each fed its own per-stage step lemma; every
   -- stage (including `lengthMask_convertsM`) has constraint `True`, so `step` auto-discharges

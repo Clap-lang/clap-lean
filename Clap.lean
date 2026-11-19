@@ -11,6 +11,7 @@ import Clap.Keyless.verifyJWTStructure
 import Clap.Keyless.verifyNonce
 import Clap.Keyless.verifyQuotedField
 import Clap.Keyless.verifyTimestamp
+import Clap.Keyless.verifyEvField
 import Clap.Examples.PoseidonProgram
 import Clap.Examples.RangeCheckedLessThan
 import Clap.Test.Backend

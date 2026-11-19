@@ -13,8 +13,9 @@ open Clap Lang FString FArray Primes
 
 /-- Given the string-bodies bit mask and the raw payload field elements, mask out brackets that
     sit inside a quoted string, then compute the brackets-depth map of what remains. -/
-private def unquotedBracketsDepthMap {p : ℕ} [p.AtLeastTwo] {w} (bits : FArray p w)
-    (vals : FVec p w) :
+private def unquotedBracketsDepthMap {p : ℕ} [p.AtLeastTwo] {w}
+  (bits : FArray p w)
+  (vals : FVec p w) :
   ClapM p (FVec p w)
 := do
   let inverted ← bits.mapM Lang.not
@@ -206,19 +207,14 @@ lemma convertsM
   -- `isInQuotes'`-shaped one the final goal is stated with.
   have h_bits0 := PaddedBitVector.converts_data_bits hTerm2.result
   have h_bits_eq :
-      (Vector.ofFn fun i : Fin MAX_JWT_PAYLOAD_LEN ↦
-        if h :
-            i.val <
-              (Vector.ofFn fun i : Fin s.length ↦
-                stringBodies.isInQuotes' s.toAsciiByteArray i).toArray.toList.length then
-          (Vector.ofFn fun i : Fin s.length ↦
-            stringBodies.isInQuotes' s.toAsciiByteArray i).toArray[i.val]'h
-        else false) =
+      PaddedBitVector.padBoolV MAX_JWT_PAYLOAD_LEN
+        (Vector.ofFn fun i : Fin s.length ↦
+          stringBodies.isInQuotes' s.toAsciiByteArray i).toArray =
       Vector.ofFn fun i : Fin MAX_JWT_PAYLOAD_LEN ↦ stringBodies.isInQuotes' s.toAsciiByteArray i
   := by
     apply Vector.ext
     intro i hi
-    simp only [Vector.getElem_ofFn, Array.length_toList, Vector.size_toArray]
+    simp only [PaddedBitVector.padBoolV, Vector.getElem_ofFn, Vector.size_toArray]
     by_cases h : i < s.length
     · simp [dif_pos h]
     · rw [dif_neg h]
