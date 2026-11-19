@@ -83,6 +83,11 @@ Consequences worth internalising:
   goes through `convertsM_bind`, which cannot sequence two assertions that can fail together, so
   in a `step` chain at most one action may produce a constraint (it may sit anywhere). See
   [When `step` does not apply](#when-step-does-not-apply--two-assertions-that-can-fail-together).
+- **A long chain blows up the proof term when its steps consume the same hypothesis**, such as
+  the gadget's input. `step` rebuilds every `Converts` fact through `converts_skip`, with the
+  consuming step's proof inside, and `instantiateMVars` substitutes those rebuilt proofs. The
+  proof term then roughly doubles per consuming step as a tree, while its DAG stays linear. The
+  symptom and the fix (`replace h := h`) are in [§Failure modes](#failure-modes).
 - `step` takes an arbitrary term, not just a library lemma. Feeding it an induction hypothesis
   is idiomatic: `step @h_k fvals_base vals_base this as mapM` in
   [FArray/sum.lean](../Clap/Lang/Data/FArray/sum.lean), and `step h_len as mapM` in
@@ -725,6 +730,7 @@ bidirectional, `→` / `←` implication, `.` use-as-fact, `! .` aggressive, `ca
 | After `step mkAdd.convertsM …` the goal still shows `(a + b).getResult …` instead of `<name>_result`, and a later `apply` times out | the definition wrote `let x ← a + b`, and `step`'s `set` did not match the operator form against `mkAdd a b` | write `mkAdd a b` in the definition at that bind, as `isSubstring.afterHash` does, or `change` the goal |
 | An extra unexplained goal at the end of a Skeleton-2 proof | the `convertsM_bind` implications for a non-`True` constraint | that is soundness/completeness; prove them |
 | The constraints goal reads `… ↔ (True → True → … → P)` and `constructor`/`intro` then mismatches | each preceding `True`-constraint step contributes one `True →` via `convertsM_bind` | a bare `simp` absorbs them, but a targeted script must strip them first: `simp only [true_implies]`. See [FB/assertBool.lean](../Clap/Lang/Core/FB/assertBool.lean) |
+| A long `step` proof takes minutes and many GB, mostly *after* its last tactic. `profiler` shows `instantiate metavars` and `share common exprs` dominating while `tactic execution` stays small. Memory can exhaust the machine | the proof term grows exponentially as a tree, while its DAG stays linear. Each `step` reframes every `Converts` hypothesis as `converts_skip E h`, where `E` is a step proof that consumed `h`'s previous version, and `instantiateMVars` substitutes them. Measured on e93a313's `base64UrlLookup`: tree 0.8 M → 10.6 M → 589 M nodes over three blocks, with the DAG at 18 K → 43 K → 76 K | every few steps, seal the long-lived hypotheses with `replace h := h`. It binds the proof once, as a `have`, and a sealed chain stays linear. Also shorten chains with generic sub-gadget lemmas. `generalize` on states and results does not help, and neither does `maxHeartbeats`. [Base64Len/base64UrlLookup.lean](../Clap/Lang/Data/Base64Len/base64UrlLookup.lean) is the worked case |
 
 ## Verification
 
@@ -737,11 +743,11 @@ Lean `v4.32.0`, Mathlib and CompPoly both pinned to `v4.32.0`, `autoImplicit fal
 `linter.unusedVariables true`. There is no test suite, so a clean build with no `sorry` is the
 acceptance criterion for a `convertsM`.
 
-`lake build Clap` has exactly one expected `sorry`: `poseidon.convertsM` in
-[Examples/PoseidonProgram.lean](../Clap/Examples/PoseidonProgram.lean), which is unprovable by
-design against the `opaque poseidonSpec` in that example. A second one is yours. The expected warnings
-are exactly three: two `linter.dupNamespace` on `Util/Containers.lean:15`, and the `sorry`
-warning above. (Earlier revisions of this guide also listed a `Clap.Lang.F8`
+`lake build Clap` has exactly one expected `sorry`. `poseidon.convertsM` in
+[Examples/PoseidonProgram.lean](../Clap/Examples/PoseidonProgram.lean) is unprovable by design,
+against the `opaque poseidonSpec` in that example. A second one is yours. The expected warnings are
+exactly three: two `linter.dupNamespace` on `Util/Containers.lean:15`, and the one `sorry` warning
+above. (Earlier revisions of this guide also listed a `Clap.Lang.F8`
 `dupNamespace` warning; there is no such warning — do not treat one as baseline.)
 
 There *is* now an executable path, which there was not when this guide was written:

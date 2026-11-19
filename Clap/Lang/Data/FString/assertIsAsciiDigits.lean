@@ -249,13 +249,13 @@ lemma convertsM
       Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not, not_le]
     have h10 : (1 : ZMod p) ≠ 0 := one_ne_zero
     constructor
-    · rintro ⟨⟨-, h_lenb, h_w0, h_len0⟩, h_all⟩
+    · rintro ⟨⟨h_lenb, h_w0, h_len0⟩, h_all⟩
       refine ⟨fun i hi ↦ ?_, h_len0, h_lenb, h_w0, fun i ↦ (h_all i).1⟩
       rcases (h_all i).2 with h | h
       · simp [hi, h10] at h
       · omega
     · rintro ⟨h_digits, h_len0, h_lenb, h_w0, h_bytes⟩
-      refine ⟨⟨by positivity, h_lenb, h_w0, h_len0⟩, fun i ↦ ⟨h_bytes i, ?_⟩⟩
+      refine ⟨⟨h_lenb, h_w0, h_len0⟩, fun i ↦ ⟨h_bytes i, ?_⟩⟩
       by_cases hi : i.val < len_val.val
       · right
         have := h_digits i hi

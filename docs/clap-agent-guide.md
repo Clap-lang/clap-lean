@@ -136,12 +136,11 @@ Follow these or your code will read as foreign to the rest of the tree.
 ## Checklist before you declare a task done
 
 - [ ] `lake build` passes.
-- [ ] No `sorry` and no `admit` in what you added. `lake build Clap` has exactly three expected
-      `sorry`s. `poseidon.convertsM` in
-      [Examples/PoseidonProgram.lean](../Clap/Examples/PoseidonProgram.lean) is unprovable
-      by design, standing in for the `opaque poseidonSpec` in that example. The other two are
-      work in progress: `Base64.base64UrlLookup.convertsM` and `Base64.base64UrlDecode.convertsM`
-      in [Data/Base64Len/](../Clap/Lang/Data/Base64Len/). If you see a fourth, it is yours. (`Clap/Util/Primes.lean` has two more, for the primality of
+- [ ] No `sorry` and no `admit` in what you added. `lake build Clap` has exactly one expected
+      `sorry`: `poseidon.convertsM` in
+      [Examples/PoseidonProgram.lean](../Clap/Examples/PoseidonProgram.lean), unprovable
+      by design, standing in for the `opaque poseidonSpec` in that example. If you see a second,
+      it is yours. (`Clap/Util/Primes.lean` has two more, for the primality of
       `goldilocks` and `bn254`; anything needing primality inherits them.)
 - [ ] `native_decide` is allowed as a smoke test, never as the proof of a `convertsM`.
 - [ ] The gadget has exactly one aggregate lemma, named `convertsM`, in a namespace matching

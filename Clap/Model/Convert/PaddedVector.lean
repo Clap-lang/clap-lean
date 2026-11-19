@@ -23,6 +23,247 @@ structure PaddedVector (α : Type) (p w : ℕ) where
   data : Vector α w
   len : F p
 
+abbrev PaddedBitVector (p w : ℕ) := PaddedVector (FB p) p w
+
+namespace PaddedBitVector
+
+def encodeV (w : ℕ) (a : Array Bool) : Vector (ZMod p) w :=
+  Vector.ofFn fun i : Fin w ↦
+    if h : i.val < a.toList.length then ((a[i.val]'h).toNat : ZMod p) else 0
+
+abbrev conversion {w} : Conversion p (PaddedBitVector p w) where
+  IdealT := Array Bool
+  toExprs v := v.data.toList ++ [v.len]
+  conversion a := (encodeV w a).toList ++ [(a.size : ZMod p)]
+
+lemma converts_intro
+  {w}
+  {state : ClapMState p}
+  {padded : PaddedBitVector p w}
+  {arr : Array Bool}
+  (h_data : Converts FVec.conversion state padded.data (encodeV w arr))
+  (h_len : Converts F.conversion state padded.len (arr.size : ZMod p)) :
+  Converts conversion state padded arr
+:= by
+  have h_len_data : padded.data.toList.length = w := by simp
+  have h_len_enc : (encodeV (p := p) w arr).toList.length = w := by simp
+  refine ⟨by simp, ?_, ?_, ?_⟩
+  · intro ⟨i, h_i⟩
+    simp only [conversion, Fin.getElem_fin] at h_i ⊢
+    by_cases h : i < w
+    · rw [List.getElem_append_left (by omega)]
+      simpa using h_data.varSet_wf ⟨i, by simpa using h⟩
+    · have hi : i = w := by simp at h_i; omega
+      subst hi
+      rw [List.getElem_append_right (by omega)]
+      simp only [h_len_data, Nat.sub_self]
+      simpa using h_len.varSet_wf ⟨0, by simp⟩
+  · intro ⟨i, h_i⟩
+    simp only [conversion, Fin.getElem_fin] at h_i ⊢
+    by_cases h : i < w
+    · rw [List.getElem_append_left (by omega)]
+      simpa using h_data.expr_wf ⟨i, by simpa using h⟩
+    · have hi : i = w := by simp at h_i; omega
+      subst hi
+      rw [List.getElem_append_right (by omega)]
+      simp only [h_len_data, Nat.sub_self]
+      simpa using h_len.expr_wf ⟨0, by simp⟩
+  · intro ⟨i, h_i⟩
+    simp only [conversion, Fin.getElem_fin] at h_i ⊢
+    by_cases h : i < w
+    · rw [List.getElem_append_left (by omega), List.getElem_append_left (by omega)]
+      simpa using h_data.value_eq ⟨i, by simpa using h⟩
+    · have hi : i = w := by simp at h_i; omega
+      subst hi
+      rw [List.getElem_append_right (by omega), List.getElem_append_right (by omega)]
+      simp only [h_len_data, h_len_enc, Nat.sub_self]
+      simpa using h_len.value_eq ⟨0, by simp⟩
+
+lemma converts_data
+  {w}
+  {state : ClapMState p}
+  {padded : PaddedBitVector p w}
+  {arr : Array Bool}
+  (h : Converts conversion state padded arr) :
+  Converts FVec.conversion state padded.data (encodeV w arr)
+:= by
+  have h_len_data : padded.data.toList.length = w := by simp
+  have h_len_enc : (encodeV (p := p) w arr).toList.length = w := by simp
+  refine ⟨by simp, ?_, ?_, ?_⟩
+  · intro ⟨i, h_i⟩
+    have hw : i < w := by simpa using h_i
+    have := h.varSet_wf ⟨i, by simp; omega⟩
+    simp only [conversion, Fin.getElem_fin] at this
+    rwa [List.getElem_append_left (by omega)] at this
+  · intro ⟨i, h_i⟩
+    have hw : i < w := by simpa using h_i
+    have := h.expr_wf ⟨i, by simp; omega⟩
+    simp only [conversion, Fin.getElem_fin] at this
+    rwa [List.getElem_append_left (by omega)] at this
+  · intro ⟨i, h_i⟩
+    have hw : i < w := by simpa using h_i
+    have := h.value_eq ⟨i, by simp; omega⟩
+    simp only [conversion, Fin.getElem_fin] at this
+    rwa [List.getElem_append_left (by omega),
+         List.getElem_append_left (by omega)] at this
+
+lemma converts_len
+  {w}
+  {state : ClapMState p}
+  {padded : PaddedBitVector p w}
+  {a : Array Bool}
+  (h : Converts conversion state padded a) :
+  Converts F.conversion state padded.len (a.size : ZMod p)
+:= by
+  have h_len_data : padded.data.toList.length = w := by simp
+  have h_len_enc : (encodeV (p := p) w a).toList.length = w := by simp
+  refine ⟨by simp, ?_, ?_, ?_⟩
+  · intro ⟨i, h_i⟩
+    have hi : i = 0 := by simpa using h_i
+    subst hi
+    have := h.varSet_wf ⟨w, by simp⟩
+    simp only [conversion, Fin.getElem_fin] at this
+    rw [List.getElem_append_right (by omega)] at this
+    simpa [h_len_data] using this
+  · intro ⟨i, h_i⟩
+    have hi : i = 0 := by simpa using h_i
+    subst hi
+    have := h.expr_wf ⟨w, by simp⟩
+    simp only [conversion, Fin.getElem_fin] at this
+    rw [List.getElem_append_right (by omega)] at this
+    simpa [h_len_data] using this
+  · intro ⟨i, h_i⟩
+    have hi : i = 0 := by simpa using h_i
+    subst hi
+    have := h.value_eq ⟨w, by simp⟩
+    simp only [conversion, Fin.getElem_fin] at this
+    rw [List.getElem_append_right (by omega),
+        List.getElem_append_right (by omega)] at this
+    simpa [h_len_data, h_len_enc] using this
+
+end PaddedBitVector
+
+abbrev PaddedFVector (p w : ℕ) := PaddedVector (F p) p w
+
+namespace PaddedFVector
+
+def encodeV (w : ℕ) (a : Array (ZMod p)) : Vector (ZMod p) w :=
+  Vector.ofFn fun i : Fin w ↦
+    if h : i.val < a.toList.length then a[i.val]'h else 0
+
+abbrev conversion {w} : Conversion p (PaddedFVector p w) where
+  IdealT := Array (ZMod p)
+  toExprs v := v.data.toList ++ [v.len]
+  conversion a := (encodeV w a).toList ++ [(a.size : ZMod p)]
+
+lemma converts_intro
+  {w}
+  {state : ClapMState p}
+  {padded : PaddedFVector p w}
+  {arr : Array (ZMod p)}
+  (h_data : Converts FVec.conversion state padded.data (encodeV w arr))
+  (h_len : Converts F.conversion state padded.len (arr.size : ZMod p)) :
+  Converts conversion state padded arr
+:= by
+  have h_len_data : padded.data.toList.length = w := by simp
+  have h_len_enc : (encodeV (p := p) w arr).toList.length = w := by simp
+  refine ⟨by simp, ?_, ?_, ?_⟩
+  · intro ⟨i, h_i⟩
+    simp only [conversion, Fin.getElem_fin] at h_i ⊢
+    by_cases h : i < w
+    · rw [List.getElem_append_left (by omega)]
+      simpa using h_data.varSet_wf ⟨i, by simpa using h⟩
+    · have hi : i = w := by simp at h_i; omega
+      subst hi
+      rw [List.getElem_append_right (by omega)]
+      simp only [h_len_data, Nat.sub_self]
+      simpa using h_len.varSet_wf ⟨0, by simp⟩
+  · intro ⟨i, h_i⟩
+    simp only [conversion, Fin.getElem_fin] at h_i ⊢
+    by_cases h : i < w
+    · rw [List.getElem_append_left (by omega)]
+      simpa using h_data.expr_wf ⟨i, by simpa using h⟩
+    · have hi : i = w := by simp at h_i; omega
+      subst hi
+      rw [List.getElem_append_right (by omega)]
+      simp only [h_len_data, Nat.sub_self]
+      simpa using h_len.expr_wf ⟨0, by simp⟩
+  · intro ⟨i, h_i⟩
+    simp only [conversion, Fin.getElem_fin] at h_i ⊢
+    by_cases h : i < w
+    · rw [List.getElem_append_left (by omega), List.getElem_append_left (by omega)]
+      simpa using h_data.value_eq ⟨i, by simpa using h⟩
+    · have hi : i = w := by simp at h_i; omega
+      subst hi
+      rw [List.getElem_append_right (by omega), List.getElem_append_right (by omega)]
+      simp only [h_len_data, h_len_enc, Nat.sub_self]
+      simpa using h_len.value_eq ⟨0, by simp⟩
+
+lemma converts_data
+  {w}
+  {state : ClapMState p}
+  {padded : PaddedFVector p w}
+  {arr : Array (ZMod p)}
+  (h : Converts conversion state padded arr) :
+  Converts FVec.conversion state padded.data (encodeV w arr)
+:= by
+  have h_len_data : padded.data.toList.length = w := by simp
+  have h_len_enc : (encodeV (p := p) w arr).toList.length = w := by simp
+  refine ⟨by simp, ?_, ?_, ?_⟩
+  · intro ⟨i, h_i⟩
+    have hw : i < w := by simpa using h_i
+    have := h.varSet_wf ⟨i, by simp; omega⟩
+    simp only [conversion, Fin.getElem_fin] at this
+    rwa [List.getElem_append_left (by omega)] at this
+  · intro ⟨i, h_i⟩
+    have hw : i < w := by simpa using h_i
+    have := h.expr_wf ⟨i, by simp; omega⟩
+    simp only [conversion, Fin.getElem_fin] at this
+    rwa [List.getElem_append_left (by omega)] at this
+  · intro ⟨i, h_i⟩
+    have hw : i < w := by simpa using h_i
+    have := h.value_eq ⟨i, by simp; omega⟩
+    simp only [conversion, Fin.getElem_fin] at this
+    rwa [List.getElem_append_left (by omega),
+         List.getElem_append_left (by omega)] at this
+
+lemma converts_len
+  {w}
+  {state : ClapMState p}
+  {padded : PaddedFVector p w}
+  {a : Array (ZMod p)}
+  (h : Converts conversion state padded a) :
+  Converts F.conversion state padded.len (a.size : ZMod p)
+:= by
+  have h_len_data : padded.data.toList.length = w := by simp
+  have h_len_enc : (encodeV (p := p) w a).toList.length = w := by simp
+  refine ⟨by simp, ?_, ?_, ?_⟩
+  · intro ⟨i, h_i⟩
+    have hi : i = 0 := by simpa using h_i
+    subst hi
+    have := h.varSet_wf ⟨w, by simp⟩
+    simp only [conversion, Fin.getElem_fin] at this
+    rw [List.getElem_append_right (by omega)] at this
+    simpa [h_len_data] using this
+  · intro ⟨i, h_i⟩
+    have hi : i = 0 := by simpa using h_i
+    subst hi
+    have := h.expr_wf ⟨w, by simp⟩
+    simp only [conversion, Fin.getElem_fin] at this
+    rw [List.getElem_append_right (by omega)] at this
+    simpa [h_len_data] using this
+  · intro ⟨i, h_i⟩
+    have hi : i = 0 := by simpa using h_i
+    subst hi
+    have := h.value_eq ⟨w, by simp⟩
+    simp only [conversion, Fin.getElem_fin] at this
+    rw [List.getElem_append_right (by omega),
+        List.getElem_append_right (by omega)] at this
+    simpa [h_len_data, h_len_enc] using this
+
+end PaddedFVector
+
+
 abbrev FString (p w : ℕ) := PaddedVector (F p) p w
 
 namespace FString
