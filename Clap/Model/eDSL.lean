@@ -32,6 +32,12 @@ def fpmul (width k : ℕ) (a b p' : Vector ExprRef k) : ClapM p (Vector (ExprRef
   tell #[.fpmul width k a b p']
   Vector.ofFnM fun (_ : Fin k) ↦ ClapM.alloc
 
+@[irreducible]
+def asm (spec : LawfulGateSpec p) (inputs : Vector ExprRef spec.numInputs) :
+  ClapM p (Vector ExprRef spec.numPublic) := do
+  tell #[.asm p spec inputs]
+  Vector.ofFnM fun (_ : Fin spec.numPublic) ↦ ClapM.alloc
+
 section wellFormed
 
 variable {numAlloc : ℕ} {e : Expr p} {e! : ExprRef} {Γ : VarStore p} {σ : HashConsSt p}
@@ -303,6 +309,42 @@ lemma wellFormed_fpmul {width k : ℕ} {a b p' : Vector ExprRef k}
   . grind
   . grind
 
+@[grind =>]
+lemma wellFormed_asm {spec : LawfulGateSpec p} {inputs : Vector ExprRef spec.numInputs}
+  (h₁ : ∀ e! ∈ inputs, e! < σ.size)
+  (h₂ : ∀ e! ∈ inputs, ∀ v ∈ Expr.varSet ⟨e!, σ⟩, v ∈ Γ)
+  (h₃ : ∀ e! ∈ inputs, Expr.varSet_wellFormed ⟨e!, σ⟩ numAlloc) :
+  (asm spec inputs).wellFormed numAlloc Γ σ := by
+  unfold asm
+  have h_isSome : ∀ e! ∈ inputs, [Γ,σ|e!].isSome := by grind [eval_eq_evalRec]
+  have h_wellFormed : ∀ e! ∈ inputs, (Expr.mk e! σ).wellFormed := by grind
+  unfold ClapM.wellFormed
+  split_ands
+  · simp [Circuit.refsValid]
+    split_ands
+    . intros ref href
+      exact lt_of_lt_of_le (h₁ ref href) (by grind)
+    . unfold Circuit.varsAllocated
+      intro i h_i
+      obtain _ | ⟨i⟩ := i <;> simp
+      . split_ands
+        . intros ref href
+          apply isSome_eval_of_prefix (by grind) (h_isSome ref href) (by grind)
+          grind
+        . intro x h_x ref href
+          have := varSet.varSet_eq_of_prefix
+                    (e₁ := ⟨x, σ⟩)
+                    (e₂ := { ref := x,
+                             σ := (Vector.ofFnM (n := spec.numPublic) fun x => ClapM.alloc
+                                  ).getHashConsState numAlloc σ : Expr _})
+                    (by grind) (h_wellFormed x h_x)
+          rewrite [this] at href
+          grind
+          grind
+      . grind
+  . grind
+  . grind
+
 end wellFormed
 
 section Eval
@@ -357,6 +399,20 @@ lemma eval_edsl_fpmul
 := by
   simp [fpmul, ClapM.runAndEval]
 
+@[simp, grind =]
+lemma eval_edsl_asm
+  {spec : LawfulGateSpec p} {inputs : Vector ExprRef spec.numInputs}
+:
+  (asm spec inputs).runAndEval numAlloc varStore σ =
+  ⟨
+    (Vector.ofFnM fun (_ : Fin spec.numPublic) => ClapM.alloc).getResult numAlloc σ,
+    unconstrained[numAlloc][varStore].stepAsm
+      ((Vector.ofFnM fun (_ : Fin spec.numPublic) => ClapM.alloc).getHashConsState numAlloc σ)
+      spec.toGateSpec inputs
+  ⟩
+:= by
+  simp [asm, ClapM.runAndEval]
+
 end Eval
 
 section GetResult
@@ -387,6 +443,12 @@ lemma getResult_num2bits :
 lemma getResult_fpmul :
   (fpmul w k a b p').getResult numAlloc σ = (Vector.ofFnM fun _ => ClapM.alloc).getResult numAlloc σ := by
   unfold fpmul; rfl
+
+@[grind =]
+lemma getResult_asm {spec : LawfulGateSpec p} {inputs : Vector ExprRef spec.numInputs} :
+  (asm spec inputs).getResult numAlloc σ =
+  (Vector.ofFnM fun _ => ClapM.alloc).getResult numAlloc σ := by
+  unfold asm; rfl
 
 end GetResult
 
@@ -435,6 +497,16 @@ lemma getVarStore_fpmul :
   unfold fpmul ClapM.getVarStore
   simp
 
+@[simp, grind =]
+lemma getVarStore_asm {spec : LawfulGateSpec p} {inputs : Vector ExprRef spec.numInputs} :
+  (asm spec inputs).getVarStore Γ numAlloc σ =
+  letI σ' := (Vector.ofFnM fun _ : Fin spec.numPublic ↦ ClapM.alloc).getHashConsState numAlloc σ
+  Γ.insertMany
+    (((Vector.range spec.numPublic).map (fun x => x + numAlloc)).zip
+      (spec.outputs (inputs.map (fun e => [Γ|⦃e, σ'⦄].getD 0)))) := by
+  unfold asm ClapM.getVarStore
+  simp
+
 end GetVarstore
 
 section GetCircuit
@@ -458,6 +530,12 @@ lemma getCircuit_share {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
 lemma getCircuit_num2bits {w : ℕ} {e! : ExprRef} {numAlloc} {σ : HashConsSt p} :
   (num2bits w e!).getCircuit numAlloc σ = #[.num2bits w e!] := by
   simp [num2bits]
+
+@[simp, grind =]
+lemma getCircuit_asm {spec : LawfulGateSpec p} {inputs : Vector ExprRef spec.numInputs}
+                     {numAlloc} {σ : HashConsSt p} :
+  (asm spec inputs).getCircuit numAlloc σ = #[.asm p spec inputs] := by
+  simp [asm]
 
 @[simp, grind =]
 lemma getResult_liftM {α} {action : HashConsM p α} {numAlloc} {σ : HashConsSt p} :

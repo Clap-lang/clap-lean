@@ -1,6 +1,7 @@
 import Clap.Model.Circuit
 import Clap.Model.Varstore
 
+import Clap.Model.ConstraintSystem.asm
 import Clap.Model.ConstraintSystem.eq0
 import Clap.Model.ConstraintSystem.fpMul
 import Clap.Model.ConstraintSystem.isZero
@@ -56,6 +57,7 @@ def num_constraints : Gate → ℕ
     (if k == 0 then 0 else 1) +
     -- `check_lt constraints numAlloc width r p'`
     1 + k * (w + 3)
+  | .asm _ spec _ => spec.numConstraints
 
 def offsetSince (threshold idx offset : ℕ) : ℕ :=
   if idx < threshold then idx else idx + offset
@@ -88,6 +90,7 @@ def privateAllocs (gate : Gate) : ℕ :=
     -- `check_lt constraints numAlloc width r p'`
     k * (w + 2)
     -- TODO replace with subtraction of circuit step numAlloc from cs numalloc
+  | .asm _ spec _ => spec.numPrivate
 
 def offsetIdx (circuit : Circuit) : ℕ → ℕ :=
   (·.1) <| circuit.foldr (init := (id, circuit.numAllocStep))
@@ -152,6 +155,7 @@ def _root_.Clap.Circuit.toCs {p : ℕ} (circuit : Circuit) (σ : HashConsSt p) (
       | .isZero expr => return (←isZero eq0s numAlloc expr).2
       | .num2bits width expr => return (←num2bits eq0s numAlloc width expr).2
       | .fpmul w k a b p' => return (←fpMul eq0s numAlloc w k a b p').2
+      | .asm _ spec inputs => asmSilly spec eq0s numAlloc inputs
     ) (Array.emptyWithCapacity (circuit.map ConstraintSystem.num_constraints).sum , numInputs)).run σMapped
   ⟨eq0s, σPost⟩
 

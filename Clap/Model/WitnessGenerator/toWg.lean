@@ -1,4 +1,5 @@
 import Clap.Model.Circuit
+import Clap.Model.WitnessGenerator.asm
 import Clap.Model.WitnessGenerator.eq0
 import Clap.Model.WitnessGenerator.fpMul
 import Clap.Model.WitnessGenerator.isZero
@@ -23,6 +24,7 @@ def trace_capacity : Gate → ℕ
   | .isZero _ => isZero.trace_capacity
   | .num2bits w _ => num2bits.trace_capacity w
   | .fpmul w k .. => fpMul.trace_capacity k w
+  | .asm _ spec _ => asm.trace_capacity spec.toGateSpec
 
 def run [Fact (Nat.Prime p)] (wg : WitnessGenerator p) (inputs : Vector (ZMod p) wg.numInputs) : Array (ZMod p) :=
   let max := (wg.circuit.map (λ gate => match gate with
@@ -31,6 +33,7 @@ def run [Fact (Nat.Prime p)] (wg : WitnessGenerator p) (inputs : Vector (ZMod p)
     | .isZero e => e
     | .num2bits _w e => e
     | .fpmul _ k a b p' => if h : k = 0 then 0 else (a ++ b ++ p').toList.max (by simpa)
+    | .asm _ _ inputs => inputs.toList.max?.getD 0
   )).max?.getD 0
   let cache : ValueCache p := Expr.evalWithCache (.ofArray (inputs.toArray.zipIdx.map Prod.swap)) #[] ⦃max, wg.σ⦄
   
@@ -40,6 +43,7 @@ def run [Fact (Nat.Prime p)] (wg : WitnessGenerator p) (inputs : Vector (ZMod p)
     | Gate.isZero expr => return (cache, isZeroUnsafe cache trace expr)
     | Gate.num2bits width expr => return (cache, num2bitsUnsafe cache trace width expr)
     | Gate.fpmul w k a b p' => fpMulUnsafe cache trace w a b p'
+    | Gate.asm _ spec inputs => return (cache, asmUnsafeSilly spec cache trace inputs)
    ) (cache, inputs.toArray.append (Array.emptyWithCapacity (wg.circuit.map trace_capacity).sum))).getResult wg.σ
 
 end WitnessGenerator

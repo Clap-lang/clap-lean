@@ -740,6 +740,9 @@ lemma step_of_refsValid_prefix
     . expose_names
       congr 1
       all_goals grind [EvalSt.getElem?_eq_evalRec_of_wellFormed]
+  · rw [Gate.refsValid_asm] at h_refsValid
+    simp only [EvalSt.stepAsmSilly_eq_mk, EvalSt.asmAssertion_eq_of_isPrefixOf h_prefix h_refsValid,
+      EvalSt.asmOutputs_eq_of_isPrefixOf h_prefix h_refsValid]
 
 
 @[grind .]
