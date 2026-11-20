@@ -48,6 +48,47 @@ open Poseidon RandomOracle Primes FiatShamir
 -- `verifyQuotedField.lean` and `Keyless/computeJSONStructure.lean`.
 attribute [local irreducible] Clap.Lang.Poseidon.poseidonBN254
 
+/-- The five-stage `do`-chain behind `verifyEvField`, stated over five fully abstract actions,
+known only via their `ConvertsM` facts — never through `emailVerifiedCheck`/`isSubstring`/
+`FB.conditionallyAssert`/`enforceNotNested`/`parseEmailVerifiedField` by name. `action3` is a
+curried function of `action1`'s and `action2`'s results, instantiated at the call site as
+`fun x y ↦ FB.conditionallyAssert x y`. Same trick as `verifyQuotedField.bind_convertsM` /
+`computeJSONStructure.bind_convertsM`, extended to two value-producing stages up front. -/
+private lemma bind_convertsM
+  {state : ClapMState bn254}
+  {action1 : ClapM bn254 (FB bn254)} {val1 : Bool} {C1 : Prop}
+  (h1 : ConvertsM FB.conversion action1 state val1 C1)
+  {action2 : ClapM bn254 (FB bn254)} {val2 : Bool} {C2 : Prop}
+  (h2 : ConvertsM FB.conversion action2 (action1.getState state) val2 C2)
+  {action3 : FB bn254 → FB bn254 → ClapM bn254 Unit} {C3 : Prop}
+  (h3 : ConvertsM FUnit.conversion
+          (action3 (action1.getResult state.numAlloc state.σ)
+                   (action2.getResult (action1.getState state).numAlloc (action1.getState state).σ))
+          (action2.getState (action1.getState state)) () C3)
+  {action4 : ClapM bn254 Unit} {C4 : Prop}
+  (h4 : ConvertsM FUnit.conversion action4
+          ((action3 (action1.getResult state.numAlloc state.σ)
+                    (action2.getResult (action1.getState state).numAlloc (action1.getState state).σ)).getState
+            (action2.getState (action1.getState state)))
+          () C4)
+  {action5 : ClapM bn254 Unit} {C5 : Prop}
+  (h5 : ConvertsM FUnit.conversion action5
+          (action4.getState
+            ((action3 (action1.getResult state.numAlloc state.σ)
+                      (action2.getResult (action1.getState state).numAlloc (action1.getState state).σ)).getState
+              (action2.getState (action1.getState state))))
+          () C5)
+:
+  ConvertsM FUnit.conversion
+    (do
+      let uidIsEmail ← action1
+      let evInJwt ← action2
+      action3 uidIsEmail evInJwt
+      action4
+      action5)
+    state () (C1 ∧ C2 ∧ C3 ∧ C4 ∧ C5)
+:= convertsM_bind_and h1 (convertsM_bind_and h2 (convertsM_bind_and h3 (convertsM_bind_and h4 h5)))
+
 lemma convertsM
   {H : HashFn}
   (h_H : Computes H)
@@ -63,37 +104,28 @@ lemma convertsM
   {payload_val : String}
   {payloadHash_val : ZMod bn254}
   {bracketsDepthMap_val : Vector (ZMod bn254) MAX_JWT_PAYLOAD_LEN}
-  -- `ev.field`: decomposed only — nothing downstream needs it as a whole string.
+  -- `uidName`
+  (h_uidName : Converts FString.conversion state uidName uidName_val)
+  -- `ev.field`
   (h_field_val : Converts FVec.conversion state ev.field.data field_vals)
   (h_field_len : Converts F.conversion state ev.field.len field_len)
   (h_ni : Converts F.conversion state ev.nameIndex name_index_val)
   (h_ci : Converts F.conversion state ev.colonIndex colon_index_val)
   (h_vi : Converts F.conversion state ev.valueIndex value_index_val)
-  -- `uidName` / `ev.name` / `ev.value`: whole-string facts, required by `emailVerifiedCheck`
-  -- (it compares them against string literals). `parseEmailVerifiedField`'s decomposed `FVec`/`F`
-  -- facts are bridged from these in the proof via `FString.converts_data` / `FString.converts_len`
-  -- — the same bridge `verifyQuotedField.convertsM` uses for `json.payload`.
-  (h_uidName : Converts FString.conversion state uidName uidName_val)
   (h_evName : Converts FString.conversion state ev.name evName_val)
   (h_evValue : Converts FString.conversion state ev.value evValue_val)
   -- `json`
   (h_payload          : Converts FString.conversion state json.payload payload_val)
   (h_payloadHash      : Converts F.conversion state json.payloadHash payloadHash_val)
   (h_bracketsDepthMap : Converts FVec.conversion state json.bracketsDepthMap bracketsDepthMap_val)
-  -- Data-dependent side conditions `emailVerifiedCheck.convertsM` needs: facts about the free
-  -- String *values*, so — unlike the constant-only side conditions it also needs (`256 < p`, the
-  -- three width bounds, the three literal-length facts) — they cannot be discharged by `decide`
-  -- and must be supplied here.
+  -- `emailVerifiedCheck.convertsM` needs:
   (h_uidName_len : uidName_val.length < MAX_UID_NAME_LEN)
   (h_evName_len  : evName_val.length  < MAX_EV_NAME_LEN)
   (h_evValue_len : evValue_val.length < MAX_EV_VALUE_LEN)
   (h_uidName_chars : ∀ c ∈ uidName_val.toList, c.toNat < 256)
   (h_evName_chars  : ∀ c ∈ evName_val.toList,  c.toNat < 256)
   (h_evValue_chars : ∀ c ∈ evValue_val.toList, c.toNat < 256)
-  -- Range bounds `parseEmailVerifiedField.convertsM` needs with no other source: `colon_index_val`
-  -- / `value_index_val` / `field_len` are free top-level inputs. (The matching bounds on the
-  -- name/value lengths are derived in the proof from `h_evName_len` / `h_evValue_len` instead —
-  -- unlike in `verifyQuotedField`, `ev.name` / `ev.value` are tied to actual strings here.)
+  -- `parseEmailVerifiedField.convertsM` needs
   (h_colon_index_w : colon_index_val.val < 2 ^ 20)
   (h_value_index_w : value_index_val.val < 2 ^ 20)
   (h_field_len_w : field_len.val < 2 ^ 20)
@@ -128,7 +160,7 @@ lemma convertsM
         (bracketsDepthMap_val.extract name_index_val.val (name_index_val + field_len).val).sum = 0
       ) ∧
       -- From `parseEmailVerifiedField.convertsM`
-      ( (∀ i : Fin MAX_EV_KV_PAIR_LEN, field_vals[i].val < 2 ^ 8) ∧
+      ( -- redundant: (∀ i : Fin MAX_EV_KV_PAIR_LEN, field_vals[i].val < 2 ^ 8) ∧
         (∀ i : Fin MAX_EV_NAME_LEN, nameV[i].val < 2 ^ 8) ∧
         (∀ i : Fin MAX_EV_VALUE_LEN, valueV[i].val < 2 ^ 8) ∧
 
@@ -147,6 +179,95 @@ lemma convertsM
           value_index_val
       )
     )
-:= by sorry
+:= by
+  intro payloadV nameV nameLen valueV valueLen
+  have h_n_bn254 : MAX_JWT_PAYLOAD_LEN < bn254 := by decide
+  have hw_minBits : 2 ^ (minBits' MAX_JWT_PAYLOAD_LEN + 1) < bn254 := by
+    have h11 : minBits' MAX_JWT_PAYLOAD_LEN ≤ 11 := by
+      unfold minBits'
+      split
+      · omega
+      · rename_i hx
+        have hx11 : MAX_JWT_PAYLOAD_LEN < 2 ^ 11 := by decide
+        have := (Nat.log2_lt hx).mpr hx11
+        omega
+    have h2 : (2:ℕ) ^ (minBits' MAX_JWT_PAYLOAD_LEN + 1) ≤ 2 ^ 12 :=
+      Nat.pow_le_pow_right (by norm_num) (by omega)
+    have h4096 : (2:ℕ) ^ 12 < bn254 := by decide
+    omega
+  have h_evName_max_bn254  : MAX_EV_NAME_LEN  < bn254 := by decide
+  have h_evValue_max_bn254 : MAX_EV_VALUE_LEN < bn254 := by decide
+  have h_evName_max_w  : MAX_EV_NAME_LEN  < 2 ^ 20 := by decide
+  have h_evValue_max_w : MAX_EV_VALUE_LEN < 2 ^ 20 := by decide
+  have h_sum_max_bn254 : MAX_EV_NAME_LEN + MAX_EV_VALUE_LEN < bn254 := by decide
+  have h_sum_max_w : MAX_EV_NAME_LEN + MAX_EV_VALUE_LEN < 2 ^ 20 := by decide
+  have h_evName_len_bn254 : evName_val.length < bn254 := by omega
+  have h_evValue_len_bn254 : evValue_val.length < bn254 := by omega
+  have h_sum_len_bn254 : evName_val.length + evValue_val.length < bn254 := by omega
+  have h_name_len_w' : nameLen.val < 2 ^ 20 := by
+    show (evName_val.length : ZMod bn254).val < 2 ^ 20
+    rw [ZMod.val_natCast_of_lt h_evName_len_bn254]
+    omega
+  have h_sum_len_w' : (nameLen + valueLen).val < 2 ^ 20 := by
+    show ((evName_val.length : ZMod bn254) + (evValue_val.length : ZMod bn254)).val < 2 ^ 20
+    rw [← Nat.cast_add, ZMod.val_natCast_of_lt h_sum_len_bn254]
+    omega
+  unfold verifyEvField
+  have h1 := emailVerifiedCheck.convertsM
+    h_uidName h_evName h_evValue
+    (by decide) (by decide) (by decide) (by decide)
+    h_uidName_len h_evName_len h_evValue_len
+    h_uidName_chars h_evName_chars h_evValue_chars
+    (by decide) (by decide) (by decide)
+  replace h_evName := converts_skip h1 h_evName
+  replace h_evValue := converts_skip h1 h_evValue
+  replace h_payload := converts_skip h1 h_payload
+  replace h_payloadHash := converts_skip h1 h_payloadHash
+  replace h_field_val := converts_skip h1 h_field_val
+  replace h_field_len := converts_skip h1 h_field_len
+  replace h_ni := converts_skip h1 h_ni
+  replace h_bracketsDepthMap := converts_skip h1 h_bracketsDepthMap
+  replace h_ci := converts_skip h1 h_ci
+  replace h_vi := converts_skip h1 h_vi
+  have h2 := FString.isSubstring.convertsM h_H (by decide)
+    (FString.converts_data h_payload) h_payloadHash h_field_val h_field_len h_ni
+    (by decide) h_n_bn254 hw_minBits
+  replace h_evName := converts_skip h2 h_evName
+  replace h_evValue := converts_skip h2 h_evValue
+  replace h_field_val := converts_skip h2 h_field_val
+  replace h_field_len := converts_skip h2 h_field_len
+  replace h_ni := converts_skip h2 h_ni
+  replace h_bracketsDepthMap := converts_skip h2 h_bracketsDepthMap
+  replace h_ci := converts_skip h2 h_ci
+  replace h_vi := converts_skip h2 h_vi
+  have h3 := FB.conditionallyAssert.convertsM (converts_skip h2 h1.result) h2.result
+  replace h_evName := converts_skip h3 h_evName
+  replace h_evValue := converts_skip h3 h_evValue
+  replace h_field_val := converts_skip h3 h_field_val
+  replace h_field_len := converts_skip h3 h_field_len
+  replace h_ni := converts_skip h3 h_ni
+  replace h_bracketsDepthMap := converts_skip h3 h_bracketsDepthMap
+  replace h_ci := converts_skip h3 h_ci
+  replace h_vi := converts_skip h3 h_vi
+  have h4 := enforceNotNested.convertsM h_ni h_field_len h_bracketsDepthMap h_n_bn254 hw_minBits
+  replace h_evName := converts_skip h4 h_evName
+  replace h_evValue := converts_skip h4 h_evValue
+  replace h_field_val := converts_skip h4 h_field_val
+  replace h_field_len := converts_skip h4 h_field_len
+  replace h_ci := converts_skip h4 h_ci
+  replace h_vi := converts_skip h4 h_vi
+  have h5 := parseEmailVerifiedField.convertsM h_H (by decide) (by decide)
+    h_field_val h_field_len
+    (FString.converts_data h_evName) (FString.converts_len h_evName)
+    (FString.converts_data h_evValue) (FString.converts_len h_evValue)
+    h_ci h_vi
+    h_name_len_w' h_colon_index_w h_value_index_w h_field_len_w h_sum_len_w' (by decide)
+  have hWhole := bind_convertsM h1 h2 h3 h4 h5
+  refine convertsM_of_convertsM hWhole rfl ?_
+  constructor
+  · rintro ⟨hc1, ⟨hbyte, hbound, hlt1, hlt2⟩, hc3, ⟨-, -, -, hsum⟩, -, hc5rest⟩
+    exact ⟨hc1, ⟨hbyte, hbound, hlt1, hlt2⟩, hc3, hsum, hc5rest⟩
+  · rintro ⟨hg1, ⟨hbyte, hbound, hlt1, hlt2⟩, hg3, hsum, hg5rest⟩
+    exact ⟨hg1, ⟨hbyte, hbound, hlt1, hlt2⟩, hg3, ⟨hbound, hlt1, hlt2, hsum⟩, hbyte, hg5rest⟩
 
 end verifyEvField
