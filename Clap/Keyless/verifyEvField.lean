@@ -11,8 +11,11 @@ import Clap.Lang.Core.FB.not
 import Clap.Lang.Data.HashToField.hashBytesToField
 import Clap.Keyless.Input
 import Clap.Lang.Poseidon.Poseidon
+import Clap.Model.Convert.PaddedVector
 
-open Clap Lang Primes
+namespace Clap.Lang
+
+open Primes FString
 
 /-- Verify the email_verified field and cross-check with uid name.
     CIRCOM truth table: fail only if uidIsEmail AND NOT evInJwt. -/
@@ -270,4 +273,122 @@ lemma convertsM
   · rintro ⟨hg1, ⟨hbyte, hbound, hlt1, hlt2⟩, hg3, hsum, hg5rest⟩
     exact ⟨hg1, ⟨hbyte, hbound, hlt1, hlt2⟩, hg3, ⟨hbound, hlt1, hlt2, hsum⟩, hbyte, hg5rest⟩
 
+theorem sound {nF nN nV nP}
+  {nameIndex : ℕ}
+  {payload field name value uid : String}
+  (colonIndex valueIndex : ZMod bn254)
+  (strHash : ZMod bn254)
+  (h_payload_len : payload.length ≤ nP)
+  (h_field_len : field.length ≤ nF)
+  (h_0 : 0 < field.length)
+  (h_sn : nameIndex < nP)
+  (h_nm : nP + nF < bn254)
+  (h_nameLen : name.length ≤ nN)
+  (h_valueLen : value.length ≤ nV)
+  (h_namePos : 0 < name.length)
+  (h_valuePos : 0 < value.length)
+  (h_nF_name : 1 < nF)
+  (h_valueIndex : valueIndex.val < nF)
+  (h_nm_name : nF + nN < bn254)
+  (h_nm_value : nF + nV < bn254)
+  (h_name_bytes : ∀ c ∈ name.toList, 0 < c.toNat ∧ c.toNat < 256)
+  (h_value_bytes : ∀ c ∈ value.toList, 0 < c.toNat ∧ c.toNat < 256)
+  (h_payload_bytes : ∀ c ∈ payload.toList, c.toNat < 256)
+  (h_field_bytes : ∀ c ∈ field.toList, 0 < c.toNat ∧ c.toNat < 256)
+  (h_bad :
+    (uid = "email" ∧
+      ¬ (nameIndex + field.length ≤ payload.length ∧ field.toList <+: payload.toList.drop nameIndex)
+    ) ∨
+    ¬ (1 + name.length ≤ field.length ∧ name.toList <+: field.toList.drop 1) ∨
+    ¬ (valueIndex.val + value.length ≤ field.length ∧
+        value.toList <+: field.toList.drop valueIndex.val
+      )
+  )
+  :
+  randomOracle.toOuterMeasure
+    {f |
+      (uid = "email" →
+        isSubstring.accepts (Query.toHashFn f) (encodeV nP payload) strHash
+          (encodeV nF field)
+          field.length
+          nameIndex
+      ) ∧
+      parseEmailVerifiedField.parses (Query.toHashFn f)
+        (encodeV nF field)
+        field.length
+        (encodeV nN name)
+        name.length
+        (encodeV nV value)
+        value.length
+        colonIndex
+        valueIndex
+    }
+      ≤ ((max (nP - 1 + (nF - 1) + 25) (nF - 1 + (max nN nV - 1) + 50) : ℕ) : ENNReal) / bn254
+:= by
+  rcases h_bad with ⟨h_uid, h_loc⟩ | h_name_bad | h_value_bad
+  · -- the field isn't really at `nameIndex` in `payload` (and `uid = "email"`, so the circuit
+    -- really does check it)
+    have h_sub :
+        {f |
+          (uid = "email" →
+            isSubstring.accepts (Query.toHashFn f) (encodeV nP payload) strHash
+              (encodeV nF field) field.length nameIndex) ∧
+          parseEmailVerifiedField.parses (Query.toHashFn f)
+            (encodeV nF field) field.length (encodeV nN name) name.length (encodeV nV value)
+            value.length colonIndex valueIndex} ⊆
+        {f | isSubstring.accepts (Query.toHashFn f) (encodeV nP payload) strHash
+              (encodeV nF field) field.length nameIndex = true} :=
+      fun f hf => hf.1 h_uid
+    refine (MeasureTheory.measure_mono h_sub).trans ?_
+    refine (isSubstring.sound (n := nP) (m := nF) (s := nameIndex) strHash
+      h_payload_len h_field_len h_0 h_sn h_nm h_payload_bytes h_field_bytes h_loc).trans
+      (ENNReal.div_le_div_right ?_ _)
+    exact_mod_cast
+      (show nP - 1 + (nF - 1) + 25 ≤
+          max (nP - 1 + (nF - 1) + 25) (nF - 1 + (max nN nV - 1) + 50) by omega)
+  · -- `name` isn't really at position `1` in `field`
+    have h_sub :
+        {f |
+          (uid = "email" →
+            isSubstring.accepts (Query.toHashFn f) (encodeV nP payload) strHash
+              (encodeV nF field) field.length nameIndex) ∧
+          parseEmailVerifiedField.parses (Query.toHashFn f)
+            (encodeV nF field) field.length (encodeV nN name) name.length (encodeV nV value)
+            value.length colonIndex valueIndex} ⊆
+        {f | parseEmailVerifiedField.parses (Query.toHashFn f)
+              (encodeV nF field) field.length (encodeV nN name) name.length (encodeV nV value)
+              value.length colonIndex valueIndex} :=
+      fun f hf => hf.2
+    refine (MeasureTheory.measure_mono h_sub).trans ?_
+    refine (parseEmailVerifiedField.sound field name value colonIndex valueIndex
+      h_field_len h_nameLen h_valueLen h_namePos h_valuePos h_nF_name h_valueIndex
+      h_nm_name h_nm_value (fun c hc => (h_field_bytes c hc).2) h_name_bytes h_value_bytes
+      (Or.inl h_name_bad)).trans (ENNReal.div_le_div_right ?_ _)
+    exact_mod_cast
+      (show nF - 1 + (max nN nV - 1) + 50 ≤
+          max (nP - 1 + (nF - 1) + 25) (nF - 1 + (max nN nV - 1) + 50) by omega)
+  · -- `value` isn't really at `valueIndex` in `field` — symmetric to the previous case
+    have h_sub :
+        {f |
+          (uid = "email" →
+            isSubstring.accepts (Query.toHashFn f) (encodeV nP payload) strHash
+              (encodeV nF field) field.length nameIndex) ∧
+          parseEmailVerifiedField.parses (Query.toHashFn f)
+            (encodeV nF field) field.length (encodeV nN name) name.length (encodeV nV value)
+            value.length colonIndex valueIndex} ⊆
+        {f | parseEmailVerifiedField.parses (Query.toHashFn f)
+              (encodeV nF field) field.length (encodeV nN name) name.length (encodeV nV value)
+              value.length colonIndex valueIndex} :=
+      fun f hf => hf.2
+    refine (MeasureTheory.measure_mono h_sub).trans ?_
+    refine (parseEmailVerifiedField.sound field name value colonIndex valueIndex
+      h_field_len h_nameLen h_valueLen h_namePos h_valuePos h_nF_name h_valueIndex
+      h_nm_name h_nm_value (fun c hc => (h_field_bytes c hc).2) h_name_bytes h_value_bytes
+      (Or.inr h_value_bad)).trans (ENNReal.div_le_div_right ?_ _)
+    exact_mod_cast
+      (show nF - 1 + (max nN nV - 1) + 50 ≤
+          max (nP - 1 + (nF - 1) + 25) (nF - 1 + (max nN nV - 1) + 50) by omega)
+
 end verifyEvField
+
+end Clap.Lang
