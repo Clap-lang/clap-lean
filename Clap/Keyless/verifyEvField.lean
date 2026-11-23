@@ -389,6 +389,128 @@ theorem sound {nF nN nV nP}
       (show nF - 1 + (max nN nV - 1) + 50 ≤
           max (nP - 1 + (nF - 1) + 25) (nF - 1 + (max nN nV - 1) + 50) by omega)
 
+theorem complete {nF nN nV nP}
+  {nameIndex : ℕ}
+  {payload field name value uid : String}
+  (colonIndex valueIndex : ZMod bn254)
+  (strHash : ZMod bn254)
+  (h_payload_len : payload.length ≤ nP)
+  (h_field_len : field.length ≤ nF)
+  (h_0 : 0 < field.length)
+  (h_nm : nP + nF < bn254)
+  (h_nameLen : name.length ≤ nN)
+  (h_valueLen : value.length ≤ nV)
+  (h_namePos : 0 < name.length)
+  (h_valuePos : 0 < value.length)
+  (h_nF_name : 1 < nF)
+  (h_nm_name : nF + nN < bn254)
+  (h_nm_value : nF + nV < bn254)
+  (h_name_bytes : ∀ c ∈ name.toList, 0 < c.toNat ∧ c.toNat < 256)
+  (h_value_bytes : ∀ c ∈ value.toList, 0 < c.toNat ∧ c.toNat < 256)
+  (h_payload_bytes : ∀ c ∈ payload.toList, c.toNat < 256)
+  (h_field_bytes : ∀ c ∈ field.toList, 0 < c.toNat ∧ c.toNat < 256)
+  (h_substr₁ :
+    (uid = "email" →
+      nameIndex + field.length ≤ payload.length ∧ field.toList <+: payload.toList.drop nameIndex
+    )
+   )
+  (h_substr₂ : 1 + name.length ≤ field.length ∧ name.toList <+: field.toList.drop 1)
+  (h_substr₃ :
+    valueIndex.val + value.length ≤ field.length ∧
+    value.toList <+: field.toList.drop valueIndex.val
+  )
+  (h_colon_order : name.length < colonIndex.val)
+  (h_value_order : colonIndex.val < valueIndex.val)
+  (h_open_quote : field.toList[0]? = some '\"')
+  (h_close_quote : field.toList[name.length + 1]? = some '\"')
+  (h_colon : field.toList[colonIndex.val]? = some ':')
+  (h_last_char : field.toList[field.length - 1]? = some ',' ∨
+    field.toList[field.length - 1]? = some '}')
+  (h_char_before : let charBefore := field.toList[valueIndex.val - 1]?;
+    charBefore = some '\"' ∨
+      charBefore.elim false (isWs ∘ Char.toNat) ∨
+      valueIndex.val = colonIndex.val + 1
+  )
+  (h_char_after : let charAfter := field.toList[valueIndex.val + value.length]?;
+    charAfter = some '\"' ∨
+      charAfter.elim false (isWs ∘ Char.toNat) ∨
+      field.length = valueIndex.val + value.length + 1
+  )
+  (h_quoteMatch :
+    let charBefore := field.toList[valueIndex.val - 1]?;
+    let charAfter := field.toList[valueIndex.val + value.length]?;
+    (charBefore == some '\"') = (charAfter == some '\"')
+  )
+  (h_ws_zones : ∀ i,
+    name.length + 2 ≤ i ∧ i < colonIndex.val ∨
+    colonIndex.val + 1 ≤ i ∧ i < valueIndex.val - 1 ∨
+    valueIndex.val + value.length + 1 ≤ i ∧ i < field.length - 1 →
+    (field.toList[i]?.elim false (isWs ∘ Char.toNat) : Prop)
+  )
+  :
+  randomOracle.toOuterMeasure
+    {f |
+      (uid = "email" ∧
+        ¬ isSubstring.accepts (Query.toHashFn f) (encodeV nP payload) strHash
+          (encodeV nF field)
+          field.length
+          nameIndex
+      ) ∨
+      ¬parseEmailVerifiedField.parses (Query.toHashFn f)
+        (encodeV nF field)
+        field.length
+        (encodeV nN name)
+        name.length
+        (encodeV nV value)
+        value.length
+        colonIndex
+        valueIndex
+    }
+      ≤ ((nP - 1 + 25 + (2 * (nF - 1) + 100) : ℕ) : ENNReal) / bn254
+:= by
+  have hB := parseEmailVerifiedField.complete field name value colonIndex valueIndex
+    h_field_len h_nameLen h_valueLen h_namePos h_valuePos h_nF_name h_nm_name h_nm_value
+    (fun c hc => (h_field_bytes c hc).2) h_name_bytes h_value_bytes
+    h_substr₂.1 h_substr₂.2 h_substr₃.1 h_substr₃.2
+    h_colon_order h_value_order h_open_quote h_close_quote h_colon h_last_char
+    h_char_before h_char_after h_quoteMatch h_ws_zones
+  have hA : randomOracle.toOuterMeasure
+      {f | uid = "email" ∧ ¬isSubstring.accepts (Query.toHashFn f) (encodeV nP payload) strHash
+        (encodeV nF field) field.length nameIndex} ≤
+      (((nP - 1) + 25 : ℕ) : ENNReal) / bn254 := by
+    by_cases h_uid : uid = "email"
+    · obtain ⟨h_fit_pay, h_pre_pay⟩ := h_substr₁ h_uid
+      refine le_trans (MeasureTheory.measure_mono ?_)
+        (isSubstring.complete (n := nP) (m := nF) (s := nameIndex) strHash
+          h_payload_len h_field_len h_0 h_nm h_payload_bytes h_field_bytes h_fit_pay h_pre_pay)
+      rintro f ⟨-, hf⟩
+      simp only [Set.mem_setOf_eq, Bool.not_eq_true] at hf ⊢
+      exact hf
+    · have hEmpty : {f : Query → ZMod bn254 | uid = "email" ∧
+          ¬isSubstring.accepts (Query.toHashFn f) (encodeV nP payload) strHash
+            (encodeV nF field) field.length nameIndex} = ∅ := by
+        ext f; simp [h_uid]
+      rw [hEmpty, MeasureTheory.measure_empty]
+      exact zero_le
+  rw [Set.setOf_or]
+  calc randomOracle.toOuterMeasure
+        ({f | uid = "email" ∧ ¬isSubstring.accepts (Query.toHashFn f) (encodeV nP payload) strHash
+            (encodeV nF field) field.length nameIndex} ∪
+          {f | ¬parseEmailVerifiedField.parses (Query.toHashFn f) (encodeV nF field) field.length
+            (encodeV nN name) name.length (encodeV nV value) value.length colonIndex valueIndex})
+      ≤ randomOracle.toOuterMeasure
+          {f | uid = "email" ∧ ¬isSubstring.accepts (Query.toHashFn f) (encodeV nP payload) strHash
+            (encodeV nF field) field.length nameIndex} +
+        randomOracle.toOuterMeasure
+          {f | ¬parseEmailVerifiedField.parses (Query.toHashFn f) (encodeV nF field) field.length
+            (encodeV nN name) name.length (encodeV nV value) value.length colonIndex valueIndex} :=
+        MeasureTheory.measure_union_le _ _
+    _ ≤ (((nP - 1) + 25 : ℕ) : ENNReal) / bn254 + ((2 * (nF - 1) + 100 : ℕ) : ENNReal) / bn254 :=
+        add_le_add hA hB
+    _ = ((nP - 1 + 25 + (2 * (nF - 1) + 100) : ℕ) : ENNReal) / bn254 := by
+        rw [ENNReal.div_add_div_same]
+        norm_cast
+
 end verifyEvField
 
 end Clap.Lang
