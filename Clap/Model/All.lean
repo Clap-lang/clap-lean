@@ -21,6 +21,7 @@ import Clap.Model.HashCons.HashConsSt
 import Clap.Model.Monad
 import Clap.Model.PublicInput
 import Clap.Model.Ref.HashConsSt
+import Clap.Model.Ref.ToCs
 import Clap.Model.Varstore
 import Clap.Model.WitnessGenerator.eq0
 import Clap.Model.WitnessGenerator.fpMul

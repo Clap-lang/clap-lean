@@ -9,6 +9,7 @@ import Clap.Examples.RangeCheckedLessThan
 import Clap.Test.Backend
 import Clap.Test.GateOutputs
 import Clap.Test.R1CS.FpMul
+import Clap.Test.R1CS.Remap
 import Clap.Compiler.toR1CS
 
 /-!

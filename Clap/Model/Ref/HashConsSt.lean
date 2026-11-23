@@ -1,4 +1,4 @@
-import Clap.Model.ConstraintSystem.toCs
+import Clap.Model.Ref.ToCs
 
 /-!
 A proof that the old HashConsSt (now called HashConsStRef) and the new HashConsSt with an index are "the same"
@@ -6,7 +6,7 @@ A proof that the old HashConsSt (now called HashConsStRef) and the new HashConsS
 * forgetting the index is a bijection, `HashConsSt.equivRef : HashConsSt p ≃ HashConsStRef p`
   (the index is determined by `exprs`: `HashConsSt.ext_exprs`);
 * every changed definition commutes with it: `toRef_empty`, `toRef_pushExpr`, `toRef_ofExprs`,
-  `run_saveExpr_toRef`, `toRef_offsetHashConsState`;
+  `run_saveExpr_toRef`, `toRef_remapVars`, `toRef_offsetHashConsStateRef`;
 * so does the code compiled code runs in their place (`@[csimp]`): `run_saveExprFast_toRef`,
   `toRef_pushExprFast`.
 
@@ -75,10 +75,11 @@ def remapVars (offsets : ℕ → ℕ) (numPublicInputs : ℕ) (σ : HashConsStRe
     grind
   ⟨exprs, wellFormed⟩
 
-/-- `ConstraintSystem.offsetHashConsState` at d155481. -/
+/-- `ConstraintSystem.offsetHashConsState` at d155481. Its `offsetIdx` is
+`ConstraintSystem.offsetIdxRef` now. -/
 def offsetHashConsState (numPublicInputs : ℕ) (σ : HashConsStRef p) (circuit : Circuit) :
     HashConsStRef p :=
-  remapVars (ConstraintSystem.offsetIdx circuit) numPublicInputs σ
+  remapVars (ConstraintSystem.offsetIdxRef circuit) numPublicInputs σ
 
 /-- The heap with its index. -/
 def toSt (σ : HashConsStRef p) : HashConsSt p :=
@@ -167,10 +168,25 @@ theorem run_saveExprFast_toRef (e : CacheExpr p) (σ : HashConsSt p) :
   rw [← HashConsM.saveExpr_eq_saveExprFast]
   exact run_saveExpr_toRef e σ
 
-/-- `offsetHashConsState` with `ofExprs` is `offsetHashConsState` at d155481. -/
-theorem toRef_offsetHashConsState (numPublicInputs : ℕ) (σ : HashConsSt p) (circuit : Circuit) :
-    (ConstraintSystem.offsetHashConsState numPublicInputs σ circuit).toRef =
+/-- The remap with `ofExprs` is the remap at d155481. -/
+theorem toRef_remapVars (offsets : ℕ → ℕ) (numPublicInputs : ℕ) (σ : HashConsSt p) :
+    (ConstraintSystem.remapVars offsets numPublicInputs σ).toRef =
+      remapVars offsets numPublicInputs σ.toRef := rfl
+
+/-- `offsetHashConsStateRef` (the closure-chain remap) is `offsetHashConsState` at d155481. -/
+theorem toRef_offsetHashConsStateRef (numPublicInputs : ℕ) (σ : HashConsSt p)
+    (circuit : Circuit) :
+    (ConstraintSystem.offsetHashConsStateRef numPublicInputs σ circuit).toRef =
       offsetHashConsState numPublicInputs σ.toRef circuit := rfl
+
+/-- The current remap is `offsetHashConsState` at d155481 on circuits without fpmul (with fpmul
+the old remap was wrong: see `ConstraintSystem.offsetIdx_eq_offsetIdxRef`). -/
+theorem toRef_offsetHashConsState (numPublicInputs : ℕ) (σ : HashConsSt p) (circuit : Circuit)
+    (h : ∀ gate ∈ circuit, (gate matches .fpmul ..) = false) :
+    (ConstraintSystem.offsetHashConsState numPublicInputs σ circuit).toRef =
+      offsetHashConsState numPublicInputs σ.toRef circuit := by
+  rw [ConstraintSystem.offsetHashConsState_eq_offsetHashConsStateRef numPublicInputs σ circuit h]
+  rfl
 
 end HashConsStRef
 
