@@ -1,5 +1,5 @@
 import Clap.Model.ConstraintSystem.toCs
-import R1Serialize.R1CS
+import Clap.Compiler.Serialize
 
 namespace Clap
 
@@ -442,7 +442,7 @@ Optimisations:
 - `old/Clap/Dedup.lean`
 - `old/Clap/Unshare.lean`
 -/
-def toR1CS (cs : ConstraintSystem p) (numInputs : ℕ) : Option R1CSv1 :=
+def toR1CS (cs : ConstraintSystem p) (numInputs : ℕ) : Option Serialize.R1CSv1 :=
   sorry
 
 end ConstraintSystem

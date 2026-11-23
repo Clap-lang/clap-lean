@@ -9,13 +9,6 @@ leanOptions = [
   { name = "autoImplicit", value = false },
 ]
 
-[[lean_lib]]
-name = "R1Serialize"
-leanOptions = [
-  { name = "linter.unusedVariables", value = true },
-  { name = "autoImplicit", value = false },
-]
-
 [[require]]
 name = "mathlib"
 git = "https://github.com/leanprover-community/mathlib4.git"
