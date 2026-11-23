@@ -18,6 +18,7 @@ import Clap.Model.HashCons.CacheExpr
 import Clap.Model.HashCons.Eval
 import Clap.Model.HashCons.HashConsM
 import Clap.Model.HashCons.HashConsSt
+import Clap.Model.Loop
 import Clap.Model.Monad
 import Clap.Model.PublicInput
 import Clap.Model.Ref.HashConsSt
