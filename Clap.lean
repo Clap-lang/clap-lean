@@ -10,6 +10,7 @@ import Clap.Test.Backend
 import Clap.Test.GateOutputs
 import Clap.Test.R1CS.FpMul
 import Clap.Test.R1CS.Remap
+import Clap.Test.R1CS.Witness
 import Clap.Compiler.toR1CS
 
 /-!
