@@ -57,78 +57,55 @@ def num_constraints : Gate → ℕ
     -- `check_lt constraints numAlloc width r p'`
     1 + k * (w + 4)
 
-def offsetSince (threshold idx offset : ℕ) : ℕ :=
-  if idx < threshold then idx else idx + offset
+/-- Number of trace slots `Circuit.toCs` gives `gate` -/
+def gateSlots : Gate → ℕ
+  | .eq0 _ => eq0.numAllocStep
+  | .share _ => share.numAllocStep
+  | .isZero _ => isZero.numAllocStep
+  | .num2bits w _ => num2bits.numAllocStep w
+  | .fpmul w k .. => fpMul.numAllocStep w k
 
-/--
-Not to be confused with Colonel Allocs.
--/
-def privateAllocs (gate : Gate) : ℕ :=
-  match gate with
-  | .eq0 _ => 0
-  | .share _ => 0
+/-- Where the gate's outputs sit in its block of `gateSlots gate` trace slots.
+* `isZero` 1 (after the inverse)
+* `fpmul` allocates the range-check bits of `a`, `b` and `p'` (`k` num2bits of width `w` each),
+  then `ab` (`2k - 1`), then `q` and its bits, then the output `r`, then `r`'s bits, `t`, the
+  carries and `check_lt`, whose `k` shared flags come last.
+* Every other gate's block is its outputs. -/
+def outputOffset : Gate → ℕ
   | .isZero _ => 1
-  | .num2bits .. => 0
-  | .fpmul w k .. =>
-    -- `rangeCheckInputs #[] numAlloc width a b p'`
-    3 * k * w +
-    -- `polyMult constraints numAlloc a b`
-    k +
-    -- `allocRangeChecked constraints numAlloc k width` (for `q`)
-    k * w + k +
-    -- PUBLIC: `allocRangeChecked constraints numAlloc k width` (for `r`) (I think; TODO)
-    -- k * w + k +
-    0 +
-    -- `allocUnchecked numAlloc (2 * k - 1)`
-    k +
-    -- `inner constraints ab t p' q r`
-    0 +
-    -- `check_carry_zero constraints numAlloc width t`
-    (if k == 0 then 0 else k - 1) +
-    -- `check_lt constraints numAlloc width r p'`
-    k * (w + 2)
-    -- TODO replace with subtraction of circuit step numAlloc from cs numalloc
+  | .fpmul w k .. => 3 * k * num2bits.numAllocStep w + (2 * k - 1) + k * (1 + num2bits.numAllocStep w)
+  | _ => 0
 
+/-- `table` with `start, start + 1, …, start + n - 1` pushed. -/
+def pushRange (table : Array ℕ) (start : ℕ) : ℕ → Array ℕ
+  | 0 => table
+  | n + 1 => pushRange (table.push start) (start + 1) n
+
+def slotTable (circuit : Circuit) : Array ℕ × ℕ := go 0 #[] 0
+where
+  go (i : ℕ) (table : Array ℕ) (base : ℕ) : Array ℕ × ℕ :=
+    if h : i < circuit.size then
+      let gate := circuit[i]
+      go (i + 1) (pushRange table (base + outputOffset gate) gate.numAllocStep)
+        (base + gateSlots gate)
+    else (table, base)
+  termination_by circuit.size - i
+
+/-- The trace slot (past the inputs) of ClapM variable `idx` (past the inputs), from a
+`slotTable`. A variable past the gates' outputs keeps its distance from the end of the trace. -/
+def slotOf (slots : Array ℕ × ℕ) (idx : ℕ) : ℕ :=
+  slots.1[idx]?.getD (idx - slots.1.size + slots.2)
+
+/-- The trace slot (past the inputs) of ClapM variable `idx` (past the inputs). -/
 def offsetIdx (circuit : Circuit) : ℕ → ℕ :=
-  (·.1) <| circuit.foldr (init := (id, circuit.numAllocStep))
-    fun gate (f, threshold) ↦
-      let privateAllocs := privateAllocs gate
-      let publicAllocs := gate.numAllocStep
-      /-
-        [public₁, public₂]
-                         ^ threshold
-        ^ threshold - publicAllocs
-        [priv₁, priv₂, public₁, public₂]
-      -/
-      let nextThreshold := threshold - publicAllocs
-      -- dbg_trace s!"t: {threshold}\npriv: {privateAllocs}\npublic: {publicAllocs}\nnextT: {nextThreshold}"
-      let yourFace := fun idx ↦ offsetSince nextThreshold (f idx) privateAllocs
-      -- dbg_trace s!"{List.range 50 |>.map yourFace}"
-      (yourFace, nextThreshold)
+  slotOf (slotTable circuit)
 
--- def offsetIdx' (circuit : Circuit) (idx : ℕ) : ℕ :=
---   let allPrivateAllocs := (circuit.map privateAllocs).sum
---   let allAllocs := circuit.numAllocStep + allPrivateAllocs
---   let idxs := (circuit.mapIdx (λ idx gate => (
---     let preceding := circuit.take idx
---     let start := Circuit.numAllocStep preceding + (preceding.map privateAllocs).sum
---     let privates := (List.range' start (privateAllocs gate)).map (λ x => (false, x))
---     let publics := (List.range' (start + privateAllocs gate) gate.numAllocStep).map (λ x => (true, x))
---     privates ++ publics
---   ))).toList.flatten
---   dbg_trace s!"{idxs}"
---   if idx > circuit.numAllocStep
---   then idx + allPrivateAllocs
---   else (idxs.filter Prod.fst)[idx]!.2
-
-def offsetHashConsState {p : ℕ}
-  (numPublicInputs : ℕ)
-  (σ : HashConsSt p) (circuit : Circuit)
-: HashConsSt p :=
-  let offsets := offsetIdx circuit
+/-- `σ` with each variable `.v x` past the inputs (`numInputs ≤ x`) moved to slot
+`numInputs + offsets (x - numInputs)`. -/
+def remapVars {p : ℕ} (offsets : ℕ → ℕ) (numInputs : ℕ) (σ : HashConsSt p) : HashConsSt p :=
   let exprs := σ.exprs.map (λ cacheExpr => match cacheExpr with
     | .c x=> .c x
-    | .v x => .v (if x < numPublicInputs then x else numPublicInputs + offsets (x - numPublicInputs))
+    | .v x => .v (if x < numInputs then x else numInputs + offsets (x - numInputs))
     | .binary_op lhs rhs op => .binary_op lhs rhs op
   )
   let wellFormed := by
@@ -138,6 +115,17 @@ def offsetHashConsState {p : ℕ}
     grind
   HashConsSt.ofExprs exprs wellFormed
 
+/-- `σ` with each ClapM variable renamed to its trace slot. the inputs (`x < numPublicInputs`)
+stay, the gates' outputs go through `slotTable`
+
+The table is bound before the call: passed as `offsetIdx circuit`, the compiler eta-expands
+`slotOf (slotTable circuit)` into a lambda that rebuilds the table for every heap node. -/
+def offsetHashConsState {p : ℕ}
+  (numPublicInputs : ℕ)
+  (σ : HashConsSt p) (circuit : Circuit)
+: HashConsSt p :=
+  let slots := slotTable circuit
+  remapVars (slotOf slots) numPublicInputs σ
 
 def _root_.Clap.Circuit.toCs {p : ℕ} (circuit : Circuit) (σ : HashConsSt p) (numInputs : ℕ)
 :
