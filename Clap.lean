@@ -12,8 +12,10 @@ import Clap.Test.R1CS.FpMul
 import Clap.Test.R1CS.Remap
 import Clap.Test.R1CS.Witness
 import Clap.Test.R1CS.Lowering
+import Clap.Test.R1CS.Messages
+import Clap.Test.R1CS.Pipeline
 import Clap.Compiler.toR1CS
-import Clap.Compiler.Location
+import Clap.Compiler.Compile
 
 /-!
 # CLAP

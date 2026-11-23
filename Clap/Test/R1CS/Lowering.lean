@@ -4,7 +4,8 @@ import Clap.Compiler.toR1CS
 # The R1CS lowering
 
 `quadraticToR1CS` on constraint systems built from small arithmetic expressions over `ZMod 7`:
-the rows it returns, or its error.
+the rows it returns, or its error. Messages.lean checks the share sites and the messages for
+lowerings that need a `share`.
 -/
 
 namespace Clap.Test.R1CS
