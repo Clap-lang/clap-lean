@@ -285,6 +285,18 @@ example : errorOf (toR1CS sampleCs 4 0 3) == some .invalidInputCount := by nativ
 example : errorOf (toR1CS sampleCs 2 0 2) == some (.invalidVariable 2) := by native_decide
 example : errorOf (toR1CS (sourceOf #[]) 0 0 (2^32-1)) == some .sizeOverflow := by native_decide
 
+/-! ## Size checks
+
+A row takes 12 bytes for its three term counts and `4 + fieldSize` bytes per term. -/
+
+example : (checked64 (UInt64.size - 1)).isOk := by native_decide
+example : (checked64 UInt64.size).isOk = false := by native_decide
+
+private def byteCountExample : Constraint := ⟨1, 2, 0, #[(1, 1)], #[(1, 1), (2, 1)], #[]⟩
+
+example : constraintBytes 8 #[byteCountExample] = 48 := by native_decide
+example : constraintBytes 32 #[byteCountExample, byteCountExample] = 240 := by native_decide
+
 /-! ## Direct normalization: the worker returns a form; the wrapper adds the assertion
 
 These examples use the normalizers themselves, before serialization. Coefficient

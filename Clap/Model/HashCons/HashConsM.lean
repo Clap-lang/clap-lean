@@ -193,8 +193,9 @@ lemma getResult_saveExpr_of_notMem_wellFormed {e : CacheExpr p} (h : e ∉ σ) (
   unfold getResult
   grind
 
-/-- `saveExpr` through the heap's index instead of a search of `exprs`. The new index is read
-before `set`: reading `state.size` after it kept `state` alive, so the push copied the heap. -/
+/-- `saveExpr` through the heap's index instead of a search of `exprs`. The new node's position
+`state.size` is read before `set`: reading it after kept `state` alive, so the push copied the
+heap. -/
 def saveExprFast (e : CacheExpr p) : HashConsM p ExprRef := do
   let state ← get
   match state.index[e]? with
@@ -211,7 +212,7 @@ theorem saveExpr_eq_saveExprFast : @saveExpr = @saveExprFast := by
   funext p e
   apply StateT.ext
   intro σ
-  simp only [saveExpr, saveExprFast, σ.index_spec]
+  simp only [saveExpr, saveExprFast]
   by_cases h : e ∈ σ.exprs <;> simp [h, σ.index_spec]
 
 end SaveExpr

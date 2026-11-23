@@ -208,22 +208,11 @@ theorem sortedCoeffs_addCoeffsInto {a b : Coefficients p} (ha : SortedCoeffs a) 
   | nil => exact ha
   | cons x xs ih => exact ih (sortedCoeffs_insertCoeff _ _ ha)
 
-theorem sortedCoeffs_addCoeffs {a b : Coefficients p} (ha : SortedCoeffs a) (hb : SortedCoeffs b) :
-    SortedCoeffs (addCoeffs a b) := by
-  unfold addCoeffs
-  split
-  · exact sortedCoeffs_addCoeffsInto ha
-  · exact sortedCoeffs_addCoeffsInto hb
-
 theorem sortedCoeffs_scaleCoeffs (k : ZMod p) {a : Coefficients p} (ha : SortedCoeffs a) :
     SortedCoeffs (scaleCoeffs k a) := by
   unfold scaleCoeffs SortedCoeffs
   refine List.Pairwise.sublist List.filter_sublist (List.pairwise_map.mpr ?_)
   exact ha.imp fun {x y} h ↦ by rcases x with ⟨i, v⟩; rcases y with ⟨j, w⟩; exact h
-
-theorem sortedCoeffs_subCoeffs {a b : Coefficients p} (ha : SortedCoeffs a) (hb : SortedCoeffs b) :
-    SortedCoeffs (subCoeffs a b) :=
-  sortedCoeffs_addCoeffs ha (sortedCoeffs_scaleCoeffs _ hb)
 
 theorem sortedCoeffs_constantCoeffs (k : ZMod p) : SortedCoeffs (constantCoeffs k) :=
   sortedCoeffs_insertCoeff _ _ (by simp [SortedCoeffs])
@@ -520,20 +509,10 @@ def checked32 (n : Nat) : Except CompileError UInt32 :=
 def checked64 (n : Nat) : Except CompileError UInt64 :=
   if n < UInt64.size then .ok (UInt64.ofNat n) else .error .sizeOverflow
 
-/--  calculates the byte size of the serialized constraints section payload
-three UInt32 term (A, B, and C): 12 bytes
-each term: a 4-byte wire index plus a fieldSize-byte coefficient.
-So, each row occupies: 12 + (termsA.size + termsB.size + termsC.size) × (4 + fieldSize) -/
+/-- The byte size of the serialized constraints section payload: `Constraint.byteSize` summed over
+the rows, as `R1CSv1.constraintsByteSize` counts it. -/
 def constraintBytes (fieldSize : Nat) (rows : Array Constraint) : Nat :=
-  rows.foldl (fun size row ↦ size + 12 + (row.termsA.size + row.termsB.size + row.termsC.size) * (4 + fieldSize)) 0
-
-example : (checked64 (UInt64.size - 1)).isOk := by native_decide
-example : (checked64 UInt64.size).isOk = false := by native_decide
-
-def byteCountExample : Constraint := ⟨1, 2, 0, #[(1, 1)], #[(1, 1), (2, 1)], #[]⟩
-
-example : constraintBytes 8 #[byteCountExample] = 48 := by native_decide
-example : constraintBytes 32 #[byteCountExample, byteCountExample] = 240 := by native_decide
+  rows.foldl (fun size row ↦ size + row.byteSize fieldSize) 0
 
 def coefficientsToTerms (a : Coefficients p) : Except CompileError (Array (UInt32 × Nat)) := do
   a.toArray.mapM fun (i,v) ↦ do return (← checked32 i, v.val)

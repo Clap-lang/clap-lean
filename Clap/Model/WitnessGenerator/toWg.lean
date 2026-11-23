@@ -24,6 +24,23 @@ def trace_capacity : Gate → ℕ
   | .num2bits w _ => num2bits.trace_capacity w
   | .fpmul w k .. => fpMul.trace_capacity k w
 
+/-- The trace slots the witness generator writes for a gate are the slots `Circuit.toCs` gives it. -/
+theorem trace_capacity_eq_gateSlots (gate : Gate) :
+    trace_capacity gate = ConstraintSystem.gateSlots gate := by
+  cases gate with
+  | fpmul w k a b p' =>
+    simp only [trace_capacity, ConstraintSystem.gateSlots, fpMul.trace_capacity,
+      ConstraintSystem.fpMul.numAllocStep, num2bits.trace_capacity, isZero.trace_capacity,
+      ConstraintSystem.num2bits.numAllocStep, ConstraintSystem.isZero.numAllocStep]
+    split
+    · subst k; simp
+    · obtain ⟨j, rfl⟩ : ∃ j, k = j + 1 := ⟨k - 1, by omega⟩
+      ring_nf
+      rw [show 2 + j * 2 - 2 = j * 2 by omega, show 2 + j * 2 - 1 - 1 = j * 2 by omega]
+      ring_nf
+      omega
+  | _ => rfl
+
 /-- The expressions a gate reads. -/
 def gateArgs : Gate → List ExprRef
   | .eq0 e | .share e | .isZero e | .num2bits _ e => [e]

@@ -7,7 +7,7 @@ A proof that the old HashConsSt (now called HashConsStRef) and the new HashConsS
   (the index is determined by `exprs`: `HashConsSt.ext_exprs`);
 * every changed definition commutes with it: `toRef_empty`, `toRef_pushExpr`, `toRef_ofExprs`,
   `run_saveExpr_toRef`, `toRef_remapVars`, `toRef_offsetHashConsStateRef`;
-* so does the code compiled code runs in their place (`@[csimp]`): `run_saveExprFast_toRef`,
+* so does the code that compiled code runs in their place (`@[csimp]`): `run_saveExprFast_toRef`,
   `toRef_pushExprFast`.
 
 Every other heap definition reads only `exprs` (and `wellFormed`), and none of them changed: only
