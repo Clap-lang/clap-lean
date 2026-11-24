@@ -10,6 +10,7 @@ import Clap.Keyless.computeJSONStructure
 import Clap.Keyless.verifyJWTStructure
 import Clap.Keyless.verifyNonce
 import Clap.Keyless.verifyQuotedField
+import Clap.Keyless.verifyUnquotedField
 import Clap.Keyless.verifyTimestamp
 import Clap.Keyless.verifyEvField
 import Clap.Examples.PoseidonProgram
