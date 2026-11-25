@@ -13,6 +13,8 @@ import Clap.Keyless.verifyQuotedField
 import Clap.Keyless.verifyUnquotedField
 import Clap.Keyless.verifyTimestamp
 import Clap.Keyless.verifyEvField
+import Clap.Keyless.verifyExtraField
+import Clap.Keyless.verifyPublicInputsHash
 import Clap.Examples.PoseidonProgram
 import Clap.Examples.RangeCheckedLessThan
 import Clap.Test.Backend
