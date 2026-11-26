@@ -7,6 +7,7 @@ import Clap.Keyless.Allocate
 import Clap.Keyless.assertFieldName
 import Clap.Keyless.computeIdentityCommitment
 import Clap.Keyless.computeJSONStructure
+import Clap.Keyless.verifyAudField
 import Clap.Keyless.verifyJWTStructure
 import Clap.Keyless.verifyNonce
 import Clap.Keyless.verifyQuotedField

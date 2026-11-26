@@ -20,6 +20,29 @@ def assertFieldName {n : ℕ}
 
 namespace assertFieldName
 
+lemma convertsM {n : ℕ}
+  {state : ClapMState bn254}
+  {name : FString bn254 n}
+  {expected : String}
+  {guard : FB bn254}
+  -- Ideal values
+  {name_val : String}
+  {guard_val : Bool}
+  (h_name : Converts FString.conversion state name name_val)
+  (h_guard : Converts FB.conversion state guard guard_val)
+  :
+  let isEq : Bool :=
+    encodeV (p := bn254) n name_val == encodeV n expected &&
+      (name_val.length : ZMod bn254) == (expected.length : ZMod bn254)
+  ConvertsM FUnit.conversion (assertFieldName name expected guard) state ()
+    (guard_val = true → isEq = true)
+:= by
+  intro isEq
+  unfold assertFieldName
+  step isPaddedOf.convertsM h_name as eq
+  apply convertsM_of_convertsM (FB.conditionallyAssert.convertsM h_guard h_eq)
+  · rfl
+  · simp [isEq]
 
 
 end assertFieldName
