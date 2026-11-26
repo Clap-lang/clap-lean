@@ -269,67 +269,266 @@ lemma convertsM
       ⟨hA1b1, hA1MAX, hA1b2, hsum0⟩,
       ⟨hAbyte, h2, h3, h4, h5, h6, h7, h8, h9, h10, h4, h12, h13, h14, h15, h16, h17, h18, h19⟩⟩
 
--- theorem sound
---   {payloadLen fieldLen nameLen valueLen nameIndex : ℕ}
---   {payload field name value : String}
---   {stringBodies fieldStringBodies : Array Bool}
---   {colonIndex valueIndex : ZMod bn254}
---   {payloadHash : ZMod bn254}
---   (h_payload_len : payload.length ≤ payloadLen)
---   (h_field_len : field.length ≤ fieldLen)
---   (h_name_len : name.length ≤ nameLen)
---   (h_value_len : value.length ≤ valueLen)
---   (h_field_nonempty : 0 < field.length)
---   (h_name_nonempty : 0 < name.length)
---   (h_value_nonempty : 0 < value.length)
---   (h_nameIndex : nameIndex < payloadLen)
---   (h_name_pos : 1 < fieldLen)
---   (h_value_pos : valueIndex.val < fieldLen)
---   (h_sum : payloadLen + fieldLen < bn254)
---   (h_sum_name : fieldLen + nameLen < bn254)
---   (h_sum_value : fieldLen + valueLen < bn254)
---   (hc₁ : ∀ c ∈ payload.toList, c.toNat < 256)
---   (hc₂ : ∀ c ∈ field.toList, 0 < c.toNat ∧ c.toNat < 256)
---   (hc₃ : ∀ c ∈ name.toList, 0 < c.toNat ∧ c.toNat < 256)
---   (hc₄ : ∀ c ∈ value.toList, 0 < c.toNat ∧ c.toNat < 256)
---   (h_bad₁ :
---     -- For the first `isSubstring.accepts`
---     ¬ nameIndex + field.length ≤ payload.length ∨
---     ¬ field.toList <+: payload.toList.drop nameIndex ∨
---     -- For the second `isSubstring.accepts`
---     ¬ nameIndex + fieldStringBodies.size ≤ stringBodies.size ∨
---     ¬ fieldStringBodies.toList <+: stringBodies.toList.drop nameIndex ∨
---     -- For `parseJWTFieldWithQuotedValue.parses`
---     ¬ (1 + name.length ≤ field.length ∧ name.toList <+: field.toList.drop 1) ∨
---     ¬ (valueIndex.val + value.length ≤ field.length ∧
---         value.toList <+: field.toList.drop valueIndex.val
---       )
---   ) :
---   randomOracle.toOuterMeasure
---     {f |
---       isSubstring.accepts (Query.toHashFn f) (encodeV payloadLen payload) payloadHash
---         (encodeV fieldLen field)
---         field.length
---         nameIndex
---         ∧
---       isSubstring.accepts (Query.toHashFn f) (PaddedBitVector.encodeV payloadLen stringBodies) payloadHash
---         (PaddedBitVector.encodeV fieldLen fieldStringBodies)
---         fieldStringBodies.size
---         nameIndex
---         ∧
---       parseJWTFieldWithQuotedValue.parses (Query.toHashFn f)
---         (encodeV fieldLen field) field.length
---         (encodeV nameLen name)
---         name.length
---         (encodeV valueLen value)
---         value.length
---         (PaddedBitVector.padBoolV fieldLen fieldStringBodies)
---         colonIndex
---         valueIndex
---         false
---     } ≤
---       ((sorry : ℕ) : ENNReal) / bn254
--- := by
---   sorry
+theorem sound
+  {payloadLen fieldLen nameLen valueLen nameIndex : ℕ}
+  {payload field name value : String}
+  {stringBodies fieldStringBodies : Array Bool}
+  {colonIndex valueIndex : ZMod bn254}
+  {payloadHash : ZMod bn254}
+  (h_payload_len : payload.length ≤ payloadLen)
+  (h_field_len : field.length ≤ fieldLen)
+  (h_name_len : name.length ≤ nameLen)
+  (h_value_len : value.length ≤ valueLen)
+  (h_field_nonempty : 0 < field.length)
+  (h_name_nonempty : 0 < name.length)
+  (h_value_nonempty : 0 < value.length)
+  (h_nameIndex : nameIndex < payloadLen)
+  (h_name_pos : 1 < fieldLen)
+  (h_value_pos : valueIndex.val < fieldLen)
+  (h_sum : payloadLen + fieldLen < bn254)
+  (h_sum_name : fieldLen + nameLen < bn254)
+  (h_sum_value : fieldLen + valueLen < bn254)
+  (hc₁ : ∀ c ∈ payload.toList, c.toNat < 256)
+  (hc₂ : ∀ c ∈ field.toList, 0 < c.toNat ∧ c.toNat < 256)
+  (hc₃ : ∀ c ∈ name.toList, 0 < c.toNat ∧ c.toNat < 256)
+  (hc₄ : ∀ c ∈ value.toList, 0 < c.toNat ∧ c.toNat < 256)
+  (h_sb : stringBodies.size = payload.length)
+  (h_fsb : fieldStringBodies.size = field.length)
+  (h_bad₁ :
+    -- For the first `isSubstring.accepts`
+    ¬ nameIndex + field.length ≤ payload.length ∨
+    ¬ field.toList <+: payload.toList.drop nameIndex ∨
+    -- For the second `isSubstring.accepts`
+    ¬ nameIndex + fieldStringBodies.size ≤ stringBodies.size ∨
+    ¬ fieldStringBodies.toList <+: stringBodies.toList.drop nameIndex ∨
+    -- For `parseJWTFieldWithQuotedValue.parses`
+    ¬ (1 + name.length ≤ field.length ∧ name.toList <+: field.toList.drop 1) ∨
+    ¬ (valueIndex.val + value.length ≤ field.length ∧
+        value.toList <+: field.toList.drop valueIndex.val
+      )
+  ) :
+  randomOracle.toOuterMeasure
+    {f |
+      isSubstring.accepts (Query.toHashFn f) (encodeV payloadLen payload) payloadHash
+        (encodeV fieldLen field)
+        field.length
+        nameIndex
+        ∧
+      isSubstring.accepts (Query.toHashFn f) (PaddedBitVector.encodeV payloadLen stringBodies) payloadHash
+        (PaddedBitVector.encodeV fieldLen fieldStringBodies)
+        fieldStringBodies.size
+        nameIndex
+        ∧
+      parseJWTFieldWithQuotedValue.parses (Query.toHashFn f)
+        (encodeV fieldLen field) field.length
+        (encodeV nameLen name)
+        name.length
+        (encodeV valueLen value)
+        value.length
+        (PaddedBitVector.padBoolV fieldLen fieldStringBodies)
+        colonIndex
+        valueIndex
+        false
+    } ≤
+      ((max (payloadLen - 1 + (fieldLen - 1) + 25) (fieldLen - 1 + (max nameLen valueLen - 1) + 50)
+        : ℕ) : ENNReal) / bn254
+:= by
+  rcases h_bad₁ with h1 | h2 | h3 | h4 | h5 | h6
+  · -- Disjunct 1: payload/field fit fails.
+    have h_sub :
+        {f |
+          isSubstring.accepts (Query.toHashFn f) (encodeV payloadLen payload) payloadHash
+            (encodeV fieldLen field) field.length nameIndex ∧
+          isSubstring.accepts (Query.toHashFn f) (PaddedBitVector.encodeV payloadLen stringBodies)
+            payloadHash (PaddedBitVector.encodeV fieldLen fieldStringBodies)
+            fieldStringBodies.size nameIndex ∧
+          parseJWTFieldWithQuotedValue.parses (Query.toHashFn f)
+            (encodeV fieldLen field) field.length (encodeV nameLen name) name.length
+            (encodeV valueLen value) value.length
+            (PaddedBitVector.padBoolV fieldLen fieldStringBodies) colonIndex valueIndex false} ⊆
+        {f | isSubstring.accepts (Query.toHashFn f) (encodeV payloadLen payload) payloadHash
+              (encodeV fieldLen field) field.length nameIndex = true} :=
+      fun f hf => hf.1
+    refine (MeasureTheory.measure_mono h_sub).trans ?_
+    refine (isSubstring.sound (n := payloadLen) (m := fieldLen) (s := nameIndex) payloadHash
+      h_payload_len h_field_len h_field_nonempty h_nameIndex h_sum hc₁ hc₂
+      (not_and_or.mpr (Or.inl h1))).trans (ENNReal.div_le_div_right ?_ _)
+    exact_mod_cast
+      (show payloadLen - 1 + (fieldLen - 1) + 25 ≤
+          max (payloadLen - 1 + (fieldLen - 1) + 25) (fieldLen - 1 + (max nameLen valueLen - 1) + 50)
+        by omega)
+  · -- Disjunct 2: payload/field prefix fails.
+    have h_sub :
+        {f |
+          isSubstring.accepts (Query.toHashFn f) (encodeV payloadLen payload) payloadHash
+            (encodeV fieldLen field) field.length nameIndex ∧
+          isSubstring.accepts (Query.toHashFn f) (PaddedBitVector.encodeV payloadLen stringBodies)
+            payloadHash (PaddedBitVector.encodeV fieldLen fieldStringBodies)
+            fieldStringBodies.size nameIndex ∧
+          parseJWTFieldWithQuotedValue.parses (Query.toHashFn f)
+            (encodeV fieldLen field) field.length (encodeV nameLen name) name.length
+            (encodeV valueLen value) value.length
+            (PaddedBitVector.padBoolV fieldLen fieldStringBodies) colonIndex valueIndex false} ⊆
+        {f | isSubstring.accepts (Query.toHashFn f) (encodeV payloadLen payload) payloadHash
+              (encodeV fieldLen field) field.length nameIndex = true} :=
+      fun f hf => hf.1
+    refine (MeasureTheory.measure_mono h_sub).trans ?_
+    refine (isSubstring.sound (n := payloadLen) (m := fieldLen) (s := nameIndex) payloadHash
+      h_payload_len h_field_len h_field_nonempty h_nameIndex h_sum hc₁ hc₂
+      (not_and_or.mpr (Or.inr h2))).trans (ENNReal.div_le_div_right ?_ _)
+    exact_mod_cast
+      (show payloadLen - 1 + (fieldLen - 1) + 25 ≤
+          max (payloadLen - 1 + (fieldLen - 1) + 25) (fieldLen - 1 + (max nameLen valueLen - 1) + 50)
+        by omega)
+  · -- Disjunct 3: stringBodies/fieldStringBodies fit fails. `h_sb`/`h_fsb` identify its fit
+    -- condition with disjunct 1's verbatim, so the same bound on the *first* `accepts` applies
+    -- (Pr[A ∧ B ∧ C] ≤ Pr[A]).
+    have h1' : ¬ nameIndex + field.length ≤ payload.length := by omega
+    have h_sub :
+        {f |
+          isSubstring.accepts (Query.toHashFn f) (encodeV payloadLen payload) payloadHash
+            (encodeV fieldLen field) field.length nameIndex ∧
+          isSubstring.accepts (Query.toHashFn f) (PaddedBitVector.encodeV payloadLen stringBodies)
+            payloadHash (PaddedBitVector.encodeV fieldLen fieldStringBodies)
+            fieldStringBodies.size nameIndex ∧
+          parseJWTFieldWithQuotedValue.parses (Query.toHashFn f)
+            (encodeV fieldLen field) field.length (encodeV nameLen name) name.length
+            (encodeV valueLen value) value.length
+            (PaddedBitVector.padBoolV fieldLen fieldStringBodies) colonIndex valueIndex false} ⊆
+        {f | isSubstring.accepts (Query.toHashFn f) (encodeV payloadLen payload) payloadHash
+              (encodeV fieldLen field) field.length nameIndex = true} :=
+      fun f hf => hf.1
+    refine (MeasureTheory.measure_mono h_sub).trans ?_
+    refine (isSubstring.sound (n := payloadLen) (m := fieldLen) (s := nameIndex) payloadHash
+      h_payload_len h_field_len h_field_nonempty h_nameIndex h_sum hc₁ hc₂
+      (not_and_or.mpr (Or.inl h1'))).trans (ENNReal.div_le_div_right ?_ _)
+    exact_mod_cast
+      (show payloadLen - 1 + (fieldLen - 1) + 25 ≤
+          max (payloadLen - 1 + (fieldLen - 1) + 25) (fieldLen - 1 + (max nameLen valueLen - 1) + 50)
+        by omega)
+  · -- Disjunct 4: stringBodies/fieldStringBodies prefix fails. Split on whether the window fits:
+    -- if it doesn't, this is (via `h_sb`/`h_fsb`) disjunct 1's fit failure again; if it does,
+    -- `substrAt_boolArray_iff_of_fit` turns the failed prefix into a failed `SubstrAt`, and
+    -- `prob_accepts_le` bounds the *second* `accepts` directly — no hashed-string doubling, since
+    -- `payloadHash` here is a free value, not self-hashed.
+    by_cases h_fit : nameIndex + fieldStringBodies.size ≤ stringBodies.size
+    · have h_sub :
+          {f |
+            isSubstring.accepts (Query.toHashFn f) (encodeV payloadLen payload) payloadHash
+              (encodeV fieldLen field) field.length nameIndex ∧
+            isSubstring.accepts (Query.toHashFn f) (PaddedBitVector.encodeV payloadLen stringBodies)
+              payloadHash (PaddedBitVector.encodeV fieldLen fieldStringBodies)
+              fieldStringBodies.size nameIndex ∧
+            parseJWTFieldWithQuotedValue.parses (Query.toHashFn f)
+              (encodeV fieldLen field) field.length (encodeV nameLen name) name.length
+              (encodeV valueLen value) value.length
+              (PaddedBitVector.padBoolV fieldLen fieldStringBodies) colonIndex valueIndex false} ⊆
+          {f | isSubstring.accepts (Query.toHashFn f) (PaddedBitVector.encodeV payloadLen stringBodies)
+                payloadHash (PaddedBitVector.encodeV fieldLen fieldStringBodies)
+                fieldStringBodies.size nameIndex = true} :=
+        fun f hf => hf.2.1
+      refine (MeasureTheory.measure_mono h_sub).trans ?_
+      have h_fsb0 : 0 < fieldStringBodies.size := by omega
+      have h_fsb_len : fieldStringBodies.size ≤ fieldLen := by omega
+      have h_sb_len : stringBodies.size ≤ payloadLen := by omega
+      have h_s : (nameIndex : ZMod bn254).val = nameIndex := ZMod.val_natCast_of_lt (by omega)
+      have h_l : (fieldStringBodies.size : ZMod bn254).val = fieldStringBodies.size :=
+        ZMod.val_natCast_of_lt (by omega)
+      have h_e : ((nameIndex : ZMod bn254) + (fieldStringBodies.size : ZMod bn254)).val
+          = nameIndex + fieldStringBodies.size := by
+        rw [← Nat.cast_add, ZMod.val_natCast_of_lt (by omega)]
+      have h_not_sub :
+          ¬ isSubstring.SubstrAt (PaddedBitVector.encodeV (p := bn254) payloadLen stringBodies)
+            (PaddedBitVector.encodeV (p := bn254) fieldLen fieldStringBodies) nameIndex
+            fieldStringBodies.size := by
+        rw [isSubstring.substrAt_boolArray_iff_of_fit (p := bn254) (by decide) h_fit h_fsb0
+          h_sb_len h_fsb_len]
+        exact h4
+      refine (isSubstring.prob_accepts_le (PaddedBitVector.encodeV (p := bn254) payloadLen stringBodies)
+        payloadHash (PaddedBitVector.encodeV (p := bn254) fieldLen fieldStringBodies)
+        (fieldStringBodies.size : ZMod bn254) (nameIndex : ZMod bn254) (by rwa [h_s])
+        (by rw [h_s, h_e]; omega) (by rw [h_s, h_l]; exact h_not_sub)).trans
+        (ENNReal.div_le_div_right ?_ _)
+      exact_mod_cast
+        (show payloadLen - 1 + (fieldLen - 1) + 25 ≤
+            max (payloadLen - 1 + (fieldLen - 1) + 25) (fieldLen - 1 + (max nameLen valueLen - 1) + 50)
+          by omega)
+    · have h_fit' : ¬ nameIndex + field.length ≤ payload.length := by omega
+      have h_sub :
+          {f |
+            isSubstring.accepts (Query.toHashFn f) (encodeV payloadLen payload) payloadHash
+              (encodeV fieldLen field) field.length nameIndex ∧
+            isSubstring.accepts (Query.toHashFn f) (PaddedBitVector.encodeV payloadLen stringBodies)
+              payloadHash (PaddedBitVector.encodeV fieldLen fieldStringBodies)
+              fieldStringBodies.size nameIndex ∧
+            parseJWTFieldWithQuotedValue.parses (Query.toHashFn f)
+              (encodeV fieldLen field) field.length (encodeV nameLen name) name.length
+              (encodeV valueLen value) value.length
+              (PaddedBitVector.padBoolV fieldLen fieldStringBodies) colonIndex valueIndex false} ⊆
+          {f | isSubstring.accepts (Query.toHashFn f) (encodeV payloadLen payload) payloadHash
+                (encodeV fieldLen field) field.length nameIndex = true} :=
+        fun f hf => hf.1
+      refine (MeasureTheory.measure_mono h_sub).trans ?_
+      refine (isSubstring.sound (n := payloadLen) (m := fieldLen) (s := nameIndex) payloadHash
+        h_payload_len h_field_len h_field_nonempty h_nameIndex h_sum hc₁ hc₂
+        (not_and_or.mpr (Or.inl h_fit'))).trans (ENNReal.div_le_div_right ?_ _)
+      exact_mod_cast
+        (show payloadLen - 1 + (fieldLen - 1) + 25 ≤
+            max (payloadLen - 1 + (fieldLen - 1) + 25) (fieldLen - 1 + (max nameLen valueLen - 1) + 50)
+          by omega)
+  · -- Disjunct 5: `name` is not really a substring of `field`.
+    have h_sub :
+        {f |
+          isSubstring.accepts (Query.toHashFn f) (encodeV payloadLen payload) payloadHash
+            (encodeV fieldLen field) field.length nameIndex ∧
+          isSubstring.accepts (Query.toHashFn f) (PaddedBitVector.encodeV payloadLen stringBodies)
+            payloadHash (PaddedBitVector.encodeV fieldLen fieldStringBodies)
+            fieldStringBodies.size nameIndex ∧
+          parseJWTFieldWithQuotedValue.parses (Query.toHashFn f)
+            (encodeV fieldLen field) field.length (encodeV nameLen name) name.length
+            (encodeV valueLen value) value.length
+            (PaddedBitVector.padBoolV fieldLen fieldStringBodies) colonIndex valueIndex false} ⊆
+        {f | parseJWTFieldWithQuotedValue.parses (Query.toHashFn f)
+              (encodeV fieldLen field) field.length (encodeV nameLen name) name.length
+              (encodeV valueLen value) value.length
+              (PaddedBitVector.padBoolV fieldLen fieldStringBodies) colonIndex valueIndex false} :=
+      fun f hf => hf.2.2
+    refine (MeasureTheory.measure_mono h_sub).trans ?_
+    refine (parseJWTFieldWithQuotedValue.sound field name value
+      (PaddedBitVector.padBoolV fieldLen fieldStringBodies) colonIndex valueIndex
+      h_field_len h_name_len h_value_len h_name_nonempty h_value_nonempty h_name_pos h_value_pos
+      h_sum_name h_sum_value (fun c hc => (hc₂ c hc).2) hc₃ hc₄
+      (Or.inl h5)).trans (ENNReal.div_le_div_right ?_ _)
+    exact_mod_cast
+      (show fieldLen - 1 + (max nameLen valueLen - 1) + 50 ≤
+          max (payloadLen - 1 + (fieldLen - 1) + 25) (fieldLen - 1 + (max nameLen valueLen - 1) + 50)
+        by omega)
+  · -- Disjunct 6: `value` is not really a substring of `field`.
+    have h_sub :
+        {f |
+          isSubstring.accepts (Query.toHashFn f) (encodeV payloadLen payload) payloadHash
+            (encodeV fieldLen field) field.length nameIndex ∧
+          isSubstring.accepts (Query.toHashFn f) (PaddedBitVector.encodeV payloadLen stringBodies)
+            payloadHash (PaddedBitVector.encodeV fieldLen fieldStringBodies)
+            fieldStringBodies.size nameIndex ∧
+          parseJWTFieldWithQuotedValue.parses (Query.toHashFn f)
+            (encodeV fieldLen field) field.length (encodeV nameLen name) name.length
+            (encodeV valueLen value) value.length
+            (PaddedBitVector.padBoolV fieldLen fieldStringBodies) colonIndex valueIndex false} ⊆
+        {f | parseJWTFieldWithQuotedValue.parses (Query.toHashFn f)
+              (encodeV fieldLen field) field.length (encodeV nameLen name) name.length
+              (encodeV valueLen value) value.length
+              (PaddedBitVector.padBoolV fieldLen fieldStringBodies) colonIndex valueIndex false} :=
+      fun f hf => hf.2.2
+    refine (MeasureTheory.measure_mono h_sub).trans ?_
+    refine (parseJWTFieldWithQuotedValue.sound field name value
+      (PaddedBitVector.padBoolV fieldLen fieldStringBodies) colonIndex valueIndex
+      h_field_len h_name_len h_value_len h_name_nonempty h_value_nonempty h_name_pos h_value_pos
+      h_sum_name h_sum_value (fun c hc => (hc₂ c hc).2) hc₃ hc₄
+      (Or.inr h6)).trans (ENNReal.div_le_div_right ?_ _)
+    exact_mod_cast
+      (show fieldLen - 1 + (max nameLen valueLen - 1) + 50 ≤
+          max (payloadLen - 1 + (fieldLen - 1) + 25) (fieldLen - 1 + (max nameLen valueLen - 1) + 50)
+        by omega)
 
 end verifyQuotedField

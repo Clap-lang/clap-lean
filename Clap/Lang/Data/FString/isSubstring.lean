@@ -9,6 +9,7 @@ import Clap.Lang.Data.FArray.selectArrayValue
 import Clap.Lang.Data.FVec.powers
 import Clap.FiatShamir.Polynomial
 import Clap.Lang.Data.HashToField.transcript
+import Clap.Model.Convert.PaddedVector
 
 namespace Clap.Lang.FString
 
@@ -132,11 +133,40 @@ private lemma list_window_iff {α : Type} (L M : List α) (s : ℕ) (hM : 0 < M.
     have := List.getElem_of_eq h_eq hj
     rw [this, List.getElem_take, List.getElem_drop]
 
-/-- For strings encoded by `FString.encodeV`, `SubstrAt` means `T` fits in `S` at `s` and is a prefix. -/
-theorem substrAt_encodeV_iff {n m s : ℕ} {S T : String} (hp : 256 < p)
+/-- `SubstrAt` with a nonzero substring forces the matched window to fit inside `S`'s real
+length: evaluated at the window's last position, a match running past `S`'s content would force
+`T`'s last byte to be the zero `S` reads there — ruled out by `hTc`. This is the *only* fact
+nonzero content buys here; see `substrAt_iff_of_fit` below for the general bridge once that fact
+is supplied directly instead. -/
+lemma fit_of_nonzero_match {n m s : ℕ} {S T : String} (hp : 256 < p)
+    (hS : S.length ≤ n) (hT : T.length ≤ m)
+    (hTc : ∀ c ∈ T.toList, 0 < c.toNat ∧ c.toNat < 256) (hT0 : 0 < T.length)
+    (h : SubstrAt (encodeV (p := p) n S) (encodeV (p := p) m T) s T.length) :
+    s + T.length ≤ S.length := by
+  by_contra hcon
+  have hwin := h (s + (T.length - 1))
+  have h1 : s ≤ s + (T.length - 1) := by omega
+  have h2 : s + (T.length - 1) < s + T.length := by omega
+  rw [if_pos ⟨h1, h2⟩, if_pos h1, show s + (T.length - 1) - s = T.length - 1 from by omega] at hwin
+  rw [ext_encodeV hS, ext_encodeV hT] at hwin
+  have hjT : T.length - 1 < T.toList.length := by rw [String.length_toList]; omega
+  have hSlen : ¬ s + (T.length - 1) < S.toList.length := by rw [String.length_toList]; omega
+  have hTj := hTc _ (List.getElem_mem hjT)
+  rw [dif_neg hSlen, dif_pos hjT, toUInt8_toNat_of_lt hTj.2] at hwin
+  have := natCast_inj (p := p) (a := 0) (b := (T.toList[T.length - 1]'hjT).toNat)
+    (by omega) (by omega) (by rw [Nat.cast_zero]; exact hwin)
+  omega
+
+/-- The general bridge, representation-agnostic in everything except the hypothesis that the
+matched window already fits inside `S`'s real length: no requirement that `T`'s bytes be
+nonzero. Compare `substrAt_encodeV_iff` below, which instead derives `h_fit` from nonzero
+content and so states the fit bound as part of its conclusion rather than as a hypothesis. -/
+theorem substrAt_iff_of_fit {n m s : ℕ} {S T : String} (hp : 256 < p)
+    (h_fit : s + T.length ≤ S.length)
     (hS : S.length ≤ n) (hT : T.length ≤ m) (hT0 : 0 < T.length)
-    (hSc : ∀ c ∈ S.toList, c.toNat < 256) (hTc : ∀ c ∈ T.toList, 0 < c.toNat ∧ c.toNat < 256) :
-    SubstrAt (encodeV (p := p) n S) (encodeV (p := p) m T) s T.length ↔ s + T.length ≤ S.length ∧ T.toList <+: S.toList.drop s := by
+    (hSc : ∀ c ∈ S.toList, c.toNat < 256) (hTc : ∀ c ∈ T.toList, c.toNat < 256) :
+    SubstrAt (encodeV (p := p) n S) (encodeV (p := p) m T) s T.length ↔
+      T.toList <+: S.toList.drop s := by
   -- 1. the identity is pointwise on the window
   have step1 : SubstrAt (encodeV (p := p) n S) (encodeV (p := p) m T) s T.length ↔
       ∀ j < T.length, ext (encodeV (p := p) n S) (s + j) =
@@ -155,35 +185,119 @@ theorem substrAt_encodeV_iff {n m s : ℕ} {S T : String} (hp : 256 < p)
         · rw [if_pos (by omega), h j hj]
         · rw [if_neg (by omega), ext_encodeV hT, dif_neg (by rw [String.length_toList]; omega)]
       · simp [hsi]
-  -- 2. each position: the substring's byte is nonzero, so `S` must have the same character there
+  -- 2. each position is inside `S`'s real content (from `h_fit`, not from nonzero content), and
+  -- the field-level equality there means the characters agree
   have step2 : ∀ j (hj : j < T.length), (ext (encodeV (p := p) n S) (s + j) =
       ext (encodeV (p := p) m T) j ↔
       ∃ h : s + j < S.toList.length,
         S.toList[s + j] = T.toList[j]'(by rw [String.length_toList]; exact hj)) := by
     intro j hj
     have hjT : j < T.toList.length := by rw [String.length_toList]; exact hj
+    have hsj : s + j < S.toList.length := by rw [String.length_toList]; omega
+    have hSj := hSc _ (List.getElem_mem hsj)
     have hTj := hTc _ (List.getElem_mem hjT)
-    rw [ext_encodeV hS, ext_encodeV hT, dif_pos hjT, toUInt8_toNat_of_lt hTj.2]
-    by_cases hsj : s + j < S.toList.length
-    · have hSj := hSc _ (List.getElem_mem hsj)
-      rw [dif_pos hsj, toUInt8_toNat_of_lt hSj]
-      constructor
-      · intro heq
-        refine ⟨hsj, Char.ext (UInt32.toNat.inj ?_)⟩
-        exact natCast_inj (a := (S.toList[s + j]).toNat) (b := (T.toList[j]).toNat)
-          (by omega) (by omega) heq
-      · rintro ⟨_, heq⟩
-        rw [heq]
-    · rw [dif_neg hsj]
-      simp only [hsj, IsEmpty.exists_iff, iff_false]
-      intro h0
-      have := natCast_inj (p := p) (a := 0) (b := (T.toList[j]).toNat) (by omega) (by omega)
-        (by rw [Nat.cast_zero]; exact h0)
-      omega
-  -- 3. the pointwise statement is the prefix statement
+    rw [ext_encodeV hS, ext_encodeV hT, dif_pos hjT, toUInt8_toNat_of_lt hTj,
+      dif_pos hsj, toUInt8_toNat_of_lt hSj]
+    constructor
+    · intro heq
+      refine ⟨hsj, Char.ext (UInt32.toNat.inj ?_)⟩
+      exact natCast_inj (a := (S.toList[s + j]).toNat) (b := (T.toList[j]).toNat)
+        (by omega) (by omega) heq
+    · rintro ⟨_, heq⟩
+      rw [heq]
+  -- 3. the pointwise statement is the prefix statement, given the fit bound already holds
   refine step1.trans ((forall₂_congr step2).trans ?_)
   rw [List.prefix_iff_eq_take]
-  exact list_window_iff S.toList T.toList s hT0
+  constructor
+  · intro h
+    exact ((list_window_iff S.toList T.toList s hT0).mp h).2
+  · intro h
+    exact (list_window_iff S.toList T.toList s hT0).mpr
+      ⟨by rw [String.length_toList, String.length_toList]; exact h_fit, h⟩
+
+/-- For strings encoded by `FString.encodeV`, `SubstrAt` means `T` fits in `S` at `s` and is a
+prefix. A thin corollary of `substrAt_iff_of_fit`: nonzero content (`fit_of_nonzero_match`)
+supplies the fit bound this needs as a hypothesis, instead of taking it as one. -/
+theorem substrAt_encodeV_iff {n m s : ℕ} {S T : String} (hp : 256 < p)
+    (hS : S.length ≤ n) (hT : T.length ≤ m) (hT0 : 0 < T.length)
+    (hSc : ∀ c ∈ S.toList, c.toNat < 256) (hTc : ∀ c ∈ T.toList, 0 < c.toNat ∧ c.toNat < 256) :
+    SubstrAt (encodeV (p := p) n S) (encodeV (p := p) m T) s T.length ↔ s + T.length ≤ S.length ∧ T.toList <+: S.toList.drop s := by
+  constructor
+  · intro h
+    have h_fit := fit_of_nonzero_match hp hS hT hTc hT0 h
+    exact ⟨h_fit, (substrAt_iff_of_fit hp h_fit hS hT hT0 hSc (fun c hc ↦ (hTc c hc).2)).mp h⟩
+  · rintro ⟨h_fit, hpre⟩
+    exact (substrAt_iff_of_fit hp h_fit hS hT hT0 hSc (fun c hc ↦ (hTc c hc).2)).mpr hpre
+
+lemma ext_encodeV_bool {w : ℕ} {S : Array Bool} (hS : S.size ≤ w) (i : ℕ) :
+    ext (PaddedBitVector.encodeV (p := p) w S) i =
+      if h : i < S.toList.length then (((S.toList[i]'h).toNat : ℕ) : ZMod p) else 0 := by
+  by_cases hi : i < w
+  · rw [ext_of_lt _ hi]
+    simp [PaddedBitVector.encodeV, Array.getElem_toList]
+  · rw [ext_of_le _ (by omega)]
+    rw [dif_neg]
+    rw [Array.length_toList]
+    omega
+
+/-- `Bool → ZMod p` is injective given only `1 < p` — no byte-range hypothesis is needed, unlike
+the `Char` case, since `Bool.toNat` is always `0` or `1`. -/
+lemma boolCast_inj (hp : 1 < p) {a b : Bool} (h : (a.toNat : ZMod p) = (b.toNat : ZMod p)) :
+    a = b := by
+  have hab : a.toNat = b.toNat :=
+    natCast_inj (p := p) (a := a.toNat) (b := b.toNat)
+      (by cases a <;> simp <;> omega) (by cases b <;> simp <;> omega) h
+  cases a <;> cases b <;> simp_all
+
+/-- The Boolean analogue of `substrAt_iff_of_fit`, for `PaddedBitVector.encodeV`: `S`/`T` are
+masks such as `stringBodies`/`fieldStringBodies`, where `false ↦ 0` is ordinary content, not a
+padding sentinel — so unlike the `String` case there is no nonzero-content route to the fit
+bound, and `h_fit` has to come from elsewhere (see `docs`/the Keyless proofs). No byte-range
+hypothesis is needed either way: `Bool → ZMod p` is injective given only `1 < p`. -/
+theorem substrAt_boolArray_iff_of_fit {n m s : ℕ} {S T : Array Bool} (hp : 1 < p)
+    (h_fit : s + T.size ≤ S.size) (hT0 : 0 < T.size)
+    (hS : S.size ≤ n) (hT : T.size ≤ m) :
+    SubstrAt (PaddedBitVector.encodeV (p := p) n S) (PaddedBitVector.encodeV (p := p) m T) s T.size ↔
+      T.toList <+: S.toList.drop s := by
+  have step1 : SubstrAt (PaddedBitVector.encodeV (p := p) n S) (PaddedBitVector.encodeV (p := p) m T)
+      s T.size ↔
+      ∀ j < T.size, ext (PaddedBitVector.encodeV (p := p) n S) (s + j) =
+        ext (PaddedBitVector.encodeV (p := p) m T) j := by
+    constructor
+    · intro h j hj
+      have := h (s + j)
+      simp only [show s ≤ s + j by omega, show s + j < s + T.size by omega, and_self, if_true,
+        Nat.add_sub_cancel_left] at this
+      exact this
+    · intro h i
+      by_cases hsi : s ≤ i
+      · obtain ⟨j, rfl⟩ : ∃ j, i = s + j := ⟨i - s, by omega⟩
+        simp only [hsi, true_and, if_true, Nat.add_sub_cancel_left]
+        by_cases hj : j < T.size
+        · rw [if_pos (by omega), h j hj]
+        · rw [if_neg (by omega), ext_encodeV_bool hT, dif_neg (by rw [Array.length_toList]; omega)]
+      · simp [hsi]
+  have step2 : ∀ j (hj : j < T.size), (ext (PaddedBitVector.encodeV (p := p) n S) (s + j) =
+      ext (PaddedBitVector.encodeV (p := p) m T) j ↔
+      ∃ h : s + j < S.toList.length,
+        S.toList[s + j] = T.toList[j]'(by rw [Array.length_toList]; exact hj)) := by
+    intro j hj
+    have hjT : j < T.toList.length := by rw [Array.length_toList]; exact hj
+    have hsj : s + j < S.toList.length := by rw [Array.length_toList]; omega
+    rw [ext_encodeV_bool hS, ext_encodeV_bool hT, dif_pos hjT, dif_pos hsj]
+    constructor
+    · intro heq
+      exact ⟨hsj, boolCast_inj hp heq⟩
+    · rintro ⟨_, heq⟩
+      rw [heq]
+  refine step1.trans ((forall₂_congr step2).trans ?_)
+  rw [List.prefix_iff_eq_take]
+  constructor
+  · intro h
+    exact ((list_window_iff S.toList T.toList s hT0).mp h).2
+  · intro h
+    exact (list_window_iff S.toList T.toList s hT0).mpr
+      ⟨by rw [Array.length_toList, Array.length_toList]; exact h_fit, h⟩
 
 end isSubstring
 
