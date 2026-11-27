@@ -1,7 +1,7 @@
 import Clap.Lang.Data.FString.asciiDigitsToScalar
 import Clap.Keyless.Input
 
-open Clap Lang FString FArray Primes
+open Clap Lang FString Primes
 
 /-- CIRCOM uses `LessThan(252)` for the comparison. We use 64-bit (`F.lessThan 64`)
     instead because Unix timestamps are seconds since 1970-01-01 and fit comfortably
@@ -26,26 +26,27 @@ namespace verifyTimestamp
 lemma convertsM
   {state : ClapMState bn254}
   {iatValue : FString bn254 MAX_IAT_VALUE_LEN}
-  {iatValue_vals : Vector (ZMod bn254) MAX_IAT_VALUE_LEN}
   {expDate expHorizon : F bn254}
+  -- Ideal values
+  {iatValue_vals : Vector (ZMod bn254) MAX_IAT_VALUE_LEN}
+  {iatValue_len : ZMod bn254}
   {expDate_val expHorizon_val : ZMod bn254}
-  {len_val : ZMod bn254}
   -- Separate `Converts` hypotheses for `data` and `len`
   -- as in `asciiDigitsToScalar.convertsM`
   (h_data : Converts FVec.conversion state iatValue.data iatValue_vals)
-  (h_len : Converts F.conversion state iatValue.len len_val)
+  (h_len : Converts F.conversion state iatValue.len iatValue_len)
   (h_expDate : Converts F.conversion state expDate expDate_val)
   (h_expHorizon : Converts F.conversion state expHorizon expHorizon_val) :
   -- Define `iatScalar` here so we can use it in the conclusion as well.
-  let iatScalar := asciiDigitsToScalar.value iatValue_vals len_val.val
+  let iatScalar := asciiDigitsToScalar.value iatValue_vals iatValue_len.val
   expDate_val.val < 2 ^ 64 →
   iatScalar.val + expHorizon_val.val < 2 ^ 64 →
   ConvertsM FUnit.conversion (verifyTimestamp iatValue expDate expHorizon) state ()
     ((∀ i : Fin MAX_IAT_VALUE_LEN,
-        i.val < len_val.val →
+        i.val < iatValue_len.val →
           48 ≤ iatValue_vals[i].val ∧ iatValue_vals[i].val ≤ 57
       ) ∧
-      0 < len_val.val ∧ len_val.val < MAX_IAT_VALUE_LEN ∧
+      0 < iatValue_len.val ∧ iatValue_len.val < MAX_IAT_VALUE_LEN ∧
       (∀ i : Fin MAX_IAT_VALUE_LEN, iatValue_vals[i].val < 2 ^ 8) ∧
       expDate_val.val < (iatScalar + expHorizon_val).val
     )
@@ -81,25 +82,29 @@ lemma convertsM
     · rintro ⟨h_digits, h_len0, h_lenw, h_bytes, h_cmp⟩
       exact ⟨⟨h_digits, h_len0, by omega, h_bytes⟩, h_cmp⟩
 
+-- Not sure this is useful since it converts `iatValue_val` to a Vector right away
 lemma convertsM_string
   {state : ClapMState bn254}
   {iatValue : FString bn254 MAX_IAT_VALUE_LEN}
-  {s : String}
+  -- Ideal values
   {expDate expHorizon : F bn254}
+  {iatValue_val : String}
   {expDate_val expHorizon_val : ZMod bn254}
-  (h_iat : Converts FString.conversion state iatValue s)
-  (h_s_len : s.length ≤ MAX_IAT_VALUE_LEN)
-  (h_chars : ∀ c ∈ s.toList, c.toNat < 256)
+  -- Conversion hypotheses
+  (h_iat : Converts FString.conversion state iatValue iatValue_val)
   (h_expDate : Converts F.conversion state expDate expDate_val)
-  (h_expHorizon : Converts F.conversion state expHorizon expHorizon_val) :
+  (h_expHorizon : Converts F.conversion state expHorizon expHorizon_val)
+  -- Required
+  (h_s_len : iatValue_val.length ≤ MAX_IAT_VALUE_LEN)
+  (h_chars : ∀ c ∈ iatValue_val.toList, c.toNat < 256) :
   -- Define `iatScalar` here so we can use it in the conclusion as well.
   let iatScalar :=
-    asciiDigitsToScalar.value (encodeV MAX_IAT_VALUE_LEN s) s.length
+    asciiDigitsToScalar.value (encodeV MAX_IAT_VALUE_LEN iatValue_val) iatValue_val.length
   expDate_val.val < 2 ^ 64 →
   iatScalar.val + expHorizon_val.val < 2 ^ 64 →
   ConvertsM FUnit.conversion (verifyTimestamp iatValue expDate expHorizon) state ()
-    ( (∀ c ∈ s.toList, 48 ≤ c.toNat ∧ c.toNat ≤ 57) ∧
-      0 < s.length ∧ s.length < MAX_IAT_VALUE_LEN ∧
+    ( (∀ c ∈ iatValue_val.toList, 48 ≤ c.toNat ∧ c.toNat ≤ 57) ∧
+      0 < iatValue_val.length ∧ iatValue_val.length < MAX_IAT_VALUE_LEN ∧
       -- The byte-range conjunct is dropped: `FString.conversion`'s `encodeV` always
       -- produces bytes (`c.toUInt8.toNat < 256`), so it holds unconditionally here.
       expDate_val.val < (iatScalar + expHorizon_val).val
