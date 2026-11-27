@@ -7,6 +7,7 @@ import Clap.Lang.Core.FB.not
 import Clap.Lang.Core.F.conditionalSwap
 import Clap.Keyless.Input
 import Clap.Keyless.assertFieldName
+import Clap.Keyless.muxFString
 import Clap.Lang.Data.JWT.enforceNotNested
 import Clap.Lang.Data.JWT.parseJWTFieldWithQuotedValue
 import Clap.Lang.Core.FB.conditionallyAssert
@@ -15,15 +16,6 @@ import Clap.RandomOracle.HashFn
 import Clap.Lang.Data.FString.isSubstring
 
 open Clap Lang FString FArray Primes Poseidon RandomOracle
-
-/-- Multiplexer for FString: `if sel = 1 then a else b`. CIRCOM: `out[i] = (a[i] - b[i]) * sel + b[i]` -/
-def muxFString {maxLen : ℕ} (sel : F bn254) (a b : FString bn254 maxLen) :
-  ClapM bn254 (FString bn254 maxLen)
-:= do
-  pure
-    { data := ← a.data.zipWithM (conditionalSwap sel) b.data
-      len := ← conditionalSwap sel a.len b.len
-    }
 
 /-- Verify the audience (aud) field with override and skip support.
     CIRCOM: the `ParseJWTFieldWithQuotedValue` takes a `skip_checks` flag;
