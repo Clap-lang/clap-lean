@@ -368,7 +368,7 @@ lemma convertsM
   {H : HashFn}
   (h_H : Computes H)
   {state : ClapMState bn254}
-  -- Circuit arguments
+  -- Circuit parameters
   {maxKVPairLen maxNameLen maxValueLen : ℕ}
   (h_name_len_lt  : maxNameLen  ≤ maxKVPairLen)
   (h_value_len_lt : maxValueLen ≤ maxKVPairLen)

@@ -1,11 +1,8 @@
 import Clap.RandomOracle.HashFn
 import Clap.Lang.Poseidon.Computes
-import Clap.Lang.Data.FString.asciiDigitsToScalar
 import Clap.Lang.Data.FString.isSubstring
-import Clap.Lang.Data.JWT.stringBodies
 import Clap.Lang.Data.JWT.enforceNotNested
 import Clap.Lang.Data.JWT.parseJWTFieldWithQuotedValue
-import Clap.Lang.Core.FB.not
 import Clap.Lang.Data.HashToField.hashBytesToField
 import Clap.Keyless.Input
 import Clap.Lang.Poseidon.Poseidon
@@ -37,7 +34,7 @@ def verifyQuotedField {maxPairLen maxNameLen maxValueLen : ℕ}
 
 namespace verifyQuotedField
 
-open Poseidon RandomOracle Primes FiatShamir
+open Poseidon RandomOracle
 
 -- Poseidon is opaque to this proof (it sits beneath `assertIsSubstring`/`hashBytesToField`),
 -- as in `Data/HashToField/hashElemsToField.lean` and `Keyless/computeJSONStructure.lean`.
@@ -68,55 +65,52 @@ private lemma bind_convertsM
     state () (C1 ∧ C2 ∧ C3 ∧ C4)
 := convertsM_bind_and h1 (convertsM_bind_and h2 (convertsM_bind_and h3 h4))
 
-lemma convertsM
-  {H : HashFn}
-  (h_H : Computes H)
-  {state : ClapMState bn254}
-  -- Circuit arguments
+lemma convertsM {H : HashFn} (h_H : Computes H) {state : ClapMState bn254}
   {maxKVPairLen maxNameLen maxValueLen : ℕ}
+  -- Circuit parameters
   (h_name_len_lt  : maxNameLen  ≤ maxKVPairLen)
   (h_value_len_lt : maxValueLen ≤ maxKVPairLen)
   (h_pair : maxKVPairLen ≤ MAX_JWT_PAYLOAD_LEN)
-  (h_len_bound    : maxKVPairLen ≤ 1953)
   {json : JSONStructure bn254}
   {quoted : JWT.QuotedFieldInput bn254 maxKVPairLen maxNameLen maxValueLen}
   -- Ideal values for `quoted : JWT.QuotedFieldInput`
   {field_vals : Vector (ZMod bn254) maxKVPairLen}
-  {sb_vals : Vector Bool maxKVPairLen}
-  {field_len sb_len : ZMod bn254}
-  {name_vals : Vector (ZMod bn254) maxNameLen}
-  {name_len : ZMod bn254}
+  {sb_vals    : Vector Bool         maxKVPairLen}
+  {name_vals  : Vector (ZMod bn254) maxNameLen}
   {value_vals : Vector (ZMod bn254) maxValueLen}
-  {value_len : ZMod bn254}
+  {name_len value_len field_len sb_len  : ZMod bn254}
   {colon_index_val value_index_val name_index_val : ZMod bn254}
   -- Ideal values for `json : JSONStructure`
   {payload_val : String}
   {payloadHash_val : ZMod bn254}
-  {stringBodies_val : Vector Bool MAX_JWT_PAYLOAD_LEN}
+  {stringBodies_val     : Vector Bool MAX_JWT_PAYLOAD_LEN}
   {bracketsDepthMap_val : Vector (ZMod bn254) MAX_JWT_PAYLOAD_LEN}
-  -- Conversion hypotheses for `json : JWT.QuotedFieldInput`
-  (h_field_val : Converts FVec.conversion state quoted.field.data field_vals)
-  (h_sb_val : Converts FArray.conversion state quoted.fieldStringBodies.data sb_vals)
-  (h_sb_len : Converts F.conversion state quoted.fieldStringBodies.len sb_len)
-  (h_field_len : Converts F.conversion state quoted.field.len field_len)
-  (h_name_val : Converts FVec.conversion state quoted.name.data name_vals)
-  (h_name_len : Converts F.conversion state quoted.name.len name_len)
-  (h_value_val : Converts FVec.conversion state quoted.value.data value_vals)
-  (h_value_len : Converts F.conversion state quoted.value.len value_len)
-  (h_ci : Converts F.conversion state quoted.colonIndex colon_index_val)
-  (h_vi : Converts F.conversion state quoted.valueIndex value_index_val)
-  (h_ni : Converts F.conversion state quoted.nameIndex name_index_val)
-  -- Conversion hypotheses for `quoted : JSONStructure`
+  -- Conversion hypotheses for `quoted : JWT.QuotedFieldInput`
+  (h_field_val : Converts FVec.conversion   state quoted.field.data field_vals)
+  (h_sb_val    : Converts FArray.conversion state quoted.fieldStringBodies.data sb_vals)
+  (h_sb_len    : Converts F.conversion      state quoted.fieldStringBodies.len sb_len)
+  (h_field_len : Converts F.conversion      state quoted.field.len field_len)
+  (h_name_val  : Converts FVec.conversion   state quoted.name.data name_vals)
+  (h_name_len  : Converts F.conversion      state quoted.name.len name_len)
+  (h_value_val : Converts FVec.conversion   state quoted.value.data value_vals)
+  (h_value_len : Converts F.conversion      state quoted.value.len value_len)
+  (h_ci        : Converts F.conversion      state quoted.colonIndex colon_index_val)
+  (h_vi        : Converts F.conversion      state quoted.valueIndex value_index_val)
+  (h_ni        : Converts F.conversion      state quoted.nameIndex name_index_val)
+  -- Conversion hypotheses for `json : JSONStructure`
   (h_payload          : Converts FString.conversion state json.payload payload_val)
-  (h_payloadHash      : Converts F.conversion state json.payloadHash payloadHash_val)
-  (h_stringBodies     : Converts FArray.conversion state json.stringBodies.data stringBodies_val)
-  (h_bracketsDepthMap : Converts FVec.conversion state json.bracketsDepthMap bracketsDepthMap_val)
+  (h_payloadHash      : Converts F.conversion       state json.payloadHash payloadHash_val)
+  (h_stringBodies     : Converts FArray.conversion  state json.stringBodies.data stringBodies_val)
+  (h_bracketsDepthMap : Converts FVec.conversion    state json.bracketsDepthMap bracketsDepthMap_val)
   -- Range bounds (`w := 20` is hard-coded in the body)
   (h_name_len_w : name_len.val < 2 ^ 20)
   (h_colon_index_w : colon_index_val.val < 2 ^ 20)
   (h_value_index_w : value_index_val.val < 2 ^ 20)
   (h_field_len_w : field_len.val < 2 ^ 20)
-  (h_sum_len_w : (name_len + value_len).val < 2 ^ 20) :
+  (h_sum_len_w : (name_len + value_len).val < 2 ^ 20)
+  -- Required:
+  (h_len_bound    : maxKVPairLen ≤ HashToField.maxNumBytes)
+  :
   let payloadV := encodeV (p := bn254) MAX_JWT_PAYLOAD_LEN payload_val
   ConvertsM FUnit.conversion
     (verifyQuotedField h_name_len_lt h_value_len_lt h_pair json quoted)

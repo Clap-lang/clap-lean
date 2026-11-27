@@ -42,7 +42,7 @@ attribute [local irreducible] Clap.Lang.Poseidon.poseidonBN254
 
 lemma convertsM {H : HashFn} (h_H : Computes H) {state : ClapMState bn254}
   {maxKVPairLen maxNameLen maxValueLen : ℕ}
-  -- Circuit arguments
+  -- Circuit parameters
   (h_name_len_lt  : maxNameLen  ≤ maxKVPairLen)
   (h_value_len_lt : maxValueLen ≤ maxKVPairLen)
   (h_pair : maxKVPairLen ≤ MAX_JWT_PAYLOAD_LEN)
