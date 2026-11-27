@@ -1,14 +1,10 @@
 
 import Clap.RandomOracle.HashFn
 import Clap.Lang.Poseidon.Computes
-import Clap.Lang.Data.FString.asciiDigitsToScalar
 import Clap.Lang.Data.FString.isSubstring
-import Clap.Lang.Data.JWT.stringBodies
 import Clap.Lang.Data.JWT.enforceNotNested
 import Clap.Lang.Data.JWT.emailVerifiedCheck
 import Clap.Lang.Data.JWT.parseEmailVerifiedField
-import Clap.Lang.Core.FB.not
-import Clap.Lang.Data.HashToField.hashBytesToField
 import Clap.Keyless.Input
 import Clap.Lang.Poseidon.Poseidon
 import Clap.Model.Convert.PaddedVector
@@ -45,7 +41,7 @@ def verifyEvField (json : JSONStructure bn254)
 
 namespace verifyEvField
 
-open Poseidon RandomOracle Primes FiatShamir
+open Poseidon RandomOracle
 
 -- Poseidon is opaque to this proof (it sits beneath `isSubstring`/`hashBytesToField`), as in
 -- `verifyQuotedField.lean` and `Keyless/computeJSONStructure.lean`.
@@ -92,43 +88,37 @@ private lemma bind_convertsM
     state () (C1 ∧ C2 ∧ C3 ∧ C4 ∧ C5)
 := convertsM_bind_and h1 (convertsM_bind_and h2 (convertsM_bind_and h3 (convertsM_bind_and h4 h5)))
 
-lemma convertsM
-  {H : HashFn}
-  (h_H : Computes H)
-  {state : ClapMState bn254}
+lemma convertsM {H : HashFn} (h_H : Computes H) {state : ClapMState bn254}
   {json    : JSONStructure bn254}
   {ev      : EvFieldInput bn254 MAX_EV_KV_PAIR_LEN MAX_EV_NAME_LEN MAX_EV_VALUE_LEN}
   {uidName : FString bn254 MAX_UID_NAME_LEN}
   -- Ideal values
-  {field_vals : Vector (ZMod bn254) MAX_EV_KV_PAIR_LEN}
-  {field_len : ZMod bn254}
-  {name_index_val colon_index_val value_index_val : ZMod bn254}
-  {uidName_val evName_val evValue_val : String}
-  {payload_val : String}
-  {payloadHash_val : ZMod bn254}
+  {field_vals           : Vector (ZMod bn254) MAX_EV_KV_PAIR_LEN}
   {bracketsDepthMap_val : Vector (ZMod bn254) MAX_JWT_PAYLOAD_LEN}
-  -- `uidName`
+  {payloadHash_val field_len name_index_val colon_index_val value_index_val : ZMod bn254}
+  {uidName_val evName_val evValue_val payload_val : String}
+  -- Conversion lemmas
   (h_uidName : Converts FString.conversion state uidName uidName_val)
-  -- `ev.field`
-  (h_field_val : Converts FVec.conversion state ev.field.data field_vals)
-  (h_field_len : Converts F.conversion state ev.field.len field_len)
-  (h_ni : Converts F.conversion state ev.nameIndex name_index_val)
-  (h_ci : Converts F.conversion state ev.colonIndex colon_index_val)
-  (h_vi : Converts F.conversion state ev.valueIndex value_index_val)
-  (h_evName : Converts FString.conversion state ev.name evName_val)
+  -- `ev` conversion lemmas
+  (h_field_val : Converts FVec.conversion  state ev.field.data field_vals)
+  (h_field_len : Converts F.conversion     state ev.field.len field_len)
+  (h_ni        : Converts F.conversion     state ev.nameIndex name_index_val)
+  (h_ci        : Converts F.conversion     state ev.colonIndex colon_index_val)
+  (h_vi        : Converts F.conversion     state ev.valueIndex value_index_val)
+  (h_evName : Converts FString.conversion  state ev.name evName_val)
   (h_evValue : Converts FString.conversion state ev.value evValue_val)
-  -- `json`
+  -- `json` conversion lemmas
   (h_payload          : Converts FString.conversion state json.payload payload_val)
-  (h_payloadHash      : Converts F.conversion state json.payloadHash payloadHash_val)
-  (h_bracketsDepthMap : Converts FVec.conversion state json.bracketsDepthMap bracketsDepthMap_val)
-  -- `emailVerifiedCheck.convertsM` needs:
+  (h_payloadHash      : Converts F.conversion       state json.payloadHash payloadHash_val)
+  (h_bracketsDepthMap : Converts FVec.conversion    state json.bracketsDepthMap bracketsDepthMap_val)
+  -- Required by `emailVerifiedCheck.convertsM`:
   (h_uidName_len : uidName_val.length < MAX_UID_NAME_LEN)
   (h_evName_len  : evName_val.length  < MAX_EV_NAME_LEN)
   (h_evValue_len : evValue_val.length < MAX_EV_VALUE_LEN)
   (h_uidName_chars : ∀ c ∈ uidName_val.toList, c.toNat < 256)
   (h_evName_chars  : ∀ c ∈ evName_val.toList,  c.toNat < 256)
   (h_evValue_chars : ∀ c ∈ evValue_val.toList, c.toNat < 256)
-  -- `parseEmailVerifiedField.convertsM` needs
+  -- Required by `parseEmailVerifiedField.convertsM`:
   (h_colon_index_w : colon_index_val.val < 2 ^ 20)
   (h_value_index_w : value_index_val.val < 2 ^ 20)
   (h_field_len_w : field_len.val < 2 ^ 20)
