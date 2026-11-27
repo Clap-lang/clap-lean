@@ -18,8 +18,10 @@ namespace muxFString
 lemma convertsM {state : ClapMState bn254} {maxLen : ℕ}
   {sel : FB bn254}
   {a b : FString bn254 maxLen}
+  -- Ideal values
   {sel_val : Bool}
   {a_val b_val : String}
+  -- Conversion hypotheses
   (h_sel : Converts FB.conversion state sel sel_val)
   (h_a : Converts FString.conversion state a a_val)
   (h_nb : Converts FString.conversion state b b_val)
