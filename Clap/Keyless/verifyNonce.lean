@@ -4,7 +4,7 @@ import Clap.Lang.Data.FString.asciiDigitsToScalar
 import Clap.Keyless.Input
 import Clap.Lang.Poseidon.Poseidon
 
-open Clap Lang FString FArray Primes
+open Clap Lang FString Primes
 
 /-- Verify the nonce field matches the cryptographic commitment.
     `nonceValue` (from JWT) must equal `Poseidon(epk[0..2], epkLen, expDate, epkBlinder)`. -/
@@ -23,29 +23,25 @@ def verifyNonce (nonceValue : FString bn254 MAX_NONCE_VALUE_LEN)
 
 namespace verifyNonce
 
-open Poseidon RandomOracle Primes
+open Poseidon RandomOracle
 
-lemma convertsM
-  {H : HashFn}
-  (h_H : Computes H)
-  {state : ClapMState bn254}
+lemma convertsM {H : HashFn} (h_H : Computes H) {state : ClapMState bn254}
+  {commit : CommitmentInput bn254}
   {nonce : FString bn254 MAX_NONCE_VALUE_LEN}
+  -- Ideal values
   {nonceValues_vals : Vector (ZMod bn254) MAX_NONCE_VALUE_LEN}
   {nonceLen_val : ZMod bn254}
-  {commit : CommitmentInput bn254}
   {epk_vals : Vector (ZMod bn254) EPK_NUM_FIELDS}
-  {epkLen_val epkBlinder_val expDate_val /- expHorizon_val pepper_val -/ : ZMod bn254}
+  {epkLen_val epkBlinder_val expDate_val : ZMod bn254}
   -- Separate `Converts` hypotheses for `data` and `len`
   -- as in `asciiDigitsToScalar.convertsM`
   (h_input      : Converts FVec.conversion state nonce.data nonceValues_vals)
-  (h_len        : Converts F.conversion state nonce.len nonceLen_val)
+  (h_len        : Converts F.conversion    state nonce.len nonceLen_val)
   (h_epk        : Converts FVec.conversion state commit.epk epk_vals)
-  (h_epkLen     : Converts F.conversion state commit.epkLen epkLen_val)
-  (h_epkBlinder : Converts F.conversion state commit.epkBlinder epkBlinder_val)
-  (h_expDate    : Converts F.conversion state commit.expDate expDate_val)
-  -- (h_expHorizon : Converts F.conversion state commit.expHorizon expHorizon_val)
-  -- (h_pepper     : Converts F.conversion state commit.pepper pepper_val)
-:
+  (h_epkLen     : Converts F.conversion    state commit.epkLen epkLen_val)
+  (h_epkBlinder : Converts F.conversion    state commit.epkBlinder epkBlinder_val)
+  (h_expDate    : Converts F.conversion    state commit.expDate expDate_val)
+  :
   ConvertsM FUnit.conversion (verifyNonce nonce commit) state ()
     ( asciiDigitsToScalar.value nonceValues_vals nonceLen_val.val =
         H #v[ epk_vals[0], epk_vals[1], epk_vals[2], epkLen_val, expDate_val, epkBlinder_val ]
@@ -78,29 +74,29 @@ lemma convertsM
   · rintro ⟨h_eq, h_digits, h_len0, h_lenw, h_bytes⟩
     exact ⟨⟨h_digits, h_len0, by omega, h_bytes⟩, h_eq⟩
 
-lemma convertsM_string
-  {H : HashFn}
-  (h_H : Computes H)
-  {state : ClapMState bn254}
+lemma convertsM_string {H : HashFn} (h_H : Computes H) {state : ClapMState bn254}
   {nonce : FString bn254 MAX_NONCE_VALUE_LEN}
-  {s : String}
   {commit : CommitmentInput bn254}
+  -- Ideal values
+  {nonce_val : String}
   {epk_vals : Vector (ZMod bn254) EPK_NUM_FIELDS}
   {epkLen_val epkBlinder_val expDate_val : ZMod bn254}
-  (h_iat : Converts FString.conversion state nonce s)
-  (h_s_len : s.length ≤ MAX_NONCE_VALUE_LEN)
-  (h_chars : ∀ c ∈ s.toList, c.toNat < 256)
+  -- Conversion hypotheses
+  (h_iat        : Converts FString.conversion state nonce nonce_val)
   (h_epk        : Converts FVec.conversion state commit.epk epk_vals)
   (h_epkLen     : Converts F.conversion state commit.epkLen epkLen_val)
   (h_epkBlinder : Converts F.conversion state commit.epkBlinder epkBlinder_val)
   (h_expDate    : Converts F.conversion state commit.expDate expDate_val)
+  -- Required
+  (h_s_len : nonce_val.length ≤ MAX_NONCE_VALUE_LEN)
+  (h_chars : ∀ c ∈ nonce_val.toList, c.toNat < 256)
 :
   ConvertsM FUnit.conversion (verifyNonce nonce commit) state ()
-    ( asciiDigitsToScalar.value (encodeV MAX_NONCE_VALUE_LEN s) s.length =
+    ( asciiDigitsToScalar.value (encodeV MAX_NONCE_VALUE_LEN nonce_val) nonce_val.length =
         H #v[ epk_vals[0], epk_vals[1], epk_vals[2], epkLen_val, expDate_val, epkBlinder_val ]
         ∧
-      (∀ c ∈ s.toList, 48 ≤ c.toNat ∧ c.toNat ≤ 57) ∧
-      0 < s.length ∧ s.length < MAX_NONCE_VALUE_LEN
+      (∀ c ∈ nonce_val.toList, 48 ≤ c.toNat ∧ c.toNat ≤ 57) ∧
+      0 < nonce_val.length ∧ nonce_val.length < MAX_NONCE_VALUE_LEN
     )
 := by
   unfold verifyNonce
@@ -118,8 +114,8 @@ lemma convertsM_string
     (convertsM_bind_and hAsc (assert_eq.convertsM hAsc.result h_expectedNonce1)) rfl ?_
   simp only [true_implies]
   have h_max : MAX_NONCE_VALUE_LEN = 100 := rfl
-  by_cases hc : 0 < s.length ∧ s.length ≤ 99 ∧
-      (∀ c ∈ s.toList, 48 ≤ c.toNat ∧ c.toNat ≤ 57)
+  by_cases hc : 0 < nonce_val.length ∧ nonce_val.length ≤ 99 ∧
+      (∀ c ∈ nonce_val.toList, 48 ≤ c.toNat ∧ c.toNat ≤ 57)
   · rw [if_pos hc]
     have hv := asciiDigitsToScalar.value_encodeV (p := bn254) hc.1 hc.2.1 hc.2.2
     constructor
