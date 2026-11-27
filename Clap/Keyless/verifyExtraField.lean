@@ -1,9 +1,7 @@
 import Clap.Lang.Core.FB.not
-import Clap.Lang.Data.HashToField.hashBytesToField
 import Clap.Keyless.Input
 import Clap.Lang.Poseidon.Poseidon
 import Clap.Lang.Core.FB.assertBool
-import Clap.Keyless.Input
 import Clap.Lang.Data.JWT.enforceNotNested
 import Clap.Lang.Core.FB.conditionallyAssert
 import Clap.RandomOracle.HashFn
@@ -118,30 +116,25 @@ private lemma tail_convertsM
     state () (C2 ∧ C3 ∧ C4 ∧ C5)
 := convertsM_bind_and h2 (convertsM_bind_and h3 (convertsM_bind_and h4 h5))
 
-lemma convertsM
-  {H : HashFn}
-  (h_H : Computes H)
-  {state : ClapMState bn254}
+lemma convertsM {H : HashFn} (h_H : Computes H) {state : ClapMState bn254}
   {extra : ExtraFieldInput bn254}
   {json  : JSONStructure bn254}
   -- Ideal values
   {payload_val : String}
-  {payloadHash_val : ZMod bn254}
-  {stringBodies_val : Vector Bool MAX_JWT_PAYLOAD_LEN}
+  {stringBodies_val     : Vector Bool MAX_JWT_PAYLOAD_LEN}
   {bracketsDepthMap_val : Vector (ZMod bn254) MAX_JWT_PAYLOAD_LEN}
-  {useExtra_val extraFieldIndex_val : ZMod bn254}
-  {extra_vals : Vector (ZMod bn254) MAX_EXTRA_FIELD_KV_PAIR_LEN}
-  {extra_len : ZMod bn254}
-  -- `json`
+  {extra_vals           : Vector (ZMod bn254) MAX_EXTRA_FIELD_KV_PAIR_LEN}
+  {payloadHash_val useExtra_val extraFieldIndex_val extra_len : ZMod bn254}
+  -- `json` conversion lemmas
   (h_payload          : Converts FString.conversion state json.payload payload_val)
-  (h_payloadHash      : Converts F.conversion state json.payloadHash payloadHash_val)
-  (h_stringBodies     : Converts FArray.conversion state json.stringBodies.data stringBodies_val)
-  (h_bracketsDepthMap : Converts FVec.conversion state json.bracketsDepthMap bracketsDepthMap_val)
-  -- `extra`
-  (h_extra_data : Converts FVec.conversion state extra.extraField.data extra_vals)
-  (h_extra_len : Converts F.conversion state extra.extraField.len extra_len)
-  (h_use_extra  : Converts F.conversion state extra.useExtraField useExtra_val)
-  (h_extraFieldIndex : Converts F.conversion state extra.extraFieldIndex extraFieldIndex_val) :
+  (h_payloadHash      : Converts F.conversion       state json.payloadHash payloadHash_val)
+  (h_stringBodies     : Converts FArray.conversion  state json.stringBodies.data stringBodies_val)
+  (h_bracketsDepthMap : Converts FVec.conversion    state json.bracketsDepthMap bracketsDepthMap_val)
+  -- `extra` conversion lemmas
+  (h_extra_data      : Converts FVec.conversion state extra.extraField.data extra_vals)
+  (h_extra_len       : Converts F.conversion    state extra.extraField.len extra_len)
+  (h_use_extra       : Converts F.conversion    state extra.useExtraField useExtra_val)
+  (h_extraFieldIndex : Converts F.conversion    state extra.extraFieldIndex extraFieldIndex_val) :
   let payloadV := encodeV (p := bn254) MAX_JWT_PAYLOAD_LEN payload_val
   ConvertsM FUnit.conversion (verifyExtraField json extra) state
     ()
