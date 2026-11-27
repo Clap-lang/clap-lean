@@ -1,6 +1,5 @@
 import Clap.RandomOracle.HashFn
 import Clap.Lang.Poseidon.Computes
-import Clap.Lang.Data.FString.asciiDigitsToScalar
 import Clap.Lang.Data.JWT.stringBodies
 import Clap.Lang.Data.JWT.bracketsMap
 import Clap.Lang.Data.JWT.bracketsDepthMap
@@ -37,25 +36,29 @@ def computeJSONStructure (payload : FString bn254 MAX_JWT_PAYLOAD_LEN) :
 
 namespace unquotedBracketsDepthMap
 
-lemma convertsM
-  {p : ℕ} [p.AtLeastTwo]
+private lemma convertsM {p : ℕ} [p.AtLeastTwo] {state : ClapMState p}
   {w}
-  {state : ClapMState p}
   {vals : FVec p w}
   {bits : FArray p w}
-  {bits_val : Vector Bool w}
+  -- Ideal values
   {vals_val : Vector (ZMod p) w}
+  {bits_val : Vector Bool w}
+  -- Conversion lemmas
   (h_bits : Converts FArray.conversion state bits bits_val)
   (h_vals : Converts FVec.conversion state vals vals_val)
+  -- Required
   (h_p : 2 ^ (8 + 1) < p)
 :
   ConvertsM FVec.conversion (unquotedBracketsDepthMap bits vals) state
-    (Vector.ofFn fun i ↦
+    (Vector.ofFn <|
       bracketsDepthMap.depthIgnoringOutermostBrackets
         (Vector.ofFn fun i ↦
           if bits_val[i] then 0 else
             if vals_val[i] == '{'.toNat then 1 else
-              if vals_val[i] == '}'.toNat then -1 else 0) i)
+              if vals_val[i] == '}'.toNat then -1 else
+                0
+        )
+    )
     True
 := by
   unfold unquotedBracketsDepthMap
@@ -93,7 +96,7 @@ end unquotedBracketsDepthMap
 
 namespace computeJSONStructure
 
-open Poseidon RandomOracle Primes
+open Poseidon RandomOracle
 
 -- See `hashElemsToField.lean` / `hashBytesToField.lean`: without this, `step`'s own
 -- `convertsM_bind` unification tries to `whnf` through `hashBytesToField`'s definition down to
@@ -169,14 +172,15 @@ private lemma bind_convertsM
     · trivial
   exact convertsM_of_convertsM hComposed rfl (by tauto)
 
-lemma convertsM
-  {H : HashFn}
-  (h_H : Computes H)
-  {state : ClapMState bn254}
+lemma convertsM {H : HashFn} (h_H : Computes H) {state : ClapMState bn254}
   {payload : FString bn254 MAX_JWT_PAYLOAD_LEN}
+  -- Ideal value
   {s : String}
+  -- Conversion lemma
   (h_payload : Converts FString.conversion state payload s)
-  (h_len_s : s.length ≤ MAX_JWT_PAYLOAD_LEN) :
+  -- Required
+  (h_len_s : s.length ≤ MAX_JWT_PAYLOAD_LEN)
+  :
   let payload_vals := encodeV (p := bn254) MAX_JWT_PAYLOAD_LEN s
   ConvertsM JSONStructure.conversion (computeJSONStructure payload) state
     ⟨ s,
@@ -186,7 +190,8 @@ lemma convertsM
         Vector.ofFn fun i ↦
           if stringBodies.isInQuotes' s.toAsciiByteArray i then 0 else
             if payload_vals[i] == '{'.toNat then 1 else
-              if payload_vals[i] == '}'.toNat then -1 else 0
+              if payload_vals[i] == '}'.toNat then -1
+                else 0
       Vector.ofFn fun i ↦
         bracketsDepthMap.depthIgnoringOutermostBrackets unquoted_brackets i
     ⟩
