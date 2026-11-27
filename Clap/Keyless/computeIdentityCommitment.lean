@@ -1,15 +1,10 @@
 import Clap.RandomOracle.HashFn
 import Clap.Lang.Poseidon.Computes
-import Clap.Lang.Data.FString.asciiDigitsToScalar
-import Clap.Lang.Data.JWT.stringBodies
-import Clap.Lang.Data.JWT.bracketsMap
-import Clap.Lang.Data.JWT.bracketsDepthMap
-import Clap.Lang.Core.FB.not
 import Clap.Lang.Data.HashToField.hashBytesToField
 import Clap.Keyless.Input
 import Clap.Lang.Poseidon.Poseidon
 
-open Clap Lang FString FArray Primes
+open Clap Lang FString Primes
 
 def computeIdentityCommitment (performAudChecks : FB bn254)
   (pepper : F bn254)
@@ -36,27 +31,26 @@ def computeIdentityCommitment (performAudChecks : FB bn254)
 
 namespace computeIdentityCommitment
 
-open Poseidon RandomOracle Primes HashToField
+open Poseidon RandomOracle HashToField
 
 attribute [local irreducible] Clap.Lang.Poseidon.poseidonBN254
 
-lemma convertsM
-  {H : HashFn}
-  (h_H : Computes H)
-  {state : ClapMState bn254}
+lemma convertsM {H : HashFn} (h_H : Computes H) {state : ClapMState bn254}
   {performAudChecks : FB bn254}
   {pepper : F bn254}
   {audValue : FString bn254 MAX_AUD_VALUE_LEN}
   {uidValue : FString bn254 MAX_UID_VALUE_LEN}
   {uidName : FString bn254 MAX_UID_NAME_LEN}
+  -- Ideal values
   {pepper_val : ZMod bn254}
   {performAudChecks_val : Bool}
   {audValue_val uidValue_val uidName_val : String}
-  (h_pepper : Converts F.conversion state pepper pepper_val)
-  (h_perform : Converts FB.conversion state performAudChecks performAudChecks_val)
+  -- Conversion hypotheses
+  (h_pepper   : Converts F.conversion       state pepper pepper_val)
+  (h_perform  : Converts FB.conversion      state performAudChecks performAudChecks_val)
   (h_audValue : Converts FString.conversion state audValue audValue_val)
   (h_uidValue : Converts FString.conversion state uidValue uidValue_val)
-  (h_uidName : Converts FString.conversion state uidName uidName_val) :
+  (h_uidName  : Converts FString.conversion state uidName uidName_val) :
   let uidValue_vals := encodeV (p := bn254) MAX_UID_VALUE_LEN uidValue_val
   let uidName_vals := encodeV (p := bn254) MAX_UID_NAME_LEN uidName_val
   let privateAudVal :=
