@@ -1,16 +1,11 @@
 import Clap.RandomOracle.HashFn
 import Clap.Lang.Poseidon.Computes
-import Clap.Lang.Data.FString.asciiDigitsToScalar
-import Clap.Lang.Data.JWT.stringBodies
-import Clap.Lang.Data.JWT.bracketsMap
-import Clap.Lang.Data.JWT.bracketsDepthMap
-import Clap.Lang.Core.FB.not
 import Clap.Lang.Data.HashToField.hashBytesToField
 import Clap.Lang.Data.HashToField.hash64BitLimbsToField
 import Clap.Keyless.Input
 import Clap.Lang.Poseidon.Poseidon
 
-open Clap Lang FString FArray Primes HashToField Poseidon RandomOracle
+open Clap Lang FString Primes HashToField Poseidon RandomOracle
 
 /-- Compute and verify the public inputs hash.
     Collects all verifier-facing data and checks it matches `declaredHash`. -/
@@ -52,8 +47,6 @@ def verifyPublicInputsHash
 
 namespace verifyPublicInputsHash
 
-open Poseidon RandomOracle Primes
-
 -- Poseidon is opaque to this proof, as in `verifyEvField.lean` / `verifyQuotedField.lean` /
 -- `computeIdentityCommitment.lean`.
 attribute [local irreducible] Clap.Lang.Poseidon.poseidonBN254
@@ -64,9 +57,7 @@ it inline needs `set_option maxHeartbeats` several times over the default; split
 the whole file fits in the default budget. Same trick as `verifyEvField.bind_convertsM` /
 `verifyQuotedField.bind_convertsM`, just over the circuit-level refs directly rather than over
 abstract actions, since the cost here is term size, not whnf-unfolding concrete gadgets. -/
-private lemma poseidonAssertTail
-  {H : HashFn} (h_H : Computes H)
-  {state : ClapMState bn254}
+private lemma poseidonAssertTail {H : HashFn} (h_H : Computes H) {state : ClapMState bn254}
   {declaredHash : F bn254} {declaredHash_val : ZMod bn254}
   {epkA epkB epkC epkLen idcE expDateE expHorizonE issE useExtraE extraE jwtE pkE audE useAudE :
     F bn254}
@@ -104,45 +95,46 @@ private lemma poseidonAssertTail
   have hG := h_H (by decide) (by decide) hVec14
   exact convertsM_bind_and hG (assert_eq.convertsM hG.result (converts_skip hG h_declaredHash))
 
-lemma convertsM
-  {H : HashFn}
-  (h_H : Computes H)
-  {state : ClapMState bn254}
-  {idc : F bn254}
+lemma convertsM {H : HashFn} (h_H : Computes H) {state : ClapMState bn254}
+  {idc declaredHash : F bn254}
   {iss : FString bn254 MAX_ISS_VALUE_LEN}
   {extra : ExtraFieldInput bn254}
   {jwtHeader : FString bn254 MAX_B64U_JWT_HEADER_W_DOT_LEN}
   {rsa : RSAInput bn254}
   {audOverride : AudOverrideInput bn254}
   {commit : CommitmentInput bn254}
-  {declaredHash : F bn254}
   -- Ideal values
-  {iss_vals : Vector (ZMod bn254) MAX_ISS_VALUE_LEN}
-  {extra_vals : Vector (ZMod bn254) MAX_EXTRA_FIELD_KV_PAIR_LEN}
+  {iss_vals          : Vector (ZMod bn254) MAX_ISS_VALUE_LEN}
+  {extra_vals        : Vector (ZMod bn254) MAX_EXTRA_FIELD_KV_PAIR_LEN}
   {pubkeyModulus_val : Vector (ZMod bn254) RSA_NUM_LIMBS}
-  {jwtHeader_vals : Vector (ZMod bn254) MAX_B64U_JWT_HEADER_W_DOT_LEN}
-  {overrideAud_vals : Vector (ZMod bn254) MAX_AUD_VALUE_LEN}
-  {iss_len extra_len jwtHeader_len overrideAud_len declaredHash_val useAudOverride_val : ZMod bn254}
-  {epk_vals : Vector (ZMod bn254) EPK_NUM_FIELDS}
-  {epkLen_val expDate_val expHorizon_val idc_val useExtra_val : ZMod bn254}
-  (h_aud₁       : Converts FVec.conversion state audOverride.overrideAudValue.data overrideAud_vals)
-  (h_aud_len    : Converts F.conversion state audOverride.overrideAudValue.len overrideAud_len)
-  (h_aud₂       : Converts F.conversion state audOverride.useAudOverride useAudOverride_val)
-  (h_epk        : Converts FVec.conversion state commit.epk epk_vals)
-  (h_epkLen     : Converts F.conversion state commit.epkLen epkLen_val)
-  (h_expDate    : Converts F.conversion state commit.expDate expDate_val)
-  (h_expHorizon : Converts F.conversion state commit.expHorizon expHorizon_val)
-  (h_idc        : Converts F.conversion state idc idc_val)
-  (h_use_extra  : Converts F.conversion state extra.useExtraField useExtra_val)
+  {jwtHeader_vals    : Vector (ZMod bn254) MAX_B64U_JWT_HEADER_W_DOT_LEN}
+  {overrideAud_vals  : Vector (ZMod bn254) MAX_AUD_VALUE_LEN}
+  {epk_vals          : Vector (ZMod bn254) EPK_NUM_FIELDS}
+  {iss_len extra_len jwtHeader_len overrideAud_len declaredHash_val : ZMod bn254}
+  {useAudOverride_val epkLen_val expDate_val expHorizon_val idc_val useExtra_val : ZMod bn254}
   -- Conversion lemmas
+  (h_idc          : Converts F.conversion state idc idc_val)
+  (h_declaredHash : Converts F.conversion state declaredHash declaredHash_val)
+  (h_rsa          : Converts FVec.conversion state rsa.pubkeyModulus pubkeyModulus_val)
+  -- `extra` conversion lemmas
+  (h_extra_data : Converts FVec.conversion state extra.extraField.data extra_vals)
+  (h_extra_len  : Converts F.conversion    state extra.extraField.len extra_len)
+  (h_use_extra  : Converts F.conversion    state extra.useExtraField useExtra_val)
+  -- `audOverride` conversion lemmas
+  (h_aud₁    : Converts FVec.conversion state audOverride.overrideAudValue.data overrideAud_vals)
+  (h_aud_len : Converts F.conversion    state audOverride.overrideAudValue.len overrideAud_len)
+  (h_aud₂    : Converts F.conversion    state audOverride.useAudOverride useAudOverride_val)
+  -- `commit` conversion lemmas
+  (h_epk        : Converts FVec.conversion state commit.epk epk_vals)
+  (h_epkLen     : Converts F.conversion    state commit.epkLen epkLen_val)
+  (h_expDate    : Converts F.conversion    state commit.expDate expDate_val)
+  (h_expHorizon : Converts F.conversion    state commit.expHorizon expHorizon_val)
+  -- `iss` conversion lemmas
   (h_iss_data : Converts FVec.conversion state iss.data iss_vals)
   (h_iss_len : Converts F.conversion state iss.len iss_len)
-  (h_extra_data : Converts FVec.conversion state extra.extraField.data extra_vals)
-  (h_extra_len : Converts F.conversion state extra.extraField.len extra_len)
+  -- `jwtHeader` conversion lemmas
   (h_jwtHeader_data : Converts FVec.conversion state jwtHeader.data jwtHeader_vals)
-  (h_jwtHeader_len : Converts F.conversion state jwtHeader.len jwtHeader_len)
-  (h_rsa : Converts FVec.conversion state rsa.pubkeyModulus pubkeyModulus_val)
-  (h_declaredHash : Converts F.conversion state declaredHash declaredHash_val)
+  (h_jwtHeader_len  : Converts F.conversion    state jwtHeader.len jwtHeader_len)
   :
   let hashedIssValue := hashBytesToFieldSpec H iss_vals iss_len
   let hashedExtraField := hashBytesToFieldSpec H extra_vals extra_len
@@ -168,7 +160,6 @@ lemma convertsM
               overrideAudValHashed,
               useAudOverride_val
             ]
-
     )
 := by
   intro hashedIssValue hashedExtraField hashedJwtHeader hashedPubkeyModulus overrideAudValHashed
